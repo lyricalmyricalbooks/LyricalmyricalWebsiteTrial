@@ -12,6 +12,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'change-me-now';
 const TOKEN_TTL_MS = 8 * 60 * 60 * 1000;
 
 const dataFile = path.join(__dirname, 'data', 'store.json');
+const adminFile = path.join(__dirname, 'admin.html');
 if (!fs.existsSync(path.dirname(dataFile))) {
   fs.mkdirSync(path.dirname(dataFile), { recursive: true });
 }
@@ -42,7 +43,6 @@ const defaultState = {
     },
   },
   auditLog: [],
-  sessions: [],
 };
 
 function loadState() {
@@ -54,6 +54,7 @@ function loadState() {
 }
 
 let state = loadState();
+const sessions = new Map();
 
 function saveState() {
   fs.writeFileSync(dataFile, JSON.stringify(state, null, 2));
@@ -71,13 +72,15 @@ function audit(action, entityType, entityId, details = {}) {
   state.auditLog = state.auditLog.slice(0, 1000);
 }
 
+function writeCorsHeaders(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+}
+
 function sendJson(res, statusCode, payload) {
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-  });
+  writeCorsHeaders(res);
+  res.writeHead(statusCode, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(payload));
 }
 
@@ -110,20 +113,30 @@ function getAuthToken(req) {
   return header.startsWith('Bearer ') ? header.slice(7) : null;
 }
 
+function cleanExpiredSessions() {
+  const now = Date.now();
+  for (const [token, session] of sessions.entries()) {
+    if (session.expiresAt < now) {
+      sessions.delete(token);
+    }
+  }
+}
+
 function requireAuth(req, res) {
+  cleanExpiredSessions();
   const token = getAuthToken(req);
   if (!token) {
     sendJson(res, 401, { message: 'Missing token' });
     return null;
   }
 
-  const session = state.sessions.find((item) => item.token === token);
+  const session = sessions.get(token);
   if (!session || session.expiresAt < Date.now()) {
     sendJson(res, 401, { message: 'Invalid or expired token' });
     return null;
   }
 
-  return session;
+  return { token, ...session };
 }
 
 function pathMatch(urlPath, routePattern) {
@@ -158,16 +171,20 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    });
+    writeCorsHeaders(res);
+    res.writeHead(204);
     res.end();
     return;
   }
 
   try {
+    if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/admin')) {
+      const html = fs.readFileSync(adminFile, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname === '/api/health') {
       sendJson(res, 200, { status: 'ok', timestamp: new Date().toISOString() });
       return;
@@ -181,17 +198,20 @@ const server = http.createServer(async (req, res) => {
       }
 
       const token = crypto.randomBytes(48).toString('hex');
-      state.sessions.push({ token, expiresAt: Date.now() + TOKEN_TTL_MS, role: 'admin' });
-      state.sessions = state.sessions.slice(-100);
-      saveState();
+      sessions.set(token, { expiresAt: Date.now() + TOKEN_TTL_MS, role: 'admin' });
       sendJson(res, 200, { token, expiresInSeconds: TOKEN_TTL_MS / 1000 });
       return;
     }
 
-    const session = requireAuth(req, res);
-    if (!session) {
+    if (req.method === 'POST' && url.pathname === '/api/auth/logout') {
+      const token = getAuthToken(req);
+      if (token) sessions.delete(token);
+      sendJson(res, 200, { success: true });
       return;
     }
+
+    const session = requireAuth(req, res);
+    if (!session) return;
 
     if (req.method === 'GET' && url.pathname === '/api/dashboard/stats') {
       sendJson(res, 200, {
@@ -211,10 +231,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/api/shipping-profiles') {
       const body = await parseBody(req);
-      if (!body.name) {
-        badRequest(res, 'name is required');
-        return;
-      }
+      if (!body.name) return badRequest(res, 'name is required');
 
       const profile = {
         id: crypto.randomUUID(),
@@ -237,15 +254,11 @@ const server = http.createServer(async (req, res) => {
     const shippingIdParams = pathMatch(url.pathname, '/api/shipping-profiles/:id');
     if (shippingIdParams && req.method === 'PUT') {
       const profile = state.shippingProfiles.find((item) => item.id === shippingIdParams.id);
-      if (!profile) {
-        notFound(res, 'Shipping profile not found');
-        return;
-      }
+      if (!profile) return notFound(res, 'Shipping profile not found');
+
       const body = await parseBody(req);
       for (const key of ['name', 'description', 'regions', 'baseRate', 'perItemRate', 'freeShippingThreshold']) {
-        if (body[key] !== undefined) {
-          profile[key] = body[key];
-        }
+        if (body[key] !== undefined) profile[key] = body[key];
       }
       profile.updatedAt = new Date().toISOString();
       audit('update', 'shippingProfile', profile.id, { name: profile.name });
@@ -261,10 +274,8 @@ const server = http.createServer(async (req, res) => {
       }
       const before = state.shippingProfiles.length;
       state.shippingProfiles = state.shippingProfiles.filter((item) => item.id !== shippingIdParams.id);
-      if (before === state.shippingProfiles.length) {
-        notFound(res, 'Shipping profile not found');
-        return;
-      }
+      if (before === state.shippingProfiles.length) return notFound(res, 'Shipping profile not found');
+
       audit('delete', 'shippingProfile', shippingIdParams.id);
       saveState();
       sendJson(res, 200, { success: true });
@@ -278,10 +289,8 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/api/authors') {
       const body = await parseBody(req);
-      if (!body.name) {
-        badRequest(res, 'name is required');
-        return;
-      }
+      if (!body.name) return badRequest(res, 'name is required');
+
       const author = {
         id: crypto.randomUUID(),
         name: body.name,
@@ -301,15 +310,11 @@ const server = http.createServer(async (req, res) => {
     const authorIdParams = pathMatch(url.pathname, '/api/authors/:id');
     if (authorIdParams && req.method === 'PUT') {
       const author = state.authors.find((item) => item.id === authorIdParams.id);
-      if (!author) {
-        notFound(res, 'Author not found');
-        return;
-      }
+      if (!author) return notFound(res, 'Author not found');
+
       const body = await parseBody(req);
       for (const key of ['name', 'bio', 'website', 'socials']) {
-        if (body[key] !== undefined) {
-          author[key] = body[key];
-        }
+        if (body[key] !== undefined) author[key] = body[key];
       }
       author.updatedAt = new Date().toISOString();
       audit('update', 'author', author.id, { name: author.name });
@@ -318,19 +323,25 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (authorIdParams && req.method === 'DELETE') {
+      if (state.books.some((book) => book.authorId === authorIdParams.id)) {
+        sendJson(res, 409, { message: 'Cannot delete author while linked to books' });
+        return;
+      }
+      state.authors = state.authors.filter((item) => item.id !== authorIdParams.id);
+      audit('delete', 'author', authorIdParams.id);
+      saveState();
+      sendJson(res, 200, { success: true });
+      return;
+    }
+
     if (req.method === 'GET' && url.pathname === '/api/books') {
       const status = url.searchParams.get('status');
       const search = (url.searchParams.get('search') ?? '').trim().toLowerCase();
       let books = [...state.books];
-      if (status) {
-        books = books.filter((book) => book.status === status);
-      }
+      if (status) books = books.filter((book) => book.status === status);
       if (search) {
-        books = books.filter((book) => {
-          return [book.title, book.subtitle, book.isbn, book.sku]
-            .filter(Boolean)
-            .some((value) => String(value).toLowerCase().includes(search));
-        });
+        books = books.filter((book) => [book.title, book.subtitle, book.isbn, book.sku].filter(Boolean).some((value) => String(value).toLowerCase().includes(search)));
       }
       sendJson(res, 200, books);
       return;
@@ -338,18 +349,9 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/api/books') {
       const body = await parseBody(req);
-      if (!body.title || !body.shippingProfileId) {
-        badRequest(res, 'title and shippingProfileId are required');
-        return;
-      }
-      if (!state.shippingProfiles.some((item) => item.id === body.shippingProfileId)) {
-        badRequest(res, 'Invalid shippingProfileId');
-        return;
-      }
-      if (body.authorId && !state.authors.some((item) => item.id === body.authorId)) {
-        badRequest(res, 'Invalid authorId');
-        return;
-      }
+      if (!body.title || !body.shippingProfileId) return badRequest(res, 'title and shippingProfileId are required');
+      if (!state.shippingProfiles.some((item) => item.id === body.shippingProfileId)) return badRequest(res, 'Invalid shippingProfileId');
+      if (body.authorId && !state.authors.some((item) => item.id === body.authorId)) return badRequest(res, 'Invalid authorId');
 
       const book = {
         id: crypto.randomUUID(),
@@ -389,27 +391,14 @@ const server = http.createServer(async (req, res) => {
     const bookIdParams = pathMatch(url.pathname, '/api/books/:id');
     if (bookIdParams && req.method === 'PUT') {
       const book = state.books.find((item) => item.id === bookIdParams.id);
-      if (!book) {
-        notFound(res, 'Book not found');
-        return;
-      }
+      if (!book) return notFound(res, 'Book not found');
+
       const body = await parseBody(req);
-      if (body.shippingProfileId && !state.shippingProfiles.some((item) => item.id === body.shippingProfileId)) {
-        badRequest(res, 'Invalid shippingProfileId');
-        return;
-      }
-      if (body.authorId && !state.authors.some((item) => item.id === body.authorId)) {
-        badRequest(res, 'Invalid authorId');
-        return;
-      }
-      for (const key of [
-        'title', 'subtitle', 'description', 'isbn', 'sku', 'publicationDate', 'format', 'status',
-        'language', 'pageCount', 'price', 'inventory', 'shippingProfileId', 'authorId', 'genres',
-        'tags', 'isFeatured', 'seo',
-      ]) {
-        if (body[key] !== undefined) {
-          book[key] = body[key];
-        }
+      if (body.shippingProfileId && !state.shippingProfiles.some((item) => item.id === body.shippingProfileId)) return badRequest(res, 'Invalid shippingProfileId');
+      if (body.authorId && !state.authors.some((item) => item.id === body.authorId)) return badRequest(res, 'Invalid authorId');
+
+      for (const key of ['title', 'subtitle', 'description', 'isbn', 'sku', 'publicationDate', 'format', 'status', 'language', 'pageCount', 'price', 'inventory', 'shippingProfileId', 'authorId', 'genres', 'tags', 'isFeatured', 'seo']) {
+        if (body[key] !== undefined) book[key] = body[key];
       }
       book.updatedAt = new Date().toISOString();
       audit('update', 'book', book.id, { title: book.title });
@@ -420,10 +409,8 @@ const server = http.createServer(async (req, res) => {
 
     if (bookIdParams && req.method === 'DELETE') {
       const existing = state.books.find((book) => book.id === bookIdParams.id);
-      if (!existing) {
-        notFound(res, 'Book not found');
-        return;
-      }
+      if (!existing) return notFound(res, 'Book not found');
+
       state.books = state.books.filter((book) => book.id !== bookIdParams.id);
       audit('delete', 'book', bookIdParams.id, { title: existing.title });
       saveState();
@@ -434,26 +421,20 @@ const server = http.createServer(async (req, res) => {
     const bookPhotoParams = pathMatch(url.pathname, '/api/books/:id/photos');
     if (bookPhotoParams && req.method === 'POST') {
       const book = state.books.find((item) => item.id === bookPhotoParams.id);
-      if (!book) {
-        notFound(res, 'Book not found');
-        return;
-      }
+      if (!book) return notFound(res, 'Book not found');
+
       const body = await parseBody(req);
-      if (!Array.isArray(body.photos)) {
-        badRequest(res, 'photos array is required');
-        return;
-      }
-      if (book.photos.length + body.photos.length > 10) {
-        badRequest(res, 'A book can have a maximum of 10 photos');
-        return;
-      }
-      const photos = body.photos.map((photoUrl, index) => ({
+      if (!Array.isArray(body.photos)) return badRequest(res, 'photos array is required');
+      if (book.photos.length + body.photos.length > 10) return badRequest(res, 'A book can have a maximum of 10 photos');
+
+      const photos = body.photos.map((photo, index) => ({
         id: crypto.randomUUID(),
-        url: String(photoUrl),
-        altText: '',
+        url: String(photo.url ?? photo),
+        altText: String(photo.altText ?? ''),
         sortOrder: book.photos.length + index,
         createdAt: new Date().toISOString(),
       }));
+
       book.photos.push(...photos);
       book.updatedAt = new Date().toISOString();
       audit('upload', 'bookPhoto', book.id, { count: photos.length });
@@ -462,19 +443,37 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    const reorderPhotoParams = pathMatch(url.pathname, '/api/books/:id/photos/reorder');
+    if (reorderPhotoParams && req.method === 'PUT') {
+      const book = state.books.find((item) => item.id === reorderPhotoParams.id);
+      if (!book) return notFound(res, 'Book not found');
+
+      const body = await parseBody(req);
+      if (!Array.isArray(body.photoIds) || body.photoIds.length !== book.photos.length) return badRequest(res, 'photoIds array must include all photos exactly once');
+
+      const set = new Set(body.photoIds);
+      if (set.size !== book.photos.length || !book.photos.every((photo) => set.has(photo.id))) return badRequest(res, 'photoIds do not match book photos');
+
+      book.photos.sort((a, b) => body.photoIds.indexOf(a.id) - body.photoIds.indexOf(b.id));
+      book.photos.forEach((photo, idx) => {
+        photo.sortOrder = idx;
+      });
+      book.updatedAt = new Date().toISOString();
+      audit('reorder', 'bookPhoto', book.id, {});
+      saveState();
+      sendJson(res, 200, book.photos);
+      return;
+    }
+
     const bookSinglePhotoParams = pathMatch(url.pathname, '/api/books/:id/photos/:photoId');
     if (bookSinglePhotoParams && req.method === 'DELETE') {
       const book = state.books.find((item) => item.id === bookSinglePhotoParams.id);
-      if (!book) {
-        notFound(res, 'Book not found');
-        return;
-      }
+      if (!book) return notFound(res, 'Book not found');
+
       const before = book.photos.length;
-      book.photos = book.photos.filter((item) => item.id !== bookSinglePhotoParams.photoId);
-      if (before === book.photos.length) {
-        notFound(res, 'Photo not found');
-        return;
-      }
+      book.photos = book.photos.filter((item) => item.id !== bookSinglePhotoParams.photoId).map((photo, idx) => ({ ...photo, sortOrder: idx }));
+      if (before === book.photos.length) return notFound(res, 'Photo not found');
+
       book.updatedAt = new Date().toISOString();
       audit('delete', 'bookPhoto', book.id, { photoId: bookSinglePhotoParams.photoId });
       saveState();
@@ -489,10 +488,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'PUT' && url.pathname === '/api/website-settings') {
       const body = await parseBody(req);
-      state.websiteSettings = {
-        ...state.websiteSettings,
-        ...body,
-      };
+      state.websiteSettings = { ...state.websiteSettings, ...body };
       audit('update', 'websiteSettings', 'singleton');
       saveState();
       sendJson(res, 200, state.websiteSettings);
@@ -507,9 +503,7 @@ const server = http.createServer(async (req, res) => {
 
     notFound(res);
   } catch (error) {
-    sendJson(res, 500, {
-      message: error instanceof Error ? error.message : 'Internal server error',
-    });
+    sendJson(res, 500, { message: error instanceof Error ? error.message : 'Internal server error' });
   }
 });
 
