@@ -6,6 +6,7 @@ export default function App() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [showCatalog, setShowCatalog] = useState(false);
+  const backendAdminUrl = "http://localhost:4000/admin";
 
   const publications = [
     {
@@ -225,6 +226,14 @@ export default function App() {
           <button className="text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity">
             CART
           </button>
+          <a
+            href={backendAdminUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity"
+          >
+            BACKEND
+          </a>
         </div>
       </motion.div>
 
