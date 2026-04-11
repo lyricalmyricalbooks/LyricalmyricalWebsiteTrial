@@ -7,6 +7,8 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(0);
   const [showCatalog, setShowCatalog] = useState(false);
 
+  const backendAdminUrl = import.meta.env.VITE_BACKEND_ADMIN_URL ?? "http://localhost:4000/admin";
+
   const publications = [
     {
       title: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA",
@@ -219,6 +221,14 @@ export default function App() {
           ENTER HERE
         </button>
         <div className="flex gap-4 md:gap-8">
+          <a
+            href={backendAdminUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity"
+          >
+            BACKEND LOGIN
+          </a>
           <button className="text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity">
             INFORMATION
           </button>

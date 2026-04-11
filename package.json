@@ -7,7 +7,9 @@
     "build": "vite build",
     "dev": "vite",
     "preview": "vite preview",
-    "deploy:github": "echo \"Push to main to deploy via GitHub Actions\""
+    "deploy:github": "echo \"Push to main to deploy via GitHub Actions\"",
+    "dev:backend": "node backend/server.js",
+    "dev:all": "sh -c \"npm run dev & npm run dev:backend\""
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
