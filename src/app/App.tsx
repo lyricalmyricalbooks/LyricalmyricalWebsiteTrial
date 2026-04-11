@@ -6,7 +6,7 @@ export default function App() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [showCatalog, setShowCatalog] = useState(false);
-  const backendAdminUrl = "http://localhost:4000/admin";
+  const backendAdminUrl = "/admin";
 
   const publications = [
     {
