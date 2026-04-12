@@ -14,6 +14,10 @@ export function Checkout() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [orderNumber, setOrderNumber] = useState("");
 
+  const [discountCode, setDiscountCode] = useState("");
+  const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
+  const [discountError, setDiscountError] = useState("");
+
   const [customer, setCustomer] = useState({
     name: "",
     email: "",
@@ -35,13 +39,10 @@ export function Checkout() {
     setDiscountError("");
     try {
       const discount = await adminApi.validateDiscount(discountCode);
-      if (discount) {
-        setAppliedDiscount(discount);
-      } else {
-        setDiscountError("INVALID OR EXPIRED CODE");
-      }
-    } catch (err) {
-      setDiscountError("ERROR VALIDATING CODE");
+      setAppliedDiscount(discount);
+    } catch (err: any) {
+      setDiscountError(err.message || "INVALID OR EXPIRED CODE");
+      setAppliedDiscount(null);
     } finally {
       setIsApplying(false);
     }
@@ -50,6 +51,7 @@ export function Checkout() {
   const removeDiscount = () => {
     setAppliedDiscount(null);
     setDiscountCode("");
+    setDiscountError("");
   };
 
   const calculateDiscountAmount = () => {
@@ -78,12 +80,27 @@ export function Checkout() {
     try {
       const orderData = {
         customer,
-        items: cart,
+        items: cart.map(item => ({
+          id: item.id,
+          title: item.title,
+          price: item.price,
+          quantity: item.quantity,
+          photoUrl: item.photoUrl
+        })),
         subtotal: cartTotal,
         discount: discountAmount,
         shipping: finalShipping,
         total: finalTotal,
-        appliedDiscount: appliedDiscount ? { code: appliedDiscount.code, type: appliedDiscount.type, value: appliedDiscount.value } : null,
+        appliedDiscount: appliedDiscount ? { 
+          id: appliedDiscount.id,
+          code: appliedDiscount.code, 
+          type: appliedDiscount.type, 
+          value: appliedDiscount.value 
+        } : null,
+        metadata: {
+          userAgent: navigator.userAgent,
+          platform: "web"
+        }
       };
       
       const id = await adminApi.createOrder(orderData);
@@ -91,7 +108,7 @@ export function Checkout() {
       setIsSuccess(true);
       clearCart();
     } catch (err) {
-      alert("Error creating order");
+      alert("Error creating order. Please try again.");
     } finally {
       setIsCompleting(false);
     }

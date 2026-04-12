@@ -10,7 +10,9 @@ import {
   setDoc,
   getDoc,
   orderBy,
-  limit
+  limit,
+  getCountFromServer,
+  startAfter,
 } from "firebase/firestore";
 import { 
   signInWithPopup, 
@@ -48,26 +50,51 @@ export const adminApi = {
 
   // Stats
   getStats: async () => {
-    const booksSnap = await getDocs(collection(db, "books"));
-    const authorsSnap = await getDocs(collection(db, "authors"));
-    const profilesSnap = await getDocs(collection(db, "shipping-profiles"));
-    
-    const books = booksSnap.docs.map(d => d.data());
-    
-    return {
-      totalBooks: books.length,
-      draftCount: books.filter(b => b.status === "draft").length,
-      publishedCount: books.filter(b => b.status === "published").length,
-      shippingProfiles: profilesSnap.size,
-      authors: authorsSnap.size,
-    };
+    try {
+      // Using getCountFromServer is O(1) in terms of read costs and much faster
+      const booksColl = collection(db, "books");
+      const authorsColl = collection(db, "authors");
+      const profilesColl = collection(db, "shipping-profiles");
+      const ordersColl = collection(db, "orders");
+
+      const [booksCount, authorsCount, profilesCount, ordersCount] = await Promise.all([
+        getCountFromServer(booksColl),
+        getCountFromServer(authorsColl),
+        getCountFromServer(profilesColl),
+        getCountFromServer(ordersColl)
+      ]);
+      
+      // For more granular stats like drafts, we still need a query count
+      const draftQuery = query(booksColl, where("status", "==", "draft"));
+      const publishedQuery = query(booksColl, where("status", "==", "published"));
+      
+      const [draftSnap, publishedSnap] = await Promise.all([
+        getCountFromServer(draftQuery),
+        getCountFromServer(publishedQuery)
+      ]);
+      
+      return {
+        totalBooks: booksCount.data().count,
+        draftCount: draftSnap.data().count,
+        publishedCount: publishedSnap.data().count,
+        shippingProfiles: profilesCount.data().count,
+        authors: authorsCount.data().count,
+        totalOrders: ordersCount.data().count
+      };
+    } catch (err) {
+      console.error("Stats Error:", err);
+      return { totalBooks: 0, draftCount: 0, publishedCount: 0, shippingProfiles: 0, authors: 0, totalOrders: 0 };
+    }
   },
 
   // Books
-  getBooks: async () => {
-    const q = query(collection(db, "books"), orderBy("createdAt", "desc"));
+  getBooks: async (limitCount = 50, lastVisible = null) => {
+    let q = query(collection(db, "books"), orderBy("createdAt", "desc"), limit(limitCount));
+    if (lastVisible) {
+      q = query(collection(db, "books"), orderBy("createdAt", "desc"), startAfter(lastVisible), limit(limitCount));
+    }
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    return snap.docs.map(d => ({ id: d.id, ...d.data(), _lastDoc: d }));
   },
 
   createBook: async (book: any) => {
@@ -242,10 +269,13 @@ export const adminApi = {
   },
 
   // ORDERS
-  getOrders: async () => {
-    const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+  getOrders: async (limitCount = 50, lastVisible = null) => {
+    let q = query(collection(db, "orders"), orderBy("createdAt", "desc"), limit(limitCount));
+    if (lastVisible) {
+      q = query(collection(db, "orders"), orderBy("createdAt", "desc"), startAfter(lastVisible), limit(limitCount));
+    }
     const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    return snap.docs.map(d => ({ id: d.id, ...d.data(), _lastDoc: d }));
   },
 
   getOrderById: async (id: string) => {
@@ -293,6 +323,26 @@ export const adminApi = {
       activity: [...activity, { type: "note", message, createdAt: new Date().toISOString() }],
       updatedAt: new Date().toISOString()
     });
+  },
+
+  // DISCOUNTS
+  validateDiscount: async (code: string) => {
+    const q = query(collection(db, "discounts"), where("code", "==", code.toUpperCase()), where("active", "==", true));
+    const snap = await getDocs(q);
+    if (snap.empty) throw new Error("Invalid or expired discount code");
+    
+    const data = snap.docs[0].data();
+    const now = new Date().toISOString();
+    
+    if (data.expiry && data.expiry < now) throw new Error("This code has expired");
+    if (data.usageLimit && (data.usageCount || 0) >= data.usageLimit) throw new Error("This code has reached its usage limit");
+    
+    return {
+      id: snap.docs[0].id,
+      code: data.code,
+      type: data.type, // 'percentage' or 'fixed'
+      value: data.value
+    };
   },
 
   // ANALYTICS
