@@ -26,6 +26,7 @@ import { BookEditor } from "./BookEditor";
 import { Discounts } from "./Discounts";
 import { Orders } from "./Orders";
 import { OrderDetail } from "./OrderDetail";
+import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import { adminApi } from "./api";
 
 export function Dashboard() {
@@ -177,67 +178,7 @@ export function Dashboard() {
               </header>
 
               {activeTab === "overview" && (
-                <div className="space-y-8">
-                  {/* Stats Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    {[
-                      { label: "Total Titles", value: stats?.totalBooks || "0", trend: "Live in Firestore", icon: BookOpen },
-                      { label: "Stock Units", value: stats?.stockCount || "0", trend: "Inventory level", icon: TrendingUp },
-                      { label: "Drafts", value: stats?.draftCount || "0", trend: "Internal prep", icon: Package },
-                      { label: "Contributors", value: stats?.authors || "0", trend: "Linked authors", icon: Users },
-                    ].map((stat, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.1 }}
-                        className="bg-white p-6 rounded-2xl shadow-sm border border-neutral-100 hover:shadow-md transition-shadow"
-                      >
-                        <div className="flex justify-between items-start mb-4">
-                          <div className="p-2 bg-neutral-50 rounded-lg">
-                            <stat.icon size={20} className="text-neutral-500" />
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-[10px] tracking-widest text-neutral-400 uppercase mb-1">{stat.label}</p>
-                          <p className="text-2xl font-light text-neutral-900">{stat.value}</p>
-                          <p className="text-[10px] text-neutral-400 mt-2 font-medium tracking-wider uppercase">{stat.trend}</p>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Activity Placeholder */}
-                    <div className="lg:col-span-2 bg-white rounded-3xl border border-neutral-100 shadow-sm p-8 flex flex-col items-center justify-center min-h-[300px]">
-                       <History size={32} className="text-neutral-100 mb-4" />
-                       <p className="text-[10px] tracking-[0.2em] text-neutral-400 uppercase">Database initialised. Add books to see activity.</p>
-                    </div>
-
-                    {/* Firestore Status */}
-                    <div className="space-y-6">
-                      <div className="bg-neutral-900 rounded-3xl shadow-xl p-8 text-white relative overflow-hidden group">
-                        <div className="relative z-10">
-                            <h4 className="text-sm font-light tracking-[.2em] mb-4">FIRESTORE CONNECTED</h4>
-                            <div className="text-4xl font-light mb-6">LIVE <span className="text-xs text-white/40 tracking-normal">Cloud DB</span></div>
-                            <div className="w-full h-1 bg-white/10 rounded-full mb-8 overflow-hidden">
-                              <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: "100%" }}
-                                className="h-full bg-green-500"
-                              />
-                            </div>
-                            <button className="flex items-center justify-between w-full text-[9px] tracking-[.3em] opacity-40 group-hover:opacity-100 transition-opacity">
-                              ACTIVE PROJECT: {adminApi.getProjectId?.() || "LYRICAL-WEB-V2"} <ChevronRight size={12} />
-                            </button>
-                        </div>
-                        <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform">
-                            <ShieldCheck size={120} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <AnalyticsDashboard />
               )}
 
               {activeTab === "catalog" && (

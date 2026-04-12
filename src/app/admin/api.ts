@@ -231,5 +231,66 @@ export const adminApi = {
       activity: [...activity, { type: "note", message, createdAt: new Date().toISOString() }],
       updatedAt: new Date().toISOString()
     });
+  },
+
+  // ANALYTICS
+  recordVisit: async () => {
+    const today = new Date().toISOString().split('T')[0];
+    const docRef = doc(db, "analytics", today);
+    try {
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        await updateDoc(docRef, { visits: (snap.data().visits || 0) + 1 });
+      } else {
+        await setDoc(docRef, { visits: 1, orders: 0, revenue: 0, date: today });
+      }
+    } catch (e) {
+      console.warn("Analytics failed", e);
+    }
+  },
+
+  getAnalytics: async () => {
+    const q = query(collection(db, "analytics"), orderBy("date", "desc"), limit(30));
+    const snap = await getDocs(q);
+    const data = snap.docs.map(d => d.data()).reverse();
+    
+    // Also get top sellers from orders
+    const ordersSnap = await getDocs(collection(db, "orders"));
+    const orders = ordersSnap.docs.map(d => d.data());
+    
+    const productStats: any = {};
+    orders.forEach((o: any) => {
+      o.items?.forEach((item: any) => {
+        if (!productStats[item.id]) productStats[item.id] = { id: item.id, title: item.title, sold: 0, revenue: 0, photoUrl: item.photoUrl };
+        productStats[item.id].sold += item.quantity;
+        productStats[item.id].revenue += (item.quantity * item.price);
+      });
+    });
+
+    return {
+      daily: data,
+      topSellers: Object.values(productStats).sort((a: any, b: any) => b.revenue - a.revenue).slice(0, 5)
+    };
+  },
+
+  seedAnalyticsData: async () => {
+    const batch: any[] = [];
+    for (let i = 30; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const visits = Math.floor(20 + Math.random() * 50);
+      const orders = Math.random() > 0.5 ? Math.floor(Math.random() * 3) : 0;
+      const revenue = orders * 85;
+      
+      batch.push(setDoc(doc(db, "analytics", dateStr), {
+        date: dateStr,
+        visits,
+        orders,
+        revenue,
+        conversion: visits > 0 ? (orders / visits) * 100 : 0
+      }));
+    }
+    await Promise.all(batch);
   }
 };

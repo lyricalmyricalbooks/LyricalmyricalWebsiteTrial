@@ -178,6 +178,13 @@ function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, ne
         ]);
         if (b && Array.isArray(b)) setBooks(b);
         if (s) setSettings(s);
+        
+        // Record visit (silent log)
+        const sessionKey = "fm_visit_" + new Date().toISOString().split('T')[0];
+        if (!sessionStorage.getItem(sessionKey)) {
+          adminApi.recordVisit();
+          sessionStorage.setItem(sessionKey, "true");
+        }
       } catch (err) {
         console.warn("Using fallback data - backend connection unavailable.");
       } finally {
