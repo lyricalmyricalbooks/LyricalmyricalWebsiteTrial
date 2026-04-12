@@ -9,10 +9,23 @@ export function Checkout() {
   const { cart, cartTotal, clearCart } = useCart();
   const navigate = useNavigate();
   
-  const [discountCode, setDiscountCode] = useState("");
-  const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
-  const [discountError, setDiscountError] = useState("");
   const [isApplying, setIsApplying] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [orderNumber, setOrderNumber] = useState("");
+
+  const [customer, setCustomer] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    address: {
+      street: "",
+      city: "",
+      state: "",
+      zip: "",
+      country: "United States"
+    }
+  });
 
   const [shippingCost] = useState(15); // Fixed shipping per order for now
   
@@ -54,6 +67,51 @@ export function Checkout() {
   const discountAmount = calculateDiscountAmount();
   const finalShipping = isFreeShipping ? 0 : shippingCost;
   const finalTotal = cartTotal - discountAmount + finalShipping;
+
+  const handleCompletePurchase = async () => {
+    if (!customer.name || !customer.email || !customer.address.street) {
+      alert("Please fill in shipping details.");
+      return;
+    }
+
+    setIsCompleting(true);
+    try {
+      const orderData = {
+        customer,
+        items: cart,
+        subtotal: cartTotal,
+        discount: discountAmount,
+        shipping: finalShipping,
+        total: finalTotal,
+        appliedDiscount: appliedDiscount ? { code: appliedDiscount.code, type: appliedDiscount.type, value: appliedDiscount.value } : null,
+      };
+      
+      const id = await adminApi.createOrder(orderData);
+      setOrderNumber(id);
+      setIsSuccess(true);
+      clearCart();
+    } catch (err) {
+      alert("Error creating order");
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
+  if (isSuccess) {
+    return (
+      <div className="h-screen bg-black text-white flex flex-col items-center justify-center p-8 text-center">
+        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-8">
+           <ShieldCheck size={40} className="text-black" />
+        </div>
+        <h2 className="text-4xl font-light mb-4 italic tracking-tighter">ORDER CONFIRMED</h2>
+        <p className="text-[10px] tracking-[.4em] text-white/40 uppercase mb-2">Thank you for your business.</p>
+        <p className="text-xl font-bold tracking-tighter mb-12">#{orderNumber}</p>
+        <Link to="/" className="bg-white text-black px-10 py-4 rounded-full text-[10px] tracking-[.4em] font-bold hover:scale-105 transition-all">
+           CONTINUE EXPLORING
+        </Link>
+      </div>
+    );
+  }
 
   if (cart.length === 0) {
     return (
@@ -138,12 +196,57 @@ export function Checkout() {
                )}
              </AnimatePresence>
           </div>
+
+          <div>
+             <h2 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-4 border-b border-neutral-100">03. Shipping Details</h2>
+             <div className="space-y-4">
+                <input 
+                  type="text" placeholder="FULL NAME" 
+                  value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})}
+                  className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
+                />
+                <div className="grid grid-cols-2 gap-4">
+                   <input 
+                     type="email" placeholder="EMAIL ADDRESS" 
+                     value={customer.email} onChange={e => setCustomer({...customer, email: e.target.value})}
+                     className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
+                   />
+                   <input 
+                     type="tel" placeholder="PHONE (OPTIONAL)" 
+                     value={customer.phone} onChange={e => setCustomer({...customer, phone: e.target.value})}
+                     className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
+                   />
+                </div>
+                <input 
+                  type="text" placeholder="STREET ADDRESS" 
+                  value={customer.address.street} onChange={e => setCustomer({...customer, address: {...customer.address, street: e.target.value}})}
+                  className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
+                />
+                <div className="grid grid-cols-3 gap-4">
+                   <input 
+                     type="text" placeholder="CITY" 
+                     value={customer.address.city} onChange={e => setCustomer({...customer, address: {...customer.address, city: e.target.value}})}
+                     className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
+                   />
+                   <input 
+                     type="text" placeholder="STATE" 
+                     value={customer.address.state} onChange={e => setCustomer({...customer, address: {...customer.address, state: e.target.value}})}
+                     className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
+                   />
+                   <input 
+                     type="text" placeholder="ZIP" 
+                     value={customer.address.zip} onChange={e => setCustomer({...customer, address: {...customer.address, zip: e.target.value}})}
+                     className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
+                   />
+                </div>
+             </div>
+          </div>
         </section>
 
         {/* Step 2: Payment & Totals */}
         <section className="space-y-12">
           <div className="bg-neutral-50 rounded-[2.5rem] p-10 space-y-8">
-             <h2 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-4">03. Final Settlement</h2>
+             <h2 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-4">04. Final Settlement</h2>
              
              <div className="space-y-4">
                 <div className="flex justify-between items-center text-[11px] tracking-widest">
@@ -181,16 +284,16 @@ export function Checkout() {
                       PASTE YOUR STRIPE CHECKOUT SNIPPET HERE.
                       THIS SECTION WILL RENDER THE SECURE PAYMENT PORTAL.
                    </p>
-                   {/* 
-                     DEVELOPER NOTE:
-                     Insert Stripe script or embed component below 
-                   */}
                    <button 
-                     disabled
-                     className="w-full bg-neutral-100 text-neutral-400 py-4 rounded-full text-[10px] tracking-[.4em] font-bold cursor-not-allowed"
+                     onClick={handleCompletePurchase}
+                     disabled={isCompleting}
+                     className="w-full bg-black text-white py-5 rounded-full text-[10px] tracking-[.4em] font-bold hover:bg-neutral-800 transition-all shadow-xl active:scale-95 transition-all"
                    >
-                     WAITING FOR STRIPE CONNECTION
+                     {isCompleting ? "PROCESSING ORDER..." : "SIMULATE STRIPE PURCHASE"}
                    </button>
+                   <div className="pt-2">
+                      <p className="text-[8px] tracking-widest text-neutral-400 uppercase">Archive Verified Transaction</p>
+                   </div>
                 </div>
              </div>
 

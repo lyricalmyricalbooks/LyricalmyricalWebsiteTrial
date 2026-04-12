@@ -178,4 +178,58 @@ export const adminApi = {
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
+
+  // ORDERS
+  getOrders: async () => {
+    const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  getOrderById: async (id: string) => {
+    const docRef = doc(db, "orders", id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return null;
+    return { id: snap.id, ...snap.data() };
+  },
+
+  createOrder: async (order: any) => {
+    // Generate a random-ish ID similar to the screenshot FRQZ-047691
+    const prefix = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const suffix = Math.floor(100000 + Math.random() * 900000);
+    const orderId = `${prefix}-${suffix}`;
+    
+    await setDoc(doc(db, "orders", orderId), {
+      ...order,
+      orderId, // Display ID
+      status: "open",
+      paymentStatus: "paid",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      activity: [
+        { type: "event", message: "Order created", createdAt: new Date().toISOString() },
+        { type: "event", message: "Payment completed (Stripe)", createdAt: new Date().toISOString() }
+      ]
+    });
+    return orderId;
+  },
+
+  updateOrder: async (id: string, data: any) => {
+    const docRef = doc(db, "orders", id);
+    await updateDoc(docRef, {
+      ...data,
+      updatedAt: new Date().toISOString()
+    });
+  },
+
+  addOrderNote: async (id: string, message: string) => {
+    const docRef = doc(db, "orders", id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return;
+    const activity = snap.data().activity || [];
+    await updateDoc(docRef, {
+      activity: [...activity, { type: "note", message, createdAt: new Date().toISOString() }],
+      updatedAt: new Date().toISOString()
+    });
+  }
 };

@@ -22,6 +22,8 @@ import { Login } from "./Login";
 import { BookCatalog } from "./BookCatalog";
 import { BookEditor } from "./BookEditor";
 import { Discounts } from "./Discounts";
+import { Orders } from "./Orders";
+import { OrderDetail } from "./OrderDetail";
 import { adminApi } from "./api";
 
 export function Dashboard() {
@@ -30,6 +32,7 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [editingBook, setEditingBook] = useState<any | null>(null);
   const [showEditor, setShowEditor] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
@@ -92,6 +95,7 @@ export function Dashboard() {
         <nav className="flex-1 px-4 space-y-1">
           {[
             { id: "overview", label: "Dashboard", icon: LayoutDashboard },
+            { id: "orders", label: "Orders", icon: ShoppingBag },
             { id: "catalog", label: "Book Catalog", icon: BookOpen },
             { id: "discounts", label: "Discounts", icon: Tag },
             { id: "authors", label: "Authors", icon: Users },
@@ -101,9 +105,9 @@ export function Dashboard() {
           ].map((item) => (
             <button
               key={item.id}
-              onClick={() => { setActiveTab(item.id); setShowEditor(false); }}
+              onClick={() => { setActiveTab(item.id); setShowEditor(false); setSelectedOrder(null); }}
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm tracking-wider transition-all rounded-lg ${
-                activeTab === item.id && !showEditor
+                activeTab === item.id && !showEditor && !selectedOrder
                   ? "bg-white text-black font-medium" 
                   : "text-white/60 hover:text-white hover:bg-white/10"
               }`}
@@ -240,6 +244,14 @@ export function Dashboard() {
 
               {activeTab === "discounts" && (
                 <Discounts />
+              )}
+
+              {activeTab === "orders" && (
+                selectedOrder ? (
+                  <OrderDetail orderId={selectedOrder.id} onClose={() => setSelectedOrder(null)} />
+                ) : (
+                  <Orders onSelectOrder={(order) => setSelectedOrder(order)} />
+                )
               )}
 
               {["authors", "shipping", "settings", "audit"].includes(activeTab) && (
