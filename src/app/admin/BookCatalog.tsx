@@ -136,8 +136,21 @@ export function BookCatalog({ onEdit, onAdd }: BookCatalogProps) {
                       <button 
                         onClick={() => onEdit(book)}
                         className="p-2 text-neutral-400 hover:text-black hover:bg-neutral-100 rounded-lg transition-all"
+                        title="Edit Book"
                       >
                         <Edit3 size={14} />
+                      </button>
+                      <button 
+                        onClick={async () => {
+                          if (confirm("Duplicate this book?")) {
+                            await adminApi.duplicateBook(book.id);
+                            loadBooks();
+                          }
+                        }}
+                        className="p-2 text-neutral-400 hover:text-black hover:bg-neutral-100 rounded-lg transition-all"
+                        title="Duplicate Book"
+                      >
+                        <LucideImage size={14} className="rotate-12" />
                       </button>
                       <button className="p-2 text-neutral-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
                         <Trash2 size={14} />

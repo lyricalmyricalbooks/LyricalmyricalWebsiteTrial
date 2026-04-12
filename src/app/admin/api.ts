@@ -89,6 +89,20 @@ export const adminApi = {
 
   deleteBook: (id: string) => deleteDoc(doc(db, "books", id)),
 
+  duplicateBook: async (id: string) => {
+    const docRef = doc(db, "books", id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) throw new Error("Original book not found");
+    const data = snap.data();
+    return await addDoc(collection(db, "books"), {
+      ...data,
+      title: `${data.title} (Copy)`,
+      status: "draft",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  },
+
   addPhotos: async (bookId: string, photos: any[]) => {
     const docRef = doc(db, "books", bookId);
     const bookSnap = await getDoc(docRef);

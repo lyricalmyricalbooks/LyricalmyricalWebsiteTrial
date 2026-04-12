@@ -38,6 +38,12 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     authorId: "",
     isFeatured: false,
     photos: [],
+    slug: "",
+    isOnSale: false,
+    salePrice: 0,
+    categories: [],
+    variants: [],
+    scheduleDate: "",
   });
 
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
@@ -73,8 +79,18 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    const val = type === "number" ? Number(value) : (e.target as HTMLInputElement).type === "checkbox" ? (e.target as HTMLInputElement).checked : value;
-    setFormData((prev: any) => ({ ...prev, [name]: val }));
+    let val: any = value;
+    if (type === "number") val = Number(value);
+    if (type === "checkbox") val = (e.target as HTMLInputElement).checked;
+    
+    setFormData((prev: any) => {
+      const newData = { ...prev, [name]: val };
+      // Auto-generate slug if title changes and slug is empty or currently matches old title
+      if (name === "title" && (!prev.slug || prev.slug === prev.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""))) {
+        newData.slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      }
+      return newData;
+    });
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -114,6 +130,36 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     }));
   };
 
+  const addVariant = () => {
+    setFormData((prev: any) => ({
+      ...prev,
+      variants: [...prev.variants, { name: "", price: prev.retailPrice, stock: 10, id: crypto.randomUUID() }]
+    }));
+  };
+
+  const updateVariant = (id: string, field: string, value: any) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      variants: prev.variants.map((v: any) => v.id === id ? { ...v, [field]: value } : v)
+    }));
+  };
+
+  const removeVariant = (id: string) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      variants: prev.variants.filter((v: any) => v.id !== id)
+    }));
+  };
+
+  const toggleCategory = (cat: string) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      categories: prev.categories.includes(cat) 
+        ? prev.categories.filter((c: string) => c !== cat)
+        : [...prev.categories, cat]
+    }));
+  };
+
   return (
     <div className="bg-white rounded-3xl shadow-2xl border border-neutral-100 overflow-hidden flex flex-col h-full max-h-[90vh]">
       {/* Header */}
@@ -130,6 +176,17 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           </div>
         </div>
         <div className="flex gap-4">
+          {book && (
+            <a 
+              href={`/#/product/${formData.slug}`} 
+              target="_blank" 
+              rel="noreferrer"
+              className="px-6 py-2.5 flex items-center gap-2 text-[10px] tracking-[.3em] font-bold text-neutral-400 hover:text-black transition-colors"
+            >
+              <ExternalLink size={14} />
+              PREVIEW
+            </a>
+          )}
           <button 
             type="button" 
             onClick={onClose} 
@@ -168,13 +225,25 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
               
               <div className="flex flex-col gap-2">
                 <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Subtitle / Artist Attribution</label>
-                <input 
-                  name="subtitle" 
-                  value={formData.subtitle} 
-                  onChange={handleChange}
-                  className="w-full bg-neutral-50 border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none transition-all"
-                  placeholder="e.g. Zoe Moss, Lucia Bellemare..."
-                />
+                <div className="flex gap-4">
+                  <input 
+                    name="subtitle" 
+                    value={formData.subtitle} 
+                    onChange={handleChange}
+                    className="flex-1 bg-neutral-50 border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none transition-all"
+                    placeholder="e.g. Zoe Moss, Lucia Bellemare..."
+                  />
+                  <div className="w-1/3 flex flex-col gap-1">
+                    <label className="text-[8px] tracking-widest text-neutral-400 uppercase">URL Handle / Slug</label>
+                    <input 
+                      name="slug" 
+                      value={formData.slug} 
+                      onChange={handleChange}
+                      className="w-full bg-neutral-100/50 border-none rounded-lg py-1.5 px-3 text-[10px] focus:ring-1 focus:ring-black outline-none"
+                      placeholder="the-book-slug"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex flex-col gap-2">
@@ -193,7 +262,9 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
           <section>
              <h4 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-2 border-b border-neutral-50">Technical Specifications</h4>
+             {/* ... existing tech fields ... */}
              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+               {/* ... (re-adding dimensions/weight/format from original but with variants below) ... */}
                <div className="flex flex-col gap-2">
                   <label className="text-[10px] tracking-widest text-neutral-500 uppercase">ISBN</label>
                   <input name="isbn" value={formData.isbn} onChange={handleChange} className="w-full bg-neutral-50 border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none" />
@@ -214,16 +285,61 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                </div>
              </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-               <div className="flex flex-col gap-2">
-                  <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Dimensions</label>
-                  <input name="dimensions" value={formData.dimensions} onChange={handleChange} placeholder="5.5 x 8.5 in" className="w-full bg-neutral-50 border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none" />
+             <div className="mt-12">
+               <div className="flex justify-between items-center mb-6">
+                 <h5 className="text-[10px] tracking-widest text-neutral-500 uppercase">Product Variants</h5>
+                 <button type="button" onClick={addVariant} className="text-[10px] tracking-widest font-bold text-black flex items-center gap-2 hover:opacity-60">
+                   <Plus size={12} /> ADD VARIANT
+                 </button>
                </div>
-               <div className="flex flex-col gap-2">
-                  <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Weight</label>
-                  <input name="weight" value={formData.weight} onChange={handleChange} placeholder="0.8 lbs" className="w-full bg-neutral-50 border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none" />
+               <div className="space-y-3">
+                 {formData.variants.map((v: any) => (
+                   <div key={v.id} className="flex gap-3 bg-neutral-50 p-3 rounded-xl items-center">
+                     <input 
+                       placeholder="Variant Name" 
+                       value={v.name} 
+                       onChange={(e) => updateVariant(v.id, "name", e.target.value)}
+                       className="flex-1 bg-white border-none rounded-lg py-2 px-3 text-[10px] focus:ring-1 focus:ring-black outline-none"
+                     />
+                     <div className="w-24 relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-neutral-400">$</span>
+                        <input 
+                          type="number" 
+                          value={v.price} 
+                          onChange={(e) => updateVariant(v.id, "price", Number(e.target.value))}
+                          className="w-full bg-white border-none rounded-lg py-2 pl-5 pr-2 text-[10px] focus:ring-1 focus:ring-black outline-none"
+                        />
+                     </div>
+                     <button type="button" onClick={() => removeVariant(v.id)} className="p-2 text-neutral-300 hover:text-red-500">
+                       <Plus size={14} className="rotate-45" />
+                     </button>
+                   </div>
+                 ))}
+                 {formData.variants.length === 0 && (
+                   <p className="text-[9px] text-neutral-300 italic">No variants defined (Single product edition)</p>
+                 )}
                </div>
              </div>
+          </section>
+
+          <section>
+            <h4 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-2 border-b border-neutral-50">Taxonomy & Categorization</h4>
+            <div className="flex flex-wrap gap-2">
+              {["Photography", "Contemporary", "Ephemera", "Artist Book", "Zine", "Limited Edition", "Archive"].map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => toggleCategory(cat)}
+                  className={`px-4 py-2 rounded-full text-[10px] tracking-widest font-bold transition-all ${
+                    formData.categories.includes(cat)
+                      ? "bg-black text-white"
+                      : "bg-neutral-100 text-neutral-400 hover:bg-neutral-200"
+                  }`}
+                >
+                  {cat.toUpperCase()}
+                </button>
+              ))}
+            </div>
           </section>
         </div>
 
@@ -279,26 +395,31 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           <section>
             <h4 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-2 border-b border-neutral-50">Commerce & Status</h4>
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-2">
-                  <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Retail Price</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 text-xs">$</span>
-                    <input type="number" name="retailPrice" value={formData.retailPrice} onChange={handleChange} className="w-full bg-neutral-50 border-none rounded-xl py-3 pl-8 pr-4 text-xs focus:ring-1 focus:ring-black outline-none" />
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Cost Price</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 text-xs">$</span>
-                    <input type="number" name="costPrice" value={formData.costPrice} onChange={handleChange} className="w-full bg-neutral-50 border-none rounded-xl py-3 pl-8 pr-4 text-xs focus:ring-1 focus:ring-black outline-none" />
-                  </div>
-                </div>
+              <div className="flex flex-col gap-4 p-6 bg-neutral-50 rounded-2xl">
+                 <div className="flex items-center justify-between">
+                    <label className="text-[10px] tracking-widest text-neutral-500 uppercase">On Sale</label>
+                    <input type="checkbox" name="isOnSale" checked={formData.isOnSale} onChange={handleChange} className="w-4 h-4 accent-black" />
+                 </div>
+                 {formData.isOnSale && (
+                   <div className="flex flex-col gap-2">
+                     <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Sale Price</label>
+                     <div className="relative">
+                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 text-xs">$</span>
+                       <input type="number" name="salePrice" value={formData.salePrice} onChange={handleChange} className="w-full bg-white border border-neutral-200 rounded-xl py-2 pl-8 pr-4 text-xs focus:ring-1 focus:ring-black outline-none" />
+                     </div>
+                   </div>
+                 )}
               </div>
 
               <div className="flex flex-col gap-2">
                 <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Stock Inventory</label>
                 <input type="number" name="stockLevel" value={formData.stockLevel} onChange={handleChange} className="w-full bg-neutral-50 border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none font-bold" />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Release Schedule</label>
+                <input type="datetime-local" name="scheduleDate" value={formData.scheduleDate} onChange={handleChange} className="w-full bg-neutral-50 border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none" />
+                <p className="text-[8px] text-neutral-400 tracking-wider">LEAVE EMPTY TO PUBLISH IMMEDIATELY</p>
               </div>
 
               <div className="flex flex-col gap-2">

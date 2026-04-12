@@ -114,7 +114,13 @@ function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, ne
 
   const categories = ["PUBLICATIONS", "EPHEMERA", "IMPRINT", "OUT OF PRINT"];
   const [activeCategory, setActiveCategory] = useState("PUBLICATIONS");
-  const filteredItems = (books || []).filter(b => b.status === "published" && (b.genres?.includes(activeCategory) || activeCategory === "PUBLICATIONS"));
+  
+  const now = new Date().toISOString();
+  const filteredItems = (books || []).filter(b => 
+    b.status === "published" && 
+    (!b.scheduleDate || b.scheduleDate <= now) &&
+    (b.genres?.includes(activeCategory) || activeCategory === "PUBLICATIONS")
+  );
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
@@ -178,8 +184,13 @@ function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, ne
                   <img
                     src={item.photos?.[0]?.url || "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080"}
                     alt={item.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 grayscale"
                   />
+                  {item.isOnSale && (
+                    <div className="absolute top-2 left-2 bg-white text-black text-[8px] tracking-[.3em] font-bold px-2 py-1">
+                      SALE
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-start gap-1">
                   <X size={12} className="mt-0.5 flex-shrink-0" />
