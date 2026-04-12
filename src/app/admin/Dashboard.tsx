@@ -21,6 +21,7 @@ import {
 import { Login } from "./Login";
 import { BookCatalog } from "./BookCatalog";
 import { BookEditor } from "./BookEditor";
+import { Discounts } from "./Discounts";
 import { adminApi } from "./api";
 
 export function Dashboard() {
@@ -92,6 +93,7 @@ export function Dashboard() {
           {[
             { id: "overview", label: "Dashboard", icon: LayoutDashboard },
             { id: "catalog", label: "Book Catalog", icon: BookOpen },
+            { id: "discounts", label: "Discounts", icon: Tag },
             { id: "authors", label: "Authors", icon: Users },
             { id: "shipping", label: "Shipping", icon: Truck },
             { id: "settings", label: "Site Settings", icon: Settings },
@@ -234,6 +236,10 @@ export function Dashboard() {
 
               {activeTab === "catalog" && (
                 <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} />
+              )}
+
+              {activeTab === "discounts" && (
+                <Discounts />
               )}
 
               {["authors", "shipping", "settings", "audit"].includes(activeTab) && (
