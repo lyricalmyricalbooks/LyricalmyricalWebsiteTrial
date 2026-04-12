@@ -8,6 +8,13 @@
   "auth": {
     "providers": {
       "googleSignIn": {
+        "authorizedRedirectUris": [
+          "http://localhost:5173",
+          "https://lyricalmyricalbooks.github.io",
+          "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/",
+          "https://lyricalmyrical-web-v2.firebaseapp.com",
+          "http://localhost:4000"
+        ],
         "oAuthBrandDisplayName": "Lyrical Myrical Website",
         "supportEmail": "lyricalmyricalbooks@gmail.com"
       }
