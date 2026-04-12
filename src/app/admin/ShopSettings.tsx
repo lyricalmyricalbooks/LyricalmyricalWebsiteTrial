@@ -16,7 +16,9 @@ const PURPLE = "#A855F7";
 
 export function ShopSettings() {
   const [settings, setSettings] = useState<any>(null);
+  const [originalSettings, setOriginalSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [savingSection, setSavingSection] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,9 +28,11 @@ export function ShopSettings() {
   async function loadSettings() {
     try {
       const data = await adminApi.getSettings();
-      setSettings(data);
+      setSettings(JSON.parse(JSON.stringify(data)));
+      setOriginalSettings(data);
     } catch (err) {
       console.error(err);
+      setError("Failed to load settings from cloud.");
     } finally {
       setLoading(false);
     }
@@ -38,6 +42,7 @@ export function ShopSettings() {
     setSavingSection(section);
     try {
       await adminApi.updateSettings(data);
+      setOriginalSettings({ ...originalSettings, ...data });
     } catch (err) {
       alert("Error saving settings");
     } finally {
@@ -45,7 +50,13 @@ export function ShopSettings() {
     }
   };
 
+  const hasChanges = (section: string) => {
+    if (!settings || !originalSettings) return false;
+    return JSON.stringify(settings[section]) !== JSON.stringify(originalSettings[section]);
+  };
+
   if (loading) return <div className="h-96 flex items-center justify-center text-[10px] tracking-[.4em] text-neutral-400 uppercase animate-pulse">Accessing Archive Config...</div>;
+  if (error) return <div className="h-96 flex items-center justify-center text-[10px] tracking-[.4em] text-red-500 uppercase">{error}</div>;
 
   return (
     <div className="max-w-3xl mx-auto space-y-10 pb-32">
@@ -68,7 +79,7 @@ export function ShopSettings() {
         <button className="text-[10px] font-bold tracking-widest text-purple-500 flex items-center gap-1 hover:opacity-50 transition-opacity">
            EDIT MAINTENANCE MODE MESSAGE <ArrowRight size={12} />
         </button>
-        {settings.maintenance?.enabled !== adminApi.getSettings()?.maintenance?.enabled && (
+        {hasChanges('maintenance') && (
            <div className="mt-6 pt-6 border-t border-neutral-50 flex gap-4">
               <button 
                 onClick={() => saveSection('maintenance', { maintenance: settings.maintenance })}
