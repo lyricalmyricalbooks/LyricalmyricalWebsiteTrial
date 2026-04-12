@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { Lock, ArrowRight, Shovel } from "lucide-react";
+import { Lock, ArrowRight, Settings } from "lucide-react";
 import { adminApi } from "./api";
 
 interface LoginProps {

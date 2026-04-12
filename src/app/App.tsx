@@ -2,7 +2,7 @@ import { motion, useScroll, useTransform } from "motion/react";
 import { useRef, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
-import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Link } from "react-router";
 import { Dashboard } from "./admin/Dashboard";
 
 import { adminApi } from "./admin/api";
@@ -105,15 +105,12 @@ function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, ne
   }, []);
 
   const featuredBooks = (books || []).filter(b => b.status === "published" && b.isFeatured).slice(0, 4);
-  const publications = featuredBooks.length > 0 ? featuredBooks.map(b => ({
+  const currentBooks = featuredBooks.length > 0 ? featuredBooks : DEFAULT_BOOKS.slice(0, 4);
+  
+  const publications = currentBooks.map(b => ({
     title: b.title.toUpperCase(),
     image: b.photos?.[0]?.url || "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080"
-  })) : [
-    {
-      title: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA",
-      image: "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080"
-    }
-  ];
+  }));
 
   const categories = ["PUBLICATIONS", "EPHEMERA", "IMPRINT", "OUT OF PRINT"];
   const [activeCategory, setActiveCategory] = useState("PUBLICATIONS");
@@ -376,7 +373,7 @@ export default function App() {
   };
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route path="/" element={
           <MainSite 
@@ -390,6 +387,6 @@ export default function App() {
         } />
         <Route path="/admin" element={<Dashboard />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }

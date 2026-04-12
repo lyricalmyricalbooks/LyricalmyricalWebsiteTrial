@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Link } from "react-router-dom";
+import { HashRouter, Routes, Route, Link } from "react-router";
 import { 
   BookOpen, 
   Users, 
