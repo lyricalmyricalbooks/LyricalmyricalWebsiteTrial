@@ -178,7 +178,39 @@ export const adminApi = {
       location: { street: "456 Montrose Avenue", city: "Toronto", state: "Ontario", zip: "M6G3H1", country: "Canada" },
       localization: { timezone: "(GMT-05:00) Eastern Time (US & Canada)", currency: "Canadian Dollar (CAD $)" },
       aiShield: { blockTraining: false, blockShopping: false },
-      policies: { shipping: "", returns: "", privacy: "", terms: "", legal: "" }
+      policies: { shipping: "", returns: "", privacy: "", terms: "", legal: "" },
+      communications: {
+        orderReceipts: true,
+        shippingStatus: true,
+        abandonedCart: false,
+        receiptMessage: "",
+        newOrderNotifications: true
+      },
+      payments: {
+        stripe: {
+          connected: true,
+          email: "julianiacobelli1@gmail.com",
+          applePay: true,
+          googlePay: true,
+          afterpay: true,
+          affirm: true,
+          klarna: true,
+          subscriptions: false
+        },
+        paypal: {
+          connected: true,
+          email: "lyricalmyricalbooks@gmail.com",
+          venmo: true,
+          buyNowPayLater: true
+        }
+      },
+      taxes: {
+        rates: []
+      },
+      design: {
+        primaryColor: "#A855F7",
+        font: "Inter"
+      }
     };
 
     if (!snap.exists()) {

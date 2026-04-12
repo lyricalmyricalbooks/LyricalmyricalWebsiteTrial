@@ -7,10 +7,22 @@ import {
   MapPin, 
   Image as LucideImage,
   Clock,
-  ArrowRight
+  ArrowRight,
+  Mail,
+  Truck,
+  CreditCard,
+  Percent,
+  Palette,
+  Settings as SettingsIcon,
+  Plus,
+  Trash2,
+  Edit2,
+  Bell,
+  Star,
+  Check
 } from "lucide-react";
 import { adminApi } from "./api";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 
 const PURPLE = "#A855F7";
 
@@ -20,9 +32,12 @@ export function ShopSettings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingSection, setSavingSection] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("general");
+  const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
 
   useEffect(() => {
     loadSettings();
+    loadShippingProfiles();
   }, []);
 
   async function loadSettings() {
@@ -35,6 +50,15 @@ export function ShopSettings() {
       setError("Failed to load settings from cloud.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadShippingProfiles() {
+    try {
+      const b = await adminApi.getShippingProfiles();
+      setShippingProfiles(b);
+    } catch (err) {
+      console.error(err);
     }
   }
 
@@ -58,10 +82,73 @@ export function ShopSettings() {
   if (loading) return <div className="h-96 flex items-center justify-center text-[10px] tracking-[.4em] text-neutral-400 uppercase animate-pulse">Accessing Archive Config...</div>;
   if (error) return <div className="h-96 flex items-center justify-center text-[10px] tracking-[.4em] text-red-500 uppercase">{error}</div>;
 
-  return (
-    <div className="max-w-3xl mx-auto space-y-10 pb-32">
-      <h2 className="text-3xl font-bold tracking-tight uppercase">Shop Settings</h2>
+  const tabs = [
+    { id: "general", label: "General", icon: SettingsIcon },
+    { id: "communications", label: "Communications", icon: Mail },
+    { id: "shipping", label: "Shipping", icon: Truck },
+    { id: "payments", label: "Payments", icon: CreditCard },
+    { id: "taxes", label: "Taxes", icon: Percent },
+    { id: "designer", label: "Shop designer", icon: Palette },
+  ];
 
+  return (
+    <div className="flex gap-12 max-w-6xl mx-auto pb-32">
+      {/* Sub Navigation Sidebar */}
+      <aside className="w-64 space-y-2">
+        <div className="flex items-center gap-3 px-4 py-6 mb-4">
+          <div className="p-2 bg-purple-100 rounded-xl text-purple-600">
+             <SettingsIcon size={20} />
+          </div>
+          <h2 className="text-xl font-bold tracking-tight text-purple-600">Shop settings</h2>
+        </div>
+        
+        <nav className="space-y-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all rounded-xl ${
+                activeTab === tab.id 
+                  ? "bg-white text-black shadow-sm" 
+                  : "text-neutral-500 hover:bg-neutral-100"
+              }`}
+            >
+              <tab.icon size={18} className={activeTab === tab.id ? "text-purple-500" : ""} />
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      {/* Content Area */}
+      <div className="flex-1 min-w-0">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-10"
+          >
+            {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
+            {activeTab === "communications" && <CommunicationsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
+            {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} />}
+            {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
+            {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
+            {activeTab === "designer" && <DesignerSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
+  return (
+    <>
+      <h2 className="text-3xl font-bold tracking-tight uppercase mb-8">General</h2>
+      
       {/* Maintenance Mode */}
       <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm">
         <div className="flex justify-between items-start mb-4">
@@ -145,212 +232,415 @@ export function ShopSettings() {
                />
                <p className="text-[9px] text-neutral-300 mt-2 text-right">{settings.info?.description?.length || 0} / 150 characters</p>
             </div>
-            <div>
-               <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Website</label>
-               <input 
-                 className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-neutral-200"
-                 placeholder="https://..."
-                 value={settings.info?.website}
-                 onChange={e => setSettings({...settings, info: {...settings.info, website: e.target.value}})}
-               />
-            </div>
          </div>
-         <div className="flex gap-4">
-            <button 
-              onClick={() => saveSection('info', { info: settings.info })}
-              disabled={savingSection === 'info'}
-              className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
-            >
-               {savingSection === 'info' ? 'SAVING...' : 'SAVE'}
-            </button>
-            <button className="text-[10px] font-bold tracking-widest text-neutral-400 hover:text-black">CANCEL</button>
-         </div>
-      </section>
-
-      {/* Inventory Management */}
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
-         <h3 className="text-sm font-bold tracking-tight">Inventory management</h3>
-         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-               <span className="text-[11px] font-bold uppercase tracking-tight">Inventory tracking</span>
-               <Switch 
-                 checked={settings.inventory?.tracking} 
-                 onChange={val => setSettings({...settings, inventory: {...settings.inventory, tracking: val}})} 
-               />
-            </div>
-            <div className="flex justify-between items-start">
-               <div>
-                  <span className="text-[11px] font-bold uppercase tracking-tight block mb-1">Allow overselling</span>
-                  <p className="text-[10px] text-neutral-400 leading-relaxed max-w-sm">
-                    Keep selling products even after they've reached 0 in stock. With overselling disabled, we'll automatically mark products as Sold Out.
-                  </p>
-               </div>
-               <Switch 
-                 checked={settings.inventory?.overselling} 
-                 onChange={val => setSettings({...settings, inventory: {...settings.inventory, overselling: val}})} 
-               />
-            </div>
-         </div>
-      </section>
-
-      {/* Require Phone */}
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm flex justify-between items-center">
-         <div>
-            <h3 className="text-sm font-bold tracking-tight block mb-1">Require phone number at checkout</h3>
-            <p className="text-[10px] text-neutral-400">You'll need to provide a recipient phone number for international shipments.</p>
-         </div>
-         <Switch 
-           checked={settings.checkout?.requirePhone} 
-           onChange={val => setSettings({...settings, checkout: {...settings.checkout, requirePhone: val}})} 
-         />
-      </section>
-
-      {/* Image Assets */}
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
-         <h3 className="text-sm font-bold tracking-tight">Image assets</h3>
-         <div className="grid grid-cols-2 gap-8">
-            <div className="space-y-4">
-               <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Profile image</p>
-               <div className="flex items-center gap-6">
-                  <div className="w-16 h-16 bg-neutral-100 rounded-2xl overflow-hidden shadow-inner border border-neutral-50 flex items-center justify-center p-2">
-                     <img src={settings.assets?.profileUrl} className="w-full h-full object-contain" />
-                  </div>
-                  <div className="flex gap-2">
-                     <button className="bg-neutral-100 px-4 py-2 rounded-lg text-[9px] font-bold tracking-widest hover:bg-neutral-200 transition-all">CHANGE</button>
-                     <button className="bg-neutral-100 px-4 py-2 rounded-lg text-[9px] font-bold tracking-widest hover:bg-neutral-200 transition-all">REMOVE</button>
-                  </div>
-               </div>
-            </div>
-            <div className="space-y-4">
-               <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Favicon</p>
-               <div className="flex items-center gap-6">
-                  <div className="w-12 h-12 bg-neutral-100 rounded-xl overflow-hidden shadow-inner border border-neutral-50 flex items-center justify-center p-2">
-                     <img src={settings.assets?.faviconUrl} className="w-full h-full object-contain" />
-                  </div>
-                  <div className="flex gap-2">
-                     <button className="bg-neutral-100 px-4 py-2 rounded-lg text-[9px] font-bold tracking-widest hover:bg-neutral-200 transition-all">CHANGE</button>
-                     <button className="bg-neutral-100 px-4 py-2 rounded-lg text-[9px] font-bold tracking-widest hover:bg-neutral-200 transition-all">REMOVE</button>
-                  </div>
-               </div>
-            </div>
-         </div>
-      </section>
-
-      {/* Location */}
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
-         <h3 className="text-sm font-bold tracking-tight">Location</h3>
-         <div className="grid grid-cols-1 gap-4">
-            <div>
-               <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Street address</label>
-               <input className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs" value={settings.location?.street} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-               <div>
-                  <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">City</label>
-                  <input className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs" value={settings.location?.city} />
-               </div>
-               <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">State</label>
-                    <input className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs" value={settings.location?.state} />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Zip</label>
-                    <input className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs" value={settings.location?.zip} />
-                  </div>
-               </div>
-            </div>
-            <div>
-               <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Country</label>
-               <select className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none">
-                  <option>Canada</option>
-                  <option>United States</option>
-                  <option>Italy</option>
-               </select>
-            </div>
-         </div>
-         <div className="flex gap-4 pt-4">
-            <button className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest hover:shadow-lg transition-all">SAVE</button>
-            <button className="text-[10px] font-bold tracking-widest text-neutral-400 hover:text-black">CANCEL</button>
-         </div>
-      </section>
-
-      {/* Localization */}
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
-         <h3 className="text-sm font-bold tracking-tight">Time zone and currency</h3>
-         <div className="space-y-4">
-            <div>
-               <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Time zone</label>
-               <select className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none">
-                  <option>{settings.localization?.timezone}</option>
-               </select>
-            </div>
-            <div>
-               <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Currency</label>
-               <select className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none">
-                  <option>{settings.localization?.currency}</option>
-               </select>
-            </div>
-         </div>
-         <div className="flex gap-4 pt-4">
-            <button className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest hover:shadow-lg transition-all">SAVE</button>
-            <button className="text-[10px] font-bold tracking-widest text-neutral-400 hover:text-black">CANCEL</button>
-         </div>
-      </section>
-
-      {/* AI Shield */}
-      <section className="bg-[#FDFCF8] border border-[#F5F2E8] rounded-[2rem] p-8 shadow-sm space-y-8">
-         <div>
-            <div className="flex items-center gap-2 mb-1">
-               <Shield size={16} className="text-neutral-900" />
-               <h3 className="text-sm font-bold tracking-tight">AI shield</h3>
-            </div>
-         </div>
-         <div className="space-y-6">
-            <div className="flex justify-between items-start">
-               <div>
-                  <span className="text-[11px] font-bold uppercase tracking-tight block mb-1">Block AI training bots</span>
-                  <p className="text-[10px] text-neutral-400 leading-relaxed max-w-sm">Block AI training bots from companies like OpenAI, Google, Meta, and Anthropic.</p>
-               </div>
-               <Switch checked={settings.aiShield?.blockTraining} onChange={() => {}} />
-            </div>
-            <div className="flex justify-between items-start">
-               <div>
-                  <span className="text-[11px] font-bold uppercase tracking-tight block mb-1">Block AI shopping assistants</span>
-                  <p className="text-[10px] text-neutral-400 leading-relaxed max-w-sm">Block AI shopping assistants like Amazon Buy For Me from autonomously purchasing.</p>
-               </div>
-               <Switch checked={settings.aiShield?.blockShopping} onChange={() => {}} />
-            </div>
-         </div>
-         <button className="text-[10px] font-bold tracking-widest text-purple-500 flex items-center gap-1 hover:opacity-50 transition-opacity">
-            LEARN MORE ABOUT AI SHIELD <ArrowRight size={12} />
-         </button>
-      </section>
-
-      {/* Shop Policies */}
-      <section className="bg-white border border-neutral-100 rounded-[2.5rem] p-8 shadow-sm overflow-hidden">
-         <h3 className="text-sm font-bold tracking-tight mb-8">Shop policies</h3>
-         <div className="divide-y divide-neutral-50">
-            {[
-              { label: "Shipping and delivery", key: "shipping" },
-              { label: "Returns and refunds", key: "returns" },
-              { label: "Privacy policy", key: "privacy" },
-              { label: "Terms and conditions", key: "terms" },
-              { label: "Legal notice", key: "legal" }
-            ].map((p) => (
-              <button key={p.key} className="w-full flex items-center justify-between py-6 group hover:px-2 transition-all">
-                 <div className="text-left">
-                    <p className="text-[11px] font-bold uppercase tracking-tight mb-1">{p.label}</p>
-                    <p className="text-[10px] text-neutral-300 tracking-widest font-bold">SET EXPECTATIONS • <span className="text-purple-400">LEARN MORE</span></p>
-                 </div>
-                 <div className="flex items-center gap-4">
-                    <span className="bg-neutral-100 text-neutral-400 px-3 py-1.5 rounded-lg text-[9px] font-bold tracking-widest">NO POLICY SET</span>
-                    <ChevronRight size={16} className="text-purple-400 group-hover:translate-x-1 transition-transform" />
-                 </div>
+         {hasChanges('info') && (
+           <div className="flex gap-4">
+              <button 
+                onClick={() => saveSection('info', { info: settings.info })}
+                disabled={savingSection === 'info'}
+                className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
+              >
+                 {savingSection === 'info' ? 'SAVING...' : 'SAVE'}
               </button>
+           </div>
+         )}
+      </section>
+    </>
+  );
+}
+
+function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
+  return (
+    <div className="space-y-8">
+      <h2 className="text-3xl font-bold tracking-tight uppercase">Communication Preferences</h2>
+
+      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
+        <div>
+           <h3 className="text-sm font-bold tracking-tight mb-6">Customer communications</h3>
+           
+           <div className="space-y-8">
+              <div className="flex justify-between items-start">
+                 <div>
+                    <h4 className="text-[11px] font-bold uppercase tracking-tight mb-1">Order receipt emails</h4>
+                    <button className="text-[10px] text-purple-500 font-bold hover:opacity-50 transition-opacity">Send a test email to myself</button>
+                 </div>
+                 <Switch 
+                   checked={settings.communications?.orderReceipts} 
+                   onChange={val => setSettings({...settings, communications: {...settings.communications, orderReceipts: val}})} 
+                 />
+              </div>
+
+              <div>
+                 <label className="text-[11px] font-bold uppercase tracking-tight block mb-2">Order receipt message</label>
+                 <textarea 
+                   rows={4}
+                   placeholder="Thank you for your order! We'll start processing it right away."
+                   className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-neutral-200 resize-none"
+                   value={settings.communications?.receiptMessage}
+                   onChange={e => setSettings({...settings, communications: {...settings.communications, receiptMessage: e.target.value}})}
+                 />
+              </div>
+
+              <div className="flex gap-4">
+                 <button 
+                   onClick={() => saveSection('communications', { communications: settings.communications })}
+                   className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
+                 >
+                    SAVE
+                 </button>
+                 <button className="text-[10px] font-bold tracking-widest text-neutral-400 hover:text-black">CANCEL</button>
+              </div>
+           </div>
+        </div>
+
+        <div className="pt-8 border-t border-neutral-50">
+           <div className="flex justify-between items-center">
+              <h4 className="text-[11px] font-bold uppercase tracking-tight">Shipping status emails</h4>
+              <Switch 
+                checked={settings.communications?.shippingStatus} 
+                onChange={val => setSettings({...settings, communications: {...settings.communications, shippingStatus: val}})} 
+              />
+           </div>
+        </div>
+
+        <div className="pt-8 border-t border-neutral-50 flex justify-between items-center opacity-70">
+           <div>
+              <h4 className="text-[11px] font-bold uppercase tracking-tight mb-1">Abandoned cart emails</h4>
+              <p className="text-[10px] text-neutral-400">Boost sales with automatic reminder emails when customers start a checkout but don't complete a purchase.</p>
+           </div>
+           <button className="bg-[#E2FF00] text-black px-4 py-1.5 rounded-lg text-[9px] font-bold tracking-widest flex items-center gap-2">
+              <Star size={10} fill="currentColor" /> UPGRADE
+           </button>
+        </div>
+      </section>
+
+      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm">
+         <div className="flex justify-between items-center">
+            <div>
+               <h3 className="text-sm font-bold tracking-tight mb-1">Shop notifications</h3>
+               <h4 className="text-[11px] font-bold uppercase tracking-tight text-neutral-400">New orders</h4>
+            </div>
+            <Switch 
+              checked={settings.communications?.newOrderNotifications} 
+              onChange={val => setSettings({...settings, communications: {...settings.communications, newOrderNotifications: val}})} 
+            />
+         </div>
+      </section>
+    </div>
+  );
+}
+
+function ShippingSettings({ profiles }: any) {
+  return (
+    <div className="space-y-8">
+      <div className="flex justify-between items-end">
+        <h2 className="text-4xl font-black tracking-tight uppercase scale-x-110 origin-left">SHIPPING</h2>
+        <button className="bg-neutral-100 px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest flex items-center gap-2 hover:bg-neutral-200 transition-all">
+           <Plus size={14} /> ADD SHIPPING PROFILE
+        </button>
+      </div>
+
+      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
+         <div>
+            <h3 className="text-sm font-bold tracking-tight mb-2">Primary shipping profile</h3>
+            <p className="text-[11px] text-neutral-400 leading-relaxed mb-4">
+               Buyers in these regions will see the following shipping options at checkout.
+               <br />
+               <span className="font-bold text-neutral-900">All products in your shop use this profile unless you assign them to another profile.</span>
+            </p>
+            <span className="bg-purple-100 text-purple-600 px-3 py-1 rounded-md text-[9px] font-bold tracking-widest uppercase">
+               7 products use this profile
+            </span>
+         </div>
+
+         <div className="space-y-4 pt-4">
+            {[
+              { region: "Italy", base: "$5.00", additional: "$3.00" },
+              { region: "European Union", base: "$5.00", additional: "$3.00" },
+              { region: "Europe (non-EU, excludes UK)", base: "$5.00", additional: "$3.00" },
+              { region: "Ontario", base: "$15.00", additional: "$2.00" }
+            ].map((r) => (
+              <div key={r.region} className="border border-neutral-100 rounded-2xl overflow-hidden">
+                 <div className="bg-[#4D4B46] text-white px-6 py-3 flex justify-between items-center">
+                    <span className="text-[11px] font-bold tracking-tight">{r.region}</span>
+                    <div className="flex items-center gap-4">
+                       <button className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest">
+                          <Plus size={12} /> ADD RATE
+                       </button>
+                       <Edit2 size={12} className="cursor-pointer hover:opacity-50" />
+                       <Trash2 size={12} className="cursor-pointer hover:opacity-50" />
+                    </div>
+                 </div>
+                 <div className="p-6 flex justify-between items-center">
+                    <div>
+                       <p className="text-[11px] font-bold">Standard (with tracking) - Approx. delivery 3-5 days</p>
+                    </div>
+                    <div className="flex gap-12 text-right">
+                       <div>
+                          <p className="text-[8px] text-neutral-400 font-bold uppercase tracking-widest mb-1">Base price</p>
+                          <p className="text-sm font-bold">{r.base}</p>
+                       </div>
+                       <div>
+                          <p className="text-[8px] text-neutral-400 font-bold uppercase tracking-widest mb-1">Each additional item</p>
+                          <p className="text-sm font-bold">{r.additional}</p>
+                       </div>
+                    </div>
+                 </div>
+              </div>
             ))}
          </div>
       </section>
+    </div>
+  );
+}
+
+function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
+  const stripe = settings.payments?.stripe;
+  const paypal = settings.payments?.paypal;
+
+  return (
+    <div className="space-y-8">
+      <h2 className="text-3xl font-black tracking-tight uppercase">PAYMENTS</h2>
+      <p className="text-[11px] text-neutral-400 -mt-6">Accept orders through your online shop or in person using our iOS app</p>
+
+      {/* Stripe Card */}
+      <section className="bg-white border border-neutral-100 rounded-[2.5rem] p-10 shadow-sm space-y-10">
+         <div className="flex justify-between items-start">
+            <div className="flex items-center gap-3">
+               <h3 className="text-md font-bold">Stripe</h3>
+               <span className="bg-green-100 text-green-600 px-3 py-1 rounded-md text-[9px] font-bold tracking-widest uppercase flex items-center gap-1">
+                  <Check size={10} /> Connected
+               </span>
+            </div>
+            <button className="text-[10px] font-bold tracking-widest text-neutral-500 flex items-center gap-1 border border-neutral-200 px-4 py-2 rounded-xl hover:bg-neutral-50">
+               VISIT YOUR STRIPE DASHBOARD <ExternalLink size={12} />
+            </button>
+         </div>
+
+         <div className="space-y-2">
+            <p className="text-[11px] text-neutral-400">You are accepting payments with Stripe</p>
+            <p className="text-[11px] font-bold">Account: <span className="text-neutral-500">{stripe?.email}</span></p>
+         </div>
+
+         <div className="space-y-6 pt-6 border-t border-neutral-50">
+            <div className="flex items-center gap-4">
+               <div className="w-12 h-8 bg-neutral-100 rounded flex items-center justify-center">
+                  <CreditCard size={18} className="text-neutral-400" />
+               </div>
+               <div>
+                  <p className="text-[11px] font-bold">Credit cards</p>
+                  <p className="text-[10px] text-neutral-400">Visa, Mastercard, American Express, Discover, Diners Club, and JCB</p>
+               </div>
+            </div>
+
+            <div className="flex items-center gap-4 opacity-50">
+               <div className="w-12 h-8 bg-neutral-100 rounded flex items-center justify-center text-[10px] font-black">CB</div>
+               <p className="text-[11px] font-bold">Cartes Bancaires</p>
+            </div>
+
+            <div className="flex justify-between items-center">
+               <div className="flex items-center gap-4">
+                  <div className="w-12 h-8 bg-[#635BFF] text-white rounded flex items-center justify-center text-[10px] font-black italic">link</div>
+                  <p className="text-[11px] font-bold">Link</p>
+               </div>
+               <Switch checked={true} onChange={() => {}} />
+            </div>
+
+            <div className="flex justify-between items-center">
+               <div className="flex items-center gap-4">
+                  <div className="w-12 h-8 bg-black text-white rounded flex items-center justify-center">
+                     <span className="text-[10px] font-bold tracking-tighter">Pay</span>
+                  </div>
+                  <p className="text-[11px] font-bold">Apple Pay</p>
+               </div>
+               <Switch checked={stripe?.applePay} onChange={(val) => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, applePay: val}}})} />
+            </div>
+
+            <div className="flex justify-between items-center">
+               <div className="flex items-center gap-4">
+                  <div className="w-12 h-8 bg-neutral-100 rounded flex items-center justify-center">
+                     <span className="text-[10px] font-bold tracking-tighter text-blue-600">G Pay</span>
+                  </div>
+                  <p className="text-[11px] font-bold">Google Pay</p>
+               </div>
+               <Switch checked={stripe?.googlePay} onChange={(val) => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, googlePay: val}}})} />
+            </div>
+         </div>
+
+         <div className="space-y-6 pt-10 border-t border-neutral-50">
+            <div>
+               <h4 className="text-[11px] font-bold uppercase tracking-tight mb-1">Buy now, Pay Later options</h4>
+               <p className="text-[10px] text-neutral-400">Let your customers choose to pay in smaller installments while you still get paid in full up front.</p>
+            </div>
+
+            {[
+               { id: 'afterpay', label: 'Afterpay/Clearpay', color: '#B2FCE4', textColor: '#000' },
+               { id: 'affirm', label: 'Affirm', color: '#000', textColor: '#fff' },
+               { id: 'klarna', label: 'Klarna', color: '#FFB3C7', textColor: '#000' }
+            ].map(pm => (
+               <div key={pm.id} className="flex justify-between items-center">
+                  <div className="flex items-center gap-4">
+                     <div className="w-12 h-8 rounded flex items-center justify-center text-[8px] font-black uppercase" style={{ backgroundColor: pm.color, color: pm.textColor }}>{pm.label}</div>
+                     <p className="text-[11px] font-bold">{pm.label}</p>
+                  </div>
+                  <Switch checked={stripe?.[pm.id]} onChange={(val) => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, [pm.id]: val}}})} />
+               </div>
+            ))}
+         </div>
+
+         <div className="space-y-6 pt-10 border-t border-neutral-50">
+            <div>
+               <h4 className="text-[11px] font-bold uppercase tracking-tight mb-1">Subscriptions</h4>
+               <p className="text-[10px] text-neutral-400">Let your fans support you with monthly contributions. Create a custom page and share the link anywhere. <span className="text-purple-500 cursor-pointer">Learn more</span></p>
+            </div>
+            <div className="flex justify-between items-center">
+               <div>
+                  <p className="text-[11px] font-bold">Allow subscriptions for monthly contributions</p>
+                  <p className="text-[10px] text-neutral-400">When off, all recurring payments will be paused and not processed.</p>
+               </div>
+               <Switch checked={stripe?.subscriptions} onChange={(val) => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, subscriptions: val}}})} />
+            </div>
+         </div>
+
+         <div className="pt-10">
+            <button className="bg-red-500 text-white px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest hover:bg-red-600 transition-all">
+               DISCONNECT STRIPE
+            </button>
+         </div>
+      </section>
+
+      {/* PayPal Card */}
+      <section className="bg-white border border-neutral-100 rounded-[2.5rem] p-10 shadow-sm space-y-10 opacity-70">
+         <div className="flex justify-between items-start">
+            <div className="flex items-center gap-3">
+               <h3 className="text-md font-bold">PayPal</h3>
+               <span className="bg-green-100 text-green-600 px-3 py-1 rounded-md text-[9px] font-bold tracking-widest uppercase flex items-center gap-1">
+                  <Check size={10} /> Connected
+               </span>
+            </div>
+            <button className="text-[10px] font-bold tracking-widest text-neutral-500 flex items-center gap-1 border border-neutral-200 px-4 py-2 rounded-xl hover:bg-neutral-50">
+               VISIT YOUR PAYPAL DASHBOARD <ExternalLink size={12} />
+            </button>
+         </div>
+
+         <div className="space-y-2">
+            <p className="text-[11px] text-neutral-400">You are accepting payments with PayPal</p>
+            <p className="text-[11px] font-bold">Account: <span className="text-neutral-500">{paypal?.email}</span></p>
+         </div>
+
+         <div className="p-6 bg-neutral-50 border border-neutral-100 rounded-2xl flex gap-4">
+            <AlertCircle size={18} className="text-black flex-shrink-0" />
+            <div className="space-y-1">
+               <p className="text-[11px] font-bold">You are accepting credit/debit card payments with Stripe</p>
+               <p className="text-[10px] text-neutral-400">To accept credit/debit card payments with PayPal, you'll need to disconnect Stripe.</p>
+            </div>
+         </div>
+
+         <div className="pt-10">
+            <button className="bg-red-500 text-white px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest hover:bg-red-600 transition-all">
+               DISCONNECT PAYPAL
+            </button>
+         </div>
+      </section>
+    </div>
+  );
+}
+
+function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
+  return (
+    <div className="space-y-8">
+      <h2 className="text-4xl font-black tracking-tight uppercase">TAXES</h2>
+      <p className="text-[11px] text-neutral-400 -mt-6">Tax will be added to applicable orders during checkout based on your tax settings. That tax will also display in the order info.</p>
+
+      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
+         <h3 className="text-sm font-bold tracking-tight">Countries</h3>
+         
+         <div className="space-y-4">
+            {settings.taxes?.rates?.length > 0 ? (
+               settings.taxes.rates.map((task: any, idx: number) => (
+                  <div key={idx} className="flex justify-between items-center p-4 bg-neutral-50 rounded-xl">
+                     <span className="text-[11px] font-bold uppercase tracking-tight">{task.country}</span>
+                     <div className="flex items-center gap-4">
+                        <span className="text-sm font-bold">{task.rate}%</span>
+                        <Trash2 size={14} className="text-red-400 cursor-pointer" />
+                     </div>
+                  </div>
+               ))
+            ) : (
+               <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-neutral-100 rounded-3xl">
+                  <Percent size={32} className="text-neutral-100 mb-4" />
+                  <p className="text-[10px] tracking-widest text-neutral-300 font-bold uppercase italic">No tax rates defined.</p>
+               </div>
+            )}
+         </div>
+
+         <button className="bg-neutral-100 px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest flex items-center gap-2 hover:bg-neutral-200 transition-all">
+            <Plus size={14} /> ADD A TAX RATE
+         </button>
+      </section>
+    </div>
+  );
+}
+
+function DesignerSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
+  return (
+    <div className="space-y-8">
+      <h2 className="text-3xl font-bold tracking-tight uppercase">Shop Designer</h2>
+      
+      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
+         <div className="space-y-6">
+            <div>
+               <h3 className="text-sm font-bold tracking-tight mb-1">Visual Identity</h3>
+               <p className="text-[11px] text-neutral-400">Configure the primary branding elements of your public storefront.</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-8">
+               <div className="space-y-4">
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">Primary Theme Color</label>
+                  <div className="flex items-center gap-4">
+                     <div className="w-12 h-12 rounded-2xl shadow-inner border border-neutral-100" style={{ backgroundColor: settings.design?.primaryColor }}></div>
+                     <input 
+                        type="color" 
+                        value={settings.design?.primaryColor} 
+                        onChange={e => setSettings({...settings, design: {...settings.design, primaryColor: e.target.value}})}
+                        className="h-10 w-24 cursor-pointer bg-transparent border-none" 
+                     />
+                  </div>
+               </div>
+
+               <div className="space-y-4">
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">Typography</label>
+                  <select 
+                    className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-neutral-200"
+                    value={settings.design?.font}
+                    onChange={e => setSettings({...settings, design: {...settings.design, font: e.target.value}})}
+                  >
+                     <option value="Inter">Inter (Sans-serif Modern)</option>
+                     <option value="Outfit">Outfit (Geometric Soft)</option>
+                     <option value="Roboto">Roboto (Clean Standard)</option>
+                     <option value="Times New Roman">Classic Serif</option>
+                  </select>
+               </div>
+            </div>
+
+            <div className="flex gap-4 pt-4">
+               <button 
+                 onClick={() => saveSection('design', { design: settings.design })}
+                 className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
+               >
+                  APPLY DESIGN CHANGES
+               </button>
+            </div>
+         </div>
+      </section>
+
+      <div className="p-8 border-2 border-dashed border-neutral-200 rounded-[2rem] flex flex-col items-center justify-center space-y-4 text-center">
+         <Palette size={48} className="text-neutral-200" />
+         <div>
+            <p className="text-sm font-bold mb-1 italic">Advanced Theme Editor</p>
+            <p className="text-[10px] text-neutral-400 uppercase tracking-widest">Coming soon: Full layout control and CSS overrides</p>
+         </div>
+      </div>
     </div>
   );
 }
@@ -372,3 +662,11 @@ function Switch({ checked, onChange }: { checked: boolean, onChange: (val: boole
     </button>
   );
 }
+
+const AlertCircle = ({ size, className }: any) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <line x1="12" y1="16" x2="12.01" y2="16" />
+  </svg>
+);
