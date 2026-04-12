@@ -49,7 +49,8 @@ A password-protected backend is available at `http://localhost:4000` by default.
   - Add authors.
   - Add books and assign shipping profiles/authors.
   - Add up to 10 photos per book.
-  - View quick dashboard counts.
+  - Update website settings (featured books, announcements, SEO defaults).
+  - View quick dashboard counts and audit log activity.
 
 ### Authentication
 
@@ -70,6 +71,7 @@ A password-protected backend is available at `http://localhost:4000` by default.
 
 - Book photos are stored as URLs in `backend/data/store.json` (works with CDN/S3/media library links).
 - Data is persisted in `backend/data/store.json`.
+- `backend/.env` is loaded automatically by `backend/server.js`.
 
 ## Production build
 

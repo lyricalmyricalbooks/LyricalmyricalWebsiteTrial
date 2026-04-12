@@ -7,9 +7,38 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function loadEnvFile() {
+  const envPath = path.join(__dirname, '.env');
+  if (!fs.existsSync(envPath)) return;
+  const lines = fs.readFileSync(envPath, 'utf8').split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const separator = trimmed.indexOf('=');
+    if (separator === -1) continue;
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed.slice(separator + 1).trim();
+    if (key && process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
+
+function parseDurationToMs(value, fallbackMs) {
+  if (!value) return fallbackMs;
+  const match = String(value).trim().match(/^(\d+)\s*(ms|s|m|h|d)?$/i);
+  if (!match) return fallbackMs;
+  const amount = Number(match[1]);
+  const unit = (match[2] ?? 'ms').toLowerCase();
+  const multipliers = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+  return amount * (multipliers[unit] ?? 1);
+}
+
+loadEnvFile();
+
 const PORT = Number(process.env.BACKEND_PORT ?? 4000);
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'change-me-now';
-const TOKEN_TTL_MS = 8 * 60 * 60 * 1000;
+const TOKEN_TTL_MS = parseDurationToMs(process.env.TOKEN_TTL, 8 * 60 * 60 * 1000);
 
 const dataFile = path.join(__dirname, 'data', 'store.json');
 const adminFile = path.join(__dirname, 'admin.html');
