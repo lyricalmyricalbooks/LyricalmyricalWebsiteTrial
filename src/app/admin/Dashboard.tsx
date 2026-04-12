@@ -15,7 +15,9 @@ import {
   BarChart3,
   TrendingUp,
   History,
-  ShieldCheck
+  ShieldCheck,
+  ShoppingBag,
+  Tag
 } from "lucide-react";
 
 import { Login } from "./Login";

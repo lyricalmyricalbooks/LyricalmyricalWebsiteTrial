@@ -1,9 +1,10 @@
-import { motion, useScroll, useTransform } from "motion/react";
+import { motion, useScroll, useTransform, AnimatePresence } from "motion/react";
 import { useRef, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 import { HashRouter, Routes, Route, Link, useNavigate } from "react-router";
 import { Dashboard } from "./admin/Dashboard";
+import { Checkout } from "./Checkout";
 import { CartProvider, useCart } from "./CartContext";
 import { ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight } from "lucide-react";
 import { adminApi } from "./admin/api";
