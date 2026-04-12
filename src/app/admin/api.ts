@@ -1,82 +1,167 @@
-// Determine API base based on environment
-// For local dev, use localhost. For deployed sites, use relative path if proxied, 
-// or potentially a hardcoded production URL if you have one.
-const API_BASE = window.location.hostname === "localhost" 
-  ? "http://localhost:4000/api" 
-  : "/api"; // Default to relative path for production
-
-export async function fetchWithAuth(path: string, options: any = {}) {
-  const token = localStorage.getItem("adminToken");
-  const headers = {
-    "Content-Type": "application/json",
-    ...options.headers,
-  };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  try {
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers,
-    });
-
-    if (response.status === 401) {
-      localStorage.removeItem("adminToken");
-      // Only redirect if we are actually in the admin area
-      if (window.location.pathname.includes("/admin")) {
-        window.location.href = "/admin";
-      }
-      throw new Error("Unauthorized");
-    }
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.message || "Request failed");
-    }
-    return data;
-  } catch (err) {
-    console.error(`API Error (${path}):`, err);
-    throw err;
-  }
-}
+import { 
+  collection, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  query, 
+  where,
+  setDoc,
+  getDoc,
+  orderBy,
+  limit
+} from "firebase/firestore";
+import { 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged 
+} from "firebase/auth";
+import { db, auth, googleProvider } from "../../lib/firebase";
 
 export const adminApi = {
-  login: (password: string) => fetchWithAuth("/auth/login", {
-    method: "POST",
-    body: JSON.stringify({ password }),
-  }),
-  getStats: () => fetchWithAuth("/dashboard/stats"),
-  getBooks: () => fetchWithAuth("/books"),
-  createBook: (book: any) => fetchWithAuth("/books", {
-    method: "POST",
-    body: JSON.stringify(book),
-  }),
-  updateBook: (id: string, book: any) => fetchWithAuth(`/books/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(book),
-  }),
-  deleteBook: (id: string) => fetchWithAuth(`/books/${id}`, {
-    method: "DELETE",
-  }),
-  addPhotos: (bookId: string, photos: any[]) => fetchWithAuth(`/books/${bookId}/photos`, {
-    method: "POST",
-    body: JSON.stringify({ photos }),
-  }),
-  getAuthors: () => fetchWithAuth("/authors"),
-  createAuthor: (author: any) => fetchWithAuth("/authors", {
-    method: "POST",
-    body: JSON.stringify(author),
-  }),
-  getShippingProfiles: () => fetchWithAuth("/shipping-profiles"),
-  createShippingProfile: (profile: any) => fetchWithAuth("/shipping-profiles", {
-    method: "POST",
-    body: JSON.stringify(profile),
-  }),
-  getSettings: () => fetchWithAuth("/website-settings"),
-  updateSettings: (settings: any) => fetchWithAuth("/website-settings", {
-    method: "PUT",
-    body: JSON.stringify(settings),
-  }),
-  getAuditLog: (limit = 100) => fetchWithAuth(`/audit-log?limit=${limit}`),
+  // Authentication
+  login: async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      
+      // Restrict to authorized email
+      if (user.email !== "lyricalmyricalbooks@gmail.com") {
+        await signOut(auth);
+        throw new Error("Unauthorized: Access restricted to lyricalmyricalbooks@gmail.com");
+      }
+      
+      return { token: await user.getIdToken(), user };
+    } catch (err: any) {
+      console.error("Login Error:", err);
+      throw err;
+    }
+  },
+
+  logout: () => signOut(auth),
+
+  onAuthStateChange: (callback: (user: any) => void) => {
+    return onAuthStateChanged(auth, callback);
+  },
+
+  // Stats
+  getStats: async () => {
+    const booksSnap = await getDocs(collection(db, "books"));
+    const authorsSnap = await getDocs(collection(db, "authors"));
+    const profilesSnap = await getDocs(collection(db, "shipping-profiles"));
+    
+    const books = booksSnap.docs.map(d => d.data());
+    
+    return {
+      totalBooks: books.length,
+      draftCount: books.filter(b => b.status === "draft").length,
+      publishedCount: books.filter(b => b.status === "published").length,
+      shippingProfiles: profilesSnap.size,
+      authors: authorsSnap.size,
+    };
+  },
+
+  // Books
+  getBooks: async () => {
+    const q = query(collection(db, "books"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  createBook: async (book: any) => {
+    const docRef = await addDoc(collection(db, "books"), {
+      ...book,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    return { id: docRef.id, ...book };
+  },
+
+  updateBook: async (id: string, book: any) => {
+    const docRef = doc(db, "books", id);
+    await updateDoc(docRef, {
+      ...book,
+      updatedAt: new Date().toISOString(),
+    });
+    return { id, ...book };
+  },
+
+  deleteBook: (id: string) => deleteDoc(doc(db, "books", id)),
+
+  addPhotos: async (bookId: string, photos: any[]) => {
+    const docRef = doc(db, "books", bookId);
+    const bookSnap = await getDoc(docRef);
+    if (!bookSnap.exists()) throw new Error("Book not found");
+    
+    const currentPhotos = bookSnap.data().photos || [];
+    const newPhotos = [
+      ...currentPhotos,
+      ...photos.map(p => ({
+        id: crypto.randomUUID(),
+        url: p.url ?? p,
+        altText: p.altText ?? "",
+        createdAt: new Date().toISOString(),
+      }))
+    ].slice(0, 10);
+
+    await updateDoc(docRef, {
+      photos: newPhotos,
+      updatedAt: new Date().toISOString(),
+    });
+    return newPhotos;
+  },
+
+  // Authors
+  getAuthors: async () => {
+    const snap = await getDocs(collection(db, "authors"));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  createAuthor: async (author: any) => {
+    const docRef = await addDoc(collection(db, "authors"), {
+      ...author,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    return { id: docRef.id, ...author };
+  },
+
+  // Shipping Profiles
+  getShippingProfiles: async () => {
+    const snap = await getDocs(collection(db, "shipping-profiles"));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  createShippingProfile: async (profile: any) => {
+    const docRef = await addDoc(collection(db, "shipping-profiles"), {
+      ...profile,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    return { id: docRef.id, ...profile };
+  },
+
+  // Settings
+  getSettings: async () => {
+    const docRef = doc(db, "settings", "website");
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      const defaultSettings = { 
+        announcements: [{ message: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA" }] 
+      };
+      await setDoc(docRef, defaultSettings);
+      return defaultSettings;
+    }
+    return snap.data();
+  },
+
+  updateSettings: (settings: any) => setDoc(doc(db, "settings", "website"), settings, { merge: true }),
+
+  // Audit Log
+  getAuditLog: async (limitCount = 100) => {
+    const q = query(collection(db, "audit-log"), orderBy("createdAt", "desc"), limit(limitCount));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
 };

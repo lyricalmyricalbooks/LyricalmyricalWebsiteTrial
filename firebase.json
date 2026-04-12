@@ -1,0 +1,16 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "us-central",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "auth": {
+    "providers": {
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Lyrical Myrical Website",
+        "supportEmail": "lyricalmyricalbooks@gmail.com"
+      }
+    }
+  }
+}

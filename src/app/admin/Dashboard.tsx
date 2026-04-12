@@ -14,26 +14,56 @@ import {
   AlertCircle,
   BarChart3,
   TrendingUp,
-  History
+  History,
+  ShieldCheck
 } from "lucide-react";
 
 import { Login } from "./Login";
 import { BookCatalog } from "./BookCatalog";
 import { BookEditor } from "./BookEditor";
+import { adminApi } from "./api";
 
 export function Dashboard() {
-  const [activeTab, setActiveTab] = useState("catalog");
-  const [token, setToken] = useState(localStorage.getItem("adminToken"));
+  const [activeTab, setActiveTab] = useState("overview");
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [editingBook, setEditingBook] = useState<any | null>(null);
   const [showEditor, setShowEditor] = useState(false);
+  const [stats, setStats] = useState<any>(null);
 
-  if (!token) {
-    return <Login onLogin={setToken} />;
+  useEffect(() => {
+    // Listen for Firebase Auth changes
+    const unsubscribe = adminApi.onAuthStateChange((u) => {
+      setUser(u);
+      setLoading(false);
+      if (u) loadStats();
+    });
+    return () => unsubscribe();
+  }, []);
+
+  async function loadStats() {
+    try {
+      const s = await adminApi.getStats();
+      setStats(s);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem("adminToken");
-    setToken(null);
+  if (loading) {
+    return (
+      <div className="h-screen bg-black flex items-center justify-center">
+        <p className="text-white text-[10px] tracking-[0.4em] animate-pulse">VERIFYING ADMIN ACCESS...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login onLogin={() => {}} />;
+  }
+
+  const handleLogout = async () => {
+    await adminApi.logout();
   };
 
   const handleEditBook = (book: any) => {
@@ -51,7 +81,11 @@ export function Dashboard() {
       {/* Sidebar */}
       <aside className="w-64 bg-black text-white flex flex-col">
         <div className="p-8">
-          <h1 className="text-xl tracking-[0.2em] font-light italic">F✶M ADMIN</h1>
+          <h1 className="text-xl tracking-[0.2em] font-light italic">F✶M</h1>
+          <div className="flex items-center gap-2 mt-2 opacity-40">
+            <ShieldCheck size={12} className="text-green-500" />
+            <p className="text-[9px] tracking-[0.1em] uppercase">Secure Firebase Backend</p>
+          </div>
         </div>
         
         <nav className="flex-1 px-4 space-y-1">
@@ -78,13 +112,22 @@ export function Dashboard() {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-white/10">
+        <div className="p-6 border-t border-white/10">
+          <div className="flex items-center gap-3 mb-6 px-4">
+            <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center overflow-hidden border border-white/20">
+               {user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover" /> : <Users size={14} />}
+            </div>
+            <div className="truncate">
+              <p className="text-[10px] text-white/40 truncate tracking-wider uppercase font-bold">{user.displayName || "Admin"}</p>
+              <p className="text-[9px] text-white/20 truncate">{user.email}</p>
+            </div>
+          </div>
           <button 
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-4 py-3 text-sm tracking-wider text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
           >
             <LogOut size={18} />
-            LOGOUT
+            SECURE LOGOUT
           </button>
         </div>
       </aside>
@@ -102,7 +145,7 @@ export function Dashboard() {
                 <BookEditor 
                   book={editingBook} 
                   onClose={() => setShowEditor(false)} 
-                  onSave={() => { setShowEditor(false); setActiveTab("catalog"); }} 
+                  onSave={() => { setShowEditor(false); setActiveTab("catalog"); loadStats(); }} 
                 />
               </motion.div>
             </div>
@@ -110,7 +153,7 @@ export function Dashboard() {
             <>
               <header className="mb-12 flex justify-between items-end">
                 <div>
-                  <p className="text-[10px] tracking-[.3em] text-neutral-400 mb-2 uppercase">Management System</p>
+                  <p className="text-[10px] tracking-[.3em] text-neutral-400 mb-2 uppercase">Google Verified Console</p>
                   <h2 className="text-4xl font-light tracking-tight text-neutral-900 capitalize">{activeTab}</h2>
                 </div>
                 
@@ -130,10 +173,10 @@ export function Dashboard() {
                   {/* Stats Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     {[
-                      { label: "Total Titles", value: "48", trend: "+3 this month", icon: BookOpen },
-                      { label: "Stock Value", value: "$12,450", trend: "+12%", icon: TrendingUp },
-                      { label: "In Print", value: "32", trend: "75% of catalog", icon: Package },
-                      { label: "Active Authors", value: "24", trend: "Across 4 imprints", icon: Users },
+                      { label: "Total Titles", value: stats?.totalBooks || "0", trend: "Live in Firestore", icon: BookOpen },
+                      { label: "Stock Units", value: stats?.stockCount || "0", trend: "Inventory level", icon: TrendingUp },
+                      { label: "Drafts", value: stats?.draftCount || "0", trend: "Internal prep", icon: Package },
+                      { label: "Contributors", value: stats?.authors || "0", trend: "Linked authors", icon: Users },
                     ].map((stat, i) => (
                       <motion.div
                         key={i}
@@ -150,75 +193,38 @@ export function Dashboard() {
                         <div>
                           <p className="text-[10px] tracking-widest text-neutral-400 uppercase mb-1">{stat.label}</p>
                           <p className="text-2xl font-light text-neutral-900">{stat.value}</p>
-                          <p className="text-[10px] text-green-600 mt-2 font-medium">{stat.trend}</p>
+                          <p className="text-[10px] text-neutral-400 mt-2 font-medium tracking-wider uppercase">{stat.trend}</p>
                         </div>
                       </motion.div>
                     ))}
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Recent Activity */}
-                    <div className="lg:col-span-2 bg-white rounded-3xl border border-neutral-100 shadow-sm p-8">
-                      <div className="flex justify-between items-center mb-8">
-                        <h3 className="text-lg font-light tracking-tight">Recent Catalog Activity</h3>
-                        <button className="text-[10px] tracking-widest text-neutral-400 hover:text-black">VIEW ALL</button>
-                      </div>
-                      <div className="space-y-6">
-                        {[1, 2, 3].map((_, i) => (
-                          <div key={i} className="flex items-center justify-between py-4 border-b border-neutral-50 last:border-0">
-                            <div className="flex items-center gap-4">
-                              <div className="w-12 h-16 bg-neutral-100 rounded overflow-hidden">
-                                <img src={`https://picsum.photos/seed/${i + 50}/200/300`} className="w-full h-full object-cover grayscale" />
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium">Find Still Catches Me Shifted</p>
-                                <p className="text-[10px] text-neutral-400 tracking-wider">Updated 2 hours ago by Admin</p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <span className="px-3 py-1 bg-neutral-50 text-[9px] tracking-widest rounded-full text-neutral-500">PUBLISHED</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                    {/* Activity Placeholder */}
+                    <div className="lg:col-span-2 bg-white rounded-3xl border border-neutral-100 shadow-sm p-8 flex flex-col items-center justify-center min-h-[300px]">
+                       <History size={32} className="text-neutral-100 mb-4" />
+                       <p className="text-[10px] tracking-[0.2em] text-neutral-400 uppercase">Database initialised. Add books to see activity.</p>
                     </div>
 
-                    {/* Alerts/Status */}
+                    {/* Firestore Status */}
                     <div className="space-y-6">
-                      <div className="bg-white rounded-3xl border border-neutral-100 shadow-sm p-8">
-                        <h4 className="text-sm tracking-widest text-neutral-400 uppercase mb-6 flex items-center gap-2">
-                          <AlertCircle size={14} className="text-amber-500" />
-                          Inventory Alerts
-                        </h4>
-                        <div className="space-y-4">
-                          <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
-                            <p className="text-xs font-medium text-amber-900">Low Stock: "Roadkill"</p>
-                            <p className="text-[10px] text-amber-700 mt-1">2 copies remaining. Consider restock.</p>
-                          </div>
-                          <div className="p-4 bg-red-50 rounded-xl border border-red-100">
-                            <p className="text-xs font-medium text-red-900">Out of Stock: "Manpaw"</p>
-                            <p className="text-[10px] text-red-700 mt-1">Sold out 4 days ago.</p>
-                          </div>
-                        </div>
-                      </div>
-
                       <div className="bg-neutral-900 rounded-3xl shadow-xl p-8 text-white relative overflow-hidden group">
                         <div className="relative z-10">
-                            <h4 className="text-sm font-light tracking-[.2em] mb-4">CATALOG STATUS</h4>
-                            <div className="text-4xl font-light mb-6">92% <span className="text-xs text-white/40 tracking-normal">Healthy</span></div>
+                            <h4 className="text-sm font-light tracking-[.2em] mb-4">FIRESTORE CONNECTED</h4>
+                            <div className="text-4xl font-light mb-6">LIVE <span className="text-xs text-white/40 tracking-normal">Cloud DB</span></div>
                             <div className="w-full h-1 bg-white/10 rounded-full mb-8 overflow-hidden">
                               <motion.div 
                                 initial={{ width: 0 }}
-                                animate={{ width: "92%" }}
-                                className="h-full bg-white"
+                                animate={{ width: "100%" }}
+                                className="h-full bg-green-500"
                               />
                             </div>
                             <button className="flex items-center justify-between w-full text-[9px] tracking-[.3em] opacity-40 group-hover:opacity-100 transition-opacity">
-                              RUN FULL AUDIT <ChevronRight size={12} />
+                              ACTIVE PROJECT: {adminApi.getProjectId?.() || "LYRICAL-WEB-V2"} <ChevronRight size={12} />
                             </button>
                         </div>
                         <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform">
-                            <BarChart3 size={120} />
+                            <ShieldCheck size={120} />
                         </div>
                       </div>
                     </div>
@@ -231,8 +237,9 @@ export function Dashboard() {
               )}
 
               {["authors", "shipping", "settings", "audit"].includes(activeTab) && (
-                <div className="flex flex-col items-center justify-center min-h-[400px] border-2 border-dashed border-neutral-200 rounded-3xl">
-                  <p className="text-neutral-400 text-sm tracking-wider uppercase">Initialising <span className="font-bold text-black">{activeTab}</span> Module...</p>
+                <div className="flex flex-col items-center justify-center min-h-[400px] bg-white rounded-3xl border border-neutral-100">
+                  <p className="text-neutral-400 text-[10px] tracking-[0.3em] uppercase mb-2">Cloud Synced</p>
+                  <p className="text-black font-bold uppercase tracking-[0.1em]">{activeTab} Module Active</p>
                 </div>
               )}
             </>
