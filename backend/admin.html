@@ -19,6 +19,8 @@
     .small { font-size: 12px; opacity: 0.8; }
     .hidden { display: none; }
     .pill { background: #e8eefb; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+    .actions { display: flex; gap: 8px; }
+    .muted { opacity: 0.7; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -102,10 +104,45 @@
       </div>
 
       <div class="card">
+        <h2>Website settings</h2>
+        <div class="row">
+          <div>
+            <label>Homepage featured book IDs (comma separated)</label>
+            <input id="settingsFeaturedIds" placeholder="book-id-1,book-id-2" />
+          </div>
+          <div>
+            <label>Bestseller book IDs (comma separated)</label>
+            <input id="settingsBestsellerIds" placeholder="book-id-3,book-id-4" />
+          </div>
+        </div>
+        <label>Announcements (one per line)</label>
+        <textarea id="settingsAnnouncements" placeholder="Free shipping over $75"></textarea>
+        <div class="row">
+          <div>
+            <label>Default SEO title</label>
+            <input id="settingsSeoTitle" />
+          </div>
+          <div>
+            <label>Default SEO description</label>
+            <input id="settingsSeoDescription" />
+          </div>
+        </div>
+        <button class="primary" id="saveSettingsBtn">Save website settings</button>
+      </div>
+
+      <div class="card">
         <h2>Books</h2>
         <table>
           <thead><tr><th>Title</th><th>Status</th><th>Shipping</th><th>Photos</th></tr></thead>
           <tbody id="booksTable"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Audit log (latest 100 actions)</h2>
+        <table>
+          <thead><tr><th>When</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead>
+          <tbody id="auditLogTable"></tbody>
         </table>
       </div>
     </section>
@@ -126,12 +163,18 @@
       return data;
     }
 
+    function splitCsv(value) {
+      return value.split(',').map((v) => v.trim()).filter(Boolean);
+    }
+
     async function refresh() {
-      const [stats, books, shippingProfiles, authors] = await Promise.all([
+      const [stats, books, shippingProfiles, authors, websiteSettings, auditLog] = await Promise.all([
         api('/api/dashboard/stats'),
         api('/api/books'),
         api('/api/shipping-profiles'),
         api('/api/authors'),
+        api('/api/website-settings'),
+        api('/api/audit-log?limit=100'),
       ]);
 
       el('stats').innerHTML = `Books: <span class="pill">${stats.totalBooks}</span> Drafts: <span class="pill">${stats.draftCount}</span> Published: <span class="pill">${stats.publishedCount}</span>`;
@@ -142,6 +185,21 @@
       el('bookShipping').innerHTML = shippingProfiles.map((s) => `<option value="${s.id}">${s.name}</option>`).join('');
       el('bookAuthor').innerHTML = '<option value="">Unassigned</option>' + authors.map((a) => `<option value="${a.id}">${a.name}</option>`).join('');
       el('photoBook').innerHTML = books.map((b) => `<option value="${b.id}">${b.title}</option>`).join('');
+
+      el('settingsFeaturedIds').value = (websiteSettings.homepageFeaturedBookIds || []).join(',');
+      el('settingsBestsellerIds').value = (websiteSettings.bestsellerBookIds || []).join(',');
+      el('settingsAnnouncements').value = (websiteSettings.announcements || []).map((announcement) => {
+        if (typeof announcement === 'string') return announcement;
+        return announcement?.message ?? '';
+      }).filter(Boolean).join('\n');
+      el('settingsSeoTitle').value = websiteSettings?.seoDefaults?.title || '';
+      el('settingsSeoDescription').value = websiteSettings?.seoDefaults?.description || '';
+
+      el('auditLogTable').innerHTML = auditLog.map((entry) => {
+        const details = entry.details ? JSON.stringify(entry.details) : '';
+        const when = new Date(entry.createdAt).toLocaleString();
+        return `<tr><td>${when}</td><td>${entry.action}</td><td>${entry.entityType}</td><td class="muted">${details}</td></tr>`;
+      }).join('');
     }
 
     function setLoggedIn(loggedIn) {
@@ -175,7 +233,7 @@
           name: el('shippingName').value,
           baseRate: Number(el('shippingBase').value || 0),
           perItemRate: Number(el('shippingPerItem').value || 0),
-          regions: el('shippingRegions').value.split(',').map((v) => v.trim()).filter(Boolean),
+          regions: splitCsv(el('shippingRegions').value),
         }),
       });
       await refresh();
@@ -210,6 +268,28 @@
     el('addPhotosBtn').onclick = async () => {
       const photos = el('photoUrls').value.split('\n').map((v) => v.trim()).filter(Boolean).map((url) => ({ url }));
       await api(`/api/books/${el('photoBook').value}/photos`, { method: 'POST', body: JSON.stringify({ photos }) });
+      await refresh();
+    };
+
+    el('saveSettingsBtn').onclick = async () => {
+      const announcements = el('settingsAnnouncements').value
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((message, index) => ({ id: `announcement-${index + 1}`, message }));
+
+      await api('/api/website-settings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          homepageFeaturedBookIds: splitCsv(el('settingsFeaturedIds').value),
+          bestsellerBookIds: splitCsv(el('settingsBestsellerIds').value),
+          announcements,
+          seoDefaults: {
+            title: el('settingsSeoTitle').value,
+            description: el('settingsSeoDescription').value,
+          },
+        }),
+      });
       await refresh();
     };
 
