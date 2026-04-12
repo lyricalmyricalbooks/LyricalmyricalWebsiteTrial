@@ -27,8 +27,8 @@ import { motion, AnimatePresence } from "motion/react";
 const PURPLE = "#A855F7";
 
 export function ShopSettings({ activeTab, setActiveTab }: any) {
-  const [settings, setSettings] = useState<any>(null);
-  const [originalSettings, setOriginalSettings] = useState<any>(null);
+  const [settings, setSettings] = useState<any>(adminApi.getDefaultSettings());
+  const [originalSettings, setOriginalSettings] = useState<any>(adminApi.getDefaultSettings());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingSection, setSavingSection] = useState<string | null>(null);
@@ -78,7 +78,6 @@ export function ShopSettings({ activeTab, setActiveTab }: any) {
     return JSON.stringify(settings[section]) !== JSON.stringify(originalSettings[section]);
   };
 
-  if (loading) return <div className="h-96 flex items-center justify-center text-[10px] tracking-[.4em] text-neutral-400 uppercase animate-pulse">Accessing Archive Config...</div>;
   if (error) return <div className="h-96 flex items-center justify-center text-[10px] tracking-[.4em] text-red-500 uppercase">{error}</div>;
 
   return (
