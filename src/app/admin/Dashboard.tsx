@@ -17,7 +17,11 @@ import {
   History,
   ShieldCheck,
   ShoppingBag,
-  Tag
+  Tag,
+  Home,
+  BadgePercent,
+  Rocket,
+  LayoutGrid
 } from "lucide-react";
 
 import { Login } from "./Login";
@@ -97,25 +101,24 @@ export function Dashboard() {
         
         <nav className="flex-1 px-4 space-y-1">
           {[
-            { id: "overview", label: "Dashboard", icon: LayoutDashboard },
-            { id: "orders", label: "Orders", icon: ShoppingBag },
-            { id: "catalog", label: "Book Catalog", icon: BookOpen },
-            { id: "discounts", label: "Discounts", icon: Tag },
-            { id: "authors", label: "Authors", icon: Users },
-            { id: "shipping", label: "Shipping", icon: Truck },
-            { id: "settings", label: "Site Settings", icon: Settings },
-            { id: "audit", label: "Audit Log", icon: History },
+            { id: "overview", label: "Dashboard", icon: Home },
+            { id: "orders", label: "Orders", icon: Package },
+            { id: "catalog", label: "Products", icon: Tag },
+            { id: "discounts", label: "Discounts", icon: BadgePercent },
+            { id: "marketing", label: "Marketing", icon: Rocket },
+            { id: "apps", label: "App center", icon: LayoutGrid },
+            { id: "settings", label: "Shop settings", icon: Settings },
           ].map((item) => (
             <button
               key={item.id}
               onClick={() => { setActiveTab(item.id); setShowEditor(false); setSelectedOrder(null); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm tracking-wider transition-all rounded-lg ${
+              className={`w-full flex items-center gap-3 px-4 py-3 text-sm tracking-widest transition-all rounded-lg ${
                 activeTab === item.id && !showEditor && !selectedOrder
-                  ? "bg-white text-black font-medium" 
+                  ? "bg-white text-[#A855F7] font-bold" 
                   : "text-white/60 hover:text-white hover:bg-white/10"
               }`}
             >
-              <item.icon size={18} />
+              <item.icon size={18} strokeWidth={activeTab === item.id ? 2.5 : 2} />
               {item.label}
             </button>
           ))}
