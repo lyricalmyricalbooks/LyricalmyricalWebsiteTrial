@@ -1,4 +1,9 @@
-const API_BASE = "http://localhost:4000/api";
+// Determine API base based on environment
+// For local dev, use localhost. For deployed sites, use relative path if proxied, 
+// or potentially a hardcoded production URL if you have one.
+const API_BASE = window.location.hostname === "localhost" 
+  ? "http://localhost:4000/api" 
+  : "/api"; // Default to relative path for production
 
 export async function fetchWithAuth(path: string, options: any = {}) {
   const token = localStorage.getItem("adminToken");
@@ -10,22 +15,30 @@ export async function fetchWithAuth(path: string, options: any = {}) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+    });
 
-  if (response.status === 401) {
-    localStorage.removeItem("adminToken");
-    window.location.href = "/admin";
-    throw new Error("Unauthorized");
-  }
+    if (response.status === 401) {
+      localStorage.removeItem("adminToken");
+      // Only redirect if we are actually in the admin area
+      if (window.location.pathname.includes("/admin")) {
+        window.location.href = "/admin";
+      }
+      throw new Error("Unauthorized");
+    }
 
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.message || "Request failed");
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || "Request failed");
+    }
+    return data;
+  } catch (err) {
+    console.error(`API Error (${path}):`, err);
+    throw err;
   }
-  return data;
 }
 
 export const adminApi = {

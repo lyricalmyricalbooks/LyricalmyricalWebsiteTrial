@@ -2,14 +2,87 @@ import { motion, useScroll, useTransform } from "motion/react";
 import { useRef, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
-import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router";
+import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
 import { Dashboard } from "./admin/Dashboard";
 
 import { adminApi } from "./admin/api";
 
+const DEFAULT_BOOKS = [
+  {
+    id: "1",
+    title: "FIND STILL CATCHES ME SHIFTED",
+    status: "published",
+    isFeatured: true,
+    photos: [{ url: "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080" }],
+    genres: ["PUBLICATIONS"]
+  },
+  {
+    id: "2",
+    title: "ROADKILL",
+    status: "published",
+    isFeatured: true,
+    photos: [{ url: "https://images.unsplash.com/photo-1758925403752-4794957be8af?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwyfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080" }],
+    genres: ["PUBLICATIONS"]
+  },
+  {
+    id: "3",
+    title: "MARTINA MONACO KISS PRINT",
+    status: "published",
+    isFeatured: false,
+    photos: [{ url: "https://images.unsplash.com/photo-1569264096977-b2cae986c680?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGJsYWNrJTIwYW5kJTIwd2hpdGUlMjBuYXR1cmUlMjB0ZXh0dXJlJTIwcGhvdG9ncmFwaHl8ZW58MXx8fHwxNzc1ODczMTk4fDA&ixlib=rb-4.1.0&q=80&w=1080" }],
+    genres: ["PUBLICATIONS"]
+  },
+  {
+    id: "4",
+    title: "POMEGRANATE EDITIONS",
+    status: "published",
+    isFeatured: false,
+    photos: [{ url: "https://images.unsplash.com/photo-1771702503116-db0e4dfbe103?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw2fHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080" }],
+    genres: ["PUBLICATIONS"]
+  },
+  {
+    id: "5",
+    title: "MANPAW *PRE-ORDER*",
+    status: "published",
+    isFeatured: false,
+    photos: [{ url: "https://images.unsplash.com/photo-1758987016898-f9e1a848896d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw4fHxhYnN0cmFjdCUyMGJsYWNrJTIwYW5kJTIwd2hpdGUlMjBuYXR1cmUlMjB0ZXh0dXJlJTIwcGhvdG9ncmFwaHl8ZW58MXx8fHwxNzc1ODczMTk4fDA&ixlib=rb-4.1.0&q=80&w=1080" }],
+    genres: ["PUBLICATIONS"]
+  },
+  {
+    id: "6",
+    title: "SWEET OXYGEN",
+    status: "published",
+    isFeatured: true,
+    photos: [{ url: "https://images.unsplash.com/photo-1762627318644-311c23762d1a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwzfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080" }],
+    genres: ["PUBLICATIONS"]
+  },
+  {
+    id: "7",
+    title: "FRANK O'HARA MEMORIAL BENEFIT BOOTLEG",
+    status: "published",
+    isFeatured: true,
+    photos: [{ url: "https://images.unsplash.com/photo-1772271031418-a8bd39c1baf0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw0fHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080" }],
+    genres: ["PUBLICATIONS"]
+  },
+  {
+    id: "8",
+    title: "BREATHLESS IN GLOWING VIR",
+    status: "published",
+    isFeatured: false,
+    photos: [{ url: "https://images.unsplash.com/photo-1773948644647-2a08bcf2ed97?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw1fHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080" }],
+    genres: ["PUBLICATIONS"]
+  }
+];
+
+const DEFAULT_SETTINGS = {
+  announcements: [
+    { message: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA" }
+  ]
+};
+
 function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
-  const [books, setBooks] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>(null);
+  const [books, setBooks] = useState<any[]>(DEFAULT_BOOKS);
+  const [settings, setSettings] = useState<any>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -20,10 +93,10 @@ function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, ne
           adminApi.getBooks(),
           adminApi.getSettings(),
         ]);
-        setBooks(b || []);
-        setSettings(s || {});
+        if (b && Array.isArray(b)) setBooks(b);
+        if (s) setSettings(s);
       } catch (err) {
-        console.error("Failed to fetch public data", err);
+        console.warn("Using fallback data - backend connection unavailable.");
       } finally {
         setLoading(false);
       }
@@ -31,7 +104,7 @@ function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, ne
     loadData();
   }, []);
 
-  const featuredBooks = books.filter(b => b.status === "published" && b.isFeatured).slice(0, 4);
+  const featuredBooks = (books || []).filter(b => b.status === "published" && b.isFeatured).slice(0, 4);
   const publications = featuredBooks.length > 0 ? featuredBooks.map(b => ({
     title: b.title.toUpperCase(),
     image: b.photos?.[0]?.url || "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080"
@@ -44,7 +117,7 @@ function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, ne
 
   const categories = ["PUBLICATIONS", "EPHEMERA", "IMPRINT", "OUT OF PRINT"];
   const [activeCategory, setActiveCategory] = useState("PUBLICATIONS");
-  const filteredItems = books.filter(b => b.status === "published" && (b.genres?.includes(activeCategory) || activeCategory === "PUBLICATIONS"));
+  const filteredItems = (books || []).filter(b => b.status === "published" && (b.genres?.includes(activeCategory) || activeCategory === "PUBLICATIONS"));
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
@@ -252,7 +325,7 @@ function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, ne
               className="flex gap-8 overflow-x-auto scrollbar-hide px-12 py-4"
               style={{ paddingRight: '48px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
-              {books.filter(b => b.status === "published").map((item: any, index: number) => (
+              {(books || []).filter(b => b.status === "published").map((item: any, index: number) => (
                 <motion.button
                   key={item.id || index}
                   initial={{ opacity: 0, y: 20 }}
