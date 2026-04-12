@@ -1,83 +1,25 @@
-import { motion, AnimatePresence } from "motion/react";
-import { useRef, useState, useEffect } from "react";
+import { motion } from "motion/react";
+import { useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Link } from "react-router";
 import { useCart } from "../CartContext";
-import { adminApi } from "../admin/api";
-
-const DEFAULT_BOOKS = [
-  {
-    id: "1",
-    title: "FIND STILL CATCHES ME SHIFTED",
-    status: "published",
-    isFeatured: true,
-    photos: [{ url: "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg" }],
-    genres: ["PUBLICATIONS"]
-  },
-  {
-    id: "2",
-    title: "ROADKILL",
-    status: "published",
-    isFeatured: true,
-    photos: [{ url: "https://images.unsplash.com/photo-1758925403752-4794957be8af?crop=entropy&cs=tinysrgb&fit=max&fm=jpg" }],
-    genres: ["PUBLICATIONS"]
-  }
-];
-
-const DEFAULT_SETTINGS = {
-  announcements: [
-    { message: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA" }
-  ]
-};
+import { CATEGORIES, DEFAULT_IMAGE } from "../features/site/constants";
+import { getFeaturedBooks, getFilteredItems, getPublications, getPublishedBooks } from "../features/site/selectors";
+import type { Book } from "../features/site/types";
+import { useSiteData } from "../features/site/useSiteData";
 
 export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
   const { cartCount, addToCart, setIsCartOpen } = useCart();
-  const [books, setBooks] = useState<any[]>(DEFAULT_BOOKS);
-  const [settings, setSettings] = useState<any>(DEFAULT_SETTINGS);
-  const [loading, setLoading] = useState(true);
+  const { books, settings, loading } = useSiteData();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [b, s] = await Promise.all([
-          adminApi.getBooks(12), // Limit initial load
-          adminApi.getSettings(),
-        ]);
-        if (b && Array.isArray(b)) setBooks(b);
-        if (s) setSettings(s);
-        
-        const sessionKey = "fm_visit_" + new Date().toISOString().split('T')[0];
-        if (!sessionStorage.getItem(sessionKey)) {
-          adminApi.recordVisit();
-          sessionStorage.setItem(sessionKey, "true");
-        }
-      } catch (err) {
-        console.warn("Using fallback data - backend connection unavailable.");
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, []);
-
-  const featuredBooks = (books || []).filter(b => b.status === "published" && b.isFeatured).slice(0, 4);
-  const currentBooks = featuredBooks.length > 0 ? featuredBooks : DEFAULT_BOOKS.slice(0, 4);
-  
-  const publications = currentBooks.map(b => ({
-    title: b.title.toUpperCase(),
-    image: b.photos?.[0]?.url || "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg"
-  }));
-
-  const categories = ["PUBLICATIONS", "EPHEMERA", "IMPRINT", "OUT OF PRINT"];
   const [activeCategory, setActiveCategory] = useState("PUBLICATIONS");
-  
-  const now = new Date().toISOString();
-  const filteredItems = (books || []).filter(b => 
-    b.status === "published" && 
-    (!b.scheduleDate || b.scheduleDate <= now) &&
-    (b.genres?.includes(activeCategory) || activeCategory === "PUBLICATIONS")
+
+  const publications = useMemo(() => getPublications(getFeaturedBooks(books)), [books]);
+  const filteredItems = useMemo(
+    () => getFilteredItems(books, activeCategory, new Date().toISOString()),
+    [books, activeCategory],
   );
+  const publishedBooks = useMemo(() => getPublishedBooks(books), [books]);
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
@@ -104,7 +46,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           <div className="flex items-center justify-between px-4 md:px-8 py-3">
             <div className="flex items-center gap-6 md:gap-8">
               <button onClick={() => setShowCatalog(false)} className="text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity">F✶M</button>
-              {categories.map((cat: string) => (
+              {CATEGORIES.map((cat: string) => (
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
@@ -136,10 +78,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 className="group cursor-pointer"
               >
                 <div className="relative aspect-square bg-neutral-900 mb-2 overflow-hidden">
-                  <img
-                    src={item.photos?.[0]?.url || "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg"}
+                    <img
+                    src={item.photos?.[0]?.url || DEFAULT_IMAGE}
                     alt={item.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 grayscale"
+                    loading="lazy"
+                    decoding="async"
                   />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <button 
@@ -225,7 +169,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               <ChevronLeft size={16} className="text-white" />
             </button>
             <div ref={scrollContainerRef} className="flex gap-8 overflow-x-auto scrollbar-hide px-12 py-4" style={{ paddingRight: '48px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-              {(books || []).filter(b => b.status === "published").map((item: any, index: number) => (
+              {publishedBooks.map((item: Book, index: number) => (
                 <motion.button
                   key={item.id || index}
                   onClick={() => addToCart(item)}
