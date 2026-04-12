@@ -42,6 +42,7 @@ export function Dashboard() {
   const [showEditor, setShowEditor] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [stats, setStats] = useState<any>(null);
+  const [settingsTab, setSettingsTab] = useState("general");
 
   useEffect(() => {
     // Listen for Firebase Auth changes
@@ -108,20 +109,51 @@ export function Dashboard() {
             { id: "discounts", label: "Discounts", icon: BadgePercent },
             { id: "marketing", label: "Marketing", icon: Rocket },
             { id: "apps", label: "App center", icon: LayoutGrid },
-            { id: "settings", label: "Shop settings", icon: Settings },
+            { 
+              id: "settings", 
+              label: "Shop settings", 
+              icon: Settings,
+              children: [
+                { id: "general", label: "General" },
+                { id: "communications", label: "Communications" },
+                { id: "shipping", label: "Shipping" },
+                { id: "payments", label: "Payments" },
+                { id: "taxes", label: "Taxes" },
+                { id: "designer", label: "Shop designer" },
+              ]
+            },
           ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => { setActiveTab(item.id); setShowEditor(false); setSelectedOrder(null); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm tracking-widest transition-all rounded-lg ${
-                activeTab === item.id && !showEditor && !selectedOrder
-                  ? "bg-white text-[#A855F7] font-bold" 
-                  : "text-white/60 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              <item.icon size={18} strokeWidth={activeTab === item.id ? 2.5 : 2} />
-              {item.label}
-            </button>
+            <div key={item.id} className="space-y-1">
+              <button
+                onClick={() => { setActiveTab(item.id); setShowEditor(false); setSelectedOrder(null); if (item.id === "settings") setSettingsTab("general"); }}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm tracking-widest transition-all rounded-lg ${
+                  activeTab === item.id && !showEditor && !selectedOrder
+                    ? "bg-white text-[#A855F7] font-bold" 
+                    : "text-white/60 hover:text-white hover:bg-white/10"
+                }`}
+              >
+                <item.icon size={18} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+                {item.label}
+              </button>
+
+              {item.id === "settings" && activeTab === "settings" && (
+                <div className="pl-12 space-y-1 pb-2">
+                  {item.children?.map((child) => (
+                    <button
+                      key={child.id}
+                      onClick={() => setSettingsTab(child.id)}
+                      className={`w-full text-left py-2 text-[11px] tracking-widest transition-all ${
+                        settingsTab === child.id 
+                          ? "text-white font-bold" 
+                          : "text-white/40 hover:text-white"
+                      }`}
+                    >
+                      {child.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </nav>
 
@@ -192,7 +224,7 @@ export function Dashboard() {
                     ) : (
                       <Orders onSelectOrder={(order) => setSelectedOrder(order)} />
                     );
-                  case "settings": return <ShopSettings />;
+                  case "settings": return <ShopSettings activeTab={settingsTab} setActiveTab={setSettingsTab} />;
                   default:
                     return (
                       <div className="flex flex-col items-center justify-center min-h-[400px] bg-white rounded-3xl border border-neutral-100">

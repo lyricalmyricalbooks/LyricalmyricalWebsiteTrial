@@ -26,13 +26,12 @@ import { motion, AnimatePresence } from "motion/react";
 
 const PURPLE = "#A855F7";
 
-export function ShopSettings() {
+export function ShopSettings({ activeTab, setActiveTab }: any) {
   const [settings, setSettings] = useState<any>(null);
   const [originalSettings, setOriginalSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingSection, setSavingSection] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("general");
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
 
   useEffect(() => {
@@ -82,64 +81,25 @@ export function ShopSettings() {
   if (loading) return <div className="h-96 flex items-center justify-center text-[10px] tracking-[.4em] text-neutral-400 uppercase animate-pulse">Accessing Archive Config...</div>;
   if (error) return <div className="h-96 flex items-center justify-center text-[10px] tracking-[.4em] text-red-500 uppercase">{error}</div>;
 
-  const tabs = [
-    { id: "general", label: "General", icon: SettingsIcon },
-    { id: "communications", label: "Communications", icon: Mail },
-    { id: "shipping", label: "Shipping", icon: Truck },
-    { id: "payments", label: "Payments", icon: CreditCard },
-    { id: "taxes", label: "Taxes", icon: Percent },
-    { id: "designer", label: "Shop designer", icon: Palette },
-  ];
-
   return (
-    <div className="flex gap-12 max-w-6xl mx-auto pb-32">
-      {/* Sub Navigation Sidebar */}
-      <aside className="w-64 space-y-2">
-        <div className="flex items-center gap-3 px-4 py-6 mb-4">
-          <div className="p-2 bg-purple-100 rounded-xl text-purple-600">
-             <SettingsIcon size={20} />
-          </div>
-          <h2 className="text-xl font-bold tracking-tight text-purple-600">Shop settings</h2>
-        </div>
-        
-        <nav className="space-y-1">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all rounded-xl ${
-                activeTab === tab.id 
-                  ? "bg-white text-black shadow-sm" 
-                  : "text-neutral-500 hover:bg-neutral-100"
-              }`}
-            >
-              <tab.icon size={18} className={activeTab === tab.id ? "text-purple-500" : ""} />
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-      </aside>
-
-      {/* Content Area */}
-      <div className="flex-1 min-w-0">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-            className="space-y-10"
-          >
-            {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
-            {activeTab === "communications" && <CommunicationsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
-            {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} />}
-            {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
-            {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
-            {activeTab === "designer" && <DesignerSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
-          </motion.div>
-        </AnimatePresence>
-      </div>
+    <div className="max-w-4xl mx-auto pb-32">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="space-y-10"
+        >
+          {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
+          {activeTab === "communications" && <CommunicationsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
+          {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} />}
+          {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
+          {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
+          {activeTab === "designer" && <DesignerSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
