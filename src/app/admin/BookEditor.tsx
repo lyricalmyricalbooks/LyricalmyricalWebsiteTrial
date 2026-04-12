@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   X, 
   Save, 
@@ -49,7 +49,9 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [authors, setAuthors] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [photoInput, setPhotoInput] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadMetadata();
@@ -93,18 +95,22 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     });
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (loading) return;
+
     setLoading(true);
     try {
+      console.log("Saving book data:", formData);
       if (book) {
         await adminApi.updateBook(book.id, formData);
       } else {
         await adminApi.createBook(formData);
       }
       onSave();
-    } catch (err) {
-      alert("Error saving book");
+    } catch (err: any) {
+      console.error("Save error details:", err);
+      alert(`Error saving book: ${err.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -121,6 +127,37 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       photos: [...prev.photos, { url: photoInput, id: Math.random().toString(36).substr(2, 9) }]
     }));
     setPhotoInput("");
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (formData.photos.length >= 10) {
+      alert("Maximum 10 photos allowed");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const fileName = `${Date.now()}-${file.name}`;
+      const url = await adminApi.uploadFile(file, `products/${fileName}`);
+      
+      setFormData((prev: any) => ({
+        ...prev,
+        photos: [...prev.photos, { 
+          url, 
+          id: Math.random().toString(36).substr(2, 9),
+          altText: file.name
+        }]
+      }));
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      alert("Failed to upload image. Please try again.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   const removePhoto = (id: string) => {
@@ -364,12 +401,34 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
               ))}
               
               {formData.photos.length < 10 && (
-                <div className="aspect-[3/4] border-2 border-dashed border-neutral-100 rounded-xl flex flex-col items-center justify-center gap-2 text-neutral-300">
-                  <LucideImage size={24} strokeWidth={1} />
-                  <span className="text-[8px] tracking-widest font-bold">READY FOR UPLOAD</span>
-                </div>
+                <button 
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="aspect-[3/4] border-2 border-dashed border-neutral-100 rounded-xl flex flex-col items-center justify-center gap-2 text-neutral-300 hover:border-black/20 hover:text-neutral-400 transition-all disabled:opacity-50"
+                >
+                  {uploading ? (
+                    <div className="flex flex-col items-center gap-2">
+                       <div className="w-5 h-5 border-2 border-neutral-200 border-t-black rounded-full animate-spin" />
+                       <span className="text-[8px] tracking-widest font-bold">UPLOADING...</span>
+                    </div>
+                  ) : (
+                    <>
+                      <LucideImage size={24} strokeWidth={1} />
+                      <span className="text-[8px] tracking-widest font-bold">READY FOR UPLOAD</span>
+                    </>
+                  )}
+                </button>
               )}
             </div>
+
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileUpload} 
+              accept="image/*" 
+              className="hidden" 
+            />
 
             <div className="flex flex-col gap-3">
               <label className="text-[10px] tracking-widest text-neutral-500 uppercase">External Asset URL</label>

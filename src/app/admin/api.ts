@@ -17,7 +17,8 @@ import {
   signOut, 
   onAuthStateChanged 
 } from "firebase/auth";
-import { db, auth, googleProvider } from "../../lib/firebase";
+import { db, auth, storage, googleProvider } from "../../lib/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 export const adminApi = {
   // Authentication
@@ -124,6 +125,13 @@ export const adminApi = {
       updatedAt: new Date().toISOString(),
     });
     return newPhotos;
+  },
+
+  // Uploads
+  uploadFile: async (file: File, path: string) => {
+    const storageRef = ref(storage, path);
+    const snapshot = await uploadBytes(storageRef, file);
+    return await getDownloadURL(snapshot.ref);
   },
 
   // Authors
