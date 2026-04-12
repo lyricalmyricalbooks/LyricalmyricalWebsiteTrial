@@ -160,7 +160,7 @@ export const adminApi = {
   getSettings: async () => {
     const docRef = doc(db, "settings", "website");
     const snap = await getDoc(docRef);
-    const defaultSettings = this.getDefaultSettings();
+    const defaultSettings = adminApi.getDefaultSettings();
 
     if (!snap.exists()) {
       await setDoc(docRef, defaultSettings);
