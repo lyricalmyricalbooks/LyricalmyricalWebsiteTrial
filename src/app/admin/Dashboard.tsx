@@ -31,6 +31,7 @@ import { Discounts } from "./Discounts";
 import { Orders } from "./Orders";
 import { OrderDetail } from "./OrderDetail";
 import { AnalyticsDashboard } from "./AnalyticsDashboard";
+import { ShopSettings } from "./ShopSettings";
 import { adminApi } from "./api";
 
 export function Dashboard() {
@@ -200,7 +201,11 @@ export function Dashboard() {
                 )
               )}
 
-              {["authors", "shipping", "settings", "audit"].includes(activeTab) && (
+              {activeTab === "settings" && (
+                <ShopSettings />
+              )}
+
+              {["authors", "marketing", "apps", "shipping", "audit"].includes(activeTab) && (
                 <div className="flex flex-col items-center justify-center min-h-[400px] bg-white rounded-3xl border border-neutral-100">
                   <p className="text-neutral-400 text-[10px] tracking-[0.3em] uppercase mb-2">Cloud Synced</p>
                   <p className="text-black font-bold uppercase tracking-[0.1em]">{activeTab} Module Active</p>

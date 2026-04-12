@@ -160,14 +160,34 @@ export const adminApi = {
   getSettings: async () => {
     const docRef = doc(db, "settings", "website");
     const snap = await getDoc(docRef);
+    const defaultSettings = { 
+      announcements: [{ message: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA" }],
+      maintenance: { enabled: false, message: "WE ARE UPDATING OUR ARCHIVE. PLEASE CHECK BACK SOON." },
+      domain: { subdomain: "lyricalmyrical", custom: "www.lyricalmyricalbooks.com" },
+      info: { 
+        name: "Lyricalmyrical Books", 
+        description: "Lyricalmyrical Books is an independent publishing house based in Toronto with roots in Italy, specializing in publishing photography and art books.",
+        website: "https://lyricalmyricalbooks.com"
+      },
+      inventory: { tracking: true, overselling: false },
+      checkout: { requirePhone: true },
+      assets: { 
+        profileUrl: "https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=100&h=100&fit=crop", 
+        faviconUrl: "https://images.unsplash.com/photo-1544377193-33dcf4d68fb5?w=50&h=50&fit=crop" 
+      },
+      location: { street: "456 Montrose Avenue", city: "Toronto", state: "Ontario", zip: "M6G3H1", country: "Canada" },
+      localization: { timezone: "(GMT-05:00) Eastern Time (US & Canada)", currency: "Canadian Dollar (CAD $)" },
+      aiShield: { blockTraining: false, blockShopping: false },
+      policies: { shipping: "", returns: "", privacy: "", terms: "", legal: "" }
+    };
+
     if (!snap.exists()) {
-      const defaultSettings = { 
-        announcements: [{ message: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA" }] 
-      };
       await setDoc(docRef, defaultSettings);
       return defaultSettings;
     }
-    return snap.data();
+    
+    // Merge snap data with defaults to ensure new fields are present
+    return { ...defaultSettings, ...snap.data() };
   },
 
   updateSettings: (settings: any) => setDoc(doc(db, "settings", "website"), settings, { merge: true }),
