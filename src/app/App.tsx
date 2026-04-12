@@ -1,106 +1,50 @@
 import { motion, useScroll, useTransform } from "motion/react";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
-export default function App() {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [showCatalog, setShowCatalog] = useState(false);
-  const backendAdminUrl = "/admin";
+import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router";
+import { Dashboard } from "./admin/Dashboard";
 
-  const publications = [
+import { adminApi } from "./admin/api";
+
+function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
+  const [books, setBooks] = useState<any[]>([]);
+  const [settings, setSettings] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [b, s] = await Promise.all([
+          adminApi.getBooks(),
+          adminApi.getSettings(),
+        ]);
+        setBooks(b || []);
+        setSettings(s || {});
+      } catch (err) {
+        console.error("Failed to fetch public data", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const featuredBooks = books.filter(b => b.status === "published" && b.isFeatured).slice(0, 4);
+  const publications = featuredBooks.length > 0 ? featuredBooks.map(b => ({
+    title: b.title.toUpperCase(),
+    image: b.photos?.[0]?.url || "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080"
+  })) : [
     {
       title: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA",
       image: "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080"
-    },
-    {
-      title: "NEW WORKS BY ZOE MOSS, LUCIA BELLEMARE, KIRK LEAL",
-      image: "https://images.unsplash.com/photo-1758925403752-4794957be8af?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwyfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080"
-    },
-    {
-      title: "MONOGRAPHS — VISUAL CULTURE — ARTIST BOOKS — SPECIAL EDITIONS",
-      image: "https://images.unsplash.com/photo-1762627318644-311c23762d1a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwzfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080"
-    },
-    {
-      title: "ARCHIVE—PRESS — SPRING/SUMMER 2026",
-      image: "https://images.unsplash.com/photo-1772271031418-a8bd39c1baf0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw0fHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080"
     }
   ];
 
-  const catalogItems = [
-    { title: "NEW WORKS BY ZOE MOSS, LUCIA BELLEMARE, KIRK LEAL" },
-    { title: "MONAY BOOKS" },
-    { title: "SPRING/SUMMER PRESS" },
-    { title: "ZIM IMPRINT" }
-  ];
-
-  const [activeCategory, setActiveCategory] = useState("PUBLICATIONS");
   const categories = ["PUBLICATIONS", "EPHEMERA", "IMPRINT", "OUT OF PRINT"];
-
-  const shopItems = [
-    {
-      title: "FIND STILL CATCHES ME SHIFTED",
-      image: "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "PUBLICATIONS"
-    },
-    {
-      title: "ROADKILL",
-      image: "https://images.unsplash.com/photo-1758925403752-4794957be8af?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwyfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "PUBLICATIONS"
-    },
-    {
-      title: "MARTINA MONACO KISS PRINT",
-      image: "https://images.unsplash.com/photo-1569264096977-b2cae986c680?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGJsYWNrJTIwYW5kJTIwd2hpdGUlMjBuYXR1cmUlMjB0ZXh0dXJlJTIwcGhvdG9ncmFwaHl8ZW58MXx8fHwxNzc1ODczMTk4fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "PUBLICATIONS"
-    },
-    {
-      title: "POMEGRANATE EDITIONS",
-      image: "https://images.unsplash.com/photo-1771702503116-db0e4dfbe103?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw2fHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "PUBLICATIONS"
-    },
-    {
-      title: "MANPAW *PRE-ORDER*",
-      image: "https://images.unsplash.com/photo-1758987016898-f9e1a848896d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw4fHxhYnN0cmFjdCUyMGJsYWNrJTIwYW5kJTIwd2hpdGUlMjBuYXR1cmUlMjB0ZXh0dXJlJTIwcGhvdG9ncmFwaHl8ZW58MXx8fHwxNzc1ODczMTk4fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "PUBLICATIONS"
-    },
-    {
-      title: "SWEET OXYGEN",
-      image: "https://images.unsplash.com/photo-1762627318644-311c23762d1a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwzfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "PUBLICATIONS"
-    },
-    {
-      title: "FRANK O'HARA MEMORIAL BENEFIT BOOTLEG",
-      image: "https://images.unsplash.com/photo-1772271031418-a8bd39c1baf0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw0fHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "PUBLICATIONS"
-    },
-    {
-      title: "BREATHLESS IN GLOWING VIR",
-      image: "https://images.unsplash.com/photo-1773948644647-2a08bcf2ed97?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw1fHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "PUBLICATIONS"
-    },
-    {
-      title: "EPHEMERAL FORMS",
-      image: "https://images.unsplash.com/photo-1569264090102-cb8c5c31d083?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMGJsYWNrJTIwYW5kJTIwd2hpdGUlMjBuYXR1cmUlMjB0ZXh0dXJlJTIwcGhvdG9ncmFwaHl8ZW58MXx8fHwxNzc1ODczMTk4fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "EPHEMERA"
-    },
-    {
-      title: "COLLECTED OBJECTS",
-      image: "https://images.unsplash.com/photo-1712771315936-3a2287614bf0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMGJsYWNrJTIwYW5kJTIwd2hpdGUlMjBuYXR1cmUlMjB0ZXh0dXJlJTIwcGhvdG9ncmFwaHl8ZW58MXx8fHwxNzc1ODczMTk4fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "EPHEMERA"
-    },
-    {
-      title: "ARCHIVE PRINTS",
-      image: "https://images.unsplash.com/photo-1677816167053-243117463fca?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw0fHxhYnN0cmFjdCUyMGJsYWNrJTIwYW5kJTIwd2hpdGUlMjBuYXR1cmUlMjB0ZXh0dXJlJTIwcGhvdG9ncmFwaHl8ZW58MXx8fHwxNzc1ODczMTk4fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "IMPRINT"
-    },
-    {
-      title: "MONOGRAPH SERIES",
-      image: "https://images.unsplash.com/photo-1714421888461-46131efb4625?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw2fHxhYnN0cmFjdCUyMGJsYWNrJTIwYW5kJTIwd2hpdGUlMjBuYXR1cmUlMjB0ZXh0dXJlJTIwcGhvdG9ncmFwaHl8ZW58MXx8fHwxNzc1ODczMTk4fDA&ixlib=rb-4.1.0&q=80&w=1080",
-      category: "IMPRINT"
-    }
-  ];
-
-  const filteredItems = shopItems.filter(item => item.category === activeCategory);
+  const [activeCategory, setActiveCategory] = useState("PUBLICATIONS");
+  const filteredItems = books.filter(b => b.status === "published" && (b.genres?.includes(activeCategory) || activeCategory === "PUBLICATIONS"));
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
@@ -110,14 +54,6 @@ export default function App() {
         behavior: 'smooth'
       });
     }
-  };
-
-  const nextPage = () => {
-    setCurrentPage((prev) => (prev + 1) % publications.length);
-  };
-
-  const prevPage = () => {
-    setCurrentPage((prev) => (prev - 1 + publications.length) % publications.length);
   };
 
   if (showCatalog) {
@@ -133,7 +69,7 @@ export default function App() {
               >
                 F✶M
               </button>
-              {categories.map((cat) => (
+              {categories.map((cat: string) => (
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
@@ -160,9 +96,9 @@ export default function App() {
         {/* Catalog Grid */}
         <div className="p-4 md:p-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {filteredItems.map((item, index) => (
+            {filteredItems.map((item: any, index: number) => (
               <motion.div
-                key={index}
+                key={item.id || index}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: index * 0.05 }}
@@ -170,7 +106,7 @@ export default function App() {
               >
                 <div className="relative aspect-square bg-neutral-900 mb-2 overflow-hidden">
                   <img
-                    src={item.image}
+                    src={item.photos?.[0]?.url || "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080"}
                     alt={item.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
@@ -189,15 +125,9 @@ export default function App() {
         {/* Bottom Info Bar */}
         <div className="sticky bottom-0 bg-black border-t border-white/20 px-4 md:px-8 py-3">
           <div className="text-[9px] md:text-[10px] tracking-wider opacity-60">
-            INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA
-            <span className="mx-2">/</span>
-            NEW WORKS BY ZOE MOSS, LUCIA BELLEMARE, KIRK LEAL
-            <span className="mx-2">/</span>
-            MONAY BOOKS
+            {settings?.announcements?.[0]?.message || "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA"}
             <span className="mx-2">/</span>
             SPRING/SUMMER PRESS
-            <span className="mx-2">/</span>
-            POMEGRANATE PRESS
           </div>
         </div>
       </div>
@@ -226,25 +156,23 @@ export default function App() {
           <button className="text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity">
             CART
           </button>
-          <a
-            href={backendAdminUrl}
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            to="/admin"
             className="text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity"
           >
             BACKEND
-          </a>
+          </Link>
         </div>
       </motion.div>
 
       {/* Main Hero Area */}
       <div className="relative h-screen w-full">
         {/* Background Images */}
-        {publications.map((pub, index) => (
+        {publications.map((pub: any, index: number) => (
           <motion.div
             key={index}
             initial={{ opacity: 0 }}
-            animate={{ opacity: index === currentPage ? 1 : 0 }}
+            animate={{ opacity: index === (currentPage % publications.length) ? 1 : 0 }}
             transition={{ duration: 1 }}
             className="absolute inset-0"
           >
@@ -279,10 +207,8 @@ export default function App() {
             transition={{ duration: 1.2, delay: 0.3 }}
             className="text-center"
           >
-            {/* Artistic Logo Symbol */}
             <div className="mb-6 flex items-center justify-center gap-3">
               <svg width="280" height="120" viewBox="0 0 280 120" className="text-white drop-shadow-2xl">
-                {/* Abstract artistic logo inspired by the reference */}
                 <text
                   x="140"
                   y="70"
@@ -306,7 +232,7 @@ export default function App() {
               transition={{ duration: 1, delay: 0.8 }}
               className="text-white text-[10px] md:text-xs tracking-[0.2em] max-w-md mx-auto px-4"
             >
-              {publications[currentPage].title}
+              {publications[currentPage % publications.length]?.title}
             </motion.div>
           </motion.div>
         </div>
@@ -324,17 +250,17 @@ export default function App() {
             <div
               ref={scrollContainerRef}
               className="flex gap-8 overflow-x-auto scrollbar-hide px-12 py-4"
-              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+              style={{ paddingRight: '48px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
-              {catalogItems.map((item, index) => (
+              {books.filter(b => b.status === "published").map((item: any, index: number) => (
                 <motion.button
-                  key={index}
+                  key={item.id || index}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: 1 + index * 0.1 }}
                   className="text-white text-[9px] md:text-[10px] tracking-[0.15em] whitespace-nowrap hover:opacity-50 transition-opacity"
                 >
-                  {item.title}
+                  {item.title.toUpperCase()}
                 </motion.button>
               ))}
             </div>
@@ -348,78 +274,7 @@ export default function App() {
           </div>
         </div>
       </div>
-
-      {/* Secondary Content Sections */}
-      <section className="min-h-screen bg-white p-8 md:p-16 flex items-center justify-center">
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 1 }}
-          className="max-w-4xl text-center"
-        >
-          <h2 className="text-3xl md:text-6xl tracking-tight mb-8" style={{ fontFamily: 'Inter, sans-serif', fontWeight: 300, letterSpacing: '-0.02em' }}>
-            ARCHIVE—PRESS
-          </h2>
-          <p className="text-xs md:text-sm tracking-wider leading-relaxed max-w-2xl mx-auto">
-            AN INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY, ARTIST MONOGRAPHS, AND VISUAL EPHEMERA. EACH PUBLICATION IS CONCEIVED AS A COLLABORATION BETWEEN ARTIST, DESIGNER, AND MAKER.
-          </p>
-        </motion.div>
-      </section>
-
-      {/* Full Bleed Image Section */}
-      <section className="relative h-screen">
-        <img
-          src="https://images.unsplash.com/photo-1773948644647-2a08bcf2ed97?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw1fHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080"
-          alt=""
-          className="w-full h-full object-cover grayscale"
-        />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 1.5 }}
-            className="text-white text-center px-4"
-          >
-            <div className="text-xs md:text-sm tracking-[0.3em] mb-4">SPRING / SUMMER 2026</div>
-            <div className="text-2xl md:text-5xl tracking-tight" style={{ fontWeight: 300 }}>
-              NEW RELEASES
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Catalog Grid */}
-      <section className="min-h-screen bg-white p-8 md:p-16">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-1 max-w-6xl mx-auto">
-          {[
-            "https://images.unsplash.com/photo-1771702503116-db0e4dfbe103?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw2fHxtb25vY2hyb21lJTIwYXJ0aXN0aWMlMjBwaG90b2dyYXBoeSUyMGFic3RyYWN0fGVufDF8fHx8MTc3NTg3MzE5OHww&ixlib=rb-4.1.0&q=80&w=1080",
-            "https://images.unsplash.com/photo-1677816167053-243117463fca?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw0fHxhYnN0cmFjdCUyMGJsYWNrJTIwYW5kJTIwd2hpdGUlMjBuYXR1cmUlMjB0ZXh0dXJlJTIwcGhvdG9ncmFwaHl8ZW58MXx8fHwxNzc1ODczMTk4fDA&ixlib=rb-4.1.0&q=80&w=1080",
-            "https://images.unsplash.com/photo-1712771315936-3a2287614bf0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMGJsYWNrJTIwYW5kJTIwd2hpdGUlMjBuYXR1cmUlMjB0ZXh0dXJlJTIwcGhvdG9ncmFwaHl8ZW58MXx8fHwxNzc1ODczMTk4fDA&ixlib=rb-4.1.0&q=80&w=1080",
-            "https://images.unsplash.com/photo-1758987016898-f9e1a848896d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHw4fHxhYnN0cmFjdCUyMGJsYWNrJTIwYW5kJTIwd2hpdGUlMjBuYXR1cmUlMjB0ZXh0dXJlJTIwcGhvdG9ncmFwaHl8ZW58MXx8fHwxNzc1ODczMTk4fDA&ixlib=rb-4.1.0&q=80&w=1080",
-            "https://images.unsplash.com/photo-1569264090102-cb8c5c31d083?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMGJsYWNrJTIwYW5kJTIwd2hpdGUlMjBuYXR1cmUlMjB0ZXh0dXJlJTIwcGhvdG9ncmFwaHl8ZW58MXx8fHwxNzc1ODczMTk4fDA&ixlib=rb-4.1.0&q=80&w=1080",
-            "https://images.unsplash.com/photo-1569264096977-b2cae986c680?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGJsYWNrJTIwYW5kJTIwd2hpdGUlMjBuYXR1cmUlMjB0ZXh0dXJlJTIwcGhvdG9ncmFwaHl8ZW58MXx8fHwxNzc1ODczMTk4fDA&ixlib=rb-4.1.0&q=80&w=1080"
-          ].map((img, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
-              whileHover={{ scale: 0.98 }}
-              className="aspect-square cursor-pointer"
-            >
-              <img
-                src={img}
-                alt=""
-                className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-500"
-              />
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
+      
       {/* Footer */}
       <footer className="bg-black text-white py-8 px-8 md:px-16">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-[10px] tracking-widest">
@@ -432,5 +287,36 @@ export default function App() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function App() {
+  const [currentPage, setCurrentPage] = useState(0);
+  const [showCatalog, setShowCatalog] = useState(false);
+
+  const nextPage = () => {
+    setCurrentPage((prev) => prev + 1);
+  };
+
+  const prevPage = () => {
+    setCurrentPage((prev) => (prev > 0 ? prev - 1 : 0));
+  };
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={
+          <MainSite 
+            setShowCatalog={setShowCatalog}
+            showCatalog={showCatalog}
+            setCurrentPage={setCurrentPage}
+            currentPage={currentPage}
+            nextPage={nextPage}
+            prevPage={prevPage}
+          />
+        } />
+        <Route path="/admin" element={<Dashboard />} />
+      </Routes>
+    </BrowserRouter>
   );
 }

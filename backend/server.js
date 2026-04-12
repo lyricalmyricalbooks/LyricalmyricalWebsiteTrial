@@ -390,12 +390,15 @@ const server = http.createServer(async (req, res) => {
         isbn: body.isbn ?? '',
         sku: body.sku ?? '',
         publicationDate: body.publicationDate ?? null,
-        format: body.format ?? 'paperback',
-        status: body.status ?? 'draft',
-        language: body.language ?? 'en',
+        format: body.format ?? 'Paperback',
+        dimensions: body.dimensions ?? '', // e.g. "5.5 x 8.5 in"
+        weight: body.weight ?? '', // e.g. "0.8 lbs"
+        language: body.language ?? 'English',
         pageCount: Number(body.pageCount ?? 0),
-        price: Number(body.price ?? 0),
-        inventory: Number(body.inventory ?? 0),
+        retailPrice: Number(body.retailPrice ?? body.price ?? 0),
+        costPrice: Number(body.costPrice ?? 0),
+        stockLevel: Number(body.stockLevel ?? body.inventory ?? 0),
+        status: body.status ?? 'draft',
         shippingProfileId: body.shippingProfileId,
         authorId: body.authorId ?? null,
         genres: Array.isArray(body.genres) ? body.genres : [],
@@ -426,7 +429,7 @@ const server = http.createServer(async (req, res) => {
       if (body.shippingProfileId && !state.shippingProfiles.some((item) => item.id === body.shippingProfileId)) return badRequest(res, 'Invalid shippingProfileId');
       if (body.authorId && !state.authors.some((item) => item.id === body.authorId)) return badRequest(res, 'Invalid authorId');
 
-      for (const key of ['title', 'subtitle', 'description', 'isbn', 'sku', 'publicationDate', 'format', 'status', 'language', 'pageCount', 'price', 'inventory', 'shippingProfileId', 'authorId', 'genres', 'tags', 'isFeatured', 'seo']) {
+      for (const key of ['title', 'subtitle', 'description', 'isbn', 'sku', 'publicationDate', 'format', 'dimensions', 'weight', 'language', 'pageCount', 'retailPrice', 'costPrice', 'stockLevel', 'status', 'shippingProfileId', 'authorId', 'genres', 'tags', 'isFeatured', 'seo']) {
         if (body[key] !== undefined) book[key] = body[key];
       }
       book.updatedAt = new Date().toISOString();
