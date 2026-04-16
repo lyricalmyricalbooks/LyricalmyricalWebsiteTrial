@@ -19,5 +19,8 @@
         "supportEmail": "lyricalmyricalbooks@gmail.com"
       }
     }
+  },
+  "storage": {
+    "rules": "storage.rules"
   }
 }

@@ -19,7 +19,12 @@ import {
   Edit2,
   Bell,
   Star,
-  Check
+  Check,
+  Lock,
+  Send,
+  Phone,
+  Building,
+  Hash
 } from "lucide-react";
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -116,15 +121,23 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
               <p className="text-[11px] text-neutral-400 leading-relaxed max-w-sm">
                  Stop taking orders temporarily if you're making updates, going on vacation or taking a break from selling.
               </p>
+              {settings.maintenance?.enabled && (
+                <div className="mt-4 space-y-2">
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">Maintenance message</label>
+                  <input 
+                    className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300"
+                    value={settings.maintenance?.message || ""}
+                    placeholder="We are updating our archive. Please check back soon."
+                    onChange={e => setSettings({...settings, maintenance: {...settings.maintenance, message: e.target.value}})}
+                  />
+                </div>
+              )}
            </div>
            <Switch 
              checked={settings.maintenance?.enabled} 
              onChange={(val) => setSettings({...settings, maintenance: {...settings.maintenance, enabled: val}})} 
            />
         </div>
-        <button className="text-[10px] font-bold tracking-widest text-purple-500 flex items-center gap-1 hover:opacity-50 transition-opacity">
-           EDIT MAINTENANCE MODE MESSAGE <ArrowRight size={12} />
-        </button>
         {hasChanges('maintenance') && (
            <div className="mt-6 pt-6 border-t border-neutral-50 flex gap-4">
               <button 
@@ -140,43 +153,60 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
 
       {/* Shop Domain */}
       <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
-        <div>
-           <h3 className="text-sm font-bold tracking-tight mb-1">Shop domains</h3>
-           <p className="text-[11px] text-neutral-400 mb-4">You can change this anytime.</p>
-           <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 group focus-within:border-neutral-200 transition-all">
-              <Globe size={14} className="text-neutral-300" />
-              <input 
-                 className="bg-transparent border-none outline-none text-xs flex-1"
-                 value={settings.domain?.subdomain}
-                 onChange={e => setSettings({...settings, domain: {...settings.domain, subdomain: e.target.value}})}
-              />
-              <span className="text-[10px] font-bold text-neutral-300">.bigcartel.com</span>
+        <div className="flex justify-between items-center">
+           <div>
+             <h3 className="text-sm font-bold tracking-tight mb-1">Shop domains</h3>
+             <p className="text-[11px] text-neutral-400">Where customers can find you online.</p>
            </div>
-           <p className="text-[9px] text-neutral-300 mt-2 uppercase tracking-widest font-bold">URL Preview: https://{settings.domain?.subdomain}.bigcartel.com</p>
+           {hasChanges('domain') && (
+             <button 
+               onClick={() => saveSection('domain', { domain: settings.domain })}
+               disabled={savingSection === 'domain'}
+               className="bg-[#A855F7] text-white px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
+             >
+               {savingSection === 'domain' ? 'SAVING...' : 'SAVE DOMAINS'}
+             </button>
+           )}
         </div>
-
-        <div className="flex items-center gap-4">
-           <div className="flex-1 flex items-center gap-3 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3">
-              <Globe size={14} className="text-neutral-300" />
+        <div>
+           <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Custom domain</label>
+           <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 focus-within:border-purple-300 transition-all group">
+              <Globe size={14} className="text-neutral-300 group-focus-within:text-purple-400 transition-colors" />
               <input 
                  className="bg-transparent border-none outline-none text-xs flex-1"
-                 value={settings.domain?.custom}
+                 value={settings.domain?.custom || ""}
+                 placeholder="www.yourdomain.com"
                  onChange={e => setSettings({...settings, domain: {...settings.domain, custom: e.target.value}})}
               />
            </div>
-           <button className="bg-neutral-100 text-neutral-500 px-6 py-3 rounded-xl text-[10px] font-bold tracking-widest hover:bg-neutral-200 transition-all">MANAGE</button>
+           {settings.domain?.custom && (
+             <p className="text-[9px] text-neutral-400 mt-2 flex items-center gap-1">
+               <Globe size={9} /> Live at: {settings.domain.custom}
+             </p>
+           )}
         </div>
       </section>
 
       {/* Shop Info */}
       <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
-         <div className="space-y-4">
+         <div className="flex justify-between items-center">
             <h3 className="text-sm font-bold tracking-tight">Shop info</h3>
+            {hasChanges('info') && (
+              <button 
+                onClick={() => saveSection('info', { info: settings.info })}
+                disabled={savingSection === 'info'}
+                className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
+              >
+                 {savingSection === 'info' ? 'SAVING...' : 'SAVE'}
+              </button>
+            )}
+         </div>
+         <div className="space-y-4">
             <div>
                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Shop name</label>
                <input 
-                 className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-neutral-200"
-                 value={settings.info?.name}
+                 className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300"
+                 value={settings.info?.name || ""}
                  onChange={e => setSettings({...settings, info: {...settings.info, name: e.target.value}})}
                />
                <p className="text-[9px] text-neutral-300 mt-2 text-right">{settings.info?.name?.length || 0} / 100 characters</p>
@@ -185,105 +215,255 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Shop description</label>
                <textarea 
                  rows={4}
-                 className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-neutral-200 resize-none"
-                 value={settings.info?.description}
+                 className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300 resize-none"
+                 value={settings.info?.description || ""}
                  onChange={e => setSettings({...settings, info: {...settings.info, description: e.target.value}})}
                />
                <p className="text-[9px] text-neutral-300 mt-2 text-right">{settings.info?.description?.length || 0} / 150 characters</p>
             </div>
+            <div>
+               <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Contact email</label>
+               <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 focus-within:border-purple-300 transition-all group">
+                 <Mail size={14} className="text-neutral-300 group-focus-within:text-purple-400" />
+                 <input 
+                   className="bg-transparent border-none outline-none text-xs flex-1"
+                   value={settings.info?.email || ""}
+                   placeholder="hello@lyricalmyricalbooks.com"
+                   onChange={e => setSettings({...settings, info: {...settings.info, email: e.target.value}})}
+                 />
+               </div>
+            </div>
+            <div>
+               <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Phone number</label>
+               <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 focus-within:border-purple-300 transition-all group">
+                 <Phone size={14} className="text-neutral-300 group-focus-within:text-purple-400" />
+                 <input 
+                   className="bg-transparent border-none outline-none text-xs flex-1"
+                   value={settings.info?.phone || ""}
+                   placeholder="+1 (416) 555-0000"
+                   onChange={e => setSettings({...settings, info: {...settings.info, phone: e.target.value}})}
+                 />
+               </div>
+            </div>
          </div>
-         {hasChanges('info') && (
-           <div className="flex gap-4">
+      </section>
+
+      {/* Location */}
+      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
+         <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-sm font-bold tracking-tight mb-1">Business address</h3>
+              <p className="text-[11px] text-neutral-400">Used for tax calculations and shipping origin.</p>
+            </div>
+            {hasChanges('location') && (
               <button 
-                onClick={() => saveSection('info', { info: settings.info })}
-                disabled={savingSection === 'info'}
-                className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
+                onClick={() => saveSection('location', { location: settings.location })}
+                disabled={savingSection === 'location'}
+                className="bg-[#A855F7] text-white px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
               >
-                 {savingSection === 'info' ? 'SAVING...' : 'SAVE'}
+                 {savingSection === 'location' ? 'SAVING...' : 'SAVE ADDRESS'}
               </button>
-           </div>
-         )}
+            )}
+         </div>
+         <div className="grid grid-cols-1 gap-4">
+            <div>
+               <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Street address</label>
+               <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 focus-within:border-purple-300 group">
+                 <Building size={14} className="text-neutral-300 group-focus-within:text-purple-400" />
+                 <input className="bg-transparent border-none outline-none text-xs flex-1"
+                   value={settings.location?.street || ""}
+                   placeholder="456 Montrose Avenue"
+                   onChange={e => setSettings({...settings, location: {...settings.location, street: e.target.value}})} />
+               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+               <div>
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">City</label>
+                  <input className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300"
+                    value={settings.location?.city || ""} placeholder="Toronto"
+                    onChange={e => setSettings({...settings, location: {...settings.location, city: e.target.value}})} />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">State / Province</label>
+                  <input className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300"
+                    value={settings.location?.state || ""} placeholder="Ontario"
+                    onChange={e => setSettings({...settings, location: {...settings.location, state: e.target.value}})} />
+               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+               <div>
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Postal code</label>
+                  <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 focus-within:border-purple-300 group">
+                    <Hash size={14} className="text-neutral-300 group-focus-within:text-purple-400" />
+                    <input className="bg-transparent border-none outline-none text-xs flex-1"
+                      value={settings.location?.zip || ""} placeholder="M6G 3H1"
+                      onChange={e => setSettings({...settings, location: {...settings.location, zip: e.target.value}})} />
+                  </div>
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Country</label>
+                  <select className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300"
+                    value={settings.location?.country || "Canada"}
+                    onChange={e => setSettings({...settings, location: {...settings.location, country: e.target.value}})}>
+                    <option>Canada</option>
+                    <option>United States</option>
+                    <option>United Kingdom</option>
+                    <option>Australia</option>
+                    <option>Italy</option>
+                    <option>France</option>
+                    <option>Germany</option>
+                  </select>
+               </div>
+            </div>
+         </div>
       </section>
     </>
   );
 }
 
 function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
+  const comms = settings.communications || {};
+
+  const updateComms = (patch: any) => {
+    setSettings({ ...settings, communications: { ...comms, ...patch } });
+  };
+
   return (
     <div className="space-y-8">
-      <h2 className="text-3xl font-bold tracking-tight uppercase">Communication Preferences</h2>
-
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
+      <div className="flex justify-between items-end">
         <div>
-           <h3 className="text-sm font-bold tracking-tight mb-6">Customer communications</h3>
-           
-           <div className="space-y-8">
-              <div className="flex justify-between items-start">
-                 <div>
-                    <h4 className="text-[11px] font-bold uppercase tracking-tight mb-1">Order receipt emails</h4>
-                    <button className="text-[10px] text-purple-500 font-bold hover:opacity-50 transition-opacity">Send a test email to myself</button>
-                 </div>
-                 <Switch 
-                   checked={settings.communications?.orderReceipts} 
-                   onChange={val => setSettings({...settings, communications: {...settings.communications, orderReceipts: val}})} 
-                 />
-              </div>
-
-              <div>
-                 <label className="text-[11px] font-bold uppercase tracking-tight block mb-2">Order receipt message</label>
-                 <textarea 
-                   rows={4}
-                   placeholder="Thank you for your order! We'll start processing it right away."
-                   className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-neutral-200 resize-none"
-                   value={settings.communications?.receiptMessage}
-                   onChange={e => setSettings({...settings, communications: {...settings.communications, receiptMessage: e.target.value}})}
-                 />
-              </div>
-
-              <div className="flex gap-4">
-                 <button 
-                   onClick={() => saveSection('communications', { communications: settings.communications })}
-                   className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
-                 >
-                    SAVE
-                 </button>
-                 <button className="text-[10px] font-bold tracking-widest text-neutral-400 hover:text-black">CANCEL</button>
-              </div>
-           </div>
+          <h2 className="text-3xl font-bold tracking-tight uppercase">Communications</h2>
+          <p className="text-[11px] text-neutral-400 mt-2">Control how and when you communicate with customers.</p>
         </div>
+        {hasChanges('communications') && (
+          <button
+            onClick={() => saveSection('communications', { communications: settings.communications })}
+            disabled={savingSection === 'communications'}
+            className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200 disabled:opacity-60"
+          >
+            {savingSection === 'communications' ? 'SAVING...' : 'SAVE CHANGES'}
+          </button>
+        )}
+      </div>
 
-        <div className="pt-8 border-t border-neutral-50">
-           <div className="flex justify-between items-center">
-              <h4 className="text-[11px] font-bold uppercase tracking-tight">Shipping status emails</h4>
-              <Switch 
-                checked={settings.communications?.shippingStatus} 
-                onChange={val => setSettings({...settings, communications: {...settings.communications, shippingStatus: val}})} 
+      {/* Sender identity */}
+      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
+        <h3 className="text-sm font-bold tracking-tight">Sender identity</h3>
+        <p className="text-[11px] text-neutral-400 -mt-2">All outgoing emails will appear to come from these details.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">From name</label>
+            <input
+              className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300"
+              value={comms.fromName || ""}
+              placeholder="Lyricalmyrical Books"
+              onChange={e => updateComms({ fromName: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Reply-to email</label>
+            <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 focus-within:border-purple-300 group">
+              <Mail size={14} className="text-neutral-300 group-focus-within:text-purple-400" />
+              <input
+                className="bg-transparent border-none outline-none text-xs flex-1"
+                value={comms.replyTo || ""}
+                placeholder="orders@lyricalmyricalbooks.com"
+                onChange={e => updateComms({ replyTo: e.target.value })}
               />
-           </div>
-        </div>
-
-        <div className="pt-8 border-t border-neutral-50 flex justify-between items-center opacity-70">
-           <div>
-              <h4 className="text-[11px] font-bold uppercase tracking-tight mb-1">Abandoned cart emails</h4>
-              <p className="text-[10px] text-neutral-400">Boost sales with automatic reminder emails when customers start a checkout but don't complete a purchase.</p>
-           </div>
-           <button className="bg-[#E2FF00] text-black px-4 py-1.5 rounded-lg text-[9px] font-bold tracking-widest flex items-center gap-2">
-              <Star size={10} fill="currentColor" /> UPGRADE
-           </button>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm">
-         <div className="flex justify-between items-center">
+      {/* Customer emails */}
+      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
+        <h3 className="text-sm font-bold tracking-tight">Customer emails</h3>
+
+        {/* Order receipts */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-start">
             <div>
-               <h3 className="text-sm font-bold tracking-tight mb-1">Shop notifications</h3>
-               <h4 className="text-[11px] font-bold uppercase tracking-tight text-neutral-400">New orders</h4>
+              <h4 className="text-[11px] font-bold uppercase tracking-tight mb-0.5">Order receipt emails</h4>
+              <p className="text-[10px] text-neutral-400">Sent automatically when a customer places an order.</p>
             </div>
-            <Switch 
-              checked={settings.communications?.newOrderNotifications} 
-              onChange={val => setSettings({...settings, communications: {...settings.communications, newOrderNotifications: val}})} 
+            <Switch
+              checked={comms.orderReceipts ?? true}
+              onChange={val => updateComms({ orderReceipts: val })}
             />
-         </div>
+          </div>
+          {(comms.orderReceipts ?? true) && (
+            <div>
+              <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Custom message (appended to receipt)</label>
+              <textarea
+                rows={3}
+                placeholder="Thank you for your order! We'll start processing it right away."
+                className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300 resize-none"
+                value={comms.receiptMessage || ""}
+                onChange={e => updateComms({ receiptMessage: e.target.value })}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Shipping status */}
+        <div className="pt-6 border-t border-neutral-50 flex justify-between items-center">
+          <div>
+            <h4 className="text-[11px] font-bold uppercase tracking-tight mb-0.5">Shipping confirmation emails</h4>
+            <p className="text-[10px] text-neutral-400">Sent when you mark an order as shipped.</p>
+          </div>
+          <Switch
+            checked={comms.shippingStatus ?? true}
+            onChange={val => updateComms({ shippingStatus: val })}
+          />
+        </div>
+
+        {/* Abandoned cart */}
+        <div className="pt-6 border-t border-neutral-50 flex justify-between items-center opacity-60">
+          <div>
+            <h4 className="text-[11px] font-bold uppercase tracking-tight mb-0.5">Abandoned cart recovery</h4>
+            <p className="text-[10px] text-neutral-400">Automatically remind customers who didn't complete checkout.</p>
+          </div>
+          <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[9px] font-bold tracking-widest">PRO PLAN</span>
+        </div>
+      </section>
+
+      {/* Shop notifications */}
+      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
+        <h3 className="text-sm font-bold tracking-tight">Your notifications</h3>
+        <p className="text-[11px] text-neutral-400 -mt-2">Alerts sent to you about your store activity.</p>
+
+        <div className="space-y-4">
+          <div className="flex justify-between items-center p-4 bg-neutral-50 rounded-2xl">
+            <div>
+              <h4 className="text-[11px] font-bold uppercase tracking-tight mb-0.5">New order alerts</h4>
+              <p className="text-[10px] text-neutral-400">Get notified every time a customer places an order.</p>
+            </div>
+            <Switch
+              checked={comms.newOrderNotifications ?? true}
+              onChange={val => updateComms({ newOrderNotifications: val })}
+            />
+          </div>
+          <div className="flex justify-between items-center p-4 bg-neutral-50 rounded-2xl">
+            <div>
+              <h4 className="text-[11px] font-bold uppercase tracking-tight mb-0.5">Low stock alerts</h4>
+              <p className="text-[10px] text-neutral-400">Alert when a product drops below 5 units.</p>
+            </div>
+            <Switch
+              checked={comms.lowStockAlerts ?? false}
+              onChange={val => updateComms({ lowStockAlerts: val })}
+            />
+          </div>
+          <div className="flex justify-between items-center p-4 bg-neutral-50 rounded-2xl">
+            <div>
+              <h4 className="text-[11px] font-bold uppercase tracking-tight mb-0.5">Weekly sales digest</h4>
+              <p className="text-[10px] text-neutral-400">A summary of your sales every Monday morning.</p>
+            </div>
+            <Switch
+              checked={comms.weeklySalesDigest ?? false}
+              onChange={val => updateComms({ weeklySalesDigest: val })}
+            />
+          </div>
+        </div>
       </section>
     </div>
   );
