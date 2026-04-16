@@ -274,7 +274,51 @@ export const adminApi = {
     },
     design: {
       primaryColor: "#A855F7",
-      font: "Inter"
+      font: "Inter",
+      palettePreset: "dark",
+      // Navigation & Layout
+      headerStyle: "minimal",
+      stickyHeader: true,
+      showSocialInFooter: true,
+      footerColumns: true,
+      // Homepage
+      heroLayout: "fullscreen",
+      heroCTA: "ENTER ARCHIVE",
+      heroSubtext: "Discover rare editions and exclusive prints.",
+      showFeaturedCarousel: true,
+      showBookStrip: true,
+      // Products
+      productCardStyle: "editorial",
+      imageAspectRatio: "3:4",
+      showPriceOnHover: false,
+      productCTA: "VIEW",
+      // Announcements
+      showAnnouncement: true,
+      announcementText: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA",
+      announcementBg: "#000000",
+      announcementColor: "#ffffff",
+      announcementScrolling: false,
+      // Social
+      social: {
+        instagram: "https://www.instagram.com/lyricalmyricalbooks",
+        twitter: "",
+        facebook: "",
+        tiktok: "",
+      },
+      // Typography
+      fontSize: "md",
+      headingScale: "regular",
+      letterSpacing: "wide",
+      // Translations
+      cartLabel: "BAG",
+      soldOutLabel: "SOLD OUT",
+      currencyPosition: "before",
+      shopButtonLabel: "SHOP NOW",
+      // Additional
+      enableAnimations: true,
+      showZoom: true,
+      showBackToTop: false,
+      showPoweredBy: false,
     }
   }),
 

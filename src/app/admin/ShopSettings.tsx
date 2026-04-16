@@ -1,33 +1,21 @@
 import { useState, useEffect } from "react";
 import { 
-  ChevronRight, 
   ExternalLink, 
   Globe, 
-  Shield, 
-  MapPin, 
-  Image as LucideImage,
-  Clock,
-  ArrowRight,
   Mail,
-  Truck,
-  CreditCard,
   Percent,
-  Palette,
-  Settings as SettingsIcon,
   Plus,
   Trash2,
-  Edit2,
-  Bell,
-  Star,
   Check,
   Lock,
-  Send,
   Phone,
   Building,
-  Hash
+  Hash,
+  X,
 } from "lucide-react";
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
+import { ThemeEditor } from "./ThemeEditor";
 
 const PURPLE = "#A855F7";
 
@@ -85,6 +73,20 @@ export function ShopSettings({ activeTab, setActiveTab }: any) {
 
   if (error) return <div className="h-96 flex items-center justify-center text-[10px] tracking-[.4em] text-red-500 uppercase">{error}</div>;
 
+  // Full-screen takeover for the designer tab
+  if (activeTab === "designer" && !loading) {
+    return (
+      <ThemeEditor
+        settings={settings}
+        onSave={async (design: any) => {
+          await saveSection("design", { design });
+          setSettings({ ...settings, design });
+        }}
+        onExit={() => setActiveTab("general")}
+      />
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto pb-32">
       <AnimatePresence mode="wait">
@@ -101,7 +103,6 @@ export function ShopSettings({ activeTab, setActiveTab }: any) {
           {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} refreshProfiles={loadShippingProfiles} />}
           {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
-          {activeTab === "designer" && <DesignerSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
         </motion.div>
       </AnimatePresence>
     </div>
@@ -751,7 +752,10 @@ function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingS
   );
 }
 
-function DesignerSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
+// DesignerSettings removed — replaced by full-screen ThemeEditor
+// The ShopSettings component now renders <ThemeEditor /> when activeTab === "designer"
+
+function _DesignerSettings_REMOVED({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
 
