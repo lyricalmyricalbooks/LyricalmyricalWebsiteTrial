@@ -49,12 +49,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   if (showCatalog) {
     return (
-      <div className="min-h-screen bg-[#050505] text-white overflow-y-auto selection:bg-white selection:text-black">
+      <div className="min-h-screen bg-[#050505] text-white overflow-y-auto selection:bg-white selection:text-black" style={{ fontFamily: settings?.design?.font || 'Inter, sans-serif' }}>
         <header className="sticky top-0 z-50 bg-black/40 backdrop-blur-xl border-b border-white/10 transition-all duration-300">
           <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
             <div className="flex items-center gap-8 md:gap-12">
-              <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors">
-                F✶M
+              <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
+                {settings?.design?.logoUrl ? <img src={settings.design.logoUrl} alt="Logo" className="h-6 object-contain" /> : "F✶M"}
               </button>
               <nav className="hidden md:flex gap-6">
                 {CATEGORIES.map((cat: string) => (
@@ -99,7 +99,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
                     <button 
                       onClick={(e) => { e.stopPropagation(); addToCart(item); }}
-                      className="w-full bg-white text-black py-3 rounded text-[10px] tracking-[0.2em] font-bold hover:bg-neutral-200 transition-colors transform translate-y-4 group-hover:translate-y-0 duration-300 shadow-xl"
+                      style={{ backgroundColor: settings?.design?.primaryColor || 'white', color: settings?.design?.primaryColor ? 'white' : 'black' }}
+                      className="w-full py-3 rounded text-[10px] tracking-[0.2em] font-bold hover:brightness-110 transition-all transform translate-y-4 group-hover:translate-y-0 duration-300 shadow-xl"
                     >
                       ADD TO BAG
                     </button>
@@ -124,7 +125,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   }
 
   return (
-    <div className="size-full bg-[#030213] text-white overflow-hidden relative selection:bg-white selection:text-black font-sans">
+    <div className="size-full bg-[#030213] text-white overflow-hidden relative selection:bg-white selection:text-black font-sans" style={{ fontFamily: settings?.design?.font || 'Inter, sans-serif' }}>
       <header className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-6 bg-gradient-to-b from-black/70 to-transparent">
         <button onClick={() => setShowCatalog(true)} className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white hover:text-white/70 transition-colors">
           ENTER ARCHIVE
@@ -168,9 +169,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
         <div className="relative z-30 text-center flex flex-col items-center">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.2, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}>
-            <h1 className="text-transparent bg-clip-text bg-gradient-to-b from-white to-white/70 tracking-[0.15em] font-light text-6xl md:text-8xl mb-8 selection:bg-transparent" style={{ fontFamily: 'Outfit, sans-serif' }}>
-              F✶M
-            </h1>
+            {settings?.design?.logoUrl ? (
+               <img src={settings.design.logoUrl} alt="Logo" className="h-16 md:h-24 object-contain mb-8 filter brightness-0 invert opacity-90" />
+            ) : (
+               <h1 className="text-transparent bg-clip-text bg-gradient-to-b from-white to-white/70 tracking-[0.15em] font-light text-6xl md:text-8xl mb-8 selection:bg-transparent" style={{ fontFamily: 'Outfit, sans-serif' }}>
+                 F✶M
+               </h1>
+            )}
           </motion.div>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 0.8 }} className="overflow-hidden">
             <motion.p 

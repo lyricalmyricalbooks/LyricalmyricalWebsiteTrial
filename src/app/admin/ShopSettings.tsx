@@ -93,7 +93,7 @@ export function ShopSettings({ activeTab, setActiveTab }: any) {
         >
           {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
           {activeTab === "communications" && <CommunicationsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
-          {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} />}
+          {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} refreshProfiles={loadShippingProfiles} />}
           {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
           {activeTab === "designer" && <DesignerSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
@@ -289,15 +289,68 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
   );
 }
 
-function ShippingSettings({ profiles }: any) {
+function ShippingSettings({ profiles, refreshProfiles }: any) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [newRegion, setNewRegion] = useState("");
+  const [newBase, setNewBase] = useState("");
+  const [newAdd, setNewAdd] = useState("");
+
+  const handleCreate = async () => {
+    if (!newRegion) return;
+    try {
+      await adminApi.createShippingProfile({ region: newRegion, base: newBase, additional: newAdd });
+      setIsAdding(false);
+      setNewRegion("");
+      setNewBase("");
+      setNewAdd("");
+      refreshProfiles();
+    } catch {
+      alert("Error adding shipping profile");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Remove this shipping zone?")) return;
+    try {
+      await adminApi.deleteShippingProfile(id);
+      refreshProfiles();
+    } catch {
+      alert("Error deleting shipping profile");
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-end">
         <h2 className="text-4xl font-black tracking-tight uppercase scale-x-110 origin-left">SHIPPING</h2>
-        <button className="bg-neutral-100 px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest flex items-center gap-2 hover:bg-neutral-200 transition-all">
-           <Plus size={14} /> ADD SHIPPING PROFILE
+        <button onClick={() => setIsAdding(!isAdding)} className="bg-neutral-100 px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest flex items-center gap-2 hover:bg-neutral-200 transition-all">
+           {isAdding ? <X size={14} /> : <Plus size={14} />} 
+           {isAdding ? "CANCEL" : "ADD SHIPPING PROFILE"}
         </button>
       </div>
+
+      {isAdding && (
+         <section className="bg-purple-50/50 border border-purple-100 rounded-[2rem] p-8 space-y-6">
+            <h3 className="text-sm font-bold tracking-tight">New Shipping Zone</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+               <div>
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Region / Country</label>
+                  <input placeholder="e.g. Europe" className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300" value={newRegion} onChange={e => setNewRegion(e.target.value)} />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Base Price ($)</label>
+                  <input placeholder="5.00" className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300" value={newBase} onChange={e => setNewBase(e.target.value)} />
+               </div>
+               <div>
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Each additional item ($)</label>
+                  <input placeholder="2.00" className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300" value={newAdd} onChange={e => setNewAdd(e.target.value)} />
+               </div>
+            </div>
+            <button onClick={handleCreate} className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200">
+               SAVE SHIPPING ZONE
+            </button>
+         </section>
+      )}
 
       <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
          <div>
@@ -307,27 +360,19 @@ function ShippingSettings({ profiles }: any) {
                <br />
                <span className="font-bold text-neutral-900">All products in your shop use this profile unless you assign them to another profile.</span>
             </p>
-            <span className="bg-purple-100 text-purple-600 px-3 py-1 rounded-md text-[9px] font-bold tracking-widest uppercase">
-               7 products use this profile
-            </span>
          </div>
 
          <div className="space-y-4 pt-4">
-            {[
-              { region: "Italy", base: "$5.00", additional: "$3.00" },
-              { region: "European Union", base: "$5.00", additional: "$3.00" },
-              { region: "Europe (non-EU, excludes UK)", base: "$5.00", additional: "$3.00" },
-              { region: "Ontario", base: "$15.00", additional: "$2.00" }
-            ].map((r) => (
-              <div key={r.region} className="border border-neutral-100 rounded-2xl overflow-hidden">
+            {profiles.length === 0 && (
+               <p className="text-xs text-neutral-400 italic">No shipping profiles configured yet.</p>
+            )}
+            
+            {profiles.map((r: any) => (
+              <div key={r.id} className="border border-neutral-100 rounded-2xl overflow-hidden group">
                  <div className="bg-[#4D4B46] text-white px-6 py-3 flex justify-between items-center">
                     <span className="text-[11px] font-bold tracking-tight">{r.region}</span>
-                    <div className="flex items-center gap-4">
-                       <button className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest">
-                          <Plus size={12} /> ADD RATE
-                       </button>
-                       <Edit2 size={12} className="cursor-pointer hover:opacity-50" />
-                       <Trash2 size={12} className="cursor-pointer hover:opacity-50" />
+                    <div className="flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                       <Trash2 size={12} className="cursor-pointer hover:opacity-50" onClick={() => handleDelete(r.id)} />
                     </div>
                  </div>
                  <div className="p-6 flex justify-between items-center">
@@ -337,11 +382,11 @@ function ShippingSettings({ profiles }: any) {
                     <div className="flex gap-12 text-right">
                        <div>
                           <p className="text-[8px] text-neutral-400 font-bold uppercase tracking-widest mb-1">Base price</p>
-                          <p className="text-sm font-bold">{r.base}</p>
+                          <p className="text-sm font-bold">${r.base}</p>
                        </div>
                        <div>
                           <p className="text-[8px] text-neutral-400 font-bold uppercase tracking-widest mb-1">Each additional item</p>
-                          <p className="text-sm font-bold">{r.additional}</p>
+                          <p className="text-sm font-bold">${r.additional}</p>
                        </div>
                     </div>
                  </div>
@@ -359,113 +404,68 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
 
   return (
     <div className="space-y-8">
-      <h2 className="text-3xl font-black tracking-tight uppercase">PAYMENTS</h2>
-      <p className="text-[11px] text-neutral-400 -mt-6">Accept orders through your online shop or in person using our iOS app</p>
+      <div className="flex justify-between items-end">
+         <div>
+            <h2 className="text-3xl font-black tracking-tight uppercase">PAYMENTS</h2>
+            <p className="text-[11px] text-neutral-400 mt-2">Configure your payment gateways to accept online orders securely.</p>
+         </div>
+         {hasChanges('payments') && (
+            <button 
+              onClick={() => saveSection('payments', { payments: settings.payments })}
+              disabled={savingSection === 'payments'}
+              className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
+            >
+              {savingSection === 'payments' ? 'SAVING...' : 'SAVE CONFIGURATION'}
+            </button>
+         )}
+      </div>
 
       {/* Stripe Card */}
       <section className="bg-white border border-neutral-100 rounded-[2.5rem] p-10 shadow-sm space-y-10">
          <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
-               <h3 className="text-md font-bold">Stripe</h3>
-               <span className="bg-green-100 text-green-600 px-3 py-1 rounded-md text-[9px] font-bold tracking-widest uppercase flex items-center gap-1">
-                  <Check size={10} /> Connected
-               </span>
+               <h3 className="text-md font-bold">Stripe Connect</h3>
+               <Switch checked={stripe?.connected} onChange={(val) => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, connected: val}}})} />
             </div>
             <button className="text-[10px] font-bold tracking-widest text-neutral-500 flex items-center gap-1 border border-neutral-200 px-4 py-2 rounded-xl hover:bg-neutral-50">
-               VISIT YOUR STRIPE DASHBOARD <ExternalLink size={12} />
+               VISIT STRIPE DASHBOARD <ExternalLink size={12} />
             </button>
          </div>
 
-         <div className="space-y-2">
-            <p className="text-[11px] text-neutral-400">You are accepting payments with Stripe</p>
-            <p className="text-[11px] font-bold">Account: <span className="text-neutral-500">{stripe?.email}</span></p>
-         </div>
-
-         <div className="space-y-6 pt-6 border-t border-neutral-50">
-            <div className="flex items-center gap-4">
-               <div className="w-12 h-8 bg-neutral-100 rounded flex items-center justify-center">
-                  <CreditCard size={18} className="text-neutral-400" />
-               </div>
-               <div>
-                  <p className="text-[11px] font-bold">Credit cards</p>
-                  <p className="text-[10px] text-neutral-400">Visa, Mastercard, American Express, Discover, Diners Club, and JCB</p>
-               </div>
-            </div>
-
-            <div className="flex items-center gap-4 opacity-50">
-               <div className="w-12 h-8 bg-neutral-100 rounded flex items-center justify-center text-[10px] font-black">CB</div>
-               <p className="text-[11px] font-bold">Cartes Bancaires</p>
-            </div>
-
-            <div className="flex justify-between items-center">
-               <div className="flex items-center gap-4">
-                  <div className="w-12 h-8 bg-[#635BFF] text-white rounded flex items-center justify-center text-[10px] font-black italic">link</div>
-                  <p className="text-[11px] font-bold">Link</p>
-               </div>
-               <Switch checked={true} onChange={() => {}} />
-            </div>
-
-            <div className="flex justify-between items-center">
-               <div className="flex items-center gap-4">
-                  <div className="w-12 h-8 bg-black text-white rounded flex items-center justify-center">
-                     <span className="text-[10px] font-bold tracking-tighter">Pay</span>
+         {stripe?.connected && (
+            <div className="space-y-6 pt-6 border-t border-neutral-50">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                     <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Publishable Key</label>
+                     <input type="password" placeholder="pk_live_..." className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300" 
+                        value={stripe?.publicKey || ''} onChange={e => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, publicKey: e.target.value}}})} />
                   </div>
-                  <p className="text-[11px] font-bold">Apple Pay</p>
-               </div>
-               <Switch checked={stripe?.applePay} onChange={(val) => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, applePay: val}}})} />
-            </div>
-
-            <div className="flex justify-between items-center">
-               <div className="flex items-center gap-4">
-                  <div className="w-12 h-8 bg-neutral-100 rounded flex items-center justify-center">
-                     <span className="text-[10px] font-bold tracking-tighter text-blue-600">G Pay</span>
+                  <div>
+                     <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Secret Key</label>
+                     <input type="password" placeholder="sk_live_..." className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300" 
+                        value={stripe?.secretKey || ''} onChange={e => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, secretKey: e.target.value}}})} />
                   </div>
-                  <p className="text-[11px] font-bold">Google Pay</p>
                </div>
-               <Switch checked={stripe?.googlePay} onChange={(val) => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, googlePay: val}}})} />
-            </div>
-         </div>
 
-         <div className="space-y-6 pt-10 border-t border-neutral-50">
-            <div>
-               <h4 className="text-[11px] font-bold uppercase tracking-tight mb-1">Buy now, Pay Later options</h4>
-               <p className="text-[10px] text-neutral-400">Let your customers choose to pay in smaller installments while you still get paid in full up front.</p>
-            </div>
-
-            {[
-               { id: 'afterpay', label: 'Afterpay/Clearpay', color: '#B2FCE4', textColor: '#000' },
-               { id: 'affirm', label: 'Affirm', color: '#000', textColor: '#fff' },
-               { id: 'klarna', label: 'Klarna', color: '#FFB3C7', textColor: '#000' }
-            ].map(pm => (
-               <div key={pm.id} className="flex justify-between items-center">
-                  <div className="flex items-center gap-4">
-                     <div className="w-12 h-8 rounded flex items-center justify-center text-[8px] font-black uppercase" style={{ backgroundColor: pm.color, color: pm.textColor }}>{pm.label}</div>
-                     <p className="text-[11px] font-bold">{pm.label}</p>
+               {/* Wallets */}
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="flex justify-between items-center p-4 bg-neutral-50 rounded-xl border border-neutral-100">
+                     <div className="flex items-center gap-3">
+                        <div className="w-10 h-7 bg-black text-white rounded flex items-center justify-center"><span className="text-[9px] font-bold tracking-tighter">Pay</span></div>
+                        <p className="text-[11px] font-bold">Apple Pay</p>
+                     </div>
+                     <Switch checked={stripe?.applePay} onChange={(val) => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, applePay: val}}})} />
                   </div>
-                  <Switch checked={stripe?.[pm.id]} onChange={(val) => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, [pm.id]: val}}})} />
+                  <div className="flex justify-between items-center p-4 bg-neutral-50 rounded-xl border border-neutral-100">
+                     <div className="flex items-center gap-3">
+                        <div className="w-10 h-7 bg-white border border-neutral-200 rounded flex items-center justify-center"><span className="text-[9px] font-bold tracking-tighter text-blue-600">G Pay</span></div>
+                        <p className="text-[11px] font-bold">Google Pay</p>
+                     </div>
+                     <Switch checked={stripe?.googlePay} onChange={(val) => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, googlePay: val}}})} />
+                  </div>
                </div>
-            ))}
-         </div>
-
-         <div className="space-y-6 pt-10 border-t border-neutral-50">
-            <div>
-               <h4 className="text-[11px] font-bold uppercase tracking-tight mb-1">Subscriptions</h4>
-               <p className="text-[10px] text-neutral-400">Let your fans support you with monthly contributions. Create a custom page and share the link anywhere. <span className="text-purple-500 cursor-pointer">Learn more</span></p>
             </div>
-            <div className="flex justify-between items-center">
-               <div>
-                  <p className="text-[11px] font-bold">Allow subscriptions for monthly contributions</p>
-                  <p className="text-[10px] text-neutral-400">When off, all recurring payments will be paused and not processed.</p>
-               </div>
-               <Switch checked={stripe?.subscriptions} onChange={(val) => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, subscriptions: val}}})} />
-            </div>
-         </div>
-
-         <div className="pt-10">
-            <button className="bg-red-500 text-white px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest hover:bg-red-600 transition-all">
-               DISCONNECT STRIPE
-            </button>
-         </div>
+         )}
       </section>
 
       {/* PayPal Card */}
@@ -473,43 +473,59 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
          <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
                <h3 className="text-md font-bold">PayPal</h3>
-               <span className="bg-green-100 text-green-600 px-3 py-1 rounded-md text-[9px] font-bold tracking-widest uppercase flex items-center gap-1">
-                  <Check size={10} /> Connected
-               </span>
-            </div>
-            <button className="text-[10px] font-bold tracking-widest text-neutral-500 flex items-center gap-1 border border-neutral-200 px-4 py-2 rounded-xl hover:bg-neutral-50">
-               VISIT YOUR PAYPAL DASHBOARD <ExternalLink size={12} />
-            </button>
-         </div>
-
-         <div className="space-y-2">
-            <p className="text-[11px] text-neutral-400">You are accepting payments with PayPal</p>
-            <p className="text-[11px] font-bold">Account: <span className="text-neutral-500">{paypal?.email}</span></p>
-         </div>
-
-         <div className="p-6 bg-neutral-50 border border-neutral-100 rounded-2xl flex gap-4">
-            <AlertCircle size={18} className="text-black flex-shrink-0" />
-            <div className="space-y-1">
-               <p className="text-[11px] font-bold">You are accepting credit/debit card payments with Stripe</p>
-               <p className="text-[10px] text-neutral-400">To accept credit/debit card payments with PayPal, you'll need to disconnect Stripe.</p>
+               <Switch checked={paypal?.connected} onChange={(val) => setSettings({...settings, payments: {...settings.payments, paypal: {...paypal, connected: val}}})} />
             </div>
          </div>
-
-         <div className="pt-10">
-            <button className="bg-red-500 text-white px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest hover:bg-red-600 transition-all">
-               DISCONNECT PAYPAL
-            </button>
-         </div>
+         {paypal?.connected && (
+           <div className="space-y-6 pt-6 border-t border-neutral-50">
+              <div>
+                 <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">PayPal Client ID</label>
+                 <input type="password" placeholder="Access token..." className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300" 
+                    value={paypal?.clientId || ''} onChange={e => setSettings({...settings, payments: {...settings.payments, paypal: {...paypal, clientId: e.target.value}}})} />
+              </div>
+           </div>
+         )}
       </section>
     </div>
   );
 }
 
 function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
+  const [isAdding, setIsAdding] = useState(false);
+  const [country, setCountry] = useState("");
+  const [rate, setRate] = useState("");
+
+  const handleAdd = () => {
+    if (!country || !rate) return;
+    const newRates = [...(settings.taxes?.rates || []), { country, rate }];
+    setSettings({ ...settings, taxes: { ...settings.taxes, rates: newRates } });
+    setIsAdding(false);
+    setCountry("");
+    setRate("");
+  };
+
+  const handleDelete = (index: number) => {
+    const newRates = settings.taxes.rates.filter((_: any, i: number) => i !== index);
+    setSettings({ ...settings, taxes: { ...settings.taxes, rates: newRates } });
+  };
+
   return (
     <div className="space-y-8">
-      <h2 className="text-4xl font-black tracking-tight uppercase">TAXES</h2>
-      <p className="text-[11px] text-neutral-400 -mt-6">Tax will be added to applicable orders during checkout based on your tax settings. That tax will also display in the order info.</p>
+      <div className="flex justify-between items-end">
+         <div>
+            <h2 className="text-4xl font-black tracking-tight uppercase">TAXES</h2>
+            <p className="text-[11px] text-neutral-400 mt-2">Tax will be added to applicable orders during checkout based on your settings.</p>
+         </div>
+         {hasChanges('taxes') && (
+            <button 
+              onClick={() => saveSection('taxes', { taxes: settings.taxes })}
+              disabled={savingSection === 'taxes'}
+              className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
+            >
+              {savingSection === 'taxes' ? 'SAVING...' : 'SAVE CHANGES'}
+            </button>
+         )}
+      </div>
 
       <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
          <h3 className="text-sm font-bold tracking-tight">Countries</h3>
@@ -521,84 +537,240 @@ function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingS
                      <span className="text-[11px] font-bold uppercase tracking-tight">{task.country}</span>
                      <div className="flex items-center gap-4">
                         <span className="text-sm font-bold">{task.rate}%</span>
-                        <Trash2 size={14} className="text-red-400 cursor-pointer" />
+                        <Trash2 size={14} className="text-red-400 cursor-pointer hover:opacity-50" onClick={() => handleDelete(idx)} />
                      </div>
                   </div>
                ))
             ) : (
-               <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-neutral-100 rounded-3xl">
-                  <Percent size={32} className="text-neutral-100 mb-4" />
-                  <p className="text-[10px] tracking-widest text-neutral-300 font-bold uppercase italic">No tax rates defined.</p>
+               <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-neutral-200 rounded-3xl bg-neutral-50/50">
+                  <Percent size={32} className="text-neutral-200 mb-4" />
+                  <p className="text-[10px] tracking-widest text-neutral-400 font-bold uppercase italic">No tax rates defined.</p>
                </div>
             )}
          </div>
 
-         <button className="bg-neutral-100 px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest flex items-center gap-2 hover:bg-neutral-200 transition-all">
-            <Plus size={14} /> ADD A TAX RATE
-         </button>
+         {isAdding ? (
+            <div className="flex gap-4 items-end bg-purple-50/50 p-6 rounded-2xl border border-purple-100">
+               <div className="flex-1">
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Country / Region</label>
+                  <input placeholder="e.g. Canada" className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-2.5 text-xs outline-none" value={country} onChange={e => setCountry(e.target.value)} />
+               </div>
+               <div className="w-32">
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Tax Rate (%)</label>
+                  <input placeholder="13" type="number" className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-2.5 text-xs outline-none" value={rate} onChange={e => setRate(e.target.value)} />
+               </div>
+               <button onClick={handleAdd} className="bg-black text-white px-6 py-2.5 rounded-xl text-[10px] font-bold tracking-widest h-[38px] hover:bg-neutral-800">
+                  ADD
+               </button>
+               <button onClick={() => setIsAdding(false)} className="text-[10px] font-bold tracking-widest text-neutral-400 hover:text-black mb-3">
+                  CANCEL
+               </button>
+            </div>
+         ) : (
+            <button onClick={() => setIsAdding(true)} className="bg-neutral-100 px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest flex items-center gap-2 hover:bg-neutral-200 transition-all">
+               <Plus size={14} /> ADD A TAX RATE
+            </button>
+         )}
       </section>
     </div>
   );
 }
 
 function DesignerSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
+
+  const handleAssetUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'favicon') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (type === 'logo') setUploadingLogo(true);
+    else setUploadingFavicon(true);
+
+    try {
+      const url = await adminApi.uploadBrandAsset(file, type);
+      setSettings({
+        ...settings,
+        design: {
+          ...settings.design,
+          [type === 'logo' ? 'logoUrl' : 'faviconUrl']: url
+        }
+      });
+    } catch (err) {
+      alert(`Error uploading ${type}`);
+    } finally {
+      if (type === 'logo') setUploadingLogo(false);
+      else setUploadingFavicon(false);
+    }
+  };
+
+  const currentFont = settings.design?.font || 'Inter';
+  const currentColor = settings.design?.primaryColor || '#000000';
+  const logoUrl = settings.design?.logoUrl;
+
   return (
     <div className="space-y-8">
-      <h2 className="text-3xl font-bold tracking-tight uppercase">Shop Designer</h2>
+      <div className="flex justify-between items-end">
+         <div>
+            <h2 className="text-4xl font-black tracking-tight uppercase">SHOP DESIGNER</h2>
+            <p className="text-[11px] text-neutral-400 mt-2">Configure the visual identity, typography, and layout of your public storefront.</p>
+         </div>
+         {hasChanges('design') && (
+            <button 
+              onClick={() => saveSection('design', { design: settings.design })}
+              disabled={savingSection === 'design'}
+              className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200 hover:bg-purple-600 transition-all"
+            >
+              {savingSection === 'design' ? 'SAVING...' : 'PUBLISH DESIGN'}
+            </button>
+         )}
+      </div>
       
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
-         <div className="space-y-6">
-            <div>
-               <h3 className="text-sm font-bold tracking-tight mb-1">Visual Identity</h3>
-               <p className="text-[11px] text-neutral-400">Configure the primary branding elements of your public storefront.</p>
-            </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+         <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
+            <div className="space-y-6">
+               <div>
+                  <h3 className="text-sm font-bold tracking-tight mb-1">Visual Identity</h3>
+               </div>
 
-            <div className="grid grid-cols-2 gap-8">
-               <div className="space-y-4">
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">Primary Theme Color</label>
-                  <div className="flex items-center gap-4">
-                     <div className="w-12 h-12 rounded-2xl shadow-inner border border-neutral-100" style={{ backgroundColor: settings.design?.primaryColor }}></div>
-                     <input 
-                        type="color" 
-                        value={settings.design?.primaryColor} 
-                        onChange={e => setSettings({...settings, design: {...settings.design, primaryColor: e.target.value}})}
-                        className="h-10 w-24 cursor-pointer bg-transparent border-none" 
-                     />
+               <div className="grid grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                     <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">Primary Theme Color</label>
+                     <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl shadow-inner border border-neutral-100" style={{ backgroundColor: currentColor }}></div>
+                        <input 
+                           type="color" 
+                           value={currentColor} 
+                           onChange={e => setSettings({...settings, design: {...settings.design, primaryColor: e.target.value}})}
+                           className="h-10 w-24 cursor-pointer bg-transparent border-none" 
+                        />
+                     </div>
+                  </div>
+
+                  <div className="space-y-4">
+                     <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">Typography</label>
+                     <select 
+                       className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-neutral-200"
+                       value={currentFont}
+                       onChange={e => setSettings({...settings, design: {...settings.design, font: e.target.value}})}
+                     >
+                        <option value="Inter">Inter (Sans-serif Modern)</option>
+                        <option value="Outfit">Outfit (Geometric Soft)</option>
+                        <option value="Roboto">Roboto (Clean Standard)</option>
+                        <option value="Playfair Display">Playfair (Classic Serif)</option>
+                     </select>
                   </div>
                </div>
 
-               <div className="space-y-4">
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">Typography</label>
-                  <select 
-                    className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-neutral-200"
-                    value={settings.design?.font}
-                    onChange={e => setSettings({...settings, design: {...settings.design, font: e.target.value}})}
-                  >
-                     <option value="Inter">Inter (Sans-serif Modern)</option>
-                     <option value="Outfit">Outfit (Geometric Soft)</option>
-                     <option value="Roboto">Roboto (Clean Standard)</option>
-                     <option value="Times New Roman">Classic Serif</option>
-                  </select>
+               <div className="pt-6 border-t border-neutral-50 space-y-6">
+                  <div>
+                     <h3 className="text-sm font-bold tracking-tight mb-1">Brand Assets</h3>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-6">
+                     <div className="space-y-4">
+                        <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">Shop Logo</label>
+                        <div className="border-2 border-dashed border-neutral-200 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden bg-neutral-50/50 hover:bg-neutral-50 transition-colors h-32">
+                           {uploadingLogo ? (
+                              <p className="text-[10px] font-bold animate-pulse text-purple-500">UPLOADING...</p>
+                           ) : logoUrl ? (
+                              <>
+                                 <img src={logoUrl} alt="Logo" className="max-h-16 object-contain z-10" />
+                                 <div className="absolute inset-0 bg-white/80 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center z-20">
+                                    <span className="text-[10px] font-bold tracking-widest">CHANGE</span>
+                                 </div>
+                              </>
+                           ) : (
+                              <>
+                                 <div className="w-8 h-8 rounded-full bg-neutral-200 mb-2 flex items-center justify-center"><Plus size={14} /></div>
+                                 <p className="text-[10px] font-bold text-neutral-400">UPLOAD LOGO</p>
+                              </>
+                           )}
+                           <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30" accept="image/*" onChange={e => handleAssetUpload(e, 'logo')} />
+                        </div>
+                     </div>
+
+                     <div className="space-y-4">
+                        <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">Favicon</label>
+                        <div className="border-2 border-dashed border-neutral-200 rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden bg-neutral-50/50 hover:bg-neutral-50 transition-colors h-32">
+                           {uploadingFavicon ? (
+                              <p className="text-[10px] font-bold animate-pulse text-purple-500">UPLOADING...</p>
+                           ) : settings.design?.faviconUrl ? (
+                              <>
+                                 <img src={settings.design.faviconUrl} alt="Favicon" className="w-8 h-8 object-contain z-10" />
+                                 <div className="absolute inset-0 bg-white/80 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center z-20">
+                                    <span className="text-[10px] font-bold tracking-widest">CHANGE</span>
+                                 </div>
+                              </>
+                           ) : (
+                              <>
+                                 <div className="w-8 h-8 rounded-full bg-neutral-200 mb-2 flex items-center justify-center"><Plus size={14} /></div>
+                                 <p className="text-[10px] font-bold text-neutral-400">UPLOAD ICON</p>
+                              </>
+                           )}
+                           <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30" accept="image/*" onChange={e => handleAssetUpload(e, 'favicon')} />
+                        </div>
+                     </div>
+                  </div>
                </div>
             </div>
+         </section>
 
-            <div className="flex gap-4 pt-4">
-               <button 
-                 onClick={() => saveSection('design', { design: settings.design })}
-                 className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
-               >
-                  APPLY DESIGN CHANGES
-               </button>
+         <section className="bg-neutral-100 rounded-[2rem] p-4 flex flex-col relative overflow-hidden">
+            <h3 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-4 ml-4 mt-2">Live Preview</h3>
+            
+            {/* The Mock Window */}
+            <div className="flex-1 bg-white rounded-3xl shadow-lg border border-neutral-200/50 overflow-hidden flex flex-col" style={{ fontFamily: currentFont }}>
+               {/* Browser bar */}
+               <div className="bg-neutral-50 border-b border-neutral-100 px-4 py-3 flex gap-2 items-center">
+                  <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                  <div className="w-3 h-3 rounded-full bg-amber-400"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                  <div className="mx-auto bg-white px-3 py-1 rounded shadow-sm text-[8px] text-neutral-400 flex items-center gap-1">
+                     <Lock size={8} /> lyricalmyricalbooks.com
+                  </div>
+               </div>
+
+               {/* Mock Content */}
+               <div className="flex-1 p-6 flex flex-col relative">
+                  {/* Mock Nav */}
+                  <div className="flex justify-between items-center mb-12">
+                     <div className="text-xl font-black tracking-tighter">
+                        {logoUrl ? <img src={logoUrl} className="h-6 object-contain" /> : "F✶M"}
+                     </div>
+                     <div className="flex gap-4 text-[10px] font-bold tracking-widest opacity-30 uppercase">
+                        <span>Shop</span>
+                        <span>Archive</span>
+                        <span>Cart</span>
+                     </div>
+                  </div>
+
+                  {/* Mock Hero */}
+                  <div className="max-w-[200px] space-y-4">
+                     <h1 className="text-3xl font-black leading-none tracking-tight">The Art of Storytelling.</h1>
+                     <p className="text-[10px] leading-relaxed opacity-50">Discover rare editions and exclusive prints customized to your aesthetic.</p>
+                     
+                     <div className="pt-4 flex gap-2">
+                        <div className="px-6 py-2 rounded-full text-[9px] font-bold text-white tracking-widest" style={{ backgroundColor: currentColor }}>
+                           SHOP NOW
+                        </div>
+                        <div className="px-4 py-2 rounded-full text-[9px] font-bold border border-neutral-200 tracking-widest">
+                           LEARN MORE
+                        </div>
+                     </div>
+                  </div>
+
+                  {/* Decorative Elements */}
+                  <div className="absolute -right-12 bottom-12 w-48 h-64 bg-neutral-50 rounded-xl border border-neutral-100 shadow-xl overflow-hidden -rotate-6">
+                     <div className="w-full h-32 bg-neutral-200/50 animate-pulse"></div>
+                     <div className="p-4 space-y-2">
+                        <div className="w-3/4 h-3 rounded bg-neutral-200"></div>
+                        <div className="w-1/2 h-3 rounded bg-neutral-200"></div>
+                     </div>
+                  </div>
+               </div>
             </div>
-         </div>
-      </section>
-
-      <div className="p-8 border-2 border-dashed border-neutral-200 rounded-[2rem] flex flex-col items-center justify-center space-y-4 text-center">
-         <Palette size={48} className="text-neutral-200" />
-         <div>
-            <p className="text-sm font-bold mb-1 italic">Advanced Theme Editor</p>
-            <p className="text-[10px] text-neutral-400 uppercase tracking-widest">Coming soon: Full layout control and CSS overrides</p>
-         </div>
+         </section>
       </div>
     </div>
   );

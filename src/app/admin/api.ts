@@ -161,6 +161,12 @@ export const adminApi = {
     return await getDownloadURL(snapshot.ref);
   },
 
+  uploadBrandAsset: async (file: File, type: 'logo' | 'favicon') => {
+    const ext = file.name.split('.').pop();
+    const path = `assets/brand/${type}_${Date.now()}.${ext}`;
+    return adminApi.uploadFile(file, path);
+  },
+
   // Authors
   getAuthors: async () => {
     const snap = await getDocs(collection(db, "authors"));
@@ -190,6 +196,17 @@ export const adminApi = {
     });
     return { id: docRef.id, ...profile };
   },
+
+  updateShippingProfile: async (id: string, profile: any) => {
+    const docRef = doc(db, "shipping-profiles", id);
+    await updateDoc(docRef, {
+      ...profile,
+      updatedAt: new Date().toISOString()
+    });
+    return { id, ...profile };
+  },
+
+  deleteShippingProfile: (id: string) => deleteDoc(doc(db, "shipping-profiles", id)),
 
   // Settings
   getSettings: async () => {
