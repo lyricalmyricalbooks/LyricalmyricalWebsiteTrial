@@ -36,15 +36,35 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     }
   }
 
-  const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
+  const [showShipForm, setShowShipForm] = useState(false);
+  const [trackingCarrier, setTrackingCarrier] = useState("Canada Post");
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const [isShipping, setIsShipping] = useState(false);
 
   const markAsShipped = async () => {
+    if (!trackingNumber.trim()) {
+      alert("Please enter a tracking number.");
+      return;
+    }
+    setIsShipping(true);
     try {
-      await adminApi.updateOrder(orderId, { status: "completed" });
-      await adminApi.addOrderNote(orderId, "Shipment marked as complete. Customer tracking email triggered.");
+      await adminApi.updateOrder(orderId, {
+        status: "completed",
+        trackingCarrier,
+        trackingNumber: trackingNumber.trim(),
+        shippedAt: new Date().toISOString(),
+      });
+      await adminApi.addOrderNote(
+        orderId,
+        `Order shipped via ${trackingCarrier}. Tracking: ${trackingNumber.trim()}`
+      );
+      setShowShipForm(false);
+      setTrackingNumber("");
       loadOrder();
     } catch (err) {
-      alert("Error updating order");
+      alert("Error updating order. Please try again.");
+    } finally {
+      setIsShipping(false);
     }
   };
 
@@ -67,6 +87,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     setNote("");
     loadOrder();
   };
+
 
   if (loading) return <div className="h-full flex items-center justify-center py-32 text-neutral-400 text-[10px] tracking-widest uppercase animate-pulse">Retrieving Order Manifest...</div>;
   if (!order) return <div className="p-20 text-center text-neutral-400 text-xs">ORDER MANIFEST NOT FOUND</div>;
@@ -130,9 +151,9 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                >
                  {isGeneratingLabel ? "GENERATING..." : "CREATE SHIPPING LABEL"}
                </button>
-               {order.status !== 'completed' && (
+               {order.status !== 'completed' && !showShipForm && (
                  <button 
-                   onClick={markAsShipped}
+                   onClick={() => setShowShipForm(true)}
                    className="px-6 py-2.5 bg-black text-white text-[9px] tracking-[.3em] font-bold rounded-full hover:scale-105 transition-all shadow-lg"
                  >
                    MARK AS SHIPPED
@@ -145,6 +166,79 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                   PRINT PACKING SLIP
                </button>
             </div>
+
+            {/* Shipping form */}
+            {showShipForm && order.status !== 'completed' && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-6 p-6 bg-neutral-50 rounded-2xl border border-neutral-100 space-y-4"
+              >
+                <h4 className="text-[10px] font-bold tracking-[0.4em] uppercase text-neutral-500">Ship this order</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 block mb-1.5">Carrier</label>
+                    <select
+                      value={trackingCarrier}
+                      onChange={(e) => setTrackingCarrier(e.target.value)}
+                      className="w-full bg-white border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:ring-1 focus:ring-black"
+                    >
+                      <option>Canada Post</option>
+                      <option>USPS</option>
+                      <option>UPS</option>
+                      <option>FedEx</option>
+                      <option>DHL</option>
+                      <option>Purolator</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 block mb-1.5">Tracking number</label>
+                    <input
+                      type="text"
+                      value={trackingNumber}
+                      onChange={(e) => setTrackingNumber(e.target.value)}
+                      placeholder="e.g. 1234 5678 9012 3456"
+                      className="w-full bg-white border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:ring-1 focus:ring-black font-mono"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={markAsShipped}
+                    disabled={isShipping || !trackingNumber.trim()}
+                    className="bg-black text-white px-6 py-2.5 rounded-full text-[9px] tracking-[.3em] font-bold hover:scale-105 transition-all shadow-lg disabled:opacity-50 disabled:scale-100"
+                  >
+                    {isShipping ? "CONFIRMING..." : "CONFIRM SHIPMENT"}
+                  </button>
+                  <button
+                    onClick={() => setShowShipForm(false)}
+                    className="px-6 py-2.5 text-[9px] tracking-[.3em] font-bold text-neutral-400 hover:text-black transition-colors"
+                  >
+                    CANCEL
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Show tracking info if already shipped */}
+            {order.status === 'completed' && order.trackingNumber && (
+              <div className="mt-6 p-5 bg-green-50 border border-green-100 rounded-2xl flex items-center justify-between">
+                <div>
+                  <p className="text-[9px] font-bold tracking-widest text-green-700 uppercase mb-1">Shipped</p>
+                  <p className="text-xs font-mono text-neutral-700">{order.trackingCarrier} — {order.trackingNumber}</p>
+                </div>
+                <a
+                  href={`https://www.google.com/search?q=${encodeURIComponent(order.trackingNumber)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[9px] font-bold tracking-widest text-green-700 border-b border-green-300 hover:opacity-50 transition-opacity"
+                >
+                  TRACK
+                </a>
+              </div>
+            )}
+
           </div>
 
           {/* Payment Details */}

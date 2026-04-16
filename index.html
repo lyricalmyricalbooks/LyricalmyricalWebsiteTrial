@@ -1,19 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!DOCTYPE html>
-  <html lang="en">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <meta name="description" content="Independent publishing house specializing in contemporary photography and ephemera." />
-      <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
-      <link rel="dns-prefetch" href="https://images.unsplash.com" />
-      <title>Artsy Website for Publisher</title>
-      <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
-    </head>
+    <!-- Primary SEO -->
+    <title>Lyricalmyrical Books — Independent Publishing House</title>
+    <meta name="description" content="Lyricalmyrical Books is an independent publishing house based in Toronto, specializing in photography and art books. Shop our archive of rare editions and exclusive prints." />
+    <meta name="keywords" content="photography books, art books, independent publishing, Toronto, lyricalmyrical, ephemera, fine art" />
+    <meta name="author" content="Lyricalmyrical Books" />
+    <link rel="canonical" href="https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/" />
 
-    <body>
-      <div id="root"></div>
-      <script type="module" src="/src/main.tsx"></script>
-    </body>
-  </html>
-  
+    <!-- Open Graph / Social Sharing -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/" />
+    <meta property="og:title" content="Lyricalmyrical Books — Independent Publishing House" />
+    <meta property="og:description" content="An independent publishing house specializing in contemporary photography and art books. Based in Toronto with roots in Italy." />
+    <meta property="og:image" content="https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/og-image.jpg" />
+    <meta property="og:site_name" content="Lyricalmyrical Books" />
+    <meta property="og:locale" content="en_CA" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Lyricalmyrical Books" />
+    <meta name="twitter:description" content="Independent publishing house specializing in contemporary photography and art books." />
+    <meta name="twitter:image" content="https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/og-image.jpg" />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BookStore",
+      "name": "Lyricalmyrical Books",
+      "url": "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/",
+      "description": "Independent publishing house based in Toronto, specializing in contemporary photography and art books.",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "456 Montrose Avenue",
+        "addressLocality": "Toronto",
+        "addressRegion": "Ontario",
+        "postalCode": "M6G 3H1",
+        "addressCountry": "CA"
+      },
+      "email": "lyricalmyricalbooks@gmail.com",
+      "sameAs": [
+        "https://www.instagram.com/lyricalmyricalbooks"
+      ]
+    }
+    </script>
+
+    <!-- Performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+
+    <style>
+      html, body { height: 100%; margin: 0; background: #030213; }
+      #root { height: 100%; }
+    </style>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

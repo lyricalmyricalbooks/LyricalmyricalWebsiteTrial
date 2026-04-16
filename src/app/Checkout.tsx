@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { useCart } from "./CartContext";
 import { ChevronLeft, Tag, ShieldCheck, ArrowRight, X, AlertCircle } from "lucide-react";
@@ -214,7 +214,7 @@ export function Checkout() {
         <Link to="/" className="flex items-center gap-4 text-[10px] tracking-[.3em] font-bold hover:opacity-50 transition-opacity">
            <ChevronLeft size={16} /> BACK TO SITE
         </Link>
-        <h1 className="text-2xl tracking-[.2em] font-light italic">F✶M</h1>
+        <h1 className="text-2xl tracking-[.2em] font-light italic">Fâœ¶M</h1>
         <div className="w-24"></div> {/* Balance */}
       </nav>
 
@@ -231,7 +231,7 @@ export function Checkout() {
                    </div>
                    <div className="flex-1 flex flex-col justify-center gap-2">
                      <h3 className="text-[12px] font-bold tracking-widest uppercase">{item.title}</h3>
-                     <p className="text-[10px] text-neutral-400">QTY: {item.quantity} × $ {item.price.toFixed(2)}</p>
+                     <p className="text-[10px] text-neutral-400">QTY: {item.quantity} Ã— $ {item.price.toFixed(2)}</p>
                      <p className="text-[11px] font-medium">$ {(item.quantity * item.price).toFixed(2)}</p>
                    </div>
                  </div>
@@ -283,13 +283,13 @@ export function Checkout() {
              <h2 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-4 border-b border-neutral-100">03. Shipping Details</h2>
              <div className="space-y-4">
                 <input 
-                  type="text" placeholder="FULL NAME" 
+                  type="text" placeholder="FULL NAME" autoComplete="name" aria-label="Full name" 
                   value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})}
                   className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
                 />
                 <div className="grid grid-cols-2 gap-4">
                    <input 
-                     type="email" placeholder="EMAIL ADDRESS" 
+                     type="email" placeholder="EMAIL ADDRESS" autoComplete="email" inputMode="email" aria-label="Email address" 
                      value={customer.email} onChange={e => setCustomer({...customer, email: e.target.value})}
                      className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
                    />
@@ -300,23 +300,23 @@ export function Checkout() {
                    />
                 </div>
                 <input 
-                  type="text" placeholder="STREET ADDRESS" 
+                  type="text" placeholder="STREET ADDRESS" autoComplete="street-address" aria-label="Street address" 
                   value={customer.address.street} onChange={e => setCustomer({...customer, address: {...customer.address, street: e.target.value}})}
                   className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
                 />
                 <div className="grid grid-cols-3 gap-4">
                    <input 
-                     type="text" placeholder="CITY" 
+                     type="text" placeholder="CITY" autoComplete="address-level2" aria-label="City" 
                      value={customer.address.city} onChange={e => setCustomer({...customer, address: {...customer.address, city: e.target.value}})}
                      className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
                    />
                    <input 
-                     type="text" placeholder="STATE" 
+                     type="text" placeholder="STATE" autoComplete="address-level1" aria-label="State" 
                      value={customer.address.state} onChange={e => setCustomer({...customer, address: {...customer.address, state: e.target.value}})}
                      className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
                    />
                    <input 
-                     type="text" placeholder="ZIP" 
+                     type="text" placeholder="ZIP / POSTAL" autoComplete="postal-code" inputMode="text" aria-label="Postal code" 
                      value={customer.address.zip} onChange={e => setCustomer({...customer, address: {...customer.address, zip: e.target.value}})}
                      className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
                    />
@@ -389,3 +389,4 @@ export function Checkout() {
     </div>
   );
 }
+

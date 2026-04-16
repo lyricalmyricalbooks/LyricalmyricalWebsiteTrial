@@ -8,6 +8,7 @@ import { CartDrawer } from "./components/CartDrawer";
 const MainSite = lazy(() => import("./components/MainSite"));
 const Dashboard = lazy(() => import("./admin/Dashboard").then(m => ({ default: m.Dashboard })));
 const Checkout = lazy(() => import("./Checkout").then(m => ({ default: m.Checkout })));
+const BookDetail = lazy(() => import("./features/site/BookDetail"));
 
 function LoadingFallback() {
   return (
@@ -52,6 +53,7 @@ export default function App() {
                 prevPage={prevPage}
               />
             } />
+            <Route path="/books/:slug" element={<BookDetail />} />
             <Route path="/admin/*" element={<Dashboard />} />
             <Route path="/checkout" element={<Checkout />} />
           </Routes>
@@ -60,4 +62,3 @@ export default function App() {
     </CartProvider>
   );
 }
-
