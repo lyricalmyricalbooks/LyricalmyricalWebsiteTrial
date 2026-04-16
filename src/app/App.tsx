@@ -2,6 +2,7 @@ import { useState, lazy, Suspense } from "react";
 import { motion } from "framer-motion";
 import { HashRouter, Routes, Route } from "react-router";
 import { CartProvider } from "./CartContext";
+import { Toaster } from "react-hot-toast";
 import { CartDrawer } from "./components/CartDrawer";
 
 // Lazy-loaded components for performance
@@ -42,21 +43,32 @@ export default function App() {
       <HashRouter>
         <CartDrawer />
         <Suspense fallback={<LoadingFallback />}>
-          <Routes>
-            <Route path="/" element={
-              <MainSite 
-                setShowCatalog={setShowCatalog}
-                showCatalog={showCatalog}
-                setCurrentPage={setCurrentPage}
-                currentPage={currentPage}
-                nextPage={nextPage}
-                prevPage={prevPage}
+              <Toaster 
+                position="top-center" 
+                toastOptions={{
+                  style: {
+                    background: '#171717',
+                    color: '#fff',
+                    fontSize: '12px',
+                    letterSpacing: '0.05em',
+                  },
+                }} 
               />
-            } />
-            <Route path="/books/:slug" element={<BookDetail />} />
-            <Route path="/admin/*" element={<Dashboard />} />
-            <Route path="/checkout" element={<Checkout />} />
-          </Routes>
+              <Routes>
+                <Route path="/" element={
+                  <MainSite 
+                    setShowCatalog={setShowCatalog}
+                    showCatalog={showCatalog}
+                    setCurrentPage={setCurrentPage}
+                    currentPage={currentPage}
+                    nextPage={nextPage}
+                    prevPage={prevPage}
+                  />
+                } />
+                <Route path="/books/:slug" element={<BookDetail />} />
+                <Route path="/admin/*" element={<Dashboard />} />
+                <Route path="/checkout" element={<Checkout />} />
+              </Routes>
         </Suspense>
       </HashRouter>
     </CartProvider>

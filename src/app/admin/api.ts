@@ -98,21 +98,29 @@ export const adminApi = {
   },
 
   createBook: async (book: any) => {
+    const dataToSave = { ...book };
+    delete dataToSave.id;
+    delete dataToSave._lastDoc;
+    
     const docRef = await addDoc(collection(db, "books"), {
-      ...book,
+      ...dataToSave,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
-    return { id: docRef.id, ...book };
+    return { id: docRef.id, ...dataToSave };
   },
 
   updateBook: async (id: string, book: any) => {
     const docRef = doc(db, "books", id);
+    const dataToSave = { ...book };
+    delete dataToSave.id;
+    delete dataToSave._lastDoc;
+
     await updateDoc(docRef, {
-      ...book,
+      ...dataToSave,
       updatedAt: new Date().toISOString(),
     });
-    return { id, ...book };
+    return { id, ...dataToSave };
   },
 
   deleteBook: (id: string) => deleteDoc(doc(db, "books", id)),
@@ -369,8 +377,12 @@ export const adminApi = {
 
   updateOrder: async (id: string, data: any) => {
     const docRef = doc(db, "orders", id);
+    const dataToSave = { ...data };
+    delete dataToSave.id;
+    delete dataToSave._lastDoc;
+
     await updateDoc(docRef, {
-      ...data,
+      ...dataToSave,
       updatedAt: new Date().toISOString()
     });
   },

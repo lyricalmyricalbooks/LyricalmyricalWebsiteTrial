@@ -21,7 +21,9 @@ import {
   Home,
   BadgePercent,
   Rocket,
-  LayoutGrid
+  LayoutGrid,
+  Menu,
+  X as CloseIcon
 } from "lucide-react";
 
 import { Login } from "./Login";
@@ -43,6 +45,7 @@ export function Dashboard() {
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   const [stats, setStats] = useState<any>(null);
   const [settingsTab, setSettingsTab] = useState("general");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     // Listen for Firebase Auth changes
@@ -91,14 +94,24 @@ export function Dashboard() {
 
   return (
     <div className="flex h-screen bg-neutral-50 text-neutral-900 overflow-hidden font-sans">
+      {/* Mobile Sidebar Overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-black text-white flex flex-col">
-        <div className="p-8">
-          <h1 className="text-xl tracking-[0.2em] font-light italic">F✶M</h1>
-          <div className="flex items-center gap-2 mt-2 opacity-40">
-            <ShieldCheck size={12} className="text-green-500" />
-            <p className="text-[9px] tracking-[0.1em] uppercase">Secure Firebase Backend</p>
+      <aside className={`fixed lg:static inset-y-0 left-0 w-64 bg-black text-white flex flex-col z-50 transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className="p-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-xl tracking-[0.2em] font-light italic">F✶M</h1>
+            <div className="flex items-center gap-2 mt-2 opacity-40">
+              <ShieldCheck size={12} className="text-green-500" />
+              <p className="text-[9px] tracking-[0.1em] uppercase">Secure Firebase Backend</p>
+            </div>
           </div>
+          <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 text-neutral-400 hover:text-white">
+            <CloseIcon size={20} />
+          </button>
         </div>
         
         <nav className="flex-1 px-4 space-y-1">
@@ -125,7 +138,13 @@ export function Dashboard() {
           ].map((item) => (
             <div key={item.id} className="space-y-1">
               <button
-                onClick={() => { setActiveTab(item.id); setShowEditor(false); setSelectedOrder(null); if (item.id === "settings") setSettingsTab("general"); }}
+                onClick={() => { 
+                  setActiveTab(item.id); 
+                  setShowEditor(false); 
+                  setSelectedOrder(null); 
+                  if (item.id === "settings") setSettingsTab("general");
+                  if (item.id !== "settings") setSidebarOpen(false);
+                }}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-sm tracking-widest transition-all rounded-lg ${
                   activeTab === item.id && !showEditor && !selectedOrder
                     ? "bg-white text-[#A855F7] font-bold" 
@@ -141,7 +160,10 @@ export function Dashboard() {
                   {item.children?.map((child) => (
                     <button
                       key={child.id}
-                      onClick={() => setSettingsTab(child.id)}
+                      onClick={() => {
+                        setSettingsTab(child.id);
+                        setSidebarOpen(false);
+                      }}
                       className={`w-full text-left py-2 text-[11px] tracking-widest transition-all ${
                         settingsTab === child.id 
                           ? "text-white font-bold" 
@@ -197,9 +219,24 @@ export function Dashboard() {
           ) : (
             <>
               <header className="mb-12 flex justify-between items-end">
-                <div>
-                  <p className="text-[10px] tracking-[.3em] text-neutral-400 mb-2 uppercase">Google Verified Console</p>
-                  <h2 className="text-4xl font-light tracking-tight text-neutral-900 capitalize">{activeTab}</h2>
+                <div className="flex items-center gap-6">
+                  <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-3 bg-white text-black rounded-xl shadow-sm border border-neutral-100 hover:bg-neutral-50">
+                    <Menu size={20} />
+                  </button>
+                  <div>
+                    <p className="text-[10px] tracking-[.3em] mb-2 uppercase flex items-center gap-2">
+                      <span className="text-neutral-400">Admin Console</span>
+                      <ChevronRight size={10} className="text-neutral-300" />
+                      <span className="text-[#A855F7] font-bold">{activeTab}</span>
+                      {activeTab === "settings" && (
+                        <>
+                          <ChevronRight size={10} className="text-neutral-300" />
+                          <span className="text-[#A855F7] opacity-80">{settingsTab}</span>
+                        </>
+                      )}
+                    </p>
+                    <h2 className="text-4xl font-light tracking-tight text-neutral-900 capitalize">{activeTab}</h2>
+                  </div>
                 </div>
                 
                 <div className="flex gap-4">
