@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense } from "react";
+import { motion } from "framer-motion";
 import { HashRouter, Routes, Route } from "react-router";
 import { CartProvider } from "./CartContext";
 import { CartDrawer } from "./components/CartDrawer";
