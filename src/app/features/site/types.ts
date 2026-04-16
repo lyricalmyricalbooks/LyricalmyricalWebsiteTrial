@@ -11,6 +11,7 @@ export type Book = {
   scheduleDate?: string;
   genres?: string[];
   photos?: BookPhoto[];
+  stripePriceId?: string;
 };
 
 export type SiteSettings = {
@@ -37,7 +38,6 @@ export type SiteSettings = {
       connected: boolean;
       email: string;
       publicKey?: string;
-      secretKey?: string;
       applePay: boolean;
       googlePay: boolean;
       afterpay: boolean;
@@ -49,7 +49,6 @@ export type SiteSettings = {
       connected: boolean;
       email: string;
       clientId?: string;
-      clientSecret?: string;
       venmo: boolean;
       buyNowPayLater: boolean;
     };

@@ -455,12 +455,27 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             <h4 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-2 border-b border-neutral-50">Commerce & Status</h4>
             <div className="space-y-6">
               <div className="flex flex-col gap-4 p-6 bg-neutral-50 rounded-2xl">
+                 <div className="flex flex-col gap-2 border-b border-white pb-4 mb-2">
+                    <label className="text-[10px] tracking-widest text-neutral-500 uppercase flex items-center gap-2">
+                       Stripe Price ID 
+                       <span className="text-[8px] bg-blue-100 text-blue-700 px-1 rounded">OPTIONAL</span>
+                    </label>
+                    <input 
+                      type="text" 
+                      name="stripePriceId" 
+                      value={formData.stripePriceId || ''} 
+                      onChange={handleChange} 
+                      placeholder="price_1Ns..." 
+                      className="w-full bg-white border border-neutral-200 rounded-xl py-2 px-4 text-xs focus:ring-1 focus:ring-black outline-none font-mono" 
+                    />
+                    <p className="text-[8px] text-neutral-400">Required if using Client-Only Stripe Checkout</p>
+                 </div>
                  <div className="flex items-center justify-between">
                     <label className="text-[10px] tracking-widest text-neutral-500 uppercase">On Sale</label>
                     <input type="checkbox" name="isOnSale" checked={formData.isOnSale} onChange={handleChange} className="w-4 h-4 accent-black" />
                  </div>
                  {formData.isOnSale && (
-                   <div className="flex flex-col gap-2">
+                   <div className="flex flex-col gap-2 mt-4">
                      <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Sale Price</label>
                      <div className="relative">
                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 text-xs">$</span>

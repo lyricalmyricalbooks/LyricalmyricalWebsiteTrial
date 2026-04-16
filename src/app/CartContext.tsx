@@ -6,6 +6,7 @@ interface CartItem {
   price: number;
   quantity: number;
   photoUrl: string;
+  stripePriceId?: string;
 }
 
 interface CartContextType {
@@ -54,7 +55,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         title: product.title,
         price: product.isOnSale ? product.salePrice : product.retailPrice,
         quantity: 1,
-        photoUrl: product.photos?.[0]?.url || ""
+        photoUrl: product.photos?.[0]?.url || "",
+        stripePriceId: product.stripePriceId || ""
       }];
     });
     setIsCartOpen(true);

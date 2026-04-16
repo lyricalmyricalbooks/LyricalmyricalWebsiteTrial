@@ -434,16 +434,11 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
 
          {stripe?.connected && (
             <div className="space-y-6 pt-6 border-t border-neutral-50">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+               <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
                   <div>
                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Publishable Key</label>
                      <input type="password" placeholder="pk_live_..." className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300" 
                         value={stripe?.publicKey || ''} onChange={e => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, publicKey: e.target.value}}})} />
-                  </div>
-                  <div>
-                     <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Secret Key</label>
-                     <input type="password" placeholder="sk_live_..." className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300" 
-                        value={stripe?.secretKey || ''} onChange={e => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, secretKey: e.target.value}}})} />
                   </div>
                </div>
 

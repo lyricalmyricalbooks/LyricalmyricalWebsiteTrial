@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router";
 import { useCart } from "./CartContext";
 import { ChevronLeft, Tag, ShieldCheck, ArrowRight, X, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { loadStripe } from "@stripe/stripe-js";
 import { adminApi } from "./admin/api";
 
 export function Checkout() {
@@ -76,8 +77,29 @@ export function Checkout() {
       return;
     }
 
+    // Validation for Option B Client-Only Stripe Checkout:
+    // Every item MUST have a stripePriceId associated with it!
+    const missingStripeIds = cart.filter(item => !item.stripePriceId);
+    if (missingStripeIds.length > 0) {
+      alert(`Error: The following items are missing Stripe Price IDs and cannot be processed via client-checkout: ${missingStripeIds.map(i => i.title).join(", ")}. Please contact support or update them in the catalog.`);
+      return;
+    }
+
     setIsCompleting(true);
     try {
+      // 1. Fetch public settings to get the Stripe Public Key
+      const settings = await adminApi.getSettings('website');
+      const stripePubKey = settings?.payments?.stripe?.publicKey;
+      
+      if (!stripePubKey) {
+        throw new Error("Stripe is not configured or the Public Key is missing from settings.");
+      }
+
+      // 2. Load Stripe
+      const stripe = await loadStripe(stripePubKey);
+      if (!stripe) throw new Error("Failed to initialize Stripe");
+
+      // 3. Create a PENDING order in Firebase BEFORE we redirect, so we have a paper trail
       const orderData = {
         customer,
         items: cart.map(item => ({
@@ -85,12 +107,14 @@ export function Checkout() {
           title: item.title,
           price: item.price,
           quantity: item.quantity,
-          photoUrl: item.photoUrl
+          photoUrl: item.photoUrl,
+          stripePriceId: item.stripePriceId
         })),
         subtotal: cartTotal,
         discount: discountAmount,
         shipping: finalShipping,
         total: finalTotal,
+        status: "pending_payment", // Mark as pending
         appliedDiscount: appliedDiscount ? { 
           id: appliedDiscount.id,
           code: appliedDiscount.code, 
@@ -103,16 +127,57 @@ export function Checkout() {
         }
       };
       
-      const id = await adminApi.createOrder(orderData);
-      setOrderNumber(id);
-      setIsSuccess(true);
-      clearCart();
-    } catch (err) {
-      alert("Error creating order. Please try again.");
-    } finally {
+      const orderId = await adminApi.createOrder(orderData);
+
+      // 4. Transform Cart Items into Stripe Line Items
+      const lineItems = cart.map(item => ({
+        price: item.stripePriceId,
+        quantity: item.quantity
+      }));
+
+      // In Option B Client-Side Only Mode, we cannot easily pass dynamic shipping/discount
+      // without creating a Price ID for the discount on the fly. 
+      // We log to the user that client-side only restricts dynamic promos:
+      console.warn("Client-side redirectToCheckout cannot natively pass arbitrary discount subtraction without a Stripe backend Session.");
+
+      // 5. Execute Redirect
+      const { error } = await stripe.redirectToCheckout({
+        lineItems,
+        mode: 'payment',
+        successUrl: `${window.location.origin}/#/checkout?success=true&order_id=${orderId}`,
+        cancelUrl: `${window.location.origin}/#/checkout?canceled=true`,
+        clientReferenceId: orderId, // Note: Stripe might ignore this for purely client-side without session
+        customerEmail: customer.email,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+    } catch (err: any) {
+      alert(`Checkout failed: ${err.message}`);
       setIsCompleting(false);
     }
   };
+
+  // Check URL parameters for Stripe success redirects
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.split('?')[1]);
+    if (params.get('success')) {
+      const orderIdObj = params.get('order_id') || "";
+      if (orderIdObj) {
+         setOrderNumber(orderIdObj);
+         // Mark the order as 'paid' in Firestore normally, but since we are client-side 
+         // without a webhook, we assume success if they got here.
+         adminApi.updateOrder(orderIdObj, { status: "paid" });
+      }
+      setIsSuccess(true);
+      clearCart();
+    }
+    if (params.get('canceled')) {
+      alert('Order payment was canceled.');
+    }
+  }, []);
 
   if (isSuccess) {
     return (
@@ -304,9 +369,9 @@ export function Checkout() {
                    <button 
                      onClick={handleCompletePurchase}
                      disabled={isCompleting}
-                     className="w-full bg-black text-white py-5 rounded-full text-[10px] tracking-[.4em] font-bold hover:bg-neutral-800 transition-all shadow-xl active:scale-95 transition-all"
+                     className="w-full bg-black text-white py-5 rounded-full text-[10px] tracking-[.4em] font-bold hover:bg-neutral-800 transition-all shadow-xl active:scale-95 duration-200"
                    >
-                     {isCompleting ? "PROCESSING ORDER..." : "SIMULATE STRIPE PURCHASE"}
+                     {isCompleting ? "PROCESSING..." : "PAY WITH STRIPE"}
                    </button>
                    <div className="pt-2">
                       <p className="text-[8px] tracking-widest text-neutral-400 uppercase">Archive Verified Transaction</p>
