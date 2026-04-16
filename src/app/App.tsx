@@ -10,10 +10,15 @@ const Checkout = lazy(() => import("./Checkout").then(m => ({ default: m.Checkou
 
 function LoadingFallback() {
   return (
-    <div className="h-screen w-full bg-white flex items-center justify-center">
-      <div className="text-[10px] tracking-[.4em] animate-pulse text-black uppercase">
-        Initializing...
-      </div>
+    <div className="h-screen w-full bg-[#030213] flex flex-col items-center justify-center relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-tr from-purple-900/10 via-transparent to-blue-900/10" />
+      <motion.div 
+        animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
+        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+        className="w-20 h-20 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.05)]"
+      >
+        <span className="text-white text-xs tracking-widest font-bold">F✶M</span>
+      </motion.div>
     </div>
   );
 }

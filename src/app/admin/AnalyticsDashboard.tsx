@@ -22,7 +22,7 @@ import {
   Calendar
 } from "lucide-react";
 import { adminApi } from "./api";
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
 
 export function AnalyticsDashboard() {
   const [data, setData] = useState<any>(null);

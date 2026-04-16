@@ -1,4 +1,4 @@
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
 import { useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Link } from "react-router";
@@ -23,7 +23,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
-      const scrollAmount = 200;
+      const scrollAmount = 300;
       scrollContainerRef.current.scrollBy({
         left: direction === 'left' ? -scrollAmount : scrollAmount,
         behavior: 'smooth'
@@ -33,170 +33,177 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   if (loading) {
     return (
-       <div className="h-screen bg-white flex items-center justify-center">
-          <p className="text-[10px] tracking-[.4em] animate-pulse uppercase">Retrieving Archive...</p>
-       </div>
+      <div className="h-screen w-full bg-[#030213] flex flex-col items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-tr from-purple-900/20 via-transparent to-blue-900/20" />
+        <motion.div 
+          animate={{ scale: [1, 1.05, 1], opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          className="w-16 h-16 rounded-full bg-white/5 backdrop-blur-md border border-white/10 flex items-center justify-center shadow-[0_0_40px_rgba(255,255,255,0.1)]"
+        >
+          <span className="text-white text-[10px] tracking-widest font-bold">F✶M</span>
+        </motion.div>
+        <p className="mt-8 text-[10px] tracking-[0.4em] text-white/50 uppercase font-medium">Curating Archive</p>
+      </div>
     );
   }
 
   if (showCatalog) {
     return (
-      <div className="size-full bg-black text-white overflow-y-auto" style={{ fontFamily: 'Inter, sans-serif' }}>
-        <div className="sticky top-0 z-50 bg-black border-b border-white/20">
-          <div className="flex items-center justify-between px-4 md:px-8 py-3">
-            <div className="flex items-center gap-6 md:gap-8">
-              <button onClick={() => setShowCatalog(false)} className="text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity">F✶M</button>
-              {CATEGORIES.map((cat: string) => (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className={`text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity flex items-center gap-1 ${
-                    activeCategory === cat ? 'opacity-100' : 'opacity-60'
-                  }`}
-                >
-                  <X size={10} /> {cat}
-                </button>
-              ))}
+      <div className="min-h-screen bg-[#050505] text-white overflow-y-auto selection:bg-white selection:text-black">
+        <header className="sticky top-0 z-50 bg-black/40 backdrop-blur-xl border-b border-white/10 transition-all duration-300">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-8 md:gap-12">
+              <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors">
+                F✶M
+              </button>
+              <nav className="hidden md:flex gap-6">
+                {CATEGORIES.map((cat: string) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`text-[10px] tracking-[0.2em] font-medium transition-all ${
+                      activeCategory === cat ? 'text-white' : 'text-white/40 hover:text-white/80'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </nav>
             </div>
-            <div className="flex gap-4 md:gap-8">
-              <button className="text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity">INFORMATION</button>
-              <button onClick={() => setIsCartOpen(true)} className="text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity flex items-center gap-2">
-                CART {cartCount > 0 && <span>({cartCount})</span>}
+            <div className="flex gap-6 items-center">
+              <button onClick={() => setIsCartOpen(true)} className="group flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/5 transition-colors shadow-lg">
+                <span className="text-[10px] tracking-[0.2em] font-semibold">BAG</span>
+                {cartCount > 0 && <span className="bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full">{cartCount}</span>}
               </button>
             </div>
           </div>
-        </div>
+        </header>
 
-        <div className="p-4 md:p-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <main className="max-w-7xl mx-auto px-6 py-12 md:py-20">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 md:gap-12">
             {filteredItems.map((item: any, index: number) => (
-              <motion.div
+              <motion.article
                 key={item.id || index}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: index * 0.05 }}
-                className="group cursor-pointer"
+                transition={{ duration: 0.8, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
+                className="group relative"
               >
-                <div className="relative aspect-square bg-neutral-900 mb-2 overflow-hidden">
-                    <img
+                <div className="relative aspect-[3/4] bg-neutral-900/50 rounded-lg mb-4 overflow-hidden border border-white/5 shadow-2xl">
+                  <img
                     src={item.photos?.[0]?.url || DEFAULT_IMAGE}
                     alt={item.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 grayscale"
+                    className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                     loading="lazy"
-                    decoding="async"
                   />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
                     <button 
                       onClick={(e) => { e.stopPropagation(); addToCart(item); }}
-                      className="bg-white text-black px-6 py-2 rounded-full text-[9px] tracking-[.3em] font-bold hover:scale-105 transition-all shadow-xl"
+                      className="w-full bg-white text-black py-3 rounded text-[10px] tracking-[0.2em] font-bold hover:bg-neutral-200 transition-colors transform translate-y-4 group-hover:translate-y-0 duration-300 shadow-xl"
                     >
                       ADD TO BAG
                     </button>
                   </div>
                 </div>
-                <div className="flex items-start gap-1">
-                  <X size={12} className="mt-0.5 flex-shrink-0" />
-                  <h3 className="text-[10px] md:text-xs tracking-wider leading-tight">{item.title}</h3>
+                <div className="px-1">
+                  <h3 className="text-xs tracking-wider font-medium leading-relaxed uppercase text-white/90">{item.title}</h3>
+                  <div className="mt-2 text-[10px] tracking-[0.1em] text-white/40">COLLECTION / {new Date().getFullYear()}</div>
                 </div>
-              </motion.div>
+              </motion.article>
             ))}
           </div>
-        </div>
-
-        <div className="sticky bottom-0 bg-black border-t border-white/20 px-4 md:px-8 py-3">
-          <div className="text-[9px] md:text-[10px] tracking-wider opacity-60">
-            {settings?.announcements?.[0]?.message}
-            <span className="mx-2">/</span> SPRING/SUMMER PRESS
-          </div>
-        </div>
+        </main>
+        
+        <footer className="mt-12 py-8 bg-black/60 border-t border-white/10 text-center">
+             <div className="text-[9px] md:text-[10px] tracking-widest opacity-60 uppercase text-white/70">
+                {settings?.announcements?.[0]?.message || "Lyricalmyrical Books"}
+            </div>
+        </footer>
       </div>
     );
   }
 
   return (
-    <div className="size-full bg-white text-black overflow-hidden relative" style={{ fontFamily: 'Inter, sans-serif' }}>
-      <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 0.5 }}
-        className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 md:px-8 py-3"
-      >
-        <button onClick={() => setShowCatalog(true)} className="text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity">ENTER HERE</button>
-        <div className="flex gap-4 md:gap-8">
-          <button className="text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity">INFORMATION</button>
-          <button onClick={() => setIsCartOpen(true)} className="text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity flex items-center gap-2">
-            CART {cartCount > 0 && <span>({cartCount})</span>}
+    <div className="size-full bg-[#030213] text-white overflow-hidden relative selection:bg-white selection:text-black font-sans">
+      <header className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-6 bg-gradient-to-b from-black/70 to-transparent">
+        <button onClick={() => setShowCatalog(true)} className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white hover:text-white/70 transition-colors">
+          ENTER ARCHIVE
+        </button>
+        <div className="flex gap-8 items-center">
+          <button className="text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-80 hover:opacity-100 transition-opacity hidden md:block">INFORMATION</button>
+          <button onClick={() => setIsCartOpen(true)} className="group flex items-center gap-2 bg-white/10 backdrop-blur-md px-5 py-2.5 rounded-full border border-white/10 hover:bg-white/20 transition-all shadow-lg">
+            <span className="text-[10px] tracking-[0.2em] font-bold">BAG</span>
+            {cartCount > 0 && <span className="bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-full">{cartCount}</span>}
           </button>
-          <Link to="/admin" className="text-[10px] md:text-xs tracking-widest hover:opacity-50 transition-opacity">BACKEND</Link>
+          <Link to="/admin" className="text-[10px] tracking-widest opacity-30 hover:opacity-100 transition-opacity">SYS</Link>
         </div>
-      </motion.div>
+      </header>
 
-      <div className="relative h-screen w-full">
+      <main className="relative h-screen w-full flex items-center justify-center">
         {publications.map((pub: any, index: number) => (
           <motion.div
             key={index}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: index === (currentPage % (publications.length || 1)) ? 1 : 0 }}
-            transition={{ duration: 1 }}
-            className="absolute inset-0"
+            initial={{ opacity: 0, scale: 1.05 }}
+            animate={{ 
+              opacity: index === (currentPage % (publications.length || 1)) ? 1 : 0,
+              scale: index === (currentPage % (publications.length || 1)) ? 1 : 1.05
+            }}
+            transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
+            className={`absolute inset-0 ${index === (currentPage % (publications.length || 1)) ? 'z-10' : 'z-0 pointer-events-none'}`}
           >
-            <img src={pub.image} alt="" className="w-full h-full object-cover grayscale" />
-            <div className="absolute inset-0 bg-black/10" />
+            <img fetchPriority={index === 0 ? "high" : "auto"} src={pub.image} alt={pub.title} className="w-full h-full object-cover opacity-60 mix-blend-luminosity" />
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-black/60 to-[#030213]/90 mix-blend-multiply" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-black/40 to-black/80" />
           </motion.div>
         ))}
 
-        <button onClick={prevPage} className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 z-40 p-2 hover:opacity-50 transition-opacity">
-          <ChevronLeft size={32} className="text-white drop-shadow-lg" />
-        </button>
-        <button onClick={nextPage} className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 z-40 p-2 hover:opacity-50 transition-opacity">
-          <ChevronRight size={32} className="text-white drop-shadow-lg" />
-        </button>
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-4 md:px-12 z-40 pointer-events-none">
+          <button onClick={prevPage} className="pointer-events-auto w-12 h-12 rounded-full flex items-center justify-center bg-white/5 backdrop-blur-lg border border-white/10 hover:bg-white/10 transition-all group shadow-2xl">
+            <ChevronLeft size={20} className="text-white opacity-70 group-hover:opacity-100 group-hover:-translate-x-0.5 transition-all" />
+          </button>
+          <button onClick={nextPage} className="pointer-events-auto w-12 h-12 rounded-full flex items-center justify-center bg-white/5 backdrop-blur-lg border border-white/10 hover:bg-white/10 transition-all group shadow-2xl">
+            <ChevronRight size={20} className="text-white opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+          </button>
+        </div>
 
-        <div className="absolute inset-0 flex items-center justify-center z-30">
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 1.2, delay: 0.3 }} className="text-center">
-            <div className="mb-6 flex items-center justify-center gap-3">
-              <svg width="280" height="120" viewBox="0 0 280 120" className="text-white drop-shadow-2xl">
-                <text x="140" y="70" textAnchor="middle" className="fill-current" style={{ fontSize: '72px', fontWeight: 300, letterSpacing: '8px', fontFamily: 'Inter, sans-serif' }}>F✶M</text>
-              </svg>
-            </div>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 0.8 }} className="text-white text-[10px] md:text-xs tracking-[0.2em] max-w-md mx-auto px-4">
+        <div className="relative z-30 text-center flex flex-col items-center">
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.2, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}>
+            <h1 className="text-transparent bg-clip-text bg-gradient-to-b from-white to-white/70 tracking-[0.15em] font-light text-6xl md:text-8xl mb-8 selection:bg-transparent" style={{ fontFamily: 'Outfit, sans-serif' }}>
+              F✶M
+            </h1>
+          </motion.div>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 0.8 }} className="overflow-hidden">
+            <motion.p 
+              key={currentPage} 
+              initial={{ y: 20, opacity: 0 }} 
+              animate={{ y: 0, opacity: 1 }} 
+              className="text-white/80 text-[10px] md:text-xs tracking-[0.4em] max-w-lg mx-auto uppercase font-medium"
+            >
               {publications[currentPage % (publications.length || 1)]?.title}
-            </motion.div>
+            </motion.p>
           </motion.div>
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 z-40 bg-black/70 backdrop-blur-sm">
-          <div className="relative">
-            <button onClick={() => scroll('left')} className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 hover:opacity-50 transition-opacity">
-              <ChevronLeft size={16} className="text-white" />
-            </button>
-            <div ref={scrollContainerRef} className="flex gap-8 overflow-x-auto scrollbar-hide px-12 py-4" style={{ paddingRight: '48px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <nav className="absolute bottom-0 left-0 right-0 z-40 bg-gradient-to-t from-black via-black/80 to-transparent pt-20 pb-8">
+          <div className="relative max-w-7xl mx-auto">
+            <div ref={scrollContainerRef} className="flex gap-16 overflow-x-auto scrollbar-hide px-12 md:px-24" style={{ scrollbarWidth: 'none' }}>
               {publishedBooks.map((item: Book, index: number) => (
-                <motion.button
+                <motion.div
                   key={item.id || index}
+                  initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.8 + index * 0.1, ease: [0.22, 1, 0.36, 1] }}
+                  className="flex-shrink-0 group cursor-pointer"
                   onClick={() => addToCart(item)}
-                  initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 1 + index * 0.1 }}
-                  className="text-white text-[9px] md:text-[10px] tracking-[0.15em] whitespace-nowrap hover:text-neutral-400 transition-colors"
                 >
-                  {item.title.toUpperCase()}
-                </motion.button>
+                  <p className="text-[10px] tracking-[0.2em] font-semibold text-white/50 group-hover:text-white transition-colors uppercase whitespace-nowrap">
+                    {item.title}
+                  </p>
+                  <div className="h-[1px] w-0 bg-white group-hover:w-full transition-all duration-500 mt-2" />
+                </motion.div>
               ))}
             </div>
-            <button onClick={() => scroll('right')} className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 hover:opacity-50 transition-opacity">
-              <ChevronRight size={16} className="text-white" />
-            </button>
           </div>
-        </div>
-      </div>
-      
-      <footer className="bg-black text-white py-8 px-8 md:px-16">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-[10px] tracking-widest">
-          <div>© 2026 ARCHIVE—PRESS</div>
-          <div className="flex gap-8">
-            <a href="#" className="hover:opacity-50 transition-opacity">CONTACT</a>
-            <a href="#" className="hover:opacity-50 transition-opacity">INSTAGRAM</a>
-            <a href="#" className="hover:opacity-50 transition-opacity">NEWSLETTER</a>
-          </div>
-        </div>
-      </footer>
+        </nav>
+      </main>
     </div>
   );
 }

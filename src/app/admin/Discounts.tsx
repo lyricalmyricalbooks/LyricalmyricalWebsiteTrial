@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Plus, Trash2, Tag, Calendar, Percent, DollarSign, Truck, X, Save } from "lucide-react";
 import { adminApi } from "./api";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export function Discounts() {
   const [discounts, setDiscounts] = useState<any[]>([]);

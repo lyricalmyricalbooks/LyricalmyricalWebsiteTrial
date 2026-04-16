@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router";
 import { useCart } from "../CartContext";
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight } from "lucide-react";

@@ -14,7 +14,7 @@ import {
   Plus
 } from "lucide-react";
 import { adminApi } from "./api";
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
 
 export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: () => void }) {
   const [order, setOrder] = useState<any>(null);

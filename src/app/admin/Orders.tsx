@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Search, Grid, List as ListIcon, ChevronRight, Package, DollarSign } from "lucide-react";
 import { adminApi } from "./api";
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
 
 export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void }) {
   const [orders, setOrders] = useState<any[]>([]);

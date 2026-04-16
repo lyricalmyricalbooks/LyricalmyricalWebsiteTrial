@@ -22,7 +22,7 @@ import {
   Check
 } from "lucide-react";
 import { adminApi } from "./api";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 
 const PURPLE = "#A855F7";
 

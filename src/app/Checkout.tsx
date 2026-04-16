@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { useCart } from "./CartContext";
 import { ChevronLeft, Tag, ShieldCheck, ArrowRight, X, AlertCircle } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 import { adminApi } from "./admin/api";
 
 export function Checkout() {

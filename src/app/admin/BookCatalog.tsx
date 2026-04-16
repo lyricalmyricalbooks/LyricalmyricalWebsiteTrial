@@ -11,7 +11,7 @@ import {
   Image as LucideImage
 } from "lucide-react";
 import { adminApi } from "./api";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface BookCatalogProps {
   onEdit: (book: any) => void;
