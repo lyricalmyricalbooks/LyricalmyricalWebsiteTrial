@@ -22,6 +22,7 @@ import {
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
 import { ThemeEditor } from "./ThemeEditor";
+import { PagesManager } from "./PagesManager";
 
 const PURPLE = "#A855F7";
 
@@ -90,6 +91,15 @@ export function ShopSettings({ activeTab, setActiveTab }: any) {
         }}
         onExit={() => setActiveTab("general")}
       />
+    );
+  }
+
+  // Pages tab — renders inline (same width as other settings)
+  if (activeTab === "pages") {
+    return (
+      <div className="max-w-4xl mx-auto pb-32">
+        <PagesManager />
+      </div>
     );
   }
 

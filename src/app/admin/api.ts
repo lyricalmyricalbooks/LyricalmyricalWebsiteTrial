@@ -624,10 +624,9 @@ export const adminApi = {
   // PAGES  (custom website pages)
   // ─────────────────────────────────────────────
   getPages: async () => {
-    const snap = await getDocs(
-      query(collection(db, "pages"), orderBy("order", "asc"))
-    );
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const snap = await getDocs(collection(db, "pages"));
+    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+    return docs.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   },
 
   getPageBySlug: async (slug: string) => {
@@ -639,14 +638,11 @@ export const adminApi = {
   },
 
   getPublishedPages: async () => {
-    const snap = await getDocs(
-      query(
-        collection(db, "pages"),
-        where("status", "==", "published"),
-        orderBy("order", "asc")
-      )
-    );
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const snap = await getDocs(collection(db, "pages"));
+    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+    return docs
+      .filter((d) => d.status === "published")
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   },
 
   createPage: async (data: any) => {
