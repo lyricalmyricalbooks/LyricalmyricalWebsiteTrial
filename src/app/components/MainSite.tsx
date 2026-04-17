@@ -396,16 +396,21 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             </div>
             <div className="flex gap-6 md:gap-8 items-center">
               {/* Dynamic Custom Pages */}
-              <nav className="hidden lg:flex gap-6 mr-2">
+              <nav className="hidden lg:flex items-center gap-6 mr-2">
+                {pages.some((p:any) => p.showInNav && p.status === "published") && (
+                   <span className="text-[10px] tracking-[0.3em] font-bold text-white/20 uppercase select-none mr-2">
+                     {settings?.design?.navHeading || "INFO"}
+                   </span>
+                )}
                 {(pages || [])
-                  .filter(p => p.showInNav && p.status === "published")
-                  .map(page => (
+                  .filter((p: any) => p.showInNav && p.status === "published")
+                  .map((page: any) => (
                     <Link 
                       key={page.id} 
                       to={`/page/${page.slug}`} 
-                      className="text-[10px] tracking-[0.2em] text-white/40 hover:text-white transition-colors"
+                      className="text-[10px] tracking-[0.2em] text-white/40 hover:text-white transition-colors uppercase whitespace-nowrap"
                     >
-                      {page.title.toUpperCase()}
+                      {page.title}
                     </Link>
                   ))}
               </nav>
@@ -513,17 +518,24 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           </button>
           
           {/* Custom Pages in Home Header */}
-          {(pages || [])
-            .filter(p => p.showInNav && p.status === "published")
-            .map(page => (
-              <Link 
-                key={page.id} 
-                to={`/page/${page.slug}`} 
-                className="text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-60 hover:opacity-100 transition-opacity hidden lg:block"
-              >
-                {page.title.toUpperCase()}
-              </Link>
-            ))}
+          <nav className="hidden lg:flex items-center gap-6">
+            {pages.some((p: any) => p.showInNav && p.status === "published") && (
+              <span className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white/20 uppercase select-none mr-2">
+                {settings?.design?.navHeading || "INFO"}
+              </span>
+            )}
+            {(pages || [])
+              .filter((p: any) => p.showInNav && p.status === "published")
+              .map((page: any) => (
+                <Link 
+                  key={page.id} 
+                  to={`/page/${page.slug}`} 
+                  className="text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-60 hover:opacity-100 transition-opacity uppercase"
+                >
+                  {page.title}
+                </Link>
+              ))}
+          </nav>
 
           <button
             onClick={() => setIsCartOpen(true)}
@@ -536,81 +548,35 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         </div>
       </header>
 
-      <main className="relative h-screen w-full flex items-center justify-center">
-        {publications.map((pub: any, index: number) => (
-          <motion.div
-            key={index}
-            initial={{ opacity: 0, scale: 1.05 }}
-            animate={{ 
-              opacity: index === (currentPage % (publications.length || 1)) ? 1 : 0,
-              scale: index === (currentPage % (publications.length || 1)) ? 1 : 1.05
-            }}
-            transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
-            className={`absolute inset-0 ${index === (currentPage % (publications.length || 1)) ? 'z-10' : 'z-0 pointer-events-none'}`}
-          >
-            <img fetchPriority={index === 0 ? "high" : "auto"} src={pub.image} alt={pub.title} className="w-full h-full object-cover opacity-60 mix-blend-luminosity" />
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-black/60 to-[#030213]/90 mix-blend-multiply" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-black/40 to-black/80" />
-          </motion.div>
-        ))}
-
-        {/* Prev/Next arrows */}
-        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-4 md:px-12 z-40 pointer-events-none">
-          <button onClick={prevPage} className="pointer-events-auto w-12 h-12 rounded-full flex items-center justify-center bg-white/5 backdrop-blur-lg border border-white/10 hover:bg-white/10 transition-all group shadow-2xl">
-            <ChevronLeft size={20} className="text-white opacity-70 group-hover:opacity-100 group-hover:-translate-x-0.5 transition-all" />
-          </button>
-          <button onClick={nextPage} className="pointer-events-auto w-12 h-12 rounded-full flex items-center justify-center bg-white/5 backdrop-blur-lg border border-white/10 hover:bg-white/10 transition-all group shadow-2xl">
-            <ChevronRight size={20} className="text-white opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
-          </button>
-        </div>
-
-        {/* Hero center text */}
-        <div className="relative z-30 text-center flex flex-col items-center">
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1.2, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}>
-            {settings?.design?.logoUrl ? (
-               <img src={settings.design.logoUrl} alt="Logo" className="h-16 md:h-24 object-contain mb-8 filter brightness-0 invert opacity-90" />
-            ) : (
-               <h1 className="text-transparent bg-clip-text bg-gradient-to-b from-white to-white/70 tracking-[0.15em] font-light text-6xl md:text-8xl mb-8 selection:bg-transparent" style={{ fontFamily: 'Outfit, sans-serif' }}>
-                 F✶M
-               </h1>
-            )}
-          </motion.div>
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 0.8 }} className="overflow-hidden">
-            <motion.p 
-              key={currentPage} 
-              initial={{ y: 20, opacity: 0 }} 
-              animate={{ y: 0, opacity: 1 }} 
-              className="text-white/80 text-[10px] md:text-xs tracking-[0.4em] max-w-lg mx-auto uppercase font-medium"
-            >
-              {publications[currentPage % (publications.length || 1)]?.title}
-            </motion.p>
-          </motion.div>
-        </div>
-
-        {/* Bottom scrolling nav */}
-        <nav className="absolute bottom-0 left-0 right-0 z-40 bg-gradient-to-t from-black via-black/80 to-transparent pt-20 pb-8">
-          <div className="relative max-w-7xl mx-auto">
-            <div ref={scrollContainerRef} className="flex gap-16 overflow-x-auto scrollbar-hide px-12 md:px-24" style={{ scrollbarWidth: 'none' }}>
-              {publishedBooks.map((item: Book, index: number) => {
-                const slug = getBookSlug(item);
-                return (
-                  <motion.div
-                    key={item.id || index}
-                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.8 + index * 0.1, ease: [0.22, 1, 0.36, 1] }}
-                    className="flex-shrink-0 group cursor-pointer"
-                  >
-                    <Link to={`/books/${slug}`} className="block">
-                      <p className="text-[10px] tracking-[0.2em] font-semibold text-white/50 group-hover:text-white transition-colors uppercase whitespace-nowrap">
-                        {item.title}
-                      </p>
-                      <div className="h-[1px] w-0 bg-white group-hover:w-full transition-all duration-500 mt-2" />
-                    </Link>
-                  </motion.div>
-                );
-              })}
+      <main className="relative w-full overflow-hidden">
+        <HeroCarousel settings={settings} onEnterArchive={() => setShowCatalog(true)} />
+        
+        {/* Bottom scrolling nav (Always shown if enabled) */}
+        {settings?.design?.showBookStrip !== false && (
+          <nav className="absolute bottom-0 left-0 right-0 z-40 bg-gradient-to-t from-black via-black/80 to-transparent pt-20 pb-8 pointer-events-none">
+            <div className="relative max-w-7xl mx-auto pointer-events-auto">
+              <div ref={scrollContainerRef} className="flex gap-16 overflow-x-auto scrollbar-hide px-12 md:px-24" style={{ scrollbarWidth: 'none' }}>
+                {publishedBooks.map((item: Book, index: number) => {
+                  const slug = getBookSlug(item);
+                  return (
+                    <motion.div
+                      key={item.id || index}
+                      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.8 + index * 0.1, ease: [0.22, 1, 0.36, 1] }}
+                      className="flex-shrink-0 group cursor-pointer"
+                    >
+                      <Link to={`/books/${slug}`} className="block">
+                        <p className="text-[10px] tracking-[0.2em] font-semibold text-white/50 group-hover:text-white transition-colors uppercase whitespace-nowrap">
+                          {item.title}
+                        </p>
+                        <div className="h-[1px] w-0 bg-white group-hover:w-full transition-all duration-500 mt-2" />
+                      </Link>
+                    </motion.div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </nav>
+          </nav>
+        )}
       </main>
 
       {/* About panel (available from homepage too) */}

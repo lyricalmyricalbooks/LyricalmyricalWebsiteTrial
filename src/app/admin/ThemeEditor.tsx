@@ -288,57 +288,279 @@ function NavigationPanel({ design, update }: any) {
           onChange={(v: boolean) => update("showSocialInFooter", v)}
         />
       </div>
+
+      <div>
+        <SidebarLabel>Pages Navigation Heading</SidebarLabel>
+        <SidebarInput
+          value={design.navHeading || "INFO"}
+          onChange={(v: string) => update("navHeading", v)}
+          placeholder="INFO"
+        />
+        <p className="text-[9px] text-neutral-400 mt-2 leading-relaxed">
+          The label shown in the header before your custom pages.
+        </p>
+      </div>
     </div>
   );
 }
 
 function HomepagePanel({ design, update }: any) {
+  const hero = design.hero || { slides: [] };
+  const updateHero = (key: string, value: any) => {
+    update("hero", { ...hero, [key]: value });
+  };
+
+  const addSlide = () => {
+    const newSlide = {
+      id: crypto.randomUUID(),
+      imageUrl: "https://images.unsplash.com/photo-1513001900722-370f803f498d?w=1600&h=900&fit=crop",
+      title: "NEW SLIDE",
+      subtitle: "SUBTITLE HERE",
+      ctaText: "LEARN MORE",
+      ctaLink: "/"
+    };
+    updateHero("slides", [...(hero.slides || []), newSlide]);
+  };
+
+  const removeSlide = (id: string) => {
+    updateHero("slides", hero.slides.filter((s: any) => s.id !== id));
+  };
+
+  const updateSlide = (id: string, field: string, value: string) => {
+    updateHero("slides", hero.slides.map((s: any) => s.id === id ? { ...s, [field]: value } : s));
+  };
+
+  const handleImageUpload = async (id: string, file: File) => {
+    try {
+      const url = await adminApi.uploadFile(file, `hero/${id}_${Date.now()}`);
+      updateSlide(id, "imageUrl", url);
+    } catch (err) {
+      alert("Error uploading image");
+    }
+  };
+
   return (
-    <div className="p-4 space-y-6 overflow-y-auto flex-1">
-      <div>
-        <SidebarLabel>Hero layout</SidebarLabel>
-        <SidebarRadioGroup
-          value={design.heroLayout || "fullscreen"}
-          onChange={(v) => update("heroLayout", v)}
-          options={[
-            { value: "fullscreen", label: "Fullscreen" },
-            { value: "split", label: "Split" },
-            { value: "banner", label: "Banner" },
-          ]}
-        />
+    <div className="p-4 space-y-8 overflow-y-auto flex-1">
+      {/* Layout & Style */}
+      <div className="space-y-6">
+        <div>
+          <SidebarLabel>Hero Height</SidebarLabel>
+          <SidebarRadioGroup
+            value={hero.height || "fullscreen"}
+            onChange={(v) => updateHero("height", v)}
+            options={[
+              { value: "fullscreen", label: "Full" },
+              { value: "tall", label: "Tall" },
+              { value: "medium", label: "Med" },
+            ]}
+          />
+        </div>
+
+        <div>
+           <SidebarLabel>Content Alignment</SidebarLabel>
+           <SidebarRadioGroup
+            value={hero.align || "center"}
+            onChange={(v) => updateHero("align", v)}
+            options={[
+              { value: "left", label: "Left" },
+              { value: "center", label: "Center" },
+              { value: "right", label: "Right" },
+            ]}
+          />
+        </div>
+
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <SidebarLabel>Overlay Opacity</SidebarLabel>
+            <span className="text-[10px] text-neutral-400 font-mono">{Math.round((hero.overlayOpacity || 0) * 100)}%</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            value={hero.overlayOpacity ?? 0.4}
+            onChange={(e) => updateHero("overlayOpacity", parseFloat(e.target.value))}
+            className="w-full accent-blue-500 h-1 bg-neutral-100 rounded-lg appearance-none cursor-pointer"
+          />
+        </div>
       </div>
 
-      <div>
-        <SidebarLabel>CTA button label</SidebarLabel>
-        <SidebarInput
-          value={design.heroCTA || "ENTER ARCHIVE"}
-          onChange={(v: string) => update("heroCTA", v)}
-          placeholder="ENTER ARCHIVE"
-        />
-      </div>
+      <hr className="border-neutral-100" />
 
-      <div>
-        <SidebarLabel>Hero subtext</SidebarLabel>
-        <SidebarInput
-          value={design.heroSubtext || ""}
-          onChange={(v: string) => update("heroSubtext", v)}
-          placeholder="Discover rare editions and exclusive prints."
-        />
-      </div>
+      {/* Slides */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <SidebarLabel>Slides</SidebarLabel>
+          <button
+            onClick={addSlide}
+            className="p-1 hover:bg-neutral-100 rounded text-blue-500 transition-colors"
+          >
+            <Plus size={14} />
+          </button>
+        </div>
 
-      <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden">
-        <SidebarToggle
-          label="Featured carousel"
-          description="Show a scrollable strip of featured publications"
-          checked={design.showFeaturedCarousel ?? true}
-          onChange={(v: boolean) => update("showFeaturedCarousel", v)}
-        />
-        <SidebarToggle
-          label="Scrolling book strip"
-          description="Display all books in a horizontal scroll strip"
-          checked={design.showBookStrip ?? true}
-          onChange={(v: boolean) => update("showBookStrip", v)}
-        />
+        <div className="space-y-4">
+          {(hero.slides || []).map((slide: any, index: number) => (
+            <div key={slide.id} className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 relative group/slide">
+               <button
+                onClick={() => removeSlide(slide.id)}
+                className="absolute -top-2 -right-2 p-1 bg-white border border-neutral-200 rounded-full text-red-500 shadow-sm opacity-0 group-hover/slide:opacity-100 transition-opacity"
+               >
+                <X size={10} />
+               </button>
+               
+               <div className="mb-3">
+                 <div className="aspect-video bg-neutral-200 rounded-lg overflow-hidden relative mb-2 group">
+                   <img src={slide.imageUrl} alt="" className="w-full h-full object-cover" />
+                   <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white text-[10px] font-bold">
+                     CHANGE IMAGE
+                     <input type="file" className="hidden" accept="image/*" onChange={(e) => {
+                       const file = e.target.files?.[0];
+                       if (file) handleImageUpload(slide.id, file);
+                     }} />
+                   </label>
+                 </div>
+                 <input
+                   value={slide.title}
+                   onChange={(e) => updateSlide(slide.id, "title", e.target.value)}
+                   placeholder="Slide Title (e.g. F✶M)"
+                   className="w-full bg-white border border-neutral-200 rounded px-2 py-1 text-[11px] font-bold outline-none mb-1"
+                 />
+                 <input
+                   value={slide.subtitle}
+                   onChange={(e) => updateSlide(slide.id, "subtitle", e.target.value)}
+                   placeholder="Subtitle"
+                   className="w-full bg-white border border-neutral-200 rounded px-2 py-1 text-[10px] outline-none"
+                 />
+               </div>
+
+               <div className="grid grid-cols-2 gap-2">
+                  <input
+                    value={slide.ctaText}
+                    onChange={(e) => updateSlide(slide.id, "ctaText", e.target.value)}
+                    placeholder="Button Label"
+                    className="bg-white border border-neutral-200 rounded px-2 py-1 text-[10px] outline-none"
+                  />
+                  <input
+                    value={slide.ctaLink}
+                    onChange={(e) => updateSlide(slide.id, "ctaLink", e.target.value)}
+                    placeholder="Link (e.g. /shop)"
+                    className="bg-white border border-neutral-200 rounded px-2 py-1 text-[10px] outline-none"
+                  />
+               </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PagesPanel({ pages, setPages }: any) {
+  const [editingPage, setEditingPage] = useState<any | null>(null);
+
+  const createPage = async () => {
+    const newPage = {
+      title: "Untitled Page",
+      slug: "new-page-" + Date.now(),
+      content: "<p>Start writing...</p>",
+      status: "draft",
+      showInNav: true,
+      order: pages.length
+    };
+    const saved = await adminApi.createPage(newPage);
+    setPages([...pages, saved]);
+    setEditingPage(saved);
+  };
+
+  const updatePage = async (id: string, data: any) => {
+    const updated = await adminApi.updatePage(id, data);
+    setPages(pages.map((p: any) => p.id === id ? updated : p));
+    setEditingPage(updated);
+  };
+
+  const deletePage = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this page?")) return;
+    await adminApi.deletePage(id);
+    setPages(pages.filter((p: any) => p.id !== id));
+    if (editingPage?.id === id) setEditingPage(null);
+  };
+
+  if (editingPage) {
+    return (
+      <div className="p-4 space-y-4">
+        <SubPanelHeader title="Edit Page" onBack={() => setEditingPage(null)} />
+        <div className="space-y-4">
+          <div>
+            <SidebarLabel>Page Title</SidebarLabel>
+            <SidebarInput 
+              value={editingPage.title} 
+              onChange={(v: string) => updatePage(editingPage.id, { ...editingPage, title: v })}
+            />
+          </div>
+          <div>
+            <SidebarLabel>URL Slug</SidebarLabel>
+            <SidebarInput 
+              value={editingPage.slug} 
+              onChange={(v: string) => updatePage(editingPage.id, { ...editingPage, slug: v })}
+            />
+          </div>
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <SidebarLabel>Status</SidebarLabel>
+              <SidebarSelect
+                value={editingPage.status}
+                onChange={(v: string) => updatePage(editingPage.id, { ...editingPage, status: v })}
+                options={[{ value: "draft", label: "Draft" }, { value: "published", label: "Published" }]}
+              />
+            </div>
+            <div className="flex-1 flex flex-col justify-end">
+               <SidebarToggle 
+                  label="In Nav" 
+                  checked={editingPage.showInNav} 
+                  onChange={(v: boolean) => updatePage(editingPage.id, { ...editingPage, showInNav: v })} 
+               />
+            </div>
+          </div>
+          <hr className="border-neutral-100" />
+          <button
+            onClick={() => deletePage(editingPage.id)}
+            className="w-full py-2 text-[10px] font-bold text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+          >
+            DELETE PAGE
+          </button>
+          <p className="text-[9px] text-neutral-400 text-center">To edit the content of this page, please use the main Pages Manager in the Dashboard.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
+         <h3 className="text-[11px] font-bold text-neutral-700 uppercase tracking-widest">Pages</h3>
+         <button onClick={createPage} className="flex items-center gap-1 text-[10px] font-bold text-blue-500 hover:text-blue-600">
+           <Plus size={12} /> ADD
+         </button>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {pages.map((page: any) => (
+          <button
+            key={page.id}
+            onClick={() => setEditingPage(page)}
+            className="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-50 border-b border-neutral-100 transition-colors text-left group"
+          >
+            <div className="flex items-center gap-3">
+              <FileText size={14} className="text-neutral-300 group-hover:text-blue-500 transition-colors" />
+              <div>
+                <p className="text-[11px] font-semibold text-neutral-800">{page.title}</p>
+                <p className="text-[9px] text-neutral-400">/{page.slug} · <span className={page.status ==='published' ? 'text-green-500' : 'text-neutral-400'}>{page.status}</span></p>
+              </div>
+            </div>
+            <ChevronRight size={12} className="text-neutral-300" />
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -612,7 +834,7 @@ function AdditionalPanel({ design, update }: any) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Live Preview — scaled render of the actual storefront
 // ─────────────────────────────────────────────────────────────────────────────
-function LivePreview({ design, device, previewMode, settings }: any) {
+function LivePreview({ design, device, previewMode, settings, pages }: any) {
   // Derive merged settings for preview
   const previewSettings = { ...settings, design };
 
@@ -672,9 +894,9 @@ function LivePreview({ design, device, previewMode, settings }: any) {
         {/* Storefront preview */}
         <div className="flex-1 overflow-hidden relative" style={{ color: text, background: bg, fontFamily: font }}>
           {previewMode.value === "homepage" ? (
-            <HomepagePreview design={design} bg={bg} text={text} accent={accent} font={font} />
+            <HomepagePreview design={design} bg={bg} text={text} accent={accent} font={font} pages={pages} />
           ) : (
-            <ShopPreview design={design} bg={bg} text={text} accent={accent} font={font} />
+            <ShopPreview design={design} bg={bg} text={text} accent={accent} font={font} pages={pages} />
           )}
         </div>
       </div>
@@ -686,9 +908,18 @@ function LivePreview({ design, device, previewMode, settings }: any) {
   );
 }
 
-function HomepagePreview({ design, bg, text, accent, font }: any) {
-  const heroCTA = design.heroCTA || "ENTER ARCHIVE";
+function HomepagePreview({ design, bg, text, accent, font, pages }: any) {
+  const hero = design.hero || { slides: [] };
   const showAnnouncement = design.showAnnouncement ?? true;
+  const navPages = (pages || []).filter((p: any) => p.showInNav && p.status === "published");
+  const activeSlide = (hero.slides || [])[0] || {
+    title: "F✶M",
+    subtitle: "PHOTOGRAPHY & ART BOOKS",
+    ctaText: "ENTER ARCHIVE",
+    imageUrl: ""
+  };
+
+  const alignClass = hero.align === "left" ? "items-start text-left" : hero.align === "right" ? "items-end text-right" : "items-center text-center";
 
   return (
     <div className="h-full flex flex-col" style={{ background: bg, color: text, fontFamily: font }}>
@@ -704,10 +935,13 @@ function HomepagePreview({ design, bg, text, accent, font }: any) {
       )}
 
       {/* Nav */}
-      <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0" style={{ borderColor: `${text}15` }}>
+      <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0 backdrop-blur-md" style={{ borderColor: `${text}15`, background: `${bg}80` }}>
         <span className="text-[11px] font-black tracking-tight opacity-90">F✶M</span>
         <div className="flex items-center gap-4">
-          <span className="text-[8px] tracking-widest opacity-50">INFORMATION</span>
+          <span className="text-[8px] tracking-widest opacity-50 uppercase">{design.navHeading || "INFO"}</span>
+          {navPages.slice(0, 1).map((p: any) => (
+             <span key={p.id} className="text-[7px] tracking-widest opacity-40 uppercase truncate max-w-[50px]">{p.title}</span>
+          ))}
           <div className="flex items-center gap-1 px-3 py-1 rounded-full border text-[8px] font-bold tracking-widest" style={{ borderColor: `${text}20`, background: `${text}10` }}>
             {design.cartLabel || "BAG"}
           </div>
@@ -715,32 +949,32 @@ function HomepagePreview({ design, bg, text, accent, font }: any) {
       </div>
 
       {/* Hero */}
-      <div className="flex-1 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/60" />
-        {/* Fake image */}
-        <div className="absolute inset-0 opacity-40" style={{
-          background: `linear-gradient(135deg, ${accent}30, ${bg} 60%)`,
-        }} />
+      <div className={`flex-1 relative overflow-hidden flex flex-col justify-center px-8 ${alignClass}`}>
+        {/* Overlay */}
+        <div className="absolute inset-0 z-0 transition-opacity duration-500" style={{ background: "black", opacity: hero.overlayOpacity ?? 0.4 }} />
         
-        {/* Center title */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 text-center px-4">
-          <p className="text-[20px] font-black tracking-tight opacity-90" style={{ color: text }}>F✶M</p>
-          <p className="text-[8px] tracking-[0.4em] opacity-50 mt-1 uppercase" style={{ color: text }}>
-            PHOTOGRAPHY & ART BOOKS
-          </p>
-          <div className="mt-4 px-5 py-2 rounded-full text-[8px] font-bold tracking-widest" style={{ background: accent, color: "#fff" }}>
-            {heroCTA}
+        {/* Background Image */}
+        {activeSlide.imageUrl ? (
+           <img src={activeSlide.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover -z-10" />
+        ) : (
+           <div className="absolute inset-0 bg-neutral-900 -z-10" />
+        )}
+        
+        {/* Content */}
+        <div className="relative z-10 max-w-[200px]">
+          <h2 className="text-[16px] font-black tracking-tight leading-none mb-1 text-white uppercase">{activeSlide.title}</h2>
+          <p className="text-[8px] tracking-[0.2em] font-medium text-white/60 mb-4 whitespace-pre-wrap">{activeSlide.subtitle}</p>
+          <div className="inline-block px-5 py-2 rounded-full text-[7px] font-bold tracking-widest transition-transform hover:scale-105" style={{ background: accent, color: "white" }}>
+            {activeSlide.ctaText}
           </div>
         </div>
 
-        {/* Bottom strip */}
-        {design.showBookStrip !== false && (
-          <div className="absolute bottom-0 left-0 right-0 py-3 px-4 z-20" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8), transparent)" }}>
-            <div className="flex gap-6 overflow-hidden">
-              {["Volume I", "Selected Works", "Archive 2024", "Limited Ed."].map((t) => (
-                <span key={t} className="text-[7px] font-semibold tracking-widest text-white/60 whitespace-nowrap">{t}</span>
-              ))}
-            </div>
+        {/* Slide Indicators if multi */}
+        {(hero.slides || []).length > 1 && (
+          <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1">
+             {(hero.slides || []).map((_: any, i: number) => (
+               <div key={i} className={`w-1 h-1 rounded-full ${i === 0 ? 'bg-white' : 'bg-white/20'}`} />
+             ))}
           </div>
         )}
       </div>
@@ -748,9 +982,10 @@ function HomepagePreview({ design, bg, text, accent, font }: any) {
   );
 }
 
-function ShopPreview({ design, bg, text, accent, font }: any) {
+function ShopPreview({ design, bg, text, accent, font, pages }: any) {
   const aspectClass = design.imageAspectRatio === "1:1" ? "aspect-square" : design.imageAspectRatio === "2:3" ? "aspect-[2/3]" : "aspect-[3/4]";
   const showAnnouncement = design.showAnnouncement ?? true;
+  const navPages = (pages || []).filter((p: any) => p.showInNav && p.status === "published");
 
   const MOCK_BOOKS = [
     { title: "Volume I", price: "$42.00", color: "#2a2a2a" },
@@ -776,8 +1011,14 @@ function ShopPreview({ design, bg, text, accent, font }: any) {
       <div className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0 backdrop-blur-sm sticky top-0 z-10" style={{ borderColor: `${text}15`, background: `${bg}cc` }}>
         <span className="text-[9px] font-black tracking-tight">F✶M</span>
         <div className="flex items-center gap-3">
-          {["PUBLICATIONS", "PRINTS", "ZINES"].map((c) => (
+          {["PUBLICATIONS", "PRINTS"].map((c) => (
             <span key={c} className="text-[7px] tracking-widest opacity-40">{c}</span>
+          ))}
+          <span className="text-[7px] font-bold tracking-widest opacity-60 ml-1 border-l pl-2" style={{ borderColor: `${text}20` }}>
+            {design.navHeading || "INFO"}
+          </span>
+          {navPages.slice(0, 1).map((p: any) => (
+             <span key={p.id} className="text-[6px] tracking-widest opacity-30 uppercase">{p.title}</span>
           ))}
         </div>
         <div className="text-[7px] font-bold tracking-widest opacity-50 px-2 py-0.5 border rounded-full" style={{ borderColor: `${text}20` }}>
@@ -824,14 +1065,16 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     ...(settings?.design || {}),
   }));
   const [originalDesign] = useState<any>(() => ({
-    ...adminApi.getDefaultSettings().design,
-    ...(settings?.design || {}),
-  }));
-
-  const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"settings" | "pages" | "code" | "templates">("settings");
+export function ThemeEditor({ settings, onSave, onExit }: any) {
+  const [design, setDesign] = useState<any>(settings.design || {});
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [previewMode, setPreviewMode] = useState<"homepage" | "shop">("homepage");
+  const [activePanel, setActivePanel] = useState<string | null>(null);
+  const [pages, setPages] = useState<any[]>([]);
+
+  useEffect(() => {
+    adminApi.getPages().then(setPages);
+  }, []);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -932,6 +1175,10 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       case "additional":    return <AdditionalPanel design={design} update={update} />;
       default:              return null;
     }
+  };
+
+  const renderPagesPanel = () => {
+    return <PagesPanel pages={pages} setPages={setPages} />;
   };
 
   const currentSectionTitle = SECTIONS.find(s => s.id === activeSection)?.title || "";
@@ -1058,6 +1305,16 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                     </div>
                   )}
                 </motion.div>
+              ) : activeTab === "pages" ? (
+                <motion.div
+                  key="pages"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex-1 flex flex-col overflow-hidden"
+                >
+                  {renderPagesPanel()}
+                </motion.div>
               ) : (
                 <motion.div
                   key={activeTab}
@@ -1068,7 +1325,6 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                 >
                   <div>
                     <div className="w-12 h-12 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3 text-neutral-400">
-                      {activeTab === "pages" && <FileText size={20} />}
                       {activeTab === "code" && <Code2 size={20} />}
                       {activeTab === "templates" && <LayoutTemplate size={20} />}
                     </div>
@@ -1087,6 +1343,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           device={device}
           previewMode={{ value: previewMode, set: setPreviewMode }}
           settings={settings}
+          pages={pages}
         />
       </div>
     </div>

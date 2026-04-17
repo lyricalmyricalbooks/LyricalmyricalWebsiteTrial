@@ -341,6 +341,25 @@ export const adminApi = {
       showZoom: true,
       showBackToTop: false,
       showPoweredBy: false,
+      navHeading: "INFO",
+      // Hero (Shopify Style)
+      hero: {
+        enabled: true,
+        height: "fullscreen", // fullscreen, tall, medium
+        align: "center", // left, center, right
+        overlayOpacity: 0.4,
+        autoRotate: true,
+        slides: [
+          {
+            id: "default-slide-1",
+            imageUrl: "https://images.unsplash.com/photo-1513001900722-370f803f498d?w=1600&h=900&fit=crop",
+            title: "F✶M",
+            subtitle: "PHOTOGRAPHY & ART BOOKS",
+            ctaText: "ENTER ARCHIVE",
+            ctaLink: "/shop"
+          }
+        ]
+      }
     }
   }),
 
