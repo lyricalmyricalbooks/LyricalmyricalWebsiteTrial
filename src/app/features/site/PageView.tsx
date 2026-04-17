@@ -4,21 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { adminApi } from "../../admin/api";
 
-// Very simple markdown renderer for bold, italic, headings, lists, links
-function renderMarkdown(text: string): string {
-  return text
-    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/^- (.+)$/gm, "<li>$1</li>")
-    .replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>")
-    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
-    .replace(/\n\n/g, "</p><p>")
-    .replace(/^(?!<[h|u|o|l])(.+)$/gm, "<p>$1</p>")
-    .replace(/<p><\/p>/g, "");
-}
+
 
 export function PageView() {
   const { slug } = useParams<{ slug: string }>();
@@ -114,16 +100,18 @@ export function PageView() {
         </h1>
 
         <div
-          className="prose prose-neutral max-w-none text-neutral-700 leading-relaxed
-            [&_h1]:text-3xl [&_h1]:font-black [&_h1]:tracking-tight [&_h1]:mb-6 [&_h1]:text-neutral-900
-            [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mb-4 [&_h2]:text-neutral-900
-            [&_h3]:text-xl [&_h3]:font-bold [&_h3]:mb-3 [&_h3]:text-neutral-900
-            [&_p]:mb-5 [&_p]:text-[15px]
-            [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-5 [&_li]:mb-1.5
+          className="prose prose-neutral max-w-none text-neutral-800 leading-[1.8]
+            [&_h1]:text-4xl [&_h1]:font-black [&_h1]:tracking-tight [&_h1]:mb-8 [&_h1]:mt-12 [&_h1]:text-neutral-900
+            [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mb-5 [&_h2]:mt-10 [&_h2]:text-neutral-900
+            [&_h3]:text-xl [&_h3]:font-bold [&_h3]:mb-4 [&_h3]:mt-8 [&_h3]:text-neutral-900
+            [&_p]:mb-6 [&_p]:text-[16px]
+            [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-6 [&_li]:mb-2
+            [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-6
             [&_strong]:font-bold [&_strong]:text-neutral-900
-            [&_a]:text-[#A855F7] [&_a]:underline [&_a]:underline-offset-2 [&_a]:hover:text-purple-700
+            [&_a]:text-purple-600 [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:text-purple-800
+            [&_blockquote]:border-l-4 [&_blockquote]:border-neutral-100 [&_blockquote]:pl-6 [&_blockquote]:italic [&_blockquote]:text-neutral-500 [&_blockquote]:my-8
             [&_em]:italic"
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(page.body || "") }}
+          dangerouslySetInnerHTML={{ __html: page.body || "" }}
         />
       </motion.main>
 

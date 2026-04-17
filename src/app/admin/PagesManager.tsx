@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { adminApi } from "./api";
 import type { Page } from "../features/site/types";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 
 // The local Page type is now removed in favor of the shared type.
 
@@ -282,23 +284,58 @@ export function PagesManager() {
             <div className="h-px bg-neutral-50 mx-8" />
 
             {/* Body */}
-            <div className="px-8 py-6">
+            <div className="px-8 py-6 editor-container">
               <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 mb-3 block">
                 Page Content
               </label>
-              <textarea
-                value={editing.body || ""}
-                onChange={(e) =>
-                  setEditing((p) => ({ ...p, body: e.target.value }))
-                }
-                placeholder="Write your page content here…"
-                rows={16}
-                className="w-full bg-neutral-50 border border-neutral-100 rounded-2xl px-6 py-5 text-sm leading-relaxed text-neutral-700 outline-none focus:ring-1 focus:ring-purple-300 resize-none transition-shadow font-sans"
-              />
+              <div className="rounded-2xl overflow-hidden border border-neutral-100 focus-within:ring-1 focus-within:ring-purple-300 transition-shadow">
+                <ReactQuill
+                  theme="snow"
+                  value={editing.body || ""}
+                  onChange={(val) =>
+                    setEditing((p) => ({ ...p, body: val }))
+                  }
+                  placeholder="Write your page content here…"
+                  modules={{
+                    toolbar: [
+                      [{ 'header': [1, 2, 3, false] }],
+                      ['bold', 'italic', 'underline', 'strike'],
+                      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                      ['link', 'blockquote', 'code-block'],
+                      ['clean']
+                    ],
+                  }}
+                  className="bg-neutral-50 min-h-[400px]"
+                />
+              </div>
               <p className="text-[9px] text-neutral-300 mt-2">
-                Basic markdown is supported (bold, italic, lists, headings).
+                Use the toolbar to format your content. HTML is supported.
               </p>
             </div>
+
+            <style>{`
+              .editor-container .ql-toolbar.ql-snow {
+                border: none;
+                border-bottom: 1px solid #f5f5f5;
+                background: #fff;
+                padding: 12px 20px;
+              }
+              .editor-container .ql-container.ql-snow {
+                border: none;
+                font-family: inherit;
+                font-size: 14px;
+              }
+              .editor-container .ql-editor {
+                min-height: 400px;
+                padding: 24px 32px;
+                line-height: 1.6;
+              }
+              .editor-container .ql-editor.ql-blank::before {
+                left: 32px;
+                font-style: normal;
+                color: #d4d4d4;
+              }
+            `}</style>
 
             {/* SEO Section */}
             <div className="bg-neutral-50 border-t border-neutral-100 p-8 space-y-6">
