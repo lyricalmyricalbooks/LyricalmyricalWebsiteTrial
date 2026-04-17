@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { adminApi } from "../../admin/api";
 import { DEFAULT_BOOKS, DEFAULT_SETTINGS, SITE_CACHE_KEY } from "./constants";
-import type { Book, SiteSettings } from "./types";
+import type { Book, SiteSettings, Page } from "./types";
 
 type CachePayload = {
   books: Book[];
   settings: SiteSettings;
+  pages: Page[];
   cachedAt: string;
 };
 
@@ -31,6 +32,7 @@ export function useSiteData() {
   const cached = typeof window !== "undefined" ? readCache() : null;
   const [books, setBooks] = useState<Book[]>(cached?.books || DEFAULT_BOOKS);
   const [settings, setSettings] = useState<SiteSettings>(cached?.settings || DEFAULT_SETTINGS);
+  const [pages, setPages] = useState<Page[]>(cached?.pages || []);
   const [loading, setLoading] = useState(!cached);
 
   useEffect(() => {
@@ -38,19 +40,27 @@ export function useSiteData() {
 
     async function loadData() {
       try {
-        const [bookResponse, settingsResponse] = await Promise.all([
+        const [bookResponse, settingsResponse, pagesResponse] = await Promise.all([
           adminApi.getBooks(12),
           adminApi.getSettings(),
+          adminApi.getPublishedPages(),
         ]);
 
         if (cancelled) return;
 
         const safeBooks = Array.isArray(bookResponse) ? (bookResponse as Book[]) : DEFAULT_BOOKS;
         const safeSettings = (settingsResponse || DEFAULT_SETTINGS) as SiteSettings;
+        const safePages = Array.isArray(pagesResponse) ? (pagesResponse as Page[]) : [];
 
         setBooks(safeBooks);
         setSettings(safeSettings);
-        writeCache({ books: safeBooks, settings: safeSettings, cachedAt: new Date().toISOString() });
+        setPages(safePages);
+        writeCache({ 
+          books: safeBooks, 
+          settings: safeSettings, 
+          pages: safePages,
+          cachedAt: new Date().toISOString() 
+        });
 
         const sessionKey = `fm_visit_${new Date().toISOString().split("T")[0]}`;
         if (!sessionStorage.getItem(sessionKey)) {
@@ -72,5 +82,5 @@ export function useSiteData() {
     };
   }, []);
 
-  return { books, settings, loading };
+  return { books, settings, pages, loading };
 }

@@ -63,3 +63,18 @@ export type SiteSettings = {
     faviconUrl?: string;
   };
 };
+
+export type Page = {
+  id: string;
+  title: string;
+  slug: string;
+  body: string;
+  status: "published" | "draft";
+  showInNav: boolean;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+  // SEO fields
+  seoTitle?: string;
+  metaDescription?: string;
+};

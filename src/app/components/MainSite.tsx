@@ -52,7 +52,8 @@ function MaintenancePage({ message }: { message?: string }) {
 // ──────────────────────────────
 // About panel
 // ──────────────────────────────
-function AboutPanel({ settings, onClose }: { settings: any; onClose: () => void }) {
+function AboutPanel({ settings, pages, onClose }: { settings: any; pages: any[]; onClose: () => void }) {
+  const navPages = (pages || []).filter(p => p.showInNav && p.status === "published");
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -135,8 +136,18 @@ function AboutPanel({ settings, onClose }: { settings: any; onClose: () => void 
             </a>
           </div>
 
-          <div className="pt-6 border-t border-white/10 space-y-2 text-[10px] text-white/30">
-            <Link to="/" className="block hover:text-white/60 transition-colors">← Shop</Link>
+          <div className="pt-6 border-t border-white/10 space-y-2 text-[10px] text-white/30 font-medium">
+            <Link to="/" className="block hover:text-white transition-colors">SHOP ALL</Link>
+            {navPages.map(page => (
+              <Link 
+                key={page.id} 
+                to={`/page/${page.slug}`} 
+                onClick={onClose}
+                className="block hover:text-white transition-colors uppercase"
+              >
+                {page.title}
+              </Link>
+            ))}
             {settings?.policies?.shipping && (
               <p className="cursor-default">Shipping Policy available</p>
             )}
@@ -223,7 +234,8 @@ function Newsletter() {
 // ──────────────────────────────
 // Full footer
 // ──────────────────────────────
-function SiteFooter({ settings, onAboutOpen }: { settings: any; onAboutOpen: () => void }) {
+function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: any[]; onAboutOpen: () => void }) {
+  const navPages = (pages || []).filter(p => p.showInNav && p.status === "published");
   return (
     <footer className="border-t border-white/10 bg-black/40 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-3 gap-10 text-[11px] text-white/40">
@@ -240,6 +252,15 @@ function SiteFooter({ settings, onAboutOpen }: { settings: any; onAboutOpen: () 
           <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">Navigate</p>
           <button onClick={onAboutOpen} className="block hover:text-white transition-colors">About</button>
           <Link to="/" className="block hover:text-white transition-colors">Shop</Link>
+          {navPages.map(page => (
+            <Link 
+              key={page.id} 
+              to={`/page/${page.slug}`} 
+              className="block hover:text-white transition-colors"
+            >
+              {page.title}
+            </Link>
+          ))}
           <a href="https://www.instagram.com/lyricalmyricalbooks" target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">Instagram</a>
           <a
             href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
@@ -291,7 +312,7 @@ function SiteFooter({ settings, onAboutOpen }: { settings: any; onAboutOpen: () 
 export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
   const navigate = useNavigate();
   const { cartCount, setIsCartOpen } = useCart();
-  const { books, settings, loading } = useSiteData();
+  const { books, settings, pages, loading } = useSiteData();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [activeCategory, setActiveCategory] = useState("PUBLICATIONS");
   const [showAbout, setShowAbout] = useState(false);
@@ -445,11 +466,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         </main>
 
         <Newsletter />
-        <SiteFooter settings={settings} onAboutOpen={() => setShowAbout(true)} />
+        <SiteFooter settings={settings} pages={pages} onAboutOpen={() => setShowAbout(true)} />
 
         {/* About panel */}
         <AnimatePresence>
-          {showAbout && <AboutPanel settings={settings} onClose={() => setShowAbout(false)} />}
+          {showAbout && <AboutPanel settings={settings} pages={pages} onClose={() => setShowAbout(false)} />}
         </AnimatePresence>
       </div>
     );
@@ -565,7 +586,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
       {/* About panel (available from homepage too) */}
       <AnimatePresence>
-        {showAbout && <AboutPanel settings={settings} onClose={() => setShowAbout(false)} />}
+        {showAbout && <AboutPanel settings={settings} pages={pages} onClose={() => setShowAbout(false)} />}
       </AnimatePresence>
     </div>
   );

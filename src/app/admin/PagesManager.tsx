@@ -15,18 +15,9 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { adminApi } from "./api";
+import type { Page } from "../features/site/types";
 
-export type Page = {
-  id: string;
-  title: string;
-  slug: string;
-  body: string;
-  status: "published" | "draft";
-  showInNav: boolean;
-  order: number;
-  createdAt: string;
-  updatedAt: string;
-};
+// The local Page type is now removed in favor of the shared type.
 
 // ─────────────────────────────────────
 // Slug helper
@@ -49,6 +40,7 @@ export function PagesManager() {
   const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [slugEdited, setSlugEdited] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     load();
@@ -72,6 +64,8 @@ export function PagesManager() {
       status: "published",
       showInNav: true,
       order: pages.length,
+      seoTitle: "",
+      metaDescription: "",
     });
     setIsNew(true);
     setSlugEdited(false);
@@ -305,6 +299,78 @@ export function PagesManager() {
                 Basic markdown is supported (bold, italic, lists, headings).
               </p>
             </div>
+
+            {/* SEO Section */}
+            <div className="bg-neutral-50 border-t border-neutral-100 p-8 space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold tracking-widest text-[#A855F7] uppercase">
+                    Search engine listing preview
+                  </h3>
+                  <p className="text-[10px] text-neutral-400 mt-1">
+                    Add a title and description to see how this Page might appear
+                    in a search engine listing.
+                  </p>
+                </div>
+              </div>
+
+              {/* Google Preview */}
+              <div className="bg-white rounded-xl border border-neutral-100 p-6 shadow-sm max-w-xl">
+                <div className="text-[#1a0dab] text-lg font-medium hover:underline cursor-pointer truncate">
+                  {editing.seoTitle || editing.title || "Page Title Preview"}
+                </div>
+                <div className="text-[#006621] text-xs mt-1 truncate">
+                  {window.location.origin}/page/{editing.slug || "url-handle"}
+                </div>
+                <div className="text-[#545454] text-xs mt-1 line-clamp-2 min-h-[2.5em]">
+                  {editing.metaDescription ||
+                    editing.body?.substring(0, 160) ||
+                    "Enter a meta description to see how your page will appear in search results."}
+                </div>
+              </div>
+
+              <div className="grid gap-6">
+                <div className="space-y-2">
+                  <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-500">
+                    Page title (SEO)
+                  </label>
+                  <input
+                    type="text"
+                    value={editing.seoTitle || ""}
+                    onChange={(e) =>
+                      setEditing((p) => ({ ...p, seoTitle: e.target.value }))
+                    }
+                    placeholder={editing.title}
+                    className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-3 text-xs outline-none focus:ring-1 focus:ring-purple-300 transition-shadow"
+                  />
+                  <p className="text-[9px] text-neutral-400">
+                    {editing.seoTitle?.length || 0} of 70 characters used
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-500">
+                    Meta description
+                  </label>
+                  <textarea
+                    value={editing.metaDescription || ""}
+                    onChange={(e) =>
+                      setEditing((p) => ({
+                        ...p,
+                        metaDescription: e.target.value,
+                      }))
+                    }
+                    placeholder={editing.body?.substring(0, 160)}
+                    rows={3}
+                    className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-3 text-xs outline-none focus:ring-1 focus:ring-purple-300 resize-none transition-shadow"
+                  />
+                  <p className="text-[9px] text-neutral-400">
+                    {editing.metaDescription?.length || 0} of 320 characters
+                    used
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </motion.div>
       ) : (
@@ -344,9 +410,16 @@ export function PagesManager() {
               onClick={openNew}
               className="w-full flex items-center justify-between px-8 py-5 hover:bg-neutral-50 transition-colors border-b border-neutral-50 group"
             >
-              <span className="text-[11px] text-neutral-400 group-hover:text-neutral-900 transition-colors font-medium">
-                Add a new page
-              </span>
+              <div className="flex-1 mr-4">
+                <input
+                  type="text"
+                  placeholder="Search pages..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full bg-neutral-50 border border-neutral-100 rounded-full px-5 py-2 text-[11px] outline-none focus:ring-1 focus:ring-purple-200"
+                />
+              </div>
               <div className="w-7 h-7 rounded-full bg-neutral-100 group-hover:bg-black group-hover:text-white flex items-center justify-center transition-all">
                 <Plus size={13} />
               </div>
@@ -365,6 +438,10 @@ export function PagesManager() {
             ) : (
               <ul>
                 {pages
+                  .filter((p) =>
+                    p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    p.slug.toLowerCase().includes(searchQuery.toLowerCase())
+                  )
                   .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
                   .map((page, i) => (
                     <li

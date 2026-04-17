@@ -36,10 +36,25 @@ export function PageView() {
           setNotFound(true);
         } else {
           setPage(p);
+          // Set SEO metadata
+          document.title = `${p.seoTitle || p.title} | Lyricalmyrical Books`;
+          
+          let metaDesc = document.querySelector('meta[name="description"]');
+          if (!metaDesc) {
+            metaDesc = document.createElement('meta');
+            metaDesc.setAttribute('name', 'description');
+            document.head.appendChild(metaDesc);
+          }
+          metaDesc.setAttribute('content', p.metaDescription || p.body?.substring(0, 160).replace(/[#*]/g, '') || "");
         }
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
+
+    return () => {
+      // Restore default title on unmount
+      document.title = "Lyricalmyrical Books";
+    };
   }, [slug]);
 
   if (loading) {
