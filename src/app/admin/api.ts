@@ -13,13 +13,18 @@ import {
   limit,
   getCountFromServer,
   startAfter,
+  writeBatch,
 } from "firebase/firestore";
 import { 
   signInWithPopup, 
   signOut, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithCredential,
 } from "firebase/auth";
 import { db, auth, storage, googleProvider } from "../../lib/firebase";
+import { legacyDb, legacyAuth } from "../../lib/legacyFirebase";
+import { ref as dbRef, get as dbGet } from "firebase/database";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 export const adminApi = {
@@ -33,6 +38,15 @@ export const adminApi = {
       if (user.email !== "lyricalmyricalbooks@gmail.com") {
         await signOut(auth);
         throw new Error("Unauthorized: Access restricted to lyricalmyricalbooks@gmail.com");
+      }
+
+      // Also sign into legacy inventory project using the same Google credential
+      // so inventory sync can access the RTDB without a second login popup.
+      try {
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        if (credential) await signInWithCredential(legacyAuth, credential);
+      } catch (legacyErr) {
+        console.warn("Could not auto-sign into legacy project:", legacyErr);
       }
       
       return { token: await user.getIdToken(), user };
@@ -477,5 +491,133 @@ export const adminApi = {
       }));
     }
     await Promise.all(batch);
-  }
+  },
+
+  // ─────────────────────────────────────────────
+  // INVENTORY SYNC  (Legacy RTDB → Firestore)
+  // ─────────────────────────────────────────────
+  syncInventoryFromLegacy: async () => {
+    // 1.  Ensure we are authenticated against the LEGACY project.
+    //     We try to re-use the credential obtained at login; if the
+    //     legacyAuth session expired we trigger a silent popup.
+    if (!legacyAuth.currentUser) {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      try {
+        await signInWithPopup(legacyAuth, provider);
+      } catch (err: any) {
+        throw new Error(
+          "Could not sign into legacy inventory system. Please log out and log in again."
+        );
+      }
+    }
+
+    // 2.  Read all books from the legacy RTDB  →  /lyrical/books/{id}
+    //     Each sub-key holds:  { data: "{\"stock\": 296, ...}", ts: 1234 }
+    const snapshot = await dbGet(dbRef(legacyDb, "/lyrical/books"));
+    if (!snapshot.exists()) {
+      throw new Error("No inventory data found in the legacy system.");
+    }
+
+    const rawBooks = snapshot.val() as Record<string, { data: string; ts: number }>;
+
+    // Build a simple map:  legacyKey → stock
+    const stockMap: Record<string, number> = {};
+    for (const [bookId, payload] of Object.entries(rawBooks)) {
+      try {
+        const parsed = JSON.parse(payload.data || "{}");
+        stockMap[bookId] = typeof parsed.stock === "number" ? parsed.stock : 0;
+      } catch {
+        stockMap[bookId] = 0;
+      }
+    }
+
+    // 3.  Fetch all website books from Firestore
+    const booksSnap = await getDocs(collection(db, "books"));
+
+    type SyncResult = {
+      id: string;
+      title: string;
+      slug: string;
+      legacyKey: string;
+      stock: number;
+      matched: boolean;
+    };
+
+    const results: SyncResult[] = [];
+    const batch = writeBatch(db);
+    let updateCount = 0;
+
+    for (const bookDoc of booksSnap.docs) {
+      const data = bookDoc.data();
+      const slug = (data.slug || "").toLowerCase().trim();
+      const title = (data.title || "").toLowerCase().trim();
+
+      // Match priority:
+      //   1. Exact slug match ("hound" === "hound")
+      //   2. Case-insensitive title contains or is contained in legacy key
+      let legacyKey: string | undefined = Object.keys(stockMap).find(
+        (k) => k.toLowerCase().trim() === slug
+      );
+
+      if (!legacyKey && title) {
+        legacyKey = Object.keys(stockMap).find((k) => {
+          const lk = k.toLowerCase().trim();
+          return lk.includes(title) || title.includes(lk);
+        });
+      }
+
+      if (legacyKey !== undefined) {
+        const newStock = stockMap[legacyKey];
+        batch.update(doc(db, "books", bookDoc.id), {
+          stockLevel: newStock,
+          updatedAt: new Date().toISOString(),
+          lastInventorySync: new Date().toISOString(),
+          legacyInventoryKey: legacyKey,
+        });
+        updateCount++;
+        results.push({
+          id: bookDoc.id,
+          title: data.title,
+          slug: data.slug,
+          legacyKey,
+          stock: newStock,
+          matched: true,
+        });
+      } else {
+        results.push({
+          id: bookDoc.id,
+          title: data.title,
+          slug: data.slug,
+          legacyKey: "",
+          stock: data.stockLevel ?? 0,
+          matched: false,
+        });
+      }
+    }
+
+    if (updateCount > 0) await batch.commit();
+
+    // 4.  Persist sync metadata so the UI can show "Last synced"
+    await setDoc(
+      doc(db, "settings", "website"),
+      {
+        inventory: {
+          lastSync: new Date().toISOString(),
+          lastSyncCount: updateCount,
+          legacyBooks: Object.keys(stockMap),
+        },
+      },
+      { merge: true }
+    );
+
+    return {
+      synced: updateCount,
+      unmatched: results.filter((r) => !r.matched).length,
+      legacyTotal: Object.keys(stockMap).length,
+      stockMap,
+      results,
+    };
+  },
 };
+

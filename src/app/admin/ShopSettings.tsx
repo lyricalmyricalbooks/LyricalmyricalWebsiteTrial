@@ -12,6 +12,12 @@ import {
   Building,
   Hash,
   X,
+  RefreshCw,
+  Database,
+  CheckCircle,
+  AlertCircle as AlertCircleIcon,
+  Clock,
+  Link,
 } from "lucide-react";
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -318,6 +324,9 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
             </div>
          </div>
       </section>
+
+      {/* Inventory Sync */}
+      <InventorySync lastSync={settings.inventory?.lastSync} />
     </>
   );
 }
@@ -952,6 +961,202 @@ function _DesignerSettings_REMOVED({ settings, setSettings, hasChanges, saveSect
          </section>
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Inventory Sync component
+// ─────────────────────────────────────────────────────────────
+function InventorySync({ lastSync }: { lastSync?: string }) {
+  const [syncing, setSyncing] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [lastSyncTime, setLastSyncTime] = useState<string | undefined>(lastSync);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await adminApi.syncInventoryFromLegacy();
+      setResult(res);
+      setLastSyncTime(new Date().toISOString());
+    } catch (err: any) {
+      setError(err.message || "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const fmtTime = (iso?: string) => {
+    if (!iso) return "Never";
+    const d = new Date(iso);
+    return d.toLocaleString("en-CA", {
+      month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+    });
+  };
+
+  return (
+    <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-start flex-wrap gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Database size={14} className="text-purple-400" />
+            <h3 className="text-sm font-bold tracking-tight">Inventory Sync</h3>
+          </div>
+          <p className="text-[11px] text-neutral-400 leading-relaxed max-w-sm">
+            Pull live stock levels from your Lyricalmyrical inventory system into this website.
+            Match is made by product slug or title.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-end gap-2">
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest transition-all
+              ${syncing
+                ? "bg-neutral-100 text-neutral-400 cursor-not-allowed"
+                : "bg-[#A855F7] text-white shadow-lg shadow-purple-200 hover:bg-purple-600"
+              }`}
+          >
+            <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
+            {syncing ? "SYNCING..." : "SYNC NOW"}
+          </button>
+          <div className="flex items-center gap-1 text-[9px] text-neutral-400">
+            <Clock size={9} />
+            Last synced: <span className="font-bold">{fmtTime(lastSyncTime)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Connection info */}
+      <div className="flex items-center gap-3 bg-neutral-50 rounded-2xl px-5 py-3 border border-neutral-100">
+        <div className="flex-1 min-w-0">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 mb-0.5">Source</p>
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+            <p className="text-[11px] font-bold truncate">lyricalmyrical-37c46-default-rtdb</p>
+          </div>
+        </div>
+        <div className="text-neutral-300">→</div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 mb-0.5">Destination</p>
+          <p className="text-[11px] font-bold truncate">lyricalmyrical-web-v2 / books</p>
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="flex items-start gap-3 bg-red-50 border border-red-100 rounded-2xl px-5 py-4">
+          <AlertCircleIcon size={14} className="text-red-400 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-[11px] font-bold text-red-600">Sync failed</p>
+            <p className="text-[10px] text-red-400 mt-0.5">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Results */}
+      {result && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-4"
+        >
+          {/* Summary chips */}
+          <div className="flex flex-wrap gap-3">
+            <div className="flex items-center gap-2 bg-green-50 border border-green-100 text-green-700 px-4 py-2 rounded-xl">
+              <CheckCircle size={12} />
+              <span className="text-[10px] font-bold tracking-widest">
+                {result.synced} UPDATED
+              </span>
+            </div>
+            {result.unmatched > 0 && (
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 text-amber-700 px-4 py-2 rounded-xl">
+                <AlertCircleIcon size={12} />
+                <span className="text-[10px] font-bold tracking-widest">
+                  {result.unmatched} UNMATCHED
+                </span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 bg-neutral-100 text-neutral-500 px-4 py-2 rounded-xl">
+              <Database size={12} />
+              <span className="text-[10px] font-bold tracking-widest">
+                {result.legacyTotal} IN INVENTORY
+              </span>
+            </div>
+          </div>
+
+          {/* Per-book table */}
+          <div className="border border-neutral-100 rounded-2xl overflow-hidden">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-neutral-50 border-b border-neutral-100">
+                  <th className="px-5 py-3 text-[9px] font-bold uppercase tracking-widest text-neutral-400">Product</th>
+                  <th className="px-5 py-3 text-[9px] font-bold uppercase tracking-widest text-neutral-400">Inventory Key</th>
+                  <th className="px-5 py-3 text-[9px] font-bold uppercase tracking-widest text-neutral-400 text-right">Stock</th>
+                  <th className="px-5 py-3 text-[9px] font-bold uppercase tracking-widest text-neutral-400 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.results.map((r: any, i: number) => (
+                  <tr key={r.id} className={`border-b border-neutral-50 last:border-0 ${i % 2 === 0 ? "" : "bg-neutral-50/40"}`}>
+                    <td className="px-5 py-3">
+                      <p className="text-[11px] font-bold">{r.title || "(untitled)"}</p>
+                      <p className="text-[9px] text-neutral-400 font-mono">{r.slug || "—"}</p>
+                    </td>
+                    <td className="px-5 py-3 text-[10px] font-mono text-neutral-500">
+                      {r.matched ? r.legacyKey : <span className="italic text-neutral-300">no match</span>}
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <span className="text-sm font-bold">{r.stock}</span>
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      {r.matched ? (
+                        <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-[8px] font-bold tracking-widest">
+                          <CheckCircle size={9} /> SYNCED
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-[8px] font-bold tracking-widest">
+                          <AlertCircleIcon size={9} /> NO MATCH
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {result.unmatched > 0 && (
+            <p className="text-[10px] text-neutral-400 leading-relaxed">
+              <strong>Tip:</strong> Unmatched products need their <strong>slug</strong> to match the legacy inventory key
+              (e.g. set slug to <code className="bg-neutral-100 px-1 rounded">hound</code> or <code className="bg-neutral-100 px-1 rounded">altrove</code>).
+              You can update slugs in the Book Editor.
+            </p>
+          )}
+        </motion.div>
+      )}
+
+      {/* Legacy book list (shown before any sync) */}
+      {!result && !error && !syncing && (
+        <div className="space-y-2">
+          <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">Books in legacy inventory system</p>
+          <div className="flex flex-wrap gap-2">
+            {["altrove", "hound", "archaeology", "sistema", "nobody", "collective", "Subverso meme"].map(k => (
+              <span key={k} className="bg-neutral-100 text-neutral-600 px-3 py-1 rounded-full text-[9px] font-mono font-bold">
+                {k}
+              </span>
+            ))}
+          </div>
+          <p className="text-[10px] text-neutral-400 mt-2">
+            Make sure each website product's <strong>slug</strong> matches one of these keys.
+          </p>
+        </div>
+      )}
+    </section>
   );
 }
 
