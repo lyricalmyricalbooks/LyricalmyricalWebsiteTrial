@@ -394,7 +394,22 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 ))}
               </nav>
             </div>
-            <div className="flex gap-6 items-center">
+            <div className="flex gap-6 md:gap-8 items-center">
+              {/* Dynamic Custom Pages */}
+              <nav className="hidden lg:flex gap-6 mr-2">
+                {(pages || [])
+                  .filter(p => p.showInNav && p.status === "published")
+                  .map(page => (
+                    <Link 
+                      key={page.id} 
+                      to={`/page/${page.slug}`} 
+                      className="text-[10px] tracking-[0.2em] text-white/40 hover:text-white transition-colors"
+                    >
+                      {page.title.toUpperCase()}
+                    </Link>
+                  ))}
+              </nav>
+
               <button
                 onClick={() => setShowAbout(true)}
                 className="text-[10px] tracking-[0.2em] text-white/50 hover:text-white transition-colors hidden md:block"
@@ -496,6 +511,20 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           >
             INFORMATION
           </button>
+          
+          {/* Custom Pages in Home Header */}
+          {(pages || [])
+            .filter(p => p.showInNav && p.status === "published")
+            .map(page => (
+              <Link 
+                key={page.id} 
+                to={`/page/${page.slug}`} 
+                className="text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-60 hover:opacity-100 transition-opacity hidden lg:block"
+              >
+                {page.title.toUpperCase()}
+              </Link>
+            ))}
+
           <button
             onClick={() => setIsCartOpen(true)}
             className="group flex items-center gap-2 bg-white/10 backdrop-blur-md px-5 py-2.5 rounded-full border border-white/10 hover:bg-white/20 transition-all shadow-lg"
