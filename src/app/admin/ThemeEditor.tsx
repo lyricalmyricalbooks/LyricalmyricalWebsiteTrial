@@ -1065,11 +1065,15 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     ...(settings?.design || {}),
   }));
   const [originalDesign] = useState<any>(() => ({
-export function ThemeEditor({ settings, onSave, onExit }: any) {
-  const [design, setDesign] = useState<any>(settings.design || {});
+    ...adminApi.getDefaultSettings().design,
+    ...(settings?.design || {}),
+  }));
+
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [previewMode, setPreviewMode] = useState<"homepage" | "shop">("homepage");
   const [activePanel, setActivePanel] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("settings");
+  const [activeSection, setActiveSection] = useState<string | null>(null);
   const [pages, setPages] = useState<any[]>([]);
 
   useEffect(() => {
