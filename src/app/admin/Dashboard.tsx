@@ -23,7 +23,8 @@ import {
   Rocket,
   LayoutGrid,
   Menu,
-  X as CloseIcon
+  X as CloseIcon,
+  FileText,
 } from "lucide-react";
 
 import { Login } from "./Login";
@@ -34,6 +35,7 @@ import { Orders } from "./Orders";
 import { OrderDetail } from "./OrderDetail";
 import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import { ShopSettings } from "./ShopSettings";
+import { PagesManager } from "./PagesManager";
 import { adminApi } from "./api";
 
 export function Dashboard() {
@@ -120,6 +122,7 @@ export function Dashboard() {
             { id: "orders", label: "Orders", icon: Package },
             { id: "catalog", label: "Products", icon: Tag },
             { id: "discounts", label: "Discounts", icon: BadgePercent },
+            { id: "pages", label: "Pages", icon: FileText },
             { id: "marketing", label: "Marketing", icon: Rocket },
             { id: "apps", label: "App center", icon: LayoutGrid },
             { 
@@ -255,6 +258,7 @@ export function Dashboard() {
                   case "overview": return <AnalyticsDashboard />;
                   case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} />;
                   case "discounts": return <Discounts />;
+                  case "pages": return <PagesManager />;
                   case "orders": 
                     return selectedOrder ? (
                       <OrderDetail orderId={selectedOrder.id} onClose={() => setSelectedOrder(null)} />

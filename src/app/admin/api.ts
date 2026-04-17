@@ -619,5 +619,56 @@ export const adminApi = {
       results,
     };
   },
+
+  // ─────────────────────────────────────────────
+  // PAGES  (custom website pages)
+  // ─────────────────────────────────────────────
+  getPages: async () => {
+    const snap = await getDocs(
+      query(collection(db, "pages"), orderBy("order", "asc"))
+    );
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  },
+
+  getPageBySlug: async (slug: string) => {
+    const snap = await getDocs(
+      query(collection(db, "pages"), where("slug", "==", slug), limit(1))
+    );
+    if (snap.empty) return null;
+    return { id: snap.docs[0].id, ...snap.docs[0].data() };
+  },
+
+  getPublishedPages: async () => {
+    const snap = await getDocs(
+      query(
+        collection(db, "pages"),
+        where("status", "==", "published"),
+        orderBy("order", "asc")
+      )
+    );
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  },
+
+  createPage: async (data: any) => {
+    const now = new Date().toISOString();
+    const docRef = await addDoc(collection(db, "pages"), {
+      ...data,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { id: docRef.id, ...data, createdAt: now, updatedAt: now };
+  },
+
+  updatePage: async (id: string, data: any) => {
+    const now = new Date().toISOString();
+    const payload = { ...data, updatedAt: now };
+    delete payload.id;
+    await updateDoc(doc(db, "pages", id), payload);
+    return { id, ...payload };
+  },
+
+  deletePage: async (id: string) => {
+    await deleteDoc(doc(db, "pages", id));
+  },
 };
 

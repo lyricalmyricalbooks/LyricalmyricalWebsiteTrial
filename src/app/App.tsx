@@ -10,6 +10,7 @@ const MainSite = lazy(() => import("./components/MainSite"));
 const Dashboard = lazy(() => import("./admin/Dashboard").then(m => ({ default: m.Dashboard })));
 const Checkout = lazy(() => import("./Checkout").then(m => ({ default: m.Checkout })));
 const BookDetail = lazy(() => import("./features/site/BookDetail"));
+const PageView = lazy(() => import("./features/site/PageView").then(m => ({ default: m.PageView })));
 
 function LoadingFallback() {
   return (
@@ -66,6 +67,7 @@ export default function App() {
                   />
                 } />
                 <Route path="/books/:slug" element={<BookDetail />} />
+                <Route path="/page/:slug" element={<PageView />} />
                 <Route path="/admin/*" element={<Dashboard />} />
                 <Route path="/checkout" element={<Checkout />} />
               </Routes>
