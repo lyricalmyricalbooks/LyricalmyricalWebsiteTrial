@@ -119,6 +119,45 @@ function SidebarRadioGroup({ options, value, onChange }: { options: { value: str
   );
 }
 
+function SidebarRange({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  suffix = "",
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  suffix?: string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-2">
+        <SidebarLabel>{label}</SidebarLabel>
+        <span className="text-[10px] text-neutral-400 font-mono">
+          {value}
+          {suffix}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-blue-500 h-1 bg-neutral-100 rounded-lg appearance-none cursor-pointer"
+      />
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Section list row
 // ─────────────────────────────────────────────────────────────────────────────
@@ -159,6 +198,8 @@ function SubPanelHeader({ title, onBack }: { title: string; onBack: () => void }
 // ─────────────────────────────────────────────────────────────────────────────
 function StylePanel({ design, update }: any) {
   const currentPalette = PALETTES.find(p => p.id === design.palettePreset) || PALETTES[0];
+  const backgroundColor = design.backgroundColor || currentPalette.bg;
+  const textColor = design.textColor || currentPalette.text;
 
   return (
     <div className="p-4 space-y-6 overflow-y-auto flex-1">
@@ -210,8 +251,8 @@ function StylePanel({ design, update }: any) {
       </div>
 
       {/* Custom accent */}
-      <div>
-        <SidebarLabel>Accent color</SidebarLabel>
+      <div className="space-y-3">
+        <SidebarLabel>Brand colors</SidebarLabel>
         <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5">
           <div className="w-6 h-6 rounded-md shadow-inner border border-neutral-200 flex-shrink-0" style={{ background: design.primaryColor }} />
           <input
@@ -222,6 +263,27 @@ function StylePanel({ design, update }: any) {
           />
           <span className="text-[10px] text-neutral-500 font-mono">{design.primaryColor}</span>
         </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-lg px-2.5 py-2">
+            <div className="w-4 h-4 rounded border border-neutral-300" style={{ background: backgroundColor }} />
+            <input type="color" value={backgroundColor} onChange={(e) => update("backgroundColor", e.target.value)} className="w-5 h-5 bg-transparent border-none outline-none cursor-pointer" />
+            <span className="text-[9px] text-neutral-500">BG</span>
+          </div>
+          <div className="flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-lg px-2.5 py-2">
+            <div className="w-4 h-4 rounded border border-neutral-300" style={{ background: textColor }} />
+            <input type="color" value={textColor} onChange={(e) => update("textColor", e.target.value)} className="w-5 h-5 bg-transparent border-none outline-none cursor-pointer" />
+            <span className="text-[9px] text-neutral-500">Text</span>
+          </div>
+        </div>
+        <button
+          onClick={() => {
+            update("backgroundColor", currentPalette.bg);
+            update("textColor", currentPalette.text);
+          }}
+          className="w-full border border-neutral-200 rounded-lg py-2 text-[10px] font-semibold text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 transition-colors"
+        >
+          Reset colors to palette
+        </button>
       </div>
 
       {/* Font */}
@@ -705,6 +767,94 @@ function ProductsPanel({ design, update }: any) {
   );
 }
 
+function LayoutPanel({ design, update }: any) {
+  return (
+    <div className="p-4 space-y-6 overflow-y-auto flex-1">
+      <SidebarRange
+        label="Desktop product columns"
+        value={design.productColumnsDesktop ?? 4}
+        min={2}
+        max={6}
+        onChange={(v) => update("productColumnsDesktop", v)}
+      />
+      <SidebarRange
+        label="Mobile product columns"
+        value={design.productColumnsMobile ?? 2}
+        min={1}
+        max={3}
+        onChange={(v) => update("productColumnsMobile", v)}
+      />
+      <SidebarRange
+        label="Content width"
+        value={design.containerWidth ?? 1200}
+        min={900}
+        max={1600}
+        step={20}
+        suffix="px"
+        onChange={(v) => update("containerWidth", v)}
+      />
+      <SidebarRange
+        label="Section spacing"
+        value={design.sectionSpacing ?? 64}
+        min={24}
+        max={120}
+        step={4}
+        suffix="px"
+        onChange={(v) => update("sectionSpacing", v)}
+      />
+      <SidebarRange
+        label="Card radius"
+        value={design.cardRadius ?? 8}
+        min={0}
+        max={24}
+        suffix="px"
+        onChange={(v) => update("cardRadius", v)}
+      />
+    </div>
+  );
+}
+
+function ButtonsPanel({ design, update }: any) {
+  return (
+    <div className="p-4 space-y-6 overflow-y-auto flex-1">
+      <div>
+        <SidebarLabel>Button style</SidebarLabel>
+        <SidebarRadioGroup
+          value={design.buttonStyle || "solid"}
+          onChange={(v) => update("buttonStyle", v)}
+          options={[
+            { value: "solid", label: "Solid" },
+            { value: "outline", label: "Outline" },
+            { value: "ghost", label: "Ghost" },
+          ]}
+        />
+      </div>
+      <SidebarRange
+        label="Button radius"
+        value={design.buttonRadius ?? 999}
+        min={0}
+        max={999}
+        suffix="px"
+        onChange={(v) => update("buttonRadius", v)}
+      />
+      <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden">
+        <SidebarToggle
+          label="Uppercase button labels"
+          description="Force CTA labels to render in uppercase"
+          checked={design.buttonUppercase ?? true}
+          onChange={(v: boolean) => update("buttonUppercase", v)}
+        />
+        <SidebarToggle
+          label="Button shadow"
+          description="Adds depth to buttons and call-to-action elements"
+          checked={design.buttonShadow ?? true}
+          onChange={(v: boolean) => update("buttonShadow", v)}
+        />
+      </div>
+    </div>
+  );
+}
+
 function AnnouncementsPanel({ design, update }: any) {
   return (
     <div className="p-4 space-y-6 overflow-y-auto flex-1">
@@ -920,6 +1070,46 @@ function AdditionalPanel({ design, update }: any) {
   );
 }
 
+function CodePanel({ design, update }: any) {
+  return (
+    <div className="p-4 space-y-5 overflow-y-auto">
+      <p className="text-[10px] text-neutral-400 leading-relaxed">
+        Advanced controls for brand-level customization. This is useful for pixel-perfect styling similar to enterprise storefront builders.
+      </p>
+      <div>
+        <SidebarLabel>Custom CSS</SidebarLabel>
+        <textarea
+          value={design.customCss || ""}
+          onChange={(e) => update("customCss", e.target.value)}
+          rows={8}
+          placeholder=".product-card:hover { transform: translateY(-2px); }"
+          className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] font-mono outline-none focus:border-neutral-400 transition-colors resize-y"
+        />
+      </div>
+      <div>
+        <SidebarLabel>Custom &lt;head&gt; HTML</SidebarLabel>
+        <textarea
+          value={design.customHeadHtml || ""}
+          onChange={(e) => update("customHeadHtml", e.target.value)}
+          rows={5}
+          placeholder="<meta name='theme-color' content='#000000' />"
+          className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] font-mono outline-none focus:border-neutral-400 transition-colors resize-y"
+        />
+      </div>
+      <div>
+        <SidebarLabel>Footer scripts</SidebarLabel>
+        <textarea
+          value={design.customFooterScripts || ""}
+          onChange={(e) => update("customFooterScripts", e.target.value)}
+          rows={5}
+          placeholder="<script>console.log('tracking script')</script>"
+          className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] font-mono outline-none focus:border-neutral-400 transition-colors resize-y"
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Live Preview — scaled render of the actual storefront
 // ─────────────────────────────────────────────────────────────────────────────
@@ -930,14 +1120,13 @@ function LivePreview({ design, designSurface, device, previewMode, settings, pag
     ? (design?.heroPage || design)
     : (design?.storefront || design);
   const palette = PALETTES.find(p => p.id === previewDesign.palettePreset) || PALETTES[0];
-  const bg = palette.bg;
-  const text = palette.text;
+  const bg = previewDesign.backgroundColor || palette.bg;
+  const text = previewDesign.textColor || palette.text;
   const accent = previewDesign.primaryColor || palette.accent;
   const font = previewDesign.font || "Inter";
 
   const isDesktop = device === "desktop";
-  const containerW = isDesktop ? 1280 : 390;
-  const containerH = isDesktop ? 800 : 844;
+  const desktopWidth = Math.max(900, Math.min(1600, previewDesign.containerWidth ?? 1200));
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center bg-[#e8e8e8] overflow-hidden p-6 pt-2">
@@ -964,7 +1153,7 @@ function LivePreview({ design, designSurface, device, previewMode, settings, pag
         className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-neutral-300/50 flex flex-col transition-all duration-500"
         style={{
           width: isDesktop ? "100%" : 320,
-          maxWidth: isDesktop ? 1100 : 320,
+          maxWidth: isDesktop ? Math.min(1200, desktopWidth - 40) : 320,
           height: isDesktop ? 640 : 560,
         }}
       >
@@ -1012,6 +1201,10 @@ function HomepagePreview({ design, bg, text, accent, font, pages }: any) {
   };
 
   const alignClass = hero.align === "left" ? "items-start text-left" : hero.align === "right" ? "items-end text-right" : "items-center text-center";
+  const buttonStyle = design.buttonStyle || "solid";
+  const buttonRadius = design.buttonRadius ?? 999;
+  const buttonShadow = design.buttonShadow ?? true;
+  const buttonUppercase = design.buttonUppercase ?? true;
 
   return (
     <div className="h-full flex flex-col" style={{ background: bg, color: text, fontFamily: font }}>
@@ -1077,7 +1270,15 @@ function HomepagePreview({ design, bg, text, accent, font, pages }: any) {
           )}
           <h2 className="text-[16px] font-black tracking-tight leading-none mb-1 text-white uppercase">{activeSlide.title}</h2>
           <p className="text-[8px] tracking-[0.2em] font-medium text-white/60 mb-4 whitespace-pre-wrap">{activeSlide.subtitle}</p>
-          <div className="inline-block px-5 py-2 rounded-full text-[7px] font-bold tracking-widest transition-transform hover:scale-105" style={{ background: accent, color: "white" }}>
+          <div
+            className={`inline-block px-5 py-2 text-[7px] font-bold tracking-widest transition-transform hover:scale-105 ${buttonUppercase ? "uppercase" : ""} ${buttonShadow ? "shadow-lg" : ""}`}
+            style={{
+              borderRadius: buttonRadius,
+              background: buttonStyle === "ghost" ? "transparent" : accent,
+              color: buttonStyle === "solid" ? "white" : accent,
+              border: buttonStyle === "outline" || buttonStyle === "ghost" ? `1px solid ${accent}` : "none",
+            }}
+          >
             {activeSlide.ctaText}
           </div>
         </div>
@@ -1100,6 +1301,13 @@ function ShopPreview({ design, bg, text, accent, font, pages }: any) {
   const showAnnouncement = design.showAnnouncement ?? true;
   const navPages = (pages || []).filter((p: any) => p.showInNav && p.status === "published");
   const headerLinks = design.headerLinks || {};
+  const cardRadius = design.cardRadius ?? 8;
+  const desktopColumns = Math.max(2, Math.min(6, design.productColumnsDesktop ?? 4));
+  const mobileColumns = Math.max(1, Math.min(3, design.productColumnsMobile ?? 2));
+  const buttonStyle = design.buttonStyle || "solid";
+  const buttonRadius = design.buttonRadius ?? 999;
+  const buttonShadow = design.buttonShadow ?? true;
+  const buttonUppercase = design.buttonUppercase ?? true;
 
   const MOCK_BOOKS = [
     { title: "Volume I", price: "$42.00", color: "#2a2a2a" },
@@ -1151,13 +1359,26 @@ function ShopPreview({ design, bg, text, accent, font, pages }: any) {
 
       {/* Grid */}
       <div className="flex-1 p-3 overflow-y-auto">
-        <div className="grid grid-cols-3 gap-2">
+        <div
+          className="grid gap-2"
+          style={{
+            gridTemplateColumns: `repeat(${mobileColumns}, minmax(0, 1fr))`,
+          }}
+        >
           {MOCK_BOOKS.map((book, i) => (
             <div key={i} className="group relative cursor-pointer">
-              <div className={`${aspectClass} rounded-md overflow-hidden mb-1.5 relative`} style={{ background: book.color }}>
+              <div className={`${aspectClass} overflow-hidden mb-1.5 relative`} style={{ background: book.color, borderRadius: cardRadius }}>
                 <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
                 <div className="absolute inset-0 flex items-end justify-center pb-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-[6px] font-bold tracking-widest px-2 py-1 rounded" style={{ background: accent, color: "#fff" }}>
+                  <span
+                    className={`text-[6px] font-bold tracking-widest px-2 py-1 ${buttonUppercase ? "uppercase" : ""} ${buttonShadow ? "shadow-lg" : ""}`}
+                    style={{
+                      borderRadius: buttonRadius,
+                      background: buttonStyle === "ghost" ? "transparent" : accent,
+                      color: buttonStyle === "solid" ? "#fff" : accent,
+                      border: buttonStyle === "outline" || buttonStyle === "ghost" ? `1px solid ${accent}` : "none",
+                    }}
+                  >
                     {design.productCTA || "VIEW"}
                   </span>
                 </div>
@@ -1166,6 +1387,9 @@ function ShopPreview({ design, bg, text, accent, font, pages }: any) {
               <p className="text-[7px] opacity-40">{book.price}</p>
             </div>
           ))}
+        </div>
+        <div className="text-[7px] opacity-30 mt-3">
+          Product grid: {desktopColumns} desktop / {mobileColumns} mobile columns
         </div>
       </div>
     </div>
@@ -1298,6 +1522,18 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       description: "Manage product and product page options",
     },
     {
+      id: "layout",
+      icon: <LayoutTemplate size={14} />,
+      title: "Layout controls",
+      description: "Fine tune spacing, widths, border radius and product columns",
+    },
+    {
+      id: "buttons",
+      icon: <div className="w-4 h-2 rounded-full bg-neutral-400" />,
+      title: "Buttons and CTA",
+      description: "Control button style, shape and emphasis",
+    },
+    {
       id: "announcements",
       icon: <div className="w-4 h-1.5 rounded bg-neutral-400" />,
       title: "Shop announcements",
@@ -1350,6 +1586,8 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       case "navigation":    return <NavigationPanel design={activeDesign} update={update} />;
       case "homepage":      return <HomepagePanel design={activeDesign} update={update} />;
       case "products":      return <ProductsPanel design={activeDesign} update={update} />;
+      case "layout":        return <LayoutPanel design={activeDesign} update={update} />;
+      case "buttons":       return <ButtonsPanel design={activeDesign} update={update} />;
       case "announcements": return <AnnouncementsPanel design={activeDesign} update={update} />;
       case "social":        return <SocialPanel design={activeDesign} update={update} />;
       case "textsize":      return <TextSizingPanel design={activeDesign} update={update} />;
@@ -1541,6 +1779,19 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                   className="flex-1 flex flex-col overflow-hidden"
                 >
                   {renderPagesPanel()}
+                </motion.div>
+              ) : activeTab === "code" ? (
+                <motion.div
+                  key="code"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex-1 flex flex-col overflow-hidden"
+                >
+                  <div className="px-4 py-3 border-b border-neutral-100">
+                    <h3 className="text-[11px] font-bold text-neutral-700 uppercase tracking-widest">Custom code</h3>
+                  </div>
+                  <CodePanel design={activeDesign} update={update} />
                 </motion.div>
               ) : (
                 <motion.div
