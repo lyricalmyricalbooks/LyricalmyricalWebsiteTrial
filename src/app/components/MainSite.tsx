@@ -478,6 +478,39 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     ? (storefrontHeaderLinks.showBag ?? true)
     : (heroHeaderLinks.showBag ?? true);
   const showSys = heroHeaderLinks.showSys ?? true;
+  const storefrontBg = storefrontDesign?.backgroundColor || "#050505";
+  const storefrontText = storefrontDesign?.textColor || "#ffffff";
+  const storefrontAccent = storefrontDesign?.primaryColor || "#ffffff";
+  const storefrontMaxWidth = Math.max(900, Math.min(1600, storefrontDesign?.containerWidth ?? 1200));
+  const storefrontMobileColumns = Math.max(1, Math.min(3, storefrontDesign?.productColumnsMobile ?? 2));
+  const storefrontDesktopColumns = Math.max(2, Math.min(6, storefrontDesign?.productColumnsDesktop ?? 4));
+  const storefrontCardRadius = Math.max(0, Math.min(30, storefrontDesign?.cardRadius ?? 8));
+  const storefrontButtonRadius = Math.max(0, Math.min(999, storefrontDesign?.buttonRadius ?? 999));
+  const storefrontButtonStyle = storefrontDesign?.buttonStyle || "solid";
+  const storefrontButtonUppercase = storefrontDesign?.buttonUppercase ?? true;
+  const storefrontButtonShadow = storefrontDesign?.buttonShadow ?? true;
+  const storefrontCtaText = storefrontDesign?.productCTA || "VIEW";
+  const soldOutLabel = storefrontDesign?.soldOutLabel || "SOLD OUT";
+  const bagLabel = storefrontDesign?.cartLabel || "BAG";
+  const showAnnouncement = storefrontDesign?.showAnnouncement ?? true;
+  const announcementMsg = storefrontDesign?.announcementText || settings?.announcements?.[0]?.message;
+  const shopSectionSpacing = Math.max(24, Math.min(120, storefrontDesign?.sectionSpacing ?? 64));
+  const imageAspectClass = storefrontDesign?.imageAspectRatio === "1:1"
+    ? "aspect-square"
+    : storefrontDesign?.imageAspectRatio === "2:3"
+    ? "aspect-[2/3]"
+    : "aspect-[3/4]";
+  const mobileColsClass = storefrontMobileColumns === 1 ? "grid-cols-1" : storefrontMobileColumns === 3 ? "grid-cols-3" : "grid-cols-2";
+  const desktopColsClass =
+    storefrontDesktopColumns === 2
+      ? "lg:grid-cols-2"
+      : storefrontDesktopColumns === 3
+      ? "lg:grid-cols-3"
+      : storefrontDesktopColumns === 5
+      ? "lg:grid-cols-5"
+      : storefrontDesktopColumns === 6
+      ? "lg:grid-cols-6"
+      : "lg:grid-cols-4";
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
@@ -513,26 +546,37 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   }
 
   if (showCatalog) {
-    const announcementMsg = settings?.announcements?.[0]?.message;
-
     return (
       <div
-        className="min-h-screen bg-[#050505] text-white overflow-y-auto selection:bg-white selection:text-black"
-        style={{ fontFamily: storefrontDesign?.font || "Inter, sans-serif" }}
+        className="min-h-screen overflow-y-auto selection:bg-white selection:text-black"
+        style={{ fontFamily: storefrontDesign?.font || "Inter, sans-serif", backgroundColor: storefrontBg, color: storefrontText }}
       >
+        {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
         {/* Promo / announcement banner */}
-        {announcementMsg && (
-          <div className="bg-white text-black text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]">
+        {showAnnouncement && announcementMsg && (
+          <div
+            className="text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]"
+            style={{
+              backgroundColor: storefrontDesign?.announcementBg || "#000000",
+              color: storefrontDesign?.announcementColor || "#ffffff",
+            }}
+          >
             {announcementMsg}
           </div>
         )}
 
-        <header className={`sticky ${announcementMsg ? "top-10" : "top-0"} z-50 bg-black/40 backdrop-blur-xl border-b border-white/10 transition-all duration-300`}>
-          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <header
+          className={`${storefrontDesign?.stickyHeader ?? true ? "sticky" : "relative"} ${showAnnouncement && announcementMsg ? "top-10" : "top-0"} z-50 backdrop-blur-xl border-b transition-all duration-300`}
+          style={{
+            backgroundColor: `${storefrontBg}${(storefrontDesign?.headerStyle || "minimal") === "full" ? "f5" : "88"}`,
+            borderColor: `${storefrontText}1a`,
+          }}
+        >
+          <div className="mx-auto px-6 py-4 flex items-center justify-between" style={{ maxWidth: storefrontMaxWidth }}>
             <div className="flex items-center gap-8 md:gap-12">
               <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
                 {storefrontDesign?.logoUrl ? (
-                  <img src={storefrontDesign.logoUrl} alt="Logo" className="h-6 object-contain" />
+                  <img src={storefrontDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, storefrontDesign?.logoHeight ?? 24)) }} />
                 ) : "F✶M"}
               </button>
               <nav className="hidden md:flex gap-6">
@@ -582,7 +626,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               )}
               {showBag && (
                 <button onClick={() => setIsCartOpen(true)} className="group flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/5 transition-colors shadow-lg">
-                  <span className="text-[10px] tracking-[0.2em] font-semibold">BAG</span>
+                  <span className="text-[10px] tracking-[0.2em] font-semibold">{bagLabel}</span>
                   {cartCount > 0 && <span className="bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full">{cartCount}</span>}
                 </button>
               )}
@@ -590,8 +634,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           </div>
         </header>
 
-        <main className="max-w-7xl mx-auto px-6 py-12 md:py-20">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 md:gap-12">
+        <main className="mx-auto px-6 py-12 md:py-20" style={{ maxWidth: storefrontMaxWidth }}>
+          <div className={`grid ${mobileColsClass} ${desktopColsClass} gap-8`} style={{ rowGap: shopSectionSpacing }}>
             {filteredItems.map((item: any, index: number) => {
               const slug = getBookSlug(item);
               const isOutOfStock = (item.stockLevel ?? 999) === 0;
@@ -602,38 +646,48 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.8, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
                   className="group relative"
+                  style={{ animationDuration: storefrontDesign?.enableAnimations === false ? "0ms" : undefined }}
                 >
                   <Link to={`/books/${slug}`}>
-                    <div className="relative aspect-[3/4] bg-neutral-900/50 rounded-lg mb-4 overflow-hidden border border-white/5 shadow-2xl">
+                    <div className={`relative ${imageAspectClass} bg-neutral-900/50 mb-4 overflow-hidden border border-white/5 shadow-2xl`} style={{ borderRadius: storefrontCardRadius }}>
                       <SkeletonImage
                         src={item.photos?.[0]?.url || DEFAULT_IMAGE}
                         alt={item.title}
                         className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                       />
                       {/* Sold out ribbon */}
-                      {isOutOfStock && (
+                      {isOutOfStock && showSoldOutBadge && (
                         <div className="absolute top-3 left-3">
                           <span className="bg-black/80 text-white/70 text-[8px] tracking-widest px-2 py-1 uppercase border border-white/20">
-                            Sold Out
+                            {soldOutLabel}
                           </span>
                         </div>
                       )}
                       {/* Hover overlay — show "VIEW" instead of add directly */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
                         <span
-                          style={{ backgroundColor: storefrontDesign?.primaryColor || "white", color: "black" }}
-                          className="w-full py-3 rounded text-[10px] tracking-[0.2em] font-bold text-center transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 shadow-xl"
+                          style={{
+                            backgroundColor: storefrontButtonStyle === "ghost" ? "transparent" : storefrontAccent,
+                            color: storefrontButtonStyle === "solid" ? "#000000" : storefrontAccent,
+                            border: storefrontButtonStyle === "outline" || storefrontButtonStyle === "ghost" ? `1px solid ${storefrontAccent}` : "none",
+                            borderRadius: storefrontButtonRadius,
+                          }}
+                          className={`w-full py-3 text-[10px] tracking-[0.2em] font-bold text-center transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 ${storefrontButtonShadow ? "shadow-xl" : ""} ${storefrontButtonUppercase ? "uppercase" : ""}`}
                         >
-                          {isOutOfStock ? "SOLD OUT" : "VIEW"}
+                          {isOutOfStock ? soldOutLabel : storefrontCtaText}
                         </span>
                       </div>
                     </div>
                     <div className="px-1">
                       <h3 className="text-xs tracking-wider font-medium leading-relaxed uppercase text-white/90">{item.title}</h3>
                       <div className="mt-2 flex items-center justify-between">
-                        <span className="text-[10px] tracking-[0.1em] text-white/40">
-                          {item.genres?.[0] || item.categories?.[0] || "Publication"}
-                        </span>
+                        {showCollectionMeta ? (
+                          <span className="text-[10px] tracking-[0.1em] text-white/40">
+                            {item.genres?.[0] || item.categories?.[0] || "Publication"}
+                          </span>
+                        ) : (
+                          <span />
+                        )}
                         {item.retailPrice > 0 && (
                           <span className="text-[10px] text-white/50">${item.retailPrice?.toFixed(2)}</span>
                         )}
@@ -648,6 +702,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
         <Newsletter />
         <SiteFooter settings={settings} pages={pages} onAboutOpen={() => setShowAbout(true)} />
+        {(storefrontDesign?.showPoweredBy ?? false) && (
+          <p className="text-center pb-8 text-[9px] tracking-[0.3em] uppercase opacity-50">Powered by Lyricalmyrical</p>
+        )}
 
         {/* About panel */}
         <AnimatePresence>
@@ -747,3 +804,5 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     </div>
   );
 }
+  const showCollectionMeta = storefrontDesign?.showCollectionMeta ?? true;
+  const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
