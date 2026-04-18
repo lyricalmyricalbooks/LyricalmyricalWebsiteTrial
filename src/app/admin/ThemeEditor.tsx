@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronRight,
@@ -16,7 +16,6 @@ import {
   Facebook,
   Globe,
   Plus,
-  Minus,
   Eye,
   ShoppingBag,
   Home,
@@ -326,6 +325,15 @@ function HomepagePanel({ design, update }: any) {
     updateHero("slides", hero.slides.filter((s: any) => s.id !== id));
   };
 
+  const duplicateSlide = (slide: any) => {
+    const clone = {
+      ...slide,
+      id: crypto.randomUUID(),
+      title: `${slide.title || "SLIDE"} COPY`,
+    };
+    updateHero("slides", [...(hero.slides || []), clone]);
+  };
+
   const updateSlide = (id: string, field: string, value: string) => {
     updateHero("slides", hero.slides.map((s: any) => s.id === id ? { ...s, [field]: value } : s));
   };
@@ -341,6 +349,21 @@ function HomepagePanel({ design, update }: any) {
 
   return (
     <div className="p-4 space-y-8 overflow-y-auto flex-1">
+      <div className="border border-neutral-100 rounded-xl overflow-hidden">
+        <SidebarToggle
+          label="Enable homepage hero"
+          description="Turn the entry hero section on or off for your storefront."
+          checked={hero.enabled ?? true}
+          onChange={(v: boolean) => updateHero("enabled", v)}
+        />
+        <SidebarToggle
+          label="Auto-rotate slides"
+          description="Automatically cycle through hero slides on the homepage."
+          checked={hero.autoRotate ?? true}
+          onChange={(v: boolean) => updateHero("autoRotate", v)}
+        />
+      </div>
+
       {/* Layout & Style */}
       <div className="space-y-6">
         <div>
@@ -384,6 +407,22 @@ function HomepagePanel({ design, update }: any) {
             className="w-full accent-blue-500 h-1 bg-neutral-100 rounded-lg appearance-none cursor-pointer"
           />
         </div>
+
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <SidebarLabel>Slide duration</SidebarLabel>
+            <span className="text-[10px] text-neutral-400 font-mono">{hero.rotateMs || 5000}ms</span>
+          </div>
+          <input
+            type="range"
+            min="2000"
+            max="10000"
+            step="500"
+            value={hero.rotateMs || 5000}
+            onChange={(e) => updateHero("rotateMs", parseInt(e.target.value, 10))}
+            className="w-full accent-blue-500 h-1 bg-neutral-100 rounded-lg appearance-none cursor-pointer"
+          />
+        </div>
       </div>
 
       <hr className="border-neutral-100" />
@@ -408,6 +447,12 @@ function HomepagePanel({ design, update }: any) {
                 className="absolute -top-2 -right-2 p-1 bg-white border border-neutral-200 rounded-full text-red-500 shadow-sm opacity-0 group-hover/slide:opacity-100 transition-opacity"
                >
                 <X size={10} />
+               </button>
+               <button
+                onClick={() => duplicateSlide(slide)}
+                className="absolute -top-2 right-5 p-1 bg-white border border-neutral-200 rounded-full text-neutral-500 shadow-sm opacity-0 group-hover/slide:opacity-100 transition-opacity"
+               >
+                <Plus size={10} />
                </button>
                
                <div className="mb-3">
@@ -449,6 +494,12 @@ function HomepagePanel({ design, update }: any) {
                     className="bg-white border border-neutral-200 rounded px-2 py-1 text-[10px] outline-none"
                   />
                </div>
+               <input
+                 value={slide.badge || ""}
+                 onChange={(e) => updateSlide(slide.id, "badge", e.target.value)}
+                 placeholder="Optional badge (e.g. New Drop)"
+                 className="w-full mt-2 bg-white border border-neutral-200 rounded px-2 py-1 text-[10px] outline-none"
+               />
             </div>
           ))}
         </div>
@@ -962,6 +1013,11 @@ function HomepagePreview({ design, bg, text, accent, font, pages }: any) {
         
         {/* Content */}
         <div className="relative z-10 max-w-[200px]">
+          {activeSlide.badge && (
+            <div className="inline-flex mb-3 px-2.5 py-1 rounded-full border border-white/30 text-[6px] uppercase tracking-[0.25em] text-white/90">
+              {activeSlide.badge}
+            </div>
+          )}
           <h2 className="text-[16px] font-black tracking-tight leading-none mb-1 text-white uppercase">{activeSlide.title}</h2>
           <p className="text-[8px] tracking-[0.2em] font-medium text-white/60 mb-4 whitespace-pre-wrap">{activeSlide.subtitle}</p>
           <div className="inline-block px-5 py-2 rounded-full text-[7px] font-bold tracking-widest transition-transform hover:scale-105" style={{ background: accent, color: "white" }}>
@@ -1059,21 +1115,22 @@ export interface ThemeEditorProps {
 }
 
 export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
+  const getInitialDesign = () => ({
+    ...adminApi.getDefaultSettings().design,
+    ...(settings?.design || {}),
+  });
+
   // Local copy of just the design settings — changes here won't affect Firebase until "Publish"
-  const [design, setDesign] = useState<any>(() => ({
-    ...adminApi.getDefaultSettings().design,
-    ...(settings?.design || {}),
-  }));
-  const [originalDesign] = useState<any>(() => ({
-    ...adminApi.getDefaultSettings().design,
-    ...(settings?.design || {}),
-  }));
+  const [design, setDesign] = useState<any>(getInitialDesign);
+  const [savedDesign, setSavedDesign] = useState<any>(getInitialDesign);
+  const [pastDesigns, setPastDesigns] = useState<any[]>([]);
+  const [futureDesigns, setFutureDesigns] = useState<any[]>([]);
 
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [previewMode, setPreviewMode] = useState<"homepage" | "shop">("homepage");
-  const [activePanel, setActivePanel] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("settings");
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [settingsSearch, setSettingsSearch] = useState("");
   const [pages, setPages] = useState<any[]>([]);
 
   useEffect(() => {
@@ -1082,18 +1139,41 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const hasChanges = JSON.stringify(design) !== JSON.stringify(originalDesign);
+  const hasChanges = JSON.stringify(design) !== JSON.stringify(savedDesign);
 
   // Update a single design key
   const update = useCallback((key: string, value: any) => {
+    setPastDesigns((prev) => [...prev.slice(-74), design]);
+    setFutureDesigns([]);
     setDesign((prev: any) => ({ ...prev, [key]: value }));
     setSaved(false);
-  }, []);
+  }, [design]);
+
+  const undo = () => {
+    if (pastDesigns.length === 0) return;
+    const previous = pastDesigns[pastDesigns.length - 1];
+    setPastDesigns((prev) => prev.slice(0, -1));
+    setFutureDesigns((next) => [design, ...next].slice(0, 75));
+    setDesign(previous);
+    setSaved(false);
+  };
+
+  const redo = () => {
+    if (futureDesigns.length === 0) return;
+    const [next, ...rest] = futureDesigns;
+    setFutureDesigns(rest);
+    setPastDesigns((prev) => [...prev.slice(-74), design]);
+    setDesign(next);
+    setSaved(false);
+  };
 
   const handleSave = async () => {
     setSaving(true);
     try {
       await onSave(design);
+      setSavedDesign(design);
+      setPastDesigns([]);
+      setFutureDesigns([]);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {
@@ -1166,6 +1246,15 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     },
   ];
 
+  const filteredSections = useMemo(() => {
+    const q = settingsSearch.trim().toLowerCase();
+    if (!q) return SECTIONS;
+    return SECTIONS.filter((section) =>
+      section.title.toLowerCase().includes(q) ||
+      section.description.toLowerCase().includes(q),
+    );
+  }, [SECTIONS, settingsSearch]);
+
   const renderSubPanel = () => {
     switch (activeSection) {
       case "style":         return <StylePanel design={design} update={update} />;
@@ -1200,6 +1289,22 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
               Unsaved
             </span>
           )}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={undo}
+              disabled={pastDesigns.length === 0}
+              className="px-2 py-1 rounded-md bg-white/10 text-[9px] font-semibold tracking-wider uppercase disabled:opacity-30"
+            >
+              Undo
+            </button>
+            <button
+              onClick={redo}
+              disabled={futureDesigns.length === 0}
+              className="px-2 py-1 rounded-md bg-white/10 text-[9px] font-semibold tracking-wider uppercase disabled:opacity-30"
+            >
+              Redo
+            </button>
+          </div>
         </div>
 
         {/* Device switcher */}
@@ -1295,9 +1400,15 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                         <p className="text-[10px] text-neutral-400 mt-1 leading-relaxed">
                           Customise your template settings and links to your shop's social media profiles.
                         </p>
+                        <input
+                          value={settingsSearch}
+                          onChange={(e) => setSettingsSearch(e.target.value)}
+                          placeholder="Search settings..."
+                          className="mt-3 w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] outline-none focus:border-neutral-400 transition-colors"
+                        />
                       </div>
 
-                      {SECTIONS.map((section) => (
+                      {filteredSections.map((section) => (
                         <SectionRow
                           key={section.id}
                           icon={section.icon}
@@ -1306,6 +1417,11 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                           onClick={() => setActiveSection(section.id)}
                         />
                       ))}
+                      {filteredSections.length === 0 && (
+                        <div className="px-4 pb-4 text-[10px] text-neutral-400">
+                          No section matches your search.
+                        </div>
+                      )}
                     </div>
                   )}
                 </motion.div>
