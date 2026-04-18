@@ -28,14 +28,17 @@ function writeCache(payload: CachePayload) {
   }
 }
 
-export function useSiteData() {
+export function useSiteData(options?: { skip?: boolean; initialData?: Partial<CachePayload> }) {
   const cached = typeof window !== "undefined" ? readCache() : null;
-  const [books, setBooks] = useState<Book[]>(cached?.books || DEFAULT_BOOKS);
-  const [settings, setSettings] = useState<SiteSettings>(cached?.settings || DEFAULT_SETTINGS);
-  const [pages, setPages] = useState<Page[]>(cached?.pages || []);
-  const [loading, setLoading] = useState(!cached);
+  const initial = options?.initialData;
+  const [books, setBooks] = useState<Book[]>(initial?.books || cached?.books || DEFAULT_BOOKS);
+  const [settings, setSettings] = useState<SiteSettings>((initial?.settings as SiteSettings) || cached?.settings || DEFAULT_SETTINGS);
+  const [pages, setPages] = useState<Page[]>(initial?.pages || cached?.pages || []);
+  const [loading, setLoading] = useState(options?.skip ? false : !cached && !initial);
 
   useEffect(() => {
+    if (options?.skip) return;
+
     let cancelled = false;
 
     async function loadData() {
@@ -80,7 +83,7 @@ export function useSiteData() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [options?.skip]);
 
   return { books, settings, pages, loading };
 }
