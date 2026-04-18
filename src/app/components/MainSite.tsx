@@ -491,6 +491,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontButtonShadow = storefrontDesign?.buttonShadow ?? true;
   const storefrontCtaText = storefrontDesign?.productCTA || "VIEW";
   const soldOutLabel = storefrontDesign?.soldOutLabel || "SOLD OUT";
+  const showCollectionMeta = storefrontDesign?.showCollectionMeta ?? true;
+  const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
   const bagLabel = storefrontDesign?.cartLabel || "BAG";
   const showAnnouncement = storefrontDesign?.showAnnouncement ?? true;
   const announcementMsg = storefrontDesign?.announcementText || settings?.announcements?.[0]?.message;
@@ -804,5 +806,3 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     </div>
   );
 }
-  const showCollectionMeta = storefrontDesign?.showCollectionMeta ?? true;
-  const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
