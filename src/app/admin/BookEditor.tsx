@@ -311,7 +311,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         <div className="flex gap-4">
           {book && (
             <a 
-              href={`/#/product/${formData.slug}`} 
+              href={`/#/books/${formData.slug}`} 
               target="_blank" 
               rel="noreferrer"
               className="px-6 py-2.5 flex items-center gap-2 text-[10px] tracking-[.3em] font-bold text-neutral-400 hover:text-black transition-colors"
@@ -544,6 +544,23 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             <h4 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-2 border-b border-neutral-50">Commerce & Status</h4>
             <div className="space-y-6">
               <div className="flex flex-col gap-4 p-6 bg-neutral-50 rounded-2xl">
+                 <div className="flex flex-col gap-2 border-b border-white pb-4 mb-2">
+                    <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Retail Price</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 text-xs">$</span>
+                      <input
+                        type="number"
+                        name="retailPrice"
+                        min={0}
+                        step="0.01"
+                        value={formData.retailPrice ?? 0}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        className="w-full bg-white border border-neutral-200 rounded-xl py-2 pl-8 pr-4 text-xs focus:ring-1 focus:ring-black outline-none"
+                      />
+                    </div>
+                    <p className="text-[8px] text-neutral-400">Displayed across product cards, detail pages, and checkout.</p>
+                 </div>
                  <div className="flex flex-col gap-2 border-b border-white pb-4 mb-2">
                     <label className="text-[10px] tracking-widest text-neutral-500 uppercase flex items-center gap-2">
                        Stripe Price ID 
