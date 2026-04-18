@@ -309,8 +309,19 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
 function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive: () => void }) {
   const navigate = useNavigate();
   const hero = design?.hero || {};
-  const slides = (hero.slides || []).length > 0
-    ? hero.slides
+  const cleanedSlides = (hero.slides || []).filter((slide: any) => {
+    const title = String(slide?.title || "").trim().toUpperCase();
+    const subtitle = String(slide?.subtitle || "").trim().toUpperCase();
+    const ctaText = String(slide?.ctaText || "").trim().toUpperCase();
+    const isTemplatePlaceholder =
+      title === "NEW SLIDE" &&
+      subtitle === "SUBTITLE HERE" &&
+      ctaText === "LEARN MORE";
+    return !isTemplatePlaceholder;
+  });
+
+  const slides = cleanedSlides.length > 0
+    ? cleanedSlides
     : [{
       id: "fallback",
       imageUrl: "",
@@ -337,11 +348,7 @@ function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive:
       ? "items-end text-right"
       : "items-center text-center";
 
-  const heightClass = hero.height === "medium"
-    ? "h-[70vh] min-h-[500px]"
-    : hero.height === "tall"
-      ? "h-[85vh] min-h-[620px]"
-      : "h-screen min-h-[680px]";
+  const heightClass = "h-screen min-h-[680px]";
 
   useEffect(() => {
     if (!autoRotate || slides.length < 2) return;
@@ -733,32 +740,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           </section>
         )}
         
-        {/* Bottom scrolling nav (Always shown if enabled) */}
-        {heroDesign?.showBookStrip !== false && (
-          <nav className="absolute bottom-0 left-0 right-0 z-40 bg-gradient-to-t from-black via-black/80 to-transparent pt-20 pb-8 pointer-events-none">
-            <div className="relative max-w-7xl mx-auto pointer-events-auto">
-              <div ref={scrollContainerRef} className="flex gap-16 overflow-x-auto scrollbar-hide px-12 md:px-24" style={{ scrollbarWidth: 'none' }}>
-                {publishedBooks.map((item: Book, index: number) => {
-                  const slug = getBookSlug(item);
-                  return (
-                    <motion.div
-                      key={item.id || index}
-                      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.8 + index * 0.1, ease: [0.22, 1, 0.36, 1] }}
-                      className="flex-shrink-0 group cursor-pointer"
-                    >
-                      <Link to={`/books/${slug}`} className="block">
-                        <p className="text-[10px] tracking-[0.2em] font-semibold text-white/50 group-hover:text-white transition-colors uppercase whitespace-nowrap">
-                          {item.title}
-                        </p>
-                        <div className="h-[1px] w-0 bg-white group-hover:w-full transition-all duration-500 mt-2" />
-                      </Link>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </div>
-          </nav>
-        )}
+        {/* Intentionally no book links in hero section. */}
       </main>
 
       {/* About panel (available from homepage too) */}
