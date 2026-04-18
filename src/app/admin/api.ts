@@ -303,6 +303,7 @@ export const adminApi = {
       stickyHeader: true,
       showSocialInFooter: true,
       footerColumns: true,
+      logoHeight: 24,
       // Homepage
       heroLayout: "fullscreen",
       heroCTA: "ENTER ARCHIVE",
@@ -313,6 +314,8 @@ export const adminApi = {
       productCardStyle: "editorial",
       imageAspectRatio: "3:4",
       showPriceOnHover: false,
+      showCollectionMeta: true,
+      showSoldOutBadge: true,
       productCTA: "VIEW",
       productColumnsDesktop: 4,
       productColumnsMobile: 2,

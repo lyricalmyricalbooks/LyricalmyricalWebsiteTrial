@@ -367,6 +367,15 @@ function NavigationPanel({ design, update }: any) {
         </p>
       </div>
 
+      <SidebarRange
+        label="Logo height"
+        value={design.logoHeight ?? 24}
+        min={20}
+        max={64}
+        suffix="px"
+        onChange={(v) => update("logoHeight", v)}
+      />
+
       <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden">
         <SidebarToggle
           label="Enter Archive button"
@@ -761,6 +770,18 @@ function ProductsPanel({ design, update }: any) {
           description="Reveal price when customer hovers over a product card"
           checked={design.showPriceOnHover ?? false}
           onChange={(v: boolean) => update("showPriceOnHover", v)}
+        />
+        <SidebarToggle
+          label="Show collection metadata"
+          description="Display category tags and collection context above products"
+          checked={design.showCollectionMeta ?? true}
+          onChange={(v: boolean) => update("showCollectionMeta", v)}
+        />
+        <SidebarToggle
+          label="Show sold-out badge"
+          description="Display a badge when inventory reaches zero"
+          checked={design.showSoldOutBadge ?? true}
+          onChange={(v: boolean) => update("showSoldOutBadge", v)}
         />
       </div>
     </div>
@@ -1438,10 +1459,37 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [settingsSearch, setSettingsSearch] = useState("");
   const [pages, setPages] = useState<any[]>([]);
+  const [syncPreview, setSyncPreview] = useState(true);
 
   useEffect(() => {
     adminApi.getPages().then(setPages);
   }, []);
+
+  useEffect(() => {
+    if (!syncPreview || !activeSection) return;
+    const homepageSections = new Set(["homepage"]);
+    if (homepageSections.has(activeSection)) {
+      setDesignSurface("heroPage");
+      setPreviewMode("homepage");
+      return;
+    }
+    const storefrontSections = new Set([
+      "products",
+      "layout",
+      "buttons",
+      "announcements",
+      "social",
+      "translations",
+      "additional",
+      "navigation",
+      "style",
+      "textsize",
+    ]);
+    if (storefrontSections.has(activeSection)) {
+      setDesignSurface("storefront");
+      setPreviewMode("shop");
+    }
+  }, [activeSection, syncPreview]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -1632,6 +1680,14 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
               Redo
             </button>
           </div>
+          <button
+            onClick={() => setSyncPreview((prev) => !prev)}
+            className={`px-2 py-1 rounded-md text-[9px] font-semibold tracking-wider uppercase border ${
+              syncPreview ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" : "bg-white/10 text-white/50 border-white/10"
+            }`}
+          >
+            {syncPreview ? "Sync on" : "Sync off"}
+          </button>
         </div>
 
         {/* Device switcher */}
