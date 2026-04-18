@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Instagram, Mail, ArrowRight, Send } from "lucide-react";
 import { Link, useNavigate } from "react-router";
 import { useCart } from "../CartContext";
@@ -306,6 +306,134 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
   );
 }
 
+function HeroCarousel({ settings, onEnterArchive }: { settings: any; onEnterArchive: () => void }) {
+  const navigate = useNavigate();
+  const hero = settings?.design?.hero || {};
+  const slides = (hero.slides || []).length > 0
+    ? hero.slides
+    : [{
+      id: "fallback",
+      imageUrl: "",
+      title: "F✶M",
+      subtitle: "PHOTOGRAPHY & ART BOOKS",
+      ctaText: "ENTER ARCHIVE",
+      ctaLink: "/shop",
+    }];
+
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const activeSlide = slides[activeSlideIndex] || slides[0];
+  const autoRotate = hero.autoRotate ?? true;
+  const rotateMs = hero.rotateMs || 5000;
+
+  useEffect(() => {
+    if (activeSlideIndex > slides.length - 1) {
+      setActiveSlideIndex(0);
+    }
+  }, [activeSlideIndex, slides.length]);
+
+  const alignClass = hero.align === "left"
+    ? "items-start text-left"
+    : hero.align === "right"
+      ? "items-end text-right"
+      : "items-center text-center";
+
+  const heightClass = hero.height === "medium"
+    ? "h-[70vh] min-h-[500px]"
+    : hero.height === "tall"
+      ? "h-[85vh] min-h-[620px]"
+      : "h-screen min-h-[680px]";
+
+  useEffect(() => {
+    if (!autoRotate || slides.length < 2) return;
+    const timer = window.setInterval(() => {
+      setActiveSlideIndex((idx) => (idx + 1) % slides.length);
+    }, rotateMs);
+    return () => window.clearInterval(timer);
+  }, [autoRotate, rotateMs, slides.length]);
+
+  const handleSlideCta = () => {
+    const link = activeSlide?.ctaLink || "/shop";
+    if (link === "/shop" || link === "/") {
+      onEnterArchive();
+      return;
+    }
+    navigate(link);
+  };
+
+  return (
+    <section className={`relative w-full overflow-hidden ${heightClass}`}>
+      {activeSlide?.imageUrl ? (
+        <img
+          key={activeSlide.id}
+          src={activeSlide.imageUrl}
+          alt={activeSlide.title || "Homepage hero"}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : (
+        <div className="absolute inset-0 bg-neutral-950" />
+      )}
+      <div className="absolute inset-0" style={{ background: "black", opacity: hero.overlayOpacity ?? 0.45 }} />
+
+      <div className={`relative z-10 h-full flex flex-col justify-center px-8 md:px-16 ${alignClass}`}>
+        <div className="max-w-2xl">
+          {activeSlide?.badge && (
+            <span className="inline-flex mb-5 px-4 py-1.5 border border-white/30 rounded-full text-[9px] md:text-[10px] tracking-[0.35em] font-semibold uppercase">
+              {activeSlide.badge}
+            </span>
+          )}
+          <h1 className="text-5xl md:text-7xl font-black leading-none tracking-tight uppercase">{activeSlide?.title || "F✶M"}</h1>
+          <p className="mt-5 text-[11px] md:text-xs tracking-[0.35em] text-white/70 uppercase">{activeSlide?.subtitle || "PHOTOGRAPHY & ART BOOKS"}</p>
+          <div className="mt-10 flex flex-wrap items-center gap-4">
+            <button
+              onClick={handleSlideCta}
+              className="px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black transition-transform hover:scale-[1.02]"
+              style={{ backgroundColor: settings?.design?.primaryColor || "#A855F7" }}
+            >
+              {activeSlide?.ctaText || "ENTER ARCHIVE"}
+            </button>
+            <button
+              onClick={onEnterArchive}
+              className="px-7 py-3 rounded-full border border-white/30 text-[10px] tracking-[0.3em] font-semibold uppercase hover:bg-white/10 transition-colors"
+            >
+              Shop now
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {slides.length > 1 && (
+        <>
+          <button
+            onClick={() => setActiveSlideIndex((prev) => (prev - 1 + slides.length) % slides.length)}
+            className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full border border-white/20 bg-black/30 flex items-center justify-center hover:bg-black/50"
+            aria-label="Previous slide"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <button
+            onClick={() => setActiveSlideIndex((prev) => (prev + 1) % slides.length)}
+            className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full border border-white/20 bg-black/30 flex items-center justify-center hover:bg-black/50"
+            aria-label="Next slide"
+          >
+            <ChevronRight size={16} />
+          </button>
+
+          <div className="absolute bottom-8 left-0 right-0 z-20 flex justify-center gap-2">
+            {slides.map((slide: any, idx: number) => (
+              <button
+                key={slide.id || idx}
+                onClick={() => setActiveSlideIndex(idx)}
+                className={`h-1.5 rounded-full transition-all ${idx === activeSlideIndex ? "w-8 bg-white" : "w-3 bg-white/40"}`}
+                aria-label={`Go to slide ${idx + 1}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 // ──────────────────────────────
 // Main exported component
 // ──────────────────────────────
@@ -549,7 +677,22 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       </header>
 
       <main className="relative w-full overflow-hidden">
-        <HeroCarousel settings={settings} onEnterArchive={() => setShowCatalog(true)} />
+        {(settings?.design?.hero?.enabled ?? true) ? (
+          <HeroCarousel settings={settings} onEnterArchive={() => setShowCatalog(true)} />
+        ) : (
+          <section className="h-screen min-h-[680px] flex flex-col items-center justify-center text-center px-8">
+            <p className="text-[12px] tracking-[0.3em] text-white/60 uppercase mb-6">
+              {settings?.design?.heroSubtext || "Discover rare editions and exclusive prints."}
+            </p>
+            <button
+              onClick={() => setShowCatalog(true)}
+              className="px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black"
+              style={{ backgroundColor: settings?.design?.primaryColor || "#A855F7" }}
+            >
+              {settings?.design?.heroCTA || "ENTER ARCHIVE"}
+            </button>
+          </section>
+        )}
         
         {/* Bottom scrolling nav (Always shown if enabled) */}
         {settings?.design?.showBookStrip !== false && (
