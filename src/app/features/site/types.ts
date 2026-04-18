@@ -61,6 +61,13 @@ export type SiteSettings = {
     font: string;
     logoUrl?: string;
     faviconUrl?: string;
+    headerLinks?: {
+      showEnterArchive?: boolean;
+      showInformation?: boolean;
+      showCustomPages?: boolean;
+      showBag?: boolean;
+      showSys?: boolean;
+    };
   };
 };
 

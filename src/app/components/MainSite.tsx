@@ -451,6 +451,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     [books, activeCategory],
   );
   const publishedBooks = useMemo(() => getPublishedBooks(books), [books]);
+  const headerLinks = settings?.design?.headerLinks || {};
+  const showEnterArchive = headerLinks.showEnterArchive ?? true;
+  const showInformation = headerLinks.showInformation ?? true;
+  const showCustomPages = headerLinks.showCustomPages ?? true;
+  const showBag = headerLinks.showBag ?? true;
+  const showSys = headerLinks.showSys ?? true;
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
@@ -524,35 +530,41 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             </div>
             <div className="flex gap-6 md:gap-8 items-center">
               {/* Dynamic Custom Pages */}
-              <nav className="hidden lg:flex items-center gap-6 mr-2">
-                {pages.some((p:any) => p.showInNav && p.status === "published") && (
-                   <span className="text-[10px] tracking-[0.3em] font-bold text-white/20 uppercase select-none mr-2">
-                     {settings?.design?.navHeading || "INFO"}
-                   </span>
-                )}
-                {(pages || [])
-                  .filter((p: any) => p.showInNav && p.status === "published")
-                  .map((page: any) => (
-                    <Link 
-                      key={page.id} 
-                      to={`/page/${page.slug}`} 
-                      className="text-[10px] tracking-[0.2em] text-white/40 hover:text-white transition-colors uppercase whitespace-nowrap"
-                    >
-                      {page.title}
-                    </Link>
-                  ))}
-              </nav>
+              {showCustomPages && (
+                <nav className="hidden lg:flex items-center gap-6 mr-2">
+                  {pages.some((p:any) => p.showInNav && p.status === "published") && (
+                    <span className="text-[10px] tracking-[0.3em] font-bold text-white/20 uppercase select-none mr-2">
+                      {settings?.design?.navHeading || "INFO"}
+                    </span>
+                  )}
+                  {(pages || [])
+                    .filter((p: any) => p.showInNav && p.status === "published")
+                    .map((page: any) => (
+                      <Link 
+                        key={page.id} 
+                        to={`/page/${page.slug}`} 
+                        className="text-[10px] tracking-[0.2em] text-white/40 hover:text-white transition-colors uppercase whitespace-nowrap"
+                      >
+                        {page.title}
+                      </Link>
+                    ))}
+                </nav>
+              )}
 
-              <button
-                onClick={() => setShowAbout(true)}
-                className="text-[10px] tracking-[0.2em] text-white/50 hover:text-white transition-colors hidden md:block"
-              >
-                INFORMATION
-              </button>
-              <button onClick={() => setIsCartOpen(true)} className="group flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/5 transition-colors shadow-lg">
-                <span className="text-[10px] tracking-[0.2em] font-semibold">BAG</span>
-                {cartCount > 0 && <span className="bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full">{cartCount}</span>}
-              </button>
+              {showInformation && (
+                <button
+                  onClick={() => setShowAbout(true)}
+                  className="text-[10px] tracking-[0.2em] text-white/50 hover:text-white transition-colors hidden md:block"
+                >
+                  INFORMATION
+                </button>
+              )}
+              {showBag && (
+                <button onClick={() => setIsCartOpen(true)} className="group flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/5 transition-colors shadow-lg">
+                  <span className="text-[10px] tracking-[0.2em] font-semibold">BAG</span>
+                  {cartCount > 0 && <span className="bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full">{cartCount}</span>}
+                </button>
+              )}
             </div>
           </div>
         </header>
@@ -631,48 +643,58 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       style={{ fontFamily: settings?.design?.font || 'Inter, sans-serif' }}
     >
       <header className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-6 bg-gradient-to-b from-black/70 to-transparent">
-        <button
-          onClick={() => setShowCatalog(true)}
-          className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white hover:text-white/70 transition-colors"
-        >
-          ENTER ARCHIVE
-        </button>
-        <div className="flex gap-8 items-center">
+        {showEnterArchive && (
           <button
-            onClick={() => setShowAbout(true)}
-            className="text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-80 hover:opacity-100 transition-opacity hidden md:block"
+            onClick={() => setShowCatalog(true)}
+            className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white hover:text-white/70 transition-colors"
           >
-            INFORMATION
+            ENTER ARCHIVE
           </button>
+        )}
+        <div className="flex gap-8 items-center">
+          {showInformation && (
+            <button
+              onClick={() => setShowAbout(true)}
+              className="text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-80 hover:opacity-100 transition-opacity hidden md:block"
+            >
+              INFORMATION
+            </button>
+          )}
           
           {/* Custom Pages in Home Header */}
-          <nav className="hidden lg:flex items-center gap-6">
-            {pages.some((p: any) => p.showInNav && p.status === "published") && (
-              <span className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white/20 uppercase select-none mr-2">
-                {settings?.design?.navHeading || "INFO"}
-              </span>
-            )}
-            {(pages || [])
-              .filter((p: any) => p.showInNav && p.status === "published")
-              .map((page: any) => (
-                <Link 
-                  key={page.id} 
-                  to={`/page/${page.slug}`} 
-                  className="text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-60 hover:opacity-100 transition-opacity uppercase"
-                >
-                  {page.title}
-                </Link>
-              ))}
-          </nav>
+          {showCustomPages && (
+            <nav className="hidden lg:flex items-center gap-6">
+              {pages.some((p: any) => p.showInNav && p.status === "published") && (
+                <span className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white/20 uppercase select-none mr-2">
+                  {settings?.design?.navHeading || "INFO"}
+                </span>
+              )}
+              {(pages || [])
+                .filter((p: any) => p.showInNav && p.status === "published")
+                .map((page: any) => (
+                  <Link 
+                    key={page.id} 
+                    to={`/page/${page.slug}`} 
+                    className="text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-60 hover:opacity-100 transition-opacity uppercase"
+                  >
+                    {page.title}
+                  </Link>
+                ))}
+            </nav>
+          )}
 
-          <button
-            onClick={() => setIsCartOpen(true)}
-            className="group flex items-center gap-2 bg-white/10 backdrop-blur-md px-5 py-2.5 rounded-full border border-white/10 hover:bg-white/20 transition-all shadow-lg"
-          >
-            <span className="text-[10px] tracking-[0.2em] font-bold">BAG</span>
-            {cartCount > 0 && <span className="bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-full">{cartCount}</span>}
-          </button>
-          <Link to="/admin" className="text-[10px] tracking-widest opacity-30 hover:opacity-100 transition-opacity">SYS</Link>
+          {showBag && (
+            <button
+              onClick={() => setIsCartOpen(true)}
+              className="group flex items-center gap-2 bg-white/10 backdrop-blur-md px-5 py-2.5 rounded-full border border-white/10 hover:bg-white/20 transition-all shadow-lg"
+            >
+              <span className="text-[10px] tracking-[0.2em] font-bold">BAG</span>
+              {cartCount > 0 && <span className="bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-full">{cartCount}</span>}
+            </button>
+          )}
+          {showSys && (
+            <Link to="/admin" className="text-[10px] tracking-widest opacity-30 hover:opacity-100 transition-opacity">SYS</Link>
+          )}
         </div>
       </header>
 

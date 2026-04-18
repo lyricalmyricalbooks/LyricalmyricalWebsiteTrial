@@ -342,6 +342,13 @@ export const adminApi = {
       showBackToTop: false,
       showPoweredBy: false,
       navHeading: "INFO",
+      headerLinks: {
+        showEnterArchive: true,
+        showInformation: true,
+        showCustomPages: true,
+        showBag: true,
+        showSys: true,
+      },
       // Hero (Shopify Style)
       hero: {
         enabled: true,
@@ -686,4 +693,3 @@ export const adminApi = {
     await deleteDoc(doc(db, "pages", id));
   },
 };
-
