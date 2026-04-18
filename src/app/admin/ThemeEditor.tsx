@@ -252,6 +252,11 @@ function StylePanel({ design, update }: any) {
 }
 
 function NavigationPanel({ design, update }: any) {
+  const headerLinks = design.headerLinks || {};
+  const updateHeaderLink = (key: string, value: boolean) => {
+    update("headerLinks", { ...headerLinks, [key]: value });
+  };
+
   return (
     <div className="p-4 space-y-6 overflow-y-auto flex-1">
       <div>
@@ -298,6 +303,39 @@ function NavigationPanel({ design, update }: any) {
         <p className="text-[9px] text-neutral-400 mt-2 leading-relaxed">
           The label shown in the header before your custom pages.
         </p>
+      </div>
+
+      <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden">
+        <SidebarToggle
+          label="Enter Archive button"
+          description="Show or hide the Enter Archive button in the homepage header"
+          checked={headerLinks.showEnterArchive ?? true}
+          onChange={(v: boolean) => updateHeaderLink("showEnterArchive", v)}
+        />
+        <SidebarToggle
+          label="Information button"
+          description="Show or hide the Information button in top navigation"
+          checked={headerLinks.showInformation ?? true}
+          onChange={(v: boolean) => updateHeaderLink("showInformation", v)}
+        />
+        <SidebarToggle
+          label="Custom pages links"
+          description="Show or hide the INFO heading and custom pages links"
+          checked={headerLinks.showCustomPages ?? true}
+          onChange={(v: boolean) => updateHeaderLink("showCustomPages", v)}
+        />
+        <SidebarToggle
+          label="Bag button"
+          description="Show or hide the Bag button in top navigation"
+          checked={headerLinks.showBag ?? true}
+          onChange={(v: boolean) => updateHeaderLink("showBag", v)}
+        />
+        <SidebarToggle
+          label="SYS link"
+          description="Show or hide the SYS admin shortcut in the homepage header"
+          checked={headerLinks.showSys ?? true}
+          onChange={(v: boolean) => updateHeaderLink("showSys", v)}
+        />
       </div>
     </div>
   );
@@ -963,6 +1001,7 @@ function HomepagePreview({ design, bg, text, accent, font, pages }: any) {
   const hero = design.hero || { slides: [] };
   const showAnnouncement = design.showAnnouncement ?? true;
   const navPages = (pages || []).filter((p: any) => p.showInNav && p.status === "published");
+  const headerLinks = design.headerLinks || {};
   const activeSlide = (hero.slides || [])[0] || {
     title: "F✶M",
     subtitle: "PHOTOGRAPHY & ART BOOKS",
@@ -987,15 +1026,31 @@ function HomepagePreview({ design, bg, text, accent, font, pages }: any) {
 
       {/* Nav */}
       <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0 backdrop-blur-md" style={{ borderColor: `${text}15`, background: `${bg}80` }}>
-        <span className="text-[11px] font-black tracking-tight opacity-90">F✶M</span>
+        {(headerLinks.showEnterArchive ?? true) ? (
+          <span className="text-[10px] font-bold tracking-[0.2em] opacity-90">ENTER ARCHIVE</span>
+        ) : (
+          <span className="text-[11px] font-black tracking-tight opacity-90">F✶M</span>
+        )}
         <div className="flex items-center gap-4">
-          <span className="text-[8px] tracking-widest opacity-50 uppercase">{design.navHeading || "INFO"}</span>
-          {navPages.slice(0, 1).map((p: any) => (
-             <span key={p.id} className="text-[7px] tracking-widest opacity-40 uppercase truncate max-w-[50px]">{p.title}</span>
-          ))}
-          <div className="flex items-center gap-1 px-3 py-1 rounded-full border text-[8px] font-bold tracking-widest" style={{ borderColor: `${text}20`, background: `${text}10` }}>
-            {design.cartLabel || "BAG"}
-          </div>
+          {(headerLinks.showInformation ?? true) && (
+            <span className="text-[8px] tracking-widest opacity-60 uppercase">INFORMATION</span>
+          )}
+          {(headerLinks.showCustomPages ?? true) && (
+            <>
+              <span className="text-[8px] tracking-widest opacity-50 uppercase">{design.navHeading || "INFO"}</span>
+              {navPages.slice(0, 1).map((p: any) => (
+                <span key={p.id} className="text-[7px] tracking-widest opacity-40 uppercase truncate max-w-[50px]">{p.title}</span>
+              ))}
+            </>
+          )}
+          {(headerLinks.showBag ?? true) && (
+            <div className="flex items-center gap-1 px-3 py-1 rounded-full border text-[8px] font-bold tracking-widest" style={{ borderColor: `${text}20`, background: `${text}10` }}>
+              {design.cartLabel || "BAG"}
+            </div>
+          )}
+          {(headerLinks.showSys ?? true) && (
+            <span className="text-[7px] tracking-widest opacity-30">SYS</span>
+          )}
         </div>
       </div>
 
@@ -1042,6 +1097,7 @@ function ShopPreview({ design, bg, text, accent, font, pages }: any) {
   const aspectClass = design.imageAspectRatio === "1:1" ? "aspect-square" : design.imageAspectRatio === "2:3" ? "aspect-[2/3]" : "aspect-[3/4]";
   const showAnnouncement = design.showAnnouncement ?? true;
   const navPages = (pages || []).filter((p: any) => p.showInNav && p.status === "published");
+  const headerLinks = design.headerLinks || {};
 
   const MOCK_BOOKS = [
     { title: "Volume I", price: "$42.00", color: "#2a2a2a" },
@@ -1070,16 +1126,25 @@ function ShopPreview({ design, bg, text, accent, font, pages }: any) {
           {["PUBLICATIONS", "PRINTS"].map((c) => (
             <span key={c} className="text-[7px] tracking-widest opacity-40">{c}</span>
           ))}
-          <span className="text-[7px] font-bold tracking-widest opacity-60 ml-1 border-l pl-2" style={{ borderColor: `${text}20` }}>
-            {design.navHeading || "INFO"}
-          </span>
-          {navPages.slice(0, 1).map((p: any) => (
-             <span key={p.id} className="text-[6px] tracking-widest opacity-30 uppercase">{p.title}</span>
-          ))}
+          {(headerLinks.showCustomPages ?? true) && (
+            <>
+              <span className="text-[7px] font-bold tracking-widest opacity-60 ml-1 border-l pl-2" style={{ borderColor: `${text}20` }}>
+                {design.navHeading || "INFO"}
+              </span>
+              {navPages.slice(0, 1).map((p: any) => (
+                <span key={p.id} className="text-[6px] tracking-widest opacity-30 uppercase">{p.title}</span>
+              ))}
+            </>
+          )}
+          {(headerLinks.showInformation ?? true) && (
+            <span className="text-[7px] tracking-widest opacity-40 uppercase">INFORMATION</span>
+          )}
         </div>
-        <div className="text-[7px] font-bold tracking-widest opacity-50 px-2 py-0.5 border rounded-full" style={{ borderColor: `${text}20` }}>
-          {design.cartLabel || "BAG"}
-        </div>
+        {(headerLinks.showBag ?? true) && (
+          <div className="text-[7px] font-bold tracking-widest opacity-50 px-2 py-0.5 border rounded-full" style={{ borderColor: `${text}20` }}>
+            {design.cartLabel || "BAG"}
+          </div>
+        )}
       </div>
 
       {/* Grid */}
