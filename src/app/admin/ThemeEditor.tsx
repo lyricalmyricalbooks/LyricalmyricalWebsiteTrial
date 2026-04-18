@@ -21,7 +21,6 @@ import {
   Home,
 } from "lucide-react";
 import { adminApi } from "./api";
-import MainSite from "../components/MainSite";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour palette presets
@@ -1114,22 +1113,20 @@ function CodePanel({ design, update }: any) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Live Preview — scaled render of the actual storefront
 // ─────────────────────────────────────────────────────────────────────────────
-function LivePreview({ design, designSurface, device, previewMode, settings, pages, books }: any) {
-  const [previewShowCatalog, setPreviewShowCatalog] = useState(previewMode.value === "shop");
-  const [previewCurrentPage, setPreviewCurrentPage] = useState(0);
-
-  useEffect(() => {
-    setPreviewShowCatalog(previewMode.value === "shop");
-  }, [previewMode.value]);
-
-  const previewSettings = {
-    ...settings,
-    design,
-  };
+function LivePreview({ design, designSurface, device, previewMode, settings, pages }: any) {
+  // Derive merged settings for preview
+  const previewSettings = { ...settings, design };
+  const previewDesign = previewMode.value === "homepage"
+    ? (design?.heroPage || design)
+    : (design?.storefront || design);
+  const palette = PALETTES.find(p => p.id === previewDesign.palettePreset) || PALETTES[0];
+  const bg = previewDesign.backgroundColor || palette.bg;
+  const text = previewDesign.textColor || palette.text;
+  const accent = previewDesign.primaryColor || palette.accent;
+  const font = previewDesign.font || "Inter";
 
   const isDesktop = device === "desktop";
-  const activeSurfaceDesign = design?.[designSurface] || {};
-  const desktopWidth = Math.max(900, Math.min(1600, activeSurfaceDesign.containerWidth ?? 1200));
+  const desktopWidth = Math.max(900, Math.min(1600, previewDesign.containerWidth ?? 1200));
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center bg-[#e8e8e8] overflow-hidden p-6 pt-2">
@@ -1174,21 +1171,13 @@ function LivePreview({ design, designSurface, device, previewMode, settings, pag
           <Eye size={11} className="text-neutral-300" />
         </div>
 
-        {/* True storefront preview */}
-        <div className="flex-1 overflow-auto bg-[#030213]">
-          <MainSite
-            setShowCatalog={setPreviewShowCatalog}
-            showCatalog={previewShowCatalog}
-            setCurrentPage={setPreviewCurrentPage}
-            currentPage={previewCurrentPage}
-            nextPage={() => setPreviewCurrentPage((prev: number) => prev + 1)}
-            prevPage={() => setPreviewCurrentPage((prev: number) => (prev > 0 ? prev - 1 : 0))}
-            previewData={{
-              books,
-              pages,
-              settings: previewSettings,
-            }}
-          />
+        {/* Storefront preview */}
+        <div className="flex-1 overflow-hidden relative" style={{ color: text, background: bg, fontFamily: font }}>
+          {previewMode.value === "homepage" ? (
+            <HomepagePreview design={previewDesign} bg={bg} text={text} accent={accent} font={font} pages={pages} />
+          ) : (
+            <ShopPreview design={previewDesign} bg={bg} text={text} accent={accent} font={font} pages={pages} />
+          )}
         </div>
       </div>
 
@@ -1198,7 +1187,6 @@ function LivePreview({ design, designSurface, device, previewMode, settings, pag
     </div>
   );
 }
-
 
 function HomepagePreview({ design, bg, text, accent, font, pages }: any) {
   const hero = design.hero || { slides: [] };
@@ -1450,11 +1438,9 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [settingsSearch, setSettingsSearch] = useState("");
   const [pages, setPages] = useState<any[]>([]);
-  const [books, setBooks] = useState<any[]>([]);
 
   useEffect(() => {
     adminApi.getPages().then(setPages);
-    adminApi.getBooks(100).then(setBooks);
   }, []);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -1837,7 +1823,6 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           previewMode={{ value: previewMode, set: setPreviewMode }}
           settings={settings}
           pages={pages}
-          books={books}
         />
       </div>
     </div>
