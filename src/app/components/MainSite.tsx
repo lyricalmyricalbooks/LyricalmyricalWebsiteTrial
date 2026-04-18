@@ -437,10 +437,13 @@ function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive:
 // ──────────────────────────────
 // Main exported component
 // ──────────────────────────────
-export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
+export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage, previewData }: any) {
   const navigate = useNavigate();
   const { cartCount, setIsCartOpen } = useCart();
-  const { books, settings, pages, loading } = useSiteData();
+  const { books, settings, pages, loading } = useSiteData({
+    skip: !!previewData,
+    initialData: previewData,
+  });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [activeCategory, setActiveCategory] = useState("PUBLICATIONS");
   const [showAbout, setShowAbout] = useState(false);
