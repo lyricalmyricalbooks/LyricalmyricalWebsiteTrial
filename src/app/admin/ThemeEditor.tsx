@@ -923,15 +923,17 @@ function AdditionalPanel({ design, update }: any) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Live Preview — scaled render of the actual storefront
 // ─────────────────────────────────────────────────────────────────────────────
-function LivePreview({ design, device, previewMode, settings, pages }: any) {
+function LivePreview({ design, designSurface, device, previewMode, settings, pages }: any) {
   // Derive merged settings for preview
   const previewSettings = { ...settings, design };
-
-  const palette = PALETTES.find(p => p.id === design.palettePreset) || PALETTES[0];
+  const previewDesign = previewMode.value === "homepage"
+    ? (design?.heroPage || design)
+    : (design?.storefront || design);
+  const palette = PALETTES.find(p => p.id === previewDesign.palettePreset) || PALETTES[0];
   const bg = palette.bg;
   const text = palette.text;
-  const accent = design.primaryColor || palette.accent;
-  const font = design.font || "Inter";
+  const accent = previewDesign.primaryColor || palette.accent;
+  const font = previewDesign.font || "Inter";
 
   const isDesktop = device === "desktop";
   const containerW = isDesktop ? 1280 : 390;
@@ -983,15 +985,15 @@ function LivePreview({ design, device, previewMode, settings, pages }: any) {
         {/* Storefront preview */}
         <div className="flex-1 overflow-hidden relative" style={{ color: text, background: bg, fontFamily: font }}>
           {previewMode.value === "homepage" ? (
-            <HomepagePreview design={design} bg={bg} text={text} accent={accent} font={font} pages={pages} />
+            <HomepagePreview design={previewDesign} bg={bg} text={text} accent={accent} font={font} pages={pages} />
           ) : (
-            <ShopPreview design={design} bg={bg} text={text} accent={accent} font={font} pages={pages} />
+            <ShopPreview design={previewDesign} bg={bg} text={text} accent={accent} font={font} pages={pages} />
           )}
         </div>
       </div>
 
       <p className="text-[9px] text-neutral-400 mt-3 tracking-widest uppercase">
-        {isDesktop ? "Desktop" : "Mobile"} · Live Preview
+        {isDesktop ? "Desktop" : "Mobile"} · Live Preview · Editing {designSurface === "heroPage" ? "Hero page" : "Internal app"}
       </p>
     </div>
   );
@@ -1180,10 +1182,24 @@ export interface ThemeEditorProps {
 }
 
 export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
-  const getInitialDesign = () => ({
-    ...adminApi.getDefaultSettings().design,
-    ...(settings?.design || {}),
-  });
+  const getInitialDesign = () => {
+    const baseDesign = adminApi.getDefaultSettings().design;
+    const incomingDesign = settings?.design || {};
+    const mergedLegacy = { ...baseDesign, ...incomingDesign };
+    const { heroPage: _legacyHeroPage, storefront: _legacyStorefront, ...surfaceBase } = mergedLegacy;
+
+    return {
+      ...mergedLegacy,
+      heroPage: {
+        ...surfaceBase,
+        ...(incomingDesign.heroPage || {}),
+      },
+      storefront: {
+        ...surfaceBase,
+        ...(incomingDesign.storefront || {}),
+      },
+    };
+  };
 
   // Local copy of just the design settings — changes here won't affect Firebase until "Publish"
   const [design, setDesign] = useState<any>(getInitialDesign);
@@ -1192,6 +1208,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [futureDesigns, setFutureDesigns] = useState<any[]>([]);
 
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
+  const [designSurface, setDesignSurface] = useState<"heroPage" | "storefront">("heroPage");
   const [previewMode, setPreviewMode] = useState<"homepage" | "shop">("homepage");
   const [activeTab, setActiveTab] = useState<string>("settings");
   const [activeSection, setActiveSection] = useState<string | null>(null);
@@ -1205,14 +1222,21 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [saved, setSaved] = useState(false);
 
   const hasChanges = JSON.stringify(design) !== JSON.stringify(savedDesign);
+  const activeDesign = design?.[designSurface] || {};
 
   // Update a single design key
   const update = useCallback((key: string, value: any) => {
     setPastDesigns((prev) => [...prev.slice(-74), design]);
     setFutureDesigns([]);
-    setDesign((prev: any) => ({ ...prev, [key]: value }));
+    setDesign((prev: any) => ({
+      ...prev,
+      [designSurface]: {
+        ...(prev?.[designSurface] || {}),
+        [key]: value,
+      },
+    }));
     setSaved(false);
-  }, [design]);
+  }, [design, designSurface]);
 
   const undo = () => {
     if (pastDesigns.length === 0) return;
@@ -1322,15 +1346,15 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
 
   const renderSubPanel = () => {
     switch (activeSection) {
-      case "style":         return <StylePanel design={design} update={update} />;
-      case "navigation":    return <NavigationPanel design={design} update={update} />;
-      case "homepage":      return <HomepagePanel design={design} update={update} />;
-      case "products":      return <ProductsPanel design={design} update={update} />;
-      case "announcements": return <AnnouncementsPanel design={design} update={update} />;
-      case "social":        return <SocialPanel design={design} update={update} />;
-      case "textsize":      return <TextSizingPanel design={design} update={update} />;
-      case "translations":  return <TranslationsPanel design={design} update={update} />;
-      case "additional":    return <AdditionalPanel design={design} update={update} />;
+      case "style":         return <StylePanel design={activeDesign} update={update} />;
+      case "navigation":    return <NavigationPanel design={activeDesign} update={update} />;
+      case "homepage":      return <HomepagePanel design={activeDesign} update={update} />;
+      case "products":      return <ProductsPanel design={activeDesign} update={update} />;
+      case "announcements": return <AnnouncementsPanel design={activeDesign} update={update} />;
+      case "social":        return <SocialPanel design={activeDesign} update={update} />;
+      case "textsize":      return <TextSizingPanel design={activeDesign} update={update} />;
+      case "translations":  return <TranslationsPanel design={activeDesign} update={update} />;
+      case "additional":    return <AdditionalPanel design={activeDesign} update={update} />;
       default:              return null;
     }
   };
@@ -1465,6 +1489,24 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                         <p className="text-[10px] text-neutral-400 mt-1 leading-relaxed">
                           Customise your template settings and links to your shop's social media profiles.
                         </p>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          {([
+                            { id: "heroPage", label: "Hero page" },
+                            { id: "storefront", label: "Internal app" },
+                          ] as const).map((surface) => (
+                            <button
+                              key={surface.id}
+                              onClick={() => setDesignSurface(surface.id)}
+                              className={`px-2.5 py-2 rounded-lg text-[10px] font-semibold border transition-all ${
+                                designSurface === surface.id
+                                  ? "bg-blue-50 border-blue-400 text-blue-700"
+                                  : "bg-neutral-50 border-neutral-200 text-neutral-600 hover:border-neutral-300"
+                              }`}
+                            >
+                              {surface.label}
+                            </button>
+                          ))}
+                        </div>
                         <input
                           value={settingsSearch}
                           onChange={(e) => setSettingsSearch(e.target.value)}
@@ -1525,6 +1567,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         {/* ── Right preview pane ── */}
         <LivePreview
           design={design}
+          designSurface={designSurface}
           device={device}
           previewMode={{ value: previewMode, set: setPreviewMode }}
           settings={settings}

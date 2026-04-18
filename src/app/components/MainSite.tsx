@@ -306,9 +306,9 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
   );
 }
 
-function HeroCarousel({ settings, onEnterArchive }: { settings: any; onEnterArchive: () => void }) {
+function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive: () => void }) {
   const navigate = useNavigate();
-  const hero = settings?.design?.hero || {};
+  const hero = design?.hero || {};
   const slides = (hero.slides || []).length > 0
     ? hero.slides
     : [{
@@ -387,7 +387,7 @@ function HeroCarousel({ settings, onEnterArchive }: { settings: any; onEnterArch
             <button
               onClick={handleSlideCta}
               className="px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black transition-transform hover:scale-[1.02]"
-              style={{ backgroundColor: settings?.design?.primaryColor || "#A855F7" }}
+              style={{ backgroundColor: design?.primaryColor || "#A855F7" }}
             >
               {activeSlide?.ctaText || "ENTER ARCHIVE"}
             </button>
@@ -451,12 +451,26 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     [books, activeCategory],
   );
   const publishedBooks = useMemo(() => getPublishedBooks(books), [books]);
-  const headerLinks = settings?.design?.headerLinks || {};
-  const showEnterArchive = headerLinks.showEnterArchive ?? true;
-  const showInformation = headerLinks.showInformation ?? true;
-  const showCustomPages = headerLinks.showCustomPages ?? true;
-  const showBag = headerLinks.showBag ?? true;
-  const showSys = headerLinks.showSys ?? true;
+  const legacyDesign = settings?.design || {};
+  const heroDesign = legacyDesign.heroPage && Object.keys(legacyDesign.heroPage).length > 0
+    ? legacyDesign.heroPage
+    : legacyDesign;
+  const storefrontDesign = legacyDesign.storefront && Object.keys(legacyDesign.storefront).length > 0
+    ? legacyDesign.storefront
+    : legacyDesign;
+  const heroHeaderLinks = heroDesign?.headerLinks || {};
+  const storefrontHeaderLinks = storefrontDesign?.headerLinks || {};
+  const showEnterArchive = heroHeaderLinks.showEnterArchive ?? true;
+  const showInformation = showCatalog
+    ? (storefrontHeaderLinks.showInformation ?? true)
+    : (heroHeaderLinks.showInformation ?? true);
+  const showCustomPages = showCatalog
+    ? (storefrontHeaderLinks.showCustomPages ?? true)
+    : (heroHeaderLinks.showCustomPages ?? true);
+  const showBag = showCatalog
+    ? (storefrontHeaderLinks.showBag ?? true)
+    : (heroHeaderLinks.showBag ?? true);
+  const showSys = heroHeaderLinks.showSys ?? true;
 
   const scroll = (direction: 'left' | 'right') => {
     if (scrollContainerRef.current) {
@@ -497,7 +511,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     return (
       <div
         className="min-h-screen bg-[#050505] text-white overflow-y-auto selection:bg-white selection:text-black"
-        style={{ fontFamily: settings?.design?.font || 'Inter, sans-serif' }}
+        style={{ fontFamily: storefrontDesign?.font || "Inter, sans-serif" }}
       >
         {/* Promo / announcement banner */}
         {announcementMsg && (
@@ -510,8 +524,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
             <div className="flex items-center gap-8 md:gap-12">
               <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
-                {settings?.design?.logoUrl ? (
-                  <img src={settings.design.logoUrl} alt="Logo" className="h-6 object-contain" />
+                {storefrontDesign?.logoUrl ? (
+                  <img src={storefrontDesign.logoUrl} alt="Logo" className="h-6 object-contain" />
                 ) : "F✶M"}
               </button>
               <nav className="hidden md:flex gap-6">
@@ -534,7 +548,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 <nav className="hidden lg:flex items-center gap-6 mr-2">
                   {pages.some((p:any) => p.showInNav && p.status === "published") && (
                     <span className="text-[10px] tracking-[0.3em] font-bold text-white/20 uppercase select-none mr-2">
-                      {settings?.design?.navHeading || "INFO"}
+                      {storefrontDesign?.navHeading || "INFO"}
                     </span>
                   )}
                   {(pages || [])
@@ -600,7 +614,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       {/* Hover overlay — show "VIEW" instead of add directly */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
                         <span
-                          style={{ backgroundColor: settings?.design?.primaryColor || 'white', color: 'black' }}
+                          style={{ backgroundColor: storefrontDesign?.primaryColor || "white", color: "black" }}
                           className="w-full py-3 rounded text-[10px] tracking-[0.2em] font-bold text-center transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 shadow-xl"
                         >
                           {isOutOfStock ? "SOLD OUT" : "VIEW"}
@@ -640,7 +654,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   return (
     <div
       className="size-full bg-[#030213] text-white overflow-hidden relative selection:bg-white selection:text-black font-sans"
-      style={{ fontFamily: settings?.design?.font || 'Inter, sans-serif' }}
+      style={{ fontFamily: heroDesign?.font || "Inter, sans-serif" }}
     >
       <header className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-6 bg-gradient-to-b from-black/70 to-transparent">
         {showEnterArchive && (
@@ -666,7 +680,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             <nav className="hidden lg:flex items-center gap-6">
               {pages.some((p: any) => p.showInNav && p.status === "published") && (
                 <span className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white/20 uppercase select-none mr-2">
-                  {settings?.design?.navHeading || "INFO"}
+                  {heroDesign?.navHeading || "INFO"}
                 </span>
               )}
               {(pages || [])
@@ -699,25 +713,25 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       </header>
 
       <main className="relative w-full overflow-hidden">
-        {(settings?.design?.hero?.enabled ?? true) ? (
-          <HeroCarousel settings={settings} onEnterArchive={() => setShowCatalog(true)} />
+        {(heroDesign?.hero?.enabled ?? true) ? (
+          <HeroCarousel design={heroDesign} onEnterArchive={() => setShowCatalog(true)} />
         ) : (
           <section className="h-screen min-h-[680px] flex flex-col items-center justify-center text-center px-8">
             <p className="text-[12px] tracking-[0.3em] text-white/60 uppercase mb-6">
-              {settings?.design?.heroSubtext || "Discover rare editions and exclusive prints."}
+              {heroDesign?.heroSubtext || "Discover rare editions and exclusive prints."}
             </p>
             <button
               onClick={() => setShowCatalog(true)}
               className="px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black"
-              style={{ backgroundColor: settings?.design?.primaryColor || "#A855F7" }}
+              style={{ backgroundColor: heroDesign?.primaryColor || "#A855F7" }}
             >
-              {settings?.design?.heroCTA || "ENTER ARCHIVE"}
+              {heroDesign?.heroCTA || "ENTER ARCHIVE"}
             </button>
           </section>
         )}
         
         {/* Bottom scrolling nav (Always shown if enabled) */}
-        {settings?.design?.showBookStrip !== false && (
+        {heroDesign?.showBookStrip !== false && (
           <nav className="absolute bottom-0 left-0 right-0 z-40 bg-gradient-to-t from-black via-black/80 to-transparent pt-20 pb-8 pointer-events-none">
             <div className="relative max-w-7xl mx-auto pointer-events-auto">
               <div ref={scrollContainerRef} className="flex gap-16 overflow-x-auto scrollbar-hide px-12 md:px-24" style={{ scrollbarWidth: 'none' }}>
