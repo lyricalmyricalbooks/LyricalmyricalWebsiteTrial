@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronRight,
@@ -137,10 +137,10 @@ function SidebarRange({
   onChange: (v: number) => void;
 }) {
   return (
-    <div>
-      <div className="flex justify-between items-center mb-2">
+    <div className="group">
+      <div className="flex justify-between items-center mb-1.5">
         <SidebarLabel>{label}</SidebarLabel>
-        <span className="text-[10px] text-neutral-400 font-mono">
+        <span className="text-[10px] text-neutral-400 font-mono bg-neutral-50 px-1.5 py-0.5 rounded border border-neutral-100 group-hover:border-neutral-200 group-hover:text-neutral-600 transition-colors">
           {value}
           {suffix}
         </span>
@@ -152,8 +152,135 @@ function SidebarRange({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-blue-500 h-1 bg-neutral-100 rounded-lg appearance-none cursor-pointer"
+        className="w-full accent-neutral-900 h-1 bg-neutral-100 rounded-lg appearance-none cursor-pointer hover:accent-blue-500 transition-all"
       />
+    </div>
+  );
+}
+
+// ──────────────────────────────
+// Enhanced Color Picker with Hex input
+// ──────────────────────────────
+function ColorPicker({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const [localValue, setLocalValue] = useState(value);
+  
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  const handleTextChange = (val: string) => {
+    setLocalValue(val);
+    if (/^#[0-9A-F]{6}$/i.test(val)) {
+      onChange(val);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <SidebarLabel>{label}</SidebarLabel>
+      <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl p-1.5 shadow-sm hover:border-neutral-300 transition-all group">
+        <div 
+          className="w-8 h-8 rounded-lg shadow-inner border border-neutral-100 relative cursor-pointer overflow-hidden flex-shrink-0"
+          style={{ background: value }}
+        >
+          <input
+            type="color"
+            value={value || "#000000"}
+            onChange={(e) => onChange(e.target.value)}
+            className="absolute inset-0 opacity-0 cursor-pointer scale-150"
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <input
+            type="text"
+            value={localValue}
+            onChange={(e) => handleTextChange(e.target.value)}
+            className="w-full bg-transparent border-none outline-none text-[11px] font-mono font-medium text-neutral-700 uppercase"
+            placeholder="#000000"
+          />
+        </div>
+        <div className="w-px h-4 bg-neutral-100 group-hover:bg-neutral-200" />
+        <span className="text-[9px] text-neutral-300 font-bold pr-2 uppercase tracking-tighter">HEX</span>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────
+// Accordion Component
+// ──────────────────────────────
+function Accordion({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border-b border-neutral-100 last:border-none">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between py-4 text-left group"
+      >
+        <span className="text-[11px] font-bold text-neutral-800 tracking-tight group-hover:text-blue-600 transition-colors uppercase">
+          {title}
+        </span>
+        <motion.div
+          animate={{ rotate: isOpen ? 90 : 0 }}
+          className="text-neutral-300 group-hover:text-neutral-500 transition-colors"
+        >
+          <ChevronRight size={14} />
+        </motion.div>
+      </button>
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="pb-6 space-y-5">
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ──────────────────────────────
+// Font Selector with Preview
+// ──────────────────────────────
+function FontSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="space-y-3">
+      <SidebarLabel>Typography</SidebarLabel>
+      <div className="grid grid-cols-1 gap-1.5">
+        {FONTS.map((f) => (
+          <button
+            key={f.value}
+            onClick={() => onChange(f.value)}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all ${
+              value === f.value
+                ? "bg-blue-50 border-blue-400 shadow-sm"
+                : "bg-white border-neutral-200 hover:border-neutral-300"
+            }`}
+          >
+            <div className="text-left">
+              <p className="text-[14px] leading-none mb-1" style={{ fontFamily: f.value }}>
+                {f.label}
+              </p>
+              <p className="text-[9px] text-neutral-400 font-medium tracking-wide">
+                {f.sub}
+              </p>
+            </div>
+            {value === f.value && (
+              <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+                <Check size={10} className="text-white" />
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -202,26 +329,8 @@ function StylePanel({ design, update }: any) {
   const textColor = design.textColor || currentPalette.text;
 
   return (
-    <div className="p-4 space-y-6 overflow-y-auto flex-1">
-      {/* Live type preview */}
-      <div className="rounded-xl overflow-hidden border border-neutral-200">
-        <div className="bg-neutral-800 px-4 py-5">
-          <p className="text-white font-bold text-base" style={{ fontFamily: design.font || "Inter" }}>
-            My title
-          </p>
-          <p className="text-white/60 text-[11px] mt-1 leading-relaxed" style={{ fontFamily: design.font || "Inter" }}>
-            The quick brown fox jumped over the lazy dog
-          </p>
-        </div>
-        <button className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-neutral-50 transition-colors border-t border-neutral-100">
-          <span className="text-[11px] text-blue-500 font-semibold">Change current style</span>
-          <ChevronRight size={12} className="text-blue-400" />
-        </button>
-      </div>
-
-      {/* Color palettes */}
-      <div>
-        <SidebarLabel>Color palette</SidebarLabel>
+    <div className="p-4 space-y-2 overflow-y-auto flex-1">
+      <Accordion title="Color Palette" defaultOpen={true}>
         <div className="grid grid-cols-3 gap-2">
           {PALETTES.map((palette) => (
             <button
@@ -229,6 +338,8 @@ function StylePanel({ design, update }: any) {
               onClick={() => {
                 update("palettePreset", palette.id);
                 update("primaryColor", palette.accent);
+                update("backgroundColor", palette.bg);
+                update("textColor", palette.text);
               }}
               className={`relative rounded-xl border-2 overflow-hidden transition-all ${
                 design.palettePreset === palette.id ? "border-blue-500 shadow-md" : "border-neutral-200 hover:border-neutral-300"
@@ -248,67 +359,45 @@ function StylePanel({ design, update }: any) {
             </button>
           ))}
         </div>
-      </div>
+      </Accordion>
 
-      {/* Custom accent */}
-      <div className="space-y-3">
-        <SidebarLabel>Brand colors</SidebarLabel>
-        <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5">
-          <div className="w-6 h-6 rounded-md shadow-inner border border-neutral-200 flex-shrink-0" style={{ background: design.primaryColor }} />
-          <input
-            type="color"
-            value={design.primaryColor || "#A855F7"}
-            onChange={(e) => update("primaryColor", e.target.value)}
-            className="w-8 h-6 bg-transparent border-none outline-none cursor-pointer"
+      <Accordion title="Brand Colors">
+        <div className="space-y-4">
+          <ColorPicker 
+            label="Primary accent" 
+            value={design.primaryColor || "#A855F7"} 
+            onChange={(val) => update("primaryColor", val)} 
           />
-          <span className="text-[10px] text-neutral-500 font-mono">{design.primaryColor}</span>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-lg px-2.5 py-2">
-            <div className="w-4 h-4 rounded border border-neutral-300" style={{ background: backgroundColor }} />
-            <input type="color" value={backgroundColor} onChange={(e) => update("backgroundColor", e.target.value)} className="w-5 h-5 bg-transparent border-none outline-none cursor-pointer" />
-            <span className="text-[9px] text-neutral-500">BG</span>
+          <div className="grid grid-cols-2 gap-4">
+            <ColorPicker 
+              label="Background" 
+              value={backgroundColor} 
+              onChange={(val) => update("backgroundColor", val)} 
+            />
+            <ColorPicker 
+              label="Text" 
+              value={textColor} 
+              onChange={(val) => update("textColor", val)} 
+            />
           </div>
-          <div className="flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-lg px-2.5 py-2">
-            <div className="w-4 h-4 rounded border border-neutral-300" style={{ background: textColor }} />
-            <input type="color" value={textColor} onChange={(e) => update("textColor", e.target.value)} className="w-5 h-5 bg-transparent border-none outline-none cursor-pointer" />
-            <span className="text-[9px] text-neutral-500">Text</span>
-          </div>
+          <button
+            onClick={() => {
+              update("backgroundColor", currentPalette.bg);
+              update("textColor", currentPalette.text);
+            }}
+            className="w-full border border-neutral-200 rounded-lg py-2 text-[10px] font-semibold text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 transition-colors"
+          >
+            Reset to palette defaults
+          </button>
         </div>
-        <button
-          onClick={() => {
-            update("backgroundColor", currentPalette.bg);
-            update("textColor", currentPalette.text);
-          }}
-          className="w-full border border-neutral-200 rounded-lg py-2 text-[10px] font-semibold text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 transition-colors"
-        >
-          Reset colors to palette
-        </button>
-      </div>
+      </Accordion>
 
-      {/* Font */}
-      <div>
-        <SidebarLabel>Font</SidebarLabel>
-        <div className="space-y-1.5">
-          {FONTS.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => update("font", f.value)}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all ${
-                design.font === f.value ? "bg-blue-50 border-blue-400" : "bg-neutral-50 border-neutral-200 hover:border-neutral-300"
-              }`}
-            >
-              <div className="text-left">
-                <p className={`text-[12px] font-semibold ${design.font === f.value ? "text-blue-700" : "text-neutral-800"}`} style={{ fontFamily: f.value }}>
-                  {f.label}
-                </p>
-                <p className="text-[9px] text-neutral-400">{f.sub}</p>
-              </div>
-              {design.font === f.value && <Check size={12} className="text-blue-500" />}
-            </button>
-          ))}
-        </div>
-      </div>
+      <Accordion title="Typography">
+        <FontSelector 
+          value={design.font || "Inter"} 
+          onChange={(val) => update("font", val)} 
+        />
+      </Accordion>
     </div>
   );
 }
@@ -320,298 +409,427 @@ function NavigationPanel({ design, update }: any) {
   };
 
   return (
-    <div className="p-4 space-y-6 overflow-y-auto flex-1">
-      <div>
-        <SidebarLabel>Header style</SidebarLabel>
-        <SidebarRadioGroup
-          value={design.headerStyle || "minimal"}
-          onChange={(v) => update("headerStyle", v)}
-          options={[
-            { value: "minimal", label: "Minimal" },
-            { value: "centered", label: "Centered" },
-            { value: "full", label: "Full" },
-          ]}
-        />
-      </div>
+    <div className="p-4 space-y-2 overflow-y-auto flex-1">
+      <Accordion title="Header Profile" defaultOpen={true}>
+        <div className="space-y-6">
+          <div>
+            <SidebarLabel>Layout Style</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.headerStyle || "minimal"}
+              onChange={(v) => update("headerStyle", v)}
+              options={[
+                { value: "minimal", label: "Minimal" },
+                { value: "centered", label: "Centered" },
+                { value: "full", label: "Full" },
+              ]}
+            />
+          </div>
+          <SidebarRange
+            label="Logo height"
+            value={design.logoHeight ?? 24}
+            min={20}
+            max={64}
+            suffix="px"
+            onChange={(v) => update("logoHeight", v)}
+          />
+        </div>
+      </Accordion>
 
-      <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden">
-        <SidebarToggle
-          label="Sticky header"
-          description="Keep the navigation bar visible while scrolling"
-          checked={design.stickyHeader ?? true}
-          onChange={(v: boolean) => update("stickyHeader", v)}
-        />
-        <SidebarToggle
-          label="Footer columns"
-          description="Show links in organised columns in the footer"
-          checked={design.footerColumns ?? true}
-          onChange={(v: boolean) => update("footerColumns", v)}
-        />
-        <SidebarToggle
-          label="Social icons in footer"
-          description="Display icons linking to your social accounts"
-          checked={design.showSocialInFooter ?? true}
-          onChange={(v: boolean) => update("showSocialInFooter", v)}
-        />
-      </div>
-
-      <div>
-        <SidebarLabel>Pages Navigation Heading</SidebarLabel>
-        <SidebarInput
-          value={design.navHeading || "INFO"}
-          onChange={(v: string) => update("navHeading", v)}
-          placeholder="INFO"
-        />
-        <p className="text-[9px] text-neutral-400 mt-2 leading-relaxed">
-          The label shown in the header before your custom pages.
-        </p>
-      </div>
-
-      <SidebarRange
-        label="Logo height"
-        value={design.logoHeight ?? 24}
-        min={20}
-        max={64}
-        suffix="px"
-        onChange={(v) => update("logoHeight", v)}
-      />
-
-      <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden">
-        <SidebarToggle
-          label="Enter Archive button"
-          description="Show or hide the Enter Archive button in the homepage header"
-          checked={headerLinks.showEnterArchive ?? true}
-          onChange={(v: boolean) => updateHeaderLink("showEnterArchive", v)}
-        />
-        <SidebarToggle
-          label="Information button"
-          description="Show or hide the Information button in top navigation"
-          checked={headerLinks.showInformation ?? true}
-          onChange={(v: boolean) => updateHeaderLink("showInformation", v)}
-        />
-        <SidebarToggle
-          label="Custom pages links"
-          description="Show or hide the INFO heading and custom pages links"
-          checked={headerLinks.showCustomPages ?? true}
-          onChange={(v: boolean) => updateHeaderLink("showCustomPages", v)}
-        />
-        <SidebarToggle
-          label="Bag button"
-          description="Show or hide the Bag button in top navigation"
-          checked={headerLinks.showBag ?? true}
-          onChange={(v: boolean) => updateHeaderLink("showBag", v)}
-        />
-        <SidebarToggle
-          label="SYS link"
-          description="Show or hide the SYS admin shortcut in the homepage header"
-          checked={headerLinks.showSys ?? true}
-          onChange={(v: boolean) => updateHeaderLink("showSys", v)}
-        />
-      </div>
+      <Accordion title="Visibility & Logic">
+        <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden mt-2">
+          <SidebarToggle
+            label="Sticky header"
+            description="Keep the navigation bar visible while scrolling"
+            checked={design.stickyHeader ?? true}
+            onChange={(v: boolean) => update("stickyHeader", v)}
+          />
+          <SidebarToggle
+            label="Footer columns"
+            description="Show links in organised columns in the footer"
+            checked={design.footerColumns ?? true}
+            onChange={(v: boolean) => update("footerColumns", v)}
+          />
+          <SidebarToggle
+            label="Social icons in footer"
+            description="Display icons linking to your social accounts"
+            checked={design.showSocialInFooter ?? true}
+            onChange={(v: boolean) => update("showSocialInFooter", v)}
+          />
+        </div>
+      </Accordion>
     </div>
   );
 }
 
 function HomepagePanel({ design, update }: any) {
-  const hero = design.hero || { slides: [] };
-  const updateHero = (key: string, value: any) => {
-    update("hero", { ...hero, [key]: value });
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  const sections = design.homepageSections || [];
+  
+  // Helper to ensure we have some initial sections if none exist
+  useEffect(() => {
+    if (sections.length === 0 && !design.homepageSections) {
+      // Create initial sections from legacy hero if needed
+      const initialSections = [
+        {
+          id: "initial-hero",
+          type: "HeroSection",
+          settings: {
+            title: design.hero?.slides?.[0]?.title || "F✶M",
+            subtitle: design.hero?.slides?.[0]?.subtitle || "PHOTOGRAPHY & ART BOOKS",
+            ctaText: design.hero?.slides?.[0]?.ctaText || "ENTER ARCHIVE",
+            imageUrl: design.hero?.slides?.[0]?.imageUrl || "",
+            overlayOpacity: design.hero?.overlayOpacity || 0.45,
+            accentColor: design.primaryColor || "#A855F7"
+          }
+        }
+      ];
+      update("homepageSections", initialSections);
+    }
+  }, []);
+
+  const updateSections = (newSections: any[]) => {
+    update("homepageSections", newSections);
   };
 
-  const addSlide = () => {
-    const newSlide = {
-      id: crypto.randomUUID(),
-      imageUrl: "https://images.unsplash.com/photo-1513001900722-370f803f498d?w=1600&h=900&fit=crop",
-      title: "NEW SLIDE",
-      subtitle: "SUBTITLE HERE",
-      ctaText: "LEARN MORE",
-      ctaLink: "/"
+  const addSection = (type: string) => {
+    const id = crypto.randomUUID();
+    const defaults: any = {
+      HeroSection: { title: "NEW HERO", subtitle: "Something special", ctaText: "EXPLORE", overlayOpacity: 0.5 },
+      FeaturedCollectionSection: { title: "FEATURED COLLECTION", limit: 4, showViewAll: true },
+      NewsletterSection: { title: "STAY IN TOUCH", description: "Get our latest news." },
+      TextContentSection: { title: "OUR STORY", content: "Write something meaningful...", align: "center" },
     };
-    updateHero("slides", [...(hero.slides || []), newSlide]);
-  };
-
-  const removeSlide = (id: string) => {
-    updateHero("slides", hero.slides.filter((s: any) => s.id !== id));
-  };
-
-  const duplicateSlide = (slide: any) => {
-    const clone = {
-      ...slide,
-      id: crypto.randomUUID(),
-      title: `${slide.title || "SLIDE"} COPY`,
+    
+    const newSection = {
+      id,
+      type,
+      settings: defaults[type] || {}
     };
-    updateHero("slides", [...(hero.slides || []), clone]);
+    
+    updateSections([...sections, newSection]);
+    setActiveSectionId(id);
   };
 
-  const updateSlide = (id: string, field: string, value: string) => {
-    updateHero("slides", hero.slides.map((s: any) => s.id === id ? { ...s, [field]: value } : s));
+  const removeSection = (id: string, e?: any) => {
+    if (e) e.stopPropagation();
+    updateSections(sections.filter((s: any) => s.id !== id));
+    if (activeSectionId === id) setActiveSectionId(null);
   };
 
-  const handleImageUpload = async (id: string, file: File) => {
+  const moveSection = (index: number, direction: 'up' | 'down', e: any) => {
+    e.stopPropagation();
+    const newSections = [...sections];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= newSections.length) return;
+    
+    [newSections[index], newSections[targetIndex]] = [newSections[targetIndex], newSections[index]];
+    updateSections(newSections);
+  };
+
+  const updateSectionSettings = (id: string, newSettings: any) => {
+    updateSections(sections.map((s: any) => s.id === id ? { ...s, settings: { ...s.settings, ...newSettings } } : s));
+  };
+
+  const handleImageUpload = async (sectionId: string, file: File) => {
     try {
-      const url = await adminApi.uploadFile(file, `hero/${id}_${Date.now()}`);
-      updateSlide(id, "imageUrl", url);
-    } catch (err) {
+      const url = await adminApi.uploadFile(file, `sections/${sectionId}_${Date.now()}`);
+      updateSectionSettings(sectionId, { imageUrl: url });
+    } catch {
       alert("Error uploading image");
     }
   };
 
-  return (
-    <div className="p-4 space-y-8 overflow-y-auto flex-1">
-      <div className="border border-neutral-100 rounded-xl overflow-hidden">
-        <SidebarToggle
-          label="Enable homepage hero"
-          description="Turn the entry hero section on or off for your storefront."
-          checked={hero.enabled ?? true}
-          onChange={(v: boolean) => updateHero("enabled", v)}
-        />
-        <SidebarToggle
-          label="Auto-rotate slides"
-          description="Automatically cycle through hero slides on the homepage."
-          checked={hero.autoRotate ?? true}
-          onChange={(v: boolean) => updateHero("autoRotate", v)}
-        />
-      </div>
+  if (activeSectionId) {
+    const section = sections.find((s: any) => s.id === activeSectionId);
+    if (!section) {
+      setActiveSectionId(null);
+      return null;
+    }
 
-      {/* Layout & Style */}
-      <div className="space-y-6">
-        <div>
-          <SidebarLabel>Hero Height</SidebarLabel>
-          <SidebarRadioGroup
-            value={hero.height || "fullscreen"}
-            onChange={(v) => updateHero("height", v)}
-            options={[
-              { value: "fullscreen", label: "Full" },
-              { value: "tall", label: "Tall" },
-              { value: "medium", label: "Med" },
-            ]}
-          />
-        </div>
-
-        <div>
-           <SidebarLabel>Content Alignment</SidebarLabel>
-           <SidebarRadioGroup
-            value={hero.align || "center"}
-            onChange={(v) => updateHero("align", v)}
-            options={[
-              { value: "left", label: "Left" },
-              { value: "center", label: "Center" },
-              { value: "right", label: "Right" },
-            ]}
-          />
-        </div>
-
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <SidebarLabel>Overlay Opacity</SidebarLabel>
-            <span className="text-[10px] text-neutral-400 font-mono">{Math.round((hero.overlayOpacity || 0) * 100)}%</span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.05"
-            value={hero.overlayOpacity ?? 0.4}
-            onChange={(e) => updateHero("overlayOpacity", parseFloat(e.target.value))}
-            className="w-full accent-blue-500 h-1 bg-neutral-100 rounded-lg appearance-none cursor-pointer"
-          />
-        </div>
-
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <SidebarLabel>Slide duration</SidebarLabel>
-            <span className="text-[10px] text-neutral-400 font-mono">{hero.rotateMs || 5000}ms</span>
-          </div>
-          <input
-            type="range"
-            min="2000"
-            max="10000"
-            step="500"
-            value={hero.rotateMs || 5000}
-            onChange={(e) => updateHero("rotateMs", parseInt(e.target.value, 10))}
-            className="w-full accent-blue-500 h-1 bg-neutral-100 rounded-lg appearance-none cursor-pointer"
-          />
-        </div>
-      </div>
-
-      <hr className="border-neutral-100" />
-
-      {/* Slides */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <SidebarLabel>Slides</SidebarLabel>
-          <button
-            onClick={addSlide}
-            className="p-1 hover:bg-neutral-100 rounded text-blue-500 transition-colors"
+    return (
+      <div className="flex flex-col h-full">
+        <div className="p-4 border-b border-neutral-100 flex items-center gap-3 bg-white sticky top-0 z-20">
+          <button 
+            onClick={() => setActiveSectionId(null)}
+            className="p-1.5 hover:bg-neutral-100 rounded-lg transition-colors text-neutral-400 hover:text-neutral-900"
           >
-            <Plus size={14} />
+            <ChevronLeft size={16} />
           </button>
+          <div>
+            <p className="text-[9px] font-bold tracking-[0.2em] text-blue-600 uppercase mb-0.5">Edit Section</p>
+            <h3 className="text-[12px] font-bold text-neutral-800">{section.type.replace("Section", "")}</h3>
+          </div>
         </div>
 
-        <div className="space-y-4">
-          {(hero.slides || []).map((slide: any, index: number) => (
-            <div key={slide.id} className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 relative group/slide">
-               <button
-                onClick={() => removeSlide(slide.id)}
-                className="absolute -top-2 -right-2 p-1 bg-white border border-neutral-200 rounded-full text-red-500 shadow-sm opacity-0 group-hover/slide:opacity-100 transition-opacity"
-               >
-                <X size={10} />
-               </button>
-               <button
-                onClick={() => duplicateSlide(slide)}
-                className="absolute -top-2 right-5 p-1 bg-white border border-neutral-200 rounded-full text-neutral-500 shadow-sm opacity-0 group-hover/slide:opacity-100 transition-opacity"
-               >
-                <Plus size={10} />
-               </button>
-               
-               <div className="mb-3">
-                 <div className="aspect-video bg-neutral-200 rounded-lg overflow-hidden relative mb-2 group">
-                   <img src={slide.imageUrl} alt="" className="w-full h-full object-cover" />
-                   <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white text-[10px] font-bold">
-                     CHANGE IMAGE
-                     <input type="file" className="hidden" accept="image/*" onChange={(e) => {
-                       const file = e.target.files?.[0];
-                       if (file) handleImageUpload(slide.id, file);
-                     }} />
-                   </label>
-                 </div>
-                 <input
-                   value={slide.title}
-                   onChange={(e) => updateSlide(slide.id, "title", e.target.value)}
-                   placeholder="Slide Title (e.g. F✶M)"
-                   className="w-full bg-white border border-neutral-200 rounded px-2 py-1 text-[11px] font-bold outline-none mb-1"
-                 />
-                 <input
-                   value={slide.subtitle}
-                   onChange={(e) => updateSlide(slide.id, "subtitle", e.target.value)}
-                   placeholder="Subtitle"
-                   className="w-full bg-white border border-neutral-200 rounded px-2 py-1 text-[10px] outline-none"
-                 />
-               </div>
+        <div className="p-4 space-y-6 overflow-y-auto flex-1">
+          {section.type === "HeroSection" && (
+            <div className="space-y-6">
+              <div>
+                <SidebarLabel>Headline</SidebarLabel>
+                <SidebarInput 
+                  value={section.settings.title || ""} 
+                  onChange={(v: string) => updateSectionSettings(section.id, { title: v })} 
+                  placeholder="The main headline"
+                />
+              </div>
+              <div>
+                <SidebarLabel>Subtitle</SidebarLabel>
+                <SidebarInput 
+                  value={section.settings.subtitle || ""} 
+                  onChange={(v: string) => updateSectionSettings(section.id, { subtitle: v })} 
+                  placeholder="Brief description"
+                />
+              </div>
+              
+              <div>
+                <SidebarLabel>Media</SidebarLabel>
+                <div className="bg-neutral-50 rounded-2xl p-4 border border-neutral-200 border-dashed space-y-4">
+                  {section.settings.imageUrl && (
+                    <div className="aspect-video w-full rounded-xl overflow-hidden border border-neutral-200">
+                      <img src={section.settings.imageUrl} className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-2">
+                    <SidebarInput 
+                      value={section.settings.imageUrl || ""} 
+                      onChange={(v: string) => updateSectionSettings(section.id, { imageUrl: v })} 
+                      placeholder="Paste Image URL..."
+                    />
+                    <div className="flex items-center gap-2">
+                       <input 
+                         type="file" 
+                         id={`upload-${section.id}`}
+                         className="hidden" 
+                         accept="image/*"
+                         onChange={(e) => {
+                           const file = e.target.files?.[0];
+                           if (file) handleImageUpload(section.id, file);
+                         }} 
+                       />
+                       <label htmlFor={`upload-${section.id}`} className="flex-1 py-1.5 bg-white border border-neutral-200 rounded-lg text-center text-[10px] font-bold cursor-pointer hover:bg-neutral-50 transition-colors">
+                         UPLOAD FILE
+                       </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-               <div className="grid grid-cols-2 gap-2">
-                  <input
-                    value={slide.ctaText}
-                    onChange={(e) => updateSlide(slide.id, "ctaText", e.target.value)}
-                    placeholder="Button Label"
-                    className="bg-white border border-neutral-200 rounded px-2 py-1 text-[10px] outline-none"
-                  />
-                  <input
-                    value={slide.ctaLink}
-                    onChange={(e) => updateSlide(slide.id, "ctaLink", e.target.value)}
-                    placeholder="Link (e.g. /shop)"
-                    className="bg-white border border-neutral-200 rounded px-2 py-1 text-[10px] outline-none"
-                  />
-               </div>
-               <input
-                 value={slide.badge || ""}
-                 onChange={(e) => updateSlide(slide.id, "badge", e.target.value)}
-                 placeholder="Optional badge (e.g. New Drop)"
-                 className="w-full mt-2 bg-white border border-neutral-200 rounded px-2 py-1 text-[10px] outline-none"
-               />
+              <SidebarRange 
+                label="Overlay Darken" 
+                value={Math.round((section.settings.overlayOpacity ?? 0.5) * 100)} 
+                min={0} 
+                max={90} 
+                suffix="%"
+                onChange={(v) => updateSectionSettings(section.id, { overlayOpacity: v / 100 })} 
+              />
+
+              <ColorPicker 
+                label="Primary Button Color" 
+                value={section.settings.accentColor || "#A855F7"} 
+                onChange={(v) => updateSectionSettings(section.id, { accentColor: v })} 
+              />
+              
+              <SidebarInput 
+                label="CTA Button Label" 
+                value={section.settings.ctaText || ""} 
+                onChange={(v: string) => updateSectionSettings(section.id, { ctaText: v })} 
+              />
             </div>
-          ))}
+          )}
+
+          {section.type === "FeaturedCollectionSection" && (
+            <div className="space-y-6">
+              <SidebarInput 
+                label="Collection Title" 
+                value={section.settings.title || ""} 
+                onChange={(v: string) => updateSectionSettings(section.id, { title: v })} 
+              />
+              <SidebarRange 
+                label="Show Products" 
+                value={section.settings.limit || 4} 
+                min={2} 
+                max={12} 
+                onChange={(v) => updateSectionSettings(section.id, { limit: v })} 
+              />
+              <div className="border border-neutral-100 rounded-xl overflow-hidden mt-2">
+                <SidebarToggle 
+                  label="Display 'View All'"
+                  description="Adds a link to see the entire shop"
+                  checked={section.settings.showViewAll ?? true}
+                  onChange={(v: boolean) => updateSectionSettings(section.id, { showViewAll: v })}
+                />
+              </div>
+            </div>
+          )}
+
+          {section.type === "NewsletterSection" && (
+            <div className="space-y-4">
+              <SidebarInput 
+                label="Title" 
+                value={section.settings.title || ""} 
+                onChange={(v: string) => updateSectionSettings(section.id, { title: v })} 
+              />
+              <div>
+                <SidebarLabel>Description</SidebarLabel>
+                <textarea
+                  value={section.settings.description || ""}
+                  onChange={(e) => updateSectionSettings(section.id, { description: e.target.value })}
+                  rows={4}
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm"
+                />
+              </div>
+            </div>
+          )}
+
+          {section.type === "TextContentSection" && (
+            <div className="space-y-4">
+              <SidebarInput 
+                label="Title" 
+                value={section.settings.title || ""} 
+                onChange={(v: string) => updateSectionSettings(section.id, { title: v })} 
+              />
+              <div>
+                <SidebarLabel>Paragraph Text</SidebarLabel>
+                <textarea
+                  value={section.settings.content || ""}
+                  onChange={(e) => updateSectionSettings(section.id, { content: e.target.value })}
+                  rows={8}
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm"
+                />
+              </div>
+              <div>
+                <SidebarLabel>Alignment</SidebarLabel>
+                <SidebarRadioGroup
+                  value={section.settings.align || "center"}
+                  onChange={(v) => updateSectionSettings(section.id, { align: v })}
+                  options={[
+                    { value: "left", label: "Left" },
+                    { value: "center", label: "Center" },
+                    { value: "right", label: "Right" },
+                  ]}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="pt-8 mt-12 border-t border-neutral-100">
+            <button
+              onClick={() => removeSection(section.id)}
+              className="w-full py-4 text-red-500 text-[10px] font-bold tracking-widest border-2 border-red-50 rounded-2xl hover:bg-red-50 transition-colors"
+            >
+              DELETE SECTION
+            </button>
+          </div>
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-4 overflow-y-auto flex-1 h-full">
+      <div className="flex items-center justify-between mb-4 mt-2">
+        <div>
+          <h2 className="text-[14px] font-black tracking-tight text-neutral-800 uppercase">Home Layout</h2>
+          <p className="text-[10px] text-neutral-400 font-medium tracking-wide">Add and arrange your shop content</p>
+        </div>
+        
+        <div className="relative group">
+          <button className="flex items-center gap-2 bg-blue-600 text-white px-3 py-1.5 rounded-full text-[10px] font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors">
+            <Plus size={14} />
+            ADD
+          </button>
+          
+          <div className="absolute right-0 top-10 w-56 bg-white border border-neutral-100 rounded-2xl shadow-2xl z-[100] py-2 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 pointer-events-none group-hover:pointer-events-auto transition-all transform origin-top-right">
+             <p className="px-4 py-2 text-[9px] font-bold text-neutral-300 uppercase tracking-widest border-b border-neutral-50 mb-1">Select Component</p>
+             {[
+               { id: "HeroSection", label: "Hero Banner", icon: <LayoutTemplate size={14} />, desc: "High-impact cover" },
+               { id: "FeaturedCollectionSection", label: "Product Grid", icon: <ShoppingBag size={14} />, desc: "Display products" },
+               { id: "NewsletterSection", label: "Newsletter", icon: <ArrowRight size={14} />, desc: "Capture emails" },
+               { id: "TextContentSection", label: "Custom Text", icon: <FileText size={14} />, desc: "Bio or statement" },
+             ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => addSection(item.id)}
+                  className="w-full px-4 py-3 hover:bg-neutral-50 flex items-start gap-3 transition-colors text-left"
+                >
+                  <div className="mt-0.5 p-2 rounded-lg bg-neutral-50 text-neutral-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition-colors">
+                    {item.icon}
+                  </div>
+                  <div>
+                    <h4 className="text-[11px] font-bold text-neutral-700 leading-none">{item.label}</h4>
+                    <p className="text-[9px] text-neutral-400 mt-1">{item.desc}</p>
+                  </div>
+                </button>
+             ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3 pb-24">
+        {sections.length === 0 ? (
+          <div className="py-20 text-center border-2 border-dashed border-neutral-100 rounded-[2rem] bg-neutral-50/50">
+             <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                <LayoutTemplate size={20} className="text-neutral-300" />
+             </div>
+             <p className="text-[11px] text-neutral-400 font-medium px-8">Your homepage is empty. Start by adding a Hero section.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+             {sections.map((section: any, index: number) => (
+               <motion.div
+                 layout
+                 key={section.id}
+                 onClick={() => setActiveSectionId(section.id)}
+                 className="group relative bg-white border border-neutral-200 rounded-3xl p-4 hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/5 transition-all cursor-pointer flex items-center gap-4"
+               >
+                 {/* Reorder controls */}
+                 <div className="flex flex-col gap-1.5">
+                    <button 
+                      onClick={(e) => moveSection(index, 'up', e)}
+                      disabled={index === 0}
+                      className="p-1 hover:bg-neutral-100 rounded-lg text-neutral-300 hover:text-neutral-900 disabled:opacity-0 transition-all"
+                    >
+                      <ChevronLeft size={14} className="rotate-90" />
+                    </button>
+                    <button 
+                      onClick={(e) => moveSection(index, 'down', e)}
+                      disabled={index === sections.length - 1}
+                      className="p-1 hover:bg-neutral-100 rounded-lg text-neutral-300 hover:text-neutral-900 disabled:opacity-0 transition-all"
+                    >
+                      <ChevronLeft size={14} className="-rotate-90" />
+                    </button>
+                 </div>
+
+                 {/* Icon */}
+                 <div className="w-12 h-12 rounded-2xl bg-neutral-50 flex items-center justify-center text-neutral-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-all duration-300">
+                    {section.type === "HeroSection" ? <LayoutTemplate size={20} /> : 
+                     section.type === "FeaturedCollectionSection" ? <ShoppingBag size={20} /> :
+                     <FileText size={20} />}
+                 </div>
+
+                 {/* Details */}
+                 <div className="flex-1 min-w-0">
+                    <p className="text-[12px] font-black tracking-tight text-neutral-800 truncate uppercase">
+                      {section.settings.title || section.type.replace("Section", "")}
+                    </p>
+                    <p className="text-[9px] text-neutral-400 font-bold uppercase tracking-widest mt-0.5">
+                      {section.type.replace("Section", "")}
+                    </p>
+                 </div>
+
+                 <div className="flex items-center gap-2">
+                    <button 
+                      onClick={(e) => removeSection(section.id, e)}
+                      className="p-2 text-neutral-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                    >
+                      <X size={14} />
+                    </button>
+                    <ChevronRight size={14} className="text-neutral-200 group-hover:text-neutral-400 transition-colors" />
+                 </div>
+               </motion.div>
+             ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -728,205 +946,231 @@ function PagesPanel({ pages, setPages }: any) {
 
 function ProductsPanel({ design, update }: any) {
   return (
-    <div className="p-4 space-y-6 overflow-y-auto flex-1">
-      <div>
-        <SidebarLabel>Product card style</SidebarLabel>
-        <SidebarRadioGroup
-          value={design.productCardStyle || "editorial"}
-          onChange={(v) => update("productCardStyle", v)}
-          options={[
-            { value: "card", label: "Card" },
-            { value: "minimal", label: "Minimal" },
-            { value: "editorial", label: "Editorial" },
-          ]}
-        />
-      </div>
+    <div className="p-4 space-y-2 overflow-y-auto flex-1">
+      <Accordion title="Card Styling" defaultOpen={true}>
+        <div className="space-y-6">
+          <div>
+            <SidebarLabel>Visual Style</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.productCardStyle || "editorial"}
+              onChange={(v) => update("productCardStyle", v)}
+              options={[
+                { value: "card", label: "Card" },
+                { value: "minimal", label: "Minimal" },
+                { value: "editorial", label: "Editorial" },
+              ]}
+            />
+          </div>
 
-      <div>
-        <SidebarLabel>Image aspect ratio</SidebarLabel>
-        <SidebarRadioGroup
-          value={design.imageAspectRatio || "3:4"}
-          onChange={(v) => update("imageAspectRatio", v)}
-          options={[
-            { value: "1:1", label: "Square" },
-            { value: "3:4", label: "Portrait" },
-            { value: "2:3", label: "Tall" },
-          ]}
-        />
-      </div>
+          <div>
+            <SidebarLabel>Image Aspect Ratio</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.imageAspectRatio || "3:4"}
+              onChange={(v) => update("imageAspectRatio", v)}
+              options={[
+                { value: "1:1", label: "Square" },
+                { value: "3:4", label: "Portrait" },
+                { value: "2:3", label: "Tall" },
+              ]}
+            />
+          </div>
 
-      <div>
-        <SidebarLabel>Product CTA button</SidebarLabel>
-        <SidebarInput
-          value={design.productCTA || "VIEW"}
-          onChange={(v: string) => update("productCTA", v)}
-          placeholder="VIEW"
-        />
-      </div>
+          <div>
+            <SidebarLabel>Button Label</SidebarLabel>
+            <SidebarInput
+              value={design.productCTA || "VIEW"}
+              onChange={(v: string) => update("productCTA", v)}
+              placeholder="VIEW"
+            />
+          </div>
+        </div>
+      </Accordion>
 
-      <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden">
-        <SidebarToggle
-          label="Show price on hover"
-          description="Reveal price when customer hovers over a product card"
-          checked={design.showPriceOnHover ?? false}
-          onChange={(v: boolean) => update("showPriceOnHover", v)}
-        />
-        <SidebarToggle
-          label="Show collection metadata"
-          description="Display category tags and collection context above products"
-          checked={design.showCollectionMeta ?? true}
-          onChange={(v: boolean) => update("showCollectionMeta", v)}
-        />
-        <SidebarToggle
-          label="Show sold-out badge"
-          description="Display a badge when inventory reaches zero"
-          checked={design.showSoldOutBadge ?? true}
-          onChange={(v: boolean) => update("showSoldOutBadge", v)}
-        />
-      </div>
+      <Accordion title="Logic & Visibility">
+        <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden mt-2">
+          <SidebarToggle
+            label="Show price on hover"
+            description="Reveal price on interaction."
+            checked={design.showPriceOnHover ?? false}
+            onChange={(v: boolean) => update("showPriceOnHover", v)}
+          />
+          <SidebarToggle
+            label="Collection metadata"
+            description="Show category tags above products."
+            checked={design.showCollectionMeta ?? true}
+            onChange={(v: boolean) => update("showCollectionMeta", v)}
+          />
+          <SidebarToggle
+            label="Sold-out badge"
+            description="Display status when out of stock."
+            checked={design.showSoldOutBadge ?? true}
+            onChange={(v: boolean) => update("showSoldOutBadge", v)}
+          />
+        </div>
+      </Accordion>
     </div>
   );
 }
 
 function LayoutPanel({ design, update }: any) {
   return (
-    <div className="p-4 space-y-6 overflow-y-auto flex-1">
-      <SidebarRange
-        label="Desktop product columns"
-        value={design.productColumnsDesktop ?? 4}
-        min={2}
-        max={6}
-        onChange={(v) => update("productColumnsDesktop", v)}
-      />
-      <SidebarRange
-        label="Mobile product columns"
-        value={design.productColumnsMobile ?? 2}
-        min={1}
-        max={3}
-        onChange={(v) => update("productColumnsMobile", v)}
-      />
-      <SidebarRange
-        label="Content width"
-        value={design.containerWidth ?? 1200}
-        min={900}
-        max={1600}
-        step={20}
-        suffix="px"
-        onChange={(v) => update("containerWidth", v)}
-      />
-      <SidebarRange
-        label="Section spacing"
-        value={design.sectionSpacing ?? 64}
-        min={24}
-        max={120}
-        step={4}
-        suffix="px"
-        onChange={(v) => update("sectionSpacing", v)}
-      />
-      <SidebarRange
-        label="Card radius"
-        value={design.cardRadius ?? 8}
-        min={0}
-        max={24}
-        suffix="px"
-        onChange={(v) => update("cardRadius", v)}
-      />
+    <div className="p-4 space-y-2 overflow-y-auto flex-1">
+      <Accordion title="Grid Configuration" defaultOpen={true}>
+        <div className="space-y-6">
+          <SidebarRange
+            label="Desktop Columns"
+            value={design.productColumnsDesktop ?? 4}
+            min={2}
+            max={6}
+            onChange={(v) => update("productColumnsDesktop", v)}
+          />
+          <SidebarRange
+            label="Mobile Columns"
+            value={design.productColumnsMobile ?? 2}
+            min={1}
+            max={3}
+            onChange={(v) => update("productColumnsMobile", v)}
+          />
+        </div>
+      </Accordion>
+
+      <Accordion title="Dimensions & Spacing">
+        <div className="space-y-6">
+          <SidebarRange
+            label="Content Width"
+            value={design.containerWidth ?? 1200}
+            min={900}
+            max={1600}
+            step={20}
+            suffix="px"
+            onChange={(v) => update("containerWidth", v)}
+          />
+          <SidebarRange
+            label="Section Spacing"
+            value={design.sectionSpacing ?? 64}
+            min={24}
+            max={120}
+            step={4}
+            suffix="px"
+            onChange={(v) => update("sectionSpacing", v)}
+          />
+          <SidebarRange
+            label="Visual Rounding"
+            value={design.cardRadius ?? 8}
+            min={0}
+            max={24}
+            suffix="px"
+            onChange={(v) => update("cardRadius", v)}
+          />
+        </div>
+      </Accordion>
     </div>
   );
 }
 
 function ButtonsPanel({ design, update }: any) {
   return (
-    <div className="p-4 space-y-6 overflow-y-auto flex-1">
-      <div>
-        <SidebarLabel>Button style</SidebarLabel>
-        <SidebarRadioGroup
-          value={design.buttonStyle || "solid"}
-          onChange={(v) => update("buttonStyle", v)}
-          options={[
-            { value: "solid", label: "Solid" },
-            { value: "outline", label: "Outline" },
-            { value: "ghost", label: "Ghost" },
-          ]}
-        />
-      </div>
-      <SidebarRange
-        label="Button radius"
-        value={design.buttonRadius ?? 999}
-        min={0}
-        max={999}
-        suffix="px"
-        onChange={(v) => update("buttonRadius", v)}
-      />
-      <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden">
-        <SidebarToggle
-          label="Uppercase button labels"
-          description="Force CTA labels to render in uppercase"
-          checked={design.buttonUppercase ?? true}
-          onChange={(v: boolean) => update("buttonUppercase", v)}
-        />
-        <SidebarToggle
-          label="Button shadow"
-          description="Adds depth to buttons and call-to-action elements"
-          checked={design.buttonShadow ?? true}
-          onChange={(v: boolean) => update("buttonShadow", v)}
-        />
-      </div>
+    <div className="p-4 space-y-2 overflow-y-auto flex-1">
+      <Accordion title="Visual Style" defaultOpen={true}>
+        <div>
+          <SidebarLabel>Button Theme</SidebarLabel>
+          <SidebarRadioGroup
+            value={design.buttonStyle || "solid"}
+            onChange={(v) => update("buttonStyle", v)}
+            options={[
+              { value: "solid", label: "Solid" },
+              { value: "outline", label: "Outline" },
+              { value: "ghost", label: "Ghost" },
+            ]}
+          />
+        </div>
+      </Accordion>
+      
+      <Accordion title="Shape & Effects">
+        <div className="space-y-6">
+          <SidebarRange
+            label="Button Radius"
+            value={design.buttonRadius ?? 999}
+            min={0}
+            max={40}
+            suffix="px"
+            onChange={(v) => update("buttonRadius", v)}
+          />
+          <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden">
+            <SidebarToggle
+              label="Uppercase"
+              checked={design.buttonUppercase ?? true}
+              onChange={(v: boolean) => update("buttonUppercase", v)}
+            />
+            <SidebarToggle
+              label="Shadow"
+              checked={design.buttonShadow ?? true}
+              onChange={(v: boolean) => update("buttonShadow", v)}
+            />
+          </div>
+        </div>
+      </Accordion>
     </div>
   );
 }
 
 function AnnouncementsPanel({ design, update }: any) {
   return (
-    <div className="p-4 space-y-6 overflow-y-auto flex-1">
-      <div className="border border-neutral-100 rounded-xl overflow-hidden">
-        <SidebarToggle
-          label="Show announcement bar"
-          description="Display a banner at the top of your shop"
-          checked={design.showAnnouncement ?? true}
-          onChange={(v: boolean) => update("showAnnouncement", v)}
-        />
-      </div>
-
-      {(design.showAnnouncement ?? true) && (
-        <>
-          <div>
-            <SidebarLabel>Announcement message</SidebarLabel>
-            <textarea
-              value={design.announcementText || ""}
-              onChange={(e) => update("announcementText", e.target.value)}
-              rows={3}
-              placeholder="Enter your announcement..."
-              className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] outline-none focus:border-neutral-400 transition-colors resize-none"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <SidebarLabel>Background</SidebarLabel>
-              <div className="flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2">
-                <div className="w-5 h-5 rounded border border-neutral-300 flex-shrink-0" style={{ background: design.announcementBg || "#000000" }} />
-                <input type="color" value={design.announcementBg || "#000000"} onChange={(e) => update("announcementBg", e.target.value)} className="w-6 h-5 bg-transparent border-none outline-none cursor-pointer" />
-              </div>
-            </div>
-            <div>
-              <SidebarLabel>Text color</SidebarLabel>
-              <div className="flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2">
-                <div className="w-5 h-5 rounded border border-neutral-300 flex-shrink-0" style={{ background: design.announcementColor || "#ffffff" }} />
-                <input type="color" value={design.announcementColor || "#ffffff"} onChange={(e) => update("announcementColor", e.target.value)} className="w-6 h-5 bg-transparent border-none outline-none cursor-pointer" />
-              </div>
-            </div>
-          </div>
-
+    <div className="p-4 space-y-2 overflow-y-auto flex-1">
+      <Accordion title="Status & Content" defaultOpen={true}>
+        <div className="space-y-4">
           <div className="border border-neutral-100 rounded-xl overflow-hidden">
             <SidebarToggle
-              label="Scrolling text"
-              description="Animate the announcement text to scroll across"
-              checked={design.announcementScrolling ?? false}
-              onChange={(v: boolean) => update("announcementScrolling", v)}
+              label="Show announcement bar"
+              description="Display a banner at the top of your shop"
+              checked={design.showAnnouncement ?? true}
+              onChange={(v: boolean) => update("showAnnouncement", v)}
             />
           </div>
-        </>
+
+          {(design.showAnnouncement ?? true) && (
+            <div className="space-y-4">
+              <div>
+                <SidebarLabel>Announcement message</SidebarLabel>
+                <textarea
+                  value={design.announcementText || ""}
+                  onChange={(e) => update("announcementText", e.target.value)}
+                  rows={3}
+                  placeholder="Enter your announcement..."
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] outline-none focus:border-neutral-400 transition-colors resize-none"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </Accordion>
+
+      {(design.showAnnouncement ?? true) && (
+        <Accordion title="Visuals & Motion">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-4">
+              <ColorPicker 
+                label="Background" 
+                value={design.announcementBg || "#000000"} 
+                onChange={(val) => update("announcementBg", val)} 
+              />
+              <ColorPicker 
+                label="Text color" 
+                value={design.announcementColor || "#ffffff"} 
+                onChange={(val) => update("announcementColor", val)} 
+              />
+            </div>
+
+            <div className="border border-neutral-100 rounded-xl overflow-hidden">
+              <SidebarToggle
+                label="Scrolling text"
+                description="Animate the text to scroll horizontally"
+                checked={design.announcementScrolling ?? false}
+                onChange={(v: boolean) => update("announcementScrolling", v)}
+              />
+            </div>
+          </div>
+        </Accordion>
       )}
     </div>
   );
@@ -939,93 +1183,104 @@ function SocialPanel({ design, update }: any) {
   };
 
   return (
-    <div className="p-4 space-y-4 overflow-y-auto flex-1">
-      <p className="text-[10px] text-neutral-400 leading-relaxed">
-        These links will appear in your shop footer.
-      </p>
+    <div className="p-4 space-y-2 overflow-y-auto flex-1">
+      <Accordion title="Core Links" defaultOpen={true}>
+        <div className="space-y-4">
+          <p className="text-[10px] text-neutral-400 leading-relaxed">
+            These links appear in your shop footer. Include the full URL.
+          </p>
 
-      {[
-        { key: "instagram", label: "Instagram", icon: <Instagram size={12} />, placeholder: "https://instagram.com/yourshop" },
-        { key: "twitter",   label: "Twitter / X", icon: <Twitter size={12} />, placeholder: "https://twitter.com/yourshop" },
-        { key: "facebook",  label: "Facebook",  icon: <Facebook size={12} />, placeholder: "https://facebook.com/yourshop" },
-        { key: "tiktok",    label: "TikTok",    icon: <Globe size={12} />, placeholder: "https://tiktok.com/@yourshop" },
-      ].map(({ key, label, icon, placeholder }) => (
-        <div key={key}>
-          <SidebarLabel>{label}</SidebarLabel>
-          <div className="flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 focus-within:border-neutral-400 transition-colors">
-            <span className="text-neutral-300">{icon}</span>
-            <input
-              value={social[key] || ""}
-              onChange={(e) => updateSocial(key, e.target.value)}
-              placeholder={placeholder}
-              className="bg-transparent border-none outline-none text-[11px] flex-1"
-            />
-          </div>
+          {[
+            { key: "instagram", label: "Instagram", icon: <Instagram size={12} />, placeholder: "https://instagram.com/yourshop" },
+            { key: "twitter",   label: "Twitter / X", icon: <Twitter size={12} />, placeholder: "https://twitter.com/yourshop" },
+            { key: "facebook",  label: "Facebook",  icon: <Facebook size={12} />, placeholder: "https://facebook.com/yourshop" },
+            { key: "tiktok",    label: "TikTok",    icon: <Globe size={12} />, placeholder: "https://tiktok.com/@yourshop" },
+          ].map(({ key, label, icon, placeholder }) => (
+            <div key={key}>
+              <SidebarLabel>{label}</SidebarLabel>
+              <div className="mt-1 flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 focus-within:border-blue-400 transition-colors shadow-sm">
+                <span className="text-neutral-400">{icon}</span>
+                <input
+                  value={social[key] || ""}
+                  onChange={(e) => updateSocial(key, e.target.value)}
+                  placeholder={placeholder}
+                  className="bg-transparent border-none outline-none text-[11px] flex-1 font-medium"
+                />
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      </Accordion>
     </div>
   );
 }
 
 function TextSizingPanel({ design, update }: any) {
   return (
-    <div className="p-4 space-y-6 overflow-y-auto flex-1">
-      <div>
-        <SidebarLabel>Base font size</SidebarLabel>
-        <SidebarRadioGroup
-          value={design.fontSize || "md"}
-          onChange={(v) => update("fontSize", v)}
-          options={[
-            { value: "sm", label: "Small" },
-            { value: "md", label: "Medium" },
-            { value: "lg", label: "Large" },
-          ]}
-        />
-      </div>
+    <div className="p-4 space-y-2 overflow-y-auto flex-1">
+      <Accordion title="Scalability" defaultOpen={true}>
+        <div className="space-y-6">
+          <div>
+            <SidebarLabel>Base font size</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.fontSize || "md"}
+              onChange={(v) => update("fontSize", v)}
+              options={[
+                { value: "sm", label: "Small" },
+                { value: "md", label: "Medium" },
+                { value: "lg", label: "Large" },
+              ]}
+            />
+          </div>
 
-      <div>
-        <SidebarLabel>Heading scale</SidebarLabel>
-        <SidebarRadioGroup
-          value={design.headingScale || "regular"}
-          onChange={(v) => update("headingScale", v)}
-          options={[
-            { value: "compact", label: "Compact" },
-            { value: "regular", label: "Regular" },
-            { value: "large", label: "Large" },
-          ]}
-        />
-      </div>
+          <div>
+            <SidebarLabel>Heading scale</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.headingScale || "regular"}
+              onChange={(v) => update("headingScale", v)}
+              options={[
+                { value: "compact", label: "Compact" },
+                { value: "regular", label: "Regular" },
+                { value: "large", label: "Large" },
+              ]}
+            />
+          </div>
 
-      <div>
-        <SidebarLabel>Letter spacing</SidebarLabel>
-        <SidebarRadioGroup
-          value={design.letterSpacing || "wide"}
-          onChange={(v) => update("letterSpacing", v)}
-          options={[
-            { value: "normal", label: "Normal" },
-            { value: "wide", label: "Wide" },
-            { value: "ultra", label: "Ultra" },
-          ]}
-        />
-      </div>
+          <div>
+            <SidebarLabel>Letter spacing</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.letterSpacing || "wide"}
+              onChange={(v) => update("letterSpacing", v)}
+              options={[
+                { value: "normal", label: "Normal" },
+                { value: "wide", label: "Wide" },
+                { value: "ultra", label: "Ultra" },
+              ]}
+            />
+          </div>
+        </div>
+      </Accordion>
 
-      {/* Live type specimen */}
-      <div className="bg-neutral-50 rounded-xl p-4 border border-neutral-200">
-        <p className="text-[9px] text-neutral-400 mb-3 font-semibold uppercase tracking-widest">Preview</p>
-        <p
-          className="font-bold text-neutral-800"
-          style={{
-            fontFamily: design.font || "Inter",
-            fontSize: design.fontSize === "sm" ? 18 : design.fontSize === "lg" ? 28 : 22,
-            letterSpacing: design.letterSpacing === "ultra" ? "0.15em" : design.letterSpacing === "wide" ? "0.05em" : "0",
-          }}
-        >
-          Aa — {design.font || "Inter"}
-        </p>
-        <p className="text-neutral-400 text-[11px] mt-1" style={{ fontFamily: design.font || "Inter" }}>
-          The quick brown fox jumped over the lazy dog
-        </p>
-      </div>
+      <Accordion title="Type Specimen">
+        <div className="bg-neutral-50 rounded-2xl p-6 border border-neutral-200">
+           <p className="text-[10px] text-neutral-400 mb-4 font-bold uppercase tracking-widest border-b border-neutral-200 pb-2">PREVIEW</p>
+           <div className="space-y-3">
+             <p
+               className="font-bold text-neutral-800 leading-tight"
+               style={{
+                 fontFamily: design.font || "Inter",
+                 fontSize: design.fontSize === "sm" ? 22 : design.fontSize === "lg" ? 34 : 28,
+                 letterSpacing: design.letterSpacing === "ultra" ? "0.15em" : design.letterSpacing === "wide" ? "0.05em" : "0",
+               }}
+             >
+               Aa — {design.font || "Inter"}
+             </p>
+             <p className="text-neutral-500 text-[12px] leading-relaxed" style={{ fontFamily: design.font || "Inter" }}>
+               The quick brown fox jumped over the lazy dog. Pack my box with five dozen liquor jugs.
+             </p>
+           </div>
+        </div>
+      </Accordion>
     </div>
   );
 }
@@ -1134,20 +1389,11 @@ function CodePanel({ design, update }: any) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Live Preview — scaled render of the actual storefront
 // ─────────────────────────────────────────────────────────────────────────────
-function LivePreview({ design, designSurface, device, previewMode, settings, pages }: any) {
-  // Derive merged settings for preview
-  const previewSettings = { ...settings, design };
-  const previewDesign = previewMode.value === "homepage"
-    ? (design?.heroPage || design)
-    : (design?.storefront || design);
-  const palette = PALETTES.find(p => p.id === previewDesign.palettePreset) || PALETTES[0];
-  const bg = previewDesign.backgroundColor || palette.bg;
-  const text = previewDesign.textColor || palette.text;
-  const accent = previewDesign.primaryColor || palette.accent;
-  const font = previewDesign.font || "Inter";
-
+function LivePreview({ design, device, previewMode, iframeRef }: any) {
   const isDesktop = device === "desktop";
-  const desktopWidth = Math.max(900, Math.min(1600, previewDesign.containerWidth ?? 1200));
+  
+  // The URL to load in the iframe
+  const previewUrl = window.location.origin + (previewMode.value === "shop" ? "/?catalog=true&preview=true" : "/?preview=true");
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center bg-[#e8e8e8] overflow-hidden p-6 pt-2">
@@ -1169,41 +1415,57 @@ function LivePreview({ design, designSurface, device, previewMode, settings, pag
         ))}
       </div>
 
-      {/* Browser chrome */}
+      {/* Browser chrome / Device Frame */}
       <div
-        className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-neutral-300/50 flex flex-col transition-all duration-500"
-        style={{
-          width: isDesktop ? "100%" : 320,
-          maxWidth: isDesktop ? Math.min(1200, desktopWidth - 40) : 320,
-          height: isDesktop ? 640 : 560,
-        }}
+        className={`bg-white shadow-2xl relative transition-all duration-700 ease-in-out flex flex-col ${
+          isDesktop 
+            ? "rounded-2xl border border-neutral-300/50 w-full max-w-[1200px] h-full" 
+            : "rounded-[3rem] border-[8px] border-neutral-900 w-[375px] h-[760px] scale-[0.85] 2xl:scale-100"
+        }`}
       >
-        {/* URL bar */}
-        <div className="bg-[#f5f5f5] border-b border-neutral-200 px-3 py-2 flex items-center gap-2 flex-shrink-0">
-          <div className="flex gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-            <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
+        {/* Notch for Mobile */}
+        {!isDesktop && (
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-neutral-900 rounded-b-2xl z-20 flex items-center justify-center gap-1.5">
+            <div className="w-8 h-1 bg-white/10 rounded-full" />
+            <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
           </div>
-          <div className="flex-1 bg-white border border-neutral-200 rounded-lg px-3 py-1 flex items-center gap-1.5 mx-2">
-            <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-            <span className="text-[9px] text-neutral-400 font-mono truncate">lyricalmyricalbooks.com</span>
+        )}
+
+        {/* URL bar - Hidden on Mobile Frame for cleaner look */}
+        {isDesktop && (
+          <div className="bg-[#f5f5f5] border-b border-neutral-200 px-3 py-2 flex items-center gap-2 flex-shrink-0">
+            <div className="flex gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
+              <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+              <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
+            </div>
+            <div className="flex-1 bg-white border border-neutral-200 rounded-lg px-3 py-1 flex items-center gap-1.5 mx-2">
+              <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+              <span className="text-[9px] text-neutral-400 font-mono truncate">{previewUrl}</span>
+            </div>
+            <Eye size={11} className="text-neutral-300" />
           </div>
-          <Eye size={11} className="text-neutral-300" />
+        )}
+
+        {/* Iframe Viewport */}
+        <div className={`flex-1 bg-white relative overflow-hidden ${!isDesktop ? "rounded-[2.2rem]" : ""}`}>
+          <iframe
+            ref={iframeRef}
+            src={previewUrl}
+            className="w-full h-full border-none"
+            title="Theme Preview"
+          />
         </div>
 
-        {/* Storefront preview */}
-        <div className="flex-1 overflow-hidden relative" style={{ color: text, background: bg, fontFamily: font }}>
-          {previewMode.value === "homepage" ? (
-            <HomepagePreview design={previewDesign} bg={bg} text={text} accent={accent} font={font} pages={pages} />
-          ) : (
-            <ShopPreview design={previewDesign} bg={bg} text={text} accent={accent} font={font} pages={pages} />
-          )}
-        </div>
+        {/* Home Indicator for Mobile */}
+        {!isDesktop && (
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-24 h-1 bg-neutral-900/10 rounded-full" />
+        )}
       </div>
 
-      <p className="text-[9px] text-neutral-400 mt-3 tracking-widest uppercase">
-        {isDesktop ? "Desktop" : "Mobile"} · Live Preview · Editing {designSurface === "heroPage" ? "Hero page" : "Internal app"}
+      <p className="text-[10px] text-neutral-400 mt-4 font-bold tracking-[0.2em] uppercase flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+        {isDesktop ? "Desktop" : "Mobile"} Viewport · Live Preview Sync
       </p>
     </div>
   );
@@ -1460,6 +1722,29 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [settingsSearch, setSettingsSearch] = useState("");
   const [pages, setPages] = useState<any[]>([]);
   const [syncPreview, setSyncPreview] = useState(true);
+  const [isPreviewReady, setIsPreviewReady] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Sync design to preview iframe
+  useEffect(() => {
+    if (iframeRef.current && isPreviewReady) {
+      iframeRef.current.contentWindow?.postMessage(
+        { type: "THEME_UPDATE", design },
+        "*"
+      );
+    }
+  }, [design, isPreviewReady]);
+
+  // Listen for preview ready signal
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === "PREVIEW_READY") {
+        setIsPreviewReady(true);
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
 
   useEffect(() => {
     adminApi.getPages().then(setPages);
@@ -1492,23 +1777,30 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   }, [activeSection, syncPreview]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showPublishModal, setShowPublishModal] = useState(false);
 
   const hasChanges = JSON.stringify(design) !== JSON.stringify(savedDesign);
   const activeDesign = design?.[designSurface] || {};
 
   // Update a single design key
   const update = useCallback((key: string, value: any) => {
-    setPastDesigns((prev) => [...prev.slice(-74), design]);
-    setFutureDesigns([]);
-    setDesign((prev: any) => ({
-      ...prev,
-      [designSurface]: {
-        ...(prev?.[designSurface] || {}),
-        [key]: value,
-      },
-    }));
+    setDesign((prev: any) => {
+      const nextDesign = {
+        ...prev,
+        [designSurface]: {
+          ...(prev?.[designSurface] || {}),
+          [key]: value,
+        },
+      };
+      
+      // Update history
+      setPastDesigns((prevHistory) => [...prevHistory.slice(-74), prev]);
+      setFutureDesigns([]);
+      
+      return nextDesign;
+    });
     setSaved(false);
-  }, [design, designSurface]);
+  }, [designSurface]);
 
   const undo = () => {
     if (pastDesigns.length === 0) return;
@@ -1691,14 +1983,18 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         </div>
 
         {/* Device switcher */}
-        <div className="flex items-center gap-1 bg-white/10 rounded-lg p-1">
+        <div className="flex items-center gap-1 bg-white/10 rounded-lg p-1 group/device">
           {(["desktop", "mobile"] as const).map((d) => (
             <button
               key={d}
               onClick={() => setDevice(d)}
-              className={`p-1.5 rounded-md transition-all ${device === d ? "bg-white/20 text-white" : "text-white/40 hover:text-white/60"}`}
+              className={`p-1.5 rounded-md transition-all relative group/btn ${device === d ? "bg-white/20 text-white" : "text-white/40 hover:text-white/60"}`}
+              title={d.charAt(0).toUpperCase() + d.slice(1)}
             >
               {d === "desktop" ? <Monitor size={13} /> : <Smartphone size={13} />}
+              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-[8px] font-bold text-white rounded opacity-0 group-hover/btn:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+                {d.toUpperCase()} VIEW
+              </span>
             </button>
           ))}
         </div>
@@ -1712,20 +2008,60 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
             <X size={12} /> Exit
           </button>
           <button
-            onClick={handleSave}
-            disabled={saving || !hasChanges}
+            onClick={() => setShowPublishModal(true)}
+            disabled={saving}
             className={`flex items-center gap-2 px-5 py-1.5 rounded-full text-[10px] font-bold tracking-wider transition-all ${
               saved
                 ? "bg-green-500 text-white"
-                : hasChanges
-                ? "bg-white text-black hover:bg-white/90 shadow-lg"
-                : "bg-white/20 text-white/40 cursor-not-allowed"
+                : "bg-white text-black hover:bg-neutral-100 shadow-lg active:scale-95"
             }`}
           >
-            {saved ? <><Check size={11} /> Saved!</> : saving ? "Saving..." : "Publish"}
+            {saved ? <><Check size={11} /> Saved!</> : saving ? "Publishing..." : "Publish"}
           </button>
         </div>
       </div>
+
+      {/* Publish Confirmation Modal */}
+      <AnimatePresence>
+        {showPublishModal && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden relative"
+            >
+              <div className="p-10 text-center">
+                <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-blue-600">
+                  <Globe size={32} />
+                </div>
+                <h3 className="text-2xl font-black text-neutral-900 tracking-tight mb-2">Publish Changes?</h3>
+                <p className="text-neutral-500 text-[13px] leading-relaxed mb-8">
+                  Your new theme settings will be applied to the live storefront. This action cannot be instantly reversed.
+                </p>
+
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={async () => {
+                      setShowPublishModal(false);
+                      await handleSave();
+                    }}
+                    className="w-full bg-[#1a1a1a] text-white py-4 rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase hover:bg-black transition-all active:scale-[0.98]"
+                  >
+                    Confirm & Publish
+                  </button>
+                  <button
+                    onClick={() => setShowPublishModal(false)}
+                    className="w-full py-4 text-[11px] font-bold text-neutral-400 tracking-[0.2em] uppercase hover:text-neutral-900 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ── Body ── */}
       <div className="flex flex-1 overflow-hidden">
@@ -1874,11 +2210,9 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         {/* ── Right preview pane ── */}
         <LivePreview
           design={design}
-          designSurface={designSurface}
           device={device}
           previewMode={{ value: previewMode, set: setPreviewMode }}
-          settings={settings}
-          pages={pages}
+          iframeRef={iframeRef}
         />
       </div>
     </div>

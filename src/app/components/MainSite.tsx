@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Instagram, Mail, ArrowRight, Send } from "lucide-react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useLocation } from "react-router";
 import { useCart } from "../CartContext";
 import { CATEGORIES, DEFAULT_IMAGE } from "../features/site/constants";
 import { getFeaturedBooks, getFilteredItems, getPublications, getPublishedBooks } from "../features/site/selectors";
@@ -9,6 +9,7 @@ import type { Book } from "../features/site/types";
 import { useSiteData } from "../features/site/useSiteData";
 import { addDoc, collection } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import * as Sections from "./SectionComponents";
 
 // ──────────────────────────────
 // Image with skeleton loader
@@ -442,12 +443,41 @@ function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive:
 }
 
 // ──────────────────────────────
+// Hook for real-time theme sync
+// ──────────────────────────────
+function useThemePreview(initialDesign: any) {
+  const [designOverride, setDesignOverride] = useState<any>(null);
+  const location = useLocation();
+  const isPreview = location.search.includes("preview=true");
+
+  useEffect(() => {
+    if (!isPreview) return;
+
+    const handler = (event: MessageEvent) => {
+      if (event.data && event.data.type === "THEME_UPDATE") {
+        setDesignOverride(event.data.design);
+      }
+    };
+
+    window.addEventListener("message", handler);
+    window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
+    return () => window.removeEventListener("message", handler);
+  }, [isPreview]);
+
+  return designOverride || initialDesign;
+}
+
+// ──────────────────────────────
 // Main exported component
 // ──────────────────────────────
 export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
   const navigate = useNavigate();
   const { cartCount, setIsCartOpen } = useCart();
   const { books, settings, pages, loading } = useSiteData();
+  
+  // Real-time preview override
+  const activeDesign = useThemePreview(settings?.design || {});
+  
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [activeCategory, setActiveCategory] = useState("PUBLICATIONS");
   const [showAbout, setShowAbout] = useState(false);
@@ -458,7 +488,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     [books, activeCategory],
   );
   const publishedBooks = useMemo(() => getPublishedBooks(books), [books]);
-  const legacyDesign = settings?.design || {};
+  const legacyDesign = activeDesign;
   const heroDesign = legacyDesign.heroPage && Object.keys(legacyDesign.heroPage).length > 0
     ? legacyDesign.heroPage
     : legacyDesign;
@@ -778,25 +808,46 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         </div>
       </header>
 
-      <main className="relative w-full overflow-hidden">
-        {(heroDesign?.hero?.enabled ?? true) ? (
-          <HeroCarousel design={heroDesign} onEnterArchive={() => setShowCatalog(true)} />
+      <main className="relative w-auto overflow-hidden">
+        {activeDesign.homepageSections && activeDesign.homepageSections.length > 0 ? (
+          <div className="flex flex-col">
+            {activeDesign.homepageSections.map((section: any) => {
+              const SectionComponent = (Sections as any)[section.type];
+              if (!SectionComponent) return null;
+              
+              return (
+                <div key={section.id} id={`section-${section.id}`}>
+                  <SectionComponent 
+                    settings={section.settings || {}} 
+                    books={books}
+                    onCtaClick={() => setShowCatalog(true)}
+                    onProductClick={(book: any) => navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)}
+                  />
+                </div>
+              );
+            })}
+          </div>
         ) : (
-          <section className="h-screen min-h-[680px] flex flex-col items-center justify-center text-center px-8">
-            <p className="text-[12px] tracking-[0.3em] text-white/60 uppercase mb-6">
-              {heroDesign?.heroSubtext || "Discover rare editions and exclusive prints."}
-            </p>
-            <button
-              onClick={() => setShowCatalog(true)}
-              className="px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black"
-              style={{ backgroundColor: heroDesign?.primaryColor || "#A855F7" }}
-            >
-              {heroDesign?.heroCTA || "ENTER ARCHIVE"}
-            </button>
-          </section>
+          /* Fallback to legacy structure */
+          <>
+            {(heroDesign?.hero?.enabled ?? true) ? (
+              <HeroCarousel design={heroDesign} onEnterArchive={() => setShowCatalog(true)} />
+            ) : (
+              <section className="h-screen min-h-[680px] flex flex-col items-center justify-center text-center px-8">
+                <p className="text-[12px] tracking-[0.3em] text-white/60 uppercase mb-6">
+                  {heroDesign?.heroSubtext || "Discover rare editions and exclusive prints."}
+                </p>
+                <button
+                  onClick={() => setShowCatalog(true)}
+                  className="px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black"
+                  style={{ backgroundColor: heroDesign?.primaryColor || "#A855F7" }}
+                >
+                  {heroDesign?.heroCTA || "ENTER ARCHIVE"}
+                </button>
+              </section>
+            )}
+          </>
         )}
-        
-        {/* Intentionally no book links in hero section. */}
       </main>
 
       {/* About panel (available from homepage too) */}
