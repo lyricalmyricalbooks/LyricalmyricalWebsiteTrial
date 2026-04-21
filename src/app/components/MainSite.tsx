@@ -493,15 +493,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const logoPosition = storefrontDesign?.logoPosition || "left";
-  const isHeaderTransparent = storefrontDesign?.transparentHeader && !scrolled;
-
   const publications = useMemo(() => getPublications(getFeaturedBooks(books)), [books]);
   const filteredItems = useMemo(
     () => getFilteredItems(books, activeCategory, new Date().toISOString()),
     [books, activeCategory],
   );
   const publishedBooks = useMemo(() => getPublishedBooks(books), [books]);
+
   const legacyDesign = activeDesign;
   const heroDesign = legacyDesign.heroPage && Object.keys(legacyDesign.heroPage).length > 0
     ? legacyDesign.heroPage
@@ -509,6 +507,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontDesign = legacyDesign.storefront && Object.keys(legacyDesign.storefront).length > 0
     ? legacyDesign.storefront
     : legacyDesign;
+
+  const logoPosition = storefrontDesign?.logoPosition || "left";
+  const isHeaderTransparent = storefrontDesign?.transparentHeader && !scrolled;
+
   const heroHeaderLinks = heroDesign?.headerLinks || {};
   const storefrontHeaderLinks = storefrontDesign?.headerLinks || {};
   const showEnterArchive = heroHeaderLinks.showEnterArchive ?? true;
