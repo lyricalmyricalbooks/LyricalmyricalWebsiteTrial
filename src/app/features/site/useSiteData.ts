@@ -48,8 +48,14 @@ export function useSiteData() {
 
         if (cancelled) return;
 
-        const safeBooks = Array.isArray(bookResponse) ? (bookResponse as Book[]) : DEFAULT_BOOKS;
-        const safeSettings = (settingsResponse || DEFAULT_SETTINGS) as SiteSettings;
+        const safeBooks = Array.isArray(bookResponse) ? (bookResponse as unknown as Book[]) : DEFAULT_BOOKS;
+        const isPreview = typeof window !== 'undefined' && window.location.search.includes('preview=true');
+        const safeSettings = (settingsResponse || DEFAULT_SETTINGS) as any;
+        
+        if (isPreview && safeSettings.draftDesign) {
+          safeSettings.design = safeSettings.draftDesign;
+        }
+
         const safePages = Array.isArray(pagesResponse) ? (pagesResponse as Page[]) : [];
 
         setBooks(safeBooks);

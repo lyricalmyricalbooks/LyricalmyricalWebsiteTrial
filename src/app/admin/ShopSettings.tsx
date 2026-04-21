@@ -61,11 +61,20 @@ export function ShopSettings({ activeTab, setActiveTab }: any) {
     }
   }
 
-  const saveSection = async (section: string, data: any) => {
+  const saveSection = async (section: string, data: any, options: any = {}) => {
     setSavingSection(section);
     try {
-      await adminApi.updateSettings(data);
-      setOriginalSettings({ ...originalSettings, ...data });
+      await adminApi.updateSettings(data, options);
+      // Update local state based on what was actually sent
+      if (data.design) {
+        if (options.publish) {
+           setSettings((prev: any) => ({ ...prev, design: data.design, draftDesign: data.design }));
+        } else {
+           setSettings((prev: any) => ({ ...prev, draftDesign: data.design }));
+        }
+      } else {
+         setSettings((prev: any) => ({ ...prev, ...data }));
+      }
     } catch (err) {
       alert("Error saving settings");
     } finally {
@@ -85,9 +94,8 @@ export function ShopSettings({ activeTab, setActiveTab }: any) {
     return (
       <ThemeEditor
         settings={settings}
-        onSave={async (design: any) => {
-          await saveSection("design", { design });
-          setSettings({ ...settings, design });
+        onSave={async (design: any, options: any) => {
+          await saveSection("design", { design }, options);
         }}
         onExit={() => setActiveTab("general")}
       />

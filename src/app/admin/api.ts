@@ -245,7 +245,25 @@ export const adminApi = {
     return { ...defaultSettings, ...snap.data() };
   },
 
-  updateSettings: (settings: any) => setDoc(doc(db, "settings", "website"), settings, { merge: true }),
+  updateSettings: (settings: any, options: { publish?: boolean } = {}) => {
+    const docRef = doc(db, "settings", "website");
+    const payload = { ...settings };
+    
+    // If we're updating 'design' (the theme), handle the draft/publish logic
+    if (settings.design) {
+      if (options.publish) {
+        // Publish: update both live and draft
+        payload.design = settings.design;
+        payload.draftDesign = settings.design;
+      } else {
+        // Save Draft: only update draftDesign, don't touch the live design
+        payload.draftDesign = settings.design;
+        delete payload.design;
+      }
+    }
+    
+    return setDoc(docRef, payload, { merge: true });
+  },
 
   getDefaultSettings: () => ({
     announcements: [{ message: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA" }],

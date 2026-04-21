@@ -19,6 +19,9 @@ import {
   Eye,
   ShoppingBag,
   Home,
+  Mail,
+  Layout,
+  RefreshCw,
 } from "lucide-react";
 import { adminApi } from "./api";
 
@@ -416,11 +419,23 @@ function NavigationPanel({ design, update }: any) {
             <SidebarLabel>Layout Style</SidebarLabel>
             <SidebarRadioGroup
               value={design.headerStyle || "minimal"}
-              onChange={(v) => update("headerStyle", v)}
+              onChange={(v: string) => update("headerStyle", v)}
               options={[
                 { value: "minimal", label: "Minimal" },
                 { value: "centered", label: "Centered" },
                 { value: "full", label: "Full" },
+              ]}
+            />
+          </div>
+          <div>
+            <SidebarLabel>Logo Alignment</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.logoPosition || "left"}
+              onChange={(v: string) => update("logoPosition", v)}
+              options={[
+                { value: "left", label: "Left" },
+                { value: "center", label: "Center" },
+                { value: "right", label: "Right" },
               ]}
             />
           </div>
@@ -430,8 +445,16 @@ function NavigationPanel({ design, update }: any) {
             min={20}
             max={64}
             suffix="px"
-            onChange={(v) => update("logoHeight", v)}
+            onChange={(v: number) => update("logoHeight", v)}
           />
+          <div className="pt-2">
+             <SidebarToggle
+               label="Transparent Header"
+               description="Make header background transparent until scrolled"
+               checked={design.transparentHeader ?? false}
+               onChange={(v: boolean) => update("transparentHeader", v)}
+             />
+          </div>
         </div>
       </Accordion>
 
@@ -463,12 +486,11 @@ function NavigationPanel({ design, update }: any) {
 
 function HomepagePanel({ design, update }: any) {
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const sections = design.homepageSections || [];
   
-  // Helper to ensure we have some initial sections if none exist
   useEffect(() => {
     if (sections.length === 0 && !design.homepageSections) {
-      // Create initial sections from legacy hero if needed
       const initialSections = [
         {
           id: "initial-hero",
@@ -500,12 +522,7 @@ function HomepagePanel({ design, update }: any) {
       TextContentSection: { title: "OUR STORY", content: "Write something meaningful...", align: "center" },
     };
     
-    const newSection = {
-      id,
-      type,
-      settings: defaults[type] || {}
-    };
-    
+    const newSection = { id, type, settings: defaults[type] || {} };
     updateSections([...sections, newSection]);
     setActiveSectionId(id);
   };
@@ -521,7 +538,6 @@ function HomepagePanel({ design, update }: any) {
     const newSections = [...sections];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= newSections.length) return;
-    
     [newSections[index], newSections[targetIndex]] = [newSections[targetIndex], newSections[index]];
     updateSections(newSections);
   };
@@ -549,10 +565,7 @@ function HomepagePanel({ design, update }: any) {
     return (
       <div className="flex flex-col h-full">
         <div className="p-4 border-b border-neutral-100 flex items-center gap-3 bg-white sticky top-0 z-20">
-          <button 
-            onClick={() => setActiveSectionId(null)}
-            className="p-1.5 hover:bg-neutral-100 rounded-lg transition-colors text-neutral-400 hover:text-neutral-900"
-          >
+          <button onClick={() => setActiveSectionId(null)} className="p-1.5 hover:bg-neutral-100 rounded-lg transition-colors text-neutral-400 hover:text-neutral-900">
             <ChevronLeft size={16} />
           </button>
           <div>
@@ -564,23 +577,8 @@ function HomepagePanel({ design, update }: any) {
         <div className="p-4 space-y-6 overflow-y-auto flex-1">
           {section.type === "HeroSection" && (
             <div className="space-y-6">
-              <div>
-                <SidebarLabel>Headline</SidebarLabel>
-                <SidebarInput 
-                  value={section.settings.title || ""} 
-                  onChange={(v: string) => updateSectionSettings(section.id, { title: v })} 
-                  placeholder="The main headline"
-                />
-              </div>
-              <div>
-                <SidebarLabel>Subtitle</SidebarLabel>
-                <SidebarInput 
-                  value={section.settings.subtitle || ""} 
-                  onChange={(v: string) => updateSectionSettings(section.id, { subtitle: v })} 
-                  placeholder="Brief description"
-                />
-              </div>
-              
+              <SidebarInput label="Headline" value={section.settings.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { title: v })} />
+              <SidebarInput label="Subtitle" value={section.settings.subtitle || ""} onChange={(v: string) => updateSectionSettings(section.id, { subtitle: v })} />
               <div>
                 <SidebarLabel>Media</SidebarLabel>
                 <div className="bg-neutral-50 rounded-2xl p-4 border border-neutral-200 border-dashed space-y-4">
@@ -590,135 +588,68 @@ function HomepagePanel({ design, update }: any) {
                     </div>
                   )}
                   <div className="flex flex-col gap-2">
-                    <SidebarInput 
-                      value={section.settings.imageUrl || ""} 
-                      onChange={(v: string) => updateSectionSettings(section.id, { imageUrl: v })} 
-                      placeholder="Paste Image URL..."
-                    />
+                    <SidebarInput value={section.settings.imageUrl || ""} onChange={(v: string) => updateSectionSettings(section.id, { imageUrl: v })} placeholder="Paste Image URL..." />
                     <div className="flex items-center gap-2">
-                       <input 
-                         type="file" 
-                         id={`upload-${section.id}`}
-                         className="hidden" 
-                         accept="image/*"
-                         onChange={(e) => {
+                       <input type="file" id={`upload-${section.id}`} className="hidden" accept="image/*" onChange={(e) => {
                            const file = e.target.files?.[0];
                            if (file) handleImageUpload(section.id, file);
-                         }} 
-                       />
-                       <label htmlFor={`upload-${section.id}`} className="flex-1 py-1.5 bg-white border border-neutral-200 rounded-lg text-center text-[10px] font-bold cursor-pointer hover:bg-neutral-50 transition-colors">
-                         UPLOAD FILE
-                       </label>
+                       }} />
+                       <label htmlFor={`upload-${section.id}`} className="flex-1 py-1.5 bg-white border border-neutral-200 rounded-lg text-center text-[10px] font-bold cursor-pointer hover:bg-neutral-50 transition-colors">UPLOAD FILE</label>
                     </div>
                   </div>
                 </div>
               </div>
-
-              <SidebarRange 
-                label="Overlay Darken" 
-                value={Math.round((section.settings.overlayOpacity ?? 0.5) * 100)} 
-                min={0} 
-                max={90} 
-                suffix="%"
-                onChange={(v) => updateSectionSettings(section.id, { overlayOpacity: v / 100 })} 
-              />
-
-              <ColorPicker 
-                label="Primary Button Color" 
-                value={section.settings.accentColor || "#A855F7"} 
-                onChange={(v) => updateSectionSettings(section.id, { accentColor: v })} 
-              />
-              
-              <SidebarInput 
-                label="CTA Button Label" 
-                value={section.settings.ctaText || ""} 
-                onChange={(v: string) => updateSectionSettings(section.id, { ctaText: v })} 
-              />
+              <SidebarRange label="Overlay Darken" value={Math.round((section.settings.overlayOpacity ?? 0.5) * 100)} min={0} max={90} suffix="%" onChange={(v) => updateSectionSettings(section.id, { overlayOpacity: v / 100 })} />
+              <ColorPicker label="Accent Color" value={section.settings.accentColor || "#A855F7"} onChange={(v) => updateSectionSettings(section.id, { accentColor: v })} />
+              <SidebarInput label="CTA Label" value={section.settings.ctaText || ""} onChange={(v: string) => updateSectionSettings(section.id, { ctaText: v })} />
             </div>
           )}
 
           {section.type === "FeaturedCollectionSection" && (
             <div className="space-y-6">
-              <SidebarInput 
-                label="Collection Title" 
-                value={section.settings.title || ""} 
-                onChange={(v: string) => updateSectionSettings(section.id, { title: v })} 
-              />
-              <SidebarRange 
-                label="Show Products" 
-                value={section.settings.limit || 4} 
-                min={2} 
-                max={12} 
-                onChange={(v) => updateSectionSettings(section.id, { limit: v })} 
-              />
-              <div className="border border-neutral-100 rounded-xl overflow-hidden mt-2">
-                <SidebarToggle 
-                  label="Display 'View All'"
-                  description="Adds a link to see the entire shop"
-                  checked={section.settings.showViewAll ?? true}
-                  onChange={(v: boolean) => updateSectionSettings(section.id, { showViewAll: v })}
-                />
-              </div>
+              <SidebarInput label="Title" value={section.settings.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { title: v })} />
+              <SidebarRange label="Products" value={section.settings.limit || 4} min={2} max={12} onChange={(v) => updateSectionSettings(section.id, { limit: v })} />
+              <SidebarToggle label="Show View All" checked={section.settings.showViewAll ?? true} onChange={(v: boolean) => updateSectionSettings(section.id, { showViewAll: v })} />
             </div>
           )}
 
           {section.type === "NewsletterSection" && (
             <div className="space-y-4">
-              <SidebarInput 
-                label="Title" 
-                value={section.settings.title || ""} 
-                onChange={(v: string) => updateSectionSettings(section.id, { title: v })} 
-              />
-              <div>
-                <SidebarLabel>Description</SidebarLabel>
-                <textarea
-                  value={section.settings.description || ""}
-                  onChange={(e) => updateSectionSettings(section.id, { description: e.target.value })}
-                  rows={4}
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm"
-                />
-              </div>
+              <SidebarInput label="Title" value={section.settings.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { title: v })} />
+              <textarea value={section.settings.description || ""} onChange={(e) => updateSectionSettings(section.id, { description: e.target.value })} rows={4} className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm" placeholder="Newsletter description..." />
             </div>
           )}
 
           {section.type === "TextContentSection" && (
             <div className="space-y-4">
-              <SidebarInput 
-                label="Title" 
-                value={section.settings.title || ""} 
-                onChange={(v: string) => updateSectionSettings(section.id, { title: v })} 
-              />
-              <div>
-                <SidebarLabel>Paragraph Text</SidebarLabel>
-                <textarea
-                  value={section.settings.content || ""}
-                  onChange={(e) => updateSectionSettings(section.id, { content: e.target.value })}
-                  rows={8}
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm"
-                />
+              <SidebarInput label="Title" value={section.settings.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { title: v })} />
+              <textarea value={section.settings.content || ""} onChange={(e) => updateSectionSettings(section.id, { content: e.target.value })} rows={8} className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm" placeholder="Content text..." />
+              
+              <div className="pt-2">
+                <SidebarLabel>Primary Button</SidebarLabel>
+                <div className="grid grid-cols-2 gap-2">
+                  <SidebarInput placeholder="Text" value={section.settings.ctaText || ""} onChange={(v: string) => updateSectionSettings(section.id, { ctaText: v })} />
+                  <SidebarInput placeholder="Link" value={section.settings.ctaLink || ""} onChange={(v: string) => updateSectionSettings(section.id, { ctaLink: v })} />
+                </div>
               </div>
-              <div>
+
+              <div className="pt-2">
+                <SidebarLabel>Secondary Button</SidebarLabel>
+                <div className="grid grid-cols-2 gap-2">
+                  <SidebarInput placeholder="Text" value={section.settings.secondaryCtaText || ""} onChange={(v: string) => updateSectionSettings(section.id, { secondaryCtaText: v })} />
+                  <SidebarInput placeholder="Link" value={section.settings.secondaryCtaLink || ""} onChange={(v: string) => updateSectionSettings(section.id, { secondaryCtaLink: v })} />
+                </div>
+              </div>
+
+              <div className="pt-2">
                 <SidebarLabel>Alignment</SidebarLabel>
-                <SidebarRadioGroup
-                  value={section.settings.align || "center"}
-                  onChange={(v) => updateSectionSettings(section.id, { align: v })}
-                  options={[
-                    { value: "left", label: "Left" },
-                    { value: "center", label: "Center" },
-                    { value: "right", label: "Right" },
-                  ]}
-                />
+                <SidebarRadioGroup value={section.settings.align || "center"} onChange={(v) => updateSectionSettings(section.id, { align: v })} options={[{ value: "left", label: "Left" }, { value: "center", label: "Center" }, { value: "right", label: "Right" }]} />
               </div>
             </div>
           )}
 
           <div className="pt-8 mt-12 border-t border-neutral-100">
-            <button
-              onClick={() => removeSection(section.id)}
-              className="w-full py-4 text-red-500 text-[10px] font-bold tracking-widest border-2 border-red-50 rounded-2xl hover:bg-red-50 transition-colors"
-            >
-              DELETE SECTION
-            </button>
+            <button onClick={() => removeSection(section.id)} className="w-full py-4 text-red-500 text-[10px] font-bold tracking-widest border-2 border-red-50 rounded-2xl hover:bg-red-50 transition-colors">DELETE SECTION</button>
           </div>
         </div>
       </div>
@@ -735,101 +666,125 @@ function HomepagePanel({ design, update }: any) {
         
         <div className="relative group">
           <button className="flex items-center gap-2 bg-blue-600 text-white px-3 py-1.5 rounded-full text-[10px] font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors">
-            <Plus size={14} />
-            ADD
+            <Plus size={14} /> ADD
           </button>
-          
           <div className="absolute right-0 top-10 w-56 bg-white border border-neutral-100 rounded-2xl shadow-2xl z-[100] py-2 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 pointer-events-none group-hover:pointer-events-auto transition-all transform origin-top-right">
              <p className="px-4 py-2 text-[9px] font-bold text-neutral-300 uppercase tracking-widest border-b border-neutral-50 mb-1">Select Component</p>
              {[
                { id: "HeroSection", label: "Hero Banner", icon: <LayoutTemplate size={14} />, desc: "High-impact cover" },
                { id: "FeaturedCollectionSection", label: "Product Grid", icon: <ShoppingBag size={14} />, desc: "Display products" },
-               { id: "NewsletterSection", label: "Newsletter", icon: <ArrowRight size={14} />, desc: "Capture emails" },
+               { id: "NewsletterSection", label: "Newsletter", icon: <Mail size={14} />, desc: "Capture emails" },
                { id: "TextContentSection", label: "Custom Text", icon: <FileText size={14} />, desc: "Bio or statement" },
              ].map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => addSection(item.id)}
-                  className="w-full px-4 py-3 hover:bg-neutral-50 flex items-start gap-3 transition-colors text-left"
-                >
-                  <div className="mt-0.5 p-2 rounded-lg bg-neutral-50 text-neutral-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition-colors">
-                    {item.icon}
-                  </div>
-                  <div>
-                    <h4 className="text-[11px] font-bold text-neutral-700 leading-none">{item.label}</h4>
-                    <p className="text-[9px] text-neutral-400 mt-1">{item.desc}</p>
-                  </div>
+                <button key={item.id} onClick={() => addSection(item.id)} className="w-full px-4 py-3 hover:bg-neutral-50 flex items-start gap-3 transition-colors text-left">
+                  <div className="mt-0.5 p-2 rounded-lg bg-neutral-50 text-neutral-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition-colors">{item.icon}</div>
+                  <div><h4 className="text-[11px] font-bold text-neutral-700 leading-none">{item.label}</h4><p className="text-[9px] text-neutral-400 mt-1">{item.desc}</p></div>
                 </button>
              ))}
           </div>
         </div>
       </div>
 
-      <div className="space-y-3 pb-24">
+      {/* Global Hero Settings (Legacy) */}
+      <div className="border border-neutral-100 bg-neutral-50/50 rounded-2xl overflow-hidden mb-4">
+        <button 
+          onClick={() => setExpandedSection(expandedSection === "hero-legacy" ? null : "hero-legacy")}
+          className="w-full px-4 py-3 flex items-center justify-between hover:bg-neutral-100 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white rounded-lg shadow-sm text-blue-600">
+              <Layout size={14} />
+            </div>
+            <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-tight">Main Hero Settings</span>
+          </div>
+          <ChevronRight size={14} className={`text-neutral-400 transition-transform ${expandedSection === "hero-legacy" ? "rotate-90" : ""}`} />
+        </button>
+        
+        {expandedSection === "hero-legacy" && (
+          <div className="px-4 py-5 space-y-6 border-t border-neutral-100 bg-white">
+            <div className="space-y-3">
+              <label className="text-[9px] tracking-widest text-neutral-400 uppercase font-black">Content Alignment</label>
+              <div className="grid grid-cols-3 gap-2">
+                {["left", "center", "right"].map((a) => (
+                  <button
+                    key={a}
+                    onClick={() => update("hero", { ...design.hero, align: a })}
+                    className={`py-2 text-[10px] font-bold uppercase rounded-xl border transition-all ${
+                      design.hero?.align === a 
+                        ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200" 
+                        : "bg-neutral-50 border-neutral-100 text-neutral-400 hover:border-neutral-200"
+                    }`}
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-neutral-50 border border-neutral-100">
+              <div className="flex items-center gap-3">
+                <RefreshCw size={14} className="text-neutral-400" />
+                <span className="text-[11px] font-bold text-neutral-600 uppercase">Auto-Rotate</span>
+              </div>
+              <button
+                onClick={() => update("hero", { ...design.hero, autoRotate: !design.hero?.autoRotate })}
+                className={`w-10 h-5 rounded-full transition-colors relative ${design.hero?.autoRotate ? "bg-blue-600" : "bg-neutral-200"}`}
+              >
+                <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${design.hero?.autoRotate ? "right-1" : "left-1"}`} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3 pb-8">
         {sections.length === 0 ? (
           <div className="py-20 text-center border-2 border-dashed border-neutral-100 rounded-[2rem] bg-neutral-50/50">
-             <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
-                <LayoutTemplate size={20} className="text-neutral-300" />
-             </div>
+             <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm"><LayoutTemplate size={20} className="text-neutral-300" /></div>
              <p className="text-[11px] text-neutral-400 font-medium px-8">Your homepage is empty. Start by adding a Hero section.</p>
           </div>
         ) : (
           <div className="space-y-3">
              {sections.map((section: any, index: number) => (
-               <motion.div
-                 layout
-                 key={section.id}
-                 onClick={() => setActiveSectionId(section.id)}
-                 className="group relative bg-white border border-neutral-200 rounded-3xl p-4 hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/5 transition-all cursor-pointer flex items-center gap-4"
-               >
-                 {/* Reorder controls */}
+               <motion.div layout key={section.id} onClick={() => setActiveSectionId(section.id)} className="group relative bg-white border border-neutral-200 rounded-3xl p-4 hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/5 transition-all cursor-pointer flex items-center gap-4">
                  <div className="flex flex-col gap-1.5">
-                    <button 
-                      onClick={(e) => moveSection(index, 'up', e)}
-                      disabled={index === 0}
-                      className="p-1 hover:bg-neutral-100 rounded-lg text-neutral-300 hover:text-neutral-900 disabled:opacity-0 transition-all"
-                    >
-                      <ChevronLeft size={14} className="rotate-90" />
-                    </button>
-                    <button 
-                      onClick={(e) => moveSection(index, 'down', e)}
-                      disabled={index === sections.length - 1}
-                      className="p-1 hover:bg-neutral-100 rounded-lg text-neutral-300 hover:text-neutral-900 disabled:opacity-0 transition-all"
-                    >
-                      <ChevronLeft size={14} className="-rotate-90" />
-                    </button>
+                    <button onClick={(e) => moveSection(index, 'up', e)} disabled={index === 0} className="p-1 hover:bg-neutral-100 rounded-lg text-neutral-300 hover:text-neutral-900 disabled:opacity-0 transition-all"><ChevronLeft size={14} className="rotate-90" /></button>
+                    <button onClick={(e) => moveSection(index, 'down', e)} disabled={index === sections.length - 1} className="p-1 hover:bg-neutral-100 rounded-lg text-neutral-300 hover:text-neutral-900 disabled:opacity-0 transition-all"><ChevronLeft size={14} className="-rotate-90" /></button>
                  </div>
-
-                 {/* Icon */}
                  <div className="w-12 h-12 rounded-2xl bg-neutral-50 flex items-center justify-center text-neutral-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-all duration-300">
-                    {section.type === "HeroSection" ? <LayoutTemplate size={20} /> : 
-                     section.type === "FeaturedCollectionSection" ? <ShoppingBag size={20} /> :
-                     <FileText size={20} />}
+                    {section.type === "HeroSection" ? <LayoutTemplate size={20} /> : section.type === "FeaturedCollectionSection" ? <ShoppingBag size={20} /> : section.type === "NewsletterSection" ? <Mail size={20} /> : <FileText size={20} />}
                  </div>
-
-                 {/* Details */}
                  <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-black tracking-tight text-neutral-800 truncate uppercase">
-                      {section.settings.title || section.type.replace("Section", "")}
-                    </p>
-                    <p className="text-[9px] text-neutral-400 font-bold uppercase tracking-widest mt-0.5">
-                      {section.type.replace("Section", "")}
-                    </p>
+                    <p className="text-[12px] font-black tracking-tight text-neutral-800 truncate uppercase">{section.settings.title || section.type.replace("Section", "")}</p>
+                    <p className="text-[9px] text-neutral-400 font-bold uppercase tracking-widest mt-0.5">{section.type.replace("Section", "")}</p>
                  </div>
-
                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={(e) => removeSection(section.id, e)}
-                      className="p-2 text-neutral-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                    >
-                      <X size={14} />
-                    </button>
+                    <button onClick={(e) => removeSection(section.id, e)} className="p-2 text-neutral-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"><X size={14} /></button>
                     <ChevronRight size={14} className="text-neutral-200 group-hover:text-neutral-400 transition-colors" />
                  </div>
                </motion.div>
              ))}
           </div>
         )}
+
+        <div className="pt-6">
+          <div className="p-1 bg-neutral-50 rounded-[2.5rem] border border-neutral-100 flex flex-col gap-1">
+             <p className="text-[9px] font-bold text-neutral-400 tracking-[0.3em] uppercase text-center py-5">Add new section</p>
+             <div className="grid grid-cols-2 gap-1 px-1 pb-1">
+                {[
+                  { type: "HeroSection", label: "Hero", icon: <LayoutTemplate size={14} /> },
+                  { type: "FeaturedCollectionSection", label: "Collection", icon: <ShoppingBag size={14} /> },
+                  { type: "NewsletterSection", label: "Newsletter", icon: <Mail size={14} /> },
+                  { type: "TextContentSection", label: "Text Block", icon: <FileText size={14} /> },
+                ].map((opt) => (
+                  <button key={opt.type} onClick={() => addSection(opt.type)} className="flex flex-col items-center justify-center gap-2 py-8 bg-white border border-neutral-100 rounded-[2rem] hover:border-blue-400 hover:shadow-2xl hover:shadow-blue-500/10 transition-all group active:scale-95">
+                    <div className="w-12 h-12 rounded-full bg-neutral-50 flex items-center justify-center text-neutral-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">{opt.icon}</div>
+                    <span className="text-[10px] font-bold text-neutral-500 group-hover:text-neutral-900 uppercase tracking-[0.1em]">{opt.label}</span>
+                  </button>
+                ))}
+             </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -981,6 +936,61 @@ function ProductsPanel({ design, update }: any) {
               value={design.productCTA || "VIEW"}
               onChange={(v: string) => update("productCTA", v)}
               placeholder="VIEW"
+            />
+          </div>
+
+          <div>
+            <SidebarLabel>Hover Effect</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.productHoverEffect || "zoom"}
+              onChange={(v) => update("productHoverEffect", v)}
+              options={[
+                { value: "none", label: "None" },
+                { value: "zoom", label: "Zoom" },
+                { value: "lift", label: "Lift" },
+              ]}
+            />
+          </div>
+        </div>
+      </Accordion>
+
+      <Accordion title="Product Page (Detail)">
+        <div className="space-y-6">
+          <div>
+            <SidebarLabel>Image Layout</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.productImageLayout || "slider"}
+              onChange={(v) => update("productImageLayout", v)}
+              options={[
+                { value: "slider", label: "Slider" },
+                { value: "grid", label: "Grid" },
+                { value: "stacked", label: "Stacked" },
+              ]}
+            />
+          </div>
+          <div>
+            <SidebarLabel>Content Position</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.productContentPosition || "right"}
+              onChange={(v) => update("productContentPosition", v)}
+              options={[
+                { value: "left", label: "Left" },
+                { value: "right", label: "Right" },
+              ]}
+            />
+          </div>
+          <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden mt-2">
+            <SidebarToggle
+              label="Related items"
+              description="Show other publications at bottom"
+              checked={design.showRelatedProducts ?? true}
+              onChange={(v: boolean) => update("showRelatedProducts", v)}
+            />
+            <SidebarToggle
+              label="Social share"
+              description="Show share button on detail page"
+              checked={design.showSocialShare ?? true}
+              onChange={(v: boolean) => update("showSocialShare", v)}
             />
           </div>
         </div>
@@ -1342,6 +1352,18 @@ function AdditionalPanel({ design, update }: any) {
           />
         ))}
       </div>
+
+      <div className="mt-8 space-y-4">
+        <div>
+          <SidebarLabel>Favicon</SidebarLabel>
+          <SidebarAssetUpload
+            value={design.faviconUrl}
+            onChange={(url: string) => update("faviconUrl", url)}
+            type="favicon"
+            label="Upload Favicon"
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -1553,16 +1575,20 @@ function HomepagePreview({ design, bg, text, accent, font, pages }: any) {
           )}
           <h2 className="text-[16px] font-black tracking-tight leading-none mb-1 text-white uppercase">{activeSlide.title}</h2>
           <p className="text-[8px] tracking-[0.2em] font-medium text-white/60 mb-4 whitespace-pre-wrap">{activeSlide.subtitle}</p>
-          <div
-            className={`inline-block px-5 py-2 text-[7px] font-bold tracking-widest transition-transform hover:scale-105 ${buttonUppercase ? "uppercase" : ""} ${buttonShadow ? "shadow-lg" : ""}`}
-            style={{
-              borderRadius: buttonRadius,
-              background: buttonStyle === "ghost" ? "transparent" : accent,
-              color: buttonStyle === "solid" ? "white" : accent,
-              border: buttonStyle === "outline" || buttonStyle === "ghost" ? `1px solid ${accent}` : "none",
-            }}
-          >
-            {activeSlide.ctaText}
+          <div className={`flex flex-wrap items-center gap-2 ${
+            hero.align === "left" ? "justify-start" : hero.align === "right" ? "justify-end" : "justify-center"
+          }`}>
+            <div
+              className={`inline-block px-5 py-2 text-[7px] font-bold tracking-widest transition-transform hover:scale-105 ${buttonUppercase ? "uppercase" : ""} ${buttonShadow ? "shadow-lg" : ""}`}
+              style={{
+                borderRadius: buttonRadius,
+                background: buttonStyle === "ghost" ? "transparent" : accent,
+                color: buttonStyle === "solid" ? "white" : accent,
+                border: buttonStyle === "outline" || buttonStyle === "ghost" ? `1px solid ${accent}` : "none",
+              }}
+            >
+              {activeSlide.ctaText}
+            </div>
           </div>
         </div>
 
@@ -1684,14 +1710,14 @@ function ShopPreview({ design, bg, text, accent, font, pages }: any) {
 // ─────────────────────────────────────────────────────────────────────────────
 export interface ThemeEditorProps {
   settings: any;
-  onSave: (design: any) => Promise<void>;
+  onSave: (design: any, options?: any) => Promise<void>;
   onExit: () => void;
 }
 
 export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const getInitialDesign = () => {
     const baseDesign = adminApi.getDefaultSettings().design;
-    const incomingDesign = settings?.design || {};
+    const incomingDesign = settings?.draftDesign || settings?.design || {};
     const mergedLegacy = { ...baseDesign, ...incomingDesign };
     const { heroPage: _legacyHeroPage, storefront: _legacyStorefront, ...surfaceBase } = mergedLegacy;
 
@@ -1776,6 +1802,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     }
   }, [activeSection, syncPreview]);
   const [saving, setSaving] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
 
@@ -1820,19 +1847,24 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     setSaved(false);
   };
 
-  const handleSave = async () => {
-    setSaving(true);
+  const handleSave = async (options: { publish?: boolean } = {}) => {
+    if (options.publish) setSaving(true);
+    else setSavingDraft(true);
+    
     try {
-      await onSave(design);
+      await onSave(design, options);
       setSavedDesign(design);
-      setPastDesigns([]);
-      setFutureDesigns([]);
+      if (options.publish) {
+        setPastDesigns([]);
+        setFutureDesigns([]);
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {
       alert("Error saving design");
     } finally {
       setSaving(false);
+      setSavingDraft(false);
     }
   };
 
@@ -2007,9 +2039,29 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           >
             <X size={12} /> Exit
           </button>
+          
+          <a
+            href={window.location.origin + "/?preview=true"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-white/50 hover:text-white transition-colors text-[10px] font-semibold tracking-wider mr-2"
+          >
+            <Eye size={12} /> Preview Live
+          </a>
+          
+          <button
+            onClick={() => handleSave({ publish: false })}
+            disabled={saving || savingDraft || !hasChanges}
+            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-bold tracking-wider transition-all border border-white/10 ${
+              !hasChanges ? "opacity-30 cursor-not-allowed" : "text-white/70 hover:text-white hover:bg-white/5"
+            }`}
+          >
+            {savingDraft ? "Saving..." : "Save Draft"}
+          </button>
+
           <button
             onClick={() => setShowPublishModal(true)}
-            disabled={saving}
+            disabled={saving || savingDraft}
             className={`flex items-center gap-2 px-5 py-1.5 rounded-full text-[10px] font-bold tracking-wider transition-all ${
               saved
                 ? "bg-green-500 text-white"
@@ -2044,7 +2096,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                   <button
                     onClick={async () => {
                       setShowPublishModal(false);
-                      await handleSave();
+                      await handleSave({ publish: true });
                     }}
                     className="w-full bg-[#1a1a1a] text-white py-4 rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase hover:bg-black transition-all active:scale-[0.98]"
                   >
@@ -2214,6 +2266,58 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           previewMode={{ value: previewMode, set: setPreviewMode }}
           iframeRef={iframeRef}
         />
+      </div>
+    </div>
+  );
+}
+
+function SidebarAssetUpload({ value, onChange, label, type }: any) {
+  const [uploading, setUploading] = useState(false);
+  
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await adminApi.uploadBrandAsset(file, type);
+      onChange(url);
+    } catch {
+      alert("Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-200 space-y-3">
+      {value && (
+        <div className="aspect-square w-12 rounded-lg overflow-hidden border border-neutral-200 bg-white">
+          <img src={value} className="w-full h-full object-contain" />
+        </div>
+      )}
+      <div className="flex flex-col gap-2">
+        <input 
+          value={value || ""} 
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Image URL..."
+          className="w-full bg-white border border-neutral-200 rounded-lg px-3 py-1.5 text-[10px] outline-none focus:border-neutral-400"
+        />
+        <div className="relative">
+          <input 
+            type="file" 
+            id={`asset-${type}`} 
+            className="hidden" 
+            accept="image/*" 
+            onChange={handleUpload}
+          />
+          <label 
+            htmlFor={`asset-${type}`}
+            className="flex items-center justify-center gap-2 w-full py-1.5 bg-white border border-neutral-200 rounded-lg text-[9px] font-bold cursor-pointer hover:bg-neutral-50 transition-all uppercase tracking-widest"
+          >
+            {uploading ? <RefreshCw size={10} className="animate-spin" /> : <Plus size={10} />}
+            {uploading ? "Uploading..." : label}
+          </label>
+        </div>
       </div>
     </div>
   );

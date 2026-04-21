@@ -391,7 +391,9 @@ function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive:
           )}
           <h1 className="text-5xl md:text-7xl font-black leading-none tracking-tight uppercase">{activeSlide?.title || "F✶M"}</h1>
           <p className="mt-5 text-[11px] md:text-xs tracking-[0.35em] text-white/70 uppercase">{activeSlide?.subtitle || "PHOTOGRAPHY & ART BOOKS"}</p>
-          <div className="mt-10 flex flex-wrap items-center gap-4">
+          <div className={`mt-10 flex flex-wrap items-center gap-4 ${
+            hero.align === "left" ? "justify-start" : hero.align === "right" ? "justify-end" : "justify-center"
+          }`}>
             <button
               onClick={handleSlideCta}
               className="px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black transition-transform hover:scale-[1.02]"
@@ -481,6 +483,18 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [activeCategory, setActiveCategory] = useState("PUBLICATIONS");
   const [showAbout, setShowAbout] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const logoPosition = storefrontDesign?.logoPosition || "left";
+  const isHeaderTransparent = storefrontDesign?.transparentHeader && !scrolled;
 
   const publications = useMemo(() => getPublications(getFeaturedBooks(books)), [books]);
   const filteredItems = useMemo(
@@ -556,6 +570,19 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const getBookSlug = (book: Book) =>
     (book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
+  // Apply Favicon
+  useEffect(() => {
+    if (storefrontDesign?.faviconUrl) {
+      let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+      }
+      link.href = storefrontDesign.faviconUrl;
+    }
+  }, [storefrontDesign?.faviconUrl]);
+
   if (loading) {
     return (
       <div className="h-screen w-full bg-[#030213] flex flex-col items-center justify-center relative overflow-hidden">
@@ -598,19 +625,25 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         )}
 
         <header
-          className={`${storefrontDesign?.stickyHeader ?? true ? "sticky" : "relative"} ${showAnnouncement && announcementMsg ? "top-10" : "top-0"} z-50 backdrop-blur-xl border-b transition-all duration-300`}
+          className={`${storefrontDesign?.stickyHeader ?? true ? "sticky" : "relative"} ${showAnnouncement && announcementMsg ? "top-10" : "top-0"} z-50 transition-all duration-500 ${isHeaderTransparent ? "border-transparent" : "backdrop-blur-xl border-b"}`}
           style={{
-            backgroundColor: `${storefrontBg}${(storefrontDesign?.headerStyle || "minimal") === "full" ? "f5" : "88"}`,
-            borderColor: `${storefrontText}1a`,
+            backgroundColor: isHeaderTransparent 
+              ? "transparent" 
+              : `${storefrontBg}${(storefrontDesign?.headerStyle || "minimal") === "full" ? "f5" : "b3"}`,
+            borderColor: isHeaderTransparent ? "transparent" : `${storefrontText}1a`,
           }}
         >
-          <div className="mx-auto px-6 py-4 flex items-center justify-between" style={{ maxWidth: storefrontMaxWidth }}>
-            <div className="flex items-center gap-8 md:gap-12">
-              <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
-                {storefrontDesign?.logoUrl ? (
-                  <img src={storefrontDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, storefrontDesign?.logoHeight ?? 24)) }} />
-                ) : "F✶M"}
-              </button>
+          <div className="mx-auto px-6 py-4 flex items-center justify-between gap-4" style={{ maxWidth: storefrontMaxWidth }}>
+            {/* Left Section */}
+            <div className={`flex items-center gap-8 md:gap-12 flex-1 ${logoPosition === "center" ? "" : "flex-initial"}`}>
+              {logoPosition === "left" && (
+                <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
+                  {storefrontDesign?.logoUrl ? (
+                    <img src={storefrontDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, storefrontDesign?.logoHeight ?? 24)) }} />
+                  ) : "F✶M"}
+                </button>
+              )}
+              
               <nav className="hidden md:flex gap-6">
                 {CATEGORIES.map((cat: string) => (
                   <button
@@ -625,8 +658,28 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 ))}
               </nav>
             </div>
-            <div className="flex gap-6 md:gap-8 items-center">
-              {/* Dynamic Custom Pages */}
+
+            {/* Center Section (Logo) */}
+            {logoPosition === "center" && (
+              <div className="flex-1 flex justify-center">
+                <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
+                  {storefrontDesign?.logoUrl ? (
+                    <img src={storefrontDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, storefrontDesign?.logoHeight ?? 24)) }} />
+                  ) : "F✶M"}
+                </button>
+              </div>
+            )}
+
+            {/* Right Section */}
+            <div className={`flex gap-6 md:gap-8 items-center flex-1 justify-end ${logoPosition === "right" ? "flex-initial" : ""}`}>
+              {logoPosition === "right" && (
+                <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
+                  {storefrontDesign?.logoUrl ? (
+                    <img src={storefrontDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, storefrontDesign?.logoHeight ?? 24)) }} />
+                  ) : "F✶M"}
+                </button>
+              )}
+
               {showCustomPages && (
                 <nav className="hidden lg:flex items-center gap-6 mr-2">
                   {pages.some((p:any) => p.showInNav && p.status === "published") && (
@@ -674,18 +727,20 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               return (
                 <motion.article
                   key={item.id || index}
-                  initial={{ opacity: 0, y: 30 }}
+                  initial={(storefrontDesign?.enableAnimations ?? true) ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.8, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
-                  className="group relative"
-                  style={{ animationDuration: storefrontDesign?.enableAnimations === false ? "0ms" : undefined }}
+                  transition={(storefrontDesign?.enableAnimations ?? true) 
+                    ? { duration: 0.8, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }
+                    : { duration: 0 }
+                  }
+                  className={`group relative transition-all duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""}`}
                 >
                   <Link to={`/books/${slug}`}>
                     <div className={`relative ${imageAspectClass} bg-neutral-900/50 mb-4 overflow-hidden border border-white/5 shadow-2xl`} style={{ borderRadius: storefrontCardRadius }}>
                       <SkeletonImage
                         src={item.photos?.[0]?.url || DEFAULT_IMAGE}
                         alt={item.title}
-                        className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                        className={`w-full h-full object-cover transition-transform duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}
                       />
                       {/* Sold out ribbon */}
                       {isOutOfStock && showSoldOutBadge && (
@@ -752,16 +807,51 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       className="size-full bg-[#030213] text-white overflow-hidden relative selection:bg-white selection:text-black font-sans"
       style={{ fontFamily: heroDesign?.font || "Inter, sans-serif" }}
     >
-      <header className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-6 bg-gradient-to-b from-black/70 to-transparent">
-        {showEnterArchive && (
-          <button
-            onClick={() => setShowCatalog(true)}
-            className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white hover:text-white/70 transition-colors"
-          >
-            ENTER ARCHIVE
-          </button>
+      {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
+      <header 
+        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-6 transition-all duration-500 ${scrolled ? "bg-black/80 backdrop-blur-xl border-b border-white/5 py-4" : "bg-gradient-to-b from-black/70 to-transparent"}`}
+      >
+        {/* Left Section */}
+        <div className={`flex items-center gap-8 flex-1 ${logoPosition === "center" ? "" : "flex-initial"}`}>
+          {logoPosition === "left" && (
+            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
+              {heroDesign?.logoUrl ? (
+                <img src={heroDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, heroDesign?.logoHeight ?? 24)) }} />
+              ) : "F✶M"}
+            </button>
+          )}
+
+          {showEnterArchive && (
+            <button
+              onClick={() => setShowCatalog(true)}
+              className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white hover:text-white/70 transition-colors"
+            >
+              ENTER ARCHIVE
+            </button>
+          )}
+        </div>
+
+        {/* Center Section (Logo) */}
+        {logoPosition === "center" && (
+          <div className="flex-1 flex justify-center">
+            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
+              {heroDesign?.logoUrl ? (
+                <img src={heroDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, heroDesign?.logoHeight ?? 24)) }} />
+              ) : "F✶M"}
+            </button>
+          </div>
         )}
-        <div className="flex gap-8 items-center">
+
+        {/* Right Section */}
+        <div className={`flex gap-8 items-center flex-1 justify-end ${logoPosition === "right" ? "flex-initial" : ""}`}>
+          {logoPosition === "right" && (
+            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
+              {heroDesign?.logoUrl ? (
+                <img src={heroDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, heroDesign?.logoHeight ?? 24)) }} />
+              ) : "F✶M"}
+            </button>
+          )}
+
           {showInformation && (
             <button
               onClick={() => setShowAbout(true)}
@@ -822,6 +912,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     books={books}
                     onCtaClick={() => setShowCatalog(true)}
                     onProductClick={(book: any) => navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)}
+                    enableAnimations={heroDesign?.enableAnimations ?? true}
                   />
                 </div>
               );
