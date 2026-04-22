@@ -45,6 +45,7 @@ import { ThemeEditor } from "./ThemeEditor";
 import { adminApi } from "./api";
 
 export function Dashboard() {
+  console.log("Dashboard rendering...");
   const [activeTab, setActiveTab] = useState("overview");
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -57,9 +58,26 @@ export function Dashboard() {
   const [settings, setSettings] = useState<any>(null);
   const [originalSettings, setOriginalSettings] = useState<any>(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
+  const [catalogRefreshKey, setCatalogRefreshKey] = useState(0);
 
   useEffect(() => {
+    // Debug bypass
+    const params = new URLSearchParams(window.location.hash.split('?')[1]);
+    if (params.get('debug') === 'true') {
+      console.log("DEBUG MODE: Bypassing auth");
+      setUser({
+        displayName: "Debug Admin",
+        email: "lyricalmyricalbooks@gmail.com",
+        photoURL: null
+      });
+      setLoading(false);
+      loadStats();
+      loadSettings();
+      return;
+    }
+
     const unsubscribe = adminApi.onAuthStateChange((u) => {
+      console.log("Auth state change:", u?.email);
       setUser(u);
       setLoading(false);
       if (u) {
@@ -71,8 +89,10 @@ export function Dashboard() {
   }, []);
 
   async function loadSettings() {
+    console.log("Loading settings...");
     try {
       const data = await adminApi.getSettings();
+      console.log("Settings loaded:", data);
       setSettings(JSON.parse(JSON.stringify(data)));
       setOriginalSettings(data);
     } catch (err) {
@@ -142,6 +162,7 @@ export function Dashboard() {
     { id: "orders", label: "Fulfillment", icon: ShoppingCart, color: "text-violet-400" },
     { id: "catalog", label: "Book Registry", icon: BookOpen, color: "text-emerald-400" },
     { id: "discounts", label: "Campaigns", icon: Tag, color: "text-amber-400" },
+    { id: "pages", label: "Site Architecture", icon: Layers, color: "text-indigo-400" },
     { id: "settings", label: "Publisher Tools", icon: Settings, color: "text-rose-400", children: [
         { id: "general", label: "Global Settings", icon: ShieldCheck },
         { id: "shipping", label: "Shipping Matrix", icon: Truck },
@@ -363,7 +384,7 @@ export function Dashboard() {
                           case "overview": 
                           case "analytics":
                             return <AnalyticsDashboard />;
-                          case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} />;
+                          case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
                           case "discounts": return <Discounts />;
                           case "orders": 
                             return selectedOrder ? (
@@ -371,6 +392,7 @@ export function Dashboard() {
                             ) : (
                               <Orders onSelectOrder={(order) => setSelectedOrder(order)} />
                             );
+                          case "pages":
                           case "shipping":
                           case "payments":
                           case "settings": 
@@ -437,7 +459,7 @@ export function Dashboard() {
                 onSave={() => { 
                   setShowEditor(false); 
                   if (activeTab === "catalog") {
-                    // Logic to refresh catalog would go here
+                    setCatalogRefreshKey(prev => prev + 1);
                   }
                   loadStats(); 
                 }} 

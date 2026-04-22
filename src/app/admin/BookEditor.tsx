@@ -32,6 +32,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
+import { Book, Variant } from "../features/site/types";
 
 function SortablePhoto({ photo, index, onRemove }: { photo: any; index: number; onRemove: (id: string) => void }) {
   const {
@@ -77,7 +78,7 @@ function SortablePhoto({ photo, index, onRemove }: { photo: any; index: number; 
 }
 
 interface BookEditorProps {
-  book: any | null;
+  book: Book | null;
   onClose: () => void;
   onSave: () => void;
 }
@@ -173,6 +174,16 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     }
   }, [formData, book?.id]);
 
+  // Aggregate stock calculation
+  useEffect(() => {
+    if (formData.variants && formData.variants.length > 0) {
+      const totalStock = formData.variants.reduce((sum: number, v: Variant) => sum + (v.stock || 0), 0);
+      if (totalStock !== formData.stockLevel) {
+        setFormData((prev: any) => ({ ...prev, stockLevel: totalStock }));
+      }
+    }
+  }, [formData.variants]);
+
   async function loadMetadata() {
     try {
       const [sh, au, settings] = await Promise.all([
@@ -185,7 +196,13 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       
       const siteCats = settings?.design?.categories || settings?.draftDesign?.categories || CATEGORIES;
       // Filter out 'PUBLICATIONS' as it's a catch-all and usually not a specific tag
-      setCategories(siteCats.filter((c: string) => c !== 'PUBLICATIONS'));
+      // Ensure all items are strings to prevent crashes later
+      const filteredCats = Array.isArray(siteCats) 
+        ? siteCats
+            .filter((c: any) => c && typeof c === 'string' && c !== 'PUBLICATIONS')
+        : CATEGORIES.filter(c => c !== 'PUBLICATIONS');
+      
+      setCategories(filteredCats);
 
       if (!book && sh.length > 0) {
         setFormData((prev: any) => ({ ...prev, shippingProfileId: sh[0].id }));
@@ -306,7 +323,14 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const addVariant = () => {
     setFormData((prev: any) => ({
       ...prev,
-      variants: [...prev.variants, { name: "", price: prev.retailPrice, stock: 10, id: crypto.randomUUID() }]
+      variants: [...prev.variants, { 
+        name: "", 
+        price: prev.retailPrice, 
+        stock: 0, 
+        sku: `${prev.sku || 'SKU'}-${prev.variants.length + 1}`,
+        weight: prev.weight || "",
+        id: crypto.randomUUID() 
+      }]
     }));
   };
 
@@ -508,43 +532,76 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                    </button>
                  </div>
                  <div className="space-y-4">
-                   {formData.variants.map((v: any) => (
-                     <div key={v.id} className="flex gap-4 bg-white/[0.02] border border-white/5 p-4 rounded-2xl items-center group hover:border-cyan-500/30 transition-all">
-                       <div className="flex-1 space-y-2">
-                         <label className="text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">EDITION NAME</label>
-                         <input 
-                           placeholder="e.g. Signed Collector's Copy" 
-                           value={v.name} 
-                           onChange={(e) => updateVariant(v.id, "name", e.target.value)}
-                           className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-[10px] text-white focus:border-cyan-500/50 outline-none transition-all"
-                         />
-                       </div>
-                       <div className="w-32 space-y-2">
-                          <label className="text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">PRICE (USD)</label>
-                          <div className="relative">
-                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] text-slate-600">$</span>
-                             <input 
-                               type="number" 
-                               value={v.price} 
-                               onChange={(e) => updateVariant(v.id, "price", Number(e.target.value))}
-                               className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-8 pr-4 text-[10px] text-white focus:border-cyan-500/50 outline-none transition-all font-mono"
-                             />
-                          </div>
-                       </div>
-                       <button 
-                         type="button" 
-                         onClick={() => removeVariant(v.id)} 
-                         className="mt-6 p-3 bg-red-500/10 text-red-400 rounded-xl hover:bg-red-500 hover:text-white transition-all border border-red-500/20 opacity-0 group-hover:opacity-100"
-                       >
-                         <Trash2 size={14} />
-                       </button>
-                     </div>
-                   ))}
-                   {formData.variants.length === 0 && (
-                     <div className="h-24 flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-3xl gap-2">
-                       <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.2em]">Single edition (Standard)</p>
-                     </div>
-                   )}
+                  <div className="space-y-6">
+                    {formData.variants.map((v: Variant) => (
+                      <div key={v.id} className="grid grid-cols-1 md:grid-cols-6 gap-6 bg-white/[0.02] border border-white/5 p-8 rounded-[2.5rem] relative group hover:border-cyan-500/30 transition-all shadow-2xl">
+                        <div className="md:col-span-2 space-y-3">
+                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">EDITION NAME</label>
+                          <input 
+                            placeholder="e.g. Signed Collector's Copy" 
+                            value={v.name} 
+                            onChange={(e) => updateVariant(v.id, "name", e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-[11px] text-white focus:border-cyan-500/50 outline-none transition-all font-bold"
+                          />
+                        </div>
+                        <div className="space-y-3">
+                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">SKU</label>
+                          <input 
+                            placeholder="SKU-..." 
+                            value={v.sku || ""} 
+                            onChange={(e) => updateVariant(v.id, "sku", e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-[11px] text-cyan-400 focus:border-cyan-500/50 outline-none transition-all font-mono"
+                          />
+                        </div>
+                        <div className="space-y-3">
+                           <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">PRICE</label>
+                           <div className="relative">
+                              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[11px] text-slate-600">$</span>
+                              <input 
+                                type="number" 
+                                value={v.price} 
+                                onChange={(e) => updateVariant(v.id, "price", Number(e.target.value))}
+                                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-10 pr-6 text-[11px] text-white focus:border-cyan-500/50 outline-none transition-all font-mono font-bold"
+                              />
+                           </div>
+                        </div>
+                        <div className="space-y-3">
+                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">STOCK</label>
+                          <input 
+                            type="number" 
+                            value={v.stock} 
+                            onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-[11px] text-white focus:border-cyan-500/50 outline-none transition-all font-mono font-bold"
+                          />
+                        </div>
+                        <div className="space-y-3">
+                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">WEIGHT</label>
+                          <input 
+                            placeholder="0.5kg" 
+                            value={v.weight || ""} 
+                            onChange={(e) => updateVariant(v.id, "weight", e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-[11px] text-slate-400 focus:border-cyan-500/50 outline-none transition-all"
+                          />
+                        </div>
+                        
+                        <button 
+                          type="button" 
+                          onClick={() => removeVariant(v.id)} 
+                          className="absolute -right-4 -top-4 p-4 bg-red-500/10 text-red-400 rounded-full hover:bg-red-500 hover:text-white transition-all border border-red-500/20 opacity-0 group-hover:opacity-100 shadow-2xl backdrop-blur-xl z-10"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    ))}
+                    {formData.variants.length === 0 && (
+                      <div className="h-32 flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-[2.5rem] gap-4 group hover:border-cyan-500/20 transition-all">
+                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-700 group-hover:text-cyan-400 transition-colors">
+                          <Plus size={20} />
+                        </div>
+                        <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.3em]">No variants defined. Using base book settings.</p>
+                      </div>
+                    )}
+                  </div>
                  </div>
                </div>
             </div>
@@ -566,7 +623,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                         : "bg-white/5 text-slate-500 border-white/5 hover:bg-white/10"
                     }`}
                   >
-                    {cat.toUpperCase()}
+                    {String(cat).toUpperCase()}
                   </button>
                 ))}
               </div>
@@ -667,13 +724,34 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">STOCK LEVEL</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">COST PRICE (USD)</label>
+                    <div className="relative">
+                      <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 text-xs">$</span>
+                      <input
+                        type="number"
+                        name="costPrice"
+                        min={0}
+                        step="0.01"
+                        value={formData.costPrice ?? 0}
+                        onChange={handleChange}
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-10 pr-6 text-sm text-white focus:border-amber-500/50 outline-none transition-all font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">
+                      STOCK LEVEL {formData.variants?.length > 0 && "(CALCULATED FROM EDITIONS)"}
+                    </label>
                     <input 
                       type="number" 
                       name="stockLevel" 
                       value={formData.stockLevel} 
                       onChange={handleChange} 
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-sm text-white focus:border-amber-500/50 outline-none transition-all font-mono font-bold" 
+                      disabled={formData.variants?.length > 0}
+                      className={`w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-sm text-white focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${formData.variants?.length > 0 ? 'opacity-50 cursor-not-allowed' : ''}`} 
                     />
                   </div>
                 </div>

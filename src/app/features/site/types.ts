@@ -3,9 +3,29 @@ export type BookPhoto = {
   altText?: string;
 };
 
+export type Variant = {
+  id: string;
+  name: string;
+  price: number;
+  stock: number;
+  sku?: string;
+  weight?: string;
+};
+
 export type Book = {
   id: string;
   title: string;
+  subtitle?: string;
+  description?: string;
+  isbn?: string;
+  sku?: string;
+  retailPrice: number;
+  costPrice?: number;
+  stockLevel: number;
+  format?: string;
+  dimensions?: string;
+  weight?: string;
+  language?: string;
   status?: string;
   isFeatured?: boolean;
   scheduleDate?: string;
@@ -13,7 +33,11 @@ export type Book = {
   photos?: BookPhoto[];
   stripePriceId?: string;
   slug?: string;
-  stockLevel?: number;
+  isOnSale?: boolean;
+  salePrice?: number;
+  variants?: Variant[];
+  shippingProfileId?: string;
+  authorId?: string;
 };
 
 export type SiteSettings = {

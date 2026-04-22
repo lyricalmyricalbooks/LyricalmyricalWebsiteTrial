@@ -27,9 +27,10 @@ import toast from "react-hot-toast";
 interface BookCatalogProps {
   onEdit: (book: any) => void;
   onAdd: () => void;
+  refreshTrigger?: number;
 }
 
-export function BookCatalog({ onEdit, onAdd }: BookCatalogProps) {
+export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps) {
   const [books, setBooks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -41,7 +42,7 @@ export function BookCatalog({ onEdit, onAdd }: BookCatalogProps) {
 
   useEffect(() => {
     loadBooks();
-  }, []);
+  }, [refreshTrigger]);
 
   async function loadBooks() {
     try {
@@ -202,7 +203,17 @@ export function BookCatalog({ onEdit, onAdd }: BookCatalogProps) {
            </div>
            <div className="text-center">
              <p className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">No titles found</p>
-             <button onClick={() => setSearch("")} className="text-violet-400 font-black text-[10px] uppercase tracking-widest hover:text-white mt-4 block mx-auto underline underline-offset-8 decoration-violet-500/30">Clear selection</button>
+             <div className="flex items-center justify-center gap-6 mt-8">
+                <button onClick={() => setSearch("")} className="text-violet-400 font-black text-[10px] uppercase tracking-widest hover:text-white transition-colors">Clear selection</button>
+                <div className="w-px h-6 bg-white/10" />
+                <button 
+                  onClick={onAdd}
+                  className="flex items-center gap-3 bg-violet-600 hover:bg-violet-500 text-white px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 shadow-xl border border-violet-400/20"
+                >
+                  <Plus size={16} />
+                  New Title
+                </button>
+             </div>
            </div>
         </div>
       ) : viewMode === 'grid' ? (
