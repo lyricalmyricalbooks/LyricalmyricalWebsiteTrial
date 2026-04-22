@@ -63,29 +63,35 @@ function SidebarLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SidebarInput({ value, onChange, placeholder, type = "text" }: any) {
+function SidebarInput({ label, value, onChange, placeholder, type = "text" }: any) {
   return (
-    <input
-      type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] outline-none focus:border-neutral-400 transition-colors"
-    />
+    <div className="space-y-1.5">
+      {label && <SidebarLabel>{label}</SidebarLabel>}
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] outline-none focus:border-neutral-400 transition-colors"
+      />
+    </div>
   );
 }
 
-function SidebarSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+function SidebarSelect({ label, value, onChange, options }: { label?: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] outline-none focus:border-neutral-400 cursor-pointer"
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
+    <div className="space-y-1.5">
+      {label && <SidebarLabel>{label}</SidebarLabel>}
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] outline-none focus:border-neutral-400 cursor-pointer"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    </div>
   );
 }
 
@@ -409,7 +415,7 @@ function StylePanel({ design, update }: any) {
   );
 }
 
-function NavigationPanel({ design, update }: any) {
+function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any) {
   const headerLinks = design.headerLinks || {};
   const updateHeaderLink = (key: string, value: boolean) => {
     update("headerLinks", { ...headerLinks, [key]: value });
@@ -462,74 +468,23 @@ function NavigationPanel({ design, update }: any) {
         </div>
       </Accordion>
 
-      <Accordion title="Navigation Categories">
-        <div className="space-y-4">
-          <div className="space-y-2">
-            {(design.categories || CATEGORIES).map((cat: string, index: number) => (
-              <div key={index} className="flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-lg p-2 group">
-                <input
-                  value={cat}
-                  onChange={(e) => {
-                    const newCats = [...(design.categories || CATEGORIES)];
-                    newCats[index] = e.target.value;
-                    update("categories", newCats);
-                  }}
-                  className="flex-1 bg-transparent text-[11px] outline-none font-medium"
-                />
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => {
-                      const newCats = [...(design.categories || CATEGORIES)];
-                      if (index > 0) {
-                        [newCats[index], newCats[index - 1]] = [newCats[index - 1], newCats[index]];
-                        update("categories", newCats);
-                      }
-                    }}
-                    disabled={index === 0}
-                    className="p-1 hover:bg-neutral-200 rounded text-neutral-400 disabled:opacity-30"
-                  >
-                    <ChevronUp size={12} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      const newCats = [...(design.categories || CATEGORIES)];
-                      if (index < newCats.length - 1) {
-                        [newCats[index], newCats[index + 1]] = [newCats[index + 1], newCats[index]];
-                        update("categories", newCats);
-                      }
-                    }}
-                    disabled={index === (design.categories || CATEGORIES).length - 1}
-                    className="p-1 hover:bg-neutral-200 rounded text-neutral-400 disabled:opacity-30"
-                  >
-                    <ChevronDown size={12} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      const newCats = (design.categories || CATEGORIES).filter((_: any, i: number) => i !== index);
-                      update("categories", newCats);
-                    }}
-                    className="p-1 hover:bg-red-100 hover:text-red-500 rounded text-neutral-400"
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-          <button
-            onClick={() => {
-              const newCats = [...(design.categories || CATEGORIES), "NEW PAGE"];
-              update("categories", newCats);
-            }}
-            className="w-full py-2 border-2 border-dashed border-neutral-200 rounded-xl text-neutral-400 text-[10px] font-bold tracking-widest hover:border-neutral-300 hover:text-neutral-500 transition-all flex items-center justify-center gap-2"
-          >
-            <Plus size={14} />
-            ADD CATEGORY
-          </button>
+      <div className="p-8 text-center bg-blue-50/50 rounded-[2.5rem] border border-blue-100 border-dashed mb-6">
+        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm shadow-blue-100">
+           <LayoutTemplate size={20} className="text-blue-500" />
         </div>
-      </Accordion>
+        <h3 className="text-[12px] font-bold text-neutral-800 mb-2">Navigation has moved</h3>
+        <p className="text-[10px] text-neutral-500 leading-relaxed mb-6 px-4">
+          To manage your navigation categories and menu items, please use the <strong>Menu & Pages</strong> tab.
+        </p>
+        <button 
+           onClick={() => { setActiveTab("pages"); setActiveSection(null); }}
+           className="px-6 py-2 bg-blue-600 text-white rounded-full text-[10px] font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all hover:-translate-y-0.5 active:translate-y-0"
+        >
+          GO TO MENU & PAGES
+        </button>
+      </div>
 
-      <Accordion title="Visibility & Logic">
+      <Accordion title="Layout & Logic">
         <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden mt-2">
           <SidebarToggle
             label="Sticky header"
@@ -696,7 +651,7 @@ function HomepagePanel({ design, update }: any) {
               <SidebarInput label="Title" value={section.settings.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { title: v })} />
               <textarea value={section.settings.content || ""} onChange={(e) => updateSectionSettings(section.id, { content: e.target.value })} rows={8} className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm" placeholder="Content text..." />
               
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
                 <SidebarLabel>Primary Button</SidebarLabel>
                 <div className="grid grid-cols-2 gap-2">
                   <SidebarInput placeholder="Text" value={section.settings.ctaText || ""} onChange={(v: string) => updateSectionSettings(section.id, { ctaText: v })} />
@@ -704,7 +659,7 @@ function HomepagePanel({ design, update }: any) {
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
                 <SidebarLabel>Secondary Button</SidebarLabel>
                 <div className="grid grid-cols-2 gap-2">
                   <SidebarInput placeholder="Text" value={section.settings.secondaryCtaText || ""} onChange={(v: string) => updateSectionSettings(section.id, { secondaryCtaText: v })} />
@@ -735,28 +690,17 @@ function HomepagePanel({ design, update }: any) {
           <p className="text-[10px] text-neutral-400 font-medium tracking-wide">Add and arrange your shop content</p>
         </div>
         
-        <div className="relative group">
-          <button className="flex items-center gap-2 bg-blue-600 text-white px-3 py-1.5 rounded-full text-[10px] font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors">
-            <Plus size={14} /> ADD
-          </button>
-          <div className="absolute right-0 top-10 w-56 bg-white border border-neutral-100 rounded-2xl shadow-2xl z-[100] py-2 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 pointer-events-none group-hover:pointer-events-auto transition-all transform origin-top-right">
-             <p className="px-4 py-2 text-[9px] font-bold text-neutral-300 uppercase tracking-widest border-b border-neutral-50 mb-1">Select Component</p>
-             {[
-               { id: "HeroSection", label: "Hero Banner", icon: <LayoutTemplate size={14} />, desc: "High-impact cover" },
-               { id: "FeaturedCollectionSection", label: "Product Grid", icon: <ShoppingBag size={14} />, desc: "Display products" },
-               { id: "NewsletterSection", label: "Newsletter", icon: <Mail size={14} />, desc: "Capture emails" },
-               { id: "TextContentSection", label: "Custom Text", icon: <FileText size={14} />, desc: "Bio or statement" },
-             ].map((item) => (
-                <button key={item.id} onClick={() => addSection(item.id)} className="w-full px-4 py-3 hover:bg-neutral-50 flex items-start gap-3 transition-colors text-left">
-                  <div className="mt-0.5 p-2 rounded-lg bg-neutral-50 text-neutral-400 group-hover:text-blue-600 group-hover:bg-blue-50 transition-colors">{item.icon}</div>
-                  <div><h4 className="text-[11px] font-bold text-neutral-700 leading-none">{item.label}</h4><p className="text-[9px] text-neutral-400 mt-1">{item.desc}</p></div>
-                </button>
-             ))}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 pr-4 border-r border-neutral-100">
+             <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Active</span>
+             <SidebarToggle 
+                checked={design.showHero ?? true} 
+                onChange={(v: boolean) => update("showHero", v, true)} 
+             />
           </div>
         </div>
       </div>
 
-      {/* Global Hero Settings (Legacy) */}
       <div className="border border-neutral-100 bg-neutral-50/50 rounded-2xl overflow-hidden mb-4">
         <button 
           onClick={() => setExpandedSection(expandedSection === "hero-legacy" ? null : "hero-legacy")}
@@ -861,7 +805,7 @@ function HomepagePanel({ design, update }: any) {
   );
 }
 
-function PagesPanel({ pages, setPages }: any) {
+function PagesPanel({ pages, setPages, design, update }: any) {
   const [editingPage, setEditingPage] = useState<any | null>(null);
 
   const createPage = async () => {
@@ -892,6 +836,7 @@ function PagesPanel({ pages, setPages }: any) {
   };
 
   if (editingPage) {
+    // ... (keep editing page logic same but I'll need to include it in the replace block if I replace the whole function)
     return (
       <div className="p-4 space-y-4">
         <SubPanelHeader title="Edit Page" onBack={() => setEditingPage(null)} />
@@ -940,10 +885,85 @@ function PagesPanel({ pages, setPages }: any) {
     );
   }
 
+  const categories = design.categories || CATEGORIES;
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Navigation Categories Section */}
+      <div className="p-4 border-b border-neutral-100 bg-neutral-50/50">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-[11px] font-bold text-neutral-700 uppercase tracking-widest">Navigation Menu</h3>
+          <span className="text-[9px] text-neutral-400 font-medium">Shop Categories</span>
+        </div>
+        
+        <div className="space-y-2 mb-4">
+          {categories.map((cat: string, index: number) => (
+            <div key={index} className="flex items-center gap-2 bg-white border border-neutral-200 rounded-lg p-2 group shadow-sm">
+              <input
+                value={cat}
+                onChange={(e) => {
+                  const newCats = [...categories];
+                  newCats[index] = e.target.value;
+                  update("categories", newCats, true); // true = global
+                }}
+                className="flex-1 bg-transparent text-[11px] outline-none font-medium"
+              />
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => {
+                    const newCats = [...categories];
+                    if (index > 0) {
+                      [newCats[index], newCats[index - 1]] = [newCats[index - 1], newCats[index]];
+                      update("categories", newCats, true);
+                    }
+                  }}
+                  disabled={index === 0}
+                  className="p-1 hover:bg-neutral-100 rounded text-neutral-400 disabled:opacity-30"
+                >
+                  <ChevronUp size={12} />
+                </button>
+                <button
+                  onClick={() => {
+                    const newCats = [...categories];
+                    if (index < newCats.length - 1) {
+                      [newCats[index], newCats[index + 1]] = [newCats[index + 1], newCats[index]];
+                      update("categories", newCats, true);
+                    }
+                  }}
+                  disabled={index === categories.length - 1}
+                  className="p-1 hover:bg-neutral-100 rounded text-neutral-400 disabled:opacity-30"
+                >
+                  <ChevronDown size={12} />
+                </button>
+                <button
+                  onClick={() => {
+                    const newCats = categories.filter((_: any, i: number) => i !== index);
+                    update("categories", newCats, true);
+                  }}
+                  className="p-1 hover:bg-red-50 hover:text-red-500 rounded text-neutral-400"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        <button
+          onClick={() => {
+            const newCats = [...categories, "NEW CATEGORY"];
+            update("categories", newCats, true);
+          }}
+          className="w-full py-2 border-2 border-dashed border-neutral-200 rounded-xl text-neutral-400 text-[10px] font-bold tracking-widest hover:border-neutral-300 hover:text-neutral-500 transition-all flex items-center justify-center gap-2"
+        >
+          <Plus size={14} />
+          ADD MENU ITEM
+        </button>
+      </div>
+
+      {/* Pages Section */}
       <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
-         <h3 className="text-[11px] font-bold text-neutral-700 uppercase tracking-widest">Pages</h3>
+         <h3 className="text-[11px] font-bold text-neutral-700 uppercase tracking-widest">Custom Pages</h3>
          <button onClick={createPage} className="flex items-center gap-1 text-[10px] font-bold text-blue-500 hover:text-blue-600">
            <Plus size={12} /> ADD
          </button>
@@ -1903,9 +1923,12 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const activeDesign = design?.[designSurface] || {};
 
   // Update a single design key
-  const update = useCallback((key: string, value: any) => {
+  const update = useCallback((key: string, value: any, isGlobal = false) => {
     setDesign((prev: any) => {
-      const nextDesign = {
+      const nextDesign = isGlobal ? {
+        ...prev,
+        [key]: value
+      } : {
         ...prev,
         [designSurface]: {
           ...(prev?.[designSurface] || {}),
@@ -2048,7 +2071,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const renderSubPanel = () => {
     switch (activeSection) {
       case "style":         return <StylePanel design={activeDesign} update={update} />;
-      case "navigation":    return <NavigationPanel design={activeDesign} update={update} />;
+      case "navigation":    return <NavigationPanel design={activeDesign} update={update} setActiveTab={setActiveTab} setActiveSection={setActiveSection} />;
       case "homepage":      return <HomepagePanel design={activeDesign} update={update} />;
       case "products":      return <ProductsPanel design={activeDesign} update={update} />;
       case "layout":        return <LayoutPanel design={activeDesign} update={update} />;
@@ -2063,7 +2086,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   };
 
   const renderPagesPanel = () => {
-    return <PagesPanel pages={pages} setPages={setPages} />;
+    return <PagesPanel pages={pages} setPages={setPages} design={design} update={update} />;
   };
 
   const currentSectionTitle = SECTIONS.find(s => s.id === activeSection)?.title || "";
@@ -2220,7 +2243,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
             {(
               [
                 { id: "settings",  icon: <Settings size={11} />,      label: "Settings" },
-                { id: "pages",     icon: <FileText size={11} />,       label: "Pages" },
+                { id: "pages",     icon: <FileText size={11} />,       label: "Menu & Pages" },
                 { id: "code",      icon: <Code2 size={11} />,          label: "Code" },
                 { id: "templates", icon: <LayoutTemplate size={11} />, label: "Templates" },
               ] as const

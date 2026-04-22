@@ -446,22 +446,32 @@ function useThemePreview(initialDesign: any) {
   const isPreview = window.location.search.includes("preview=true");
 
   useEffect(() => {
-    if (!isPreview) return;
-
-    // Announce we're ready to receive design updates
-    const announceReady = () => window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
-    announceReady();
-
-    const handler = (event: MessageEvent) => {
+    // 1. Listen for iframe messages (legacy/standard)
+    const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === "THEME_UPDATE") {
         setDesignOverride(event.data.design);
-        // Re-acknowledge so the editor knows the iframe is alive
-        announceReady();
+        if (isPreview) window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
       }
     };
 
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
+    // 2. Listen for BroadcastChannel (cross-tab sync)
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("site_preview_updates");
+      bc.onmessage = (event) => {
+        if (event.data && event.data.type === "THEME_UPDATE") {
+          setDesignOverride(event.data.design);
+        }
+      };
+    } catch (_) {}
+
+    window.addEventListener("message", handleMessage);
+    if (isPreview) window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
+
+    return () => {
+      window.removeEventListener("message", handleMessage);
+      bc?.close();
+    };
   }, [isPreview]);
 
   return designOverride || initialDesign;
@@ -494,7 +504,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     : legacyDesign;
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const categories = storefrontDesign?.categories || CATEGORIES;
+  // Prioritize global categories if they exist (new behavior), otherwise fall back to storefront or legacy
+  const categories = activeDesign?.categories || storefrontDesign?.categories || legacyDesign?.categories || CATEGORIES;
+
+  useEffect(() => {
+    if (legacyDesign?.showHero === false && !showCatalog) {
+      setShowCatalog(true);
+    }
+  }, [legacyDesign?.showHero, showCatalog, setShowCatalog]);
+
   const [activeCategory, setActiveCategory] = useState(categories[0] || "PUBLICATIONS");
   const [showAbout, setShowAbout] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -723,6 +741,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   INFORMATION
                 </button>
               )}
+              <a 
+                href="#/admin" 
+                className="hidden sm:flex items-center gap-1.5 text-[9px] tracking-[0.2em] font-bold text-white/30 hover:text-white transition-colors uppercase mr-2"
+              >
+                Admin
+              </a>
               {showBag && (
                 <button onClick={() => setIsCartOpen(true)} className="group flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/5 transition-colors shadow-lg">
                   <span className="text-[10px] tracking-[0.2em] font-semibold">{bagLabel}</span>
