@@ -478,6 +478,24 @@ function useThemePreview(initialDesign: any) {
 }
 
 // ──────────────────────────────
+// Dynamic Font Loader
+// ──────────────────────────────
+function GoogleFontLoader({ font }: { font: string }) {
+  useEffect(() => {
+    if (!font || font === "Inter") return;
+    const linkId = `google-font-${font.replace(/\s+/g, "-").toLowerCase()}`;
+    if (document.getElementById(linkId)) return;
+
+    const link = document.createElement("link");
+    link.id = linkId;
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${font.replace(/\s+/g, "+")}:wght@400;500;600;700;800;900&display=swap`;
+    document.head.appendChild(link);
+  }, [font]);
+  return null;
+}
+
+// ──────────────────────────────
 // Main exported component
 // ──────────────────────────────
 export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
@@ -642,6 +660,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         className="min-h-screen overflow-y-auto selection:bg-white selection:text-black"
         style={{ fontFamily: storefrontDesign?.font || "Inter, sans-serif", backgroundColor: storefrontBg, color: storefrontText }}
       >
+        <GoogleFontLoader font={storefrontDesign?.font || "Inter"} />
         {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
         {/* Promo / announcement banner */}
         {showAnnouncement && announcementMsg && (
@@ -845,6 +864,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       className="size-full bg-[#030213] text-white overflow-hidden relative selection:bg-white selection:text-black font-sans"
       style={{ fontFamily: heroDesign?.font || "Inter, sans-serif" }}
     >
+      <GoogleFontLoader font={heroDesign?.font || "Inter"} />
       {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
       <header 
         className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-6 transition-all duration-500 ${scrolled ? "bg-black/80 backdrop-blur-xl border-b border-white/5 py-4" : "bg-gradient-to-b from-black/70 to-transparent"}`}

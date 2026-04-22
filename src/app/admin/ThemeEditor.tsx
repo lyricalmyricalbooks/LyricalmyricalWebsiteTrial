@@ -33,23 +33,33 @@ import { CATEGORIES } from "../features/site/constants";
 // Colour palette presets
 // ─────────────────────────────────────────────────────────────────────────────
 const PALETTES = [
-  { id: "dark",    label: "Dark",    bg: "#030213", text: "#ffffff", accent: "#A855F7", swatches: ["#030213","#ffffff","#A855F7"] },
-  { id: "light",   label: "Light",   bg: "#f8f7f4", text: "#111111", accent: "#000000", swatches: ["#f8f7f4","#111111","#000000"] },
-  { id: "minimal", label: "Minimal", bg: "#ffffff",  text: "#000000", accent: "#666666", swatches: ["#ffffff","#000000","#888888"] },
-  { id: "warm",    label: "Warm",    bg: "#fdf6f0",  text: "#2c1810", accent: "#c96b2e", swatches: ["#fdf6f0","#2c1810","#c96b2e"] },
-  { id: "forest",  label: "Forest",  bg: "#0f1e14",  text: "#e8f5e9", accent: "#4caf50", swatches: ["#0f1e14","#e8f5e9","#4caf50"] },
-  { id: "ink",     label: "Ink",     bg: "#1a1a1a",  text: "#f5f5f5", accent: "#e74c3c", swatches: ["#1a1a1a","#f5f5f5","#e74c3c"] },
+  { id: "dark",    label: "Midnight Black", bg: "#030213", text: "#ffffff", accent: "#A855F7", swatches: ["#030213","#ffffff","#A855F7"] },
+  { id: "light",   label: "Gallery White",  bg: "#f8f7f4", text: "#111111", accent: "#000000", swatches: ["#f8f7f4","#111111","#000000"] },
+  { id: "minimal", label: "Pure Minimal",   bg: "#ffffff",  text: "#000000", accent: "#666666", swatches: ["#ffffff","#000000","#888888"] },
+  { id: "warm",    label: "Warm Clay",      bg: "#fdf6f0",  text: "#2c1810", accent: "#c96b2e", swatches: ["#fdf6f0","#2c1810","#c96b2e"] },
+  { id: "forest",  label: "Deep Forest",    bg: "#0f1e14",  text: "#e8f5e9", accent: "#4caf50", swatches: ["#0f1e14","#e8f5e9","#4caf50"] },
+  { id: "ink",     label: "Modern Ink",     bg: "#1a1a1a",  text: "#f5f5f5", accent: "#e74c3c", swatches: ["#1a1a1a","#f5f5f5","#e74c3c"] },
+  { id: "royal",   label: "Royal Velvet",   bg: "#1a0b2e", text: "#f3e8ff", accent: "#fbbf24", swatches: ["#1a0b2e","#f3e8ff","#fbbf24"] },
+  { id: "sage",    label: "Soft Sage",      bg: "#e7ede6", text: "#1a2e1a", accent: "#4a7c4a", swatches: ["#e7ede6","#1a2e1a","#4a7c4a"] },
+  { id: "nord",    label: "Arctic Nord",    bg: "#2e3440", text: "#eceff4", accent: "#88c0d0", swatches: ["#2e3440","#eceff4","#88c0d0"] },
+  { id: "cyber",   label: "Night City",     bg: "#000000", text: "#ffffff", accent: "#fde047", swatches: ["#000000","#ffffff","#fde047"] },
+  { id: "rose",    label: "Desert Rose",    bg: "#fff5f5", text: "#742a2a", accent: "#f56565", swatches: ["#fff5f5","#742a2a","#f56565"] },
+  { id: "ocean",   label: "Deep Ocean",     bg: "#0c1a25", text: "#e2e8f0", accent: "#38bdf8", swatches: ["#0c1a25","#e2e8f0","#38bdf8"] },
 ];
 
 const FONTS = [
   { value: "Inter",           label: "Inter",          sub: "Sans-serif Modern" },
   { value: "Outfit",          label: "Outfit",         sub: "Geometric Soft" },
   { value: "DM Sans",         label: "DM Sans",        sub: "Humanist Sans" },
-  { value: "Roboto",          label: "Roboto",         sub: "Clean Standard" },
-  { value: "Playfair Display",label: "Playfair",       sub: "Classic Serif" },
-  { value: "EB Garamond",     label: "EB Garamond",    sub: "Elegant Serif" },
-  { value: "Space Grotesk",   label: "Space Grotesk",  sub: "Techy Sans" },
+  { value: "Montserrat",      label: "Montserrat",     sub: "Classic Sans" },
+  { value: "Syne",            label: "Syne",           sub: "Artistic Display" },
+  { value: "Fraunces",        label: "Fraunces",       sub: "Soft Serif" },
   { value: "Cormorant",       label: "Cormorant",      sub: "High-contrast Serif" },
+  { value: "Playfair Display",label: "Playfair",       sub: "Classic Display" },
+  { value: "Lora",            label: "Lora",           sub: "Modern Serif" },
+  { value: "EB Garamond",     label: "EB Garamond",    sub: "Elegant Classic" },
+  { value: "Space Mono",      label: "Space Mono",     sub: "Technical Type" },
+  { value: "Bebas Neue",      label: "Bebas Neue",     sub: "Condensed Impact" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -261,38 +271,72 @@ function Accordion({ title, children, defaultOpen = false }: { title: string; ch
 }
 
 // ──────────────────────────────
+// Dynamic Font Loader
+// ──────────────────────────────
+function GoogleFontLoader({ font }: { font: string }) {
+  useEffect(() => {
+    if (!font || font === "Inter") return;
+    const linkId = `google-font-${font.replace(/\s+/g, "-").toLowerCase()}`;
+    if (document.getElementById(linkId)) return;
+
+    const link = document.createElement("link");
+    link.id = linkId;
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${font.replace(/\s+/g, "+")}:wght@400;500;600;700;800;900&display=swap`;
+    document.head.appendChild(link);
+  }, [font]);
+  return null;
+}
+
+// ──────────────────────────────
 // Font Selector with Preview
 // ──────────────────────────────
 function FontSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <GoogleFontLoader font={value} />
       <SidebarLabel>Typography</SidebarLabel>
-      <div className="grid grid-cols-1 gap-1.5">
-        {FONTS.map((f) => (
-          <button
-            key={f.value}
-            onClick={() => onChange(f.value)}
-            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all ${
-              value === f.value
-                ? "bg-blue-50 border-blue-400 shadow-sm"
-                : "bg-white border-neutral-200 hover:border-neutral-300"
-            }`}
-          >
-            <div className="text-left">
-              <p className="text-[14px] leading-none mb-1" style={{ fontFamily: f.value }}>
-                {f.label}
-              </p>
-              <p className="text-[9px] text-neutral-400 font-medium tracking-wide">
-                {f.sub}
-              </p>
-            </div>
-            {value === f.value && (
-              <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
-                <Check size={10} className="text-white" />
+      <div className="grid grid-cols-1 gap-2">
+        {FONTS.map((f) => {
+          // Preload fonts for preview
+          return (
+            <button
+              key={f.value}
+              onClick={() => onChange(f.value)}
+              className={`w-full group relative overflow-hidden flex items-center justify-between px-4 py-4 rounded-2xl border transition-all ${
+                value === f.value
+                  ? "bg-white border-blue-500 shadow-lg shadow-blue-500/10"
+                  : "bg-neutral-50/50 border-neutral-100 hover:border-neutral-300 hover:bg-white"
+              }`}
+            >
+              <GoogleFontLoader font={f.value} />
+              <div className="text-left relative z-10">
+                <p 
+                  className={`text-[16px] leading-tight mb-0.5 transition-colors ${value === f.value ? "text-blue-600" : "text-neutral-800"}`} 
+                  style={{ fontFamily: `${f.value}, sans-serif` }}
+                >
+                  {f.label}
+                </p>
+                <p className="text-[9px] text-neutral-400 font-bold uppercase tracking-widest">
+                  {f.sub}
+                </p>
               </div>
-            )}
-          </button>
-        ))}
+              {value === f.value && (
+                <motion.div 
+                  layoutId="font-check"
+                  className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-200"
+                >
+                  <Check size={12} className="text-white" strokeWidth={3} />
+                </motion.div>
+              )}
+              {value !== f.value && (
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                   <ChevronRight size={14} className="text-neutral-300" />
+                </div>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -343,8 +387,8 @@ function StylePanel({ design, update }: any) {
 
   return (
     <div className="p-4 space-y-2 overflow-y-auto flex-1">
-      <Accordion title="Color Palette" defaultOpen={true}>
-        <div className="grid grid-cols-3 gap-2">
+      <Accordion title="Presets & Modes" defaultOpen={true}>
+        <div className="grid grid-cols-2 gap-3">
           {PALETTES.map((palette) => (
             <button
               key={palette.id}
@@ -354,21 +398,27 @@ function StylePanel({ design, update }: any) {
                 update("backgroundColor", palette.bg);
                 update("textColor", palette.text);
               }}
-              className={`relative rounded-xl border-2 overflow-hidden transition-all ${
-                design.palettePreset === palette.id ? "border-blue-500 shadow-md" : "border-neutral-200 hover:border-neutral-300"
+              className={`group relative rounded-3xl border-2 p-3 text-left transition-all ${
+                design.palettePreset === palette.id 
+                  ? "border-blue-600 bg-white shadow-xl shadow-blue-500/10 ring-4 ring-blue-50" 
+                  : "border-neutral-100 bg-neutral-50/50 hover:border-neutral-300 hover:bg-white"
               }`}
             >
-              <div className="flex h-8">
+              <div className="flex h-10 gap-1 mb-3">
                 {palette.swatches.map((s, i) => (
-                  <div key={i} className="flex-1" style={{ background: s }} />
+                  <div key={i} className="flex-1 rounded-lg border border-black/5 shadow-sm" style={{ background: s }} />
                 ))}
               </div>
-              {design.palettePreset === palette.id && (
-                <div className="absolute top-1 right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                  <Check size={8} className="text-white" />
-                </div>
-              )}
-              <p className="text-[9px] font-semibold text-neutral-600 py-1.5 px-1 truncate">{palette.label}</p>
+              <div className="flex items-center justify-between">
+                <p className={`text-[10px] font-black uppercase tracking-tight transition-colors ${design.palettePreset === palette.id ? "text-blue-600" : "text-neutral-700"}`}>
+                  {palette.label}
+                </p>
+                {design.palettePreset === palette.id && (
+                  <div className="w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-blue-200">
+                    <Check size={8} className="text-white" strokeWidth={4} />
+                  </div>
+                )}
+              </div>
             </button>
           ))}
         </div>
