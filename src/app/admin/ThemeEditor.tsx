@@ -2070,7 +2070,10 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           </button>
           
           <a
-            href={window.location.origin + "/?preview=true"}
+            href={(() => {
+              const basePath = window.location.pathname.replace(/\/admin\/?.*$/, "").replace(/\/$/, "");
+              return window.location.origin + basePath + "/?preview=true";
+            })()}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-white/50 hover:text-white transition-colors text-[10px] font-semibold tracking-wider mr-2"
