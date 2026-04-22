@@ -140,6 +140,27 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       setInitialData(formData);
     }
   }, [book]);
+  
+  useEffect(() => {
+    // Broadcast changes for live preview
+    if (typeof window !== 'undefined') {
+      const update = {
+        type: "BOOK_PREVIEW_UPDATE",
+        book: {
+          ...formData,
+          id: book?.id || 'new-book-preview'
+        }
+      };
+      
+      // Iframe communication
+      window.parent.postMessage(update, "*");
+      
+      // Cross-tab communication
+      const bc = new BroadcastChannel("site_preview_updates");
+      bc.postMessage(update);
+      bc.close();
+    }
+  }, [formData, book?.id]);
 
   async function loadMetadata() {
     try {

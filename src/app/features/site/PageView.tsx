@@ -3,12 +3,12 @@ import { useParams, Link } from "react-router";
 import { motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { adminApi } from "../../admin/api";
-
+import type { Page } from "./types";
 
 
 export function PageView() {
   const { slug } = useParams<{ slug: string }>();
-  const [page, setPage] = useState<any>(null);
+  const [page, setPage] = useState<Page | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -42,6 +42,13 @@ export function PageView() {
       document.title = "Lyricalmyrical Books";
     };
   }, [slug]);
+
+  useEffect(() => {
+    // Announce ready for preview updates
+    if (typeof window !== 'undefined' && window.location.search.includes('preview=true')) {
+      window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
+    }
+  }, []);
 
   if (loading) {
     return (

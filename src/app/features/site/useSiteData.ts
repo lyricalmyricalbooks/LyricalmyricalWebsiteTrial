@@ -83,8 +83,58 @@ export function useSiteData() {
 
     loadData();
 
+    // Live Preview Listener
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data) return;
+
+      if (event.data.type === "THEME_UPDATE") {
+        setSettings((prev) => ({
+          ...prev,
+          design: event.data.design
+        }));
+      }
+
+      if (event.data.type === "BOOK_PREVIEW_UPDATE" && event.data.book) {
+        setBooks((prev) => {
+          const updatedBook = event.data.book;
+          const index = prev.findIndex(b => b.id === updatedBook.id);
+          if (index !== -1) {
+            const newBooks = [...prev];
+            newBooks[index] = { ...newBooks[index], ...updatedBook };
+            return newBooks;
+          } else {
+            return [updatedBook, ...prev];
+          }
+        });
+      }
+
+      if (event.data.type === "PAGE_PREVIEW_UPDATE" && event.data.page) {
+        setPages((prev) => {
+          const updatedPage = event.data.page;
+          const index = prev.findIndex(p => p.id === updatedPage.id);
+          if (index !== -1) {
+            const newPages = [...prev];
+            newPages[index] = { ...newPages[index], ...updatedPage };
+            return newPages;
+          } else {
+            return [updatedPage, ...prev];
+          }
+        });
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+
+    // BroadcastChannel for cross-tab updates
+    const bc = new BroadcastChannel("site_preview_updates");
+    bc.onmessage = (event) => {
+      handleMessage(event);
+    };
+
     return () => {
       cancelled = true;
+      window.removeEventListener("message", handleMessage);
+      bc.close();
     };
   }, []);
 

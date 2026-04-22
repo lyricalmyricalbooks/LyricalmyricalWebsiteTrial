@@ -12,6 +12,8 @@ export type Book = {
   categories?: string[];
   photos?: BookPhoto[];
   stripePriceId?: string;
+  slug?: string;
+  stockLevel?: number;
 };
 
 export type SiteSettings = {
@@ -57,8 +59,8 @@ export type SiteSettings = {
     rates: Array<{ country: string; rate: string | number }>;
   };
     design?: {
-      primaryColor: string;
-      font: string;
+      primaryColor?: string;
+      font?: string;
       logoUrl?: string;
       faviconUrl?: string;
       categories?: string[];
@@ -69,6 +71,9 @@ export type SiteSettings = {
         showBag?: boolean;
         showSys?: boolean;
       };
+      storefront?: any;
+      hero?: any;
+      [key: string]: any;
     };
     draftDesign?: any;
   };

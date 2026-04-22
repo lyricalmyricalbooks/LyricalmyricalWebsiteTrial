@@ -1833,11 +1833,16 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     syncPending.current = true;
 
     const send = () => {
+      const update = { type: "THEME_UPDATE", design };
       try {
-        iframeRef.current?.contentWindow?.postMessage(
-          { type: "THEME_UPDATE", design },
-          "*"
-        );
+        iframeRef.current?.contentWindow?.postMessage(update, "*");
+      } catch (_) {}
+      
+      // Cross-tab broadcast
+      try {
+        const bc = new BroadcastChannel("site_preview_updates");
+        bc.postMessage(update);
+        bc.close();
       } catch (_) {}
     };
 

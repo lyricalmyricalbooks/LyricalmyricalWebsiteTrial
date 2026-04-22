@@ -18,7 +18,7 @@ export default function BookDetail() {
   const [imageLoaded, setImageLoaded] = useState(false);
 
   const book: Book | undefined = books.find(
-    (b) => b.id === slug || (b as any).slug === slug || b.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug
+    (b) => b.id === slug || b.slug === slug || b.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug
   );
 
   const storefrontDesign = settings?.design?.storefront || {};
@@ -33,11 +33,16 @@ export default function BookDetail() {
     window.scrollTo(0, 0);
     setActivePhoto(0);
     setImageLoaded(false);
+    
+    // Announce ready for preview updates
+    if (typeof window !== 'undefined' && window.location.search.includes('preview=true')) {
+      window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
+    }
   }, [slug]);
 
   const handleAddToCart = () => {
     if (!book) return;
-    const stockLevel = (book as any).stockLevel ?? 999;
+    const stockLevel = book.stockLevel ?? 999;
     if (stockLevel === 0) return;
     addToCart(book);
     setAdded(true);

@@ -48,6 +48,28 @@ export function PagesManager() {
     load();
   }, []);
 
+  useEffect(() => {
+    if (editing) {
+      const update = {
+        type: "PAGE_PREVIEW_UPDATE",
+        page: {
+          ...editing,
+          id: editing.id || 'new-page-preview'
+        }
+      };
+      
+      // Iframe communication
+      window.parent.postMessage(update, "*");
+      
+      // Cross-tab broadcast
+      try {
+        const bc = new BroadcastChannel("site_preview_updates");
+        bc.postMessage(update);
+        bc.close();
+      } catch (_) {}
+    }
+  }, [editing]);
+
   async function load() {
     setLoading(true);
     try {

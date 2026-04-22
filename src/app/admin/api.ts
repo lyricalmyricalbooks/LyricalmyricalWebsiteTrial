@@ -27,6 +27,7 @@ import { legacyDb, legacyAuth } from "../../lib/legacyFirebase";
 import { ref as dbRef, get as dbGet } from "firebase/database";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { CATEGORIES } from "../features/site/constants";
+import type { Book, Page, SiteSettings } from "../features/site/types";
 
 export const adminApi = {
   // Authentication
@@ -399,7 +400,7 @@ export const adminApi = {
             imageUrl: "https://images.unsplash.com/photo-1513001900722-370f803f498d?w=1600&h=900&fit=crop",
             title: "F✶M",
             subtitle: "PHOTOGRAPHY & ART BOOKS",
-            ctaText: "ENTER ARCHIVE",
+            ctaText: "ENTER SHOP",
             ctaLink: "/shop"
           }
         ]
@@ -686,21 +687,21 @@ export const adminApi = {
   // ─────────────────────────────────────────────
   // PAGES  (custom website pages)
   // ─────────────────────────────────────────────
-  getPages: async () => {
+  getPages: async (): Promise<Page[]> => {
     const snap = await getDocs(collection(db, "pages"));
     const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
     return docs.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   },
 
-  getPageBySlug: async (slug: string) => {
+  getPageBySlug: async (slug: string): Promise<Page | null> => {
     const snap = await getDocs(
       query(collection(db, "pages"), where("slug", "==", slug), limit(1))
     );
     if (snap.empty) return null;
-    return { id: snap.docs[0].id, ...snap.docs[0].data() };
+    return { id: snap.docs[0].id, ...snap.docs[0].data() } as Page;
   },
 
-  getPublishedPages: async () => {
+  getPublishedPages: async (): Promise<Page[]> => {
     const snap = await getDocs(collection(db, "pages"));
     const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
     return docs
