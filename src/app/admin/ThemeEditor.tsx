@@ -857,6 +857,7 @@ function HomepagePanel({ design, update }: any) {
 
 function PagesPanel({ pages, setPages, design, update }: any) {
   const [editingPage, setEditingPage] = useState<any | null>(null);
+  const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null);
 
   const createPage = async () => {
     const newPage = {
@@ -935,7 +936,94 @@ function PagesPanel({ pages, setPages, design, update }: any) {
     );
   }
 
-  const categories = design.categories || CATEGORIES;
+  const rawCategories = design.categories || CATEGORIES;
+  const categories = rawCategories.map((cat: any, i: number) => {
+    if (typeof cat === "string") {
+      return { id: `cat-${i}-${cat.toLowerCase()}`, name: cat, description: "", showInNav: true };
+    }
+    return cat;
+  });
+
+  if (editingCategoryIndex !== null) {
+    const cat = categories[editingCategoryIndex];
+    const updateCat = (key: string, val: any) => {
+      const newCats = [...categories];
+      newCats[editingCategoryIndex] = { ...cat, [key]: val };
+      update("categories", newCats, true);
+    };
+
+    return (
+      <div className="flex-1 flex flex-col bg-white overflow-hidden">
+        <SubPanelHeader 
+          title={cat.name} 
+          onBack={() => setEditingCategoryIndex(null)} 
+        />
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          <div>
+            <SidebarLabel>Display Name</SidebarLabel>
+            <SidebarInput
+              value={cat.name}
+              onChange={(v: string) => updateCat("name", v)}
+              placeholder="e.g. PUBLICATIONS"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <SidebarLabel>Description</SidebarLabel>
+              <span className="text-[9px] text-neutral-400 font-medium">Shown in shop header</span>
+            </div>
+            <textarea
+              value={cat.description || ""}
+              onChange={(e) => updateCat("description", e.target.value)}
+              placeholder="Add some text about this category..."
+              className="w-full bg-neutral-50 border border-neutral-100 rounded-xl p-3 text-[11px] outline-none focus:border-neutral-300 min-h-[120px] resize-none"
+            />
+          </div>
+
+          <div>
+            <SidebarLabel>Header Image (URL)</SidebarLabel>
+            <div className="flex gap-2">
+              <SidebarInput
+                value={cat.imageUrl || ""}
+                onChange={(v: string) => updateCat("imageUrl", v)}
+                placeholder="https://..."
+              />
+            </div>
+            {cat.imageUrl && (
+              <div className="mt-2 aspect-video rounded-lg overflow-hidden border border-neutral-100 bg-neutral-50">
+                <img src={cat.imageUrl} className="w-full h-full object-cover" alt="Category Header" />
+              </div>
+            )}
+          </div>
+
+          <div className="pt-4 border-t border-neutral-100">
+            <SidebarToggle
+              label="Show in navigation"
+              description="Whether this category appears in the shop menu."
+              checked={cat.showInNav !== false}
+              onChange={(v: boolean) => updateCat("showInNav", v)}
+            />
+          </div>
+
+          <div className="pt-4">
+             <button
+              onClick={() => {
+                if (confirm("Delete this category?")) {
+                  const newCats = categories.filter((_: any, i: number) => i !== editingCategoryIndex);
+                  update("categories", newCats, true);
+                  setEditingCategoryIndex(null);
+                }
+              }}
+              className="w-full py-2 bg-red-50 text-red-500 text-[10px] font-bold tracking-widest rounded-xl hover:bg-red-100 transition-colors"
+            >
+              DELETE CATEGORY
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -947,17 +1035,16 @@ function PagesPanel({ pages, setPages, design, update }: any) {
         </div>
         
         <div className="space-y-2 mb-4">
-          {categories.map((cat: string, index: number) => (
+          {categories.map((cat: any, index: number) => (
             <div key={index} className="flex items-center gap-2 bg-white border border-neutral-200 rounded-lg p-2 group shadow-sm">
-              <input
-                value={cat}
-                onChange={(e) => {
-                  const newCats = [...categories];
-                  newCats[index] = e.target.value;
-                  update("categories", newCats, true); // true = global
-                }}
-                className="flex-1 bg-transparent text-[11px] outline-none font-medium"
-              />
+              <button
+                onClick={() => setEditingCategoryIndex(index)}
+                className="flex-1 text-left px-1"
+              >
+                <p className="text-[11px] font-bold text-neutral-800 uppercase tracking-tight">{cat.name || "Untitled"}</p>
+                {cat.description && <p className="text-[9px] text-neutral-400 truncate max-w-[150px]">{cat.description}</p>}
+              </button>
+              
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={() => {
@@ -986,13 +1073,10 @@ function PagesPanel({ pages, setPages, design, update }: any) {
                   <ChevronDown size={12} />
                 </button>
                 <button
-                  onClick={() => {
-                    const newCats = categories.filter((_: any, i: number) => i !== index);
-                    update("categories", newCats, true);
-                  }}
-                  className="p-1 hover:bg-red-50 hover:text-red-500 rounded text-neutral-400"
+                  onClick={() => setEditingCategoryIndex(index)}
+                  className="p-1 hover:bg-blue-50 hover:text-blue-500 rounded text-neutral-400"
                 >
-                  <Trash2 size={12} />
+                  <Settings size={12} />
                 </button>
               </div>
             </div>
@@ -1001,7 +1085,8 @@ function PagesPanel({ pages, setPages, design, update }: any) {
         
         <button
           onClick={() => {
-            const newCats = [...categories, "NEW CATEGORY"];
+            const newCat = { id: `cat-${Date.now()}`, name: "NEW CATEGORY", description: "", showInNav: true };
+            const newCats = [...categories, newCat];
             update("categories", newCats, true);
           }}
           className="w-full py-2 border-2 border-dashed border-neutral-200 rounded-xl text-neutral-400 text-[10px] font-bold tracking-widest hover:border-neutral-300 hover:text-neutral-500 transition-all flex items-center justify-center gap-2"

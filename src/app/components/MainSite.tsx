@@ -523,7 +523,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   // Prioritize global categories if they exist (new behavior), otherwise fall back to storefront or legacy
-  const categories = activeDesign?.categories || storefrontDesign?.categories || legacyDesign?.categories || CATEGORIES;
+  const rawCategories = activeDesign?.categories || storefrontDesign?.categories || legacyDesign?.categories || CATEGORIES;
+  const categories = useMemo(() => rawCategories.map((cat: any, i: number) => {
+    if (typeof cat === "string") {
+      return { id: `cat-${i}`, name: cat, description: "", showInNav: true };
+    }
+    return cat;
+  }), [rawCategories]);
 
   useEffect(() => {
     if (legacyDesign?.showHero === false && !showCatalog) {
@@ -531,7 +537,21 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     }
   }, [legacyDesign?.showHero, showCatalog, setShowCatalog]);
 
-  const [activeCategory, setActiveCategory] = useState(categories[0] || "PUBLICATIONS");
+  const [activeCategory, setActiveCategory] = useState<any>(categories[0]);
+
+  // Sync activeCategory if categories change
+  useEffect(() => {
+    if (categories.length > 0) {
+      const currentName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
+      const exists = categories.find((c: any) => c.name === currentName);
+      if (!exists) {
+        setActiveCategory(categories[0]);
+      } else if (typeof activeCategory === "string" || activeCategory?.id !== exists.id) {
+        // Update to full object if it was a string or outdated
+        setActiveCategory(exists);
+      }
+    }
+  }, [categories]);
   const [showAbout, setShowAbout] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -696,17 +716,21 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               )}
               
               <nav className="hidden md:flex gap-6">
-                {categories.map((cat: string) => (
-                  <button
-                    key={cat}
-                    onClick={() => setActiveCategory(cat)}
-                    className={`text-[10px] tracking-[0.2em] font-medium transition-all ${
-                      activeCategory === cat ? 'text-white' : 'text-white/40 hover:text-white/80'
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
+                {categories.filter((c: any) => c.showInNav !== false).map((cat: any) => {
+                  const catName = typeof cat === "string" ? cat : cat.name;
+                  const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === catName;
+                  return (
+                    <button
+                      key={catName}
+                      onClick={() => setActiveCategory(cat)}
+                      className={`text-[10px] tracking-[0.2em] font-medium transition-all ${
+                        isActive ? "text-white" : "text-white/40 hover:text-white/80"
+                      }`}
+                    >
+                      {catName}
+                    </button>
+                  );
+                })}
               </nav>
             </div>
 
@@ -777,6 +801,35 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         </header>
 
         <main className="mx-auto px-6 py-12 md:py-20" style={{ maxWidth: storefrontMaxWidth }}>
+          {/* Category Header */}
+          <AnimatePresence mode="wait">
+            {activeCategory && (activeCategory.description || activeCategory.imageUrl) && (
+              <motion.div
+                key={activeCategory.id || activeCategory.name}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mb-16 space-y-8"
+              >
+                {activeCategory.imageUrl && (
+                  <div className="aspect-[21/9] w-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+                    <img src={activeCategory.imageUrl} className="w-full h-full object-cover" alt={activeCategory.name} />
+                  </div>
+                )}
+                <div className="max-w-3xl">
+                  <h2 className="text-3xl md:text-5xl font-bold tracking-tighter mb-4 uppercase">
+                    {activeCategory.name}
+                  </h2>
+                  {activeCategory.description && (
+                    <p className="text-sm md:text-base text-white/60 leading-relaxed font-medium">
+                      {activeCategory.description}
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className={`grid ${mobileColsClass} ${desktopColsClass} gap-8`} style={{ rowGap: shopSectionSpacing }}>
             {filteredItems.map((item: any, index: number) => {
               const slug = getBookSlug(item);

@@ -13,12 +13,13 @@ export function getPublications(books: Book[]) {
   }));
 }
 
-export function getFilteredItems(books: Book[], activeCategory: string, nowISO: string) {
+export function getFilteredItems(books: Book[], activeCategory: any, nowISO: string) {
+  const categoryName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
   return books.filter(
     (book) =>
       book.status === "published" &&
       (!book.scheduleDate || book.scheduleDate <= nowISO) &&
-      (book.categories?.includes(activeCategory) || activeCategory === "PUBLICATIONS"),
+      (book.categories?.includes(categoryName) || categoryName === "PUBLICATIONS"),
   );
 }
 
