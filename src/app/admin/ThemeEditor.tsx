@@ -1472,6 +1472,7 @@ function LivePreview({ design, device, previewMode, iframeRef }: any) {
         {/* Iframe Viewport */}
         <div className={`flex-1 bg-white relative overflow-hidden ${!isDesktop ? "rounded-[2.2rem]" : ""}`}>
           <iframe
+            key={previewMode.value}  // remount iframe when mode changes
             ref={iframeRef}
             src={previewUrl}
             className="w-full h-full border-none"
@@ -1751,26 +1752,51 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [isPreviewReady, setIsPreviewReady] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Sync design to preview iframe
+  // Sync design to preview iframe — retry every 300ms until acknowledged
+  const syncPending = useRef(false);
   useEffect(() => {
-    if (iframeRef.current && isPreviewReady) {
-      iframeRef.current.contentWindow?.postMessage(
-        { type: "THEME_UPDATE", design },
-        "*"
-      );
-    }
-  }, [design, isPreviewReady]);
+    if (!iframeRef.current) return;
+    syncPending.current = true;
 
-  // Listen for preview ready signal
+    const send = () => {
+      try {
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: "THEME_UPDATE", design },
+          "*"
+        );
+      } catch (_) {}
+    };
+
+    send(); // immediate attempt
+    const interval = setInterval(() => {
+      if (!syncPending.current) { clearInterval(interval); return; }
+      send();
+    }, 400);
+
+    return () => {
+      clearInterval(interval);
+      syncPending.current = false;
+    };
+  }, [design]);
+
+  // Listen for preview ready signal — acknowledge and stop retrying
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (event.data?.type === "PREVIEW_READY") {
         setIsPreviewReady(true);
+        syncPending.current = false; // stop retry loop
+        // Send immediately now that the frame is ready
+        try {
+          iframeRef.current?.contentWindow?.postMessage(
+            { type: "THEME_UPDATE", design },
+            "*"
+          );
+        } catch (_) {}
       }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, []);
+  }, [design]);
 
   useEffect(() => {
     adminApi.getPages().then(setPages);
@@ -2263,7 +2289,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         <LivePreview
           design={design}
           device={device}
-          previewMode={{ value: previewMode, set: setPreviewMode }}
+          previewMode={{ value: previewMode, set: (m: "homepage" | "shop") => { setPreviewMode(m); setIsPreviewReady(false); } }}
           iframeRef={iframeRef}
         />
       </div>

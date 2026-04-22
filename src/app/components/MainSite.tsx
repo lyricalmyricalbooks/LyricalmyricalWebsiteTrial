@@ -455,14 +455,19 @@ function useThemePreview(initialDesign: any) {
   useEffect(() => {
     if (!isPreview) return;
 
+    // Announce we're ready to receive design updates
+    const announceReady = () => window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
+    announceReady();
+
     const handler = (event: MessageEvent) => {
       if (event.data && event.data.type === "THEME_UPDATE") {
         setDesignOverride(event.data.design);
+        // Re-acknowledge so the editor knows the iframe is alive
+        announceReady();
       }
     };
 
     window.addEventListener("message", handler);
-    window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
     return () => window.removeEventListener("message", handler);
   }, [isPreview]);
 
@@ -474,8 +479,15 @@ function useThemePreview(initialDesign: any) {
 // ──────────────────────────────
 export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { cartCount, setIsCartOpen } = useCart();
   const { books, settings, pages, loading } = useSiteData();
+
+  // Auto-open catalog view when the editor previews the shop tab
+  const isCatalogPreview = location.search.includes("catalog=true");
+  useEffect(() => {
+    if (isCatalogPreview && setShowCatalog) setShowCatalog(true);
+  }, [isCatalogPreview, setShowCatalog]);
   
   // Real-time preview override
   const activeDesign = useThemePreview(settings?.design || {});
