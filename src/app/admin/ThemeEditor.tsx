@@ -1807,28 +1807,16 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
 
   useEffect(() => {
     if (!syncPreview || !activeSection) return;
-    const homepageSections = new Set(["homepage"]);
-    if (homepageSections.has(activeSection)) {
+    // Sections that should preview the hero/homepage
+    const heroSections = new Set(["homepage", "style", "navigation", "textsize"]);
+    if (heroSections.has(activeSection)) {
       setDesignSurface("heroPage");
       setPreviewMode("homepage");
       return;
     }
-    const storefrontSections = new Set([
-      "products",
-      "layout",
-      "buttons",
-      "announcements",
-      "social",
-      "translations",
-      "additional",
-      "navigation",
-      "style",
-      "textsize",
-    ]);
-    if (storefrontSections.has(activeSection)) {
-      setDesignSurface("storefront");
-      setPreviewMode("shop");
-    }
+    // Everything else previews the storefront/shop
+    setDesignSurface("storefront");
+    setPreviewMode("shop");
   }, [activeSection, syncPreview]);
   const [saving, setSaving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -2199,28 +2187,10 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                     <div className="flex-1 overflow-y-auto">
                       {/* Options header */}
                       <div className="px-4 pt-4 pb-3">
-                        <h2 className="text-[13px] font-bold text-neutral-800">Options</h2>
+                        <h2 className="text-[13px] font-bold text-neutral-800">Settings</h2>
                         <p className="text-[10px] text-neutral-400 mt-1 leading-relaxed">
-                          Customise your template settings and links to your shop's social media profiles.
+                          Customise your template, colours, layout and social profiles.
                         </p>
-                        <div className="mt-3 grid grid-cols-2 gap-2">
-                          {([
-                            { id: "heroPage", label: "Hero page" },
-                            { id: "storefront", label: "Internal app" },
-                          ] as const).map((surface) => (
-                            <button
-                              key={surface.id}
-                              onClick={() => setDesignSurface(surface.id)}
-                              className={`px-2.5 py-2 rounded-lg text-[10px] font-semibold border transition-all ${
-                                designSurface === surface.id
-                                  ? "bg-blue-50 border-blue-400 text-blue-700"
-                                  : "bg-neutral-50 border-neutral-200 text-neutral-600 hover:border-neutral-300"
-                              }`}
-                            >
-                              {surface.label}
-                            </button>
-                          ))}
-                        </div>
                         <input
                           value={settingsSearch}
                           onChange={(e) => setSettingsSearch(e.target.value)}
