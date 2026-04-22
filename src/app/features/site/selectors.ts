@@ -18,7 +18,7 @@ export function getFilteredItems(books: Book[], activeCategory: string, nowISO: 
     (book) =>
       book.status === "published" &&
       (!book.scheduleDate || book.scheduleDate <= nowISO) &&
-      (book.genres?.includes(activeCategory) || activeCategory === "PUBLICATIONS"),
+      (book.categories?.includes(activeCategory) || activeCategory === "PUBLICATIONS"),
   );
 }
 

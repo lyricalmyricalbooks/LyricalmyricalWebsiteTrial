@@ -9,7 +9,7 @@ export type Book = {
   status?: string;
   isFeatured?: boolean;
   scheduleDate?: string;
-  genres?: string[];
+  categories?: string[];
   photos?: BookPhoto[];
   stripePriceId?: string;
 };
@@ -56,20 +56,22 @@ export type SiteSettings = {
   taxes?: {
     rates: Array<{ country: string; rate: string | number }>;
   };
-  design?: {
-    primaryColor: string;
-    font: string;
-    logoUrl?: string;
-    faviconUrl?: string;
-    headerLinks?: {
-      showEnterArchive?: boolean;
-      showInformation?: boolean;
-      showCustomPages?: boolean;
-      showBag?: boolean;
-      showSys?: boolean;
+    design?: {
+      primaryColor: string;
+      font: string;
+      logoUrl?: string;
+      faviconUrl?: string;
+      categories?: string[];
+      headerLinks?: {
+        showEnterArchive?: boolean;
+        showInformation?: boolean;
+        showCustomPages?: boolean;
+        showBag?: boolean;
+        showSys?: boolean;
+      };
     };
+    draftDesign?: any;
   };
-};
 
 export type Page = {
   id: string;

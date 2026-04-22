@@ -491,8 +491,17 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // Real-time preview override
   const activeDesign = useThemePreview(settings?.design || {});
   
+  const legacyDesign = activeDesign;
+  const heroDesign = legacyDesign.heroPage && Object.keys(legacyDesign.heroPage).length > 0
+    ? legacyDesign.heroPage
+    : legacyDesign;
+  const storefrontDesign = legacyDesign.storefront && Object.keys(legacyDesign.storefront).length > 0
+    ? legacyDesign.storefront
+    : legacyDesign;
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [activeCategory, setActiveCategory] = useState("PUBLICATIONS");
+  const categories = storefrontDesign?.categories || CATEGORIES;
+  const [activeCategory, setActiveCategory] = useState(categories[0] || "PUBLICATIONS");
   const [showAbout, setShowAbout] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -504,20 +513,18 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useEffect(() => {
+    if (categories.length > 0 && !categories.includes(activeCategory)) {
+      setActiveCategory(categories[0]);
+    }
+  }, [categories, activeCategory]);
+
   const publications = useMemo(() => getPublications(getFeaturedBooks(books)), [books]);
   const filteredItems = useMemo(
     () => getFilteredItems(books, activeCategory, new Date().toISOString()),
     [books, activeCategory],
   );
   const publishedBooks = useMemo(() => getPublishedBooks(books), [books]);
-
-  const legacyDesign = activeDesign;
-  const heroDesign = legacyDesign.heroPage && Object.keys(legacyDesign.heroPage).length > 0
-    ? legacyDesign.heroPage
-    : legacyDesign;
-  const storefrontDesign = legacyDesign.storefront && Object.keys(legacyDesign.storefront).length > 0
-    ? legacyDesign.storefront
-    : legacyDesign;
 
   const logoPosition = storefrontDesign?.logoPosition || "left";
   const isHeaderTransparent = storefrontDesign?.transparentHeader && !scrolled;
@@ -658,7 +665,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               )}
               
               <nav className="hidden md:flex gap-6">
-                {CATEGORIES.map((cat: string) => (
+                {categories.map((cat: string) => (
                   <button
                     key={cat}
                     onClick={() => setActiveCategory(cat)}

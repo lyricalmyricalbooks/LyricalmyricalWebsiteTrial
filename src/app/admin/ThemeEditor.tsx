@@ -22,8 +22,12 @@ import {
   Mail,
   Layout,
   RefreshCw,
+  Trash2,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { adminApi } from "./api";
+import { CATEGORIES } from "../features/site/constants";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour palette presets
@@ -455,6 +459,73 @@ function NavigationPanel({ design, update }: any) {
                onChange={(v: boolean) => update("transparentHeader", v)}
              />
           </div>
+        </div>
+      </Accordion>
+
+      <Accordion title="Navigation Categories">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            {(design.categories || CATEGORIES).map((cat: string, index: number) => (
+              <div key={index} className="flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-lg p-2 group">
+                <input
+                  value={cat}
+                  onChange={(e) => {
+                    const newCats = [...(design.categories || CATEGORIES)];
+                    newCats[index] = e.target.value;
+                    update("categories", newCats);
+                  }}
+                  className="flex-1 bg-transparent text-[11px] outline-none font-medium"
+                />
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => {
+                      const newCats = [...(design.categories || CATEGORIES)];
+                      if (index > 0) {
+                        [newCats[index], newCats[index - 1]] = [newCats[index - 1], newCats[index]];
+                        update("categories", newCats);
+                      }
+                    }}
+                    disabled={index === 0}
+                    className="p-1 hover:bg-neutral-200 rounded text-neutral-400 disabled:opacity-30"
+                  >
+                    <ChevronUp size={12} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const newCats = [...(design.categories || CATEGORIES)];
+                      if (index < newCats.length - 1) {
+                        [newCats[index], newCats[index + 1]] = [newCats[index + 1], newCats[index]];
+                        update("categories", newCats);
+                      }
+                    }}
+                    disabled={index === (design.categories || CATEGORIES).length - 1}
+                    className="p-1 hover:bg-neutral-200 rounded text-neutral-400 disabled:opacity-30"
+                  >
+                    <ChevronDown size={12} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      const newCats = (design.categories || CATEGORIES).filter((_: any, i: number) => i !== index);
+                      update("categories", newCats);
+                    }}
+                    className="p-1 hover:bg-red-100 hover:text-red-500 rounded text-neutral-400"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => {
+              const newCats = [...(design.categories || CATEGORIES), "NEW PAGE"];
+              update("categories", newCats);
+            }}
+            className="w-full py-2 border-2 border-dashed border-neutral-200 rounded-xl text-neutral-400 text-[10px] font-bold tracking-widest hover:border-neutral-300 hover:text-neutral-500 transition-all flex items-center justify-center gap-2"
+          >
+            <Plus size={14} />
+            ADD CATEGORY
+          </button>
         </div>
       </Accordion>
 

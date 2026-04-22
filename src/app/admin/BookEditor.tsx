@@ -31,6 +31,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { adminApi } from "./api";
+import { CATEGORIES } from "../features/site/constants";
 
 function SortablePhoto({ photo, index, onRemove }: { photo: any; index: number; onRemove: (id: string) => void }) {
   const {
@@ -99,6 +100,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [authors, setAuthors] = useState<any[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [photoInput, setPhotoInput] = useState("");
@@ -141,14 +143,20 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
   async function loadMetadata() {
     try {
-      const [sh, au] = await Promise.all([
+      const [sh, au, settings] = await Promise.all([
         adminApi.getShippingProfiles(),
         adminApi.getAuthors(),
+        adminApi.getSettings() as Promise<any>,
       ]);
       setShippingProfiles(sh);
       setAuthors(au);
+      
+      const siteCats = settings?.design?.categories || settings?.draftDesign?.categories || CATEGORIES;
+      // Filter out 'PUBLICATIONS' as it's a catch-all and usually not a specific tag
+      setCategories(siteCats.filter((c: string) => c !== 'PUBLICATIONS'));
+
       if (!book && sh.length > 0) {
-        setFormData(prev => ({ ...prev, shippingProfileId: sh[0].id }));
+        setFormData((prev: any) => ({ ...prev, shippingProfileId: sh[0].id }));
       }
     } catch (err) {
       console.error("Failed to load metadata", err);
@@ -457,7 +465,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           <section>
             <h4 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-2 border-b border-neutral-50">Taxonomy & Categorization</h4>
             <div className="flex flex-wrap gap-2">
-              {["Photography", "Contemporary", "Ephemera", "Artist Book", "Zine", "Limited Edition", "Archive"].map(cat => (
+              {Array.from(new Set([...categories, "Photography", "Contemporary", "Artist Book", "Zine", "Archive"])).map(cat => (
                 <button
                   key={cat}
                   type="button"

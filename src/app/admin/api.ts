@@ -26,6 +26,7 @@ import { db, auth, storage, googleProvider } from "../../lib/firebase";
 import { legacyDb, legacyAuth } from "../../lib/legacyFirebase";
 import { ref as dbRef, get as dbGet } from "firebase/database";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { CATEGORIES } from "../features/site/constants";
 
 export const adminApi = {
   // Authentication
@@ -316,6 +317,7 @@ export const adminApi = {
       primaryColor: "#A855F7",
       font: "Inter",
       palettePreset: "dark",
+      categories: CATEGORIES,
       // Navigation & Layout
       headerStyle: "minimal",
       stickyHeader: true,
