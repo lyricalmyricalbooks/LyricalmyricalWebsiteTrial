@@ -67,7 +67,7 @@ const FONTS = [
 // ─────────────────────────────────────────────────────────────────────────────
 function SidebarLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-[9px] font-bold tracking-[0.3em] text-neutral-400 uppercase mb-2">
+    <p className="text-[9px] font-black tracking-[0.3em] text-slate-500 uppercase mb-3">
       {children}
     </p>
   );
@@ -75,14 +75,14 @@ function SidebarLabel({ children }: { children: React.ReactNode }) {
 
 function SidebarInput({ label, value, onChange, placeholder, type = "text" }: any) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {label && <SidebarLabel>{label}</SidebarLabel>}
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] outline-none focus:border-neutral-400 transition-colors"
+        className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-[11px] font-bold text-slate-200 outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-800"
       />
     </div>
   );
@@ -90,33 +90,40 @@ function SidebarInput({ label, value, onChange, placeholder, type = "text" }: an
 
 function SidebarSelect({ label, value, onChange, options }: { label?: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-3">
       {label && <SidebarLabel>{label}</SidebarLabel>}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] outline-none focus:border-neutral-400 cursor-pointer"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
+      <div className="relative group">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-[11px] font-black text-slate-200 outline-none focus:border-violet-500/50 cursor-pointer transition-all appearance-none uppercase tracking-[0.15em] italic"
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value} className="bg-[#0a0a0c] text-white">
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600 group-hover:text-violet-400 transition-colors">
+          <ChevronDown size={14} strokeWidth={3} />
+        </div>
+      </div>
     </div>
   );
 }
 
 function SidebarToggle({ label, description, checked, onChange }: any) {
   return (
-    <div className="flex items-start justify-between gap-4 py-3 border-b border-neutral-100 last:border-none">
+    <div className="flex items-start justify-between gap-4 py-4 border-b border-white/5 last:border-none">
       <div>
-        <p className="text-[11px] font-semibold text-neutral-800">{label}</p>
-        {description && <p className="text-[10px] text-neutral-400 mt-0.5 leading-relaxed">{description}</p>}
+        <p className="text-[11px] font-black text-slate-200 uppercase tracking-tight italic">{label}</p>
+        {description && <p className="text-[9px] text-slate-500 mt-1 leading-relaxed font-bold">{description}</p>}
       </div>
       <button
         onClick={() => onChange(!checked)}
-        className={`flex-shrink-0 w-8 h-4 rounded-full relative transition-colors duration-200 ${checked ? "bg-blue-500" : "bg-neutral-200"}`}
+        className={`flex-shrink-0 w-10 h-5 rounded-full relative transition-all duration-500 ${checked ? "bg-violet-600 shadow-[0_0_15px_rgba(124,58,237,0.3)]" : "bg-white/10"}`}
       >
-        <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all duration-200 ${checked ? "left-4" : "left-0.5"}`} />
+        <span className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow transition-all duration-500 ${checked ? "left-6" : "left-1"}`} />
       </button>
     </div>
   );
@@ -124,15 +131,15 @@ function SidebarToggle({ label, description, checked, onChange }: any) {
 
 function SidebarRadioGroup({ options, value, onChange }: { options: { value: string; label: string }[]; value: string; onChange: (v: string) => void }) {
   return (
-    <div className="grid grid-cols-3 gap-1.5">
+    <div className="grid grid-cols-3 gap-2">
       {options.map((o) => (
         <button
           key={o.value}
           onClick={() => onChange(o.value)}
-          className={`py-2 px-2 rounded-lg text-[10px] font-semibold border transition-all ${
+          className={`py-3 px-2 rounded-xl text-[10px] font-black tracking-widest border transition-all uppercase italic ${
             value === o.value
-              ? "bg-blue-50 border-blue-400 text-blue-700"
-              : "bg-neutral-50 border-neutral-200 text-neutral-600 hover:border-neutral-300"
+              ? "bg-violet-600 border-violet-400/50 text-white shadow-xl"
+              : "bg-white/[0.03] border-white/5 text-slate-500 hover:border-white/10 hover:bg-white/[0.05]"
           }`}
         >
           {o.label}
@@ -161,9 +168,9 @@ function SidebarRange({
 }) {
   return (
     <div className="group">
-      <div className="flex justify-between items-center mb-1.5">
+      <div className="flex justify-between items-center mb-3">
         <SidebarLabel>{label}</SidebarLabel>
-        <span className="text-[10px] text-neutral-400 font-mono bg-neutral-50 px-1.5 py-0.5 rounded border border-neutral-100 group-hover:border-neutral-200 group-hover:text-neutral-600 transition-colors">
+        <span className="text-[10px] text-slate-400 font-black bg-white/5 px-2 py-1 rounded-lg border border-white/5 group-hover:border-violet-500/30 group-hover:text-violet-400 transition-all italic">
           {value}
           {suffix}
         </span>
@@ -175,7 +182,7 @@ function SidebarRange({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-neutral-900 h-1 bg-neutral-100 rounded-lg appearance-none cursor-pointer hover:accent-blue-500 transition-all"
+        className="w-full accent-violet-500 h-1 bg-white/10 rounded-full appearance-none cursor-pointer hover:bg-white/20 transition-all"
       />
     </div>
   );
@@ -199,11 +206,11 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <SidebarLabel>{label}</SidebarLabel>
-      <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl p-1.5 shadow-sm hover:border-neutral-300 transition-all group">
+      <div className="flex items-center gap-3 bg-white/[0.03] border border-white/10 rounded-xl p-2 shadow-inner hover:border-white/20 transition-all group">
         <div 
-          className="w-8 h-8 rounded-lg shadow-inner border border-neutral-100 relative cursor-pointer overflow-hidden flex-shrink-0"
+          className="w-10 h-10 rounded-lg shadow-2xl border border-white/10 relative cursor-pointer overflow-hidden flex-shrink-0"
           style={{ background: value }}
         >
           <input
@@ -218,12 +225,12 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
             type="text"
             value={localValue}
             onChange={(e) => handleTextChange(e.target.value)}
-            className="w-full bg-transparent border-none outline-none text-[11px] font-mono font-medium text-neutral-700 uppercase"
+            className="w-full bg-transparent border-none outline-none text-[11px] font-black text-slate-200 uppercase tracking-widest italic"
             placeholder="#000000"
           />
         </div>
-        <div className="w-px h-4 bg-neutral-100 group-hover:bg-neutral-200" />
-        <span className="text-[9px] text-neutral-300 font-bold pr-2 uppercase tracking-tighter">HEX</span>
+        <div className="w-px h-5 bg-white/10 group-hover:bg-white/20" />
+        <span className="text-[9px] text-slate-600 font-black pr-2 uppercase tracking-tighter">HEX</span>
       </div>
     </div>
   );
@@ -236,19 +243,19 @@ function Accordion({ title, children, defaultOpen = false }: { title: string; ch
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="border-b border-neutral-100 last:border-none">
+    <div className="border-b border-white/5 last:border-none">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between py-4 text-left group"
+        className="w-full flex items-center justify-between py-6 text-left group"
       >
-        <span className="text-[11px] font-bold text-neutral-800 tracking-tight group-hover:text-blue-600 transition-colors uppercase">
+        <span className="text-[10px] font-black text-slate-400 tracking-[0.2em] group-hover:text-violet-400 transition-all uppercase italic">
           {title}
         </span>
         <motion.div
           animate={{ rotate: isOpen ? 90 : 0 }}
-          className="text-neutral-300 group-hover:text-neutral-500 transition-colors"
+          className="text-slate-600 group-hover:text-violet-400 transition-all"
         >
-          <ChevronRight size={14} />
+          <ChevronRight size={14} strokeWidth={3} />
         </motion.div>
       </button>
       <AnimatePresence initial={false}>
@@ -257,10 +264,10 @@ function Accordion({ title, children, defaultOpen = false }: { title: string; ch
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
+            transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
             className="overflow-hidden"
           >
-            <div className="pb-6 space-y-5">
+            <div className="pb-8 space-y-6">
               {children}
             </div>
           </motion.div>
@@ -349,16 +356,17 @@ function SectionRow({ icon, title, description, onClick }: any) {
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center justify-between px-4 py-4 hover:bg-neutral-50 transition-colors border-b border-neutral-100 text-left group"
+      className="w-full flex items-center justify-between px-6 py-6 hover:bg-white/[0.03] transition-all border-b border-white/5 text-left group relative overflow-hidden"
     >
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 text-neutral-400 group-hover:text-neutral-700 transition-colors">{icon}</div>
+      <div className="absolute inset-0 bg-gradient-to-r from-violet-600/0 via-transparent to-transparent opacity-0 group-hover:opacity-10 transition-opacity" />
+      <div className="flex items-start gap-4 relative z-10">
+        <div className="mt-1 text-slate-500 group-hover:text-violet-400 transition-all group-hover:scale-110 duration-300">{icon}</div>
         <div>
-          <p className="text-[12px] font-semibold text-neutral-800 group-hover:text-black transition-colors">{title}</p>
-          <p className="text-[10px] text-neutral-400 mt-0.5 leading-relaxed max-w-[200px]">{description}</p>
+          <p className="text-[13px] font-black text-slate-200 group-hover:text-white transition-all uppercase italic tracking-tight">{title}</p>
+          <p className="text-[10px] text-slate-500 mt-1 leading-relaxed max-w-[200px] font-bold">{description}</p>
         </div>
       </div>
-      <ChevronRight size={14} className="text-neutral-300 group-hover:text-neutral-500 flex-shrink-0 transition-colors" />
+      <ChevronRight size={16} className="text-slate-700 group-hover:text-violet-400 flex-shrink-0 transition-all translate-x-0 group-hover:translate-x-1" strokeWidth={3} />
     </button>
   );
 }
@@ -368,11 +376,14 @@ function SectionRow({ icon, title, description, onClick }: any) {
 // ─────────────────────────────────────────────────────────────────────────────
 function SubPanelHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-4 border-b border-neutral-100">
-      <button onClick={onBack} className="p-1.5 hover:bg-neutral-100 rounded-lg transition-colors">
-        <ChevronLeft size={14} className="text-neutral-500" />
+    <div className="flex items-center gap-4 px-6 py-6 border-b border-white/5 bg-white/[0.02]">
+      <button 
+        onClick={onBack} 
+        className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all hover:scale-110 active:scale-95"
+      >
+        <ChevronLeft size={18} className="text-slate-200" strokeWidth={3} />
       </button>
-      <span className="text-[11px] font-bold text-neutral-700 tracking-wide uppercase">{title}</span>
+      <span className="text-[12px] font-black text-white tracking-[0.2em] uppercase italic">{title}</span>
     </div>
   );
 }
@@ -386,9 +397,9 @@ function StylePanel({ design, update }: any) {
   const textColor = design.textColor || currentPalette.text;
 
   return (
-    <div className="p-4 space-y-2 overflow-y-auto flex-1">
-      <Accordion title="Presets & Modes" defaultOpen={true}>
-        <div className="grid grid-cols-2 gap-3">
+    <div className="space-y-8">
+      <Accordion title="Visual Identity Presets" defaultOpen={true}>
+        <div className="grid grid-cols-2 gap-4">
           {PALETTES.map((palette) => (
             <button
               key={palette.id}
@@ -398,25 +409,29 @@ function StylePanel({ design, update }: any) {
                 update("backgroundColor", palette.bg);
                 update("textColor", palette.text);
               }}
-              className={`group relative rounded-3xl border-2 p-3 text-left transition-all ${
+              className={`group relative rounded-[2rem] border-2 p-5 text-left transition-all duration-500 ${
                 design.palettePreset === palette.id 
-                  ? "border-blue-600 bg-white shadow-xl shadow-blue-500/10 ring-4 ring-blue-50" 
-                  : "border-neutral-100 bg-neutral-50/50 hover:border-neutral-300 hover:bg-white"
+                  ? "border-violet-600 bg-white shadow-[0_0_40px_rgba(124,58,237,0.2)] scale-[1.02] ring-8 ring-violet-500/5" 
+                  : "border-white/5 bg-white/[0.03] hover:border-white/10 hover:bg-white/[0.06]"
               }`}
             >
-              <div className="flex h-10 gap-1 mb-3">
+              <div className="flex h-12 gap-1.5 mb-5">
                 {palette.swatches.map((s, i) => (
-                  <div key={i} className="flex-1 rounded-lg border border-black/5 shadow-sm" style={{ background: s }} />
+                  <div key={i} className="flex-1 rounded-xl border border-black/5 shadow-inner" style={{ background: s }} />
                 ))}
               </div>
               <div className="flex items-center justify-between">
-                <p className={`text-[10px] font-black uppercase tracking-tight transition-colors ${design.palettePreset === palette.id ? "text-blue-600" : "text-neutral-700"}`}>
+                <p className={`text-[10px] font-black uppercase tracking-widest italic transition-colors ${design.palettePreset === palette.id ? "text-black" : "text-slate-400 group-hover:text-slate-200"}`}>
                   {palette.label}
                 </p>
                 {design.palettePreset === palette.id && (
-                  <div className="w-4 h-4 bg-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-blue-200">
-                    <Check size={8} className="text-white" strokeWidth={4} />
-                  </div>
+                  <motion.div 
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="w-5 h-5 bg-black rounded-full flex items-center justify-center shadow-2xl"
+                  >
+                    <Check size={10} className="text-white" strokeWidth={4} />
+                  </motion.div>
                 )}
               </div>
             </button>
@@ -424,21 +439,21 @@ function StylePanel({ design, update }: any) {
         </div>
       </Accordion>
 
-      <Accordion title="Brand Colors">
-        <div className="space-y-4">
+      <Accordion title="Brand Color Protocol">
+        <div className="space-y-8">
           <ColorPicker 
             label="Primary accent" 
             value={design.primaryColor || "#A855F7"} 
             onChange={(val) => update("primaryColor", val)} 
           />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-6">
             <ColorPicker 
-              label="Background" 
+              label="Environment Background" 
               value={backgroundColor} 
               onChange={(val) => update("backgroundColor", val)} 
             />
             <ColorPicker 
-              label="Text" 
+              label="Primary Typography" 
               value={textColor} 
               onChange={(val) => update("textColor", val)} 
             />
@@ -448,9 +463,9 @@ function StylePanel({ design, update }: any) {
               update("backgroundColor", currentPalette.bg);
               update("textColor", currentPalette.text);
             }}
-            className="w-full border border-neutral-200 rounded-lg py-2 text-[10px] font-semibold text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 transition-colors"
+            className="w-full bg-white/5 border border-white/5 rounded-[2rem] py-5 text-[10px] font-black text-slate-500 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all uppercase tracking-[0.2em] italic"
           >
-            Reset to palette defaults
+            Restore Palette Defaults
           </button>
         </div>
       </Accordion>
@@ -887,50 +902,62 @@ function PagesPanel({ pages, setPages, design, update }: any) {
   };
 
   if (editingPage) {
-    // ... (keep editing page logic same but I'll need to include it in the replace block if I replace the whole function)
     return (
-      <div className="p-4 space-y-4">
-        <SubPanelHeader title="Edit Page" onBack={() => setEditingPage(null)} />
-        <div className="space-y-4">
-          <div>
-            <SidebarLabel>Page Title</SidebarLabel>
-            <SidebarInput 
-              value={editingPage.title} 
-              onChange={(v: string) => updatePage(editingPage.id, { ...editingPage, title: v })}
-            />
-          </div>
-          <div>
-            <SidebarLabel>URL Slug</SidebarLabel>
-            <SidebarInput 
-              value={editingPage.slug} 
-              onChange={(v: string) => updatePage(editingPage.id, { ...editingPage, slug: v })}
-            />
-          </div>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <SidebarLabel>Status</SidebarLabel>
-              <SidebarSelect
-                value={editingPage.status}
-                onChange={(v: string) => updatePage(editingPage.id, { ...editingPage, status: v })}
-                options={[{ value: "draft", label: "Draft" }, { value: "published", label: "Published" }]}
-              />
+      <div className="flex-1 flex flex-col bg-black overflow-hidden">
+        <SubPanelHeader 
+          title={`Edit Page: ${editingPage.title}`} 
+          onBack={() => setEditingPage(null)} 
+        />
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8">
+          <div className="p-6 bg-white/[0.03] border border-white/10 rounded-[2rem] relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-600/5 to-transparent pointer-events-none" />
+            <div className="space-y-8 relative z-10">
+              <div>
+                <SidebarLabel>Page Title</SidebarLabel>
+                <SidebarInput 
+                  value={editingPage.title} 
+                  onChange={(v: string) => updatePage(editingPage.id, { ...editingPage, title: v })}
+                />
+              </div>
+              <div>
+                <SidebarLabel>URL Slug</SidebarLabel>
+                <SidebarInput 
+                  value={editingPage.slug} 
+                  onChange={(v: string) => updatePage(editingPage.id, { ...editingPage, slug: v })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <SidebarLabel>Status</SidebarLabel>
+                  <SidebarSelect
+                    value={editingPage.status}
+                    onChange={(v: string) => updatePage(editingPage.id, { ...editingPage, status: v })}
+                    options={[{ value: "draft", label: "Draft" }, { value: "published", label: "Published" }]}
+                  />
+                </div>
+                <div className="flex flex-col justify-end">
+                  <SidebarToggle 
+                    label="Visible in Nav" 
+                    checked={editingPage.showInNav} 
+                    onChange={(v: boolean) => updatePage(editingPage.id, { ...editingPage, showInNav: v })} 
+                  />
+                </div>
+              </div>
             </div>
-            <div className="flex-1 flex flex-col justify-end">
-               <SidebarToggle 
-                  label="In Nav" 
-                  checked={editingPage.showInNav} 
-                  onChange={(v: boolean) => updatePage(editingPage.id, { ...editingPage, showInNav: v })} 
-               />
-            </div>
           </div>
-          <hr className="border-neutral-100" />
-          <button
-            onClick={() => deletePage(editingPage.id)}
-            className="w-full py-2 text-[10px] font-bold text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
-          >
-            DELETE PAGE
-          </button>
-          <p className="text-[9px] text-neutral-400 text-center">To edit the content of this page, please use the main Pages Manager in the Dashboard.</p>
+          
+          <div className="p-8 bg-red-500/5 border border-red-500/10 rounded-[2rem] space-y-4">
+            <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest italic">Danger Protocol</h4>
+            <button
+              onClick={() => { if(confirm("Confirm page deletion?")) deletePage(editingPage.id); }}
+              className="w-full py-4 bg-red-500/20 text-red-400 text-[10px] font-black tracking-[0.3em] rounded-2xl hover:bg-red-500 hover:text-white transition-all uppercase italic shadow-2xl"
+            >
+              Terminate Page
+            </button>
+            <p className="text-[9px] text-slate-600 font-bold leading-relaxed italic text-center">
+              Page content must be managed via the primary Dashboard Interface.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -953,71 +980,68 @@ function PagesPanel({ pages, setPages, design, update }: any) {
     };
 
     return (
-      <div className="flex-1 flex flex-col bg-white overflow-hidden">
+      <div className="flex-1 flex flex-col bg-black overflow-hidden">
         <SubPanelHeader 
           title={cat.name} 
           onBack={() => setEditingCategoryIndex(null)} 
         />
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          <div>
-            <SidebarLabel>Display Name</SidebarLabel>
-            <SidebarInput
-              value={cat.name}
-              onChange={(v: string) => updateCat("name", v)}
-              placeholder="e.g. PUBLICATIONS"
-            />
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <SidebarLabel>Description</SidebarLabel>
-              <span className="text-[9px] text-neutral-400 font-medium">Shown in shop header</span>
-            </div>
-            <textarea
-              value={cat.description || ""}
-              onChange={(e) => updateCat("description", e.target.value)}
-              placeholder="Add some text about this category..."
-              className="w-full bg-neutral-50 border border-neutral-100 rounded-xl p-3 text-[11px] outline-none focus:border-neutral-300 min-h-[120px] resize-none"
-            />
-          </div>
-
-          <div>
-            <SidebarLabel>Header Image (URL)</SidebarLabel>
-            <div className="flex gap-2">
-              <SidebarInput
-                value={cat.imageUrl || ""}
-                onChange={(v: string) => updateCat("imageUrl", v)}
-                placeholder="https://..."
-              />
-            </div>
-            {cat.imageUrl && (
-              <div className="mt-2 aspect-video rounded-lg overflow-hidden border border-neutral-100 bg-neutral-50">
-                <img src={cat.imageUrl} className="w-full h-full object-cover" alt="Category Header" />
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8">
+          <div className="p-6 bg-white/[0.03] border border-white/10 rounded-[2rem] relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 to-transparent pointer-events-none" />
+            <div className="space-y-8 relative z-10">
+              <div>
+                <SidebarLabel>Display Name</SidebarLabel>
+                <SidebarInput
+                  value={cat.name}
+                  onChange={(v: string) => updateCat("name", v)}
+                  placeholder="e.g. PUBLICATIONS"
+                />
               </div>
-            )}
+
+              <div>
+                <SidebarLabel>Context Description</SidebarLabel>
+                <textarea
+                  value={cat.description || ""}
+                  onChange={(e) => updateCat("description", e.target.value)}
+                  placeholder="ARCHIVAL CONTEXT..."
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-[11px] font-bold text-white outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-800 min-h-[120px] resize-none uppercase tracking-widest italic"
+                />
+              </div>
+
+              <div>
+                <SidebarLabel>Category Header Asset</SidebarLabel>
+                <SidebarAssetUpload
+                  value={cat.imageUrl}
+                  onChange={(url: string) => updateCat("imageUrl", url)}
+                  type="category"
+                  label="Upload Header"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-white/5">
+                <SidebarToggle
+                  label="Menu Visibility"
+                  description="Toggle presence in shop navigation menu"
+                  checked={cat.showInNav !== false}
+                  onChange={(v: boolean) => updateCat("showInNav", v)}
+                />
+              </div>
+            </div>
           </div>
 
-          <div className="pt-4 border-t border-neutral-100">
-            <SidebarToggle
-              label="Show in navigation"
-              description="Whether this category appears in the shop menu."
-              checked={cat.showInNav !== false}
-              onChange={(v: boolean) => updateCat("showInNav", v)}
-            />
-          </div>
-
-          <div className="pt-4">
-             <button
+          <div className="p-8 bg-red-500/5 border border-red-500/10 rounded-[2rem] space-y-4">
+            <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest italic">Removal Protocol</h4>
+            <button
               onClick={() => {
-                if (confirm("Delete this category?")) {
+                if (confirm("Terminate this category?")) {
                   const newCats = categories.filter((_: any, i: number) => i !== editingCategoryIndex);
                   update("categories", newCats, true);
                   setEditingCategoryIndex(null);
                 }
               }}
-              className="w-full py-2 bg-red-50 text-red-500 text-[10px] font-bold tracking-widest rounded-xl hover:bg-red-100 transition-colors"
+              className="w-full py-4 bg-red-500/20 text-red-400 text-[10px] font-black tracking-[0.3em] rounded-2xl hover:bg-red-500 hover:text-white transition-all uppercase italic shadow-2xl"
             >
-              DELETE CATEGORY
+              Delete Category
             </button>
           </div>
         </div>
@@ -1026,26 +1050,39 @@ function PagesPanel({ pages, setPages, design, update }: any) {
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden space-y-8">
       {/* Navigation Categories Section */}
-      <div className="p-4 border-b border-neutral-100 bg-neutral-50/50">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-[11px] font-bold text-neutral-700 uppercase tracking-widest">Navigation Menu</h3>
-          <span className="text-[9px] text-neutral-400 font-medium">Shop Categories</span>
+      <div className="p-8 bg-white/[0.02] border-b border-white/5">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase italic mb-1">Mapping</span>
+            <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">Shop Menu</h3>
+          </div>
+          <button
+            onClick={() => {
+              const newCat = { id: `cat-${Date.now()}`, name: "NEW CATEGORY", description: "", showInNav: true };
+              const newCats = [...categories, newCat];
+              update("categories", newCats, true);
+            }}
+            className="w-10 h-10 bg-violet-600/10 border border-violet-500/20 rounded-xl flex items-center justify-center text-violet-400 hover:bg-violet-600 hover:text-white transition-all shadow-lg"
+          >
+            <Plus size={20} strokeWidth={3} />
+          </button>
         </div>
         
-        <div className="space-y-2 mb-4">
+        <div className="space-y-3">
           {categories.map((cat: any, index: number) => (
-            <div key={index} className="flex items-center gap-2 bg-white border border-neutral-200 rounded-lg p-2 group shadow-sm">
+            <div key={index} className="flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-[2rem] p-5 group transition-all hover:bg-white/[0.05] relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-violet-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <button
                 onClick={() => setEditingCategoryIndex(index)}
-                className="flex-1 text-left px-1"
+                className="flex-1 text-left relative z-10"
               >
-                <p className="text-[11px] font-bold text-neutral-800 uppercase tracking-tight">{cat.name || "Untitled"}</p>
-                {cat.description && <p className="text-[9px] text-neutral-400 truncate max-w-[150px]">{cat.description}</p>}
+                <p className="text-[11px] font-black text-white uppercase tracking-widest italic">{cat.name || "Untitled"}</p>
+                {cat.description && <p className="text-[9px] text-slate-500 font-bold uppercase italic tracking-tighter truncate max-w-[200px] mt-1">{cat.description}</p>}
               </button>
               
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0 relative z-10">
                 <button
                   onClick={() => {
                     const newCats = [...categories];
@@ -1055,9 +1092,9 @@ function PagesPanel({ pages, setPages, design, update }: any) {
                     }
                   }}
                   disabled={index === 0}
-                  className="p-1 hover:bg-neutral-100 rounded text-neutral-400 disabled:opacity-30"
+                  className="w-8 h-8 flex items-center justify-center bg-white/5 rounded-lg text-slate-400 hover:text-white transition-colors disabled:opacity-10"
                 >
-                  <ChevronUp size={12} />
+                  <ChevronUp size={14} strokeWidth={3} />
                 </button>
                 <button
                   onClick={() => {
@@ -1068,58 +1105,60 @@ function PagesPanel({ pages, setPages, design, update }: any) {
                     }
                   }}
                   disabled={index === categories.length - 1}
-                  className="p-1 hover:bg-neutral-100 rounded text-neutral-400 disabled:opacity-30"
+                  className="w-8 h-8 flex items-center justify-center bg-white/5 rounded-lg text-slate-400 hover:text-white transition-colors disabled:opacity-10"
                 >
-                  <ChevronDown size={12} />
+                  <ChevronDown size={14} strokeWidth={3} />
                 </button>
                 <button
                   onClick={() => setEditingCategoryIndex(index)}
-                  className="p-1 hover:bg-blue-50 hover:text-blue-500 rounded text-neutral-400"
+                  className="w-8 h-8 flex items-center justify-center bg-violet-600/10 text-violet-400 border border-violet-500/20 rounded-lg hover:bg-violet-600 hover:text-white transition-all"
                 >
-                  <Settings size={12} />
+                  <Settings size={14} strokeWidth={3} />
                 </button>
               </div>
             </div>
           ))}
         </div>
-        
-        <button
-          onClick={() => {
-            const newCat = { id: `cat-${Date.now()}`, name: "NEW CATEGORY", description: "", showInNav: true };
-            const newCats = [...categories, newCat];
-            update("categories", newCats, true);
-          }}
-          className="w-full py-2 border-2 border-dashed border-neutral-200 rounded-xl text-neutral-400 text-[10px] font-bold tracking-widest hover:border-neutral-300 hover:text-neutral-500 transition-all flex items-center justify-center gap-2"
-        >
-          <Plus size={14} />
-          ADD MENU ITEM
-        </button>
       </div>
 
       {/* Pages Section */}
-      <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
-         <h3 className="text-[11px] font-bold text-neutral-700 uppercase tracking-widest">Custom Pages</h3>
-         <button onClick={createPage} className="flex items-center gap-1 text-[10px] font-bold text-blue-500 hover:text-blue-600">
-           <Plus size={12} /> ADD
-         </button>
-      </div>
-      <div className="flex-1 overflow-y-auto">
-        {pages.map((page: any) => (
-          <button
-            key={page.id}
-            onClick={() => setEditingPage(page)}
-            className="w-full flex items-center justify-between px-4 py-3 hover:bg-neutral-50 border-b border-neutral-100 transition-colors text-left group"
+      <div className="px-8 pb-12">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black tracking-[0.4em] text-cyan-500 uppercase italic mb-1">Architecture</span>
+            <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">Custom Pages</h3>
+          </div>
+          <button 
+            onClick={createPage} 
+            className="w-10 h-10 bg-cyan-600/10 border border-cyan-500/20 rounded-xl flex items-center justify-center text-cyan-400 hover:bg-cyan-600 hover:text-white transition-all shadow-lg"
           >
-            <div className="flex items-center gap-3">
-              <FileText size={14} className="text-neutral-300 group-hover:text-blue-500 transition-colors" />
-              <div>
-                <p className="text-[11px] font-semibold text-neutral-800">{page.title}</p>
-                <p className="text-[9px] text-neutral-400">/{page.slug} · <span className={page.status ==='published' ? 'text-green-500' : 'text-neutral-400'}>{page.status}</span></p>
-              </div>
-            </div>
-            <ChevronRight size={12} className="text-neutral-300" />
+            <Plus size={20} strokeWidth={3} />
           </button>
-        ))}
+        </div>
+        
+        <div className="space-y-3">
+          {pages.map((page: any) => (
+            <button
+              key={page.id}
+              onClick={() => setEditingPage(page)}
+              className="w-full flex items-center justify-between p-6 bg-white/[0.03] border border-white/10 rounded-[2.5rem] hover:bg-white/[0.06] hover:border-cyan-500/30 transition-all group relative overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="flex items-center gap-6 relative z-10">
+                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-slate-600 group-hover:text-cyan-400 group-hover:scale-110 transition-all duration-500">
+                  <FileText size={20} strokeWidth={2.5} />
+                </div>
+                <div className="text-left">
+                  <p className="text-[11px] font-black text-white uppercase tracking-widest italic">{page.title}</p>
+                  <p className="text-[9px] text-slate-600 font-bold uppercase italic tracking-tighter mt-1">
+                    /{page.slug} · <span className={page.status ==='published' ? 'text-emerald-500' : 'text-slate-700'}>{page.status}</span>
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={16} className="text-slate-800 group-hover:text-white transition-all transform group-hover:translate-x-1" strokeWidth={3} />
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -1419,28 +1458,29 @@ function SocialPanel({ design, update }: any) {
   };
 
   return (
-    <div className="p-4 space-y-2 overflow-y-auto flex-1">
-      <Accordion title="Core Links" defaultOpen={true}>
-        <div className="space-y-4">
-          <p className="text-[10px] text-neutral-400 leading-relaxed">
-            These links appear in your shop footer. Include the full URL.
+    <div className="flex-1 flex flex-col space-y-6">
+      <Accordion title="Digital Ecosystem" defaultOpen={true}>
+        <div className="space-y-6">
+          <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic mb-2">
+            Protocol: Link global social identifiers for archival distribution.
           </p>
 
           {[
-            { key: "instagram", label: "Instagram", icon: <Instagram size={12} />, placeholder: "https://instagram.com/yourshop" },
-            { key: "twitter",   label: "Twitter / X", icon: <Twitter size={12} />, placeholder: "https://twitter.com/yourshop" },
-            { key: "facebook",  label: "Facebook",  icon: <Facebook size={12} />, placeholder: "https://facebook.com/yourshop" },
-            { key: "tiktok",    label: "TikTok",    icon: <Globe size={12} />, placeholder: "https://tiktok.com/@yourshop" },
+            { key: "instagram", label: "Instagram", icon: <Instagram size={14} />, placeholder: "HTTPS://INSTAGRAM.COM/..." },
+            { key: "twitter",   label: "Twitter / X", icon: <Twitter size={14} />, placeholder: "HTTPS://X.COM/..." },
+            { key: "facebook",  label: "Facebook",  icon: <Facebook size={14} />, placeholder: "HTTPS://FACEBOOK.COM/..." },
+            { key: "tiktok",    label: "TikTok",    icon: <Globe size={14} />, placeholder: "HTTPS://TIKTOK.COM/..." },
           ].map(({ key, label, icon, placeholder }) => (
-            <div key={key}>
+            <div key={key} className="group/item">
               <SidebarLabel>{label}</SidebarLabel>
-              <div className="mt-1 flex items-center gap-2 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 focus-within:border-blue-400 transition-colors shadow-sm">
-                <span className="text-neutral-400">{icon}</span>
+              <div className="mt-1 flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 focus-within:border-violet-500/50 transition-all shadow-inner relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-violet-600/5 to-transparent opacity-0 group-focus-within/item:opacity-100 transition-opacity" />
+                <span className="text-slate-600 group-focus-within/item:text-violet-400 transition-colors relative z-10">{icon}</span>
                 <input
                   value={social[key] || ""}
                   onChange={(e) => updateSocial(key, e.target.value)}
                   placeholder={placeholder}
-                  className="bg-transparent border-none outline-none text-[11px] flex-1 font-medium"
+                  className="bg-transparent border-none outline-none text-[11px] flex-1 font-black text-white uppercase tracking-widest italic placeholder:text-slate-800 relative z-10"
                 />
               </div>
             </div>
@@ -1453,11 +1493,11 @@ function SocialPanel({ design, update }: any) {
 
 function TextSizingPanel({ design, update }: any) {
   return (
-    <div className="p-4 space-y-2 overflow-y-auto flex-1">
-      <Accordion title="Scalability" defaultOpen={true}>
-        <div className="space-y-6">
+    <div className="flex-1 flex flex-col space-y-6">
+      <Accordion title="Typography Scaling" defaultOpen={true}>
+        <div className="space-y-10">
           <div>
-            <SidebarLabel>Base font size</SidebarLabel>
+            <SidebarLabel>Base Font Resolution</SidebarLabel>
             <SidebarRadioGroup
               value={design.fontSize || "md"}
               onChange={(v) => update("fontSize", v)}
@@ -1470,7 +1510,7 @@ function TextSizingPanel({ design, update }: any) {
           </div>
 
           <div>
-            <SidebarLabel>Heading scale</SidebarLabel>
+            <SidebarLabel>Archival Heading Scale</SidebarLabel>
             <SidebarRadioGroup
               value={design.headingScale || "regular"}
               onChange={(v) => update("headingScale", v)}
@@ -1483,7 +1523,7 @@ function TextSizingPanel({ design, update }: any) {
           </div>
 
           <div>
-            <SidebarLabel>Letter spacing</SidebarLabel>
+            <SidebarLabel>Kerning & Spacing</SidebarLabel>
             <SidebarRadioGroup
               value={design.letterSpacing || "wide"}
               onChange={(v) => update("letterSpacing", v)}
@@ -1498,21 +1538,22 @@ function TextSizingPanel({ design, update }: any) {
       </Accordion>
 
       <Accordion title="Type Specimen">
-        <div className="bg-neutral-50 rounded-2xl p-6 border border-neutral-200">
-           <p className="text-[10px] text-neutral-400 mb-4 font-bold uppercase tracking-widest border-b border-neutral-200 pb-2">PREVIEW</p>
-           <div className="space-y-3">
+        <div className="bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-8 relative overflow-hidden group">
+           <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 to-transparent pointer-events-none" />
+           <p className="text-[10px] text-slate-500 mb-6 font-black uppercase tracking-[0.4em] border-b border-white/5 pb-4 italic">Render Preview</p>
+           <div className="space-y-4 relative z-10">
              <p
-               className="font-bold text-neutral-800 leading-tight"
+               className="font-black text-white leading-none uppercase italic"
                style={{
                  fontFamily: design.font || "Inter",
-                 fontSize: design.fontSize === "sm" ? 22 : design.fontSize === "lg" ? 34 : 28,
+                 fontSize: design.fontSize === "sm" ? 28 : design.fontSize === "lg" ? 48 : 36,
                  letterSpacing: design.letterSpacing === "ultra" ? "0.15em" : design.letterSpacing === "wide" ? "0.05em" : "0",
                }}
              >
                Aa — {design.font || "Inter"}
              </p>
-             <p className="text-neutral-500 text-[12px] leading-relaxed" style={{ fontFamily: design.font || "Inter" }}>
-               The quick brown fox jumped over the lazy dog. Pack my box with five dozen liquor jugs.
+             <p className="text-slate-400 text-[13px] leading-relaxed font-bold italic tracking-tight" style={{ fontFamily: design.font || "Inter" }}>
+               THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG. ARCHIVAL TEXTURE MANIFESTO.
              </p>
            </div>
         </div>
@@ -1523,37 +1564,41 @@ function TextSizingPanel({ design, update }: any) {
 
 function TranslationsPanel({ design, update }: any) {
   return (
-    <div className="p-4 space-y-4 overflow-y-auto flex-1">
-      <p className="text-[10px] text-neutral-400 leading-relaxed">
-        Customise the labels and button text shown to shoppers.
-      </p>
+    <div className="flex-1 flex flex-col space-y-10">
+      <div className="px-2">
+        <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-[0.2em] italic mb-10">
+          Linguistic mapping for consumer-facing interaction nodes.
+        </p>
 
-      {[
-        { key: "cartLabel",      label: "Cart button label",     ph: "BAG" },
-        { key: "shopButtonLabel",label: "Shop now button",        ph: "SHOP NOW" },
-        { key: "soldOutLabel",   label: "Sold out label",         ph: "SOLD OUT" },
-        { key: "productCTA",     label: "Product hover button",   ph: "VIEW" },
-      ].map(({ key, label, ph }) => (
-        <div key={key}>
-          <SidebarLabel>{label}</SidebarLabel>
-          <SidebarInput
-            value={(design as any)[key] || ""}
-            onChange={(v: string) => update(key, v)}
-            placeholder={ph}
-          />
+        <div className="space-y-10">
+          {[
+            { key: "cartLabel",      label: "Cart Core Identifier",     ph: "BAG" },
+            { key: "shopButtonLabel",label: "Acquisition Trigger",      ph: "SHOP NOW" },
+            { key: "soldOutLabel",   label: "Depletion Status",         ph: "SOLD OUT" },
+            { key: "productCTA",     label: "Inspection Trigger",       ph: "VIEW" },
+          ].map(({ key, label, ph }) => (
+            <div key={key}>
+              <SidebarLabel>{label}</SidebarLabel>
+              <SidebarInput
+                value={(design as any)[key] || ""}
+                onChange={(v: string) => update(key, v)}
+                placeholder={ph}
+              />
+            </div>
+          ))}
+
+          <div>
+            <SidebarLabel>Fiscal Symbol Positioning</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.currencyPosition || "before"}
+              onChange={(v) => update("currencyPosition", v)}
+              options={[
+                { value: "before", label: "$12.00" },
+                { value: "after", label: "12.00$" },
+              ]}
+            />
+          </div>
         </div>
-      ))}
-
-      <div>
-        <SidebarLabel>Currency symbol position</SidebarLabel>
-        <SidebarRadioGroup
-          value={design.currencyPosition || "before"}
-          onChange={(v) => update("currencyPosition", v)}
-          options={[
-            { value: "before", label: "$12.00" },
-            { value: "after", label: "12.00$" },
-          ]}
-        />
       </div>
     </div>
   );
@@ -1561,27 +1606,30 @@ function TranslationsPanel({ design, update }: any) {
 
 function AdditionalPanel({ design, update }: any) {
   return (
-    <div className="p-4 space-y-0 overflow-y-auto flex-1">
-      <div className="border border-neutral-100 rounded-xl overflow-hidden">
-        {[
-          { key: "enableAnimations",  label: "Enable animations",        desc: "Smooth entrance and transition effects across the shop" },
-          { key: "showZoom",          label: "Product image zoom",        desc: "Zoom in on product images when customer hovers" },
-          { key: "showBackToTop",     label: "Back to top button",        desc: "Show a floating scroll-to-top button on long pages" },
-          { key: "showPoweredBy",     label: "Show 'Powered by' badge",   desc: "Display a small badge crediting the platform" },
-        ].map(({ key, label, desc }) => (
-          <SidebarToggle
-            key={key}
-            label={label}
-            description={desc}
-            checked={(design as any)[key] ?? false}
-            onChange={(v: boolean) => update(key, v)}
-          />
-        ))}
+    <div className="flex-1 flex flex-col space-y-10">
+      <div className="p-6 bg-white/[0.03] border border-white/10 rounded-[2rem] relative overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 to-transparent pointer-events-none" />
+        <div className="space-y-2 relative z-10">
+          {[
+            { key: "enableAnimations",  label: "Kinetic Motion",        desc: "Enable fluid interface transitions" },
+            { key: "showZoom",          label: "Optical Expansion",     desc: "High-fidelity hover zoom protocols" },
+            { key: "showBackToTop",     label: "Vertical Reset",        desc: "Display navigational return trigger" },
+            { key: "showPoweredBy",     label: "Platform Identity",     desc: "Show archival platform accreditation" },
+          ].map(({ key, label, desc }) => (
+            <SidebarToggle
+              key={key}
+              label={label}
+              description={desc}
+              checked={(design as any)[key] ?? false}
+              onChange={(v: boolean) => update(key, v)}
+            />
+          ))}
+        </div>
       </div>
 
-      <div className="mt-8 space-y-4">
+      <div className="space-y-6">
         <div>
-          <SidebarLabel>Favicon</SidebarLabel>
+          <SidebarLabel>Archival Favicon Asset</SidebarLabel>
           <SidebarAssetUpload
             value={design.faviconUrl}
             onChange={(url: string) => update("faviconUrl", url)}
@@ -1596,39 +1644,50 @@ function AdditionalPanel({ design, update }: any) {
 
 function CodePanel({ design, update }: any) {
   return (
-    <div className="p-4 space-y-5 overflow-y-auto">
-      <p className="text-[10px] text-neutral-400 leading-relaxed">
-        Advanced controls for brand-level customization. This is useful for pixel-perfect styling similar to enterprise storefront builders.
-      </p>
-      <div>
-        <SidebarLabel>Custom CSS</SidebarLabel>
-        <textarea
-          value={design.customCss || ""}
-          onChange={(e) => update("customCss", e.target.value)}
-          rows={8}
-          placeholder=".product-card:hover { transform: translateY(-2px); }"
-          className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] font-mono outline-none focus:border-neutral-400 transition-colors resize-y"
-        />
+    <div className="flex-1 flex flex-col space-y-8">
+      <div className="p-6 bg-violet-600/5 border border-violet-500/10 rounded-[2rem] relative overflow-hidden group">
+        <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+          <Code2 size={48} className="rotate-12" />
+        </div>
+        <h4 className="text-[11px] font-black text-violet-400 uppercase tracking-[0.3em] italic mb-4">Development Override</h4>
+        <p className="text-[10px] text-slate-500 font-bold leading-relaxed italic uppercase">
+          Inject custom architectural protocols into the storefront runtime.
+        </p>
       </div>
-      <div>
-        <SidebarLabel>Custom &lt;head&gt; HTML</SidebarLabel>
-        <textarea
-          value={design.customHeadHtml || ""}
-          onChange={(e) => update("customHeadHtml", e.target.value)}
-          rows={5}
-          placeholder="<meta name='theme-color' content='#000000' />"
-          className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] font-mono outline-none focus:border-neutral-400 transition-colors resize-y"
-        />
-      </div>
-      <div>
-        <SidebarLabel>Footer scripts</SidebarLabel>
-        <textarea
-          value={design.customFooterScripts || ""}
-          onChange={(e) => update("customFooterScripts", e.target.value)}
-          rows={5}
-          placeholder="<script>console.log('tracking script')</script>"
-          className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] font-mono outline-none focus:border-neutral-400 transition-colors resize-y"
-        />
+
+      <div className="space-y-10">
+        <div className="group/code">
+          <SidebarLabel>Cascading Style Sheets (CSS)</SidebarLabel>
+          <textarea
+            value={design.customCss || ""}
+            onChange={(e) => update("customCss", e.target.value)}
+            rows={8}
+            placeholder=".PROTOCOL { TRANSFORMATION: SCALE(1); }"
+            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-5 text-[11px] font-mono text-cyan-400 outline-none focus:border-cyan-500/50 transition-all resize-y placeholder:text-slate-800 shadow-inner italic"
+          />
+        </div>
+        
+        <div className="group/code">
+          <SidebarLabel>Head Node Injection (HTML)</SidebarLabel>
+          <textarea
+            value={design.customHeadHtml || ""}
+            onChange={(e) => update("customHeadHtml", e.target.value)}
+            rows={5}
+            placeholder="<META PROTOCOL='THEME-COLOR' CONTENT='#000000' />"
+            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-5 text-[11px] font-mono text-violet-400 outline-none focus:border-violet-500/50 transition-all resize-y placeholder:text-slate-800 shadow-inner italic"
+          />
+        </div>
+
+        <div className="group/code">
+          <SidebarLabel>Root Execution Scripts (JS)</SidebarLabel>
+          <textarea
+            value={design.customFooterScripts || ""}
+            onChange={(e) => update("customFooterScripts", e.target.value)}
+            rows={5}
+            placeholder="<SCRIPT>EMIT('READY');</SCRIPT>"
+            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-5 text-[11px] font-mono text-emerald-400 outline-none focus:border-emerald-500/50 transition-all resize-y placeholder:text-slate-800 shadow-inner italic"
+          />
+        </div>
       </div>
     </div>
   );
@@ -2227,70 +2286,76 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const currentSectionTitle = SECTIONS.find(s => s.id === activeSection)?.title || "";
 
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col bg-[#f0f0f0]" style={{ fontFamily: "Inter, sans-serif" }}>
+    <div className="fixed inset-0 z-[200] flex flex-col bg-[#050506] text-white overflow-hidden" style={{ fontFamily: "'Outfit', sans-serif" }}>
       {/* ── Top bar ── */}
-      <div className="h-12 bg-[#1a1a1a] text-white flex items-center justify-between px-4 flex-shrink-0 shadow-lg z-10">
-        <div className="flex items-center gap-4">
-          <span className="text-[10px] font-black tracking-[0.2em] text-white/60 uppercase">Theme Editor</span>
-          <span className="text-white/20">·</span>
-          <span className="text-[10px] text-white/40 font-medium">Lyricalmyrical Dark</span>
-          {hasChanges && (
-            <span className="bg-amber-500/20 text-amber-400 text-[8px] font-bold tracking-widest px-2 py-0.5 rounded-full border border-amber-500/30 uppercase">
-              Unsaved
-            </span>
-          )}
-          <div className="flex items-center gap-1">
+      <div className="h-20 bg-black/40 backdrop-blur-3xl flex items-center justify-between px-8 flex-shrink-0 border-b border-white/5 z-50">
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black tracking-[0.4em] text-violet-400 uppercase italic">Architectural Core</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xl font-black tracking-tighter text-white uppercase italic">Theme Editor</span>
+              {hasChanges && (
+                <span className="bg-violet-500/10 text-violet-400 text-[8px] font-black tracking-widest px-3 py-1 rounded-full border border-violet-500/20 uppercase italic">
+                  Unsaved Protocol
+                </span>
+              )}
+            </div>
+          </div>
+          
+          <div className="h-8 w-px bg-white/10 mx-2" />
+          
+          <div className="flex items-center gap-2">
             <button
               onClick={undo}
               disabled={pastDesigns.length === 0}
-              className="px-2 py-1 rounded-md bg-white/10 text-[9px] font-semibold tracking-wider uppercase disabled:opacity-30"
+              className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all disabled:opacity-10"
+              title="Undo Change"
             >
-              Undo
+              <ChevronLeft size={18} strokeWidth={3} />
             </button>
             <button
               onClick={redo}
               disabled={futureDesigns.length === 0}
-              className="px-2 py-1 rounded-md bg-white/10 text-[9px] font-semibold tracking-wider uppercase disabled:opacity-30"
+              className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all disabled:opacity-10"
+              title="Redo Change"
             >
-              Redo
+              <ChevronRight size={18} strokeWidth={3} />
             </button>
           </div>
+
           <button
             onClick={() => setSyncPreview((prev) => !prev)}
-            className={`px-2 py-1 rounded-md text-[9px] font-semibold tracking-wider uppercase border ${
-              syncPreview ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" : "bg-white/10 text-white/50 border-white/10"
+            className={`px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase border transition-all flex items-center gap-2 italic ${
+              syncPreview 
+                ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20 shadow-[0_0_20px_rgba(34,211,238,0.1)]" 
+                : "bg-white/5 text-slate-500 border-white/5"
             }`}
           >
-            {syncPreview ? "Sync on" : "Sync off"}
+            <div className={`w-1.5 h-1.5 rounded-full ${syncPreview ? "bg-cyan-400 animate-pulse" : "bg-slate-700"}`} />
+            Live Sync: {syncPreview ? "ACTIVE" : "PAUSED"}
           </button>
         </div>
 
         {/* Device switcher */}
-        <div className="flex items-center gap-1 bg-white/10 rounded-lg p-1 group/device">
+        <div className="flex items-center gap-1 bg-white/[0.03] border border-white/5 rounded-2xl p-1.5 backdrop-blur-xl shadow-2xl">
           {(["desktop", "mobile"] as const).map((d) => (
             <button
               key={d}
               onClick={() => setDevice(d)}
-              className={`p-1.5 rounded-md transition-all relative group/btn ${device === d ? "bg-white/20 text-white" : "text-white/40 hover:text-white/60"}`}
-              title={d.charAt(0).toUpperCase() + d.slice(1)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all relative group/btn ${
+                device === d 
+                  ? "bg-white/10 text-white shadow-inner border border-white/10" 
+                  : "text-slate-500 hover:text-slate-300"
+              }`}
             >
-              {d === "desktop" ? <Monitor size={13} /> : <Smartphone size={13} />}
-              <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black text-[8px] font-bold text-white rounded opacity-0 group-hover/btn:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
-                {d.toUpperCase()} VIEW
-              </span>
+              {d === "desktop" ? <Monitor size={14} strokeWidth={2.5} /> : <Smartphone size={14} strokeWidth={2.5} />}
+              <span className="text-[9px] font-black uppercase tracking-widest italic">{d}</span>
             </button>
           ))}
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onExit}
-            className="flex items-center gap-1.5 text-white/50 hover:text-white transition-colors text-[10px] font-semibold tracking-wider"
-          >
-            <X size={12} /> Exit
-          </button>
-          
+        <div className="flex items-center gap-4">
           <a
             href={(() => {
               const basePath = window.location.pathname.replace(/\/admin\/?.*$/, "").replace(/\/$/, "");
@@ -2298,31 +2363,45 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
             })()}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-white/50 hover:text-white transition-colors text-[10px] font-semibold tracking-wider mr-2"
+            className="flex items-center gap-2 text-slate-500 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest italic px-4 group"
           >
-            <Eye size={12} /> Preview Live
+            <Eye size={14} className="group-hover:scale-110 transition-transform" /> 
+            Live View
           </a>
+
+          <div className="h-8 w-px bg-white/10 mx-2" />
+
+          <button
+            onClick={onExit}
+            className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/5 border border-white/5 text-slate-500 hover:text-white hover:bg-red-500/20 hover:border-red-500/20 transition-all"
+            title="Exit Editor"
+          >
+            <X size={20} strokeWidth={3} />
+          </button>
           
           <button
             onClick={() => handleSave({ publish: false })}
             disabled={saving || savingDraft || !hasChanges}
-            className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-bold tracking-wider transition-all border border-white/10 ${
-              !hasChanges ? "opacity-30 cursor-not-allowed" : "text-white/70 hover:text-white hover:bg-white/5"
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border italic ${
+              !hasChanges 
+                ? "opacity-20 cursor-not-allowed border-white/5 text-slate-500" 
+                : "bg-white/5 border-white/10 text-white hover:bg-white/10 hover:border-white/20 active:scale-95 shadow-xl"
             }`}
           >
-            {savingDraft ? "Saving..." : "Save Draft"}
+            {savingDraft ? "Archiving..." : "Save Draft"}
           </button>
 
           <button
             onClick={() => setShowPublishModal(true)}
             disabled={saving || savingDraft}
-            className={`flex items-center gap-2 px-5 py-1.5 rounded-full text-[10px] font-bold tracking-wider transition-all ${
+            className={`flex items-center gap-3 px-8 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.25em] transition-all italic relative overflow-hidden group/pub ${
               saved
-                ? "bg-green-500 text-white"
-                : "bg-white text-black hover:bg-neutral-100 shadow-lg active:scale-95"
+                ? "bg-emerald-500 text-white shadow-[0_0_30px_rgba(16,185,129,0.4)]"
+                : "bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:shadow-[0_0_40px_rgba(124,58,237,0.4)] hover:-translate-y-0.5 active:translate-y-0 shadow-2xl"
             }`}
           >
-            {saved ? <><Check size={11} /> Saved!</> : saving ? "Publishing..." : "Publish"}
+            <div className="absolute inset-0 bg-white/20 opacity-0 group-hover/pub:opacity-100 transition-opacity pointer-events-none" />
+            {saved ? <><Check size={14} strokeWidth={4} /> PUBLISHED</> : saving ? "EMITTING..." : "PUBLISH TO LIVE"}
           </button>
         </div>
       </div>
@@ -2330,37 +2409,39 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       {/* Publish Confirmation Modal */}
       <AnimatePresence>
         {showPublishModal && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden relative"
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="bg-[#0c0c0e] border border-white/10 rounded-[3rem] shadow-[0_0_100px_rgba(124,58,237,0.2)] w-full max-w-lg overflow-hidden relative"
             >
-              <div className="p-10 text-center">
-                <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-blue-600">
-                  <Globe size={32} />
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-600/10 via-transparent to-cyan-600/10 pointer-events-none" />
+              <div className="p-16 text-center relative z-10">
+                <div className="w-24 h-24 bg-violet-600/10 border border-violet-500/20 rounded-[2.5rem] flex items-center justify-center mx-auto mb-10 text-violet-400 rotate-12 group-hover:rotate-0 transition-transform duration-700">
+                  <Globe size={40} strokeWidth={2.5} />
                 </div>
-                <h3 className="text-2xl font-black text-neutral-900 tracking-tight mb-2">Publish Changes?</h3>
-                <p className="text-neutral-500 text-[13px] leading-relaxed mb-8">
-                  Your new theme settings will be applied to the live storefront. This action cannot be instantly reversed.
+                <h3 className="text-4xl font-black text-white tracking-tighter uppercase italic mb-4">Deploy Changes?</h3>
+                <p className="text-slate-400 text-[14px] leading-relaxed mb-12 max-w-sm mx-auto font-medium">
+                  The current design protocol will be synchronized with the live storefront edge nodes.
                 </p>
 
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-4">
                   <button
                     onClick={async () => {
                       setShowPublishModal(false);
                       await handleSave({ publish: true });
                     }}
-                    className="w-full bg-[#1a1a1a] text-white py-4 rounded-2xl text-[11px] font-bold tracking-[0.2em] uppercase hover:bg-black transition-all active:scale-[0.98]"
+                    className="w-full bg-white text-black py-5 rounded-2xl text-[12px] font-black tracking-[0.3em] uppercase italic hover:bg-slate-200 transition-all active:scale-[0.98] shadow-2xl"
                   >
-                    Confirm & Publish
+                    Confirm Deployment
                   </button>
                   <button
                     onClick={() => setShowPublishModal(false)}
-                    className="w-full py-4 text-[11px] font-bold text-neutral-400 tracking-[0.2em] uppercase hover:text-neutral-900 transition-colors"
+                    className="w-full py-5 text-[11px] font-black text-slate-500 tracking-[0.3em] uppercase italic hover:text-white transition-colors"
                   >
-                    Cancel
+                    Abort Sequence
                   </button>
                 </div>
               </div>
@@ -2370,124 +2451,167 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       </AnimatePresence>
 
       {/* ── Body ── */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         {/* ── Left sidebar ── */}
-        <div className="w-[300px] bg-white flex flex-col border-r border-neutral-200 shadow-sm flex-shrink-0">
+        <div className="w-[380px] bg-black/20 backdrop-blur-3xl flex flex-col border-r border-white/5 flex-shrink-0 z-10 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
+          
           {/* Tab nav */}
-          <div className="flex border-b border-neutral-100">
+          <div className="flex border-b border-white/5 bg-black/20 backdrop-blur-xl relative z-10">
             {(
               [
-                { id: "settings",  icon: <Settings size={11} />,      label: "Settings" },
-                { id: "pages",     icon: <FileText size={11} />,       label: "Menu & Pages" },
-                { id: "code",      icon: <Code2 size={11} />,          label: "Code" },
-                { id: "templates", icon: <LayoutTemplate size={11} />, label: "Templates" },
+                { id: "settings",  icon: <Settings size={14} />,      label: "Config" },
+                { id: "pages",     icon: <FileText size={14} />,       label: "Pages" },
+                { id: "code",      icon: <Code2 size={14} />,          label: "Source" },
+                { id: "templates", icon: <LayoutTemplate size={14} />, label: "Library" },
               ] as const
             ).map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => { setActiveTab(tab.id); setActiveSection(null); }}
-                className={`flex-1 flex flex-col items-center gap-1 py-3 text-[8px] font-bold tracking-wider uppercase transition-all border-b-2 ${
+                className={`flex-1 flex flex-col items-center gap-2 py-5 text-[9px] font-black tracking-[0.2em] uppercase transition-all relative italic ${
                   activeTab === tab.id
-                    ? "border-blue-500 text-blue-600"
-                    : "border-transparent text-neutral-400 hover:text-neutral-600"
+                    ? "text-violet-400"
+                    : "text-slate-600 hover:text-slate-400"
                 }`}
               >
-                {tab.icon}
+                <div className={`transition-transform duration-500 ${activeTab === tab.id ? "scale-110" : "scale-100"}`}>
+                  {tab.icon}
+                </div>
                 {tab.label}
+                {activeTab === tab.id && (
+                  <motion.div 
+                    layoutId="tab-underline"
+                    className="absolute bottom-0 left-4 right-4 h-0.5 bg-violet-500 shadow-[0_0_10px_rgba(124,58,237,0.5)]" 
+                  />
+                )}
               </button>
             ))}
           </div>
 
           {/* Content area */}
-          <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col overflow-hidden relative z-10">
             <AnimatePresence mode="wait">
               {activeTab === "settings" ? (
                 <motion.div
                   key={activeSection || "__list__"}
-                  initial={{ opacity: 0, x: activeSection ? 20 : -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: activeSection ? -20 : 20 }}
-                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  initial={{ opacity: 0, x: activeSection ? 20 : -20, filter: "blur(10px)" }}
+                  animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, x: activeSection ? -20 : 20, filter: "blur(10px)" }}
+                  transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
                   className="flex-1 flex flex-col overflow-hidden"
                 >
                   {activeSection ? (
                     <>
                       <SubPanelHeader title={currentSectionTitle} onBack={() => setActiveSection(null)} />
-                      <div className="flex-1 overflow-y-auto">
+                      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                         {renderSubPanel()}
                       </div>
                     </>
                   ) : (
-                    <div className="flex-1 overflow-y-auto">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar">
                       {/* Options header */}
-                      <div className="px-4 pt-4 pb-3">
-                        <h2 className="text-[13px] font-bold text-neutral-800">Settings</h2>
-                        <p className="text-[10px] text-neutral-400 mt-1 leading-relaxed">
-                          Customise your template, colours, layout and social profiles.
+                      <div className="p-8 pb-4">
+                        <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase italic mb-2 block">System Configuration</span>
+                        <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Core Settings</h2>
+                        <p className="text-[11px] text-slate-500 font-bold leading-relaxed mb-8">
+                          Architectural controls for visual identity, spatial mapping, and cross-platform logic.
                         </p>
-                        <input
-                          value={settingsSearch}
-                          onChange={(e) => setSettingsSearch(e.target.value)}
-                          placeholder="Search settings..."
-                          className="mt-3 w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] outline-none focus:border-neutral-400 transition-colors"
-                        />
+                        
+                        <div className="relative group/search">
+                          <input
+                            value={settingsSearch}
+                            onChange={(e) => setSettingsSearch(e.target.value)}
+                            placeholder="QUERY SYSTEM PARAMETERS..."
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-[10px] font-black text-white outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-800 tracking-widest italic"
+                          />
+                          <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-800 group-focus-within/search:text-violet-500/50 transition-colors">
+                            <Settings size={16} className="animate-[spin_10s_linear_infinite]" />
+                          </div>
+                        </div>
                       </div>
 
-                      {filteredSections.map((section) => (
-                        <SectionRow
-                          key={section.id}
-                          icon={section.icon}
-                          title={section.title}
-                          description={section.description}
-                          onClick={() => setActiveSection(section.id)}
-                        />
-                      ))}
+                      <div className="space-y-1 px-2">
+                        {filteredSections.map((section) => (
+                          <SectionRow
+                            key={section.id}
+                            icon={section.icon}
+                            title={section.title}
+                            description={section.description}
+                            onClick={() => setActiveSection(section.id)}
+                          />
+                        ))}
+                      </div>
+                      
                       {filteredSections.length === 0 && (
-                        <div className="px-4 pb-4 text-[10px] text-neutral-400">
-                          No section matches your search.
+                        <div className="p-12 text-center">
+                          <p className="text-[10px] font-black text-slate-700 tracking-[0.3em] uppercase italic italic">Null Result: Parameter mismatch</p>
                         </div>
                       )}
+                      
+                      <div className="p-8 mt-4">
+                        <div className="p-6 bg-violet-600/5 border border-violet-500/10 rounded-[2rem] relative overflow-hidden group">
+                           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                             <RefreshCw size={40} className="rotate-12" />
+                           </div>
+                           <h4 className="text-[11px] font-black text-violet-400 uppercase tracking-widest italic mb-2">Editor Protocol</h4>
+                           <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+                             All changes are mirrored in the live buffer. Use Publish to push to production edge.
+                           </p>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </motion.div>
               ) : activeTab === "pages" ? (
                 <motion.div
                   key="pages"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
                   className="flex-1 flex flex-col overflow-hidden"
                 >
-                  {renderPagesPanel()}
+                  <div className="p-8 pb-4">
+                    <span className="text-[10px] font-black tracking-[0.4em] text-cyan-500 uppercase italic mb-2 block">Content Structure</span>
+                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Site Architecture</h2>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    {renderPagesPanel()}
+                  </div>
                 </motion.div>
               ) : activeTab === "code" ? (
                 <motion.div
                   key="code"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
                   className="flex-1 flex flex-col overflow-hidden"
                 >
-                  <div className="px-4 py-3 border-b border-neutral-100">
-                    <h3 className="text-[11px] font-bold text-neutral-700 uppercase tracking-widest">Custom code</h3>
+                  <div className="p-8 pb-4">
+                    <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase italic mb-2 block">Developer Mode</span>
+                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Source Injection</h2>
                   </div>
-                  <CodePanel design={activeDesign} update={update} />
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    <CodePanel design={activeDesign} update={update} />
+                  </div>
                 </motion.div>
               ) : (
                 <motion.div
                   key={activeTab}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex-1 flex items-center justify-center p-6 text-center"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="flex-1 flex items-center justify-center p-12 text-center"
                 >
-                  <div>
-                    <div className="w-12 h-12 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3 text-neutral-400">
-                      {activeTab === "code" && <Code2 size={20} />}
-                      {activeTab === "templates" && <LayoutTemplate size={20} />}
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-violet-500/20 blur-[60px] rounded-full animate-pulse" />
+                    <div className="relative z-10">
+                      <div className="w-24 h-24 rounded-[2.5rem] bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-8 text-slate-700 rotate-12 hover:rotate-0 transition-transform duration-700">
+                        {activeTab === "templates" && <LayoutTemplate size={40} />}
+                      </div>
+                      <p className="text-[12px] font-black text-white tracking-[0.4em] uppercase italic mb-3">{activeTab} Module</p>
+                      <p className="text-[10px] font-black text-slate-600 tracking-[0.2em] uppercase italic">Awaiting Integration Link</p>
                     </div>
-                    <p className="text-[11px] font-semibold text-neutral-500 capitalize">{activeTab}</p>
-                    <p className="text-[10px] text-neutral-300 mt-1">Coming soon</p>
                   </div>
                 </motion.div>
               )}
@@ -2496,12 +2620,15 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         </div>
 
         {/* ── Right preview pane ── */}
-        <LivePreview
-          design={design}
-          device={device}
-          previewMode={{ value: previewMode, set: (m: "homepage" | "shop") => { setPreviewMode(m); setIsPreviewReady(false); } }}
-          iframeRef={iframeRef}
-        />
+        <div className="flex-1 bg-[#0a0a0c] relative overflow-hidden flex flex-col">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.05),transparent_60%)] pointer-events-none" />
+          <LivePreview
+            design={design}
+            device={device}
+            previewMode={{ value: previewMode, set: (m: "homepage" | "shop") => { setPreviewMode(m); setIsPreviewReady(false); } }}
+            iframeRef={iframeRef}
+          />
+        </div>
       </div>
     </div>
   );
@@ -2525,19 +2652,33 @@ function SidebarAssetUpload({ value, onChange, label, type }: any) {
   };
 
   return (
-    <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-200 space-y-3">
+    <div className="bg-white/[0.03] rounded-3xl p-5 border border-white/10 space-y-5 backdrop-blur-3xl transition-all hover:bg-white/[0.05] relative overflow-hidden group/upload">
+      <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 to-transparent pointer-events-none" />
+      
       {value && (
-        <div className="aspect-square w-12 rounded-lg overflow-hidden border border-neutral-200 bg-white">
-          <img src={value} className="w-full h-full object-contain" />
+        <div className="aspect-video w-full rounded-2xl overflow-hidden border border-white/10 bg-black/40 group relative shadow-2xl">
+          <img src={value} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
+            <button 
+              onClick={(e) => { e.preventDefault(); onChange(""); }} 
+              className="w-12 h-12 rounded-full bg-red-500/20 text-red-400 backdrop-blur-xl border border-red-500/20 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all transform hover:rotate-90"
+            >
+              <X size={18} strokeWidth={3} />
+            </button>
+          </div>
         </div>
       )}
-      <div className="flex flex-col gap-2">
-        <input 
-          value={value || ""} 
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Image URL..."
-          className="w-full bg-white border border-neutral-200 rounded-lg px-3 py-1.5 text-[10px] outline-none focus:border-neutral-400"
-        />
+
+      <div className="flex flex-col gap-4 relative z-10">
+        <div className="relative group">
+          <input 
+            value={value || ""} 
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Asset URL..."
+            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-[10px] text-white outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-800 font-black tracking-widest uppercase italic"
+          />
+        </div>
+        
         <div className="relative">
           <input 
             type="file" 
@@ -2548,10 +2689,14 @@ function SidebarAssetUpload({ value, onChange, label, type }: any) {
           />
           <label 
             htmlFor={`asset-${type}`}
-            className="flex items-center justify-center gap-2 w-full py-1.5 bg-white border border-neutral-200 rounded-lg text-[9px] font-bold cursor-pointer hover:bg-neutral-50 transition-all uppercase tracking-widest"
+            className="flex items-center justify-center gap-3 w-full py-5 bg-white/[0.05] border border-white/10 rounded-[2rem] text-[10px] font-black cursor-pointer hover:bg-white/10 hover:border-violet-500/30 transition-all uppercase tracking-[0.25em] italic text-slate-400 hover:text-white shadow-xl group-active/upload:scale-[0.98]"
           >
-            {uploading ? <RefreshCw size={10} className="animate-spin" /> : <Plus size={10} />}
-            {uploading ? "Uploading..." : label}
+            {uploading ? (
+              <RefreshCw size={16} className="animate-spin text-violet-400" strokeWidth={3} />
+            ) : (
+              <Plus size={16} className="text-violet-500" strokeWidth={3} />
+            )}
+            {uploading ? "ARCHIVING ASSET..." : label}
           </label>
         </div>
       </div>

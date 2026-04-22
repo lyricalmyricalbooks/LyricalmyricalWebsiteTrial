@@ -26,31 +26,21 @@ import { PagesManager } from "./PagesManager";
 
 const PURPLE = "#A855F7";
 
-export function ShopSettings({ activeTab, setActiveTab }: any) {
-  const [settings, setSettings] = useState<any>(adminApi.getDefaultSettings());
-  const [originalSettings, setOriginalSettings] = useState<any>(adminApi.getDefaultSettings());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function ShopSettings({ 
+  activeTab, 
+  setActiveTab, 
+  settings, 
+  setSettings, 
+  originalSettings, 
+  settingsLoading,
+  saveSection 
+}: any) {
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
 
   useEffect(() => {
-    loadSettings();
     loadShippingProfiles();
   }, []);
-
-  async function loadSettings() {
-    try {
-      const data = await adminApi.getSettings();
-      setSettings(JSON.parse(JSON.stringify(data)));
-      setOriginalSettings(data);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to load settings from cloud.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function loadShippingProfiles() {
     try {
@@ -61,25 +51,10 @@ export function ShopSettings({ activeTab, setActiveTab }: any) {
     }
   }
 
-  const saveSection = async (section: string, data: any, options: any = {}) => {
+  const handleSaveSection = async (section: string, data: any, options: any = {}) => {
     setSavingSection(section);
-    try {
-      await adminApi.updateSettings(data, options);
-      // Update local state based on what was actually sent
-      if (data.design) {
-        if (options.publish) {
-           setSettings((prev: any) => ({ ...prev, design: data.design, draftDesign: data.design }));
-        } else {
-           setSettings((prev: any) => ({ ...prev, draftDesign: data.design }));
-        }
-      } else {
-         setSettings((prev: any) => ({ ...prev, ...data }));
-      }
-    } catch (err) {
-      alert("Error saving settings");
-    } finally {
-      setSavingSection(null);
-    }
+    await saveSection(section, data, options);
+    setSavingSection(null);
   };
 
   const hasChanges = (section: string) => {
@@ -87,20 +62,12 @@ export function ShopSettings({ activeTab, setActiveTab }: any) {
     return JSON.stringify(settings[section]) !== JSON.stringify(originalSettings[section]);
   };
 
-  if (error) return <div className="h-96 flex items-center justify-center text-[10px] tracking-[.4em] text-red-500 uppercase">{error}</div>;
-
-  // Full-screen takeover for the designer tab
-  if (activeTab === "designer" && !loading) {
-    return (
-      <ThemeEditor
-        settings={settings}
-        onSave={async (design: any, options: any) => {
-          await saveSection("design", { design }, options);
-        }}
-        onExit={() => setActiveTab("general")}
-      />
-    );
-  }
+  if (settingsLoading) return (
+    <div className="h-96 flex flex-col items-center justify-center gap-6">
+      <div className="w-12 h-12 border-2 border-violet-500/10 border-t-violet-500 rounded-full animate-spin" />
+      <p className="text-[10px] tracking-[0.4em] text-slate-500 font-black uppercase">Retrieving System Config</p>
+    </div>
+  );
 
   // Pages tab — renders inline (same width as other settings)
   if (activeTab === "pages") {
@@ -109,6 +76,11 @@ export function ShopSettings({ activeTab, setActiveTab }: any) {
         <PagesManager />
       </div>
     );
+  }
+
+  // Designer tab — handled by Dashboard for full-screen takeover
+  if (activeTab === "designer") {
+    return null;
   }
 
   return (
@@ -122,11 +94,11 @@ export function ShopSettings({ activeTab, setActiveTab }: any) {
           transition={{ duration: 0.2 }}
           className="space-y-12"
         >
-          {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
-          {activeTab === "communications" && <CommunicationsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
+          {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
+          {activeTab === "communications" && <CommunicationsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} refreshProfiles={loadShippingProfiles} />}
-          {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
-          {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
+          {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
+          {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
         </motion.div>
       </AnimatePresence>
     </div>
