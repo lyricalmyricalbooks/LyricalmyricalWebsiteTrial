@@ -449,8 +449,7 @@ function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive:
 // ──────────────────────────────
 function useThemePreview(initialDesign: any) {
   const [designOverride, setDesignOverride] = useState<any>(null);
-  const location = useLocation();
-  const isPreview = location.search.includes("preview=true");
+  const isPreview = window.location.search.includes("preview=true");
 
   useEffect(() => {
     if (!isPreview) return;
@@ -484,7 +483,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const { books, settings, pages, loading } = useSiteData();
 
   // Auto-open catalog view when the editor previews the shop tab
-  const isCatalogPreview = location.search.includes("catalog=true");
+  const isCatalogPreview = window.location.search.includes("catalog=true");
   useEffect(() => {
     if (isCatalogPreview && setShowCatalog) setShowCatalog(true);
   }, [isCatalogPreview, setShowCatalog]);
