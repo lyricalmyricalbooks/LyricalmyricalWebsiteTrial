@@ -51,15 +51,26 @@ function SortablePhoto({ photo, index, onRemove }: { photo: any; index: number; 
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="relative aspect-[3/4] bg-neutral-100 rounded-xl overflow-hidden group border border-neutral-50 cursor-grab active:cursor-grabbing">
-      <img src={photo.url} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 pointer-events-none" />
-      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-        <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onRemove(photo.id); }} className="p-2 bg-white text-black rounded-lg hover:bg-neutral-100 transition-colors z-10">
-          <Trash2 size={14} />
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      {...attributes} 
+      {...listeners} 
+      className="relative aspect-[3/4] bg-white/[0.02] rounded-[2rem] overflow-hidden group border border-white/5 cursor-grab active:cursor-grabbing hover:border-violet-500/30 transition-all duration-500 shadow-xl shadow-black/40"
+    >
+      <img src={photo.url} className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-end p-6">
+        <button 
+          type="button" 
+          onPointerDown={(e) => e.stopPropagation()} 
+          onClick={(e) => { e.stopPropagation(); onRemove(photo.id); }} 
+          className="w-full py-3 bg-red-500/20 text-red-400 rounded-xl hover:bg-red-500 hover:text-white transition-all text-[10px] font-black tracking-widest backdrop-blur-md border border-red-500/20"
+        >
+          REMOVE ASSET
         </button>
       </div>
-      <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/60 text-[8px] text-white rounded font-bold tracking-widest">
-        IMAGE {index + 1}
+      <div className="absolute top-4 left-4 px-3 py-1 bg-black/60 backdrop-blur-md text-[8px] text-white/60 rounded-full font-black tracking-[0.2em] border border-white/5">
+        ASSET {index + 1}
       </div>
     </div>
   );
@@ -323,260 +334,327 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   };
 
   return (
-    <div className="bg-white rounded-3xl shadow-2xl border border-neutral-100 overflow-hidden flex flex-col h-full max-h-[90vh]">
+    <div className="bg-[#0A0A0B] rounded-[3rem] shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/5 overflow-hidden flex flex-col h-full max-h-[95vh] text-white">
+      {/* Background Glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-violet-600/10 blur-[120px] pointer-events-none opacity-50" />
+      
       {/* Header */}
-      <header className="px-8 py-6 border-b border-neutral-100 flex justify-between items-center bg-white sticky top-0 z-10">
-        <div className="flex items-center gap-4">
-          <button onClick={handleClose} className="p-2 hover:bg-neutral-50 rounded-full transition-colors">
-            <ArrowLeft size={20} className="text-neutral-400" />
+      <header className="px-10 py-8 border-b border-white/5 flex justify-between items-center bg-[#0A0A0B]/80 backdrop-blur-3xl sticky top-0 z-20">
+        <div className="flex items-center gap-6">
+          <button 
+            onClick={handleClose} 
+            className="p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group"
+          >
+            <ArrowLeft size={20} className="text-slate-400 group-hover:text-white transition-colors" />
           </button>
           <div>
-            <h3 className="text-xl font-light tracking-tight">{book ? "Edit Volume" : "New Edition"}</h3>
-            <p className="text-[10px] tracking-widest text-neutral-400 uppercase mt-1">
-              {book ? `ID: ${book.id}` : "Catalogue Entry"}
-            </p>
+            <h3 className="text-3xl font-black tracking-tighter text-white uppercase">{book ? "Edit Volume" : "New Edition"}</h3>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="text-[9px] font-black text-violet-400 uppercase tracking-[0.3em]">
+                {book ? `Catalog ID: ${book.id}` : "Conceptual Entry"}
+              </span>
+              <div className="w-1 h-1 rounded-full bg-slate-700" />
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em]">
+                Manifest System v2.4
+              </span>
+            </div>
           </div>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-6 items-center">
           {book && (
             <a 
               href={`/#/books/${formData.slug}`} 
               target="_blank" 
               rel="noreferrer"
-              className="px-6 py-2.5 flex items-center gap-2 text-[10px] tracking-[.3em] font-bold text-neutral-400 hover:text-black transition-colors"
+              className="px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black tracking-[0.3em] text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-3"
             >
-              <ExternalLink size={14} />
-              PREVIEW
+              <ExternalLink size={16} className="text-violet-400" />
+              LIVE PREVIEW
             </a>
           )}
           <button 
             type="button" 
             onClick={handleClose} 
-            className="px-6 py-2.5 text-[10px] tracking-[.3em] font-bold text-neutral-400 hover:text-black transition-colors"
+            className="px-8 py-4 text-[10px] font-black tracking-[0.3em] text-slate-600 hover:text-red-400 transition-all"
           >
-            DISCARD
+            ABORT MISSION
           </button>
           <button 
             onClick={handleSave}
             disabled={loading}
-            className="flex items-center gap-2 bg-black text-white px-8 py-2.5 rounded-full text-[10px] tracking-[.3em] font-bold hover:bg-neutral-800 transition-all shadow-lg disabled:opacity-50"
+            className="flex items-center gap-4 bg-violet-600 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] hover:bg-violet-500 active:scale-95 transition-all shadow-2xl shadow-violet-600/20 disabled:opacity-50"
           >
-            {loading ? <><Loader2 size={14} className="animate-spin" /> COMMITTING...</> : <><Save size={14} /> COMMIT CHANGES</>}
+            {loading ? <><Loader2 size={16} className="animate-spin" /> SYNCHRONIZING...</> : <><Save size={16} /> COMMIT TO REGISTRY</>}
           </button>
         </div>
       </header>
 
-      <form className="p-8 overflow-y-auto grid grid-cols-1 lg:grid-cols-3 gap-12">
+      <form className="p-10 overflow-y-auto grid grid-cols-1 lg:grid-cols-3 gap-12 relative z-10 custom-scrollbar">
         {/* Left Column: Essential Info */}
-        <div className="lg:col-span-2 space-y-12">
-          <section>
-            <h4 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-2 border-b border-neutral-50">Core Metadata</h4>
-            <div className="space-y-6">
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Canonical Title</label>
-                <input 
-                  name="title" 
-                  value={formData.title} 
-                  onChange={handleChange}
-                  className="w-full bg-neutral-50 border-none rounded-xl py-3 px-4 text-sm focus:ring-1 focus:ring-black outline-none transition-all font-medium"
-                  placeholder="e.g. Find Still Catches Me Shifted"
-                  required
-                />
-              </div>
-              
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Subtitle / Artist Attribution</label>
-                <div className="flex gap-4">
+        <div className="lg:col-span-2 space-y-16">
+          <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
+            <div className="relative z-10">
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">I. Core Metadata</h4>
+              <div className="space-y-10">
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">CANONICAL VOLUME TITLE</label>
                   <input 
-                    name="subtitle" 
-                    value={formData.subtitle} 
+                    name="title" 
+                    value={formData.title} 
                     onChange={handleChange}
-                    className="flex-1 bg-neutral-50 border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none transition-all"
-                    placeholder="e.g. Zoe Moss, Lucia Bellemare..."
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-sm text-white focus:border-violet-500/50 focus:bg-white/[0.08] outline-none transition-all font-bold"
+                    placeholder="e.g. Find Still Catches Me Shifted"
+                    required
                   />
-                  <div className="w-1/3 flex flex-col gap-1">
-                    <label className="text-[8px] tracking-widest text-neutral-400 uppercase">URL Handle / Slug</label>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">ARTIST ATTRIBUTION / SUBTITLE</label>
                     <input 
-                      name="slug" 
-                      value={formData.slug} 
+                      name="subtitle" 
+                      value={formData.subtitle} 
                       onChange={handleChange}
-                      className="w-full bg-neutral-100/50 border-none rounded-lg py-1.5 px-3 text-[10px] focus:ring-1 focus:ring-black outline-none"
-                      placeholder="the-book-slug"
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-violet-500/50 focus:bg-white/[0.08] outline-none transition-all"
+                      placeholder="e.g. Zoe Moss, Lucia Bellemare..."
                     />
                   </div>
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">SYSTEM SLUG (URL HANDLE)</label>
+                    <div className="relative">
+                      <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 text-[10px] font-mono">/books/</div>
+                      <input 
+                        name="slug" 
+                        value={formData.slug} 
+                        onChange={handleChange}
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-20 pr-6 text-xs text-violet-400 focus:border-violet-500/50 focus:bg-white/[0.08] outline-none transition-all font-mono"
+                        placeholder="the-book-slug"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Abstract / Description</label>
-                <textarea 
-                  name="description" 
-                  value={formData.description} 
-                  onChange={handleChange}
-                  rows={6}
-                  className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-xs focus:ring-1 focus:ring-black outline-none transition-all leading-relaxed"
-                  placeholder="Enter publication notes, artistic intent, and technical specifications..."
-                />
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">EDITORIAL ABSTRACT / NOTES</label>
+                  <textarea 
+                    name="description" 
+                    value={formData.description} 
+                    onChange={handleChange}
+                    rows={8}
+                    className="w-full bg-white/5 border border-white/10 rounded-3xl py-6 px-8 text-xs text-slate-300 focus:border-violet-500/50 focus:bg-white/[0.08] outline-none transition-all leading-relaxed custom-scrollbar"
+                    placeholder="Enter publication notes, artistic intent, and technical specifications..."
+                  />
+                </div>
               </div>
             </div>
           </section>
 
-          <section>
-             <h4 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-2 border-b border-neutral-50">Technical Specifications</h4>
-             {/* ... existing tech fields ... */}
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-               {/* ... (re-adding dimensions/weight/format from original but with variants below) ... */}
-               <div className="flex flex-col gap-2">
-                  <label className="text-[10px] tracking-widest text-neutral-500 uppercase">ISBN</label>
-                  <input name="isbn" value={formData.isbn} onChange={handleChange} className="w-full bg-neutral-50 border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none" />
-               </div>
-               <div className="flex flex-col gap-2">
-                  <label className="text-[10px] tracking-widest text-neutral-500 uppercase">SKU / ID</label>
-                  <input name="sku" value={formData.sku} onChange={handleChange} className="w-full bg-neutral-50 border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none" />
-               </div>
-               <div className="flex flex-col gap-2">
-                  <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Format</label>
-                  <select name="format" value={formData.format} onChange={handleChange} className="w-full bg-neutral-50 border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none">
-                    <option>Paperback</option>
-                    <option>Hardcover</option>
-                    <option>Special Edition</option>
-                    <option>Box Set</option>
-                    <option>Zine</option>
-                  </select>
-               </div>
-             </div>
-
-             <div className="mt-12">
-               <div className="flex justify-between items-center mb-6">
-                 <h5 className="text-[10px] tracking-widest text-neutral-500 uppercase">Product Variants</h5>
-                 <button type="button" onClick={addVariant} className="text-[10px] tracking-widest font-bold text-black flex items-center gap-2 hover:opacity-60">
-                   <Plus size={12} /> ADD VARIANT
-                 </button>
-               </div>
-               <div className="space-y-3">
-                 {formData.variants.map((v: any) => (
-                   <div key={v.id} className="flex gap-3 bg-neutral-50 p-3 rounded-xl items-center">
+          <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-bl from-cyan-500/[0.03] to-transparent pointer-events-none" />
+            <div className="relative z-10">
+               <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">II. Technical Specifications</h4>
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  <div className="space-y-4">
+                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">ISBN / EAN-13</label>
                      <input 
-                       placeholder="Variant Name" 
-                       value={v.name} 
-                       onChange={(e) => updateVariant(v.id, "name", e.target.value)}
-                       className="flex-1 bg-white border-none rounded-lg py-2 px-3 text-[10px] focus:ring-1 focus:ring-black outline-none"
+                       name="isbn" 
+                       value={formData.isbn} 
+                       onChange={handleChange} 
+                       className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all font-mono" 
+                       placeholder="978-0-..."
                      />
-                     <div className="w-24 relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-neutral-400">$</span>
-                        <input 
-                          type="number" 
-                          value={v.price} 
-                          onChange={(e) => updateVariant(v.id, "price", Number(e.target.value))}
-                          className="w-full bg-white border-none rounded-lg py-2 pl-5 pr-2 text-[10px] focus:ring-1 focus:ring-black outline-none"
-                        />
-                     </div>
-                     <button type="button" onClick={() => removeVariant(v.id)} className="p-2 text-neutral-300 hover:text-red-500">
-                       <Plus size={14} className="rotate-45" />
-                     </button>
-                   </div>
-                 ))}
-                 {formData.variants.length === 0 && (
-                   <p className="text-[9px] text-neutral-300 italic">No variants defined (Single product edition)</p>
-                 )}
+                  </div>
+                  <div className="space-y-4">
+                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">SKU / INTERNAL ID</label>
+                     <input 
+                       name="sku" 
+                       value={formData.sku} 
+                       onChange={handleChange} 
+                       className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all font-mono" 
+                       placeholder="LM-2024-..."
+                     />
+                  </div>
+                  <div className="space-y-4">
+                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">BINDING FORMAT</label>
+                     <select 
+                       name="format" 
+                       value={formData.format} 
+                       onChange={handleChange} 
+                       className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all appearance-none cursor-pointer"
+                     >
+                       <option className="bg-[#0A0A0B]">Paperback</option>
+                       <option className="bg-[#0A0A0B]">Hardcover</option>
+                       <option className="bg-[#0A0A0B]">Special Edition</option>
+                       <option className="bg-[#0A0A0B]">Box Set</option>
+                       <option className="bg-[#0A0A0B]">Zine</option>
+                     </select>
+                  </div>
                </div>
-             </div>
+
+               <div className="pt-12 border-t border-white/5 mt-12">
+                 <div className="flex justify-between items-center mb-10">
+                   <div>
+                     <h5 className="text-[10px] font-black tracking-widest text-slate-500 uppercase">Product Variant Matrix</h5>
+                     <p className="text-[8px] text-slate-600 mt-1 uppercase tracking-widest">Multi-edition stock management</p>
+                   </div>
+                   <button 
+                     type="button" 
+                     onClick={addVariant} 
+                     className="bg-white/5 border border-white/10 px-6 py-3 rounded-xl text-[9px] font-black text-white flex items-center gap-3 hover:bg-white/10 transition-all shadow-xl"
+                   >
+                     <Plus size={14} className="text-cyan-400" /> 
+                     ADD VARIANT
+                   </button>
+                 </div>
+                 <div className="space-y-4">
+                   {formData.variants.map((v: any) => (
+                     <div key={v.id} className="flex gap-4 bg-white/[0.02] border border-white/5 p-4 rounded-2xl items-center group hover:border-cyan-500/30 transition-all">
+                       <div className="flex-1 space-y-2">
+                         <label className="text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">VARIANT NAME</label>
+                         <input 
+                           placeholder="e.g. Signed Collector's Copy" 
+                           value={v.name} 
+                           onChange={(e) => updateVariant(v.id, "name", e.target.value)}
+                           className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-[10px] text-white focus:border-cyan-500/50 outline-none transition-all"
+                         />
+                       </div>
+                       <div className="w-32 space-y-2">
+                          <label className="text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">PRICE (USD)</label>
+                          <div className="relative">
+                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] text-slate-600">$</span>
+                             <input 
+                               type="number" 
+                               value={v.price} 
+                               onChange={(e) => updateVariant(v.id, "price", Number(e.target.value))}
+                               className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-8 pr-4 text-[10px] text-white focus:border-cyan-500/50 outline-none transition-all font-mono"
+                             />
+                          </div>
+                       </div>
+                       <button 
+                         type="button" 
+                         onClick={() => removeVariant(v.id)} 
+                         className="mt-6 p-3 bg-red-500/10 text-red-400 rounded-xl hover:bg-red-500 hover:text-white transition-all border border-red-500/20 opacity-0 group-hover:opacity-100"
+                       >
+                         <Trash2 size={14} />
+                       </button>
+                     </div>
+                   ))}
+                   {formData.variants.length === 0 && (
+                     <div className="h-24 flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-3xl gap-2">
+                       <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.2em]">Single product edition (Standard)</p>
+                     </div>
+                   )}
+                 </div>
+               </div>
+            </div>
           </section>
 
-          <section>
-            <h4 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-2 border-b border-neutral-50">Taxonomy & Categorization</h4>
-            <div className="flex flex-wrap gap-2">
-              {Array.from(new Set([...categories, "Photography", "Contemporary", "Artist Book", "Zine", "Archive"])).map(cat => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => toggleCategory(cat)}
-                  className={`px-4 py-2 rounded-full text-[10px] tracking-widest font-bold transition-all ${
-                    formData.categories.includes(cat)
-                      ? "bg-black text-white"
-                      : "bg-neutral-100 text-neutral-400 hover:bg-neutral-200"
-                  }`}
-                >
-                  {cat.toUpperCase()}
-                </button>
-              ))}
+          <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/[0.03] to-transparent pointer-events-none" />
+            <div className="relative z-10">
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">III. Taxonomy & Classification</h4>
+              <div className="flex flex-wrap gap-4">
+                {Array.from(new Set([...categories, "Photography", "Contemporary", "Artist Book", "Zine", "Archive"])).map(cat => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => toggleCategory(cat)}
+                    className={`px-8 py-4 rounded-2xl text-[10px] font-black tracking-widest transition-all border ${
+                      formData.categories.includes(cat)
+                        ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                        : "bg-white/5 text-slate-500 border-white/5 hover:bg-white/10"
+                    }`}
+                  >
+                    {cat.toUpperCase()}
+                  </button>
+                ))}
+              </div>
             </div>
           </section>
         </div>
 
         {/* Right Column: Imagery & Commerce */}
-        <div className="space-y-12">
-          <section>
-            <h4 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-2 border-b border-neutral-50">Visual Archive ({formData.photos.length}/10)</h4>
-            
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <div className="grid grid-cols-2 gap-3 mb-6">
-                <SortableContext items={formData.photos.map((p: any) => p.id)} strategy={rectSortingStrategy}>
-                  {formData.photos.map((photo: any, i: number) => (
-                    <SortablePhoto key={photo.id} photo={photo} index={i} onRemove={removePhoto} />
-                  ))}
-                </SortableContext>
-                
-                {formData.photos.length < 10 && (
+        <div className="space-y-16">
+          <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-b from-violet-500/[0.03] to-transparent pointer-events-none" />
+            <div className="relative z-10">
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">IV. Visual Archive</h4>
+              
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <div className="grid grid-cols-2 gap-6 mb-10">
+                  <SortableContext items={formData.photos.map((p: any) => p.id)} strategy={rectSortingStrategy}>
+                    {formData.photos.map((photo: any, i: number) => (
+                      <SortablePhoto key={photo.id} photo={photo} index={i} onRemove={removePhoto} />
+                    ))}
+                  </SortableContext>
+                  
+                  {formData.photos.length < 10 && (
+                    <button 
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="aspect-[3/4] border-2 border-dashed border-white/10 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 text-slate-700 hover:border-violet-500/30 hover:bg-violet-500/5 hover:text-slate-400 transition-all disabled:opacity-50 group"
+                    >
+                      {uploading ? (
+                        <div className="flex flex-col items-center gap-4">
+                           <div className="w-8 h-8 border-2 border-slate-800 border-t-violet-500 rounded-full animate-spin" />
+                           <span className="text-[8px] tracking-[0.3em] font-black uppercase">Ingesting...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <Upload size={24} className="text-violet-400" />
+                          </div>
+                          <span className="text-[8px] tracking-[0.3em] font-black uppercase">Attach Volume Asset</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </DndContext>
+
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileUpload} 
+                accept="image/*" 
+                className="hidden" 
+              />
+
+              <div className="space-y-4">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">REMOTE ASSET SYNCHRONIZATION (URL)</label>
+                <div className="flex gap-4">
+                  <input 
+                    type="text" 
+                    value={photoInput} 
+                    onChange={(e) => setPhotoInput(e.target.value)}
+                    placeholder="https://cloud.assets.com/img.jpg"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-violet-500/50 outline-none transition-all font-mono"
+                  />
                   <button 
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    className="aspect-[3/4] border-2 border-dashed border-neutral-100 rounded-xl flex flex-col items-center justify-center gap-2 text-neutral-300 hover:border-black/20 hover:text-neutral-400 transition-all disabled:opacity-50"
+                    type="button" 
+                    onClick={addPhoto}
+                    className="p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 text-violet-400 transition-all"
                   >
-                    {uploading ? (
-                      <div className="flex flex-col items-center gap-2">
-                         <div className="w-5 h-5 border-2 border-neutral-200 border-t-black rounded-full animate-spin" />
-                         <span className="text-[8px] tracking-widest font-bold">UPLOADING...</span>
-                      </div>
-                    ) : (
-                      <>
-                        <LucideImage size={24} strokeWidth={1} />
-                        <span className="text-[8px] tracking-widest font-bold">READY FOR UPLOAD</span>
-                      </>
-                    )}
+                    <Plus size={20} />
                   </button>
-                )}
-              </div>
-            </DndContext>
-
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileUpload} 
-              accept="image/*" 
-              className="hidden" 
-            />
-
-            <div className="flex flex-col gap-3">
-              <label className="text-[10px] tracking-widest text-neutral-500 uppercase">External Asset URL</label>
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  value={photoInput} 
-                  onChange={(e) => setPhotoInput(e.target.value)}
-                  placeholder="https://..."
-                  className="flex-1 bg-neutral-50 border-none rounded-xl py-2.5 px-4 text-xs focus:ring-1 focus:ring-black outline-none"
-                />
-                <button 
-                  type="button" 
-                  onClick={addPhoto}
-                  className="p-2.5 bg-black text-white rounded-xl hover:bg-neutral-800 transition-all"
-                >
-                  <Plus size={16} />
-                </button>
+                </div>
+                <p className="text-[8px] text-slate-600 uppercase tracking-widest text-center mt-2">Supports high-fidelity CDNs and direct image links</p>
               </div>
             </div>
           </section>
 
-          <section>
-            <h4 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-2 border-b border-neutral-50">Commerce & Status</h4>
-            <div className="space-y-6">
-              <div className="flex flex-col gap-4 p-6 bg-neutral-50 rounded-2xl">
-                 <div className="flex flex-col gap-2 border-b border-white pb-4 mb-2">
-                    <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Retail Price</label>
+          <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/[0.03] to-transparent pointer-events-none" />
+            <div className="relative z-10">
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">V. Commerce & Deployment</h4>
+              <div className="space-y-10">
+                <div className="grid grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">BASE RETAIL PRICE (USD)</label>
                     <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 text-xs">$</span>
+                      <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 text-xs">$</span>
                       <input
                         type="number"
                         name="retailPrice"
@@ -584,67 +662,84 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                         step="0.01"
                         value={formData.retailPrice ?? 0}
                         onChange={handleChange}
-                        placeholder="0.00"
-                        className="w-full bg-white border border-neutral-200 rounded-xl py-2 pl-8 pr-4 text-xs focus:ring-1 focus:ring-black outline-none"
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-10 pr-6 text-sm text-white focus:border-amber-500/50 outline-none transition-all font-mono font-bold"
                       />
                     </div>
-                    <p className="text-[8px] text-neutral-400">Displayed across product cards, detail pages, and checkout.</p>
-                 </div>
-                 <div className="flex flex-col gap-2 border-b border-white pb-4 mb-2">
-                    <label className="text-[10px] tracking-widest text-neutral-500 uppercase flex items-center gap-2">
-                       Stripe Price ID 
-                       <span className="text-[8px] bg-blue-100 text-blue-700 px-1 rounded">OPTIONAL</span>
-                    </label>
+                  </div>
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">INVENTORY QUOTA</label>
                     <input 
-                      type="text" 
-                      name="stripePriceId" 
-                      value={formData.stripePriceId || ''} 
+                      type="number" 
+                      name="stockLevel" 
+                      value={formData.stockLevel} 
                       onChange={handleChange} 
-                      placeholder="price_1Ns..." 
-                      className="w-full bg-white border border-neutral-200 rounded-xl py-2 px-4 text-xs focus:ring-1 focus:ring-black outline-none font-mono" 
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-sm text-white focus:border-amber-500/50 outline-none transition-all font-mono font-bold" 
                     />
-                    <p className="text-[8px] text-neutral-400">Required if using Client-Only Stripe Checkout</p>
-                 </div>
-                 <div className="flex items-center justify-between">
-                    <label className="text-[10px] tracking-widest text-neutral-500 uppercase">On Sale</label>
-                    <input type="checkbox" name="isOnSale" checked={formData.isOnSale} onChange={handleChange} className="w-4 h-4 accent-black" />
-                 </div>
-                 {formData.isOnSale && (
-                   <div className="flex flex-col gap-2 mt-4">
-                     <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Sale Price</label>
-                     <div className="relative">
-                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 text-xs">$</span>
-                       <input type="number" name="salePrice" value={formData.salePrice} onChange={handleChange} className="w-full bg-white border border-neutral-200 rounded-xl py-2 pl-8 pr-4 text-xs focus:ring-1 focus:ring-black outline-none" />
-                     </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
+                   <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">MARKDOWN PROTOCOL (SALE)</label>
+                        <p className="text-[8px] text-slate-600 uppercase tracking-widest">Toggle promotional pricing</p>
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        name="isOnSale" 
+                        checked={formData.isOnSale} 
+                        onChange={handleChange} 
+                        className="w-6 h-6 rounded-lg bg-white/5 border-white/10 text-amber-500 focus:ring-amber-500/50" 
+                      />
                    </div>
-                 )}
-              </div>
+                   {formData.isOnSale && (
+                     <div className="space-y-4 mt-6 pt-6 border-t border-white/5 animate-in slide-in-from-top-4 duration-300">
+                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">PROMOTIONAL PRICE (USD)</label>
+                       <div className="relative">
+                         <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 text-xs">$</span>
+                         <input 
+                           type="number" 
+                           name="salePrice" 
+                           value={formData.salePrice} 
+                           onChange={handleChange} 
+                           className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-10 pr-6 text-sm text-white focus:border-amber-500/50 outline-none transition-all font-mono font-bold" 
+                         />
+                       </div>
+                     </div>
+                   )}
+                </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Stock Inventory</label>
-                <input type="number" name="stockLevel" value={formData.stockLevel} onChange={handleChange} className="w-full bg-neutral-50 border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none font-bold" />
-              </div>
+                <div className="grid grid-cols-1 gap-8">
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">LOGISTICS PROFILE</label>
+                    <select 
+                      name="shippingProfileId" 
+                      value={formData.shippingProfileId} 
+                      onChange={handleChange} 
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-amber-500/50 outline-none transition-all appearance-none cursor-pointer"
+                    >
+                      {shippingProfiles.map(p => <option key={p.id} value={p.id} className="bg-[#0A0A0B]">{p.name}</option>)}
+                    </select>
+                  </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Release Schedule</label>
-                <input type="datetime-local" name="scheduleDate" value={formData.scheduleDate} onChange={handleChange} className="w-full bg-neutral-50 border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none" />
-                <p className="text-[8px] text-neutral-400 tracking-wider">LEAVE EMPTY TO PUBLISH IMMEDIATELY</p>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Shipping Profile</label>
-                <select name="shippingProfileId" value={formData.shippingProfileId} onChange={handleChange} className="w-full bg-neutral-50 border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none">
-                  {shippingProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] tracking-widest text-neutral-500 uppercase">Status</label>
-                <select name="status" value={formData.status} onChange={handleChange} className={`w-full border-none rounded-xl py-3 px-4 text-xs focus:ring-1 focus:ring-black outline-none font-bold ${formData.status === 'published' ? 'bg-green-50 text-green-700' : 'bg-neutral-50 text-neutral-500'}`}>
-                  <option value="draft">DRAFT</option>
-                  <option value="published">PUBLISHED / LIVE</option>
-                  <option value="archived">ARCHIVED</option>
-                </select>
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">PUBLICATION STATUS</label>
+                    <select 
+                      name="status" 
+                      value={formData.status} 
+                      onChange={handleChange} 
+                      className={`w-full border rounded-2xl py-4 px-6 text-xs font-black tracking-widest outline-none transition-all appearance-none cursor-pointer ${
+                        formData.status === 'published' 
+                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                          : 'bg-white/5 border-white/10 text-slate-400'
+                      }`}
+                    >
+                      <option value="draft" className="bg-[#0A0A0B]">DRAFT / STAGING</option>
+                      <option value="published" className="bg-[#0A0A0B]">PUBLISHED / PRODUCTION</option>
+                      <option value="archived" className="bg-[#0A0A0B]">ARCHIVED / LEGACY</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
           </section>

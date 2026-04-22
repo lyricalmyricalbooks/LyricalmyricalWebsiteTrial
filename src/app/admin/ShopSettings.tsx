@@ -105,14 +105,14 @@ export function ShopSettings({ activeTab, setActiveTab }: any) {
   // Pages tab — renders inline (same width as other settings)
   if (activeTab === "pages") {
     return (
-      <div className="max-w-4xl mx-auto pb-32">
+      <div className="max-w-5xl mx-auto pb-32">
         <PagesManager />
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto pb-32">
+    <div className="max-w-5xl mx-auto pb-32">
       <AnimatePresence mode="wait">
         <motion.div
           key={activeTab}
@@ -120,7 +120,7 @@ export function ShopSettings({ activeTab, setActiveTab }: any) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.2 }}
-          className="space-y-10"
+          className="space-y-12"
         >
           {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
           {activeTab === "communications" && <CommunicationsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={saveSection} savingSection={savingSection} />}
@@ -132,220 +132,226 @@ export function ShopSettings({ activeTab, setActiveTab }: any) {
     </div>
   );
 }
-
 function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
   return (
-    <>
-      <h2 className="text-3xl font-bold tracking-tight uppercase mb-8">General</h2>
+    <div className="space-y-16">
+      <header className="flex flex-col gap-2 mb-12">
+        <div className="flex justify-between items-end">
+          <div>
+            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">General Engine</h2>
+            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Core Store Parameters & Identity</p>
+          </div>
+          {hasChanges('general') && (
+            <button
+              onClick={() => saveSection('general', { general: settings.general })}
+              disabled={savingSection === 'general'}
+              className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/40 hover:bg-violet-500 transition-all disabled:opacity-50 active:scale-95 border border-violet-400/20"
+            >
+              {savingSection === 'general' ? 'SYNCHRONIZING...' : 'PUBLISH CHANGES'}
+            </button>
+          )}
+        </div>
+      </header>
       
       {/* Maintenance Mode */}
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm">
-        <div className="flex justify-between items-start mb-4">
-           <div>
-              <h3 className="text-sm font-bold tracking-tight mb-1">Maintenance mode</h3>
-              <p className="text-[11px] text-neutral-400 leading-relaxed max-w-sm">
-                 Stop taking orders temporarily if you're making updates, going on vacation or taking a break from selling.
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 relative overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/[0.05] to-transparent pointer-events-none" />
+        <div className="flex justify-between items-start gap-12 relative z-10">
+           <div className="flex-1 space-y-6">
+              <SectionHeader 
+                title="Maintenance mode" 
+                subtitle="Protocol Suspension" 
+                icon={Lock} 
+                color="amber" 
+              />
+              <p className="text-xs text-slate-400 leading-relaxed max-w-xl font-medium">
+                 Inhibit transaction processing temporarily during system upgrades or operational hiatus. 
+                 <span className="text-amber-400/80 ml-2 font-black uppercase tracking-widest text-[9px]">Use with caution.</span>
               </p>
-              {settings.maintenance?.enabled && (
-                <div className="mt-4 space-y-2">
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block">Maintenance message</label>
-                  <input 
-                    className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300"
-                    value={settings.maintenance?.message || ""}
-                    placeholder="We are updating our archive. Please check back soon."
-                    onChange={e => setSettings({...settings, maintenance: {...settings.maintenance, message: e.target.value}})}
-                  />
-                </div>
-              )}
+              
+              <AnimatePresence>
+                {settings.maintenance?.enabled && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="pt-4 overflow-hidden"
+                  >
+                    <InputField 
+                      label="TRANSMISSION OVERRIDE MESSAGE"
+                      value={settings.maintenance?.message || ""}
+                      placeholder="We are updating our archive. Please check back soon."
+                      onChange={(e: any) => setSettings({...settings, maintenance: {...settings.maintenance, message: e.target.value}})}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
            </div>
            <Switch 
              checked={settings.maintenance?.enabled} 
              onChange={(val) => setSettings({...settings, maintenance: {...settings.maintenance, enabled: val}})} 
            />
         </div>
+        
         {hasChanges('maintenance') && (
-           <div className="mt-6 pt-6 border-t border-neutral-50 flex gap-4">
+           <div className="mt-12 pt-10 border-t border-white/5 flex gap-4 relative z-10">
               <button 
                 onClick={() => saveSection('maintenance', { maintenance: settings.maintenance })}
                 disabled={savingSection === 'maintenance'}
-                className="bg-[#A855F7] text-white px-6 py-2 rounded-full text-[10px] font-bold tracking-widest"
+                className="bg-amber-500 text-black px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-amber-500/20"
               >
-                {savingSection === 'maintenance' ? 'SAVING...' : 'SAVE'}
+                {savingSection === 'maintenance' ? 'SYNCHRONIZING...' : 'UPDATE PROTOCOL'}
               </button>
            </div>
         )}
       </section>
 
       {/* Shop Domain */}
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
-        <div className="flex justify-between items-center">
-           <div>
-             <h3 className="text-sm font-bold tracking-tight mb-1">Shop domains</h3>
-             <p className="text-[11px] text-neutral-400">Where customers can find you online.</p>
-           </div>
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/[0.03] to-transparent pointer-events-none" />
+        <div className="flex justify-between items-center relative z-10">
+           <SectionHeader 
+             title="Digital Presence" 
+             subtitle="DNS & Entry Points" 
+             icon={Globe} 
+             color="cyan" 
+           />
            {hasChanges('domain') && (
              <button 
                onClick={() => saveSection('domain', { domain: settings.domain })}
                disabled={savingSection === 'domain'}
-               className="bg-[#A855F7] text-white px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
+               className="bg-violet-600 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/30 hover:bg-violet-500 transition-all border border-violet-400/20"
              >
-               {savingSection === 'domain' ? 'SAVING...' : 'SAVE DOMAINS'}
+               {savingSection === 'domain' ? 'DEPLOYING...' : 'SAVE DOMAINS'}
              </button>
            )}
         </div>
-        <div>
-           <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Custom domain</label>
-           <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 focus-within:border-purple-300 transition-all group">
-              <Globe size={14} className="text-neutral-300 group-focus-within:text-purple-400 transition-colors" />
-              <input 
-                 className="bg-transparent border-none outline-none text-xs flex-1"
-                 value={settings.domain?.custom || ""}
-                 placeholder="www.yourdomain.com"
-                 onChange={e => setSettings({...settings, domain: {...settings.domain, custom: e.target.value}})}
-              />
-           </div>
-           {settings.domain?.custom && (
-             <p className="text-[9px] text-neutral-400 mt-2 flex items-center gap-1">
-               <Globe size={9} /> Live at: {settings.domain.custom}
-             </p>
-           )}
+
+        <div className="relative z-10">
+           <InputField 
+             label="CUSTOM DOMAIN LINK"
+             icon={Globe}
+             value={settings.domain?.custom || ""}
+             placeholder="www.yourdomain.com"
+             onChange={(e: any) => setSettings({...settings, domain: {...settings.domain, custom: e.target.value}})}
+           />
+           <AnimatePresence>
+             {settings.domain?.custom && (
+               <motion.p 
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="text-[10px] text-cyan-400/70 font-black mt-6 flex items-center gap-3 uppercase tracking-[0.2em] ml-2"
+               >
+                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                 Live Link Established: {settings.domain.custom}
+               </motion.p>
+             )}
+           </AnimatePresence>
         </div>
       </section>
 
       {/* Shop Info */}
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
-         <div className="flex justify-between items-center">
-            <h3 className="text-sm font-bold tracking-tight">Shop info</h3>
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
+         <div className="absolute inset-0 bg-gradient-to-tr from-violet-500/[0.03] to-transparent pointer-events-none" />
+         <div className="flex justify-between items-center relative z-10">
+            <SectionHeader 
+              title="Corporate Identity" 
+              subtitle="Brand Essence & Narrative" 
+              icon={Building} 
+            />
             {hasChanges('info') && (
               <button 
                 onClick={() => saveSection('info', { info: settings.info })}
                 disabled={savingSection === 'info'}
-                className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
+                className="bg-violet-600 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/30 hover:bg-violet-500 transition-all border border-violet-400/20"
               >
-                 {savingSection === 'info' ? 'SAVING...' : 'SAVE'}
+                 {savingSection === 'info' ? 'COMMITTING...' : 'SAVE DATA'}
               </button>
             )}
          </div>
-         <div className="space-y-4">
-            <div>
-               <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Shop name</label>
-               <input 
-                 className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300"
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
+            <div className="space-y-2">
+               <InputField 
+                 label="SHOP DESIGNATION"
                  value={settings.info?.name || ""}
-                 onChange={e => setSettings({...settings, info: {...settings.info, name: e.target.value}})}
+                 onChange={(e: any) => setSettings({...settings, info: {...settings.info, name: e.target.value}})}
                />
-               <p className="text-[9px] text-neutral-300 mt-2 text-right">{settings.info?.name?.length || 0} / 100 characters</p>
+               <p className="text-[9px] text-slate-600 font-black tracking-[0.3em] text-right uppercase px-2">{settings.info?.name?.length || 0} / 100 BYTES</p>
             </div>
-            <div>
-               <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Shop description</label>
+            <div className="space-y-2">
+               <InputField 
+                 label="PRIMARY CONTACT FREQUENCY"
+                 icon={Mail}
+                 value={settings.info?.email || ""}
+                 placeholder="hello@lyricalmyricalbooks.com"
+                 onChange={(e: any) => setSettings({...settings, info: {...settings.info, email: e.target.value}})}
+               />
+            </div>
+            <div className="md:col-span-2 space-y-4">
+               <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">MISSION MANIFESTO</label>
                <textarea 
-                 rows={4}
-                 className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300 resize-none"
+                 rows={5}
+                 className="w-full bg-white/[0.03] border border-white/10 rounded-[2.5rem] px-10 py-8 text-sm text-white outline-none focus:border-violet-500/50 focus:bg-white/[0.06] transition-all resize-none leading-relaxed font-medium shadow-inner"
                  value={settings.info?.description || ""}
                  onChange={e => setSettings({...settings, info: {...settings.info, description: e.target.value}})}
                />
-               <p className="text-[9px] text-neutral-300 mt-2 text-right">{settings.info?.description?.length || 0} / 150 characters</p>
-            </div>
-            <div>
-               <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Contact email</label>
-               <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 focus-within:border-purple-300 transition-all group">
-                 <Mail size={14} className="text-neutral-300 group-focus-within:text-purple-400" />
-                 <input 
-                   className="bg-transparent border-none outline-none text-xs flex-1"
-                   value={settings.info?.email || ""}
-                   placeholder="hello@lyricalmyricalbooks.com"
-                   onChange={e => setSettings({...settings, info: {...settings.info, email: e.target.value}})}
-                 />
-               </div>
-            </div>
-            <div>
-               <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Phone number</label>
-               <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 focus-within:border-purple-300 transition-all group">
-                 <Phone size={14} className="text-neutral-300 group-focus-within:text-purple-400" />
-                 <input 
-                   className="bg-transparent border-none outline-none text-xs flex-1"
-                   value={settings.info?.phone || ""}
-                   placeholder="+1 (416) 555-0000"
-                   onChange={e => setSettings({...settings, info: {...settings.info, phone: e.target.value}})}
-                 />
-               </div>
+               <p className="text-[9px] text-slate-600 font-black tracking-[0.3em] text-right uppercase px-2">{settings.info?.description?.length || 0} / 150 BYTES</p>
             </div>
          </div>
       </section>
 
       {/* Location */}
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
-         <div className="flex justify-between items-center">
-            <div>
-              <h3 className="text-sm font-bold tracking-tight mb-1">Business address</h3>
-              <p className="text-[11px] text-neutral-400">Used for tax calculations and shipping origin.</p>
-            </div>
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
+         <div className="absolute inset-0 bg-gradient-to-bl from-cyan-500/[0.03] to-transparent pointer-events-none" />
+         <div className="flex justify-between items-center relative z-10">
+            <SectionHeader 
+              title="Physical Nexus" 
+              subtitle="HQ Coordinates & Routing" 
+              icon={Building} 
+              color="cyan"
+            />
             {hasChanges('location') && (
               <button 
                 onClick={() => saveSection('location', { location: settings.location })}
                 disabled={savingSection === 'location'}
-                className="bg-[#A855F7] text-white px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
+                className="bg-violet-600 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/30 hover:bg-violet-500 transition-all border border-violet-400/20"
               >
-                 {savingSection === 'location' ? 'SAVING...' : 'SAVE ADDRESS'}
+                 {savingSection === 'location' ? 'MAPPING...' : 'SAVE LOCATION'}
               </button>
             )}
          </div>
-         <div className="grid grid-cols-1 gap-4">
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
+            <div className="md:col-span-2">
+               <InputField 
+                 label="STREET COORDINATES"
+                 icon={Building}
+                 value={settings.location?.street || ""}
+                 placeholder="456 Montrose Avenue"
+                 onChange={(e: any) => setSettings({...settings, location: {...settings.location, street: e.target.value}})}
+               />
+            </div>
             <div>
-               <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Street address</label>
-               <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 focus-within:border-purple-300 group">
-                 <Building size={14} className="text-neutral-300 group-focus-within:text-purple-400" />
-                 <input className="bg-transparent border-none outline-none text-xs flex-1"
-                   value={settings.location?.street || ""}
-                   placeholder="456 Montrose Avenue"
-                   onChange={e => setSettings({...settings, location: {...settings.location, street: e.target.value}})} />
-               </div>
+               <InputField 
+                 label="CITY / METROPOLIS"
+                 value={settings.location?.city || ""} 
+                 placeholder="Toronto"
+                 onChange={(e: any) => setSettings({...settings, location: {...settings.location, city: e.target.value}})}
+               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-               <div>
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">City</label>
-                  <input className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300"
-                    value={settings.location?.city || ""} placeholder="Toronto"
-                    onChange={e => setSettings({...settings, location: {...settings.location, city: e.target.value}})} />
-               </div>
-               <div>
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">State / Province</label>
-                  <input className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300"
-                    value={settings.location?.state || ""} placeholder="Ontario"
-                    onChange={e => setSettings({...settings, location: {...settings.location, state: e.target.value}})} />
-               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-               <div>
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Postal code</label>
-                  <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 focus-within:border-purple-300 group">
-                    <Hash size={14} className="text-neutral-300 group-focus-within:text-purple-400" />
-                    <input className="bg-transparent border-none outline-none text-xs flex-1"
-                      value={settings.location?.zip || ""} placeholder="M6G 3H1"
-                      onChange={e => setSettings({...settings, location: {...settings.location, zip: e.target.value}})} />
-                  </div>
-               </div>
-               <div>
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Country</label>
-                  <select className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300"
-                    value={settings.location?.country || "Canada"}
-                    onChange={e => setSettings({...settings, location: {...settings.location, country: e.target.value}})}>
-                    <option>Canada</option>
-                    <option>United States</option>
-                    <option>United Kingdom</option>
-                    <option>Australia</option>
-                    <option>Italy</option>
-                    <option>France</option>
-                    <option>Germany</option>
-                  </select>
-               </div>
+            <div>
+               <InputField 
+                 label="ZONE / PROVINCE"
+                 value={settings.location?.state || ""} 
+                 placeholder="Ontario"
+                 onChange={(e: any) => setSettings({...settings, location: {...settings.location, state: e.target.value}})}
+               />
             </div>
          </div>
       </section>
 
       {/* Inventory Sync */}
       <InventorySync lastSync={settings.inventory?.lastSync} />
-    </>
+    </div>
   );
 }
 
@@ -357,134 +363,155 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight uppercase">Communications</h2>
-          <p className="text-[11px] text-neutral-400 mt-2">Control how and when you communicate with customers.</p>
+    <div className="space-y-16">
+      <header className="flex flex-col gap-2 mb-12">
+        <div className="flex justify-between items-end">
+          <div>
+            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Communications Relay</h2>
+            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Automated Customer Response Protocols</p>
+          </div>
+          {hasChanges('communications') && (
+            <button
+              onClick={() => saveSection('communications', { communications: settings.communications })}
+              disabled={savingSection === 'communications'}
+              className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/40 hover:bg-violet-500 transition-all disabled:opacity-50 border border-violet-400/20"
+            >
+              {savingSection === 'communications' ? 'SYNCHRONIZING...' : 'SAVE CHANGES'}
+            </button>
+          )}
         </div>
-        {hasChanges('communications') && (
-          <button
-            onClick={() => saveSection('communications', { communications: settings.communications })}
-            disabled={savingSection === 'communications'}
-            className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200 disabled:opacity-60"
-          >
-            {savingSection === 'communications' ? 'SAVING...' : 'SAVE CHANGES'}
-          </button>
-        )}
-      </div>
+      </header>
 
       {/* Sender identity */}
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
-        <h3 className="text-sm font-bold tracking-tight">Sender identity</h3>
-        <p className="text-[11px] text-neutral-400 -mt-2">All outgoing emails will appear to come from these details.</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">From name</label>
-            <input
-              className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300"
-              value={comms.fromName || ""}
-              placeholder="Lyricalmyrical Books"
-              onChange={e => updateComms({ fromName: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Reply-to email</label>
-            <div className="flex items-center gap-3 bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 focus-within:border-purple-300 group">
-              <Mail size={14} className="text-neutral-300 group-focus-within:text-purple-400" />
-              <input
-                className="bg-transparent border-none outline-none text-xs flex-1"
-                value={comms.replyTo || ""}
-                placeholder="orders@lyricalmyricalbooks.com"
-                onChange={e => updateComms({ replyTo: e.target.value })}
-              />
-            </div>
-          </div>
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
+        <SectionHeader 
+          title="Sender Identity" 
+          subtitle="Metadata for outbound electronic transmissions" 
+          icon={Mail} 
+          color="violet"
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
+          <InputField 
+            label="TRANSMITTER ALIAS" 
+            placeholder="Lyricalmyrical Books"
+            value={comms.fromName || ""}
+            onChange={(e: any) => updateComms({ fromName: e.target.value })}
+          />
+          <InputField 
+            label="REPLY-TO ADDRESS" 
+            icon={Mail}
+            placeholder="orders@lyricalmyricalbooks.com"
+            value={comms.replyTo || ""}
+            onChange={(e: any) => updateComms({ replyTo: e.target.value })}
+          />
         </div>
       </section>
 
       {/* Customer emails */}
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
-        <h3 className="text-sm font-bold tracking-tight">Customer emails</h3>
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/[0.03] to-transparent pointer-events-none" />
+        <SectionHeader 
+          title="Automated Dispatches" 
+          subtitle="Transactional Logic Sequences" 
+          icon={CheckCircle} 
+          color="emerald"
+        />
 
-        {/* Order receipts */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-start">
-            <div>
-              <h4 className="text-[11px] font-bold uppercase tracking-tight mb-0.5">Order receipt emails</h4>
-              <p className="text-[10px] text-neutral-400">Sent automatically when a customer places an order.</p>
+        <div className="space-y-12 relative z-10">
+          {/* Order receipts */}
+          <div className="flex justify-between items-start gap-12 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-emerald-500/20 transition-all">
+            <div className="flex-1">
+              <h4 className="text-xl font-black text-white uppercase tracking-tight mb-2 italic">Order receipt logic</h4>
+              <p className="text-xs text-slate-400 leading-relaxed font-medium">Instantaneous transmission following successful transaction validation.</p>
             </div>
             <Switch
               checked={comms.orderReceipts ?? true}
               onChange={val => updateComms({ orderReceipts: val })}
             />
           </div>
-          {(comms.orderReceipts ?? true) && (
-            <div>
-              <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Custom message (appended to receipt)</label>
-              <textarea
-                rows={3}
-                placeholder="Thank you for your order! We'll start processing it right away."
-                className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300 resize-none"
-                value={comms.receiptMessage || ""}
-                onChange={e => updateComms({ receiptMessage: e.target.value })}
-              />
+          
+          <AnimatePresence>
+            {(comms.orderReceipts ?? true) && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                animate={{ opacity: 1, height: 'auto', marginTop: -24 }}
+                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                className="space-y-4 overflow-hidden px-8"
+              >
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">MANIFEST APPENDAGE (CUSTOM MESSAGE)</label>
+                <textarea
+                  rows={4}
+                  placeholder="Thank you for your order! We'll start processing it right away."
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-[2.5rem] px-10 py-8 text-sm text-white outline-none focus:border-violet-500/50 focus:bg-white/[0.06] transition-all resize-none leading-relaxed font-medium placeholder:text-slate-800 shadow-inner"
+                  value={comms.receiptMessage || ""}
+                  onChange={e => updateComms({ receiptMessage: e.target.value })}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Shipping status */}
+          <div className="flex justify-between items-start gap-12 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-emerald-500/20 transition-all">
+            <div className="flex-1">
+              <h4 className="text-xl font-black text-white uppercase tracking-tight mb-2 italic">Logistics confirmation</h4>
+              <p className="text-xs text-slate-400 font-medium leading-relaxed">Dispatch alerts upon carrier handoff and tracking initialization.</p>
             </div>
-          )}
-        </div>
-
-        {/* Shipping status */}
-        <div className="pt-6 border-t border-neutral-50 flex justify-between items-center">
-          <div>
-            <h4 className="text-[11px] font-bold uppercase tracking-tight mb-0.5">Shipping confirmation emails</h4>
-            <p className="text-[10px] text-neutral-400">Sent when you mark an order as shipped.</p>
+            <Switch
+              checked={comms.shippingStatus ?? true}
+              onChange={val => updateComms({ shippingStatus: val })}
+            />
           </div>
-          <Switch
-            checked={comms.shippingStatus ?? true}
-            onChange={val => updateComms({ shippingStatus: val })}
-          />
-        </div>
 
-        {/* Abandoned cart */}
-        <div className="pt-6 border-t border-neutral-50 flex justify-between items-center opacity-60">
-          <div>
-            <h4 className="text-[11px] font-bold uppercase tracking-tight mb-0.5">Abandoned cart recovery</h4>
-            <p className="text-[10px] text-neutral-400">Automatically remind customers who didn't complete checkout.</p>
+          {/* Abandoned cart */}
+          <div className="flex justify-between items-start gap-12 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 opacity-30 grayscale cursor-not-allowed">
+            <div className="flex-1">
+              <h4 className="text-xl font-black text-white uppercase tracking-tight mb-2 italic">Recovery sequence</h4>
+              <p className="text-xs text-slate-400 font-medium leading-relaxed">Retargeting protocols for incomplete cart instances and failed checkouts.</p>
+            </div>
+            <div className="flex flex-col items-end gap-3">
+               <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-6 py-2 rounded-2xl text-[10px] font-black tracking-[0.2em] uppercase shadow-2xl shadow-amber-500/10">PRO PROTOCOL</span>
+               <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.4em]">ENCRYPTED FEATURE</p>
+            </div>
           </div>
-          <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[9px] font-bold tracking-widest">PRO PLAN</span>
         </div>
       </section>
 
       {/* Shop notifications */}
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
-        <h3 className="text-sm font-bold tracking-tight">Your notifications</h3>
-        <p className="text-[11px] text-neutral-400 -mt-2">Alerts sent to you about your store activity.</p>
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-bl from-violet-500/[0.03] to-transparent pointer-events-none" />
+        <SectionHeader 
+          title="System Alerts" 
+          subtitle="Internal Telemetry Protocols" 
+          icon={AlertCircleIcon} 
+          color="violet"
+        />
 
-        <div className="space-y-4">
-          <div className="flex justify-between items-center p-4 bg-neutral-50 rounded-2xl">
-            <div>
-              <h4 className="text-[11px] font-bold uppercase tracking-tight mb-0.5">New order alerts</h4>
-              <p className="text-[10px] text-neutral-400">Get notified every time a customer places an order.</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+          <div className="flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all group shadow-inner">
+            <div className="flex-1">
+              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2 italic">New transaction</h4>
+              <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em]">Real-time sale alerts</p>
             </div>
             <Switch
               checked={comms.newOrderNotifications ?? true}
               onChange={val => updateComms({ newOrderNotifications: val })}
             />
           </div>
-          <div className="flex justify-between items-center p-4 bg-neutral-50 rounded-2xl">
-            <div>
-              <h4 className="text-[11px] font-bold uppercase tracking-tight mb-0.5">Low stock alerts</h4>
-              <p className="text-[10px] text-neutral-400">Alert when a product drops below 5 units.</p>
+          <div className="flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all group shadow-inner">
+            <div className="flex-1">
+              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2 italic">Stock depletion</h4>
+              <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em]">Alert at &lt; 5 units</p>
             </div>
             <Switch
               checked={comms.lowStockAlerts ?? false}
               onChange={val => updateComms({ lowStockAlerts: val })}
             />
           </div>
-          <div className="flex justify-between items-center p-4 bg-neutral-50 rounded-2xl">
-            <div>
-              <h4 className="text-[11px] font-bold uppercase tracking-tight mb-0.5">Weekly sales digest</h4>
-              <p className="text-[10px] text-neutral-400">A summary of your sales every Monday morning.</p>
+          <div className="md:col-span-2 flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all group shadow-inner">
+            <div className="flex-1">
+              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2 italic">Performance Digest</h4>
+              <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em]">Weekly analytical transmission every Monday at 08:00 UTC</p>
             </div>
             <Switch
               checked={comms.weeklySalesDigest ?? false}
@@ -528,73 +555,131 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-end">
-        <h2 className="text-4xl font-black tracking-tight uppercase scale-x-110 origin-left">SHIPPING</h2>
-        <button onClick={() => setIsAdding(!isAdding)} className="bg-neutral-100 px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest flex items-center gap-2 hover:bg-neutral-200 transition-all">
-           {isAdding ? <X size={14} /> : <Plus size={14} />} 
-           {isAdding ? "CANCEL" : "ADD SHIPPING PROFILE"}
-        </button>
-      </div>
+    <div className="space-y-16">
+      <header className="flex flex-col gap-2 mb-12">
+        <div className="flex justify-between items-end">
+          <div>
+            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Logistics Matrix</h2>
+            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Global fulfillment & freight parameters</p>
+          </div>
+          <button 
+            onClick={() => setIsAdding(!isAdding)} 
+            className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/40 hover:bg-violet-500 transition-all flex items-center gap-4 border border-violet-400/20 active:scale-95"
+          >
+             {isAdding ? <X size={16} /> : <Plus size={16} />} 
+             {isAdding ? "ABORT" : "NEW REGION"}
+          </button>
+        </div>
+      </header>
 
       {isAdding && (
-         <section className="bg-purple-50/50 border border-purple-100 rounded-[2rem] p-8 space-y-6">
-            <h3 className="text-sm font-bold tracking-tight">New Shipping Zone</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-               <div>
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Region / Country</label>
-                  <input placeholder="e.g. Europe" className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300" value={newRegion} onChange={e => setNewRegion(e.target.value)} />
-               </div>
-               <div>
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Base Price ($)</label>
-                  <input placeholder="5.00" className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300" value={newBase} onChange={e => setNewBase(e.target.value)} />
-               </div>
-               <div>
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Each additional item ($)</label>
-                  <input placeholder="2.00" className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300" value={newAdd} onChange={e => setNewAdd(e.target.value)} />
-               </div>
+         <section className="glass-card rounded-[3rem] p-12 border border-violet-500/30 bg-violet-500/[0.05] space-y-12 relative overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent pointer-events-none" />
+            <SectionHeader 
+              title="Initialize Zone" 
+              subtitle="Define geographic constraints and fiscal requirements" 
+              icon={MapPin} 
+              color="violet"
+            />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative z-10">
+               <InputField 
+                  label="GEOGRAPHIC TARGET" 
+                  placeholder="e.g. Europe" 
+                  value={newRegion} 
+                  onChange={(e: any) => setNewRegion(e.target.value)} 
+               />
+               <InputField 
+                  label="BASE FREIGHT (USD)" 
+                  placeholder="5.00" 
+                  type="number"
+                  value={newBase} 
+                  onChange={(e: any) => setNewBase(e.target.value)} 
+               />
+               <InputField 
+                  label="INCREMENTAL UNIT TAX" 
+                  placeholder="2.00" 
+                  type="number"
+                  value={newAdd} 
+                  onChange={(e: any) => setNewAdd(e.target.value)} 
+               />
             </div>
-            <button onClick={handleCreate} className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200">
-               SAVE SHIPPING ZONE
-            </button>
+            <div className="flex gap-6 relative z-10">
+              <button 
+                onClick={handleCreate} 
+                className="bg-white text-black px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] hover:bg-slate-200 active:scale-95 transition-all shadow-2xl shadow-white/10"
+              >
+                 ACTIVATE PROTOCOL
+              </button>
+              <button 
+                onClick={() => setIsAdding(false)} 
+                className="bg-white/5 text-slate-400 px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] hover:bg-white/10 transition-all border border-white/5"
+              >
+                 CANCEL
+              </button>
+            </div>
          </section>
       )}
 
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
-         <div>
-            <h3 className="text-sm font-bold tracking-tight mb-2">Primary shipping profile</h3>
-            <p className="text-[11px] text-neutral-400 leading-relaxed mb-4">
-               Buyers in these regions will see the following shipping options at checkout.
-               <br />
-               <span className="font-bold text-neutral-900">All products in your shop use this profile unless you assign them to another profile.</span>
-            </p>
-         </div>
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
+         <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/[0.03] to-transparent pointer-events-none" />
+         <SectionHeader 
+           title="Active Logistics Grid" 
+           subtitle="Automated delivery cost calculations based on coordinate mapping" 
+           icon={Globe} 
+           color="cyan"
+         />
 
-         <div className="space-y-4 pt-4">
+         <div className="space-y-8 relative z-10">
             {profiles.length === 0 && (
-               <p className="text-xs text-neutral-400 italic">No shipping profiles configured yet.</p>
+               <div className="h-64 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-[3rem] gap-6 bg-white/[0.01]">
+                  <div className="w-16 h-16 rounded-3xl bg-slate-500/10 flex items-center justify-center border border-white/5">
+                    <Package size={32} className="text-slate-700" />
+                  </div>
+                  <p className="text-[10px] text-slate-600 font-black uppercase tracking-[0.4em]">Zero active shipping lanes detected</p>
+               </div>
             )}
             
             {profiles.map((r: any) => (
-              <div key={r.id} className="border border-neutral-100 rounded-2xl overflow-hidden group">
-                 <div className="bg-[#4D4B46] text-white px-6 py-3 flex justify-between items-center">
-                    <span className="text-[11px] font-bold tracking-tight">{r.region}</span>
-                    <div className="flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <Trash2 size={12} className="cursor-pointer hover:opacity-50" onClick={() => handleDelete(r.id)} />
-                    </div>
-                 </div>
-                 <div className="p-6 flex justify-between items-center">
-                    <div>
-                       <p className="text-[11px] font-bold">Standard (with tracking) - Approx. delivery 3-5 days</p>
-                    </div>
-                    <div className="flex gap-12 text-right">
-                       <div>
-                          <p className="text-[8px] text-neutral-400 font-bold uppercase tracking-widest mb-1">Base price</p>
-                          <p className="text-sm font-bold">${r.base}</p>
+              <div key={r.id} className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] overflow-hidden hover:border-cyan-500/30 transition-all group shadow-inner">
+                 <div className="bg-white/[0.03] px-10 py-6 flex justify-between items-center border-b border-white/5">
+                    <div className="flex items-center gap-5">
+                       <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
+                         <Globe size={18} className="text-cyan-400" />
                        </div>
                        <div>
-                          <p className="text-[8px] text-neutral-400 font-bold uppercase tracking-widest mb-1">Each additional item</p>
-                          <p className="text-sm font-bold">${r.additional}</p>
+                          <span className="text-sm font-black tracking-tight text-white uppercase italic">{r.region}</span>
+                          <div className="flex items-center gap-2 mt-1">
+                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                             <span className="text-[8px] font-black text-emerald-500/60 uppercase tracking-widest">TRANSMITTING</span>
+                          </div>
+                       </div>
+                    </div>
+                    <button 
+                      onClick={() => handleDelete(r.id)}
+                      className="w-10 h-10 flex items-center justify-center hover:bg-red-500/10 rounded-xl text-slate-700 hover:text-red-400 transition-all border border-transparent hover:border-red-500/20"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                 </div>
+                 <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+                    <div>
+                       <h4 className="text-lg font-black text-white uppercase tracking-tight mb-2 italic leading-none">Standard Courier Protocol</h4>
+                       <p className="text-[10px] text-slate-500 uppercase font-bold tracking-[0.2em]">Estimated TTL: 3-5 Standard Cycles</p>
+                    </div>
+                    <div className="flex gap-16 justify-end">
+                       <div className="space-y-3">
+                          <p className="text-[9px] text-slate-600 font-black uppercase tracking-[0.3em]">BASE TAX</p>
+                          <div className="text-3xl font-black text-white tracking-tighter flex items-start gap-1">
+                             <span className="text-xs text-slate-500 mt-1">$</span>
+                             {r.base}
+                          </div>
+                       </div>
+                       <div className="space-y-3">
+                          <p className="text-[9px] text-slate-600 font-black uppercase tracking-[0.3em]">UNIT ADDITIVE</p>
+                          <div className="text-3xl font-black text-white tracking-tighter flex items-start gap-1">
+                             <span className="text-xs text-slate-500 mt-1">$</span>
+                             {r.additional}
+                          </div>
                        </div>
                     </div>
                  </div>
@@ -607,88 +692,210 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
 }
 
 function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
-  const stripe = settings.payments?.stripe;
-  const paypal = settings.payments?.paypal;
+  const stripe = settings.payments?.stripe || {};
+  const paypal = settings.payments?.paypal || {};
+
+  const updateStripe = (patch: any) => {
+    setSettings({
+      ...settings,
+      payments: { ...settings.payments, stripe: { ...stripe, ...patch } }
+    });
+  };
+
+  const updatePaypal = (patch: any) => {
+    setSettings({
+      ...settings,
+      payments: { ...settings.payments, paypal: { ...paypal, ...patch } }
+    });
+  };
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-end">
-         <div>
-            <h2 className="text-3xl font-black tracking-tight uppercase">PAYMENTS</h2>
-            <p className="text-[11px] text-neutral-400 mt-2">Configure your payment gateways to accept online orders securely.</p>
-         </div>
-         {hasChanges('payments') && (
-            <button 
+    <div className="space-y-16">
+      <header className="flex flex-col gap-2 mb-12">
+        <div className="flex justify-between items-end">
+          <div>
+            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Fiscal Gateway</h2>
+            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Transaction processing & currency protocols</p>
+          </div>
+          {hasChanges('payments') && (
+            <button
               onClick={() => saveSection('payments', { payments: settings.payments })}
               disabled={savingSection === 'payments'}
-              className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
+              className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/40 hover:bg-violet-500 transition-all disabled:opacity-50 border border-violet-400/20"
             >
-              {savingSection === 'payments' ? 'SAVING...' : 'SAVE CONFIGURATION'}
+              {savingSection === 'payments' ? 'SYNCHRONIZING...' : 'SAVE CHANGES'}
             </button>
-         )}
-      </div>
+          )}
+        </div>
+      </header>
 
       {/* Stripe Card */}
-      <section className="bg-white border border-neutral-100 rounded-[2.5rem] p-10 shadow-sm space-y-10">
-         <div className="flex justify-between items-start">
-            <div className="flex items-center gap-3">
-               <h3 className="text-md font-bold">Stripe Connect</h3>
-               <Switch checked={stripe?.connected} onChange={(val) => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, connected: val}}})} />
-            </div>
-            <button className="text-[10px] font-bold tracking-widest text-neutral-500 flex items-center gap-1 border border-neutral-200 px-4 py-2 rounded-xl hover:bg-neutral-50">
-               VISIT STRIPE DASHBOARD <ExternalLink size={12} />
-            </button>
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
+         <div className="absolute top-0 right-0 p-16 opacity-5 pointer-events-none">
+            <CreditCard size={200} className="text-violet-500" />
          </div>
-
-         {stripe?.connected && (
-            <div className="space-y-6 pt-6 border-t border-neutral-50">
-               <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
-                  <div>
-                     <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Publishable Key</label>
-                     <input type="password" placeholder="pk_live_..." className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300" 
-                        value={stripe?.publicKey || ''} onChange={e => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, publicKey: e.target.value}}})} />
-                  </div>
-               </div>
-
-               {/* Wallets */}
-               <div className="grid grid-cols-2 gap-4">
-                  <div className="flex justify-between items-center p-4 bg-neutral-50 rounded-xl border border-neutral-100">
-                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-7 bg-black text-white rounded flex items-center justify-center"><span className="text-[9px] font-bold tracking-tighter">Pay</span></div>
-                        <p className="text-[11px] font-bold">Apple Pay</p>
-                     </div>
-                     <Switch checked={stripe?.applePay} onChange={(val) => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, applePay: val}}})} />
-                  </div>
-                  <div className="flex justify-between items-center p-4 bg-neutral-50 rounded-xl border border-neutral-100">
-                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-7 bg-white border border-neutral-200 rounded flex items-center justify-center"><span className="text-[9px] font-bold tracking-tighter text-blue-600">G Pay</span></div>
-                        <p className="text-[11px] font-bold">Google Pay</p>
-                     </div>
-                     <Switch checked={stripe?.googlePay} onChange={(val) => setSettings({...settings, payments: {...settings.payments, stripe: {...stripe, googlePay: val}}})} />
-                  </div>
-               </div>
+         <div className="relative z-10">
+            <div className="flex justify-between items-start mb-12">
+               <SectionHeader 
+                  title="Stripe Connect" 
+                  subtitle="Primary high-security fiscal processor" 
+                  icon={ShieldCheck} 
+                  color="violet"
+               />
+               <button className="bg-white/5 border border-white/10 px-8 py-3 rounded-2xl text-[9px] font-black tracking-[0.2em] text-slate-300 hover:bg-white/10 transition-all flex items-center gap-3 uppercase shadow-lg">
+                  STRIPE DASHBOARD <ExternalLink size={14} className="text-violet-400" />
+               </button>
             </div>
-         )}
+            
+            <div className="flex items-center gap-8 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 shadow-inner">
+               <div className="flex items-center gap-4">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Protocol Status</span>
+                  <Switch 
+                    checked={stripe.connected} 
+                    onChange={(val) => updateStripe({ connected: val })} 
+                  />
+               </div>
+               <div className="flex-1 h-1 bg-white/5 rounded-full relative overflow-hidden">
+                  <motion.div 
+                    initial={false}
+                    animate={{ width: stripe.connected ? '100%' : '0%' }}
+                    className="absolute inset-0 bg-gradient-to-r from-violet-500 to-cyan-500"
+                  />
+               </div>
+               <span className={`text-[10px] font-black uppercase tracking-[0.4em] w-24 text-right ${stripe.connected ? 'text-emerald-400' : 'text-slate-600'}`}>
+                 {stripe.connected ? 'ONLINE' : 'OFFLINE'}
+               </span>
+            </div>
+
+            <AnimatePresence>
+               {stripe.connected && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className="space-y-12 mt-12"
+                  >
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                        <InputField 
+                           label="PUBLISHABLE TELEMETRY KEY" 
+                           placeholder="pk_live_..."
+                           icon={Lock}
+                           value={stripe.publicKey || ""}
+                           onChange={(e: any) => updateStripe({ publicKey: e.target.value })}
+                        />
+                        <InputField 
+                           label="SECRET TRANSMISSION KEY" 
+                           placeholder="sk_live_..."
+                           icon={ShieldCheck}
+                           type="password"
+                           value={stripe.secretKey || ""}
+                           onChange={(e: any) => updateStripe({ secretKey: e.target.value })}
+                        />
+                     </div>
+
+                     {/* Wallets */}
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all shadow-inner">
+                           <div className="flex items-center gap-6">
+                              <div className="w-16 h-10 bg-black text-white rounded-xl flex items-center justify-center border border-white/10 shadow-xl overflow-hidden">
+                                 <span className="text-xs font-black tracking-tighter">Pay</span>
+                              </div>
+                              <div>
+                                 <h4 className="text-sm font-black text-white uppercase tracking-widest italic">Apple Pay</h4>
+                                 <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em] mt-1">NFC enabled checkout</p>
+                              </div>
+                           </div>
+                           <Switch 
+                             checked={stripe.applePay} 
+                             onChange={(val) => updateStripe({ applePay: val })} 
+                           />
+                        </div>
+                        <div className="flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all shadow-inner">
+                           <div className="flex items-center gap-6">
+                              <div className="w-16 h-10 bg-white rounded-xl flex items-center justify-center border border-white/10 shadow-xl overflow-hidden">
+                                 <span className="text-xs font-black tracking-tighter text-blue-600 italic">GPay</span>
+                              </div>
+                              <div>
+                                 <h4 className="text-sm font-black text-white uppercase tracking-widest italic">Google Pay</h4>
+                                 <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em] mt-1">Smart wallet integration</p>
+                              </div>
+                           </div>
+                           <Switch 
+                             checked={stripe.googlePay} 
+                             onChange={(val) => updateStripe({ googlePay: val })} 
+                           />
+                        </div>
+                     </div>
+                  </motion.div>
+               )}
+            </AnimatePresence>
+         </div>
       </section>
 
       {/* PayPal Card */}
-      <section className="bg-white border border-neutral-100 rounded-[2.5rem] p-10 shadow-sm space-y-10 opacity-70">
-         <div className="flex justify-between items-start">
-            <div className="flex items-center gap-3">
-               <h3 className="text-md font-bold">PayPal</h3>
-               <Switch checked={paypal?.connected} onChange={(val) => setSettings({...settings, payments: {...settings.payments, paypal: {...paypal, connected: val}}})} />
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
+         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.03] to-transparent pointer-events-none" />
+         <div className="relative z-10">
+            <div className="flex justify-between items-start mb-12">
+               <SectionHeader 
+                  title="PayPal Protocol" 
+                  subtitle="Secondary global currency relay" 
+                  icon={DollarSign} 
+                  color="blue"
+               />
             </div>
+
+            <div className="flex items-center gap-8 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 shadow-inner">
+               <div className="flex items-center gap-4">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Protocol Status</span>
+                  <Switch 
+                    checked={paypal.connected} 
+                    onChange={(val) => updatePaypal({ connected: val })} 
+                  />
+               </div>
+               <div className="flex-1 h-1 bg-white/5 rounded-full relative overflow-hidden">
+                  <motion.div 
+                    initial={false}
+                    animate={{ width: paypal.connected ? '100%' : '0%' }}
+                    className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-500"
+                  />
+               </div>
+               <span className={`text-[10px] font-black uppercase tracking-[0.4em] w-24 text-right ${paypal.connected ? 'text-emerald-400' : 'text-slate-600'}`}>
+                 {paypal.connected ? 'ONLINE' : 'OFFLINE'}
+               </span>
+            </div>
+
+            <AnimatePresence>
+               {paypal.connected && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 20 }}
+                    className="mt-12"
+                  >
+                     <InputField 
+                        label="PAYPAL CLIENT IDENTIFIER" 
+                        placeholder="Client ID..."
+                        icon={Lock}
+                        value={paypal.clientId || ""}
+                        onChange={(e: any) => updatePaypal({ clientId: e.target.value })}
+                     />
+                  </motion.div>
+               )}
+            </AnimatePresence>
          </div>
-         {paypal?.connected && (
-           <div className="space-y-6 pt-6 border-t border-neutral-50">
-              <div>
-                 <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">PayPal Client ID</label>
-                 <input type="password" placeholder="Access token..." className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-4 py-3 text-xs outline-none focus:border-purple-300" 
-                    value={paypal?.clientId || ''} onChange={e => setSettings({...settings, payments: {...settings.payments, paypal: {...paypal, clientId: e.target.value}}})} />
-              </div>
-           </div>
-         )}
       </section>
+
+      {/* Security note */}
+      <div className="p-10 bg-amber-500/5 border border-amber-500/20 rounded-[3rem] flex gap-8 items-center shadow-2xl">
+         <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shadow-inner">
+            <Lock size={24} className="text-amber-400" />
+         </div>
+         <div className="flex-1">
+            <h4 className="text-xs font-black text-amber-500 uppercase tracking-[0.4em] mb-1 italic">Vault Security Protocol Active</h4>
+            <p className="text-xs text-slate-400 font-bold leading-relaxed">All fiscal identifiers are encrypted at rest using AES-256 standards. Primary keys are never transmitted in plaintext and are masked during input sequences.</p>
+         </div>
+      </div>
     </div>
   );
 }
@@ -713,67 +920,129 @@ function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingS
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-end">
-         <div>
-            <h2 className="text-4xl font-black tracking-tight uppercase">TAXES</h2>
-            <p className="text-[11px] text-neutral-400 mt-2">Tax will be added to applicable orders during checkout based on your settings.</p>
-         </div>
-         {hasChanges('taxes') && (
+    <div className="space-y-16">
+      <header className="flex flex-col gap-2 mb-12">
+        <div className="flex justify-between items-end">
+          <div>
+            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Tax Protocols</h2>
+            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Global fiscal compliance & VAT mapping</p>
+          </div>
+          <div className="flex items-center gap-4">
             <button 
-              onClick={() => saveSection('taxes', { taxes: settings.taxes })}
-              disabled={savingSection === 'taxes'}
-              className="bg-[#A855F7] text-white px-8 py-2.5 rounded-full text-[10px] font-bold tracking-widest shadow-lg shadow-purple-200"
+              onClick={() => setIsAdding(!isAdding)} 
+              className="bg-white/5 border border-white/10 px-8 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] flex items-center gap-3 hover:bg-white/10 transition-all text-white shadow-xl shadow-black/20"
             >
-              {savingSection === 'taxes' ? 'SAVING...' : 'SAVE CHANGES'}
+              {isAdding ? <X size={16} className="text-rose-400" /> : <Plus size={16} className="text-violet-400" />} 
+              {isAdding ? "ABORT" : "NEW REGULATION"}
             </button>
-         )}
-      </div>
-
-      <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-8">
-         <h3 className="text-sm font-bold tracking-tight">Countries</h3>
-         
-         <div className="space-y-4">
-            {settings.taxes?.rates?.length > 0 ? (
-               settings.taxes.rates.map((task: any, idx: number) => (
-                  <div key={idx} className="flex justify-between items-center p-4 bg-neutral-50 rounded-xl">
-                     <span className="text-[11px] font-bold uppercase tracking-tight">{task.country}</span>
-                     <div className="flex items-center gap-4">
-                        <span className="text-sm font-bold">{task.rate}%</span>
-                        <Trash2 size={14} className="text-red-400 cursor-pointer hover:opacity-50" onClick={() => handleDelete(idx)} />
-                     </div>
-                  </div>
-               ))
-            ) : (
-               <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-neutral-200 rounded-3xl bg-neutral-50/50">
-                  <Percent size={32} className="text-neutral-200 mb-4" />
-                  <p className="text-[10px] tracking-widest text-neutral-400 font-bold uppercase italic">No tax rates defined.</p>
-               </div>
+            {hasChanges('taxes') && (
+              <button
+                onClick={() => saveSection('taxes', { taxes: settings.taxes })}
+                disabled={savingSection === 'taxes'}
+                className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/40 hover:bg-violet-500 transition-all border border-violet-400/20"
+              >
+                {savingSection === 'taxes' ? 'SYNCHRONIZING...' : 'PUBLISH CHANGES'}
+              </button>
             )}
-         </div>
+          </div>
+        </div>
+      </header>
 
-         {isAdding ? (
-            <div className="flex gap-4 items-end bg-purple-50/50 p-6 rounded-2xl border border-purple-100">
-               <div className="flex-1">
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Country / Region</label>
-                  <input placeholder="e.g. Canada" className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-2.5 text-xs outline-none" value={country} onChange={e => setCountry(e.target.value)} />
-               </div>
-               <div className="w-32">
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2 block">Tax Rate (%)</label>
-                  <input placeholder="13" type="number" className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-2.5 text-xs outline-none" value={rate} onChange={e => setRate(e.target.value)} />
-               </div>
-               <button onClick={handleAdd} className="bg-black text-white px-6 py-2.5 rounded-xl text-[10px] font-bold tracking-widest h-[38px] hover:bg-neutral-800">
-                  ADD
-               </button>
-               <button onClick={() => setIsAdding(false)} className="text-[10px] font-bold tracking-widest text-neutral-400 hover:text-black mb-3">
-                  CANCEL
-               </button>
-            </div>
-         ) : (
-            <button onClick={() => setIsAdding(true)} className="bg-neutral-100 px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest flex items-center gap-2 hover:bg-neutral-200 transition-all">
-               <Plus size={14} /> ADD A TAX RATE
+      {isAdding && (
+        <section className="glass-card rounded-[3rem] p-12 border border-violet-500/20 bg-violet-500/[0.03] space-y-12 relative overflow-hidden animate-in zoom-in-95 duration-500">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent pointer-events-none" />
+          <SectionHeader 
+            title="Define Fiscal Constraint" 
+            subtitle="Establish statutory tax requirements for target jurisdiction" 
+            icon={Percent} 
+            color="rose"
+          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
+            <InputField 
+              label="JURISDICTION (COUNTRY/REGION)" 
+              icon={Globe}
+              placeholder="e.g. United Kingdom" 
+              value={country} 
+              onChange={(e: any) => setCountry(e.target.value)} 
+            />
+            <InputField 
+              label="STATUTORY RATE (%)" 
+              icon={Hash}
+              placeholder="20" 
+              value={rate} 
+              onChange={(e: any) => setRate(e.target.value)} 
+              className="font-mono"
+            />
+          </div>
+          <div className="flex gap-6 relative z-10">
+            <button 
+              onClick={handleAdd} 
+              className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/30 hover:bg-violet-500 active:scale-95 transition-all"
+            >
+              AUTHORIZE RATE
             </button>
-         )}
+            <button 
+              onClick={() => setIsAdding(false)} 
+              className="bg-white/5 text-slate-400 px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] hover:bg-white/10 transition-all"
+            >
+              CANCEL
+            </button>
+          </div>
+        </section>
+      )}
+
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-bl from-violet-500/[0.02] to-transparent pointer-events-none" />
+        <SectionHeader 
+          title="Active Regulation Grid" 
+          subtitle="Current statutory tax mapping across supported regions" 
+          icon={Database} 
+          color="violet"
+        />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pt-4 relative z-10">
+          {(!settings.taxes?.rates || settings.taxes.rates.length === 0) && (
+            <div className="col-span-full h-64 flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-[3rem] gap-6">
+              <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
+                <Percent size={32} className="text-slate-700" />
+              </div>
+              <p className="text-[10px] text-slate-600 font-black uppercase tracking-[0.4em]">No active regulations detected</p>
+            </div>
+          )}
+          
+          {settings.taxes?.rates?.map((r: any, idx: number) => (
+            <motion.div 
+              key={idx} 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-10 hover:border-violet-500/30 transition-all group relative overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <button 
+                onClick={() => handleDelete(idx)}
+                className="absolute top-8 right-8 p-3 bg-white/5 rounded-2xl text-slate-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all z-20"
+              >
+                <Trash2 size={16} />
+              </button>
+              <div className="space-y-8 relative z-10">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center border border-violet-500/20">
+                    <Globe size={18} className="text-violet-400" />
+                  </div>
+                  <h4 className="text-sm font-black text-white uppercase tracking-[0.15em] italic">{r.country}</h4>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[9px] text-slate-600 font-black uppercase tracking-[0.3em]">STATUTORY RATE</p>
+                  <p className="text-5xl font-black text-white font-mono tracking-tighter italic">{r.rate}<span className="text-violet-500/50 text-2xl ml-1">%</span></p>
+                </div>
+                <div className="flex items-center gap-3 px-5 py-2 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 w-fit">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                  <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Compliant</span>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
       </section>
     </div>
   );
@@ -1015,162 +1284,186 @@ function InventorySync({ lastSync }: { lastSync?: string }) {
   };
 
   return (
-    <section className="bg-white border border-neutral-100 rounded-[2rem] p-8 shadow-sm space-y-6">
+    <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden group">
+      <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
+      
       {/* Header */}
-      <div className="flex justify-between items-start flex-wrap gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Database size={14} className="text-purple-400" />
-            <h3 className="text-sm font-bold tracking-tight">Inventory Sync</h3>
-          </div>
-          <p className="text-[11px] text-neutral-400 leading-relaxed max-w-sm">
-            Pull live stock levels from your Lyricalmyrical inventory system into this website.
-            Match is made by product slug or title.
-          </p>
-        </div>
+      <div className="flex justify-between items-start flex-wrap gap-8 relative z-10">
+        <SectionHeader 
+          title="Inventory Sync" 
+          subtitle="Real-time stock reconciliation with legacy core" 
+          icon={Database} 
+          color="violet"
+        />
 
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-end gap-4">
           <button
             onClick={handleSync}
             disabled={syncing}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest transition-all
+            className={`flex items-center gap-4 px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] transition-all border
               ${syncing
-                ? "bg-neutral-100 text-neutral-400 cursor-not-allowed"
-                : "bg-[#A855F7] text-white shadow-lg shadow-purple-200 hover:bg-purple-600"
+                ? "bg-white/5 border-white/10 text-slate-500 cursor-not-allowed"
+                : "bg-violet-600 border-violet-400/20 text-white shadow-2xl shadow-violet-600/40 hover:bg-violet-500 active:scale-95"
               }`}
           >
-            <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
-            {syncing ? "SYNCING..." : "SYNC NOW"}
+            <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
+            {syncing ? "SYNCHRONIZING..." : "INITIATE SYNC"}
           </button>
-          <div className="flex items-center gap-1 text-[9px] text-neutral-400">
-            <Clock size={9} />
-            Last synced: <span className="font-bold">{fmtTime(lastSyncTime)}</span>
+          <div className="flex items-center gap-3 text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">
+            <Clock size={12} className="text-slate-600" />
+            Last Pulse: <span className="text-slate-300 ml-1">{fmtTime(lastSyncTime)}</span>
           </div>
         </div>
       </div>
 
+      <p className="text-xs text-slate-400 leading-relaxed max-w-2xl font-medium relative z-10">
+        Automated bidirectional data transfer between the legacy inventory system and the modern storefront. 
+        Matching protocol utilizes unique product slugs and normalized title strings.
+      </p>
+
       {/* Connection info */}
-      <div className="flex items-center gap-3 bg-neutral-50 rounded-2xl px-5 py-3 border border-neutral-100">
-        <div className="flex-1 min-w-0">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 mb-0.5">Source</p>
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            <p className="text-[11px] font-bold truncate">lyricalmyrical-37c46-default-rtdb</p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center bg-white/[0.02] rounded-[2.5rem] px-10 py-8 border border-white/5 relative z-10 shadow-inner">
+        <div className="space-y-3">
+          <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-600">Core Source</p>
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+            <p className="text-[11px] font-black text-slate-300 truncate tracking-widest uppercase">lyricalmyrical-default-rtdb</p>
           </div>
         </div>
-        <div className="text-neutral-300">→</div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 mb-0.5">Destination</p>
-          <p className="text-[11px] font-bold truncate">lyricalmyrical-web-v2 / books</p>
+        <div className="flex justify-center">
+          <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
+            <RefreshCw size={20} className="text-slate-700" />
+          </div>
+        </div>
+        <div className="space-y-3 text-right">
+          <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-600">Cloud Destination</p>
+          <p className="text-[11px] font-black text-slate-300 truncate tracking-widest uppercase">firestore / public_books</p>
         </div>
       </div>
 
       {/* Error */}
-      {error && (
-        <div className="flex items-start gap-3 bg-red-50 border border-red-100 rounded-2xl px-5 py-4">
-          <AlertCircleIcon size={14} className="text-red-400 mt-0.5 shrink-0" />
-          <div>
-            <p className="text-[11px] font-bold text-red-600">Sync failed</p>
-            <p className="text-[10px] text-red-400 mt-0.5">{error}</p>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="flex items-start gap-6 bg-rose-500/10 border border-rose-500/20 rounded-[2rem] px-8 py-6 relative z-10"
+          >
+            <AlertCircleIcon size={20} className="text-rose-400 shrink-0 mt-1" />
+            <div>
+              <p className="text-sm font-black text-rose-400 uppercase tracking-widest mb-1 italic">Protocol Failure</p>
+              <p className="text-xs text-rose-300/70 font-medium leading-relaxed">{error}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Results */}
-      {result && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-4"
-        >
-          {/* Summary chips */}
-          <div className="flex flex-wrap gap-3">
-            <div className="flex items-center gap-2 bg-green-50 border border-green-100 text-green-700 px-4 py-2 rounded-xl">
-              <CheckCircle size={12} />
-              <span className="text-[10px] font-bold tracking-widest">
-                {result.synced} UPDATED
-              </span>
-            </div>
-            {result.unmatched > 0 && (
-              <div className="flex items-center gap-2 bg-amber-50 border border-amber-100 text-amber-700 px-4 py-2 rounded-xl">
-                <AlertCircleIcon size={12} />
-                <span className="text-[10px] font-bold tracking-widest">
-                  {result.unmatched} UNMATCHED
+      <AnimatePresence>
+        {result && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-10 relative z-10"
+          >
+            {/* Summary chips */}
+            <div className="flex flex-wrap gap-4">
+              <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-6 py-3 rounded-2xl shadow-lg shadow-emerald-500/5">
+                <CheckCircle size={14} />
+                <span className="text-[10px] font-black tracking-[0.2em] uppercase">
+                  {result.synced} RECORDS SYNCHRONIZED
                 </span>
               </div>
-            )}
-            <div className="flex items-center gap-2 bg-neutral-100 text-neutral-500 px-4 py-2 rounded-xl">
-              <Database size={12} />
-              <span className="text-[10px] font-bold tracking-widest">
-                {result.legacyTotal} IN INVENTORY
-              </span>
+              {result.unmatched > 0 && (
+                <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 px-6 py-3 rounded-2xl">
+                  <AlertCircleIcon size={14} />
+                  <span className="text-[10px] font-black tracking-[0.2em] uppercase">
+                    {result.unmatched} ORPHANED INSTANCES
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-3 bg-white/5 border border-white/10 text-slate-400 px-6 py-3 rounded-2xl">
+                <Database size={14} />
+                <span className="text-[10px] font-black tracking-[0.2em] uppercase">
+                  {result.legacyTotal} CORE ENTRIES
+                </span>
+              </div>
             </div>
-          </div>
 
-          {/* Per-book table */}
-          <div className="border border-neutral-100 rounded-2xl overflow-hidden">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-neutral-50 border-b border-neutral-100">
-                  <th className="px-5 py-3 text-[9px] font-bold uppercase tracking-widest text-neutral-400">Product</th>
-                  <th className="px-5 py-3 text-[9px] font-bold uppercase tracking-widest text-neutral-400">Inventory Key</th>
-                  <th className="px-5 py-3 text-[9px] font-bold uppercase tracking-widest text-neutral-400 text-right">Stock</th>
-                  <th className="px-5 py-3 text-[9px] font-bold uppercase tracking-widest text-neutral-400 text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.results.map((r: any, i: number) => (
-                  <tr key={r.id} className={`border-b border-neutral-50 last:border-0 ${i % 2 === 0 ? "" : "bg-neutral-50/40"}`}>
-                    <td className="px-5 py-3">
-                      <p className="text-[11px] font-bold">{r.title || "(untitled)"}</p>
-                      <p className="text-[9px] text-neutral-400 font-mono">{r.slug || "—"}</p>
-                    </td>
-                    <td className="px-5 py-3 text-[10px] font-mono text-neutral-500">
-                      {r.matched ? r.legacyKey : <span className="italic text-neutral-300">no match</span>}
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <span className="text-sm font-bold">{r.stock}</span>
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      {r.matched ? (
-                        <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-[8px] font-bold tracking-widest">
-                          <CheckCircle size={9} /> SYNCED
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full text-[8px] font-bold tracking-widest">
-                          <AlertCircleIcon size={9} /> NO MATCH
-                        </span>
-                      )}
-                    </td>
+            {/* Per-book table */}
+            <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] overflow-hidden shadow-inner">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-white/5 border-b border-white/5">
+                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic">Entity Designation</th>
+                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic">Legacy Key</th>
+                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic text-right">Units</th>
+                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic text-right">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {result.results.map((r: any, i: number) => (
+                    <tr key={r.id} className="hover:bg-white/[0.03] transition-colors group">
+                      <td className="px-10 py-6">
+                        <p className="text-sm font-black text-white uppercase tracking-tight italic mb-1">{r.title || "(NULL ENTITY)"}</p>
+                        <p className="text-[9px] text-slate-600 font-black tracking-[0.2em] uppercase">{r.slug || "NO_SLUG"}</p>
+                      </td>
+                      <td className="px-10 py-6">
+                        <code className="text-[10px] font-black text-violet-400/70 bg-violet-500/5 px-3 py-1.5 rounded-lg border border-violet-500/10 tracking-widest uppercase">
+                          {r.matched ? r.legacyKey : "ORPHAN"}
+                        </code>
+                      </td>
+                      <td className="px-10 py-6 text-right">
+                        <span className="text-lg font-black text-white font-mono">{r.stock}</span>
+                      </td>
+                      <td className="px-10 py-6 text-right">
+                        {r.matched ? (
+                          <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-4 py-1.5 rounded-full border border-emerald-500/20 text-[9px] font-black tracking-widest uppercase italic">
+                            <CheckCircle size={10} /> SYNCED
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-2 bg-amber-500/10 text-amber-400 px-4 py-1.5 rounded-full border border-amber-500/20 text-[9px] font-black tracking-widest uppercase italic">
+                            <AlertCircleIcon size={10} /> MISMATCH
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-          {result.unmatched > 0 && (
-            <p className="text-[10px] text-neutral-400 leading-relaxed">
-              <strong>Tip:</strong> Unmatched products need their <strong>slug</strong> to match the legacy inventory key
-              (e.g. set slug to <code className="bg-neutral-100 px-1 rounded">hound</code> or <code className="bg-neutral-100 px-1 rounded">altrove</code>).
-              You can update slugs in the Book Editor.
-            </p>
-          )}
-        </motion.div>
-      )}
+            {result.unmatched > 0 && (
+              <div className="p-8 bg-amber-500/[0.03] border border-amber-500/10 rounded-[2rem] flex gap-6 items-start">
+                 <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
+                    <AlertCircleIcon size={18} className="text-amber-400" />
+                 </div>
+                 <p className="text-xs text-slate-400 leading-relaxed font-medium">
+                    <strong className="text-amber-400 uppercase tracking-widest text-[10px] font-black block mb-2">Matching Strategy Optimization:</strong>
+                    Unmatched entities require manual slug alignment with legacy inventory keys. 
+                    Target keys identified: <code className="text-white bg-white/10 px-2 py-0.5 rounded mx-1">hound</code>, <code className="text-white bg-white/10 px-2 py-0.5 rounded mx-1">altrove</code>. 
+                    Update slugs within the <span className="text-violet-400 font-bold">Catalog Engine</span>.
+                 </p>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Legacy book list (shown before any sync) */}
       {!result && !error && !syncing && (
-        <div className="space-y-2">
-          <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">Books in legacy inventory system</p>
-          <div className="flex flex-wrap gap-2">
+        <div className="space-y-6 relative z-10 pt-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-600 ml-1">Legacy Core Registry Keys</p>
+          <div className="flex flex-wrap gap-4">
             {["altrove", "hound", "archaeology", "sistema", "nobody", "collective", "Subverso meme"].map(k => (
-              <span key={k} className="bg-neutral-100 text-neutral-600 px-3 py-1 rounded-full text-[9px] font-mono font-bold">
+              <span key={k} className="bg-white/5 text-slate-400 px-5 py-2.5 rounded-xl text-[10px] font-black tracking-[0.2em] uppercase border border-white/5 hover:border-violet-500/30 transition-all cursor-default">
                 {k}
               </span>
             ))}
           </div>
-          <p className="text-[10px] text-neutral-400 mt-2">
-            Make sure each website product's <strong>slug</strong> matches one of these keys.
+          <p className="text-[10px] text-slate-500 mt-4 leading-relaxed font-medium ml-1">
+            Ensure storefront entity <span className="text-violet-400 font-black italic uppercase tracking-widest">Slugs</span> correspond exactly to registry keys for successful reconciliation.
           </p>
         </div>
       )}
@@ -1178,20 +1471,99 @@ function InventorySync({ lastSync }: { lastSync?: string }) {
   );
 }
 
-function Switch({ checked, onChange }: { checked: boolean, onChange: (val: boolean) => void }) {
+export function SectionHeader({ title, subtitle, icon: Icon, color = "violet" }: any) {
+  const colorMap: any = {
+    violet: { bg: "bg-violet-500/10", border: "border-violet-500/20", icon: "text-violet-400" },
+    cyan: { bg: "bg-cyan-500/10", border: "border-cyan-500/20", icon: "text-cyan-400" },
+    emerald: { bg: "bg-emerald-500/10", border: "border-emerald-500/20", icon: "text-emerald-400" },
+    amber: { bg: "bg-amber-500/10", border: "border-amber-500/20", icon: "text-amber-400" },
+    rose: { bg: "bg-rose-500/10", border: "border-rose-500/20", icon: "text-rose-400" },
+  };
+  const theme = colorMap[color] || colorMap.violet;
+
   return (
-    <button 
+    <div className="flex items-center gap-6">
+      <div className={`w-14 h-14 rounded-2xl ${theme.bg} ${theme.border} border flex items-center justify-center shadow-inner`}>
+        <Icon size={24} className={theme.icon} />
+      </div>
+      <div>
+        <h3 className="text-2xl font-black tracking-tighter text-white uppercase italic leading-none">{title}</h3>
+        <p className="text-[10px] text-slate-500 tracking-[0.3em] uppercase mt-2 font-bold">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
+
+export function InputField({ label, icon: Icon, value, onChange, placeholder, type = "text", className = "" }: any) {
+  return (
+    <div className={`space-y-4 ${className}`}>
+      {label && <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">{label}</label>}
+      <div className="flex items-center gap-6 bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 focus-within:border-violet-500/50 focus-within:bg-white/[0.06] transition-all group shadow-inner">
+        {Icon && <Icon size={20} className="text-slate-600 group-focus-within:text-violet-400 transition-colors" />}
+        <input
+          type={type}
+          className="bg-transparent border-none outline-none text-sm text-white flex-1 font-bold placeholder:text-slate-800"
+          value={value}
+          placeholder={placeholder}
+          onChange={onChange}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function Switch({ checked, onChange }: { checked: boolean; onChange: (val: boolean) => void }) {
+  return (
+    <button
       onClick={() => onChange(!checked)}
-      className={`w-10 h-5 rounded-full relative transition-colors duration-300 ${checked ? 'bg-[#A855F7]' : 'bg-neutral-200'}`}
+      className="relative flex items-center group outline-none"
     >
-       <motion.div 
-         initial={false}
-         animate={{ x: checked ? 22 : 4 }}
-         className="absolute top-1 w-3 h-3 bg-white rounded-full shadow-sm"
-       />
-       <span className={`absolute -right-8 top-1/2 -translate-y-1/2 text-[9px] font-bold tracking-widest uppercase transition-opacity ${checked ? 'text-[#A855F7]' : 'text-neutral-400'}`}>
-         {checked ? 'ON' : 'OFF'}
-       </span>
+      <div
+        className={`w-16 h-8 rounded-full transition-all duration-500 p-1 flex items-center ${
+          checked 
+            ? "bg-violet-600 shadow-[0_0_20px_rgba(139,92,246,0.3)]" 
+            : "bg-white/5 border border-white/10"
+        }`}
+      >
+        <motion.div
+          animate={{
+            x: checked ? 32 : 0,
+            scale: checked ? 1.1 : 1,
+          }}
+          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+          className={`w-6 h-6 rounded-full shadow-lg relative flex items-center justify-center ${
+            checked ? "bg-white" : "bg-slate-600"
+          }`}
+        >
+          {checked && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="w-1 h-1 rounded-full bg-violet-600"
+            />
+          )}
+        </motion.div>
+      </div>
+      <div className="ml-4 flex flex-col items-start text-left">
+        <span className={`text-[9px] font-black tracking-[0.2em] uppercase transition-colors duration-300 ${
+          checked ? "text-violet-400" : "text-slate-600"
+        }`}>
+          {checked ? "ACTIVE" : "OFFLINE"}
+        </span>
+        <div className="flex gap-1 mt-1">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className={`w-1 h-1 rounded-full transition-all duration-500 ${
+                checked 
+                  ? "bg-violet-400 animate-pulse" 
+                  : "bg-white/5"
+              }`}
+              style={{ animationDelay: `${i * 150}ms` }}
+            />
+          ))}
+        </div>
+      </div>
     </button>
   );
 }

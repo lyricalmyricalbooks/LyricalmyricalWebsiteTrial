@@ -19,10 +19,15 @@ import {
   ArrowDownRight,
   Database,
   BarChart3,
-  Calendar
+  Calendar,
+  Zap,
+  Activity,
+  Globe,
+  MoreHorizontal
 } from "lucide-react";
 import { adminApi } from "./api";
 import { motion } from "framer-motion";
+import toast from "react-hot-toast";
 
 export function AnalyticsDashboard() {
   const [data, setData] = useState<any>(null);
@@ -38,22 +43,22 @@ export function AnalyticsDashboard() {
       setData(result);
     } catch (err) {
       console.error(err);
+      toast.error("Analytics synchronization failed");
     } finally {
       setLoading(false);
     }
   }
 
-  const seedData = async () => {
-    if (confirm("Generate 30 days of sample traffic and sales data?")) {
-      setLoading(true);
-      await adminApi.seedAnalyticsData();
-      await loadAnalytics();
-    }
-  };
+  if (loading) return (
+    <div className="h-[60vh] flex flex-col items-center justify-center space-y-8">
+       <div className="relative">
+          <div className="w-24 h-24 border-2 border-violet-500/5 border-t-violet-500 rounded-full animate-spin"></div>
+          <div className="absolute inset-0 w-24 h-24 border-2 border-cyan-500/5 border-b-cyan-500 rounded-full animate-spin-slow"></div>
+       </div>
+       <p className="text-[10px] tracking-[0.6em] text-slate-500 uppercase font-black animate-pulse">Calculating Market Vector...</p>
+    </div>
+  );
 
-  if (loading) return <div className="h-96 flex items-center justify-center text-neutral-400 text-[10px] tracking-[.4em] uppercase animate-pulse">Calculating Market Vector...</div>;
-
-  // Calculate high-level stats from daily data
   const last30 = data?.daily || [];
   const totalVisits = last30.reduce((acc: number, d: any) => acc + (d.visits || 0), 0);
   const totalOrders = last30.reduce((acc: number, d: any) => acc + (d.orders || 0), 0);
@@ -61,118 +66,145 @@ export function AnalyticsDashboard() {
   const conversionRate = totalVisits > 0 ? (totalOrders / totalVisits) * 100 : 0;
 
   const kpis = [
-    { label: "Visitors", value: totalVisits.toLocaleString(), trend: "+12%", icon: Users, up: true },
-    { label: "Orders", value: totalOrders.toLocaleString(), trend: "+5%", icon: ShoppingBag, up: true },
-    { label: "Conversion", value: `${conversionRate.toFixed(1)}%`, trend: "-0.2%", icon: TrendingUp, up: false },
-    { label: "Revenue", value: `CA$${totalRevenue.toLocaleString()}`, trend: "+18%", icon: DollarSign, up: true },
+    { label: "Pulse", subLabel: "Visitors", value: totalVisits.toLocaleString(), trend: "+12.4%", icon: Users, color: "violet" },
+    { label: "Velocity", subLabel: "Orders", value: totalOrders.toLocaleString(), trend: "+5.2%", icon: ShoppingBag, color: "cyan" },
+    { label: "Efficiency", subLabel: "Conversion", value: `${conversionRate.toFixed(1)}%`, trend: "-0.2%", icon: Activity, color: "emerald" },
+    { label: "Liquid Value", subLabel: "Revenue", value: `CA$${totalRevenue.toLocaleString()}`, trend: "+18.9%", icon: DollarSign, color: "amber" },
   ];
 
   return (
-    <div className="space-y-12">
-      <header className="flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-light tracking-tight">Intelligence</h2>
-          <p className="text-[10px] tracking-widest text-neutral-400 uppercase mt-1">Real-time performance metrics</p>
-        </div>
-        <div className="flex gap-4">
-           {!data?.daily?.length && (
-             <button onClick={seedData} className="flex items-center gap-2 border border-neutral-200 px-6 py-2 rounded-full text-[9px] font-bold tracking-[.2em] hover:bg-neutral-50 transition-all">
-               <Database size={12} /> SEED ANALYTICS
-             </button>
-           )}
-           <div className="bg-white border border-neutral-100 rounded-full px-4 py-2 flex items-center gap-2 text-[10px] font-bold tracking-widest text-neutral-400">
-              <Calendar size={12} /> LAST 30 DAYS
-           </div>
-        </div>
-      </header>
-
+    <div className="space-y-12 pb-32">
       {/* KPI GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
         {kpis.map((kpi, i) => (
           <motion.div 
             key={kpi.label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-white border border-neutral-100 p-8 rounded-[2.5rem] shadow-sm hover:shadow-md transition-shadow group"
+            className="group relative bg-white/[0.02] border border-white/5 p-8 rounded-[2.5rem] overflow-hidden transition-all duration-500 hover:border-white/10 hover:bg-white/[0.04] shadow-2xl"
           >
-            <div className="flex justify-between items-start mb-6">
-              <div className="p-3 bg-neutral-50 rounded-2xl group-hover:bg-black group-hover:text-white transition-all">
-                <kpi.icon size={20} />
+            {/* Background Accent */}
+            <div className={`absolute -top-10 -right-10 w-32 h-32 blur-[80px] opacity-10 transition-all duration-700 group-hover:opacity-20 ${
+              kpi.color === 'violet' ? 'bg-violet-500' : 
+              kpi.color === 'cyan' ? 'bg-cyan-500' : 
+              kpi.color === 'emerald' ? 'bg-emerald-500' : 'bg-amber-500'
+            }`} />
+
+            <div className="flex items-center justify-between mb-6">
+              <div className={`p-4 rounded-2xl bg-white/[0.03] border border-white/5 transition-all duration-500 group-hover:scale-110 ${
+                kpi.color === 'violet' ? 'text-violet-400' : 
+                kpi.color === 'cyan' ? 'text-cyan-400' : 
+                kpi.color === 'emerald' ? 'text-emerald-400' : 'text-amber-400'
+              }`}>
+                <kpi.icon size={22} strokeWidth={1.5} />
               </div>
-              <div className={`flex items-center gap-1 text-[10px] font-bold tracking-tight ${kpi.up ? 'text-green-500' : 'text-neutral-300'}`}>
-                {kpi.up ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />} {kpi.trend}
-              </div>
+              <span className={`text-[10px] font-black tracking-widest px-3 py-1.5 rounded-full border border-white/5 ${
+                kpi.trend.startsWith('+') ? 'text-emerald-400 bg-emerald-400/5' : 'text-rose-400 bg-rose-400/5'
+              }`}>
+                {kpi.trend}
+              </span>
             </div>
-            <p className="text-[10px] tracking-[.3em] text-neutral-400 uppercase mb-1 font-bold">{kpi.label}</p>
-            <h3 className="text-3xl font-bold tracking-tighter">{kpi.value}</h3>
+
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500 font-black">{kpi.label}</p>
+              <h4 className="text-3xl font-black tracking-tighter text-white uppercase italic">{kpi.value}</h4>
+              <p className="text-[9px] text-slate-600 font-black tracking-widest uppercase mt-1">{kpi.subLabel} Registry</p>
+            </div>
+
+            <div className="mt-8 h-1.5 w-full bg-white/[0.03] rounded-full overflow-hidden">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: "65%" }}
+                transition={{ duration: 1.5, delay: 0.5 + i * 0.1, ease: "circOut" }}
+                className={`h-full rounded-full ${
+                  kpi.color === 'violet' ? 'bg-gradient-to-r from-violet-600 to-violet-400' : 
+                  kpi.color === 'cyan' ? 'bg-gradient-to-r from-cyan-600 to-cyan-400' : 
+                  kpi.color === 'emerald' ? 'bg-gradient-to-r from-emerald-600 to-emerald-400' : 'bg-gradient-to-r from-amber-600 to-amber-400'
+                }`}
+              />
+            </div>
           </motion.div>
         ))}
       </div>
 
       {/* MAIN CHART */}
-      <div className="bg-white border border-neutral-100 rounded-[3rem] p-10 shadow-sm overflow-hidden">
-        <div className="flex justify-between items-center mb-12">
-           <h3 className="text-sm font-bold tracking-widest uppercase flex items-center gap-3">
-              <BarChart3 size={18} className="text-neutral-300" /> Interaction Trends
-           </h3>
-           <div className="flex gap-6 items-center">
-              <div className="flex items-center gap-2">
-                 <div className="w-3 h-3 rounded-full bg-black"></div>
-                 <span className="text-[9px] font-bold tracking-widest text-neutral-400 uppercase">VISITORS</span>
+      <div className="bg-white/[0.01] border border-white/5 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden backdrop-blur-sm">
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-violet-600/5 blur-[120px] -translate-y-1/2 translate-x-1/4" />
+        
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12 relative z-10">
+           <div>
+              <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.4em] text-slate-500 mb-3 font-black">
+                <Globe size={12} className="text-violet-400" /> Global Traffic
               </div>
-              <div className="flex items-center gap-2">
-                 <div className="w-3 h-3 rounded-full bg-cyan-400"></div>
-                 <span className="text-[9px] font-bold tracking-widest text-neutral-400 uppercase">ORDERS</span>
-              </div>
+              <h3 className="text-4xl font-black tracking-tighter text-white uppercase italic leading-none">Interaction Vectors</h3>
+              <p className="text-xs text-slate-500 font-medium mt-3 max-w-lg leading-relaxed">Real-time visualization of archive engagement and transaction density across the 30-day temporal range.</p>
+           </div>
+           <div className="flex p-2 bg-white/[0.03] rounded-3xl border border-white/5 backdrop-blur-md">
+              {['Live', '7d', '30d'].map((period) => (
+                <button key={period} className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all ${period === '30d' ? 'bg-violet-600 shadow-xl text-white' : 'text-slate-500 hover:text-white'}`}>
+                  {period}
+                </button>
+              ))}
            </div>
         </div>
 
-        <div className="h-80 w-full mb-4">
+        <div className="h-[450px] w-full relative z-10">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={last30}>
               <defs>
                 <linearGradient id="colorVisits" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#000" stopOpacity={0.05}/>
-                  <stop offset="95%" stopColor="#000" stopOpacity={0}/>
+                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2}/>
+                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
                 </linearGradient>
                 <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.1}/>
+                  <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.2}/>
                   <stop offset="95%" stopColor="#22d3ee" stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+              <CartesianGrid strokeDasharray="10 10" vertical={false} stroke="rgba(255,255,255,0.03)" />
               <XAxis 
                 dataKey="date" 
                 axisLine={false} 
                 tickLine={false} 
-                tick={{ fontSize: 9, fill: '#aaa', fontWeight: 600 }}
-                tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                tick={{ fontSize: 10, fill: '#475569', fontWeight: 900, letterSpacing: '0.1em' }}
+                tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }).toUpperCase()}
+                dy={20}
               />
               <YAxis 
                 axisLine={false} 
                 tickLine={false} 
-                tick={{ fontSize: 9, fill: '#aaa', fontWeight: 600 }} 
+                tick={{ fontSize: 10, fill: '#475569', fontWeight: 900 }} 
+                dx={-10}
               />
               <Tooltip 
-                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)', fontSize: '10px', fontStyle: 'bold' }}
-                cursor={{ stroke: '#000', strokeWidth: 1 }}
+                contentStyle={{ 
+                  backgroundColor: 'rgba(5, 5, 6, 0.8)', 
+                  borderRadius: '24px', 
+                  border: '1px solid rgba(255,255,255,0.1)', 
+                  boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+                  backdropFilter: 'blur(24px)',
+                  padding: '20px',
+                  color: '#fff'
+                }}
+                itemStyle={{ fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '4px 0' }}
+                cursor={{ stroke: 'rgba(139,92,246,0.2)', strokeWidth: 2 }}
               />
               <Area 
                 type="monotone" 
                 dataKey="visits" 
-                name="Visitors"
-                stroke="#000" 
-                strokeWidth={3}
+                name="Traffic Pulse"
+                stroke="#8b5cf6" 
+                strokeWidth={4}
                 fillOpacity={1} 
                 fill="url(#colorVisits)" 
               />
               <Area 
                 type="monotone" 
                 dataKey="orders" 
-                name="Orders"
+                name="Value Extraction"
                 stroke="#22d3ee" 
-                strokeWidth={3}
+                strokeWidth={4}
                 fillOpacity={1} 
                 fill="url(#colorOrders)" 
               />
@@ -182,63 +214,90 @@ export function AnalyticsDashboard() {
       </div>
 
       {/* PERFORMANCE TABLES */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         {/* Top Sellers */}
-        <div className="bg-white border border-neutral-100 rounded-[2.5rem] p-10 overflow-hidden shadow-sm">
-           <h3 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-10 border-b border-neutral-50 pb-4 flex justify-between">
-              Top Sellers <button className="hover:text-black">SEE ALL →</button>
-           </h3>
-           <div className="space-y-6">
+        <div className="bg-white/[0.01] border border-white/5 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden group">
+           <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-6">
+              <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Critical Assets</h3>
+              <button className="text-[10px] font-black text-violet-400 hover:text-white transition-all uppercase tracking-widest border border-white/5 px-4 py-2 rounded-xl">Full Audit</button>
+           </div>
+           <div className="space-y-8">
               {data?.topSellers?.length > 0 ? (
                 data.topSellers.map((item: any) => (
-                  <div key={item.id} className="flex items-center justify-between group">
-                    <div className="flex items-center gap-4">
-                       <div className="w-10 h-14 bg-neutral-100 overflow-hidden rounded-lg grayscale group-hover:grayscale-0 transition-all">
-                          <img src={item.photoUrl} className="w-full h-full object-cover" />
+                  <div key={item.id} className="flex items-center justify-between group/item hover:bg-white/[0.03] p-4 rounded-3xl transition-all duration-500">
+                    <div className="flex items-center gap-6">
+                       <div className="w-16 h-20 bg-slate-900 overflow-hidden rounded-2xl border border-white/5 group-hover/item:border-violet-500/50 transition-all shadow-2xl relative">
+                          <img src={item.photoUrl} className="w-full h-full object-cover brightness-75 group-hover/item:brightness-100 transition-all duration-700" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                        </div>
                        <div>
-                          <p className="text-[11px] font-bold tracking-tight uppercase">{item.title}</p>
-                          <p className="text-[9px] text-neutral-400 tracking-widest mt-0.5">{item.sold} SOLD</p>
+                          <p className="text-base font-black text-white uppercase tracking-tight group-hover/item:text-violet-400 transition-colors leading-none">{item.title}</p>
+                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-3 bg-white/[0.03] w-fit px-3 py-1 rounded-lg border border-white/5">{item.sold} DISPATCHED</p>
                        </div>
                     </div>
                     <div className="text-right">
-                       <p className="text-xs font-bold font-mono">CA${item.revenue.toLocaleString()}</p>
+                       <p className="text-lg font-black text-white tracking-tighter italic leading-none">CA${item.revenue.toLocaleString()}</p>
+                       <div className="flex items-center justify-end gap-2 mt-3 text-emerald-400 font-black text-[10px] uppercase tracking-widest bg-emerald-400/5 px-3 py-1 rounded-lg border border-emerald-400/10">
+                         <TrendingUp size={12} /> +12%
+                       </div>
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="py-20 text-center text-neutral-300 text-[10px] tracking-widest uppercase italic">The archive is silent.</div>
+                <div className="py-24 text-center">
+                  <div className="w-20 h-20 rounded-full bg-white/[0.02] border border-white/5 flex items-center justify-center text-slate-800 mx-auto mb-6 shadow-inner">
+                    <Database size={40} strokeWidth={0.5} />
+                  </div>
+                  <p className="text-slate-600 text-[10px] tracking-[0.5em] uppercase font-black italic">Archive entry not found.</p>
+                </div>
               )}
            </div>
         </div>
 
-        {/* Top Categories Placeholder */}
-        <div className="bg-white border border-neutral-100 rounded-[2.5rem] p-10 overflow-hidden shadow-sm">
-           <h3 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-10 border-b border-neutral-50 pb-4">Top Categories</h3>
-           <div className="space-y-6">
+        {/* Categories Analysis */}
+        <div className="bg-white/[0.01] border border-white/5 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden group">
+           <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-6">
+              <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Taxonomy Density</h3>
+              <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Active Sync</span>
+              </div>
+           </div>
+           <div className="space-y-8">
               {[
-                { name: "Publicatons", views: "3,496", sold: 65, rev: "1,825.00" },
-                { name: "Ephemera", views: "1,102", sold: 12, rev: "450.00" }
+                { name: "Publications", views: "3,496", sold: 65, rev: "1,825.00", color: "violet", icon: BarChart3 },
+                { name: "Ephemera", views: "1,102", sold: 12, rev: "450.00", color: "cyan", icon: Zap }
               ].map((cat) => (
-                <div key={cat.name} className="flex items-center justify-between group">
-                  <div className="flex items-center gap-4">
-                     <div className="w-10 h-10 bg-neutral-50 rounded-2xl flex items-center justify-center">
-                        <BarChart3 size={16} className="text-neutral-300" />
+                <div key={cat.name} className="flex items-center justify-between group/item hover:bg-white/[0.03] p-4 rounded-3xl transition-all duration-500">
+                  <div className="flex items-center gap-6">
+                     <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border border-white/5 transition-all duration-500 shadow-2xl bg-white/[0.02] group-hover/item:border-${cat.color}-500/50`}>
+                        <cat.icon size={24} strokeWidth={1.5} className={cat.color === 'violet' ? 'text-violet-400' : 'text-cyan-400'} />
                      </div>
                      <div>
-                        <p className="text-[11px] font-bold tracking-tight uppercase">{cat.name}</p>
-                        <p className="text-[9px] text-neutral-400 tracking-widest mt-0.5">{cat.views} VIEWS</p>
+                        <p className="text-base font-black text-white uppercase tracking-tight group-hover/item:text-violet-400 transition-colors leading-none">{cat.name}</p>
+                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-3 border border-white/5 w-fit px-3 py-1 rounded-lg">{cat.views} Interactions</p>
                      </div>
                   </div>
                   <div className="text-right">
-                     <p className="text-xs font-bold font-mono">CA${cat.rev}</p>
-                     <p className="text-[9px] text-neutral-400 font-bold uppercase tracking-widest">{cat.sold} SOLD</p>
+                     <p className="text-lg font-black text-white tracking-tighter italic leading-none">CA${cat.rev}</p>
+                     <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest mt-3 bg-white/[0.03] px-3 py-1 rounded-lg border border-white/5">{cat.sold} EXTRACTED</p>
                   </div>
                 </div>
               ))}
+           </div>
+
+           <div className="mt-12 p-8 rounded-[2rem] bg-gradient-to-br from-violet-600/20 to-cyan-600/20 border border-white/10 relative overflow-hidden">
+              <div className="relative z-10">
+                <h5 className="text-sm font-black text-white uppercase tracking-widest mb-2">Advanced Intelligence</h5>
+                <p className="text-[11px] text-slate-400 leading-relaxed max-w-xs">AI-driven predictive models suggest a 15% increase in Ephemera demand over the next thermal cycle.</p>
+              </div>
+              <div className="absolute -right-4 -bottom-4 opacity-10">
+                 <Activity size={100} strokeWidth={0.5} className="text-white" />
+              </div>
            </div>
         </div>
       </div>
     </div>
   );
 }
+

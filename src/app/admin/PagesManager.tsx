@@ -13,11 +13,16 @@ import {
   Check,
   GripVertical,
   ExternalLink,
+  Search,
+  Layout,
+  Settings,
+  Search as SearchIcon,
 } from "lucide-react";
 import { adminApi } from "./api";
 import type { Page } from "../features/site/types";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
+import { SectionHeader, InputField, Switch } from "./ShopSettings";
 
 // The local Page type is now removed in favor of the shared type.
 
@@ -171,392 +176,428 @@ export function PagesManager() {
         // ─── PAGE EDITOR ───────────────────────────────────────────
         <motion.div
           key="editor"
-          initial={{ opacity: 0, x: 24 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -24 }}
-          transition={{ duration: 0.2 }}
-          className="space-y-6 max-w-3xl"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-12 max-w-5xl"
         >
           {/* Toolbar */}
-          <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center justify-between flex-wrap gap-6 mb-8">
             <button
               onClick={handleBack}
-              className="flex items-center gap-2 text-[11px] font-bold tracking-widest text-neutral-400 hover:text-black transition-colors"
+              className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-slate-500 hover:text-white transition-all uppercase italic group"
             >
-              <ArrowLeft size={14} />
-              ALL PAGES
+              <div className="p-2 rounded-xl bg-white/5 border border-white/5 group-hover:border-violet-500/30 group-hover:bg-violet-500/10 transition-all">
+                <ArrowLeft size={14} />
+              </div>
+              Back to Registry
             </button>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               {editing.id && !isNew && (
                 <a
                   href={`#/page/${editing.slug}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-neutral-400 hover:text-black transition-colors border border-neutral-200 rounded-full px-4 py-2"
+                  className="flex items-center gap-2.5 text-[10px] font-black tracking-[0.3em] text-slate-400 hover:text-white transition-all border border-white/5 bg-white/5 rounded-2xl px-6 py-4 uppercase italic"
                 >
-                  <ExternalLink size={11} />
-                  PREVIEW
+                  <ExternalLink size={14} />
+                  Live View
                 </a>
               )}
               <button
                 onClick={handleSave}
                 disabled={saving || !editing.title?.trim()}
-                className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest transition-all ${
+                className={`flex items-center gap-3 px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] transition-all uppercase italic border shadow-2xl ${
                   saved
-                    ? "bg-green-500 text-white"
+                    ? "bg-emerald-500 text-white border-emerald-400/20 shadow-emerald-500/20"
                     : saving
-                    ? "bg-neutral-200 text-neutral-400 cursor-not-allowed"
-                    : "bg-black text-white hover:bg-neutral-800 shadow-lg"
+                    ? "bg-white/5 text-slate-600 border-white/5 cursor-not-allowed"
+                    : "bg-violet-600 text-white border-violet-400/20 shadow-violet-600/40 hover:bg-violet-500 active:scale-95"
                 }`}
               >
                 {saved ? (
-                  <><Check size={12} /> SAVED</>
+                  <><Check size={14} /> SYNCED</>
                 ) : saving ? (
-                  "SAVING..."
+                  "COMMITTING..."
                 ) : (
-                  <><Save size={12} /> {isNew ? "CREATE PAGE" : "SAVE CHANGES"}</>
+                  <><Save size={14} /> {isNew ? "CREATE ENTITY" : "COMMIT CHANGES"}</>
                 )}
               </button>
             </div>
           </div>
 
-          {/* Editor card */}
-          <div className="bg-white rounded-[2rem] border border-neutral-100 shadow-sm overflow-hidden">
-            {/* Status bar */}
-            <div className="px-8 py-4 border-b border-neutral-50 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() =>
-                    setEditing((p) => ({
-                      ...p,
-                      status: p!.status === "published" ? "draft" : "published",
-                    }))
-                  }
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-bold tracking-widest transition-all ${
-                    editing.status === "published"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-neutral-100 text-neutral-500"
-                  }`}
-                >
-                  {editing.status === "published" ? (
-                    <><Eye size={10} /> PUBLISHED</>
-                  ) : (
-                    <><EyeOff size={10} /> DRAFT</>
-                  )}
-                </button>
-
-                <button
-                  onClick={() =>
-                    setEditing((p) => ({ ...p, showInNav: !p!.showInNav }))
-                  }
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-bold tracking-widest transition-all ${
-                    editing.showInNav
-                      ? "bg-purple-100 text-purple-700"
-                      : "bg-neutral-100 text-neutral-500"
-                  }`}
-                >
-                  <Globe size={10} />
-                  {editing.showInNav ? "SHOW IN NAV" : "HIDDEN FROM NAV"}
-                </button>
-              </div>
-
-              {!isNew && (
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-red-400 hover:text-red-600 transition-colors"
-                >
-                  <Trash2 size={12} />
-                  {deleting ? "DELETING..." : "DELETE"}
-                </button>
-              )}
-            </div>
-
-            {/* Title */}
-            <div className="px-8 pt-8 pb-4">
-              <input
-                type="text"
-                value={editing.title || ""}
-                onChange={(e) => handleTitleChange(e.target.value)}
-                placeholder="Page title…"
-                className="w-full text-3xl font-bold tracking-tight text-neutral-900 bg-transparent border-none outline-none placeholder:text-neutral-200"
-                autoFocus
-              />
-            </div>
-
-            {/* Slug */}
-            <div className="px-8 pb-6 flex items-center gap-2">
-              <span className="text-[10px] text-neutral-400 font-mono">
-                /page/
-              </span>
-              <input
-                type="text"
-                value={editing.slug || ""}
-                onChange={(e) => {
-                  setSlugEdited(true);
-                  setEditing((p) => ({ ...p, slug: toSlug(e.target.value) }));
-                }}
-                placeholder="page-url-slug"
-                className="text-[11px] font-mono text-neutral-500 bg-transparent border-none outline-none border-b border-dashed border-neutral-200 focus:border-purple-300 pb-0.5 flex-1"
-              />
-            </div>
-
-            {/* Divider */}
-            <div className="h-px bg-neutral-50 mx-8" />
-
-            {/* Body */}
-            <div className="px-8 py-6 editor-container">
-              <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-400 mb-3 block">
-                Page Content
-              </label>
-              <div className="rounded-2xl overflow-hidden border border-neutral-100 focus-within:ring-1 focus-within:ring-purple-300 transition-shadow">
-                <ReactQuill
-                  theme="snow"
-                  value={editing.body || ""}
-                  onChange={(val) =>
-                    setEditing((p) => ({ ...p, body: val }))
-                  }
-                  placeholder="Write your page content here…"
-                  modules={{
-                    toolbar: [
-                      [{ 'header': [1, 2, 3, false] }],
-                      ['bold', 'italic', 'underline', 'strike'],
-                      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                      ['link', 'blockquote', 'code-block'],
-                      ['clean']
-                    ],
-                  }}
-                  className="bg-neutral-50 min-h-[400px]"
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+            <div className="lg:col-span-2 space-y-12">
+              {/* Content Engine */}
+              <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
+                <SectionHeader 
+                  title="Content Engine" 
+                  subtitle="Entity Body & Structure" 
+                  icon={FileText} 
                 />
-              </div>
-              <p className="text-[9px] text-neutral-300 mt-2">
-                Use the toolbar to format your content. HTML is supported.
-              </p>
+
+                <div className="space-y-12 relative z-10">
+                  <InputField 
+                    label="ENTITY DESIGNATION (TITLE)"
+                    value={editing.title || ""}
+                    placeholder="Enter page title..."
+                    onChange={(e: any) => handleTitleChange(e.target.value)}
+                  />
+
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">SYSTEM SLUG (URL)</label>
+                    <div className="flex items-center gap-6 bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 focus-within:border-violet-500/50 focus-within:bg-white/[0.06] transition-all group shadow-inner">
+                      <Globe size={20} className="text-slate-600 group-focus-within:text-violet-400 transition-colors" />
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="text-xs text-slate-600 font-mono">/page/</span>
+                        <input
+                          type="text"
+                          value={editing.slug || ""}
+                          onChange={(e) => {
+                            setSlugEdited(true);
+                            setEditing((p) => ({ ...p, slug: toSlug(e.target.value) }));
+                          }}
+                          placeholder="page-url-slug"
+                          className="bg-transparent border-none outline-none text-sm text-white flex-1 font-mono font-bold placeholder:text-slate-800"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6 editor-container pt-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">ENTITY MARKUP (BODY)</label>
+                    <div className="rounded-[2.5rem] overflow-hidden border border-white/10 bg-white/[0.02] shadow-inner focus-within:border-violet-500/30 transition-all">
+                      <ReactQuill
+                        theme="snow"
+                        value={editing.body || ""}
+                        onChange={(val) =>
+                          setEditing((p) => ({ ...p, body: val }))
+                        }
+                        placeholder="Write your page content here…"
+                        modules={{
+                          toolbar: [
+                            [{ 'header': [1, 2, 3, false] }],
+                            ['bold', 'italic', 'underline', 'strike'],
+                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                            ['link', 'blockquote', 'code-block'],
+                            ['clean']
+                          ],
+                        }}
+                        className="bg-transparent text-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* SEO Optimization */}
+              <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/[0.03] to-transparent pointer-events-none" />
+                <SectionHeader 
+                  title="Search Optimization" 
+                  subtitle="Index Visibility & Metadata" 
+                  icon={SearchIcon} 
+                  color="cyan"
+                />
+
+                <div className="space-y-12 relative z-10">
+                  {/* Google Preview simulation */}
+                  <div className="bg-slate-900/50 rounded-3xl border border-white/5 p-8 shadow-inner space-y-3">
+                    <div className="flex items-center gap-3 mb-2">
+                       <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                          <Globe size={10} className="text-slate-500" />
+                       </div>
+                       <span className="text-[9px] text-slate-500 font-mono tracking-wider">https://lyricalmyrical.com/page/{editing.slug || "handle"}</span>
+                    </div>
+                    <div className="text-cyan-400 text-xl font-bold hover:underline cursor-default">
+                      {editing.seoTitle || editing.title || "Meta Title Preview"}
+                    </div>
+                    <div className="text-slate-400 text-xs leading-relaxed line-clamp-2">
+                      {editing.metaDescription ||
+                        "Enter a meta description to see how your page will appear in search results. Target density: 160 characters."}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-12">
+                    <InputField 
+                      label="SEO PAGE TITLE"
+                      value={editing.seoTitle || ""}
+                      onChange={(e: any) => setEditing((p) => ({ ...p, seoTitle: e.target.value }))}
+                      placeholder={editing.title}
+                    />
+                    <div className="space-y-4">
+                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">META DESCRIPTION</label>
+                       <textarea
+                         value={editing.metaDescription || ""}
+                         onChange={(e) =>
+                           setEditing((p) => ({
+                             ...p,
+                             metaDescription: e.target.value,
+                           }))
+                         }
+                         placeholder="A brief summary for search engines..."
+                         rows={4}
+                         className="w-full bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-6 text-sm text-white outline-none focus:border-cyan-500/50 focus:bg-white/[0.06] transition-all resize-none leading-relaxed font-medium shadow-inner"
+                       />
+                       <div className="flex justify-between items-center px-4">
+                          <p className="text-[9px] text-slate-600 font-black tracking-[0.3em] uppercase">{editing.metaDescription?.length || 0} / 320 BYTES</p>
+                       </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
             </div>
 
-            <style>{`
-              .editor-container .ql-toolbar.ql-snow {
-                border: none;
-                border-bottom: 1px solid #f5f5f5;
-                background: #fff;
-                padding: 12px 20px;
-              }
-              .editor-container .ql-container.ql-snow {
-                border: none;
-                font-family: inherit;
-                font-size: 14px;
-              }
-              .editor-container .ql-editor {
-                min-height: 400px;
-                padding: 24px 32px;
-                line-height: 1.6;
-              }
-              .editor-container .ql-editor.ql-blank::before {
-                left: 32px;
-                font-style: normal;
-                color: #d4d4d4;
-              }
-            `}</style>
+            {/* Sidebar Controls */}
+            <div className="space-y-12">
+              <section className="glass-card rounded-[3rem] p-10 border border-white/5 space-y-10 sticky top-12">
+                <div className="space-y-10">
+                  <div>
+                    <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mb-8 ml-1 italic">Status Protocol</h4>
+                    <div className="space-y-8">
+                       <div className="flex items-center justify-between group">
+                          <div>
+                             <p className="text-xs font-black text-white uppercase italic tracking-wider mb-1">Public Visibility</p>
+                             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Toggle production status</p>
+                          </div>
+                          <Switch 
+                            checked={editing.status === "published"}
+                            onChange={(val) => setEditing(p => ({...p!, status: val ? "published" : "draft"}))}
+                          />
+                       </div>
 
-            {/* SEO Section */}
-            <div className="bg-neutral-50 border-t border-neutral-100 p-8 space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-xs font-bold tracking-widest text-[#A855F7] uppercase">
-                    Search engine listing preview
-                  </h3>
-                  <p className="text-[10px] text-neutral-400 mt-1">
-                    Add a title and description to see how this Page might appear
-                    in a search engine listing.
-                  </p>
-                </div>
-              </div>
+                       <div className="flex items-center justify-between group">
+                          <div>
+                             <p className="text-xs font-black text-white uppercase italic tracking-wider mb-1">Navigation Link</p>
+                             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Inject into main menu</p>
+                          </div>
+                          <Switch 
+                            checked={editing.showInNav ?? true}
+                            onChange={(val) => setEditing(p => ({...p!, showInNav: val}))}
+                          />
+                       </div>
+                    </div>
+                  </div>
 
-              {/* Google Preview */}
-              <div className="bg-white rounded-xl border border-neutral-100 p-6 shadow-sm max-w-xl">
-                <div className="text-[#1a0dab] text-lg font-medium hover:underline cursor-pointer truncate">
-                  {editing.seoTitle || editing.title || "Page Title Preview"}
+                  <div className="pt-10 border-t border-white/5">
+                    <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mb-8 ml-1 italic">Danger Zone</h4>
+                    {!isNew ? (
+                      <button
+                        onClick={handleDelete}
+                        disabled={deleting}
+                        className="w-full flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[10px] font-black tracking-[0.3em] uppercase italic hover:bg-rose-500 hover:text-white transition-all shadow-lg shadow-rose-500/5 active:scale-95"
+                      >
+                        <Trash2 size={14} />
+                        {deleting ? "PURGING..." : "DELETE ENTITY"}
+                      </button>
+                    ) : (
+                       <p className="text-[9px] text-slate-600 font-medium italic text-center px-4">Entity must be committed to registry before deletion protocols become active.</p>
+                    )}
+                  </div>
                 </div>
-                <div className="text-[#006621] text-xs mt-1 truncate">
-                  {window.location.origin}/page/{editing.slug || "url-handle"}
-                </div>
-                <div className="text-[#545454] text-xs mt-1 line-clamp-2 min-h-[2.5em]">
-                  {editing.metaDescription ||
-                    editing.body?.substring(0, 160) ||
-                    "Enter a meta description to see how your page will appear in search results."}
-                </div>
-              </div>
-
-              <div className="grid gap-6">
-                <div className="space-y-2">
-                  <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-500">
-                    Page title (SEO)
-                  </label>
-                  <input
-                    type="text"
-                    value={editing.seoTitle || ""}
-                    onChange={(e) =>
-                      setEditing((p) => ({ ...p, seoTitle: e.target.value }))
-                    }
-                    placeholder={editing.title}
-                    className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-3 text-xs outline-none focus:ring-1 focus:ring-purple-300 transition-shadow"
-                  />
-                  <p className="text-[9px] text-neutral-400">
-                    {editing.seoTitle?.length || 0} of 70 characters used
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[9px] font-bold uppercase tracking-widest text-neutral-500">
-                    Meta description
-                  </label>
-                  <textarea
-                    value={editing.metaDescription || ""}
-                    onChange={(e) =>
-                      setEditing((p) => ({
-                        ...p,
-                        metaDescription: e.target.value,
-                      }))
-                    }
-                    placeholder={editing.body?.substring(0, 160)}
-                    rows={3}
-                    className="w-full bg-white border border-neutral-200 rounded-xl px-4 py-3 text-xs outline-none focus:ring-1 focus:ring-purple-300 resize-none transition-shadow"
-                  />
-                  <p className="text-[9px] text-neutral-400">
-                    {editing.metaDescription?.length || 0} of 320 characters
-                    used
-                  </p>
-                </div>
-              </div>
+              </section>
             </div>
           </div>
+
+          <style>{`
+            .editor-container .ql-toolbar.ql-snow {
+              border: none;
+              border-bottom: 1px solid rgba(255,255,255,0.05);
+              background: rgba(255,255,255,0.02);
+              padding: 16px 24px;
+            }
+            .editor-container .ql-container.ql-snow {
+              border: none;
+              font-family: inherit;
+              font-size: 14px;
+            }
+            .editor-container .ql-editor {
+              min-height: 500px;
+              padding: 40px;
+              line-height: 1.8;
+              color: white;
+            }
+            .editor-container .ql-editor.ql-blank::before {
+              left: 40px;
+              font-style: italic;
+              color: #334155;
+              font-weight: 700;
+              text-transform: uppercase;
+              font-size: 10px;
+              letter-spacing: 0.2em;
+            }
+            .editor-container .ql-snow.ql-toolbar button {
+              color: #94a3b8;
+            }
+            .editor-container .ql-snow.ql-toolbar button:hover,
+            .editor-container .ql-snow.ql-toolbar button.ql-active {
+              color: #A855F7;
+            }
+            .editor-container .ql-snow.ql-toolbar .ql-stroke {
+              stroke: #64748b;
+            }
+            .editor-container .ql-snow.ql-toolbar button:hover .ql-stroke,
+            .editor-container .ql-snow.ql-toolbar button.ql-active .ql-stroke {
+              stroke: #A855F7;
+            }
+            .editor-container .ql-snow.ql-toolbar .ql-fill {
+              fill: #64748b;
+            }
+            .editor-container .ql-snow.ql-toolbar button:hover .ql-fill,
+            .editor-container .ql-snow.ql-toolbar button.ql-active .ql-fill {
+              fill: #A855F7;
+            }
+          `}</style>
         </motion.div>
       ) : (
         // ─── PAGES LIST ────────────────────────────────────────────
         <motion.div
           key="list"
-          initial={{ opacity: 0, x: -24 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: 24 }}
-          transition={{ duration: 0.2 }}
-          className="space-y-6 max-w-2xl"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-12 max-w-5xl"
         >
           {/* Header */}
-          <div className="flex justify-between items-end">
-            <div>
-              <h2 className="text-2xl font-bold tracking-tight text-neutral-900">
-                Pages
-              </h2>
-              <p className="text-[11px] text-neutral-400 mt-1 leading-relaxed max-w-sm">
-                Create custom pages like About, FAQ, or Contact. Published pages
-                will appear in your website navigation automatically.
-              </p>
+          <header className="flex flex-col gap-2 mb-4">
+            <div className="flex justify-between items-end">
+              <div>
+                <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Entity Registry</h2>
+                <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Custom Page Infrastructure & Routing</p>
+              </div>
+              <button
+                onClick={openNew}
+                className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/40 hover:bg-violet-500 transition-all border border-violet-400/20 active:scale-95 flex items-center gap-3 uppercase italic"
+              >
+                <Plus size={16} />
+                NEW ENTITY
+              </button>
             </div>
-            <button
-              onClick={openNew}
-              className="flex items-center gap-2 bg-black text-white px-6 py-2.5 rounded-full text-[10px] font-bold tracking-widest hover:bg-neutral-800 transition-all shadow-lg"
-            >
-              <Plus size={14} />
-              ADD PAGE
-            </button>
-          </div>
+          </header>
 
-          {/* List */}
-          <div className="bg-white rounded-[2rem] border border-neutral-100 shadow-sm overflow-hidden">
-            {/* Add new — always at top */}
-            <button
-              onClick={openNew}
-              className="w-full flex items-center justify-between px-8 py-5 hover:bg-neutral-50 transition-colors border-b border-neutral-50 group"
-            >
-              <div className="flex-1 mr-4">
+          {/* Registry Control Center */}
+          <div className="glass-card rounded-[3rem] border border-white/5 overflow-hidden relative shadow-2xl">
+            <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
+            
+            {/* Search / Filter Bar */}
+            <div className="px-12 py-8 border-b border-white/5 flex items-center justify-between relative z-10 bg-white/[0.01]">
+              <div className="flex-1 max-w-md relative group">
+                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-violet-400 transition-colors" size={18} />
                 <input
                   type="text"
-                  placeholder="Search pages..."
+                  placeholder="FILTER BY DESIGNATION OR KEY..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-full bg-neutral-50 border border-neutral-100 rounded-full px-5 py-2 text-[11px] outline-none focus:ring-1 focus:ring-purple-200"
+                  className="w-full bg-white/[0.03] border border-white/5 rounded-2xl px-16 py-4 text-[10px] font-black tracking-widest text-white outline-none focus:border-violet-500/30 focus:bg-white/5 transition-all placeholder:text-slate-700"
                 />
               </div>
-              <div className="w-7 h-7 rounded-full bg-neutral-100 group-hover:bg-black group-hover:text-white flex items-center justify-center transition-all">
-                <Plus size={13} />
+              
+              <div className="flex items-center gap-6">
+                <div className="flex flex-col items-end">
+                   <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Active Entities</span>
+                   <span className="text-xl font-black text-white font-mono italic">{pages.filter(p => p.status === "published").length} / {pages.length}</span>
+                </div>
+                <div className="w-px h-8 bg-white/5" />
+                <div className="p-3 rounded-2xl bg-white/5 border border-white/10 text-slate-400">
+                   <Settings size={18} />
+                </div>
               </div>
-            </button>
+            </div>
 
             {pages.length === 0 ? (
-              <div className="px-8 py-16 text-center">
-                <FileText size={32} className="text-neutral-200 mx-auto mb-4" />
-                <p className="text-[11px] text-neutral-400 font-medium">
-                  No pages yet
-                </p>
-                <p className="text-[10px] text-neutral-300 mt-1">
-                  Click above to create your first page.
+              <div className="px-12 py-32 text-center relative z-10">
+                <div className="w-20 h-20 bg-white/[0.03] border border-white/5 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-inner">
+                  <FileText size={32} className="text-slate-700" />
+                </div>
+                <p className="text-lg font-black text-white uppercase italic tracking-tight mb-2">Registry Void</p>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed font-medium">
+                  No entities have been established in the core database. Initialize your first page to begin infrastructure mapping.
                 </p>
               </div>
             ) : (
-              <ul>
-                {pages
-                  .filter((p) =>
-                    p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    p.slug.toLowerCase().includes(searchQuery.toLowerCase())
-                  )
-                  .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-                  .map((page, i) => (
-                    <li
-                      key={page.id}
-                      className={`border-b border-neutral-50 last:border-0 ${
-                        i % 2 === 0 ? "" : ""
-                      }`}
-                    >
-                      <button
-                        onClick={() => openEdit(page)}
-                        className="w-full flex items-center gap-4 px-8 py-5 hover:bg-neutral-50 transition-colors group text-left"
-                      >
-                        <GripVertical
-                          size={14}
-                          className="text-neutral-200 shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-neutral-900 group-hover:text-[#A855F7] transition-colors">
-                            {page.title}
-                          </p>
-                          <p className="text-[9px] font-mono text-neutral-400 mt-0.5">
-                            /page/{page.slug}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <span
-                            className={`text-[8px] font-bold tracking-widest px-2.5 py-1 rounded-full ${
+              <div className="relative z-10">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-white/[0.02]">
+                      <th className="px-12 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic">Entity / Slug</th>
+                      <th className="px-12 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic">Status Protocol</th>
+                      <th className="px-12 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic">Navigation</th>
+                      <th className="px-12 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {pages
+                      .filter((p) =>
+                        p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        p.slug.toLowerCase().includes(searchQuery.toLowerCase())
+                      )
+                      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                      .map((page, i) => (
+                        <tr 
+                          key={page.id}
+                          className="hover:bg-white/[0.03] transition-all group cursor-pointer"
+                          onClick={() => openEdit(page)}
+                        >
+                          <td className="px-12 py-8">
+                            <div className="flex items-center gap-6">
+                               <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-slate-600 group-hover:border-violet-500/30 group-hover:text-violet-400 transition-all shadow-inner">
+                                  <FileText size={16} />
+                               </div>
+                               <div>
+                                 <p className="text-sm font-black text-white uppercase tracking-tight italic group-hover:text-violet-400 transition-colors">
+                                   {page.title}
+                                 </p>
+                                 <p className="text-[9px] font-mono text-slate-600 mt-1 uppercase tracking-widest">
+                                   /page/{page.slug}
+                                 </p>
+                               </div>
+                            </div>
+                          </td>
+                          <td className="px-12 py-8">
+                            <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-[9px] font-black tracking-widest uppercase italic ${
                               page.status === "published"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-neutral-100 text-neutral-500"
-                            }`}
-                          >
-                            {page.status === "published" ? "LIVE" : "DRAFT"}
-                          </span>
-                          {!page.showInNav && (
-                            <span className="text-[8px] font-bold tracking-widest px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-400">
-                              HIDDEN
-                            </span>
-                          )}
-                          <ChevronRight
-                            size={14}
-                            className="text-neutral-300 group-hover:text-neutral-600 transition-colors"
-                          />
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-              </ul>
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
+                                : "bg-slate-500/10 text-slate-500 border-slate-500/20"
+                            }`}>
+                              {page.status === "published" ? (
+                                <><Check size={10} /> PRODUCTION</>
+                              ) : (
+                                <><EyeOff size={10} /> DRAFT MODE</>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-12 py-8">
+                             {page.showInNav ? (
+                               <div className="flex items-center gap-3 text-violet-400/70">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+                                  <span className="text-[9px] font-black uppercase tracking-widest italic">Live in Menu</span>
+                               </div>
+                             ) : (
+                               <span className="text-[9px] font-black text-slate-700 uppercase tracking-widest italic">Exempted</span>
+                             )}
+                          </td>
+                          <td className="px-12 py-8 text-right">
+                             <div className="inline-flex items-center justify-center w-10 h-10 rounded-full border border-white/5 text-slate-600 group-hover:border-violet-500/50 group-hover:text-white transition-all">
+                                <ChevronRight size={18} />
+                             </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
 
           {pages.length > 0 && (
-            <p className="text-[10px] text-neutral-400 text-center">
-              {pages.filter((p) => p.status === "published").length} of{" "}
-              {pages.length} pages published
-            </p>
+            <div className="flex justify-between items-center px-12 text-[10px] font-black uppercase tracking-[0.3em] text-slate-600 italic">
+               <span>Registry Statistics</span>
+               <span>{pages.filter((p) => p.status === "published").length} Nodes Active — Capacity Nominal</span>
+            </div>
           )}
         </motion.div>
       )}

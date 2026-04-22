@@ -1,3 +1,36 @@
 @import './fonts.css';
 @import './tailwind.css';
+
+@layer base {
+  body {
+    @apply bg-background text-on-surface antialiased;
+    font-family: var(--font-manrope);
+  }
+}
+
+@layer components {
+  .glass-card {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 100%);
+    backdrop-filter: blur(12px);
+  }
+
+  .pulse-violet-glow {
+    box-shadow: 0 0 15px rgba(208, 188, 255, 0.2);
+  }
+}
+
+/* Custom scrollbar for dark mode */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #010f1f;
+}
+::-webkit-scrollbar-thumb {
+  background: #1c2b3c;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #273647;
+}
 @import './theme.css';

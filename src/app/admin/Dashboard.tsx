@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { HashRouter, Routes, Route, Link } from "react-router";
 import { 
   BookOpen, 
@@ -24,6 +24,11 @@ import {
   LayoutGrid,
   Menu,
   X as CloseIcon,
+  Search,
+  Bell,
+  HelpCircle,
+  Database,
+  Layers
 } from "lucide-react";
 
 import { Login } from "./Login";
@@ -48,7 +53,6 @@ export function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    // Listen for Firebase Auth changes
     const unsubscribe = adminApi.onAuthStateChange((u) => {
       setUser(u);
       setLoading(false);
@@ -69,7 +73,10 @@ export function Dashboard() {
   if (loading) {
     return (
       <div className="h-screen bg-black flex items-center justify-center">
-        <p className="text-white text-[10px] tracking-[0.4em] animate-pulse">VERIFYING ADMIN ACCESS...</p>
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-16 h-16 border-4 border-violet-500/10 border-t-violet-500 rounded-full animate-spin" />
+          <p className="text-white text-[10px] tracking-[0.6em] font-black animate-pulse">AUTHORIZING SECURE ACCESS</p>
+        </div>
       </div>
     );
   }
@@ -92,51 +99,62 @@ export function Dashboard() {
     setShowEditor(true);
   };
 
+  const navItems = [
+    { id: "overview", label: "Intelligence", icon: BarChart3, color: "text-cyan-400" },
+    { id: "orders", label: "Operations", icon: ShoppingBag, color: "text-violet-400" },
+    { id: "catalog", label: "Archives", icon: Database, color: "text-emerald-400" },
+    { id: "discounts", label: "Campaigns", icon: BadgePercent, color: "text-amber-400" },
+    { id: "marketing", label: "Growth", icon: Rocket, color: "text-rose-400" },
+    { id: "apps", label: "App Center", icon: Layers, color: "text-blue-400" },
+    { 
+      id: "settings", 
+      label: "System Config", 
+      icon: Settings,
+      color: "text-slate-400",
+      children: [
+        { id: "general", label: "General" },
+        { id: "communications", label: "Communications" },
+        { id: "shipping", label: "Logistics" },
+        { id: "payments", label: "Financials" },
+        { id: "taxes", label: "Fiscal" },
+        { id: "pages", label: "Content" },
+        { id: "designer", label: "Interface" },
+      ]
+    },
+  ];
+
   return (
-    <div className="flex h-screen bg-neutral-50 text-neutral-900 overflow-hidden font-sans">
-      {/* Mobile Sidebar Overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
+    <div className="flex h-screen bg-[#050506] text-white overflow-hidden font-manrope antialiased selection:bg-violet-500/30">
+      {/* Sidebar Overlay */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-md z-[60] lg:hidden" 
+            onClick={() => setSidebarOpen(false)} 
+          />
+        )}
+      </AnimatePresence>
 
       {/* Sidebar */}
-      <aside className={`fixed lg:static inset-y-0 left-0 w-64 bg-black text-white flex flex-col z-50 transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        <div className="p-8 flex justify-between items-center">
-          <div>
-            <h1 className="text-xl tracking-[0.2em] font-light italic">F✶M</h1>
-            <div className="flex items-center gap-2 mt-2 opacity-40">
-              <ShieldCheck size={12} className="text-green-500" />
-              <p className="text-[9px] tracking-[0.1em] uppercase">Secure Firebase Backend</p>
+      <aside className={`fixed lg:static inset-y-0 left-0 w-72 bg-black/40 backdrop-blur-2xl border-r border-white/5 flex flex-col z-[70] transform transition-all duration-500 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <div className="p-8 flex items-center gap-4 mb-8">
+          <div className="relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 to-cyan-600 rounded-xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
+            <div className="relative h-12 w-12 rounded-xl bg-black border border-white/10 flex items-center justify-center shadow-2xl">
+              <ShieldCheck className="text-violet-500" size={28} />
             </div>
           </div>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 text-neutral-400 hover:text-white">
-            <CloseIcon size={20} />
-          </button>
+          <div>
+            <p className="text-sm font-black tracking-tighter text-white">ARCHON<span className="text-violet-500">.</span>OS</p>
+            <p className="text-slate-500 text-[9px] uppercase tracking-[0.3em] font-black">Admin Protocol</p>
+          </div>
         </div>
-        
-        <nav className="flex-1 px-4 space-y-1">
-          {[
-            { id: "overview", label: "Dashboard", icon: Home },
-            { id: "orders", label: "Orders", icon: Package },
-            { id: "catalog", label: "Products", icon: Tag },
-            { id: "discounts", label: "Discounts", icon: BadgePercent },
-            { id: "marketing", label: "Marketing", icon: Rocket },
-            { id: "apps", label: "App center", icon: LayoutGrid },
-            { 
-              id: "settings", 
-              label: "Shop settings", 
-              icon: Settings,
-              children: [
-                { id: "general", label: "General" },
-                { id: "communications", label: "Communications" },
-                { id: "shipping", label: "Shipping" },
-                { id: "payments", label: "Payments" },
-                { id: "taxes", label: "Taxes" },
-                { id: "pages", label: "Pages" },
-                { id: "designer", label: "Shop designer" },
-              ]
-            },
-          ].map((item) => (
+
+        <nav className="flex-1 px-6 space-y-2 overflow-y-auto custom-scrollbar">
+          {navItems.map((item) => (
             <div key={item.id} className="space-y-1">
               <button
                 onClick={() => { 
@@ -146,136 +164,222 @@ export function Dashboard() {
                   if (item.id === "settings") setSettingsTab("general");
                   if (item.id !== "settings") setSidebarOpen(false);
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm tracking-widest transition-all rounded-lg ${
+                className={`w-full flex items-center gap-4 px-5 py-3.5 text-[11px] uppercase tracking-widest font-black transition-all rounded-2xl group relative ${
                   activeTab === item.id && !showEditor && !selectedOrder
-                    ? "bg-white text-[#A855F7] font-bold" 
-                    : "text-white/60 hover:text-white hover:bg-white/10"
+                    ? "bg-white/5 text-white border border-white/10 shadow-[0_0_20px_rgba(255,255,255,0.05)]" 
+                    : "text-slate-500 hover:text-slate-200 hover:bg-white/[0.02]"
                 }`}
               >
-                <item.icon size={18} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+                {activeTab === item.id && !showEditor && !selectedOrder && (
+                  <motion.div layoutId="activeNav" className="absolute left-0 w-1 h-6 bg-violet-500 rounded-r-full" />
+                )}
+                <item.icon size={18} className={`${activeTab === item.id ? item.color : "text-slate-600 group-hover:text-slate-400"} transition-colors`} />
                 {item.label}
               </button>
 
-              {item.id === "settings" && activeTab === "settings" && (
-                <div className="pl-12 space-y-1 pb-2">
-                  {item.children?.map((child) => (
-                    <button
-                      key={child.id}
-                      onClick={() => {
-                        setSettingsTab(child.id);
-                        setSidebarOpen(false);
-                      }}
-                      className={`w-full text-left py-2 text-[11px] tracking-widest transition-all ${
-                        settingsTab === child.id 
-                          ? "text-white font-bold" 
-                          : "text-white/40 hover:text-white"
-                      }`}
-                    >
-                      {child.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <AnimatePresence>
+                {item.id === "settings" && activeTab === "settings" && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="pl-12 space-y-1 pb-4 overflow-hidden"
+                  >
+                    {item.children?.map((child) => (
+                      <button
+                        key={child.id}
+                        onClick={() => {
+                          setSettingsTab(child.id);
+                          setSidebarOpen(false);
+                        }}
+                        className={`w-full text-left py-2 text-[10px] uppercase tracking-[0.2em] font-black transition-all ${
+                          settingsTab === child.id 
+                            ? "text-violet-400" 
+                            : "text-slate-600 hover:text-slate-400"
+                        }`}
+                      >
+                        {child.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           ))}
         </nav>
 
-        <div className="p-6 border-t border-white/10">
-          <div className="flex items-center gap-3 mb-6 px-4">
-            <div className="w-8 h-8 rounded-full bg-neutral-800 flex items-center justify-center overflow-hidden border border-white/20">
-               {user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover" /> : <Users size={14} />}
+        <div className="p-6 mt-auto">
+          <div className="glass-card rounded-[2rem] border border-white/5 p-6 space-y-6">
+            <div className="flex items-center gap-4 px-2">
+              <div className="w-10 h-10 rounded-full border border-white/10 overflow-hidden shrink-0 shadow-2xl">
+                 {user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-slate-900 flex items-center justify-center text-violet-400 font-black text-xs">{user.displayName?.[0] || user.email?.[0]}</div>}
+              </div>
+              <div className="truncate">
+                <p className="text-[10px] font-black text-white truncate uppercase tracking-widest">{user.displayName || "Administrator"}</p>
+                <p className="text-[8px] text-slate-500 truncate font-mono">{user.email}</p>
+              </div>
             </div>
-            <div className="truncate">
-              <p className="text-[10px] text-white/40 truncate tracking-wider uppercase font-bold">{user.displayName || "Admin"}</p>
-              <p className="text-[9px] text-white/20 truncate">{user.email}</p>
-            </div>
+            <button 
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-3 py-3 text-[9px] font-black text-slate-500 hover:text-rose-400 hover:bg-rose-500/5 rounded-xl border border-transparent hover:border-rose-500/20 transition-all uppercase tracking-[0.2em]"
+            >
+              <LogOut size={14} />
+              Terminate Session
+            </button>
           </div>
-          <button 
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-sm tracking-wider text-red-400 hover:bg-red-400/10 rounded-lg transition-all"
-          >
-            <LogOut size={18} />
-            SECURE LOGOUT
-          </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto bg-neutral-50 p-8 relative">
-        <div className="max-w-6xl mx-auto">
-          {showEditor ? (
-            <div className="fixed inset-0 z-50 p-8 md:p-12 bg-black/20 backdrop-blur-sm flex items-center justify-center">
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="w-full max-w-6xl h-full"
-              >
-                <BookEditor 
-                  book={editingBook} 
-                  onClose={() => setShowEditor(false)} 
-                  onSave={() => { setShowEditor(false); setActiveTab("catalog"); loadStats(); }} 
-                />
-              </motion.div>
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        {/* Background Gradients */}
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-violet-600/5 blur-[120px] rounded-full -mr-64 -mt-64 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-cyan-600/5 blur-[120px] rounded-full -ml-64 -mb-64 pointer-events-none" />
+
+        {/* TopNavBar */}
+        <header className="h-20 flex items-center justify-between px-10 bg-black/20 backdrop-blur-2xl border-b border-white/5 shrink-0 z-50">
+          <div className="flex items-center gap-10">
+            <button 
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden p-3 bg-white/5 rounded-xl text-slate-400 hover:text-white border border-white/10"
+            >
+              <Menu size={20} />
+            </button>
+            <div className="hidden md:flex items-center bg-white/[0.03] rounded-2xl px-5 py-2.5 border border-white/5 group focus-within:border-violet-500/30 transition-all w-96 shadow-inner">
+              <Search className="text-slate-600 group-focus-within:text-violet-400 transition-colors" size={18} />
+              <input 
+                className="bg-transparent border-none focus:ring-0 text-xs tracking-widest text-slate-200 placeholder-slate-700 w-full px-3 uppercase font-black" 
+                placeholder="Search global archives..." 
+                type="text"
+              />
             </div>
-          ) : (
-            <>
-              <header className="mb-12 flex justify-between items-end">
-                <div className="flex items-center gap-6">
-                  <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-3 bg-white text-black rounded-xl shadow-sm border border-neutral-100 hover:bg-neutral-50">
-                    <Menu size={20} />
-                  </button>
+          </div>
+
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <button className="p-3 text-slate-500 hover:text-white transition-all hover:bg-white/5 rounded-xl border border-transparent hover:border-white/10 active:scale-95 relative">
+                <Bell size={20} />
+                <span className="absolute top-3 right-3 w-2 h-2 bg-rose-500 rounded-full border-2 border-black" />
+              </button>
+              <button className="p-3 text-slate-500 hover:text-white transition-all hover:bg-white/5 rounded-xl border border-transparent hover:border-white/10 active:scale-95">
+                <HelpCircle size={20} />
+              </button>
+            </div>
+            <div className="h-10 w-px bg-white/5 mx-2" />
+            <div className="flex items-center gap-4 pl-2">
+               <div className="text-right hidden sm:block">
+                 <p className="text-[10px] font-black text-white uppercase tracking-tighter leading-none">System Active</p>
+                 <p className="text-[8px] text-emerald-500 font-mono mt-1">Uptime: 99.9%</p>
+               </div>
+               <div className="h-10 w-10 rounded-xl border border-white/10 overflow-hidden ring-4 ring-white/5 shadow-2xl shrink-0">
+                  {user.photoURL ? <img src={user.photoURL} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-slate-900 flex items-center justify-center text-violet-400 font-black text-xs">{user.displayName?.[0] || user.email?.[0]}</div>}
+               </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto p-10 relative scroll-smooth custom-scrollbar">
+          <div className="max-w-[1400px] mx-auto pb-20">
+            {showEditor ? (
+              <div className="fixed inset-0 z-[100] p-6 md:p-12 bg-black/80 backdrop-blur-xl flex items-center justify-center">
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  className="w-full max-w-7xl h-[92vh] glass-card rounded-[3rem] border border-white/10 overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] flex flex-col"
+                >
+                  <BookEditor 
+                    book={editingBook} 
+                    onClose={() => setShowEditor(false)} 
+                    onSave={() => { setShowEditor(false); setActiveTab("catalog"); loadStats(); }} 
+                  />
+                </motion.div>
+              </div>
+            ) : (
+              <>
+                <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
                   <div>
-                    <p className="text-[10px] tracking-[.3em] mb-2 uppercase flex items-center gap-2">
-                      <span className="text-neutral-400">Admin Console</span>
-                      <ChevronRight size={10} className="text-neutral-300" />
-                      <span className="text-[#A855F7] font-bold">{activeTab}</span>
+                    <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.4em] text-slate-500 mb-4 font-black">
+                      <span className="opacity-50">System</span>
+                      <ChevronRight size={10} className="text-slate-800" />
+                      <span className="text-violet-400">{activeTab}</span>
                       {activeTab === "settings" && (
                         <>
-                          <ChevronRight size={10} className="text-neutral-300" />
-                          <span className="text-[#A855F7] opacity-80">{settingsTab}</span>
+                          <ChevronRight size={10} className="text-slate-800" />
+                          <span className="text-violet-400/60">{settingsTab}</span>
                         </>
                       )}
+                    </div>
+                    <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">{activeTab}</h2>
+                    <p className="text-slate-500 text-xs font-medium mt-4 max-w-xl leading-relaxed">
+                      Interface Protocol for {activeTab} management. Accessing secure backend layers for real-time synchronization.
                     </p>
-                    <h2 className="text-4xl font-light tracking-tight text-neutral-900 capitalize">{activeTab}</h2>
                   </div>
-                </div>
-                
-                <div className="flex gap-4">
-                  <button 
-                    onClick={handleAddBook}
-                    className="flex items-center gap-2 bg-black text-white px-6 py-2.5 rounded-full text-xs tracking-widest hover:bg-neutral-800 transition-all shadow-lg hover:shadow-xl translate-y-0 active:translate-y-px"
-                  >
-                    <Plus size={14} />
-                    NEW RELEASE
-                  </button>
-                </div>
-              </header>
+                  
+                  <div className="flex gap-4">
+                    <button className="flex items-center gap-3 bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95">
+                      <History size={16} className="text-slate-500" />
+                      View Logs
+                    </button>
+                    <button 
+                      onClick={handleAddBook}
+                      className="flex items-center gap-3 bg-violet-600 hover:bg-violet-500 text-white px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 shadow-[0_10px_30px_rgba(124,58,237,0.3)] border border-violet-400/20"
+                    >
+                      <Plus size={18} />
+                      Deploy Entry
+                    </button>
+                  </div>
+                </header>
 
-              {(() => {
-                switch (activeTab) {
-                  case "overview": return <AnalyticsDashboard />;
-                  case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} />;
-                  case "discounts": return <Discounts />;
-                  case "orders": 
-                    return selectedOrder ? (
-                      <OrderDetail orderId={selectedOrder.id} onClose={() => setSelectedOrder(null)} />
-                    ) : (
-                      <Orders onSelectOrder={(order) => setSelectedOrder(order)} />
-                    );
-                  case "settings": return <ShopSettings activeTab={settingsTab} setActiveTab={setSettingsTab} />;
-                  default:
-                    return (
-                      <div className="flex flex-col items-center justify-center min-h-[400px] bg-white rounded-3xl border border-neutral-100">
-                        <p className="text-neutral-400 text-[10px] tracking-[0.3em] uppercase mb-2">Cloud Synced</p>
-                        <p className="text-black font-bold uppercase tracking-[0.1em]">{activeTab} Module Active</p>
-                      </div>
-                    );
-                }
-              })()}
-            </>
-          )}
-        </div>
-      </main>
+                <div className="min-h-[600px]">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={activeTab + (selectedOrder ? "-detail" : "") + settingsTab}
+                      initial={{ opacity: 0, y: 10, filter: "blur(10px)" }}
+                      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                      exit={{ opacity: 0, y: -10, filter: "blur(10px)" }}
+                      transition={{ duration: 0.4, ease: "circOut" }}
+                    >
+                      {(() => {
+                        switch (activeTab) {
+                          case "overview": return <AnalyticsDashboard />;
+                          case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} />;
+                          case "discounts": return <Discounts />;
+                          case "orders": 
+                            return selectedOrder ? (
+                              <OrderDetail orderId={selectedOrder.id} onClose={() => setSelectedOrder(null)} />
+                            ) : (
+                              <Orders onSelectOrder={(order) => setSelectedOrder(order)} />
+                            );
+                          case "settings": return <ShopSettings activeTab={settingsTab} setActiveTab={setSettingsTab} />;
+                          default:
+                            return (
+                              <div className="glass-card rounded-[3rem] border border-white/5 p-20 flex flex-col items-center justify-center text-center relative overflow-hidden">
+                                <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 via-transparent to-cyan-600/5" />
+                                <div className="relative z-10">
+                                  <div className="w-24 h-24 rounded-[2rem] bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 mb-8 mx-auto rotate-12 group-hover:rotate-0 transition-transform duration-700">
+                                    <LayoutGrid size={40} />
+                                  </div>
+                                  <p className="text-slate-500 text-[10px] tracking-[0.6em] uppercase mb-4 font-black">Secure Transmission</p>
+                                  <p className="text-4xl font-black uppercase tracking-tighter text-white italic">{activeTab} Protocol</p>
+                                  <p className="text-slate-400 text-sm mt-6 max-w-sm mx-auto leading-relaxed">
+                                    The {activeTab} architecture is fully integrated. All operational data is encrypted and mirrored across edge nodes.
+                                  </p>
+                                  <button className="mt-10 text-violet-400 font-black text-[10px] uppercase tracking-[0.3em] hover:text-white transition-colors">
+                                    Refresh Module Data
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                        }
+                      })()}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+              </>
+            )}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
