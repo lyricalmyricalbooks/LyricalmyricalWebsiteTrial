@@ -1414,8 +1414,11 @@ function CodePanel({ design, update }: any) {
 function LivePreview({ design, device, previewMode, iframeRef }: any) {
   const isDesktop = device === "desktop";
   
-  // The URL to load in the iframe
-  const previewUrl = window.location.origin + (previewMode.value === "shop" ? "/?catalog=true&preview=true" : "/?preview=true");
+  // Derive the base URL from the current page — works on localhost AND GitHub Pages /RepoName/
+  // e.g. https://user.github.io/Repo/admin -> https://user.github.io/Repo
+  const basePath = window.location.pathname.replace(/\/admin\/?.*$/, "").replace(/\/$/, "");
+  const baseUrl = window.location.origin + basePath;
+  const previewUrl = baseUrl + (previewMode.value === "shop" ? "/?catalog=true&preview=true" : "/?preview=true");
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center bg-[#e8e8e8] overflow-hidden p-6 pt-2">
