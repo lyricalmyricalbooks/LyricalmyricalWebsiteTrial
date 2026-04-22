@@ -28,7 +28,9 @@ import {
   Bell,
   HelpCircle,
   Database,
-  Layers
+  Layers,
+  ShoppingCart,
+  CreditCard
 } from "lucide-react";
 
 import { Login } from "./Login";
@@ -111,7 +113,7 @@ export function Dashboard() {
       <div className="h-screen bg-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-6">
           <div className="w-16 h-16 border-4 border-violet-500/10 border-t-violet-500 rounded-full animate-spin" />
-          <p className="text-white text-[10px] tracking-[0.6em] font-black animate-pulse">AUTHORIZING SECURE ACCESS</p>
+          <p className="text-white text-[10px] tracking-[0.6em] font-black animate-pulse">INITIALIZING PUBLISHER CORE</p>
         </div>
       </div>
     );
@@ -136,25 +138,15 @@ export function Dashboard() {
   };
 
   const navItems = [
-    { id: "overview", label: "Intelligence", icon: BarChart3, color: "text-cyan-400" },
-    { id: "orders", label: "Operations", icon: ShoppingBag, color: "text-violet-400" },
-    { id: "catalog", label: "Archives", icon: Database, color: "text-emerald-400" },
-    { id: "discounts", label: "Campaigns", icon: BadgePercent, color: "text-amber-400" },
-    { id: "marketing", label: "Growth", icon: Rocket, color: "text-rose-400" },
-    { id: "apps", label: "App Center", icon: Layers, color: "text-blue-400" },
-    { 
-      id: "settings", 
-      label: "System Config", 
-      icon: Settings,
-      color: "text-slate-400",
-      children: [
-        { id: "general", label: "General" },
-        { id: "communications", label: "Communications" },
-        { id: "shipping", label: "Logistics" },
-        { id: "payments", label: "Financials" },
-        { id: "taxes", label: "Fiscal" },
-        { id: "pages", label: "Content" },
-        { id: "designer", label: "Interface" },
+    { id: "overview", label: "Fiscal Ledger", icon: LayoutDashboard, color: "text-cyan-400" },
+    { id: "orders", label: "Fulfillment", icon: ShoppingCart, color: "text-violet-400" },
+    { id: "catalog", label: "Book Library", icon: BookOpen, color: "text-emerald-400" },
+    { id: "discounts", label: "Promotions", icon: Tag, color: "text-amber-400" },
+    { id: "settings", label: "Publisher Tools", icon: Settings, color: "text-rose-400", children: [
+        { id: "general", label: "Global Settings", icon: ShieldCheck },
+        { id: "shipping", label: "Shipping Matrix", icon: Truck },
+        { id: "payments", label: "Royalty & Payments", icon: CreditCard },
+        { id: "designer", label: "Theme Orchestrator", icon: LayoutGrid },
       ]
     },
   ];
@@ -185,8 +177,8 @@ export function Dashboard() {
             </div>
           </div>
           <div>
-            <p className="text-sm font-black tracking-tighter text-white">ARCHON<span className="text-violet-500">.</span>OS</p>
-            <p className="text-slate-500 text-[9px] uppercase tracking-[0.3em] font-black">Admin Protocol</p>
+            <span className="text-white font-black tracking-tighter text-xl italic group-hover:text-violet-400 transition-colors">LYRICALMYRICAL</span>
+            <span className="bg-violet-500 text-[8px] font-black px-2 py-0.5 rounded ml-2 tracking-widest uppercase">Publisher</span>
           </div>
         </div>
 
@@ -282,11 +274,11 @@ export function Dashboard() {
               <Menu size={20} />
             </button>
             <div className="hidden md:flex items-center bg-white/[0.03] rounded-2xl px-5 py-2.5 border border-white/5 group focus-within:border-violet-500/30 transition-all w-96 shadow-inner">
-              <Search className="text-slate-600 group-focus-within:text-violet-400 transition-colors" size={18} />
+              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-violet-500 transition-colors" size={16} />
               <input 
-                className="bg-transparent border-none focus:ring-0 text-xs tracking-widest text-slate-200 placeholder-slate-700 w-full px-3 uppercase font-black" 
-                placeholder="Search global archives..." 
-                type="text"
+                type="text" 
+                placeholder="Search library archives..." 
+                className="w-full bg-slate-900/50 border border-white/5 rounded-2xl py-4 pl-16 pr-6 text-xs text-white placeholder:text-slate-600 outline-none focus:border-violet-500/30 focus:bg-slate-900/80 transition-all font-medium"
               />
             </div>
           </div>
@@ -294,8 +286,8 @@ export function Dashboard() {
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <button className="p-3 text-slate-500 hover:text-white transition-all hover:bg-white/5 rounded-xl border border-transparent hover:border-white/10 active:scale-95 relative">
-                <Bell size={20} />
-                <span className="absolute top-3 right-3 w-2 h-2 bg-rose-500 rounded-full border-2 border-black" />
+                <Plus size={16} />
+                <span className="font-black tracking-[0.2em] uppercase">New Title</span>
               </button>
               <button className="p-3 text-slate-500 hover:text-white transition-all hover:bg-white/5 rounded-xl border border-transparent hover:border-white/10 active:scale-95">
                 <HelpCircle size={20} />
@@ -304,7 +296,10 @@ export function Dashboard() {
             <div className="h-10 w-px bg-white/5 mx-2" />
             <div className="flex items-center gap-4 pl-2">
                <div className="text-right hidden sm:block">
-                 <p className="text-[10px] font-black text-white uppercase tracking-tighter leading-none">System Active</p>
+                 <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] font-black text-emerald-500/80 tracking-widest uppercase">Platform Live</span>
+                 </div>
                  <p className="text-[8px] text-emerald-500 font-mono mt-1">Uptime: 99.9%</p>
                </div>
                <div className="h-10 w-10 rounded-xl border border-white/10 overflow-hidden ring-4 ring-white/5 shadow-2xl shrink-0">
@@ -336,7 +331,7 @@ export function Dashboard() {
                 <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
                   <div>
                     <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.4em] text-slate-500 mb-4 font-black">
-                      <span className="opacity-50">System</span>
+                      <span className="opacity-50">Registry</span>
                       <ChevronRight size={10} className="text-slate-800" />
                       <span className="text-violet-400">{activeTab}</span>
                       {activeTab === "settings" && (
@@ -348,7 +343,7 @@ export function Dashboard() {
                     </div>
                     <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">{activeTab}</h2>
                     <p className="text-slate-500 text-xs font-medium mt-4 max-w-xl leading-relaxed">
-                      Interface Protocol for {activeTab} management. Accessing secure backend layers for real-time synchronization.
+                      Administrative Portal for {activeTab} management. Accessing secure book-world records for real-time library synchronization.
                     </p>
                   </div>
                   
@@ -362,7 +357,7 @@ export function Dashboard() {
                       className="flex items-center gap-3 bg-violet-600 hover:bg-violet-500 text-white px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 shadow-[0_10px_30px_rgba(124,58,237,0.3)] border border-violet-400/20"
                     >
                       <Plus size={18} />
-                      Deploy Entry
+                      New Title
                     </button>
                   </div>
                 </header>
@@ -407,10 +402,10 @@ export function Dashboard() {
                                   <div className="w-24 h-24 rounded-[2rem] bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 mb-8 mx-auto rotate-12 group-hover:rotate-0 transition-transform duration-700">
                                     <LayoutGrid size={40} />
                                   </div>
-                                  <p className="text-slate-500 text-[10px] tracking-[0.6em] uppercase mb-4 font-black">Secure Transmission</p>
-                                  <p className="text-4xl font-black uppercase tracking-tighter text-white italic">{activeTab} Protocol</p>
+                                  <span className="text-xs font-black text-slate-500 tracking-[0.3em] uppercase">Publisher Management</span>
+                                  <p className="text-4xl font-black uppercase tracking-tighter text-white italic mt-4">{activeTab} Publisher</p>
                                   <p className="text-slate-400 text-sm mt-6 max-w-sm mx-auto leading-relaxed">
-                                    The {activeTab} architecture is fully integrated. All operational data is encrypted and mirrored across edge nodes.
+                                    The {activeTab} system is fully synchronized. All library data is mirrored and secured.
                                   </p>
                                   <button className="mt-10 text-violet-400 font-black text-[10px] uppercase tracking-[0.3em] hover:text-white transition-colors">
                                     Refresh Module Data

@@ -66,7 +66,7 @@ function SortablePhoto({ photo, index, onRemove }: { photo: any; index: number; 
           onClick={(e) => { e.stopPropagation(); onRemove(photo.id); }} 
           className="w-full py-3 bg-red-500/20 text-red-400 rounded-xl hover:bg-red-500 hover:text-white transition-all text-[10px] font-black tracking-widest backdrop-blur-md border border-red-500/20"
         >
-          REMOVE ASSET
+          REMOVE IMAGE
         </button>
       </div>
       <div className="absolute top-4 left-4 px-3 py-1 bg-black/60 backdrop-blur-md text-[8px] text-white/60 rounded-full font-black tracking-[0.2em] border border-white/5">
@@ -223,7 +223,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     if (loading) return;
 
     if (!formData.title.trim()) {
-      toast.error("Canonical title is required.");
+      toast.error("Book title is required.");
       return;
     }
 
@@ -237,10 +237,10 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       console.log("Saving book data:", formData);
       if (book) {
         await adminApi.updateBook(book.id, formData);
-        toast.success("Volume updated successfully");
+        toast.success("Book updated successfully");
       } else {
         await adminApi.createBook(formData);
-        toast.success("New edition created");
+        toast.success("New title added to library");
       }
       setInitialData(formData); // Update initial data after save so we don't prompt on close
       onSave();
@@ -348,14 +348,14 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             <ArrowLeft size={20} className="text-slate-400 group-hover:text-white transition-colors" />
           </button>
           <div>
-            <h3 className="text-3xl font-black tracking-tighter text-white uppercase">{book ? "Edit Volume" : "New Edition"}</h3>
+            <h3 className="text-3xl font-black tracking-tighter text-white uppercase">{book ? "Edit Book" : "New Title"}</h3>
             <div className="flex items-center gap-3 mt-1">
               <span className="text-[9px] font-black text-violet-400 uppercase tracking-[0.3em]">
-                {book ? `Catalog ID: ${book.id}` : "Conceptual Entry"}
+                {book ? `Library ID: ${book.id}` : "New Manuscript"}
               </span>
               <div className="w-1 h-1 rounded-full bg-slate-700" />
               <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em]">
-                Manifest System v2.4
+                Library System v2.4
               </span>
             </div>
           </div>
@@ -377,14 +377,14 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             onClick={handleClose} 
             className="px-8 py-4 text-[10px] font-black tracking-[0.3em] text-slate-600 hover:text-red-400 transition-all"
           >
-            ABORT MISSION
+            CANCEL
           </button>
           <button 
             onClick={handleSave}
             disabled={loading}
             className="flex items-center gap-4 bg-violet-600 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] hover:bg-violet-500 active:scale-95 transition-all shadow-2xl shadow-violet-600/20 disabled:opacity-50"
           >
-            {loading ? <><Loader2 size={16} className="animate-spin" /> SYNCHRONIZING...</> : <><Save size={16} /> COMMIT TO REGISTRY</>}
+            {loading ? <><Loader2 size={16} className="animate-spin" /> SAVING...</> : <><Save size={16} /> SAVE TO LIBRARY</>}
           </button>
         </div>
       </header>
@@ -395,10 +395,10 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
             <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">I. Core Metadata</h4>
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">I. Book Details</h4>
               <div className="space-y-10">
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">CANONICAL VOLUME TITLE</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">BOOK TITLE</label>
                   <input 
                     name="title" 
                     value={formData.title} 
@@ -411,7 +411,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">ARTIST ATTRIBUTION / SUBTITLE</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">AUTHOR(S) / CONTRIBUTORS</label>
                     <input 
                       name="subtitle" 
                       value={formData.subtitle} 
@@ -436,14 +436,14 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 </div>
 
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">EDITORIAL ABSTRACT / NOTES</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">DESCRIPTION / BLURB</label>
                   <textarea 
                     name="description" 
                     value={formData.description} 
                     onChange={handleChange}
                     rows={8}
                     className="w-full bg-white/5 border border-white/10 rounded-3xl py-6 px-8 text-xs text-slate-300 focus:border-violet-500/50 focus:bg-white/[0.08] outline-none transition-all leading-relaxed custom-scrollbar"
-                    placeholder="Enter publication notes, artistic intent, and technical specifications..."
+                    placeholder="Enter book description, blurb, and additional notes..."
                   />
                 </div>
               </div>
@@ -453,7 +453,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-bl from-cyan-500/[0.03] to-transparent pointer-events-none" />
             <div className="relative z-10">
-               <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">II. Technical Specifications</h4>
+               <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">II. Publishing Details</h4>
                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                   <div className="space-y-4">
                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">ISBN / EAN-13</label>
@@ -476,7 +476,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                      />
                   </div>
                   <div className="space-y-4">
-                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">BINDING FORMAT</label>
+                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">FORMAT</label>
                      <select 
                        name="format" 
                        value={formData.format} 
@@ -495,8 +495,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                <div className="pt-12 border-t border-white/5 mt-12">
                  <div className="flex justify-between items-center mb-10">
                    <div>
-                     <h5 className="text-[10px] font-black tracking-widest text-slate-500 uppercase">Product Variant Matrix</h5>
-                     <p className="text-[8px] text-slate-600 mt-1 uppercase tracking-widest">Multi-edition stock management</p>
+                     <h5 className="text-[10px] font-black tracking-widest text-slate-500 uppercase">Editions & Pricing</h5>
+                     <p className="text-[8px] text-slate-600 mt-1 uppercase tracking-widest">Multi-format management</p>
                    </div>
                    <button 
                      type="button" 
@@ -504,14 +504,14 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                      className="bg-white/5 border border-white/10 px-6 py-3 rounded-xl text-[9px] font-black text-white flex items-center gap-3 hover:bg-white/10 transition-all shadow-xl"
                    >
                      <Plus size={14} className="text-cyan-400" /> 
-                     ADD VARIANT
+                     ADD EDITION
                    </button>
                  </div>
                  <div className="space-y-4">
                    {formData.variants.map((v: any) => (
                      <div key={v.id} className="flex gap-4 bg-white/[0.02] border border-white/5 p-4 rounded-2xl items-center group hover:border-cyan-500/30 transition-all">
                        <div className="flex-1 space-y-2">
-                         <label className="text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">VARIANT NAME</label>
+                         <label className="text-[8px] font-black text-slate-700 uppercase tracking-widest ml-1">EDITION NAME</label>
                          <input 
                            placeholder="e.g. Signed Collector's Copy" 
                            value={v.name} 
@@ -542,7 +542,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                    ))}
                    {formData.variants.length === 0 && (
                      <div className="h-24 flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-3xl gap-2">
-                       <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.2em]">Single product edition (Standard)</p>
+                       <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.2em]">Single edition (Standard)</p>
                      </div>
                    )}
                  </div>
@@ -553,7 +553,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/[0.03] to-transparent pointer-events-none" />
             <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">III. Taxonomy & Classification</h4>
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">III. Genres & Categories</h4>
               <div className="flex flex-wrap gap-4">
                 {Array.from(new Set([...categories, "Photography", "Contemporary", "Artist Book", "Zine", "Archive"])).map(cat => (
                   <button
@@ -579,7 +579,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-b from-violet-500/[0.03] to-transparent pointer-events-none" />
             <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">IV. Visual Archive</h4>
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">IV. Book Covers & Media</h4>
               
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <div className="grid grid-cols-2 gap-6 mb-10">
@@ -606,7 +606,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                           <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
                             <Upload size={24} className="text-violet-400" />
                           </div>
-                          <span className="text-[8px] tracking-[0.3em] font-black uppercase">Attach Volume Asset</span>
+                          <span className="text-[8px] tracking-[0.3em] font-black uppercase">Upload Cover / Image</span>
                         </>
                       )}
                     </button>
@@ -623,7 +623,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
               />
 
               <div className="space-y-4">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">REMOTE ASSET SYNCHRONIZATION (URL)</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">ADD IMAGE VIA URL</label>
                 <div className="flex gap-4">
                   <input 
                     type="text" 
@@ -648,11 +648,11 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/[0.03] to-transparent pointer-events-none" />
             <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">V. Commerce & Deployment</h4>
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">V. Availability & Sales</h4>
               <div className="space-y-10">
                 <div className="grid grid-cols-2 gap-8">
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">BASE RETAIL PRICE (USD)</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">RETAIL PRICE (USD)</label>
                     <div className="relative">
                       <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 text-xs">$</span>
                       <input
@@ -667,7 +667,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">INVENTORY QUOTA</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">STOCK LEVEL</label>
                     <input 
                       type="number" 
                       name="stockLevel" 
@@ -681,7 +681,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 <div className="space-y-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
                    <div className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">MARKDOWN PROTOCOL (SALE)</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">ON SALE</label>
                         <p className="text-[8px] text-slate-600 uppercase tracking-widest">Toggle promotional pricing</p>
                       </div>
                       <input 
@@ -711,7 +711,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
                 <div className="grid grid-cols-1 gap-8">
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">LOGISTICS PROFILE</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">SHIPPING PROFILE</label>
                     <select 
                       name="shippingProfileId" 
                       value={formData.shippingProfileId} 
@@ -723,7 +723,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                   </div>
 
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">PUBLICATION STATUS</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">BOOK STATUS</label>
                     <select 
                       name="status" 
                       value={formData.status} 
@@ -734,9 +734,9 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                           : 'bg-white/5 border-white/10 text-slate-400'
                       }`}
                     >
-                      <option value="draft" className="bg-[#0A0A0B]">DRAFT / STAGING</option>
-                      <option value="published" className="bg-[#0A0A0B]">PUBLISHED / PRODUCTION</option>
-                      <option value="archived" className="bg-[#0A0A0B]">ARCHIVED / LEGACY</option>
+                      <option value="draft" className="bg-[#0A0A0B]">Draft</option>
+                      <option value="published" className="bg-[#0A0A0B]">Published</option>
+                      <option value="archived" className="bg-[#0A0A0B]">Archived</option>
                     </select>
                   </div>
                 </div>

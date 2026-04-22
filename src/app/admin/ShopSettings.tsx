@@ -18,6 +18,15 @@ import {
   AlertCircle as AlertCircleIcon,
   Clock,
   Link,
+  MapPin,
+  CreditCard,
+  ShieldCheck,
+  Package,
+  Truck,
+  History,
+  TrendingUp,
+  Map,
+  DollarSign
 } from "lucide-react";
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -110,8 +119,8 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
       <header className="flex flex-col gap-2 mb-12">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">General Engine</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Core Store Parameters & Identity</p>
+            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">General Settings</h2>
+            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Core Publisher Parameters & Identity</p>
           </div>
           {hasChanges('general') && (
             <button
@@ -132,7 +141,7 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
            <div className="flex-1 space-y-6">
               <SectionHeader 
                 title="Maintenance mode" 
-                subtitle="Protocol Suspension" 
+                subtitle="Offline Mode" 
                 icon={Lock} 
                 color="amber" 
               />
@@ -184,7 +193,7 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
         <div className="flex justify-between items-center relative z-10">
            <SectionHeader 
              title="Digital Presence" 
-             subtitle="DNS & Entry Points" 
+             subtitle="Domain & Visibility" 
              icon={Globe} 
              color="cyan" 
            />
@@ -227,8 +236,8 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
          <div className="absolute inset-0 bg-gradient-to-tr from-violet-500/[0.03] to-transparent pointer-events-none" />
          <div className="flex justify-between items-center relative z-10">
             <SectionHeader 
-              title="Corporate Identity" 
-              subtitle="Brand Essence & Narrative" 
+              title="Publisher Identity" 
+              subtitle="Brand Essence & Story" 
               icon={Building} 
             />
             {hasChanges('info') && (
@@ -244,7 +253,7 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
             <div className="space-y-2">
                <InputField 
-                 label="SHOP DESIGNATION"
+                 label="PUBLISHING HOUSE NAME"
                  value={settings.info?.name || ""}
                  onChange={(e: any) => setSettings({...settings, info: {...settings.info, name: e.target.value}})}
                />
@@ -260,7 +269,7 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
                />
             </div>
             <div className="md:col-span-2 space-y-4">
-               <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">MISSION MANIFESTO</label>
+               <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">PUBLISHER BIO / MANIFESTO</label>
                <textarea 
                  rows={5}
                  className="w-full bg-white/[0.03] border border-white/10 rounded-[2.5rem] px-10 py-8 text-sm text-white outline-none focus:border-violet-500/50 focus:bg-white/[0.06] transition-all resize-none leading-relaxed font-medium shadow-inner"
@@ -277,8 +286,8 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
          <div className="absolute inset-0 bg-gradient-to-bl from-cyan-500/[0.03] to-transparent pointer-events-none" />
          <div className="flex justify-between items-center relative z-10">
             <SectionHeader 
-              title="Physical Nexus" 
-              subtitle="HQ Coordinates & Routing" 
+              title="Headquarters" 
+              subtitle="Main Office & Shipping Origin" 
               icon={Building} 
               color="cyan"
             />
@@ -339,8 +348,8 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
       <header className="flex flex-col gap-2 mb-12">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Communications Relay</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Automated Customer Response Protocols</p>
+            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Email Notifications</h2>
+            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Automated Reader Response Settings</p>
           </div>
           {hasChanges('communications') && (
             <button
@@ -359,7 +368,7 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
         <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
         <SectionHeader 
           title="Sender Identity" 
-          subtitle="Metadata for outbound electronic transmissions" 
+          subtitle="Email details for outbound transmissions" 
           icon={Mail} 
           color="violet"
         />
@@ -384,8 +393,8 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
       <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/[0.03] to-transparent pointer-events-none" />
         <SectionHeader 
-          title="Automated Dispatches" 
-          subtitle="Transactional Logic Sequences" 
+          title="Automated Emails" 
+          subtitle="Transactional Message Settings" 
           icon={CheckCircle} 
           color="emerald"
         />
@@ -394,8 +403,8 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
           {/* Order receipts */}
           <div className="flex justify-between items-start gap-12 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-emerald-500/20 transition-all">
             <div className="flex-1">
-              <h4 className="text-xl font-black text-white uppercase tracking-tight mb-2 italic">Order receipt logic</h4>
-              <p className="text-xs text-slate-400 leading-relaxed font-medium">Instantaneous transmission following successful transaction validation.</p>
+              <h4 className="text-xl font-black text-white uppercase tracking-tight mb-2 italic">Order Confirmation</h4>
+              <p className="text-xs text-slate-400 leading-relaxed font-medium">Automatic email sent after a successful purchase.</p>
             </div>
             <Switch
               checked={comms.orderReceipts ?? true}
@@ -411,7 +420,7 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
                 exit={{ opacity: 0, height: 0, marginTop: 0 }}
                 className="space-y-4 overflow-hidden px-8"
               >
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">MANIFEST APPENDAGE (CUSTOM MESSAGE)</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">CUSTOM RECEIPT MESSAGE</label>
                 <textarea
                   rows={4}
                   placeholder="Thank you for your order! We'll start processing it right away."
@@ -426,8 +435,8 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
           {/* Shipping status */}
           <div className="flex justify-between items-start gap-12 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-emerald-500/20 transition-all">
             <div className="flex-1">
-              <h4 className="text-xl font-black text-white uppercase tracking-tight mb-2 italic">Logistics confirmation</h4>
-              <p className="text-xs text-slate-400 font-medium leading-relaxed">Dispatch alerts upon carrier handoff and tracking initialization.</p>
+              <h4 className="text-xl font-black text-white uppercase tracking-tight mb-2 italic">Shipping Update</h4>
+              <p className="text-xs text-slate-400 font-medium leading-relaxed">Alerts sent when a book is dispatched with tracking.</p>
             </div>
             <Switch
               checked={comms.shippingStatus ?? true}
@@ -438,11 +447,11 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
           {/* Abandoned cart */}
           <div className="flex justify-between items-start gap-12 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 opacity-30 grayscale cursor-not-allowed">
             <div className="flex-1">
-              <h4 className="text-xl font-black text-white uppercase tracking-tight mb-2 italic">Recovery sequence</h4>
-              <p className="text-xs text-slate-400 font-medium leading-relaxed">Retargeting protocols for incomplete cart instances and failed checkouts.</p>
+              <h4 className="text-xl font-black text-white uppercase tracking-tight mb-2 italic">Cart Recovery</h4>
+              <p className="text-xs text-slate-400 font-medium leading-relaxed">Follow-up emails for readers who didn't complete their purchase.</p>
             </div>
             <div className="flex flex-col items-end gap-3">
-               <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-6 py-2 rounded-2xl text-[10px] font-black tracking-[0.2em] uppercase shadow-2xl shadow-amber-500/10">PRO PROTOCOL</span>
+               <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 px-6 py-2 rounded-2xl text-[10px] font-black tracking-[0.2em] uppercase shadow-2xl shadow-amber-500/10">PREMIUM FEATURE</span>
                <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.4em]">ENCRYPTED FEATURE</p>
             </div>
           </div>
@@ -454,7 +463,7 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
         <div className="absolute inset-0 bg-gradient-to-bl from-violet-500/[0.03] to-transparent pointer-events-none" />
         <SectionHeader 
           title="System Alerts" 
-          subtitle="Internal Telemetry Protocols" 
+          subtitle="Internal Notification Settings" 
           icon={AlertCircleIcon} 
           color="violet"
         />
@@ -462,8 +471,8 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
           <div className="flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all group shadow-inner">
             <div className="flex-1">
-              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2 italic">New transaction</h4>
-              <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em]">Real-time sale alerts</p>
+              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2 italic">New Book Order</h4>
+              <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em]">Real-time sales alerts</p>
             </div>
             <Switch
               checked={comms.newOrderNotifications ?? true}
@@ -472,7 +481,7 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
           </div>
           <div className="flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all group shadow-inner">
             <div className="flex-1">
-              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2 italic">Stock depletion</h4>
+              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2 italic">Low Stock Alert</h4>
               <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em]">Alert at &lt; 5 units</p>
             </div>
             <Switch
@@ -482,8 +491,8 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
           </div>
           <div className="md:col-span-2 flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all group shadow-inner">
             <div className="flex-1">
-              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2 italic">Performance Digest</h4>
-              <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em]">Weekly analytical transmission every Monday at 08:00 UTC</p>
+              <h4 className="text-sm font-black text-white uppercase tracking-widest mb-2 italic">Sales Digest</h4>
+              <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em]">Weekly sales summary sent every Monday</p>
             </div>
             <Switch
               checked={comms.weeklySalesDigest ?? false}
@@ -531,15 +540,15 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
       <header className="flex flex-col gap-2 mb-12">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Logistics Matrix</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Global fulfillment & freight parameters</p>
+            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Shipping Matrix</h2>
+            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Global fulfillment & shipping rates</p>
           </div>
           <button 
             onClick={() => setIsAdding(!isAdding)} 
             className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/40 hover:bg-violet-500 transition-all flex items-center gap-4 border border-violet-400/20 active:scale-95"
           >
              {isAdding ? <X size={16} /> : <Plus size={16} />} 
-             {isAdding ? "ABORT" : "NEW REGION"}
+              {isAdding ? "CANCEL" : "ADD SHIPPING ZONE"}
           </button>
         </div>
       </header>
@@ -548,8 +557,8 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
          <section className="glass-card rounded-[3rem] p-12 border border-violet-500/30 bg-violet-500/[0.05] space-y-12 relative overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
             <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent pointer-events-none" />
             <SectionHeader 
-              title="Initialize Zone" 
-              subtitle="Define geographic constraints and fiscal requirements" 
+              title="Add Shipping Zone" 
+              subtitle="Define geographic rates and base costs" 
               icon={MapPin} 
               color="violet"
             />
@@ -561,26 +570,26 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
                   onChange={(e: any) => setNewRegion(e.target.value)} 
                />
                <InputField 
-                  label="BASE FREIGHT (USD)" 
-                  placeholder="5.00" 
-                  type="number"
-                  value={newBase} 
-                  onChange={(e: any) => setNewBase(e.target.value)} 
-               />
+                   label="BASE SHIPPING (USD)" 
+                   placeholder="5.00" 
+                   type="number"
+                   value={newBase} 
+                   onChange={(e: any) => setNewBase(e.target.value)} 
+                />
                <InputField 
-                  label="INCREMENTAL UNIT TAX" 
-                  placeholder="2.00" 
-                  type="number"
-                  value={newAdd} 
-                  onChange={(e: any) => setNewAdd(e.target.value)} 
-               />
+                   label="ADDITIONAL ITEM RATE" 
+                   placeholder="2.00" 
+                   type="number"
+                   value={newAdd} 
+                   onChange={(e: any) => setNewAdd(e.target.value)} 
+                />
             </div>
             <div className="flex gap-6 relative z-10">
               <button 
                 onClick={handleCreate} 
                 className="bg-white text-black px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] hover:bg-slate-200 active:scale-95 transition-all shadow-2xl shadow-white/10"
               >
-                 ACTIVATE PROTOCOL
+                  SAVE SHIPPING ZONE
               </button>
               <button 
                 onClick={() => setIsAdding(false)} 
@@ -595,8 +604,8 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
       <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
          <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/[0.03] to-transparent pointer-events-none" />
          <SectionHeader 
-           title="Active Logistics Grid" 
-           subtitle="Automated delivery cost calculations based on coordinate mapping" 
+           title="Active Shipping Rates" 
+           subtitle="Automated delivery cost calculations based on location" 
            icon={Globe} 
            color="cyan"
          />
@@ -635,19 +644,19 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
                  </div>
                  <div className="p-10 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
                     <div>
-                       <h4 className="text-lg font-black text-white uppercase tracking-tight mb-2 italic leading-none">Standard Courier Protocol</h4>
-                       <p className="text-[10px] text-slate-500 uppercase font-bold tracking-[0.2em]">Estimated TTL: 3-5 Standard Cycles</p>
+                        <h4 className="text-lg font-black text-white uppercase tracking-tight mb-2 italic leading-none">Standard Shipping Rate</h4>
+                        <p className="text-[10px] text-slate-500 uppercase font-bold tracking-[0.2em]">Estimated Delivery: 3-7 Business Days</p>
                     </div>
                     <div className="flex gap-16 justify-end">
                        <div className="space-y-3">
-                          <p className="text-[9px] text-slate-600 font-black uppercase tracking-[0.3em]">BASE TAX</p>
+                          <p className="text-[9px] text-slate-600 font-black uppercase tracking-[0.3em]">BASE RATE</p>
                           <div className="text-3xl font-black text-white tracking-tighter flex items-start gap-1">
                              <span className="text-xs text-slate-500 mt-1">$</span>
                              {r.base}
                           </div>
                        </div>
                        <div className="space-y-3">
-                          <p className="text-[9px] text-slate-600 font-black uppercase tracking-[0.3em]">UNIT ADDITIVE</p>
+                          <p className="text-[9px] text-slate-600 font-black uppercase tracking-[0.3em]">ADDITIONAL BOOK</p>
                           <div className="text-3xl font-black text-white tracking-tighter flex items-start gap-1">
                              <span className="text-xs text-slate-500 mt-1">$</span>
                              {r.additional}
@@ -686,8 +695,8 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
       <header className="flex flex-col gap-2 mb-12">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Fiscal Gateway</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Transaction processing & currency protocols</p>
+            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Payment Gateway</h2>
+            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Transaction processing & payment settings</p>
           </div>
           {hasChanges('payments') && (
             <button
@@ -709,8 +718,8 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
          <div className="relative z-10">
             <div className="flex justify-between items-start mb-12">
                <SectionHeader 
-                  title="Stripe Connect" 
-                  subtitle="Primary high-security fiscal processor" 
+                  title="Stripe Checkout" 
+                  subtitle="Primary secure payment processor" 
                   icon={ShieldCheck} 
                   color="violet"
                />
@@ -749,14 +758,14 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                   >
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                         <InputField 
-                           label="PUBLISHABLE TELEMETRY KEY" 
+                           label="STRIPE PUBLISHABLE KEY" 
                            placeholder="pk_live_..."
                            icon={Lock}
                            value={stripe.publicKey || ""}
                            onChange={(e: any) => updateStripe({ publicKey: e.target.value })}
                         />
                         <InputField 
-                           label="SECRET TRANSMISSION KEY" 
+                           label="STRIPE SECRET KEY" 
                            placeholder="sk_live_..."
                            icon={ShieldCheck}
                            type="password"
