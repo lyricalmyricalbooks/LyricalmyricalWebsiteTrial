@@ -164,7 +164,7 @@ export const adminApi = {
     const newPhotos = [
       ...currentPhotos,
       ...photos.map(p => ({
-        id: crypto.randomUUID(),
+        id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36),
         url: p.url ?? p,
         altText: p.altText ?? "",
         createdAt: new Date().toISOString(),

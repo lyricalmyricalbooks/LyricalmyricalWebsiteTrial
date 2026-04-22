@@ -60,7 +60,7 @@ export function Dashboard() {
 
   useEffect(() => {
     const unsubscribe = adminApi.onAuthStateChange((u) => {
-      setUser(u || { email: "debug@example.com", displayName: "Debug Admin" });
+      setUser(u);
       setLoading(false);
       if (u) {
         loadStats();
@@ -119,7 +119,7 @@ export function Dashboard() {
     );
   }
 
-  if (false && !user) {
+  if (!user) {
     return <Login onLogin={() => {}} />;
   }
 
@@ -138,10 +138,10 @@ export function Dashboard() {
   };
 
   const navItems = [
-    { id: "overview", label: "Fiscal Ledger", icon: LayoutDashboard, color: "text-cyan-400" },
+    { id: "overview", label: "Ledger", icon: LayoutDashboard, color: "text-cyan-400" },
     { id: "orders", label: "Fulfillment", icon: ShoppingCart, color: "text-violet-400" },
-    { id: "catalog", label: "Book Library", icon: BookOpen, color: "text-emerald-400" },
-    { id: "discounts", label: "Promotions", icon: Tag, color: "text-amber-400" },
+    { id: "catalog", label: "Book Registry", icon: BookOpen, color: "text-emerald-400" },
+    { id: "discounts", label: "Campaigns", icon: Tag, color: "text-amber-400" },
     { id: "settings", label: "Publisher Tools", icon: Settings, color: "text-rose-400", children: [
         { id: "general", label: "Global Settings", icon: ShieldCheck },
         { id: "shipping", label: "Shipping Matrix", icon: Truck },
@@ -285,9 +285,12 @@ export function Dashboard() {
 
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
-              <button className="p-3 text-slate-500 hover:text-white transition-all hover:bg-white/5 rounded-xl border border-transparent hover:border-white/10 active:scale-95 relative">
-                <Plus size={16} />
-                <span className="font-black tracking-[0.2em] uppercase">New Title</span>
+              <button 
+                onClick={handleAddBook}
+                className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all active:scale-95 group relative"
+              >
+                <Plus size={16} className="text-violet-400 group-hover:text-violet-300" />
+                <span className="font-black tracking-[0.2em] uppercase text-[10px]">New Title</span>
               </button>
               <button className="p-3 text-slate-500 hover:text-white transition-all hover:bg-white/5 rounded-xl border border-transparent hover:border-white/10 active:scale-95">
                 <HelpCircle size={20} />
@@ -312,22 +315,6 @@ export function Dashboard() {
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto p-10 relative scroll-smooth custom-scrollbar">
           <div className="max-w-[1400px] mx-auto pb-20">
-            {showEditor ? (
-              <div className="fixed inset-0 z-[100] p-6 md:p-12 bg-black/80 backdrop-blur-xl flex items-center justify-center">
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  className="w-full max-w-7xl h-[92vh] glass-card rounded-[3rem] border border-white/10 overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] flex flex-col"
-                >
-                  <BookEditor 
-                    book={editingBook} 
-                    onClose={() => setShowEditor(false)} 
-                    onSave={() => { setShowEditor(false); setActiveTab("catalog"); loadStats(); }} 
-                  />
-                </motion.div>
-              </div>
-            ) : (
-              <>
                 <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
                   <div>
                     <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.4em] text-slate-500 mb-4 font-black">
@@ -373,7 +360,9 @@ export function Dashboard() {
                     >
                       {(() => {
                         switch (activeTab) {
-                          case "overview": return <AnalyticsDashboard />;
+                          case "overview": 
+                          case "analytics":
+                            return <AnalyticsDashboard />;
                           case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} />;
                           case "discounts": return <Discounts />;
                           case "orders": 
@@ -382,11 +371,20 @@ export function Dashboard() {
                             ) : (
                               <Orders onSelectOrder={(order) => setSelectedOrder(order)} />
                             );
+                          case "shipping":
+                          case "payments":
                           case "settings": 
                             return (
                               <ShopSettings 
-                                activeTab={settingsTab} 
-                                setActiveTab={setSettingsTab} 
+                                activeTab={activeTab === "settings" ? settingsTab : activeTab} 
+                                setActiveTab={activeTab === "settings" ? setSettingsTab : (tab: string) => {
+                                  if (tab === "shipping" || tab === "payments") {
+                                    setActiveTab(tab);
+                                  } else {
+                                    setActiveTab("settings");
+                                    setSettingsTab(tab);
+                                  }
+                                }} 
                                 settings={settings}
                                 setSettings={setSettings}
                                 originalSettings={originalSettings}
@@ -418,12 +416,37 @@ export function Dashboard() {
                     </motion.div>
                   </AnimatePresence>
                 </div>
-              </>
-            )}
           </div>
         </main>
       </div>
     </div>
+      {/* Book Editor Takeover */}
+      <AnimatePresence>
+        {showEditor && (
+          <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 md:p-12">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.4, ease: "circOut" }}
+              className="w-full max-w-7xl h-full max-h-[92vh] flex flex-col"
+            >
+              <BookEditor 
+                book={editingBook} 
+                onClose={() => setShowEditor(false)} 
+                onSave={() => { 
+                  setShowEditor(false); 
+                  if (activeTab === "catalog") {
+                    // Logic to refresh catalog would go here
+                  }
+                  loadStats(); 
+                }} 
+              />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Theme Editor Takeover */}
       <AnimatePresence>
         {activeTab === "settings" && settingsTab === "designer" && settings && (

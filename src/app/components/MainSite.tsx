@@ -399,7 +399,7 @@ function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive:
               className="px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black transition-transform hover:scale-[1.02]"
               style={{ backgroundColor: design?.primaryColor || "#A855F7" }}
             >
-              {activeSlide?.ctaText || "ENTER SHOP"}
+              {activeSlide?.ctaText || "ENTER ARCHIVE"}
             </button>
           </div>
         </div>

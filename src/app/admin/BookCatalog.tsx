@@ -169,14 +169,14 @@ export function BookCatalog({ onEdit, onAdd }: BookCatalogProps) {
           >
             <div className="flex items-center gap-8">
               <div className="flex flex-col">
-                <span className="text-[9px] font-black uppercase tracking-[0.4em] text-violet-200">Protocol Selection</span>
-                <span className="text-lg font-black tracking-tighter">{selectedBooks.length} ITEMS ARTIFACTS</span>
+                <span className="text-[9px] font-black uppercase tracking-[0.4em] text-violet-200">Bulk Selection</span>
+                <span className="text-lg font-black tracking-tighter">{selectedBooks.length} TITLES SELECTED</span>
               </div>
               <div className="h-10 w-px bg-white/20" />
               <div className="flex items-center gap-3">
-                <button onClick={() => handleBulkAction('publish')} className="bg-white/10 hover:bg-white/20 px-6 py-2.5 rounded-2xl text-[10px] uppercase font-black tracking-widest transition-all">Synchronize</button>
-                <button onClick={() => handleBulkAction('draft')} className="bg-white/10 hover:bg-white/20 px-6 py-2.5 rounded-2xl text-[10px] uppercase font-black tracking-widest transition-all">Archive</button>
-                <button onClick={() => handleBulkAction('delete')} className="bg-rose-500/20 hover:bg-rose-500/40 text-rose-100 px-6 py-2.5 rounded-2xl text-[10px] uppercase font-black tracking-widest transition-all">De-Materialize</button>
+                <button onClick={() => handleBulkAction('publish')} className="bg-white/10 hover:bg-white/20 px-6 py-2.5 rounded-2xl text-[10px] uppercase font-black tracking-widest transition-all">Publish</button>
+                <button onClick={() => handleBulkAction('draft')} className="bg-white/10 hover:bg-white/20 px-6 py-2.5 rounded-2xl text-[10px] uppercase font-black tracking-widest transition-all">Set Draft</button>
+                <button onClick={() => handleBulkAction('delete')} className="bg-rose-500/20 hover:bg-rose-500/40 text-rose-100 px-6 py-2.5 rounded-2xl text-[10px] uppercase font-black tracking-widest transition-all">Delete</button>
               </div>
             </div>
             <button onClick={() => setSelectedBooks([])} className="p-3 text-white/50 hover:text-white transition-colors bg-white/10 rounded-full border border-white/10">
@@ -193,7 +193,7 @@ export function BookCatalog({ onEdit, onAdd }: BookCatalogProps) {
               <div className="w-24 h-24 border-2 border-violet-500/5 border-t-violet-500 rounded-full animate-spin"></div>
               <div className="absolute inset-0 w-24 h-24 border-2 border-cyan-500/5 border-b-cyan-500 rounded-full animate-spin-slow"></div>
            </div>
-           <p className="text-[10px] tracking-[0.6em] text-slate-500 uppercase font-black animate-pulse">Accessing Archive Vault...</p>
+           <p className="text-[10px] tracking-[0.6em] text-slate-500 uppercase font-black animate-pulse">Loading Titles...</p>
         </div>
       ) : sortedAndFiltered.length === 0 ? (
         <div className="h-[50vh] glass-card rounded-[4rem] border border-white/5 flex flex-col items-center justify-center space-y-6">
@@ -201,7 +201,7 @@ export function BookCatalog({ onEdit, onAdd }: BookCatalogProps) {
               <Search size={64} strokeWidth={0.5} />
            </div>
            <div className="text-center">
-             <p className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">No artifacts matched your query</p>
+             <p className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">No titles found</p>
              <button onClick={() => setSearch("")} className="text-violet-400 font-black text-[10px] uppercase tracking-widest hover:text-white mt-4 block mx-auto underline underline-offset-8 decoration-violet-500/30">Clear selection</button>
            </div>
         </div>
@@ -287,13 +287,13 @@ export function BookCatalog({ onEdit, onAdd }: BookCatalogProps) {
                    </button>
                  </th>
                  <th className="px-10 py-8 text-[10px] tracking-[0.3em] uppercase text-slate-500 font-black cursor-pointer group" onClick={() => handleSort("title")}>
-                   <div className="flex items-center gap-3 group-hover:text-white transition-colors">Artifact <ArrowUpDown size={14} className="text-slate-700" /></div>
+                   <div className="flex items-center gap-3 group-hover:text-white transition-colors">Book Title <ArrowUpDown size={14} className="text-slate-700" /></div>
                  </th>
                  <th className="px-10 py-8 text-[10px] tracking-[0.3em] uppercase text-slate-500 font-black cursor-pointer group" onClick={() => handleSort("inventory")}>
-                   <div className="flex items-center gap-3 group-hover:text-white transition-colors">Resource Density <ArrowUpDown size={14} className="text-slate-700" /></div>
+                   <div className="flex items-center gap-3 group-hover:text-white transition-colors">Stock Level <ArrowUpDown size={14} className="text-slate-700" /></div>
                  </th>
                  <th className="px-10 py-8 text-[10px] tracking-[0.3em] uppercase text-slate-500 font-black cursor-pointer group" onClick={() => handleSort("price")}>
-                   <div className="flex items-center gap-3 group-hover:text-white transition-colors">Economic Value <ArrowUpDown size={14} className="text-slate-700" /></div>
+                   <div className="flex items-center gap-3 group-hover:text-white transition-colors">Retail Price <ArrowUpDown size={14} className="text-slate-700" /></div>
                  </th>
                  <th className="px-10 py-8 text-[10px] tracking-[0.3em] uppercase text-slate-500 font-black text-right">Operations</th>
                </tr>
