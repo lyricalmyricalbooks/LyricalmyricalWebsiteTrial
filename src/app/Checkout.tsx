@@ -1,39 +1,83 @@
-﻿import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router";
+import { useState, useEffect } from "react";
+import { Link } from "react-router";
 import { useCart } from "./CartContext";
-import { ChevronLeft, Tag, ShieldCheck, ArrowRight, X, AlertCircle } from "lucide-react";
+import {
+  ChevronLeft, Tag, ShieldCheck, X, AlertCircle,
+  Package, Truck, CreditCard, CheckCircle2, Loader2, Lock
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { loadStripe } from "@stripe/stripe-js";
 import { adminApi } from "./admin/api";
 
+// ─── Reusable input ───────────────────────────────────────────────────────────
+function Field({
+  label, type = "text", value, onChange, placeholder, autoComplete, inputMode, required
+}: {
+  label: string; type?: string; value: string;
+  onChange: (v: string) => void; placeholder?: string;
+  autoComplete?: string; inputMode?: any; required?: boolean;
+}) {
+  const [focused, setFocused] = useState(false);
+  const filled = value.length > 0;
+  return (
+    <div className="relative">
+      <input
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        placeholder=" "
+        autoComplete={autoComplete}
+        inputMode={inputMode}
+        required={required}
+        aria-label={label}
+        className="peer w-full bg-white/[0.04] border border-white/10 rounded-2xl pt-6 pb-3 px-5 text-sm text-white outline-none transition-all duration-300 focus:border-violet-500/60 focus:bg-white/[0.07] placeholder-transparent"
+      />
+      <label className={`absolute left-5 transition-all duration-200 pointer-events-none font-black tracking-[0.15em] uppercase
+        ${focused || filled
+          ? "top-2 text-[8px] text-violet-400"
+          : "top-1/2 -translate-y-1/2 text-[10px] text-white/30"
+        }`}>
+        {label}
+      </label>
+    </div>
+  );
+}
+
+// ─── Step badge ───────────────────────────────────────────────────────────────
+function StepBadge({ n, label }: { n: string; label: string }) {
+  return (
+    <div className="flex items-center gap-4 mb-8">
+      <div className="w-8 h-8 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-[10px] font-black text-violet-400 tracking-widest shrink-0">
+        {n}
+      </div>
+      <span className="text-[10px] font-black tracking-[0.35em] text-white/30 uppercase">{label}</span>
+      <div className="flex-1 h-px bg-white/5" />
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 export function Checkout() {
   const { cart, cartTotal, clearCart } = useCart();
-  const navigate = useNavigate();
-  
-  const [isApplying, setIsApplying] = useState(false);
-  const [isCompleting, setIsCompleting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [orderNumber, setOrderNumber] = useState("");
 
-  const [discountCode, setDiscountCode] = useState("");
+  const [isApplying, setIsApplying]     = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [isSuccess, setIsSuccess]       = useState(false);
+  const [orderNumber, setOrderNumber]   = useState("");
+
+  const [discountCode, setDiscountCode]       = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
-  const [discountError, setDiscountError] = useState("");
+  const [discountError, setDiscountError]     = useState("");
 
   const [customer, setCustomer] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    address: {
-      street: "",
-      city: "",
-      state: "",
-      zip: "",
-      country: "United States"
-    }
+    name: "", email: "", phone: "",
+    address: { street: "", city: "", state: "", zip: "", country: "United States" }
   });
 
-  const [shippingCost] = useState(15); // Fixed shipping per order for now
-  
+  const [shippingCost] = useState(15);
+
   const applyDiscount = async () => {
     if (!discountCode) return;
     setIsApplying(true);
@@ -57,336 +101,354 @@ export function Checkout() {
 
   const calculateDiscountAmount = () => {
     if (!appliedDiscount) return 0;
-    if (appliedDiscount.type === 'percentage') {
-      return cartTotal * (appliedDiscount.value / 100);
-    }
-    if (appliedDiscount.type === 'fixed') {
-      return Math.min(appliedDiscount.value, cartTotal);
-    }
-    return 0; // freeship handled separately
+    if (appliedDiscount.type === "percentage") return cartTotal * (appliedDiscount.value / 100);
+    if (appliedDiscount.type === "fixed") return Math.min(appliedDiscount.value, cartTotal);
+    return 0;
   };
 
-  const isFreeShipping = appliedDiscount?.type === 'freeship';
-  const discountAmount = calculateDiscountAmount();
-  const finalShipping = isFreeShipping ? 0 : shippingCost;
-  const finalTotal = cartTotal - discountAmount + finalShipping;
+  const isFreeShipping  = appliedDiscount?.type === "freeship";
+  const discountAmount  = calculateDiscountAmount();
+  const finalShipping   = isFreeShipping ? 0 : shippingCost;
+  const finalTotal      = cartTotal - discountAmount + finalShipping;
 
   const handleCompletePurchase = async () => {
     if (!customer.name || !customer.email || !customer.address.street) {
-      alert("Please fill in shipping details.");
+      alert("Please fill in all required shipping details.");
       return;
     }
-
-    // Validation for Option B Client-Only Stripe Checkout:
-    // Every item MUST have a stripePriceId associated with it!
     const missingStripeIds = cart.filter(item => !item.stripePriceId);
     if (missingStripeIds.length > 0) {
-      alert(`Error: The following items are missing Stripe Price IDs and cannot be processed via client-checkout: ${missingStripeIds.map(i => i.title).join(", ")}. Please contact support or update them in the catalog.`);
+      alert(`Error: missing Stripe Price IDs for: ${missingStripeIds.map(i => i.title).join(", ")}`);
       return;
     }
-
     setIsCompleting(true);
     try {
-      // 1. Fetch public settings to get the Stripe Public Key
-      const settings = await adminApi.getSettings('website');
+      const settings   = await adminApi.getSettings("website");
       const stripePubKey = settings?.payments?.stripe?.publicKey;
-      
-      if (!stripePubKey) {
-        throw new Error("Stripe is not configured or the Public Key is missing from settings.");
-      }
-
-      // 2. Load Stripe
+      if (!stripePubKey) throw new Error("Stripe is not configured.");
       const stripe = await loadStripe(stripePubKey);
-      if (!stripe) throw new Error("Failed to initialize Stripe");
+      if (!stripe) throw new Error("Failed to initialise Stripe.");
 
-      // 3. Create a PENDING order in Firebase BEFORE we redirect, so we have a paper trail
       const orderData = {
         customer,
         items: cart.map(item => ({
-          id: item.id,
-          title: item.title,
-          price: item.price,
-          quantity: item.quantity,
-          photoUrl: item.photoUrl,
+          id: item.id, title: item.title, price: item.price,
+          quantity: item.quantity, photoUrl: item.photoUrl,
           stripePriceId: item.stripePriceId
         })),
-        subtotal: cartTotal,
-        discount: discountAmount,
-        shipping: finalShipping,
-        total: finalTotal,
-        status: "pending_payment", // Mark as pending
-        appliedDiscount: appliedDiscount ? { 
-          id: appliedDiscount.id,
-          code: appliedDiscount.code, 
-          type: appliedDiscount.type, 
-          value: appliedDiscount.value 
-        } : null,
-        metadata: {
-          userAgent: navigator.userAgent,
-          platform: "web"
-        }
+        subtotal: cartTotal, discount: discountAmount,
+        shipping: finalShipping, total: finalTotal,
+        status: "pending_payment",
+        appliedDiscount: appliedDiscount
+          ? { id: appliedDiscount.id, code: appliedDiscount.code, type: appliedDiscount.type, value: appliedDiscount.value }
+          : null,
+        metadata: { userAgent: navigator.userAgent, platform: "web" }
       };
-      
       const orderId = await adminApi.createOrder(orderData);
 
-      // 4. Transform Cart Items into Stripe Line Items
-      const lineItems = cart.map(item => ({
-        price: item.stripePriceId,
-        quantity: item.quantity
-      }));
-
-      // In Option B Client-Side Only Mode, we cannot easily pass dynamic shipping/discount
-      // without creating a Price ID for the discount on the fly. 
-      // We log to the user that client-side only restricts dynamic promos:
-      console.warn("Client-side redirectToCheckout cannot natively pass arbitrary discount subtraction without a Stripe backend Session.");
-
-      // 5. Execute Redirect
+      const lineItems = cart.map(item => ({ price: item.stripePriceId, quantity: item.quantity }));
       const { error } = await stripe.redirectToCheckout({
-        lineItems,
-        mode: 'payment',
+        lineItems, mode: "payment",
         successUrl: `${window.location.origin}/#/checkout?success=true&order_id=${orderId}`,
-        cancelUrl: `${window.location.origin}/#/checkout?canceled=true`,
-        clientReferenceId: orderId, // Note: Stripe might ignore this for purely client-side without session
+        cancelUrl:  `${window.location.origin}/#/checkout?canceled=true`,
+        clientReferenceId: orderId,
         customerEmail: customer.email,
       });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-      
+      if (error) throw new Error(error.message);
     } catch (err: any) {
       alert(`Checkout failed: ${err.message}`);
       setIsCompleting(false);
     }
   };
 
-  // Check URL parameters for Stripe success redirects
   useEffect(() => {
-    const params = new URLSearchParams(window.location.hash.split('?')[1]);
-    if (params.get('success')) {
-      const orderIdObj = params.get('order_id') || "";
-      if (orderIdObj) {
-         setOrderNumber(orderIdObj);
-         // Mark the order as 'paid' in Firestore normally, but since we are client-side 
-         // without a webhook, we assume success if they got here.
-         adminApi.updateOrder(orderIdObj, { status: "paid" });
-      }
+    const params = new URLSearchParams(window.location.hash.split("?")[1]);
+    if (params.get("success")) {
+      const oid = params.get("order_id") || "";
+      if (oid) { setOrderNumber(oid); adminApi.updateOrder(oid, { status: "paid" }); }
       setIsSuccess(true);
       clearCart();
     }
-    if (params.get('canceled')) {
-      alert('Order payment was canceled.');
-    }
+    if (params.get("canceled")) alert("Order payment was canceled.");
   }, []);
 
+  // ── Success screen ──────────────────────────────────────────────────────────
   if (isSuccess) {
     return (
-      <div className="h-screen bg-black text-white flex flex-col items-center justify-center p-8 text-center">
-        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-8">
-           <ShieldCheck size={40} className="text-black" />
-        </div>
-        <h2 className="text-4xl font-light mb-4 italic tracking-tighter">ORDER CONFIRMED</h2>
-        <p className="text-[10px] tracking-[.4em] text-white/40 uppercase mb-2">Thank you for your business.</p>
-        <p className="text-xl font-bold tracking-tighter mb-12">#{orderNumber}</p>
-        <Link to="/" className="bg-white text-black px-10 py-4 rounded-full text-[10px] tracking-[.4em] font-bold hover:scale-105 transition-all">
-           CONTINUE EXPLORING
-        </Link>
+      <div className="h-screen bg-[#050506] text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.15)_0%,transparent_70%)] pointer-events-none" />
+        <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", duration: 0.8 }}
+          className="relative z-10 flex flex-col items-center">
+          <div className="w-24 h-24 rounded-[2rem] bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mb-10 shadow-[0_0_60px_rgba(124,58,237,0.3)]">
+            <CheckCircle2 size={44} className="text-violet-400" />
+          </div>
+          <p className="text-[9px] font-black tracking-[0.5em] text-violet-400 uppercase mb-4">Order Confirmed</p>
+          <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white mb-4">Thank You</h2>
+          <p className="text-white/30 text-xs font-mono mb-2 tracking-widest">ORDER #{orderNumber}</p>
+          <p className="text-white/20 text-[10px] tracking-widest mb-14">A confirmation will be sent to your email.</p>
+          <Link to="/"
+            className="flex items-center gap-3 bg-violet-600 hover:bg-violet-500 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase transition-all active:scale-95 shadow-[0_10px_40px_rgba(124,58,237,0.4)]">
+            Continue Exploring
+          </Link>
+        </motion.div>
       </div>
     );
   }
 
+  // ── Empty cart ──────────────────────────────────────────────────────────────
   if (cart.length === 0) {
     return (
-      <div className="h-screen bg-black text-white flex flex-col items-center justify-center p-8 text-center">
-        <h2 className="text-4xl font-light mb-4">EMPTY ARCHIVE</h2>
-        <p className="text-[10px] tracking-[.4em] text-white/40 uppercase mb-12">Your shopping bag is currently empty.</p>
-        <Link to="/" className="bg-white text-black px-8 py-4 rounded-full text-[10px] tracking-[.4em] font-bold hover:scale-105 transition-all">
-           RETURN TO CATALOG
-        </Link>
+      <div className="h-screen bg-[#050506] text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.08)_0%,transparent_70%)] pointer-events-none" />
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="w-20 h-20 rounded-[1.5rem] bg-white/5 border border-white/10 flex items-center justify-center mb-8">
+            <Package size={36} className="text-white/20" strokeWidth={1} />
+          </div>
+          <p className="text-[9px] font-black tracking-[0.5em] text-white/20 uppercase mb-4">Empty Archive</p>
+          <h2 className="text-4xl font-black tracking-tighter uppercase italic text-white mb-12">Nothing Here</h2>
+          <Link to="/"
+            className="bg-white text-black px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase hover:bg-white/90 transition-all active:scale-95">
+            Return to Catalog
+          </Link>
+        </div>
       </div>
     );
   }
 
+  // ── Main checkout ───────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-white text-black font-sans pb-32">
-      {/* Mini Header */}
-      <nav className="p-8 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-4 text-[10px] tracking-[.3em] font-bold hover:opacity-50 transition-opacity">
-           <ChevronLeft size={16} /> BACK TO SITE
+    <div className="min-h-screen bg-[#050506] text-white font-sans selection:bg-violet-500/30">
+
+      {/* Ambient glow */}
+      <div className="fixed top-0 right-0 w-[600px] h-[600px] bg-violet-600/8 blur-[140px] rounded-full pointer-events-none -mr-72 -mt-72" />
+      <div className="fixed bottom-0 left-0 w-[400px] h-[400px] bg-cyan-600/5 blur-[120px] rounded-full pointer-events-none" />
+
+      {/* Header */}
+      <nav className="relative z-10 px-8 py-6 flex items-center justify-between border-b border-white/5 backdrop-blur-xl bg-black/20">
+        <Link to="/" className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-white transition-colors uppercase group">
+          <ChevronLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+          Back to Site
         </Link>
-        <h1 className="text-2xl tracking-[.2em] font-light italic">Fâœ¶M</h1>
-        <div className="w-24"></div> {/* Balance */}
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-[9px] font-black tracking-[0.3em] text-white/30 uppercase">Secure Checkout</span>
+        </div>
+        <div className="flex items-center gap-2 text-white/20">
+          <Lock size={12} />
+          <span className="text-[9px] font-black tracking-widest uppercase">SSL Encrypted</span>
+        </div>
       </nav>
 
-      <div className="max-w-6xl mx-auto px-8 grid grid-cols-1 lg:grid-cols-2 gap-20 pt-12">
-        {/* Step 1: Order Recap */}
-        <section className="space-y-12">
-          <div>
-             <h2 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-4 border-b border-neutral-100">01. Order Summary</h2>
-             <div className="space-y-8">
-               {cart.map((item) => (
-                 <div key={item.id} className="flex gap-8 group">
-                   <div className="w-24 aspect-[3/4] bg-neutral-100 overflow-hidden flex-shrink-0">
-                     <img src={item.photoUrl} className="w-full h-full object-cover grayscale" />
-                   </div>
-                   <div className="flex-1 flex flex-col justify-center gap-2">
-                     <h3 className="text-[12px] font-bold tracking-widest uppercase">{item.title}</h3>
-                     <p className="text-[10px] text-neutral-400">QTY: {item.quantity} Ã— $ {item.price.toFixed(2)}</p>
-                     <p className="text-[11px] font-medium">$ {(item.quantity * item.price).toFixed(2)}</p>
-                   </div>
-                 </div>
-               ))}
-             </div>
-          </div>
+      {/* Body */}
+      <div className="relative z-10 max-w-7xl mx-auto px-6 py-14 grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-12 xl:gap-20">
 
-          <div>
-             <h2 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-4 border-b border-neutral-100">02. Promotion</h2>
-             <div className="flex gap-4">
+        {/* ── LEFT: Form ──────────────────────────────────────────────────────── */}
+        <div className="space-y-12">
+
+          {/* 01 Order Summary */}
+          <section>
+            <StepBadge n="01" label="Order Summary" />
+            <div className="space-y-4">
+              {cart.map((item, i) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.06 }}
+                  className="flex gap-6 bg-white/[0.03] border border-white/5 rounded-2xl p-5 hover:border-violet-500/20 transition-all group"
+                >
+                  <div className="w-16 aspect-[3/4] bg-black rounded-xl overflow-hidden shrink-0 shadow-lg border border-white/5">
+                    <img src={item.photoUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                  </div>
+                  <div className="flex-1 flex flex-col justify-center gap-2">
+                    <h3 className="text-xs font-black tracking-[0.2em] uppercase text-white">{item.title}</h3>
+                    <p className="text-[10px] text-white/30 font-mono">QTY: {item.quantity} × ${item.price.toFixed(2)}</p>
+                    <p className="text-sm font-black text-white/80 tracking-tight">${(item.quantity * item.price).toFixed(2)}</p>
+                  </div>
+                  <div className="self-center">
+                    <span className="text-[8px] font-black tracking-widest text-violet-400 bg-violet-500/10 border border-violet-500/20 px-3 py-1.5 rounded-lg uppercase">
+                      {item.quantity > 1 ? `×${item.quantity}` : "1 COPY"}
+                    </span>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+
+          {/* 02 Promotion */}
+          <section>
+            <StepBadge n="02" label="Promotion Code" />
+            <div>
+              <div className="flex gap-3">
                 <div className="flex-1 relative">
-                   <input 
-                     type="text"
-                     value={discountCode}
-                     onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
-                     placeholder="ENTER CODE"
-                     className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest placeholder:text-neutral-300 focus:ring-1 focus:ring-black outline-none"
-                   />
-                   {appliedDiscount && (
-                     <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                        <span className="text-[9px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded">APPLIED</span>
-                        <button onClick={removeDiscount} className="text-neutral-300 hover:text-black transition-colors"><X size={14} /></button>
-                     </div>
-                   )}
+                  <Tag size={14} className="absolute left-5 top-1/2 -translate-y-1/2 text-white/20" />
+                  <input
+                    type="text"
+                    value={discountCode}
+                    onChange={e => setDiscountCode(e.target.value.toUpperCase())}
+                    onKeyDown={e => e.key === "Enter" && applyDiscount()}
+                    placeholder="PROMO CODE"
+                    disabled={!!appliedDiscount}
+                    className="w-full bg-white/[0.04] border border-white/10 rounded-2xl py-4 pl-12 pr-5 text-sm text-white tracking-[0.2em] placeholder:text-white/20 outline-none focus:border-violet-500/50 focus:bg-white/[0.07] transition-all disabled:opacity-50 font-mono"
+                  />
+                  {appliedDiscount && (
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                      <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg uppercase tracking-widest">Applied</span>
+                      <button onClick={removeDiscount} className="text-white/20 hover:text-white transition-colors p-1">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 {!appliedDiscount && (
-                  <button 
+                  <button
                     onClick={applyDiscount}
                     disabled={isApplying || !discountCode}
-                    className="bg-black text-white px-8 py-4 rounded-2xl text-[10px] tracking-[.3em] font-bold hover:bg-neutral-800 transition-all disabled:opacity-20"
+                    className="bg-white/5 border border-white/10 text-white px-8 py-4 rounded-2xl text-[10px] font-black tracking-[0.25em] uppercase hover:bg-white/10 hover:border-white/20 transition-all disabled:opacity-30 active:scale-95"
                   >
-                    {isApplying ? "..." : "APPLY"}
+                    {isApplying ? <Loader2 size={14} className="animate-spin mx-auto" /> : "Apply"}
                   </button>
                 )}
-             </div>
-             <AnimatePresence>
-               {discountError && (
-                 <motion.p 
-                   initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-                   className="mt-3 text-[9px] tracking-widest text-red-500 flex items-center gap-2"
-                 >
-                   <AlertCircle size={10} /> {discountError}
-                 </motion.p>
-               )}
-             </AnimatePresence>
-          </div>
-
-          <div>
-             <h2 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-8 pb-4 border-b border-neutral-100">03. Shipping Details</h2>
-             <div className="space-y-4">
-                <input 
-                  type="text" placeholder="FULL NAME" autoComplete="name" aria-label="Full name" 
-                  value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})}
-                  className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
-                />
-                <div className="grid grid-cols-2 gap-4">
-                   <input 
-                     type="email" placeholder="EMAIL ADDRESS" autoComplete="email" inputMode="email" aria-label="Email address" 
-                     value={customer.email} onChange={e => setCustomer({...customer, email: e.target.value})}
-                     className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
-                   />
-                   <input 
-                     type="tel" placeholder="PHONE (OPTIONAL)" 
-                     value={customer.phone} onChange={e => setCustomer({...customer, phone: e.target.value})}
-                     className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
-                   />
-                </div>
-                <input 
-                  type="text" placeholder="STREET ADDRESS" autoComplete="street-address" aria-label="Street address" 
-                  value={customer.address.street} onChange={e => setCustomer({...customer, address: {...customer.address, street: e.target.value}})}
-                  className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
-                />
-                <div className="grid grid-cols-3 gap-4">
-                   <input 
-                     type="text" placeholder="CITY" autoComplete="address-level2" aria-label="City" 
-                     value={customer.address.city} onChange={e => setCustomer({...customer, address: {...customer.address, city: e.target.value}})}
-                     className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
-                   />
-                   <input 
-                     type="text" placeholder="STATE" autoComplete="address-level1" aria-label="State" 
-                     value={customer.address.state} onChange={e => setCustomer({...customer, address: {...customer.address, state: e.target.value}})}
-                     className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
-                   />
-                   <input 
-                     type="text" placeholder="ZIP / POSTAL" autoComplete="postal-code" inputMode="text" aria-label="Postal code" 
-                     value={customer.address.zip} onChange={e => setCustomer({...customer, address: {...customer.address, zip: e.target.value}})}
-                     className="w-full bg-neutral-50 border-none rounded-2xl py-4 px-6 text-sm tracking-widest focus:ring-1 focus:ring-black outline-none"
-                   />
-                </div>
-             </div>
-          </div>
-        </section>
-
-        {/* Step 2: Payment & Totals */}
-        <section className="space-y-12">
-          <div className="bg-neutral-50 rounded-[2.5rem] p-10 space-y-8">
-             <h2 className="text-[10px] tracking-[.4em] text-neutral-400 uppercase mb-4">04. Final Settlement</h2>
-             
-             <div className="space-y-4">
-                <div className="flex justify-between items-center text-[11px] tracking-widest">
-                   <span className="text-neutral-400">SUBTOTAL</span>
-                   <span>$ {cartTotal.toFixed(2)}</span>
-                </div>
-                {appliedDiscount && (
-                  <div className="flex justify-between items-center text-[11px] tracking-widest text-green-600">
-                     <span className="uppercase">DISCOUNT ({appliedDiscount.code})</span>
-                     <span>- $ {discountAmount.toFixed(2)}</span>
-                  </div>
+              </div>
+              <AnimatePresence>
+                {discountError && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                    className="mt-3 text-[9px] font-black tracking-widest text-red-400 flex items-center gap-2 uppercase"
+                  >
+                    <AlertCircle size={10} /> {discountError}
+                  </motion.p>
                 )}
-                <div className="flex justify-between items-center text-[11px] tracking-widest">
-                   <span className="text-neutral-400">SHIPPING (FLAT RATE)</span>
-                   <span className={isFreeShipping ? "line-through text-neutral-300" : ""}>$ {shippingCost.toFixed(2)}</span>
-                </div>
-                {isFreeShipping && (
-                  <div className="flex justify-between items-center text-[11px] tracking-widest text-green-600">
-                    <span>PROMO SHIPPING</span>
-                    <span>FREE</span>
+              </AnimatePresence>
+            </div>
+          </section>
+
+          {/* 03 Shipping Details */}
+          <section>
+            <StepBadge n="03" label="Shipping Details" />
+            <div className="space-y-4">
+              <Field label="Full Name" value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Email Address" type="email" value={customer.email} onChange={v => setCustomer({ ...customer, email: v })} autoComplete="email" inputMode="email" required />
+                <Field label="Phone (optional)" type="tel" value={customer.phone} onChange={v => setCustomer({ ...customer, phone: v })} />
+              </div>
+              <Field label="Street Address" value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
+              <div className="grid grid-cols-3 gap-4">
+                <Field label="City" value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" />
+                <Field label="State" value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" />
+                <Field label="Postal Code" value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" />
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* ── RIGHT: Order total + payment ─────────────────────────────────────── */}
+        <div className="space-y-6">
+          <div className="sticky top-8 space-y-4">
+
+            {/* Totals card */}
+            <div className="bg-white/[0.03] border border-white/8 rounded-[2rem] p-8 backdrop-blur-xl relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.06] to-transparent pointer-events-none" />
+              <div className="relative z-10">
+                <StepBadge n="04" label="Final Settlement" />
+
+                <div className="space-y-4 mb-8">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black tracking-[0.2em] text-white/40 uppercase">Subtotal</span>
+                    <span className="text-sm font-black text-white/70 font-mono">${cartTotal.toFixed(2)}</span>
                   </div>
-                )}
-                <div className="pt-4 border-t border-neutral-100 flex justify-between items-end">
-                   <span className="text-[10px] tracking-[.3em] font-bold">TOTAL PAYABLE</span>
-                   <span className="text-4xl font-light">$ {finalTotal.toFixed(2)} <span className="text-[10px] tracking-normal font-bold">USD</span></span>
-                </div>
-             </div>
 
-             {/* STRIPE PLACEHOLDER SECTION */}
-             <div className="mt-12 pt-12 border-t border-neutral-100">
-                <div className="bg-white border border-neutral-100 rounded-3xl p-8 text-center space-y-4">
-                   <ShieldCheck size={32} strokeWidth={1} className="mx-auto text-neutral-200" />
-                   <h3 className="text-xs tracking-[.2em] font-bold uppercase">Stripe Secure Checkout</h3>
-                   <p className="text-[9px] text-neutral-400 leading-relaxed px-4">
-                      PASTE YOUR STRIPE CHECKOUT SNIPPET HERE.
-                      THIS SECTION WILL RENDER THE SECURE PAYMENT PORTAL.
-                   </p>
-                   <button 
-                     onClick={handleCompletePurchase}
-                     disabled={isCompleting}
-                     className="w-full bg-black text-white py-5 rounded-full text-[10px] tracking-[.4em] font-bold hover:bg-neutral-800 transition-all shadow-xl active:scale-95 duration-200"
-                   >
-                     {isCompleting ? "PROCESSING..." : "PAY WITH STRIPE"}
-                   </button>
-                   <div className="pt-2">
-                      <p className="text-[8px] tracking-widest text-neutral-400 uppercase">Archive Verified Transaction</p>
-                   </div>
-                </div>
-             </div>
+                  <AnimatePresence>
+                    {appliedDiscount && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                        className="flex justify-between items-center">
+                        <span className="text-[10px] font-black tracking-[0.2em] text-emerald-400 uppercase">Discount ({appliedDiscount.code})</span>
+                        <span className="text-sm font-black text-emerald-400 font-mono">−${discountAmount.toFixed(2)}</span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
-             <div className="flex items-center gap-3 justify-center opacity-30 mt-8">
-                <div className="w-1.5 h-1.5 rounded-full bg-black"></div>
-                <p className="text-[8px] tracking-[.2em] font-bold uppercase">Archive verified SSL Transaction</p>
-             </div>
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-2 text-[10px] font-black tracking-[0.2em] text-white/40 uppercase">
+                      <Truck size={12} className="text-white/20" /> Shipping
+                    </span>
+                    <span className={`text-sm font-black font-mono ${isFreeShipping ? "line-through text-white/20" : "text-white/70"}`}>
+                      ${shippingCost.toFixed(2)}
+                    </span>
+                  </div>
+
+                  <AnimatePresence>
+                    {isFreeShipping && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                        className="flex justify-between items-center">
+                        <span className="text-[10px] font-black tracking-[0.2em] text-emerald-400 uppercase">Promo Shipping</span>
+                        <span className="text-sm font-black text-emerald-400">FREE</span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="pt-6 border-t border-white/8">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <p className="text-[9px] font-black tracking-[0.35em] text-white/30 uppercase mb-1">Total Payable</p>
+                      <p className="text-[9px] font-black tracking-widest text-white/20 uppercase">USD</p>
+                    </div>
+                    <motion.span
+                      key={finalTotal}
+                      initial={{ y: -10, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      className="text-5xl font-black tracking-tighter text-white"
+                    >
+                      ${finalTotal.toFixed(2)}
+                    </motion.span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment card */}
+            <div className="bg-white/[0.03] border border-white/8 rounded-[2rem] p-8 backdrop-blur-xl relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-b from-violet-600/[0.05] to-transparent pointer-events-none" />
+              <div className="relative z-10 space-y-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center">
+                    <CreditCard size={18} className="text-violet-400" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black tracking-[0.25em] text-white uppercase">Secure Payment</p>
+                    <p className="text-[9px] text-white/30 tracking-widest">Powered by Stripe</p>
+                  </div>
+                  <div className="ml-auto">
+                    <ShieldCheck size={20} className="text-white/10" />
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleCompletePurchase}
+                  disabled={isCompleting}
+                  className="w-full relative overflow-hidden bg-violet-600 hover:bg-violet-500 text-white py-5 rounded-2xl text-[11px] font-black tracking-[0.4em] uppercase transition-all active:scale-[0.98] disabled:opacity-60 shadow-[0_20px_50px_rgba(124,58,237,0.35)] group"
+                >
+                  <span className="relative z-10 flex items-center justify-center gap-3">
+                    {isCompleting
+                      ? <><Loader2 size={16} className="animate-spin" /> Processing...</>
+                      : <><Lock size={14} /> Pay with Stripe</>
+                    }
+                  </span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+
+                <div className="flex items-center justify-center gap-3 opacity-30">
+                  <div className="w-1 h-1 rounded-full bg-white" />
+                  <p className="text-[8px] font-black tracking-[0.2em] text-white uppercase">256-bit SSL · PCI DSS Compliant</p>
+                  <div className="w-1 h-1 rounded-full bg-white" />
+                </div>
+              </div>
+            </div>
+
           </div>
-        </section>
+        </div>
       </div>
     </div>
   );
 }
-
