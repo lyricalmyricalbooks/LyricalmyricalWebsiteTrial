@@ -2178,54 +2178,64 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     }
   };
 
+  // Which preview pages each section belongs to.
+  // "both" means it appears for homepage AND shop tabs.
   const SECTIONS = [
     {
       id: "style",
       icon: <div className="w-4 h-4 rounded-full bg-gradient-to-br from-purple-400 to-pink-400" />,
       title: "Style",
       description: "Fonts, color palettes and visual identity",
+      pages: ["both"],
     },
     {
       id: "navigation",
       icon: <LayoutTemplate size={14} />,
       title: "Navigation and layout",
       description: "Manage header, footer, main menus and general layout",
+      pages: ["both"],
     },
     {
       id: "homepage",
       icon: <Home size={14} />,
       title: "Homepage",
       description: "Manage homepage options and layout",
+      pages: ["homepage"],
     },
     {
       id: "products",
       icon: <ShoppingBag size={14} />,
       title: "Products",
       description: "Manage product and product page options",
+      pages: ["shop"],
     },
     {
       id: "layout",
       icon: <LayoutTemplate size={14} />,
       title: "Layout controls",
       description: "Fine tune spacing, widths, border radius and product columns",
+      pages: ["shop"],
     },
     {
       id: "buttons",
       icon: <div className="w-4 h-2 rounded-full bg-neutral-400" />,
       title: "Buttons and CTA",
       description: "Control button style, shape and emphasis",
+      pages: ["both"],
     },
     {
       id: "announcements",
       icon: <div className="w-4 h-1.5 rounded bg-neutral-400" />,
       title: "Shop announcements",
       description: "Customise messages on announcement banners",
+      pages: ["shop"],
     },
     {
       id: "social",
       icon: <Instagram size={14} />,
       title: "Social media links",
       description: "Manage social links that display in the shop footer",
+      pages: ["both"],
     },
     {
       id: "textsize",
@@ -2238,29 +2248,38 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       ),
       title: "Text sizing",
       description: "Manage text size options",
+      pages: ["both"],
     },
     {
       id: "translations",
       icon: <Globe size={14} />,
       title: "Text and translations",
       description: "Customise system text like buttons and navigation labels",
+      pages: ["both"],
     },
     {
       id: "additional",
       icon: <Settings size={14} />,
       title: "Additional settings",
       description: "Manage additional template settings such as animations",
+      pages: ["both"],
     },
   ];
 
   const filteredSections = useMemo(() => {
     const q = settingsSearch.trim().toLowerCase();
-    if (!q) return SECTIONS;
+    // When searching, show all matching sections across both contexts
+    if (q) {
+      return SECTIONS.filter((section) =>
+        section.title.toLowerCase().includes(q) ||
+        section.description.toLowerCase().includes(q),
+      );
+    }
+    // When not searching, filter by the active preview mode
     return SECTIONS.filter((section) =>
-      section.title.toLowerCase().includes(q) ||
-      section.description.toLowerCase().includes(q),
+      section.pages.includes("both") || section.pages.includes(previewMode),
     );
-  }, [SECTIONS, settingsSearch]);
+  }, [SECTIONS, settingsSearch, previewMode]);
 
   const renderSubPanel = () => {
     switch (activeSection) {
@@ -2514,10 +2533,38 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                       <div className="p-8 pb-4">
                         <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase italic mb-2 block">System Configuration</span>
                         <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Core Settings</h2>
-                        <p className="text-[11px] text-slate-500 font-bold leading-relaxed mb-8">
-                          Architectural controls for visual identity, spatial mapping, and cross-platform logic.
-                        </p>
-                        
+
+                        {/* Page context filter pills */}
+                        {!settingsSearch && (
+                          <div className="flex items-center gap-2 mb-6">
+                            <button
+                              onClick={() => { setPreviewMode("homepage"); setDesignSurface("heroPage"); }}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black tracking-[0.25em] uppercase transition-all border ${
+                                previewMode === "homepage"
+                                  ? "bg-violet-600/20 text-violet-300 border-violet-500/40 shadow-[0_0_12px_rgba(124,58,237,0.2)]"
+                                  : "bg-white/[0.03] text-slate-600 border-white/5 hover:text-slate-400 hover:border-white/10"
+                              }`}
+                            >
+                              <Home size={10} strokeWidth={3} />
+                              Homepage
+                            </button>
+                            <button
+                              onClick={() => { setPreviewMode("shop"); setDesignSurface("storefront"); }}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black tracking-[0.25em] uppercase transition-all border ${
+                                previewMode === "shop"
+                                  ? "bg-cyan-600/20 text-cyan-300 border-cyan-500/40 shadow-[0_0_12px_rgba(34,211,238,0.15)]"
+                                  : "bg-white/[0.03] text-slate-600 border-white/5 hover:text-slate-400 hover:border-white/10"
+                              }`}
+                            >
+                              <ShoppingBag size={10} strokeWidth={3} />
+                              Shop
+                            </button>
+                            <span className="text-[8px] text-slate-700 font-black tracking-widest ml-auto">
+                              {filteredSections.length} settings
+                            </span>
+                          </div>
+                        )}
+
                         <div className="relative group/search">
                           <input
                             value={settingsSearch}
