@@ -358,6 +358,102 @@ function FontSelector({ value, onChange }: { value: string; onChange: (v: string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Section Library Modal — opened via the "+ Add Section" button
+// ─────────────────────────────────────────────────────────────────────────────
+const SECTION_TEMPLATES = [
+  {
+    type: "HeroSection",
+    label: "Hero Banner",
+    description: "Full-viewport hero with image, headline and CTA",
+    icon: <LayoutTemplate size={24} />,
+    color: "from-violet-600/20 to-purple-600/10",
+    tag: "Impact",
+  },
+  {
+    type: "FeaturedCollectionSection",
+    label: "Product Grid",
+    description: "Curated collection of books with optional title and 'View All' link",
+    icon: <ShoppingBag size={24} />,
+    color: "from-blue-600/20 to-cyan-600/10",
+    tag: "Commerce",
+  },
+  {
+    type: "NewsletterSection",
+    label: "Newsletter",
+    description: "Email capture with custom title and description",
+    icon: <Mail size={24} />,
+    color: "from-emerald-600/20 to-teal-600/10",
+    tag: "Engagement",
+  },
+  {
+    type: "TextContentSection",
+    label: "Text Block",
+    description: "Rich editorial text section with optional CTA buttons",
+    icon: <FileText size={24} />,
+    color: "from-amber-600/20 to-orange-600/10",
+    tag: "Content",
+  },
+];
+
+function SectionLibraryModal({ onAdd, onClose }: { onAdd: (type: string) => void; onClose: () => void }) {
+  return (
+    <AnimatePresence>
+      <motion.div
+        key="section-library-overlay"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[500] bg-black/70 backdrop-blur-xl flex items-end justify-center"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ y: "100%", opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: "100%", opacity: 0 }}
+          transition={{ type: "spring", damping: 30, stiffness: 280 }}
+          className="w-full max-w-lg bg-[#0c0c10] border border-white/10 rounded-t-[3rem] shadow-[0_-40px_100px_rgba(124,58,237,0.2)] pb-10"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Handle */}
+          <div className="flex justify-center pt-4 pb-2">
+            <div className="w-12 h-1 bg-white/15 rounded-full" />
+          </div>
+
+          <div className="px-8 py-4 border-b border-white/5 flex items-center justify-between">
+            <div>
+              <p className="text-[9px] font-black tracking-[0.4em] text-violet-400 uppercase italic mb-1">Section Library</p>
+              <h3 className="text-xl font-black text-white uppercase italic tracking-tighter">Add a Section</h3>
+            </div>
+            <button onClick={onClose} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all">
+              <X size={16} strokeWidth={3} />
+            </button>
+          </div>
+
+          <div className="p-6 grid grid-cols-2 gap-3">
+            {SECTION_TEMPLATES.map((tpl) => (
+              <motion.button
+                key={tpl.type}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => { onAdd(tpl.type); onClose(); }}
+                className={`relative overflow-hidden text-left p-5 rounded-3xl border border-white/10 bg-gradient-to-br ${tpl.color} hover:border-violet-500/40 transition-all group`}
+              >
+                <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center text-white mb-4 group-hover:bg-white/20 transition-colors">
+                  {tpl.icon}
+                </div>
+                <p className="text-[11px] font-black text-white uppercase tracking-tight italic mb-1">{tpl.label}</p>
+                <p className="text-[9px] text-slate-500 font-bold leading-relaxed">{tpl.description}</p>
+                <span className="absolute top-3 right-3 text-[7px] font-black tracking-[0.2em] text-slate-600 uppercase bg-white/5 border border-white/5 px-2 py-1 rounded-full">{tpl.tag}</span>
+              </motion.button>
+            ))}
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Section list row
 // ─────────────────────────────────────────────────────────────────────────────
 function SectionRow({ icon, title, description, onClick }: any) {
@@ -586,6 +682,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
 function HomepagePanel({ design, update }: any) {
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [showLibrary, setShowLibrary] = useState(false);
   const sections = design.homepageSections || [];
   
   useEffect(() => {
@@ -594,6 +691,7 @@ function HomepagePanel({ design, update }: any) {
         {
           id: "initial-hero",
           type: "HeroSection",
+          visible: true,
           settings: {
             title: design.hero?.slides?.[0]?.title || "F✶M",
             subtitle: design.hero?.slides?.[0]?.subtitle || "PHOTOGRAPHY & ART BOOKS",
@@ -621,9 +719,14 @@ function HomepagePanel({ design, update }: any) {
       TextContentSection: { title: "OUR STORY", content: "Write something meaningful...", align: "center" },
     };
     
-    const newSection = { id, type, settings: defaults[type] || {} };
+    const newSection = { id, type, visible: true, settings: defaults[type] || {} };
     updateSections([...sections, newSection]);
     setActiveSectionId(id);
+  };
+
+  const toggleSectionVisibility = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    updateSections(sections.map((s: any) => s.id === id ? { ...s, visible: s.visible === false ? true : false } : s));
   };
 
   const removeSection = (id: string, e?: any) => {
@@ -832,47 +935,91 @@ function HomepagePanel({ design, update }: any) {
              <p className="text-[11px] text-neutral-400 font-medium px-8">Your homepage is empty. Start by adding a Hero section.</p>
           </div>
         ) : (
-          <div className="space-y-3">
-             {sections.map((section: any, index: number) => (
-               <motion.div layout key={section.id} onClick={() => setActiveSectionId(section.id)} className="group relative bg-white border border-neutral-200 rounded-3xl p-4 hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/5 transition-all cursor-pointer flex items-center gap-4">
-                 <div className="flex flex-col gap-1.5">
-                    <button onClick={(e) => moveSection(index, 'up', e)} disabled={index === 0} className="p-1 hover:bg-neutral-100 rounded-lg text-neutral-300 hover:text-neutral-900 disabled:opacity-0 transition-all"><ChevronLeft size={14} className="rotate-90" /></button>
-                    <button onClick={(e) => moveSection(index, 'down', e)} disabled={index === sections.length - 1} className="p-1 hover:bg-neutral-100 rounded-lg text-neutral-300 hover:text-neutral-900 disabled:opacity-0 transition-all"><ChevronLeft size={14} className="-rotate-90" /></button>
+          <div className="space-y-2">
+             {sections.map((section: any, index: number) => {
+               const isHidden = section.visible === false;
+               return (
+               <motion.div
+                 layout
+                 key={section.id}
+                 initial={{ opacity: 0, y: 8 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 exit={{ opacity: 0, y: -8 }}
+                 onClick={() => !isHidden && setActiveSectionId(section.id)}
+                 className={`group relative border rounded-3xl p-4 transition-all flex items-center gap-3 ${
+                   isHidden
+                     ? "bg-neutral-50/40 border-neutral-100 cursor-default opacity-50"
+                     : "bg-white border-neutral-200 hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/5 cursor-pointer"
+                 }`}
+               >
+                 {/* Drag handle */}
+                 <div className="text-neutral-200 hover:text-neutral-400 transition-colors cursor-grab active:cursor-grabbing flex-shrink-0">
+                   <GripVertical size={16} />
                  </div>
-                 <div className="w-12 h-12 rounded-2xl bg-neutral-50 flex items-center justify-center text-neutral-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-all duration-300">
-                    {section.type === "HeroSection" ? <LayoutTemplate size={20} /> : section.type === "FeaturedCollectionSection" ? <ShoppingBag size={20} /> : section.type === "NewsletterSection" ? <Mail size={20} /> : <FileText size={20} />}
+
+                 {/* Reorder arrows */}
+                 <div className="flex flex-col gap-1 flex-shrink-0">
+                    <button onClick={(e) => moveSection(index, 'up', e)} disabled={index === 0} className="p-0.5 hover:bg-neutral-100 rounded text-neutral-300 hover:text-neutral-900 disabled:opacity-0 transition-all"><ChevronLeft size={12} className="rotate-90" /></button>
+                    <button onClick={(e) => moveSection(index, 'down', e)} disabled={index === sections.length - 1} className="p-0.5 hover:bg-neutral-100 rounded text-neutral-300 hover:text-neutral-900 disabled:opacity-0 transition-all"><ChevronLeft size={12} className="-rotate-90" /></button>
                  </div>
+
+                 {/* Type icon */}
+                 <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 flex-shrink-0 ${
+                   isHidden ? "bg-neutral-100 text-neutral-300" : "bg-neutral-50 text-neutral-400 group-hover:bg-blue-50 group-hover:text-blue-600"
+                 }`}>
+                    {section.type === "HeroSection" ? <LayoutTemplate size={16} /> : section.type === "FeaturedCollectionSection" ? <ShoppingBag size={16} /> : section.type === "NewsletterSection" ? <Mail size={16} /> : <FileText size={16} />}
+                 </div>
+
+                 {/* Label */}
                  <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-black tracking-tight text-neutral-800 truncate uppercase">{section.settings.title || section.type.replace("Section", "")}</p>
+                    <p className={`text-[11px] font-black tracking-tight truncate uppercase ${isHidden ? "text-neutral-400" : "text-neutral-800"}`}>{section.settings.title || section.type.replace("Section", "")}</p>
                     <p className="text-[9px] text-neutral-400 font-bold uppercase tracking-widest mt-0.5">{section.type.replace("Section", "")}</p>
                  </div>
-                 <div className="flex items-center gap-2">
-                    <button onClick={(e) => removeSection(section.id, e)} className="p-2 text-neutral-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"><X size={14} /></button>
-                    <ChevronRight size={14} className="text-neutral-200 group-hover:text-neutral-400 transition-colors" />
+
+                 {/* Actions */}
+                 <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {/* Visibility toggle */}
+                    <button
+                      onClick={(e) => toggleSectionVisibility(section.id, e)}
+                      className={`p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 ${
+                        isHidden ? "text-neutral-300 hover:text-emerald-500 hover:bg-emerald-50" : "text-neutral-300 hover:text-neutral-600 hover:bg-neutral-100"
+                      }`}
+                      title={isHidden ? "Show section" : "Hide section"}
+                    >
+                      {isHidden ? <EyeOff size={13} /> : <Eye size={13} />}
+                    </button>
+                    {/* Delete */}
+                    <button onClick={(e) => removeSection(section.id, e)} className="p-2 text-neutral-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"><X size={13} /></button>
+                    {!isHidden && <ChevronRight size={13} className="text-neutral-200 group-hover:text-neutral-400 transition-colors" />}
                  </div>
                </motion.div>
-             ))}
+               );
+             })}
           </div>
         )}
 
-        <div className="pt-6">
-          <div className="p-1 bg-neutral-50 rounded-[2.5rem] border border-neutral-100 flex flex-col gap-1">
-             <p className="text-[9px] font-bold text-neutral-400 tracking-[0.3em] uppercase text-center py-5">Add new section</p>
-             <div className="grid grid-cols-2 gap-1 px-1 pb-1">
-                {[
-                  { type: "HeroSection", label: "Hero", icon: <LayoutTemplate size={14} /> },
-                  { type: "FeaturedCollectionSection", label: "Collection", icon: <ShoppingBag size={14} /> },
-                  { type: "NewsletterSection", label: "Newsletter", icon: <Mail size={14} /> },
-                  { type: "TextContentSection", label: "Text Block", icon: <FileText size={14} /> },
-                ].map((opt) => (
-                  <button key={opt.type} onClick={() => addSection(opt.type)} className="flex flex-col items-center justify-center gap-2 py-8 bg-white border border-neutral-100 rounded-[2rem] hover:border-blue-400 hover:shadow-2xl hover:shadow-blue-500/10 transition-all group active:scale-95">
-                    <div className="w-12 h-12 rounded-full bg-neutral-50 flex items-center justify-center text-neutral-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">{opt.icon}</div>
-                    <span className="text-[10px] font-bold text-neutral-500 group-hover:text-neutral-900 uppercase tracking-[0.1em]">{opt.label}</span>
-                  </button>
-                ))}
-             </div>
-          </div>
+        {/* Add Section button */}
+        <div className="pt-4">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowLibrary(true)}
+            className="w-full flex items-center justify-center gap-3 py-5 border-2 border-dashed border-blue-200 bg-blue-50/50 hover:bg-blue-50 hover:border-blue-400 rounded-[2.5rem] transition-all group"
+          >
+            <div className="w-8 h-8 rounded-full bg-blue-100 group-hover:bg-blue-600 flex items-center justify-center transition-colors">
+              <Plus size={16} className="text-blue-500 group-hover:text-white transition-colors" strokeWidth={3} />
+            </div>
+            <span className="text-[11px] font-black text-blue-500 group-hover:text-blue-700 uppercase tracking-[0.15em] transition-colors">Add Section</span>
+          </motion.button>
         </div>
+
+        {/* Section Library Modal */}
+        {showLibrary && (
+          <SectionLibraryModal
+            onAdd={addSection}
+            onClose={() => setShowLibrary(false)}
+          />
+        )}
       </div>
     </div>
   );
