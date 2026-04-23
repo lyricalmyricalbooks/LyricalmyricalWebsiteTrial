@@ -429,18 +429,7 @@ export default function BookDetail() {
                 )}
               </div>
 
-              {/* Trust strip */}
-              <div className="flex items-center gap-4 flex-wrap">
-                {[
-                  { icon: <Truck size={12} />, text: "Free shipping over $150" },
-                  { icon: <ShieldCheck size={12} />, text: "Secure checkout" },
-                ].map(({ icon, text }) => (
-                  <div key={text} className="flex items-center gap-2 text-white/25 hover:text-white/40 transition-colors">
-                    {icon}
-                    <span className="text-[9px] font-black tracking-widest uppercase">{text}</span>
-                  </div>
-                ))}
-              </div>
+
             </div>
           </div>
         </div>
