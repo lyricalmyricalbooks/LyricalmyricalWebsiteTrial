@@ -141,15 +141,41 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   useEffect(() => {
     loadMetadata();
     if (book) {
+      const defaults = {
+        title: "",
+        subtitle: "",
+        description: "",
+        isbn: "",
+        sku: "",
+        retailPrice: 0,
+        costPrice: 0,
+        stockLevel: 0,
+        format: "Paperback",
+        dimensions: "",
+        weight: "",
+        language: "English",
+        status: "draft",
+        shippingProfileId: "",
+        authorId: "",
+        isFeatured: false,
+        slug: "",
+        isOnSale: false,
+        salePrice: 0,
+        scheduleDate: "",
+      };
+
       const dataToLoad = {
+        ...defaults,
         ...book,
-        photos: book.photos || [],
+        photos: Array.isArray(book.photos) ? book.photos : [],
+        variants: Array.isArray(book.variants) ? book.variants : [],
+        categories: Array.isArray(book.categories) ? book.categories : [],
       };
       setFormData(dataToLoad);
-      setInitialData(dataToLoad);
+      setInitialData(JSON.parse(JSON.stringify(dataToLoad)));
     } else {
       // Set initial data for new books to current empty formData state
-      setInitialData(formData);
+      setInitialData(JSON.parse(JSON.stringify(formData)));
     }
   }, [book]);
   
@@ -176,7 +202,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
   // Aggregate stock calculation
   useEffect(() => {
-    if (formData.variants && formData.variants.length > 0) {
+    if (Array.isArray(formData.variants) && formData.variants.length > 0) {
       const totalStock = formData.variants.reduce((sum: number, v: Variant) => sum + (v.stock || 0), 0);
       if (totalStock !== formData.stockLevel) {
         setFormData((prev: any) => ({ ...prev, stockLevel: totalStock }));
@@ -316,18 +342,18 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const removePhoto = (id: string) => {
     setFormData((prev: any) => ({
       ...prev,
-      photos: prev.photos.filter((p: any) => p.id !== id)
+      photos: (prev.photos || []).filter((p: any) => p.id !== id)
     }));
   };
 
   const addVariant = () => {
     setFormData((prev: any) => ({
       ...prev,
-      variants: [...prev.variants, { 
+      variants: [...(prev.variants || []), { 
         name: "", 
-        price: prev.retailPrice, 
+        price: prev.retailPrice || 0, 
         stock: 0, 
-        sku: `${prev.sku || 'SKU'}-${prev.variants.length + 1}`,
+        sku: `${prev.sku || 'SKU'}-${(prev.variants || []).length + 1}`,
         weight: prev.weight || "",
         id: crypto.randomUUID() 
       }]
@@ -344,17 +370,20 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const removeVariant = (id: string) => {
     setFormData((prev: any) => ({
       ...prev,
-      variants: prev.variants.filter((v: any) => v.id !== id)
+      variants: (prev.variants || []).filter((v: any) => v.id !== id)
     }));
   };
 
   const toggleCategory = (cat: string) => {
-    setFormData((prev: any) => ({
-      ...prev,
-      categories: prev.categories.includes(cat) 
-        ? prev.categories.filter((c: string) => c !== cat)
-        : [...prev.categories, cat]
-    }));
+    setFormData((prev: any) => {
+      const currentCats = Array.isArray(prev.categories) ? prev.categories : [];
+      return {
+        ...prev,
+        categories: currentCats.includes(cat) 
+          ? currentCats.filter((c: string) => c !== cat)
+          : [...currentCats, cat]
+      };
+    });
   };
 
   return (
@@ -612,20 +641,23 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             <div className="relative z-10">
               <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">III. Genres & Categories</h4>
               <div className="flex flex-wrap gap-4">
-                {Array.from(new Set([...categories, "Photography", "Contemporary", "Artist Book", "Zine", "Archive"])).map(cat => (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => toggleCategory(cat)}
-                    className={`px-8 py-4 rounded-2xl text-[10px] font-black tracking-widest transition-all border ${
-                      formData.categories.includes(cat)
-                        ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                        : "bg-white/5 text-slate-500 border-white/5 hover:bg-white/10"
-                    }`}
-                  >
-                    {String(cat).toUpperCase()}
-                  </button>
-                ))}
+                {Array.from(new Set([...categories, "Photography", "Contemporary", "Artist Book", "Zine", "Archive"])).map(cat => {
+                  const isSelected = Array.isArray(formData.categories) && formData.categories.includes(cat);
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => toggleCategory(cat)}
+                      className={`px-8 py-4 rounded-2xl text-[10px] font-black tracking-widest transition-all border ${
+                        isSelected
+                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                          : "bg-white/5 text-slate-500 border-white/5 hover:bg-white/10"
+                      }`}
+                    >
+                      {String(cat).toUpperCase()}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </section>
