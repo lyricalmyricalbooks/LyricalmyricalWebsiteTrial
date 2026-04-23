@@ -171,8 +171,13 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         variants: Array.isArray(book.variants) ? book.variants : [],
         categories: Array.isArray(book.categories) ? book.categories : [],
       };
-      setFormData(dataToLoad);
-      setInitialData(JSON.parse(JSON.stringify(dataToLoad)));
+      // Sanitize through JSON round-trip to strip any non-serializable Firebase
+      // SDK internals (e.g. PlatformLoggerServiceImpl) that Firestore may attach
+      // to document objects. Without this they end up in formData and cause a
+      // DataCloneError when the live-preview postMessage fires, crashing the editor.
+      const safeData = JSON.parse(JSON.stringify(dataToLoad));
+      setFormData(safeData);
+      setInitialData(JSON.parse(JSON.stringify(safeData)));
     } else {
       // Set initial data for new books to current empty formData state
       setInitialData(JSON.parse(JSON.stringify(formData)));
@@ -182,21 +187,28 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   useEffect(() => {
     // Broadcast changes for live preview
     if (typeof window !== 'undefined') {
-      const update = {
-        type: "BOOK_PREVIEW_UPDATE",
-        book: {
-          ...formData,
-          id: book?.id || 'new-book-preview'
-        }
-      };
-      
-      // Iframe communication
-      window.parent.postMessage(update, "*");
-      
-      // Cross-tab communication
-      const bc = new BroadcastChannel("site_preview_updates");
-      bc.postMessage(update);
-      bc.close();
+      try {
+        // Sanitize before postMessage — structured clone rejects non-serializable
+        // values such as Firebase SDK service instances.
+        const update = {
+          type: "BOOK_PREVIEW_UPDATE",
+          book: JSON.parse(JSON.stringify({
+            ...formData,
+            id: book?.id || 'new-book-preview'
+          }))
+        };
+
+        // Iframe communication
+        window.parent.postMessage(update, "*");
+
+        // Cross-tab communication
+        const bc = new BroadcastChannel("site_preview_updates");
+        bc.postMessage(update);
+        bc.close();
+      } catch (err) {
+        // Non-fatal: preview broadcast failed but the editor stays functional
+        console.warn("[BookEditor] Could not broadcast live preview update:", err);
+      }
     }
   }, [formData, book?.id]);
 
