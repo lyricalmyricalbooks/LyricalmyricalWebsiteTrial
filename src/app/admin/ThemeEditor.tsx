@@ -17,6 +17,7 @@ import {
   Globe,
   Plus,
   Eye,
+  EyeOff,
   ShoppingBag,
   Home,
   Mail,
@@ -25,6 +26,13 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
+  GripVertical,
+  AlertCircle,
+  Zap,
+  Clock,
+  Save,
+  Layers,
+  MousePointer2,
 } from "lucide-react";
 import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
@@ -1705,6 +1713,66 @@ function LivePreview({ design, device, previewMode, iframeRef }: any) {
   const baseUrl = window.location.origin + basePath;
   const previewUrl = baseUrl + (previewMode.value === "shop" ? "/?catalog=true&preview=true" : "/?preview=true");
 
+  // Inject click-to-select detector into the iframe once it loads.
+  const handleIframeLoad = () => {
+    try {
+      const doc = iframeRef.current?.contentDocument;
+      if (!doc) return;
+      const script = doc.createElement("script");
+      script.textContent = `
+        (function() {
+          if (window.__editorClicksInjected) return;
+          window.__editorClicksInjected = true;
+          var SECTION_MAP = [
+            ['[data-section]', null],
+            ['header, nav, [class*="nav"], [class*="header"]', 'navigation'],
+            ['[class*="hero"], [class*="banner"]', 'homepage'],
+            ['[class*="product"], [class*="catalog"], [class*="grid"]', 'products'],
+            ['[class*="announce"], [class*="ticker"]', 'announcements'],
+            ['button, [class*="btn"], a[class*="cta"]', 'buttons'],
+            ['footer, [class*="footer"]', 'navigation'],
+          ];
+          function getSectionId(el) {
+            var cur = el;
+            while (cur && cur !== document.body) {
+              if (cur.dataset && cur.dataset.section) return cur.dataset.section;
+              for (var i = 0; i < SECTION_MAP.length; i++) {
+                try { if (cur.matches && cur.matches(SECTION_MAP[i][0]) && SECTION_MAP[i][1]) return SECTION_MAP[i][1]; } catch(_){}
+              }
+              cur = cur.parentElement;
+            }
+            return null;
+          }
+          var box = document.createElement('div');
+          box.style.cssText = 'position:fixed;pointer-events:none;border:2px solid rgba(124,58,237,0.75);border-radius:6px;z-index:99999;background:rgba(124,58,237,0.08);transition:all 0.12s ease;display:none;';
+          var lbl = document.createElement('div');
+          lbl.style.cssText = 'position:absolute;top:-22px;left:0;background:rgba(124,58,237,0.9);color:#fff;font-size:9px;font-weight:900;letter-spacing:0.2em;padding:2px 8px;border-radius:4px;white-space:nowrap;text-transform:uppercase;font-family:monospace;';
+          box.appendChild(lbl);
+          document.body.appendChild(box);
+          document.addEventListener('mouseover', function(e){
+            var sid = getSectionId(e.target);
+            if (!sid) { box.style.display='none'; return; }
+            var r = e.target.getBoundingClientRect();
+            box.style.display='block'; lbl.textContent=sid;
+            box.style.top=r.top+'px'; box.style.left=r.left+'px';
+            box.style.width=r.width+'px'; box.style.height=r.height+'px';
+          }, true);
+          document.addEventListener('mouseout', function(){
+            box.style.display='none';
+          }, true);
+          document.addEventListener('click', function(e){
+            var sid = getSectionId(e.target);
+            if (!sid) return;
+            e.preventDefault(); e.stopPropagation();
+            window.parent.postMessage({ type:'SECTION_SELECT', sectionId: sid }, '*');
+          }, true);
+          window.parent.postMessage({ type: 'PREVIEW_READY' }, '*');
+        })();
+      `;
+      doc.head.appendChild(script);
+    } catch(_) { /* cross-origin frames will silently fail */ }
+  };
+
   return (
     <div className="flex-1 flex flex-col items-center justify-center bg-[#e8e8e8] overflow-hidden p-6 pt-2">
       {/* Preview mode tabs */}
@@ -1757,15 +1825,24 @@ function LivePreview({ design, device, previewMode, iframeRef }: any) {
           </div>
         )}
 
-        {/* Iframe Viewport */}
-        <div className={`flex-1 bg-white relative overflow-hidden ${!isDesktop ? "rounded-[2.2rem]" : ""}`}>
+        {/* Iframe Viewport — with click-to-select overlay */}
+        <div className={`flex-1 bg-white relative overflow-hidden group/preview ${!isDesktop ? "rounded-[2.2rem]" : ""}`}>
           <iframe
             key={previewMode.value}  // remount iframe when mode changes
             ref={iframeRef}
             src={previewUrl}
             className="w-full h-full border-none"
             title="Theme Preview"
+            onLoad={handleIframeLoad}
           />
+          {/* Click-to-select hover hint */}
+          <div className="absolute inset-0 pointer-events-none ring-2 ring-violet-500/0 group-hover/preview:ring-violet-500/30 transition-all duration-500 rounded-inherit" />
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 opacity-0 group-hover/preview:opacity-100 transition-all duration-300 pointer-events-none z-20">
+            <div className="flex items-center gap-2 bg-black/80 backdrop-blur-xl border border-violet-500/30 text-violet-300 text-[9px] font-bold tracking-widest uppercase px-4 py-2 rounded-full shadow-xl whitespace-nowrap">
+              <MousePointer2 size={10} strokeWidth={2.5} />
+              Click any element to select it
+            </div>
+          </div>
         </div>
 
         {/* Home Indicator for Mobile */}
@@ -2038,7 +2115,69 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [pages, setPages] = useState<any[]>([]);
   const [syncPreview, setSyncPreview] = useState(true);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
+  // "unsaved" | "draft" | "published"
+  const [saveStatus, setSaveStatus] = useState<"unsaved" | "draft" | "published">("published");
+  const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
+  const [showAddSection, setShowAddSection] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // ── Undo / Redo via Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) ──
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      if (e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        // undo
+        setPastDesigns((prev) => {
+          if (prev.length === 0) return prev;
+          const previous = prev[prev.length - 1];
+          setFutureDesigns((fut) => [design, ...fut].slice(0, 75));
+          setDesign(previous);
+          setSaveStatus("unsaved");
+          return prev.slice(0, -1);
+        });
+      } else if ((e.key === "y") || (e.key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        // redo
+        setFutureDesigns((fut) => {
+          if (fut.length === 0) return fut;
+          const [next, ...rest] = fut;
+          setPastDesigns((prev) => [...prev.slice(-74), design]);
+          setDesign(next);
+          setSaveStatus("unsaved");
+          return rest;
+        });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [design]);
+
+  // ── Warn before exit if unsaved changes ──
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (saveStatus === "unsaved") {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [saveStatus]);
+
+  // ── Auto-save draft every 30 seconds when there are unsaved changes ──
+  useEffect(() => {
+    if (saveStatus !== "unsaved") return;
+    const timer = setInterval(async () => {
+      try {
+        await onSave(design, { publish: false });
+        setSavedDesign(design);
+        setSaveStatus("draft");
+        setLastAutoSave(new Date());
+      } catch (_) {}
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [saveStatus, design, onSave]);
 
   // Sync design to preview iframe — retry every 300ms until acknowledged
   const syncPending = useRef(false);
@@ -2072,19 +2211,24 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     };
   }, [design]);
 
-  // Listen for preview ready signal — acknowledge and stop retrying
+  // Listen for preview ready + SECTION_SELECT messages from iframe
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (event.data?.type === "PREVIEW_READY") {
         setIsPreviewReady(true);
-        syncPending.current = false; // stop retry loop
-        // Send immediately now that the frame is ready
+        syncPending.current = false;
         try {
           iframeRef.current?.contentWindow?.postMessage(
             { type: "THEME_UPDATE", design },
             "*"
           );
         } catch (_) {}
+      }
+      // Click-to-select: iframe posts SECTION_SELECT with a sectionId
+      if (event.data?.type === "SECTION_SELECT" && event.data?.sectionId) {
+        const sectionId = event.data.sectionId;
+        setActiveTab("settings");
+        setActiveSection(sectionId);
       }
     };
     window.addEventListener("message", handler);
@@ -2137,6 +2281,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       return nextDesign;
     });
     setSaved(false);
+    setSaveStatus("unsaved");
   }, [designSurface]);
 
   const undo = () => {
@@ -2167,6 +2312,10 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       if (options.publish) {
         setPastDesigns([]);
         setFutureDesigns([]);
+        setSaveStatus("published");
+      } else {
+        setSaveStatus("draft");
+        setLastAutoSave(new Date());
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -2313,9 +2462,23 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
             <span className="text-[10px] font-black tracking-[0.4em] text-violet-400 uppercase italic">Architectural Core</span>
             <div className="flex items-center gap-3">
               <span className="text-xl font-black tracking-tighter text-white uppercase italic">Theme Editor</span>
-              {hasChanges && (
-                <span className="bg-violet-500/10 text-violet-400 text-[8px] font-black tracking-widest px-3 py-1 rounded-full border border-violet-500/20 uppercase italic">
-                  Unsaved Protocol
+              {/* Save status badge */}
+              <span className={`flex items-center gap-1.5 text-[8px] font-black tracking-widest px-3 py-1 rounded-full border uppercase italic transition-all ${
+                saveStatus === "unsaved"
+                  ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                  : saveStatus === "draft"
+                  ? "bg-sky-500/10 text-sky-400 border-sky-500/20"
+                  : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  saveStatus === "unsaved" ? "bg-amber-400 animate-pulse" :
+                  saveStatus === "draft" ? "bg-sky-400" : "bg-emerald-400"
+                }`} />
+                {saveStatus === "unsaved" ? "Unsaved" : saveStatus === "draft" ? "Draft" : "Live"}
+              </span>
+              {lastAutoSave && saveStatus === "draft" && (
+                <span className="text-[8px] text-slate-600 font-bold italic tracking-wider">
+                  Auto-saved {lastAutoSave.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
               )}
             </div>
@@ -2328,7 +2491,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
               onClick={undo}
               disabled={pastDesigns.length === 0}
               className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all disabled:opacity-10"
-              title="Undo Change"
+              title={`Undo (${pastDesigns.length} steps) — Ctrl+Z`}
             >
               <ChevronLeft size={18} strokeWidth={3} />
             </button>
@@ -2336,7 +2499,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
               onClick={redo}
               disabled={futureDesigns.length === 0}
               className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all disabled:opacity-10"
-              title="Redo Change"
+              title={`Redo (${futureDesigns.length} steps) — Ctrl+Y`}
             >
               <ChevronRight size={18} strokeWidth={3} />
             </button>
@@ -2596,6 +2759,14 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                         </div>
                       )}
                       
+                      {/* Click-to-select tip */}
+                      <div className="mx-8 mt-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center gap-3">
+                        <MousePointer2 size={14} className="text-violet-400 flex-shrink-0" strokeWidth={2.5} />
+                        <p className="text-[9px] text-slate-500 font-bold leading-relaxed italic">
+                          Click any element in the preview to jump directly to its settings
+                        </p>
+                      </div>
+
                       <div className="p-8 mt-4">
                         <div className="p-6 bg-violet-600/5 border border-violet-500/10 rounded-[2rem] relative overflow-hidden group">
                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -2603,7 +2774,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                            </div>
                            <h4 className="text-[11px] font-black text-violet-400 uppercase tracking-widest italic mb-2">Editor Protocol</h4>
                            <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
-                             All changes are mirrored in the live buffer. Use Publish to push to production edge.
+                             All changes mirror to the live buffer. Use <kbd className="bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-violet-400 font-mono">Ctrl+Z</kbd> to undo, <kbd className="bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-violet-400 font-mono">Ctrl+Y</kbd> to redo.
                            </p>
                         </div>
                       </div>
