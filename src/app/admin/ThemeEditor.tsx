@@ -1849,6 +1849,480 @@ function CodePanel({ design, update }: any) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Version History Panel
+// ─────────────────────────────────────────────────────────────────────────────
+export interface VersionEntry {
+  id: string;
+  label: string;
+  timestamp: Date;
+  design: any;
+}
+
+function VersionHistoryPanel({
+  versions,
+  currentDesign,
+  onRestore,
+  onPreview,
+  previewingVersion,
+}: {
+  versions: VersionEntry[];
+  currentDesign: any;
+  onRestore: (v: VersionEntry) => void;
+  onPreview: (v: VersionEntry | null) => void;
+  previewingVersion: string | null;
+}) {
+  const fmt = (d: Date) => {
+    const now = new Date();
+    const diff = (now.getTime() - d.getTime()) / 1000;
+    if (diff < 60) return "Just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
+      " · " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  return (
+    <div className="flex flex-col space-y-4">
+      <div className="px-2">
+        <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-[0.2em] italic mb-6">
+          Last {versions.length} saved states. Click to preview, restore to roll back.
+        </p>
+      </div>
+
+      {versions.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 opacity-40">
+          <Clock size={32} className="text-slate-600 mb-4" />
+          <p className="text-[10px] font-black text-slate-600 tracking-[0.3em] uppercase italic">No versions yet</p>
+          <p className="text-[9px] text-slate-700 font-bold mt-1">Save a draft or publish to create a snapshot</p>
+        </div>
+      ) : (
+        <div className="space-y-2 px-1">
+          {/* Current (unsaved) state */}
+          <div className="flex items-center gap-3 p-4 bg-violet-500/10 border border-violet-500/20 rounded-2xl">
+            <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-black text-violet-300 uppercase tracking-tight">Current</p>
+              <p className="text-[8px] text-violet-500 font-bold">Working state — not yet saved</p>
+            </div>
+          </div>
+
+          {versions.map((v, i) => {
+            const isPreviewing = previewingVersion === v.id;
+            return (
+              <motion.div
+                key={v.id}
+                layout
+                className={`group flex items-center gap-3 p-4 border rounded-2xl cursor-pointer transition-all ${
+                  isPreviewing
+                    ? "bg-cyan-500/10 border-cyan-500/30"
+                    : "bg-white/[0.02] border-white/5 hover:bg-white/[0.05] hover:border-white/10"
+                }`}
+                onClick={() => onPreview(isPreviewing ? null : v)}
+              >
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-[10px] font-black ${
+                  i === 0 ? "bg-emerald-500/20 text-emerald-400" : "bg-white/5 text-slate-500"
+                }`}>
+                  {i === 0 ? <Check size={14} strokeWidth={3} /> : versions.length - i}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-black text-white truncate">{v.label}</p>
+                  <p className="text-[8px] text-slate-600 font-bold">{fmt(v.timestamp)}</p>
+                </div>
+                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {isPreviewing && (
+                    <span className="text-[7px] font-black text-cyan-400 tracking-widest uppercase">Previewing</span>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onRestore(v); }}
+                    className="text-[8px] font-black text-emerald-400 hover:bg-emerald-500/10 px-3 py-1.5 rounded-lg transition-all uppercase tracking-widest"
+                    title="Restore this version"
+                  >
+                    Restore
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      {previewingVersion && (
+        <div className="mx-1 p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-2xl flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Eye size={12} className="text-cyan-400" />
+            <p className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">Preview mode active</p>
+          </div>
+          <button onClick={() => onPreview(null)} className="text-[8px] font-black text-slate-500 hover:text-white transition-colors uppercase tracking-widest">
+            Exit
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Responsive / Breakpoint Panel
+// ─────────────────────────────────────────────────────────────────────────────
+function ResponsivePanel({ design, update, device }: { design: any; update: (k: string, v: any) => void; device: "desktop" | "mobile" }) {
+  const isMobile = device === "mobile";
+
+  // Mobile overrides are stored in design.mobileOverrides
+  const overrides = design.mobileOverrides || {};
+
+  const updateOverride = (key: string, value: any) => {
+    update("mobileOverrides", { ...overrides, [key]: value });
+  };
+  const resetOverride = (key: string) => {
+    const next = { ...overrides };
+    delete next[key];
+    update("mobileOverrides", next);
+  };
+
+  const hasOverride = (key: string) => key in overrides;
+
+  function BreakpointField({ label, desktopKey, mobileValue, onChange, onReset, children }: any) {
+    const isOverridden = hasOverride(desktopKey);
+    return (
+      <div className={`relative p-4 rounded-2xl border transition-all ${
+        isMobile && isOverridden
+          ? "bg-blue-500/10 border-blue-500/30"
+          : "bg-white/[0.02] border-white/5"
+      }`}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{label}</span>
+            {isMobile && isOverridden && (
+              <span className="flex items-center gap-1 text-[7px] font-black text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                <Smartphone size={8} />
+                Override
+              </span>
+            )}
+          </div>
+          {isMobile && isOverridden && (
+            <button
+              onClick={onReset}
+              className="text-[8px] font-black text-slate-600 hover:text-white transition-colors uppercase tracking-widest"
+            >
+              ↩ Desktop
+            </button>
+          )}
+        </div>
+        {children}
+      </div>
+    );
+  }
+
+  const fontSizeOptions = [
+    { value: "sm", label: "Small" },
+    { value: "md", label: "Medium" },
+    { value: "lg", label: "Large" },
+  ];
+
+  const columnOptions = [
+    { value: 1, label: "1 col" },
+    { value: 2, label: "2 col" },
+    { value: 3, label: "3 col" },
+  ];
+
+  return (
+    <div className="flex flex-col space-y-4">
+      <div className="px-2 pb-2">
+        <div className={`flex items-center gap-3 p-4 rounded-2xl border mb-4 ${
+          isMobile ? "bg-blue-500/10 border-blue-500/20" : "bg-white/[0.02] border-white/5"
+        }`}>
+          {isMobile ? <Smartphone size={16} className="text-blue-400" /> : <Monitor size={16} className="text-slate-500" />}
+          <div>
+            <p className="text-[10px] font-black text-white uppercase tracking-widest">
+              {isMobile ? "Mobile Breakpoint" : "Desktop Breakpoint"}
+            </p>
+            <p className="text-[8px] text-slate-500 font-bold mt-0.5">
+              {isMobile ? "Settings here override desktop values on mobile screens" : "Switch to mobile view to set per-breakpoint overrides"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3 px-1">
+        {/* Font size */}
+        <BreakpointField
+          label="Font Size"
+          desktopKey="fontSizeMobile"
+          onReset={() => resetOverride("fontSizeMobile")}
+        >
+          <div className="flex gap-2">
+            {fontSizeOptions.map((opt) => {
+              const currentVal = isMobile
+                ? (overrides.fontSizeMobile ?? design.fontSize ?? "md")
+                : (design.fontSize ?? "md");
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => isMobile ? updateOverride("fontSizeMobile", opt.value) : update("fontSize", opt.value)}
+                  className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+                    currentVal === opt.value
+                      ? "bg-violet-600 text-white"
+                      : "bg-white/5 text-slate-500 hover:bg-white/10 hover:text-slate-300"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </BreakpointField>
+
+        {/* Product columns */}
+        <BreakpointField
+          label="Product Columns"
+          desktopKey="productColumnsMobile"
+          onReset={() => resetOverride("productColumnsMobile")}
+        >
+          <div className="flex gap-2">
+            {columnOptions.map((opt) => {
+              const currentVal = isMobile
+                ? (overrides.productColumnsMobile ?? design.productColumnsMobile ?? 2)
+                : (design.productColumnsDesktop ?? 4);
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => isMobile
+                    ? updateOverride("productColumnsMobile", opt.value)
+                    : update("productColumnsDesktop", opt.value)}
+                  className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+                    currentVal === opt.value
+                      ? "bg-violet-600 text-white"
+                      : "bg-white/5 text-slate-500 hover:bg-white/10 hover:text-slate-300"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </BreakpointField>
+
+        {/* Announcement visibility */}
+        <BreakpointField
+          label="Announcement Bar"
+          desktopKey="showAnnouncementMobile"
+          onReset={() => resetOverride("showAnnouncementMobile")}
+        >
+          <div className="flex gap-2">
+            {[{ value: true, label: "Show" }, { value: false, label: "Hide" }].map((opt) => {
+              const currentVal = isMobile
+                ? (overrides.showAnnouncementMobile ?? design.showAnnouncement ?? true)
+                : (design.showAnnouncement ?? true);
+              return (
+                <button
+                  key={String(opt.value)}
+                  onClick={() => isMobile
+                    ? updateOverride("showAnnouncementMobile", opt.value)
+                    : update("showAnnouncement", opt.value)}
+                  className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+                    currentVal === opt.value
+                      ? (opt.value ? "bg-emerald-600 text-white" : "bg-red-600/60 text-white")
+                      : "bg-white/5 text-slate-500 hover:bg-white/10 hover:text-slate-300"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </BreakpointField>
+
+        {/* Hero heading size */}
+        <BreakpointField
+          label="Hero Heading Scale"
+          desktopKey="heroHeadingScaleMobile"
+          onReset={() => resetOverride("heroHeadingScaleMobile")}
+        >
+          <div className="flex gap-2">
+            {[{ value: "xs", label: "XS" }, { value: "sm", label: "SM" }, { value: "md", label: "MD" }, { value: "lg", label: "LG" }].map((opt) => {
+              const currentVal = isMobile
+                ? (overrides.heroHeadingScaleMobile ?? "md")
+                : (design.heroHeadingScale ?? "md");
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => isMobile
+                    ? updateOverride("heroHeadingScaleMobile", opt.value)
+                    : update("heroHeadingScale", opt.value)}
+                  className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all ${
+                    currentVal === opt.value
+                      ? "bg-violet-600 text-white"
+                      : "bg-white/5 text-slate-500 hover:bg-white/10 hover:text-slate-300"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </BreakpointField>
+      </div>
+
+      {isMobile && Object.keys(overrides).length > 0 && (
+        <div className="mx-1 pt-2">
+          <button
+            onClick={() => update("mobileOverrides", {})}
+            className="w-full py-3 text-[9px] font-black text-red-400/60 hover:text-red-400 hover:bg-red-500/10 rounded-2xl transition-all uppercase tracking-widest border border-transparent hover:border-red-500/20"
+          >
+            Reset All Mobile Overrides
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEO Panel
+// ─────────────────────────────────────────────────────────────────────────────
+function SeoPanel({ design, update, previewMode }: { design: any; update: (k: string, v: any) => void; previewMode: "homepage" | "shop" }) {
+  const prefix = previewMode === "shop" ? "shop" : "home";
+  const titleKey = `${prefix}SeoTitle`;
+  const descKey = `${prefix}SeoDesc`;
+  const ogKey = `${prefix}OgImage`;
+  const slugKey = `${prefix}Slug`;
+
+  const title = design[titleKey] || "";
+  const desc = design[descKey] || "";
+  const og = design[ogKey] || "";
+  const slug = design[slugKey] || (previewMode === "shop" ? "shop" : "");
+
+  const titleLen = title.length;
+  const descLen = desc.length;
+
+  const titleColor = titleLen === 0 ? "text-slate-600" : titleLen <= 60 ? "text-emerald-400" : "text-red-400";
+  const titleBg = titleLen === 0 ? "bg-slate-600" : titleLen <= 60 ? "bg-emerald-400" : "bg-red-400";
+  const descColor = descLen === 0 ? "text-slate-600" : descLen <= 160 ? "text-emerald-400" : "text-red-400";
+  const descBg = descLen === 0 ? "bg-slate-600" : descLen <= 160 ? "bg-emerald-400" : "bg-red-400";
+
+  const baseDomain = window.location.hostname + (window.location.pathname.replace(/\/admin\/?.*$/, "") || "");
+
+  return (
+    <div className="flex flex-col space-y-6">
+      <div className="px-2">
+        <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-[0.2em] italic">
+          SEO settings for the <span className="text-violet-400">{previewMode === "shop" ? "Shop" : "Homepage"}</span> page.
+        </p>
+      </div>
+
+      {/* SERP Preview */}
+      <div className="bg-white rounded-3xl p-5 border border-neutral-200 shadow-sm">
+        <p className="text-[8px] font-black text-neutral-400 uppercase tracking-[0.3em] mb-3">Google Search Preview</p>
+        <div className="space-y-1">
+          <p className="text-[9px] text-neutral-500 font-mono">{baseDomain}{slug ? `/${slug}` : ""}</p>
+          <p className="text-[14px] font-normal text-[#1a0dab] leading-snug hover:underline cursor-default" style={{ fontFamily: "Arial, sans-serif" }}>
+            {title || <span className="text-neutral-300">Page title will appear here</span>}
+          </p>
+          <p className="text-[11px] text-neutral-600 leading-relaxed" style={{ fontFamily: "Arial, sans-serif" }}>
+            {desc ? (desc.length > 160 ? desc.slice(0, 157) + "..." : desc) : <span className="text-neutral-300">Meta description will appear here...</span>}
+          </p>
+        </div>
+      </div>
+
+      {/* Social Share Preview */}
+      {og && (
+        <div className="rounded-3xl overflow-hidden border border-neutral-200 shadow-sm bg-white">
+          <div className="aspect-[1.91/1] bg-neutral-100 overflow-hidden">
+            <img src={og} alt="OG" className="w-full h-full object-cover" />
+          </div>
+          <div className="p-4">
+            <p className="text-[8px] text-neutral-400 font-mono uppercase mb-1">{baseDomain}</p>
+            <p className="text-[11px] font-bold text-neutral-900 leading-tight">{title || "Page Title"}</p>
+            <p className="text-[10px] text-neutral-500 mt-1 leading-relaxed">{desc?.slice(0, 100) || "Description"}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-5 px-1">
+        {/* URL Slug */}
+        <div className="space-y-2">
+          <SidebarLabel>URL Slug</SidebarLabel>
+          <div className="flex items-center bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden">
+            <span className="px-3 text-[9px] text-slate-600 font-mono flex-shrink-0">/{" "}</span>
+            <input
+              type="text"
+              value={slug}
+              onChange={(e) => update(slugKey, e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+              placeholder={previewMode === "shop" ? "shop" : ""}
+              className="flex-1 bg-transparent py-3 pr-4 text-[11px] font-bold text-slate-200 outline-none placeholder:text-slate-800"
+            />
+          </div>
+        </div>
+
+        {/* Page Title */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <SidebarLabel>Page Title</SidebarLabel>
+            <span className={`text-[8px] font-black ${titleColor} tabular-nums`}>
+              {titleLen}/60
+            </span>
+          </div>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => update(titleKey, e.target.value)}
+            placeholder="My Store · Books & Art"
+            className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-[11px] font-bold text-slate-200 outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-800"
+          />
+          {/* Progress bar */}
+          <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${titleBg}`}
+              style={{ width: `${Math.min(100, (titleLen / 60) * 100)}%` }}
+            />
+          </div>
+          <p className="text-[8px] text-slate-700 font-bold">
+            {titleLen === 0 ? "Aim for 50–60 characters" : titleLen <= 50 ? "Good — can be a bit longer" : titleLen <= 60 ? "✓ Optimal length" : "Too long — Google will truncate"}
+          </p>
+        </div>
+
+        {/* Meta Description */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <SidebarLabel>Meta Description</SidebarLabel>
+            <span className={`text-[8px] font-black ${descColor} tabular-nums`}>
+              {descLen}/160
+            </span>
+          </div>
+          <textarea
+            value={desc}
+            onChange={(e) => update(descKey, e.target.value)}
+            placeholder="A short description of this page for search engines..."
+            rows={3}
+            className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-[11px] font-bold text-slate-200 outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-800 resize-none"
+          />
+          <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${descBg}`}
+              style={{ width: `${Math.min(100, (descLen / 160) * 100)}%` }}
+            />
+          </div>
+          <p className="text-[8px] text-slate-700 font-bold">
+            {descLen === 0 ? "Aim for 120–160 characters" : descLen <= 120 ? "Could be more descriptive" : descLen <= 160 ? "✓ Optimal length" : "Too long — will be cut off in results"}
+          </p>
+        </div>
+
+        {/* OG Image */}
+        <div className="space-y-2">
+          <SidebarLabel>Social Share Image (OG Image)</SidebarLabel>
+          <SidebarInput
+            value={og}
+            onChange={(v: string) => update(ogKey, v)}
+            placeholder="https://... (1200×630px recommended)"
+          />
+          <p className="text-[8px] text-slate-700 font-bold">Recommended: 1200×630px JPG or PNG</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Live Preview — scaled render of the actual storefront
 // ─────────────────────────────────────────────────────────────────────────────
 function LivePreview({ design, device, previewMode, iframeRef }: any) {
@@ -2268,6 +2742,14 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [showAddSection, setShowAddSection] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  // ── Version History (up to 20 named snapshots) ──
+  const [versionHistory, setVersionHistory] = useState<VersionEntry[]>([]);
+  const [previewingVersion, setPreviewingVersion] = useState<string | null>(null);
+  // When previewing a past version, send IT to the iframe instead of live design
+  const previewDesign = previewingVersion
+    ? versionHistory.find((v) => v.id === previewingVersion)?.design ?? design
+    : design;
+
   // ── Undo / Redo via Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -2377,6 +2859,10 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         setActiveTab("settings");
         setActiveSection(sectionId);
       }
+      // Inline text editing: iframe double-click posts TEXT_EDIT with {field, value}
+      if (event.data?.type === "TEXT_EDIT" && event.data?.field) {
+        update(event.data.field, event.data.value);
+      }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -2456,6 +2942,17 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     try {
       await onSave(design, options);
       setSavedDesign(design);
+
+      // ── Create a named version snapshot ──
+      const now = new Date();
+      const label = options.publish
+        ? `Published ${now.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+        : `Draft ${now.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      setVersionHistory((prev) => [
+        { id: crypto.randomUUID(), label, timestamp: now, design: JSON.parse(JSON.stringify(design)) },
+        ...prev,
+      ].slice(0, 20));
+
       if (options.publish) {
         setPastDesigns([]);
         setFutureDesigns([]);
@@ -2789,10 +3286,13 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           <div className="flex border-b border-white/5 bg-black/20 backdrop-blur-xl relative z-10">
             {(
               [
-                { id: "settings",  icon: <Settings size={14} />,      label: "Config" },
-                { id: "pages",     icon: <FileText size={14} />,       label: "Pages" },
-                { id: "code",      icon: <Code2 size={14} />,          label: "Source" },
-                { id: "templates", icon: <LayoutTemplate size={14} />, label: "Library" },
+                { id: "settings",   icon: <Settings size={14} />,       label: "Config" },
+                { id: "pages",      icon: <FileText size={14} />,        label: "Pages" },
+                { id: "code",       icon: <Code2 size={14} />,           label: "Source" },
+                { id: "templates",  icon: <LayoutTemplate size={14} />,  label: "Library" },
+                { id: "history",    icon: <Clock size={14} />,           label: "History" },
+                { id: "responsive", icon: <Smartphone size={14} />,      label: "Breaks" },
+                { id: "seo",        icon: <Globe size={14} />,           label: "SEO" },
               ] as const
             ).map((tab) => (
               <button
@@ -2960,6 +3460,64 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                     <CodePanel design={activeDesign} update={update} />
                   </div>
                 </motion.div>
+              ) : activeTab === "history" ? (
+                <motion.div
+                  key="history"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="flex-1 flex flex-col overflow-hidden"
+                >
+                  <div className="p-8 pb-4">
+                    <span className="text-[10px] font-black tracking-[0.4em] text-amber-500 uppercase italic mb-2 block">Temporal Archive</span>
+                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Version History</h2>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    <VersionHistoryPanel
+                      versions={versionHistory}
+                      currentDesign={design}
+                      previewingVersion={previewingVersion}
+                      onPreview={(v) => setPreviewingVersion(v?.id ?? null)}
+                      onRestore={(v) => {
+                        setDesign(v.design);
+                        setSaveStatus("unsaved");
+                        setPreviewingVersion(null);
+                      }}
+                    />
+                  </div>
+                </motion.div>
+              ) : activeTab === "responsive" ? (
+                <motion.div
+                  key="responsive"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="flex-1 flex flex-col overflow-hidden"
+                >
+                  <div className="p-8 pb-4">
+                    <span className="text-[10px] font-black tracking-[0.4em] text-blue-500 uppercase italic mb-2 block">Adaptive Layout</span>
+                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Breakpoints</h2>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    <ResponsivePanel design={activeDesign} update={update} device={device} />
+                  </div>
+                </motion.div>
+              ) : activeTab === "seo" ? (
+                <motion.div
+                  key="seo"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="flex-1 flex flex-col overflow-hidden"
+                >
+                  <div className="p-8 pb-4">
+                    <span className="text-[10px] font-black tracking-[0.4em] text-emerald-500 uppercase italic mb-2 block">Search Engine</span>
+                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">SEO & Metadata</h2>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    <SeoPanel design={activeDesign} update={update} previewMode={previewMode} />
+                  </div>
+                </motion.div>
               ) : (
                 <motion.div
                   key={activeTab}
@@ -2988,7 +3546,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         <div className="flex-1 bg-[#0a0a0c] relative overflow-hidden flex flex-col">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.05),transparent_60%)] pointer-events-none" />
           <LivePreview
-            design={design}
+            design={previewDesign}
             device={device}
             previewMode={{ value: previewMode, set: (m: "homepage" | "shop") => { setPreviewMode(m); setIsPreviewReady(false); } }}
             iframeRef={iframeRef}
