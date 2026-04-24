@@ -448,9 +448,10 @@ function useThemePreview(initialDesign: any) {
   useEffect(() => {
     // 1. Listen for iframe messages (legacy/standard)
     const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
       if (event.data && event.data.type === "THEME_UPDATE") {
         setDesignOverride(event.data.design);
-        if (isPreview) window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
+        if (isPreview) window.parent.postMessage({ type: "PREVIEW_READY" }, window.location.origin);
       }
     };
 
@@ -466,7 +467,7 @@ function useThemePreview(initialDesign: any) {
     } catch (_) {}
 
     window.addEventListener("message", handleMessage);
-    if (isPreview) window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
+    if (isPreview) window.parent.postMessage({ type: "PREVIEW_READY" }, window.location.origin);
 
     return () => {
       window.removeEventListener("message", handleMessage);
@@ -1010,14 +1011,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       </header>
 
       <main className="relative w-auto overflow-hidden">
-        {activeDesign.homepageSections && activeDesign.homepageSections.length > 0 ? (
+        {(heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections) &&
+        (heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections).length > 0 ? (
           <div className="flex flex-col">
-            {activeDesign.homepageSections.map((section: any) => {
+            {(heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections).map((section: any) => {
               const SectionComponent = (Sections as any)[section.type];
               if (!SectionComponent) return null;
               
               return (
-                <div key={section.id} id={`section-${section.id}`}>
+                <div key={section.id} id={`section-${section.id}`} data-section="homepage" data-section-id={section.id}>
                   <SectionComponent 
                     settings={section.settings || {}} 
                     books={books}

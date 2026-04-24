@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ArrowRight, Send } from "lucide-react";
+import { Send } from "lucide-react";
 
 // ──────────────────────────────
 // Section Library
@@ -44,10 +44,10 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
       }`}>
         <AnimationContainer enabled={enableAnimations}>
           <h1 className="text-4xl md:text-6xl font-black tracking-tight uppercase mb-6 leading-none text-white">
-            {settings.title || "Lyricalmyrical"}
+            <span data-theme-field="title">{settings.title || "Lyricalmyrical"}</span>
           </h1>
           <p className="text-sm md:text-md tracking-[0.3em] font-medium text-white/70 uppercase mb-10">
-            {settings.subtitle || "Photography & Art Books"}
+            <span data-theme-field="subtitle">{settings.subtitle || "Photography & Art Books"}</span>
           </p>
           <div className={`flex flex-wrap items-center gap-4 ${
             settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center"
@@ -57,7 +57,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
               className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black hover:scale-105 transition-transform"
               style={{ backgroundColor: settings.accentColor || "#A855F7" }}
             >
-              {settings.ctaText || "Explore"}
+              <span data-theme-field="ctaText">{settings.ctaText || "Explore"}</span>
             </button>
             {settings.secondaryCtaText && (
                <button
@@ -73,38 +73,19 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
   );
 }
 
-export function FeaturedCollectionSection({ books, settings, onProductClick, enableAnimations }: any) {
-  const collectionBooks = (books || []).slice(0, settings.limit || 4);
-  
+export function FeatureGridSection({ settings, enableAnimations }: any) {
+  const items = settings.items || [];
   return (
     <section className="py-24 px-6 max-w-7xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
-        <div className="flex justify-between items-end mb-12">
-          <div className="space-y-2">
-            <p className="text-[10px] tracking-[0.5em] text-white/30 uppercase font-bold">Featured</p>
-            <h2 className="text-3xl font-bold tracking-tight uppercase text-white">{settings.title || "Selected Works"}</h2>
-          </div>
-          {settings.showViewAll && (
-            <button className="text-[10px] tracking-[0.3em] font-bold text-white/40 hover:text-white transition-colors flex items-center gap-2 pb-1 border-b border-white/10 group uppercase">
-              VIEW ALL <ArrowRight size={10} className="group-hover:translate-x-1 transition-transform" />
-            </button>
-          )}
-        </div>
+        <h2 className="text-3xl font-bold tracking-tight uppercase text-white mb-10" data-theme-field="title">{settings.title || "Highlights"}</h2>
       </AnimationContainer>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-        {collectionBooks.map((book: any, idx: number) => (
-          <AnimationContainer key={book.id} enabled={enableAnimations} delay={idx * 0.1}>
-            <div onClick={() => onProductClick(book)} className="group cursor-pointer">
-              <div className="aspect-[3/4] bg-neutral-900 overflow-hidden mb-4 border border-white/5 shadow-2xl rounded-sm">
-                <img 
-                  src={book.photos?.[0]?.url} 
-                  alt={book.title} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                />
-              </div>
-              <h3 className="text-xs font-bold uppercase tracking-wide truncate text-white">{book.title}</h3>
-              <p className="text-[10px] text-white/40 mt-1 uppercase tracking-widest">{book.author}</p>
+      <div className="grid md:grid-cols-3 gap-6">
+        {(items.length ? items : [{ title: "Feature One", description: "Describe your value." }, { title: "Feature Two", description: "Describe your value." }, { title: "Feature Three", description: "Describe your value." }]).map((item: any, idx: number) => (
+          <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.1}>
+            <div className="p-6 bg-white/[0.03] border border-white/10 rounded-2xl">
+              <h3 className="text-sm font-bold uppercase text-white">{item.title}</h3>
+              <p className="text-xs text-white/50 mt-2">{item.description}</p>
             </div>
           </AnimationContainer>
         ))}
@@ -119,9 +100,9 @@ export function NewsletterSection({ settings, enableAnimations }: any) {
       <AnimationContainer enabled={enableAnimations}>
         <div className="max-w-xl mx-auto px-6 text-center space-y-8">
           <div className="space-y-3">
-            <h2 className="text-2xl font-bold tracking-tight uppercase text-white">{settings.title || "Join the Archive"}</h2>
+            <h2 className="text-2xl font-bold tracking-tight uppercase text-white" data-theme-field="title">{settings.title || "Join the Archive"}</h2>
             <p className="text-xs text-white/40 tracking-widest leading-relaxed">
-              {settings.description || "Occasional dispatches about new publications and limited editions."}
+              <span data-theme-field="description">{settings.description || "Occasional dispatches about new publications and limited editions."}</span>
             </p>
           </div>
           <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
@@ -144,10 +125,47 @@ export function NewsletterSection({ settings, enableAnimations }: any) {
   );
 }
 
-export function TextContentSection({ settings, enableAnimations }: any) {
-  const align = settings.align || "center";
+export function TestimonialsSection({ settings, enableAnimations }: any) {
+  const items = settings.items || [];
   return (
-    <section className={`py-24 px-6 max-w-4xl mx-auto ${align === "left" ? "text-left" : align === "right" ? "text-right" : "text-center"}`}>
+    <section className="py-24 px-6 max-w-6xl mx-auto">
+      <AnimationContainer enabled={enableAnimations}>
+        <h2 className="text-3xl font-bold tracking-tight uppercase leading-tight text-white mb-8" data-theme-field="title">{settings.title || "Testimonials"}</h2>
+        <div className="grid md:grid-cols-2 gap-6">
+          {(items.length ? items : [{ quote: "An incredible independent shop.", author: "Customer" }]).map((item: any, idx: number) => (
+            <div key={idx} className="p-6 bg-white/[0.03] rounded-2xl border border-white/10">
+              <p className="text-white/70 text-lg leading-relaxed font-light">“{item.quote}”</p>
+              <p className="text-white/40 text-xs mt-4 uppercase tracking-widest">{item.author}</p>
+            </div>
+          ))}
+        </div>
+      </AnimationContainer>
+    </section>
+  );
+}
+
+export function FAQSection({ settings, enableAnimations }: any) {
+  const items = settings.items || [];
+  return (
+    <section className="py-24 px-6 max-w-4xl mx-auto">
+      <AnimationContainer enabled={enableAnimations}>
+        <h2 className="text-3xl font-bold tracking-tight uppercase leading-tight text-white mb-8" data-theme-field="title">{settings.title || "FAQ"}</h2>
+        <div className="space-y-3">
+          {(items.length ? items : [{ question: "Sample question?", answer: "Sample answer." }]).map((item: any, idx: number) => (
+            <details key={idx} className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
+              <summary className="text-sm font-bold text-white cursor-pointer">{item.question}</summary>
+              <p className="text-white/60 text-sm mt-3">{item.answer}</p>
+            </details>
+          ))}
+        </div>
+      </AnimationContainer>
+    </section>
+  );
+}
+
+export function TextContentSection({ settings, enableAnimations }: any) {
+  return (
+    <section className="py-24 px-6 max-w-4xl mx-auto text-center">
       <AnimationContainer enabled={enableAnimations}>
         <div className="space-y-6">
           {settings.title && (

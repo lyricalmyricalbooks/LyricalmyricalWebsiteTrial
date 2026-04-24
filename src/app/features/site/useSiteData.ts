@@ -85,6 +85,7 @@ export function useSiteData() {
 
     // Live Preview Listener
     const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
       if (!event.data) return;
 
       if (event.data.type === "THEME_UPDATE") {
