@@ -370,12 +370,20 @@ const SECTION_TEMPLATES = [
     tag: "Impact",
   },
   {
-    type: "FeaturedCollectionSection",
-    label: "Product Grid",
-    description: "Curated collection of books with optional title and 'View All' link",
+    type: "FeatureGridSection",
+    label: "Feature Grid",
+    description: "3-column highlights for key services, drops, or benefits",
     icon: <ShoppingBag size={24} />,
     color: "from-blue-600/20 to-cyan-600/10",
-    tag: "Commerce",
+    tag: "Highlight",
+  },
+  {
+    type: "TestimonialsSection",
+    label: "Testimonials",
+    description: "Customer quotes displayed in a responsive testimonial grid",
+    icon: <FileText size={24} />,
+    color: "from-fuchsia-600/20 to-pink-600/10",
+    tag: "Trust",
   },
   {
     type: "NewsletterSection",
@@ -386,12 +394,12 @@ const SECTION_TEMPLATES = [
     tag: "Engagement",
   },
   {
-    type: "TextContentSection",
-    label: "Text Block",
-    description: "Rich editorial text section with optional CTA buttons",
+    type: "FAQSection",
+    label: "FAQ",
+    description: "Collapsible question/answer list for common questions",
     icon: <FileText size={24} />,
     color: "from-amber-600/20 to-orange-600/10",
-    tag: "Content",
+    tag: "Support",
   },
 ];
 
@@ -683,10 +691,11 @@ function HomepagePanel({ design, update }: any) {
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
-  const sections = design.homepageSections || [];
+  const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null);
+  const sections = design.sections || design.homepageSections || [];
   
   useEffect(() => {
-    if (sections.length === 0 && !design.homepageSections) {
+    if (sections.length === 0 && !design.sections && !design.homepageSections) {
       const initialSections = [
         {
           id: "initial-hero",
@@ -702,21 +711,22 @@ function HomepagePanel({ design, update }: any) {
           }
         }
       ];
-      update("homepageSections", initialSections);
+      update("sections", initialSections);
     }
   }, []);
 
   const updateSections = (newSections: any[]) => {
-    update("homepageSections", newSections);
+    update("sections", newSections);
   };
 
   const addSection = (type: string) => {
     const id = crypto.randomUUID();
     const defaults: any = {
       HeroSection: { title: "NEW HERO", subtitle: "Something special", ctaText: "EXPLORE", overlayOpacity: 0.5 },
-      FeaturedCollectionSection: { title: "FEATURED COLLECTION", limit: 4, showViewAll: true },
+      FeatureGridSection: { title: "FEATURE HIGHLIGHTS", items: [{ title: "Free Shipping", description: "On eligible orders" }, { title: "Curated Archive", description: "Handpicked editions" }, { title: "Worldwide Delivery", description: "Ships internationally" }] },
       NewsletterSection: { title: "STAY IN TOUCH", description: "Get our latest news." },
-      TextContentSection: { title: "OUR STORY", content: "Write something meaningful...", align: "center" },
+      TestimonialsSection: { title: "WHAT COLLECTORS SAY", items: [{ quote: "Beautiful curation and packaging.", author: "A. Reader" }, { quote: "Always find rare gems here.", author: "N. Collector" }] },
+      FAQSection: { title: "FREQUENTLY ASKED QUESTIONS", items: [{ question: "Do you ship internationally?", answer: "Yes, we ship worldwide." }, { question: "How long is delivery?", answer: "Usually 3-7 business days." }] },
     };
     
     const newSection = { id, type, visible: true, settings: defaults[type] || {} };
@@ -807,11 +817,12 @@ function HomepagePanel({ design, update }: any) {
             </div>
           )}
 
-          {section.type === "FeaturedCollectionSection" && (
+          {section.type === "FeatureGridSection" && (
             <div className="space-y-6">
               <SidebarInput label="Title" value={section.settings.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { title: v })} />
-              <SidebarRange label="Products" value={section.settings.limit || 4} min={2} max={12} onChange={(v) => updateSectionSettings(section.id, { limit: v })} />
-              <SidebarToggle label="Show View All" checked={section.settings.showViewAll ?? true} onChange={(v: boolean) => updateSectionSettings(section.id, { showViewAll: v })} />
+              <SidebarInput label="Feature 1" value={section.settings.items?.[0]?.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { items: [{ ...(section.settings.items?.[0] || {}), title: v }, section.settings.items?.[1] || {}, section.settings.items?.[2] || {}] })} />
+              <SidebarInput label="Feature 2" value={section.settings.items?.[1]?.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { items: [section.settings.items?.[0] || {}, { ...(section.settings.items?.[1] || {}), title: v }, section.settings.items?.[2] || {}] })} />
+              <SidebarInput label="Feature 3" value={section.settings.items?.[2]?.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { items: [section.settings.items?.[0] || {}, section.settings.items?.[1] || {}, { ...(section.settings.items?.[2] || {}), title: v }] })} />
             </div>
           )}
 
@@ -822,31 +833,31 @@ function HomepagePanel({ design, update }: any) {
             </div>
           )}
 
-          {section.type === "TextContentSection" && (
+          {section.type === "TestimonialsSection" && (
             <div className="space-y-4">
               <SidebarInput label="Title" value={section.settings.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { title: v })} />
-              <textarea value={section.settings.content || ""} onChange={(e) => updateSectionSettings(section.id, { content: e.target.value })} rows={8} className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm" placeholder="Content text..." />
-              
-              <div className="pt-2 space-y-2">
-                <SidebarLabel>Primary Button</SidebarLabel>
-                <div className="grid grid-cols-2 gap-2">
-                  <SidebarInput placeholder="Text" value={section.settings.ctaText || ""} onChange={(v: string) => updateSectionSettings(section.id, { ctaText: v })} />
-                  <SidebarInput placeholder="Link" value={section.settings.ctaLink || ""} onChange={(v: string) => updateSectionSettings(section.id, { ctaLink: v })} />
-                </div>
-              </div>
+              <textarea value={section.settings.items?.[0]?.quote || ""} onChange={(e) => updateSectionSettings(section.id, { items: [{ ...(section.settings.items?.[0] || {}), quote: e.target.value }, section.settings.items?.[1] || {}] })} rows={4} className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm" placeholder="First testimonial..." />
+              <textarea value={section.settings.items?.[1]?.quote || ""} onChange={(e) => updateSectionSettings(section.id, { items: [section.settings.items?.[0] || {}, { ...(section.settings.items?.[1] || {}), quote: e.target.value }] })} rows={4} className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm" placeholder="Second testimonial..." />
+              <button
+                onClick={() => updateSectionSettings(section.id, { items: [...(section.settings.items || []), { quote: "New testimonial", author: "Customer" }] })}
+                className="w-full py-3 rounded-xl border border-neutral-200 text-[10px] font-bold tracking-widest text-neutral-500 hover:bg-neutral-50"
+              >
+                ADD TESTIMONIAL BLOCK
+              </button>
+            </div>
+          )}
 
-              <div className="pt-2 space-y-2">
-                <SidebarLabel>Secondary Button</SidebarLabel>
-                <div className="grid grid-cols-2 gap-2">
-                  <SidebarInput placeholder="Text" value={section.settings.secondaryCtaText || ""} onChange={(v: string) => updateSectionSettings(section.id, { secondaryCtaText: v })} />
-                  <SidebarInput placeholder="Link" value={section.settings.secondaryCtaLink || ""} onChange={(v: string) => updateSectionSettings(section.id, { secondaryCtaLink: v })} />
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <SidebarLabel>Alignment</SidebarLabel>
-                <SidebarRadioGroup value={section.settings.align || "center"} onChange={(v) => updateSectionSettings(section.id, { align: v })} options={[{ value: "left", label: "Left" }, { value: "center", label: "Center" }, { value: "right", label: "Right" }]} />
-              </div>
+          {section.type === "FAQSection" && (
+            <div className="space-y-4">
+              <SidebarInput label="Title" value={section.settings.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { title: v })} />
+              <SidebarInput label="Question" value={section.settings.items?.[0]?.question || ""} onChange={(v: string) => updateSectionSettings(section.id, { items: [{ ...(section.settings.items?.[0] || {}), question: v }, section.settings.items?.[1] || {}] })} />
+              <textarea value={section.settings.items?.[0]?.answer || ""} onChange={(e) => updateSectionSettings(section.id, { items: [{ ...(section.settings.items?.[0] || {}), answer: e.target.value }, section.settings.items?.[1] || {}] })} rows={3} className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm" placeholder="Answer..." />
+              <button
+                onClick={() => updateSectionSettings(section.id, { items: [...(section.settings.items || []), { question: "New question?", answer: "New answer." }] })}
+                className="w-full py-3 rounded-xl border border-neutral-200 text-[10px] font-bold tracking-widest text-neutral-500 hover:bg-neutral-50"
+              >
+                ADD FAQ BLOCK
+              </button>
             </div>
           )}
 
@@ -942,6 +953,22 @@ function HomepagePanel({ design, update }: any) {
                <motion.div
                  layout
                  key={section.id}
+                 draggable
+                 onDragStart={() => setDraggingSectionId(section.id)}
+                 onDragOver={(e) => e.preventDefault()}
+                 onDrop={(e) => {
+                   e.preventDefault();
+                   if (!draggingSectionId || draggingSectionId === section.id) return;
+                   const fromIndex = sections.findIndex((s: any) => s.id === draggingSectionId);
+                   const toIndex = sections.findIndex((s: any) => s.id === section.id);
+                   if (fromIndex < 0 || toIndex < 0) return;
+                   const reordered = [...sections];
+                   const [moved] = reordered.splice(fromIndex, 1);
+                   reordered.splice(toIndex, 0, moved);
+                   updateSections(reordered);
+                   setDraggingSectionId(null);
+                 }}
+                 onDragEnd={() => setDraggingSectionId(null)}
                  initial={{ opacity: 0, y: 8 }}
                  animate={{ opacity: 1, y: 0 }}
                  exit={{ opacity: 0, y: -8 }}
@@ -949,7 +976,7 @@ function HomepagePanel({ design, update }: any) {
                  className={`group relative border rounded-3xl p-4 transition-all flex items-center gap-3 ${
                    isHidden
                      ? "bg-neutral-50/40 border-neutral-100 cursor-default opacity-50"
-                     : "bg-white border-neutral-200 hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/5 cursor-pointer"
+                     : `bg-white border-neutral-200 hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/5 cursor-pointer ${draggingSectionId === section.id ? "opacity-40" : ""}`
                  }`}
                >
                  {/* Drag handle */}
@@ -967,7 +994,7 @@ function HomepagePanel({ design, update }: any) {
                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 flex-shrink-0 ${
                    isHidden ? "bg-neutral-100 text-neutral-300" : "bg-neutral-50 text-neutral-400 group-hover:bg-blue-50 group-hover:text-blue-600"
                  }`}>
-                    {section.type === "HeroSection" ? <LayoutTemplate size={16} /> : section.type === "FeaturedCollectionSection" ? <ShoppingBag size={16} /> : section.type === "NewsletterSection" ? <Mail size={16} /> : <FileText size={16} />}
+                    {section.type === "HeroSection" ? <LayoutTemplate size={16} /> : section.type === "FeatureGridSection" ? <ShoppingBag size={16} /> : section.type === "NewsletterSection" ? <Mail size={16} /> : <FileText size={16} />}
                  </div>
 
                  {/* Label */}
@@ -2385,9 +2412,32 @@ function LivePreview({ design, device, previewMode, iframeRef }: any) {
             var sid = getSectionId(e.target);
             if (!sid) return;
             e.preventDefault(); e.stopPropagation();
-            window.parent.postMessage({ type:'SECTION_SELECT', sectionId: sid }, '*');
+            window.parent.postMessage({ type:'SECTION_SELECT', sectionId: sid }, window.location.origin);
           }, true);
-          window.parent.postMessage({ type: 'PREVIEW_READY' }, '*');
+          document.addEventListener('dblclick', function(e){
+            var fieldNode = e.target && e.target.closest ? e.target.closest('[data-theme-field]') : null;
+            var sectionNode = e.target && e.target.closest ? e.target.closest('[data-section-id]') : null;
+            if (!fieldNode || !sectionNode) return;
+            e.preventDefault(); e.stopPropagation();
+            fieldNode.setAttribute('contenteditable', 'true');
+            fieldNode.focus();
+            var fieldKey = fieldNode.getAttribute('data-theme-field');
+            var sectionId = sectionNode.getAttribute('data-section-id');
+            var emit = function() {
+              window.parent.postMessage({
+                type: 'TEXT_EDIT',
+                sectionId: sectionId,
+                settingKey: fieldKey,
+                value: fieldNode.textContent || ''
+              }, window.location.origin);
+            };
+            fieldNode.addEventListener('input', emit);
+            fieldNode.addEventListener('blur', function() {
+              fieldNode.removeAttribute('contenteditable');
+              fieldNode.removeEventListener('input', emit);
+            }, { once: true });
+          }, true);
+          window.parent.postMessage({ type: 'PREVIEW_READY' }, window.location.origin);
         })();
       `;
       doc.head.appendChild(script);
@@ -2712,10 +2762,12 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       ...mergedLegacy,
       heroPage: {
         ...surfaceBase,
+        sections: incomingDesign.heroPage?.sections || incomingDesign.heroPage?.homepageSections || incomingDesign.homepageSections || [],
         ...(incomingDesign.heroPage || {}),
       },
       storefront: {
         ...surfaceBase,
+        sections: incomingDesign.storefront?.sections || incomingDesign.storefront?.homepageSections || [],
         ...(incomingDesign.storefront || {}),
       },
     };
@@ -2808,16 +2860,17 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     return () => clearInterval(timer);
   }, [saveStatus, design, onSave]);
 
-  // Sync design to preview iframe — retry every 300ms until acknowledged
+  // Sync design to preview iframe — debounced to keep typing responsive
   const syncPending = useRef(false);
   useEffect(() => {
     if (!iframeRef.current) return;
     syncPending.current = true;
+    const targetOrigin = window.location.origin;
 
     const send = () => {
       const update = { type: "THEME_UPDATE", design };
       try {
-        iframeRef.current?.contentWindow?.postMessage(update, "*");
+        iframeRef.current?.contentWindow?.postMessage(update, targetOrigin);
       } catch (_) {}
       
       // Cross-tab broadcast
@@ -2828,14 +2881,10 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       } catch (_) {}
     };
 
-    send(); // immediate attempt
-    const interval = setInterval(() => {
-      if (!syncPending.current) { clearInterval(interval); return; }
-      send();
-    }, 400);
+    const timeout = setTimeout(send, 120);
 
     return () => {
-      clearInterval(interval);
+      clearTimeout(timeout);
       syncPending.current = false;
     };
   }, [design]);
@@ -2843,13 +2892,14 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   // Listen for preview ready + SECTION_SELECT messages from iframe
   useEffect(() => {
     const handler = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
       if (event.data?.type === "PREVIEW_READY") {
         setIsPreviewReady(true);
         syncPending.current = false;
         try {
           iframeRef.current?.contentWindow?.postMessage(
             { type: "THEME_UPDATE", design },
-            "*"
+            window.location.origin
           );
         } catch (_) {}
       }
@@ -2860,8 +2910,15 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         setActiveSection(sectionId);
       }
       // Inline text editing: iframe double-click posts TEXT_EDIT with {field, value}
-      if (event.data?.type === "TEXT_EDIT" && event.data?.field) {
-        update(event.data.field, event.data.value);
+      if (event.data?.type === "TEXT_EDIT" && event.data?.sectionId && event.data?.settingKey) {
+        const sectionId = event.data.sectionId as string;
+        const settingKey = event.data.settingKey as string;
+        const value = event.data.value;
+        const sections = (design?.[designSurface]?.sections || design?.[designSurface]?.homepageSections || []) as any[];
+        const updated = sections.map((s: any) =>
+          s.id === sectionId ? { ...s, settings: { ...(s.settings || {}), [settingKey]: value } } : s
+        );
+        update("sections", updated);
       }
     };
     window.addEventListener("message", handler);
@@ -3479,7 +3536,13 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                       previewingVersion={previewingVersion}
                       onPreview={(v) => setPreviewingVersion(v?.id ?? null)}
                       onRestore={(v) => {
+                        const restoreIndex = versionHistory.findIndex((entry) => entry.id === v.id);
                         setDesign(v.design);
+                        setPastDesigns([]);
+                        setFutureDesigns([]);
+                        if (restoreIndex >= 0) {
+                          setVersionHistory((prev) => prev.slice(restoreIndex));
+                        }
                         setSaveStatus("unsaved");
                         setPreviewingVersion(null);
                       }}
