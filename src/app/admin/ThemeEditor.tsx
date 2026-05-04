@@ -56,19 +56,42 @@ const PALETTES = [
 ];
 
 const THEME_LIBRARY = [
-  { id: "editorial-luxe", name: "Editorial Luxe", mood: "High-contrast serif with generous spacing", palettePreset: "light", font: "Playfair Display", fontSize: "md", cornerStyle: "rounded", buttonStyle: "outline", animationLevel: "minimal" },
-  { id: "night-neon", name: "Night Neon", mood: "Dark cinematic storefront with energetic accents", palettePreset: "cyber", font: "Space Mono", fontSize: "md", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high" },
-  { id: "earthy-studio", name: "Earthy Studio", mood: "Warm lifestyle brand with artisan feel", palettePreset: "warm", font: "Fraunces", fontSize: "md", cornerStyle: "rounded", buttonStyle: "soft", animationLevel: "moderate" },
-  { id: "nordic-minimal", name: "Nordic Minimal", mood: "Clean product-first look focused on clarity", palettePreset: "nord", font: "Inter", fontSize: "sm", cornerStyle: "rounded", buttonStyle: "outline", animationLevel: "minimal" },
-  { id: "botanical-boutique", name: "Botanical Boutique", mood: "Soft, premium organic aesthetic", palettePreset: "sage", font: "Cormorant", fontSize: "md", cornerStyle: "pill", buttonStyle: "soft", animationLevel: "moderate" },
-  { id: "royal-gallery", name: "Royal Gallery", mood: "Rich luxury visual system with dramatic hierarchy", palettePreset: "royal", font: "EB Garamond", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high" },
-  { id: "modern-atelier", name: "Modern Atelier", mood: "Refined studio layout with sleek modern lines", palettePreset: "minimal", font: "Outfit", fontSize: "md", cornerStyle: "sharp", buttonStyle: "outline", animationLevel: "minimal" },
-  { id: "coastal-breeze", name: "Coastal Breeze", mood: "Airy coastal style with calm blue contrast", palettePreset: "ocean", font: "DM Sans", fontSize: "md", cornerStyle: "rounded", buttonStyle: "soft", animationLevel: "moderate" },
-  { id: "velvet-rose", name: "Velvet Rose", mood: "Romantic boutique identity with warm highlights", palettePreset: "rose", font: "Lora", fontSize: "md", cornerStyle: "pill", buttonStyle: "solid", animationLevel: "moderate" },
-  { id: "forest-cabin", name: "Forest Cabin", mood: "Grounded rustic atmosphere with organic tones", palettePreset: "forest", font: "Montserrat", fontSize: "sm", cornerStyle: "rounded", buttonStyle: "outline", animationLevel: "minimal" },
-  { id: "inkline-tech", name: "Inkline Tech", mood: "Minimal tech retail with punchy contrast accents", palettePreset: "ink", font: "Syne", fontSize: "sm", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high" },
-  { id: "golden-noir", name: "Golden Noir", mood: "Dark premium experience with luminous CTA focus", palettePreset: "dark", font: "Bebas Neue", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high" },
+  { id: "editorial-luxe", name: "Editorial Luxe", mood: "High-contrast serif with generous spacing", palettePreset: "light", font: "Playfair Display", fontSize: "md", cornerStyle: "rounded", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "3:4", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 12, productCTA: "READ MORE" },
+  { id: "night-neon", name: "Night Neon", mood: "Dark cinematic storefront with energetic accents", palettePreset: "cyber", font: "Space Mono", fontSize: "md", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high", productCardStyle: "card", productHoverEffect: "lift", imageAspectRatio: "2:3", productImageLayout: "slider", productContentPosition: "left", productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 4, productCTA: "BUY NOW" },
+  { id: "earthy-studio", name: "Earthy Studio", mood: "Warm lifestyle brand with artisan feel", palettePreset: "warm", font: "Fraunces", fontSize: "md", cornerStyle: "rounded", buttonStyle: "soft", animationLevel: "moderate", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "3:4", productImageLayout: "stacked", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 2, cardRadius: 14, productCTA: "DISCOVER" },
+  { id: "nordic-minimal", name: "Nordic Minimal", mood: "Clean product-first look focused on clarity", palettePreset: "nord", font: "Inter", fontSize: "sm", cornerStyle: "rounded", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "minimal", productHoverEffect: "none", imageAspectRatio: "1:1", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 5, productColumnsMobile: 2, cardRadius: 6, productCTA: "VIEW" },
+  { id: "botanical-boutique", name: "Botanical Boutique", mood: "Soft, premium organic aesthetic", palettePreset: "sage", font: "Cormorant", fontSize: "md", cornerStyle: "pill", buttonStyle: "soft", animationLevel: "moderate", productCardStyle: "card", productHoverEffect: "zoom", imageAspectRatio: "3:4", productImageLayout: "slider", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 18, productCTA: "ADD TO BAG" },
+  { id: "royal-gallery", name: "Royal Gallery", mood: "Rich luxury visual system with dramatic hierarchy", palettePreset: "royal", font: "EB Garamond", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high", productCardStyle: "editorial", productHoverEffect: "lift", imageAspectRatio: "2:3", productImageLayout: "stacked", productContentPosition: "left", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 2, productCTA: "ACQUIRE" },
+  { id: "modern-atelier", name: "Modern Atelier", mood: "Refined studio layout with sleek modern lines", palettePreset: "minimal", font: "Outfit", fontSize: "md", cornerStyle: "sharp", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "minimal", productHoverEffect: "lift", imageAspectRatio: "1:1", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 0, productCTA: "EXPLORE" },
+  { id: "coastal-breeze", name: "Coastal Breeze", mood: "Airy coastal style with calm blue contrast", palettePreset: "ocean", font: "DM Sans", fontSize: "md", cornerStyle: "rounded", buttonStyle: "soft", animationLevel: "moderate", productCardStyle: "card", productHoverEffect: "zoom", imageAspectRatio: "3:4", productImageLayout: "slider", productContentPosition: "right", productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 16, productCTA: "SHOP NOW" },
+  { id: "velvet-rose", name: "Velvet Rose", mood: "Romantic boutique identity with warm highlights", palettePreset: "rose", font: "Lora", fontSize: "md", cornerStyle: "pill", buttonStyle: "solid", animationLevel: "moderate", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "2:3", productImageLayout: "stacked", productContentPosition: "left", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 20, productCTA: "FALL IN LOVE" },
+  { id: "forest-cabin", name: "Forest Cabin", mood: "Grounded rustic atmosphere with organic tones", palettePreset: "forest", font: "Montserrat", fontSize: "sm", cornerStyle: "rounded", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "card", productHoverEffect: "none", imageAspectRatio: "3:4", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 10, productCTA: "VIEW DETAILS" },
+  { id: "inkline-tech", name: "Inkline Tech", mood: "Minimal tech retail with punchy contrast accents", palettePreset: "ink", font: "Syne", fontSize: "sm", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high", productCardStyle: "minimal", productHoverEffect: "lift", imageAspectRatio: "1:1", productImageLayout: "slider", productContentPosition: "left", productColumnsDesktop: 5, productColumnsMobile: 2, cardRadius: 3, productCTA: "ADD" },
+  { id: "golden-noir", name: "Golden Noir", mood: "Dark premium experience with luminous CTA focus", palettePreset: "dark", font: "Bebas Neue", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high", productCardStyle: "editorial", productHoverEffect: "lift", imageAspectRatio: "2:3", productImageLayout: "stacked", productContentPosition: "left", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 1, productCTA: "ENTER SHOP" },
 ];
+
+const applyThemePreset = (update: (k: string, v: any) => void, theme: any) => {
+  const palette = PALETTES.find((p) => p.id === theme.palettePreset) || PALETTES[0];
+  update("palettePreset", theme.palettePreset);
+  update("primaryColor", palette.accent);
+  update("backgroundColor", palette.bg);
+  update("textColor", palette.text);
+  update("font", theme.font);
+  update("fontSize", theme.fontSize);
+  update("cornerStyle", theme.cornerStyle);
+  update("buttonStyle", theme.buttonStyle);
+  update("animationLevel", theme.animationLevel);
+  update("productCardStyle", theme.productCardStyle);
+  update("productHoverEffect", theme.productHoverEffect);
+  update("imageAspectRatio", theme.imageAspectRatio);
+  update("productImageLayout", theme.productImageLayout);
+  update("productContentPosition", theme.productContentPosition);
+  update("productColumnsDesktop", theme.productColumnsDesktop);
+  update("productColumnsMobile", theme.productColumnsMobile);
+  update("cardRadius", theme.cardRadius);
+  update("productCTA", theme.productCTA);
+  update("themeLibraryPreset", theme.id);
+};
 
 const FONTS = [
   { value: "Inter",           label: "Inter",          sub: "Sans-serif Modern" },
@@ -525,17 +548,7 @@ function StylePanel({ design, update }: any) {
   const applyTheme = (themeId: string) => {
     const theme = THEME_LIBRARY.find((t) => t.id === themeId);
     if (!theme) return;
-    const palette = PALETTES.find((p) => p.id === theme.palettePreset) || PALETTES[0];
-    update("palettePreset", theme.palettePreset);
-    update("primaryColor", palette.accent);
-    update("backgroundColor", palette.bg);
-    update("textColor", palette.text);
-    update("font", theme.font);
-    update("fontSize", theme.fontSize);
-    update("cornerStyle", theme.cornerStyle);
-    update("buttonStyle", theme.buttonStyle);
-    update("animationLevel", theme.animationLevel);
-    update("themeLibraryPreset", theme.id);
+    applyThemePreset(update, theme);
   };
 
   return (
@@ -657,17 +670,7 @@ function ThemeLibraryPanel({ design, update }: any) {
   const applyTheme = (themeId: string) => {
     const theme = THEME_LIBRARY.find((t) => t.id === themeId);
     if (!theme) return;
-    const palette = PALETTES.find((p) => p.id === theme.palettePreset) || PALETTES[0];
-    update("palettePreset", theme.palettePreset);
-    update("primaryColor", palette.accent);
-    update("backgroundColor", palette.bg);
-    update("textColor", palette.text);
-    update("font", theme.font);
-    update("fontSize", theme.fontSize);
-    update("cornerStyle", theme.cornerStyle);
-    update("buttonStyle", theme.buttonStyle);
-    update("animationLevel", theme.animationLevel);
-    update("themeLibraryPreset", theme.id);
+    applyThemePreset(update, theme);
   };
 
   return (
