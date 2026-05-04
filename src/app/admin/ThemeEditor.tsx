@@ -549,34 +549,7 @@ function StylePanel({ design, update }: any) {
   return (
     <div className="space-y-8">
       <Accordion title="Theme Library" defaultOpen={true}>
-        <div className="grid grid-cols-1 gap-3">
-          {THEME_LIBRARY.map((theme) => {
-            const isActive = design.themeLibraryPreset === theme.id;
-            const themePalette = PALETTES.find((p) => p.id === theme.palettePreset) || PALETTES[0];
-            return (
-              <button
-                key={theme.id}
-                onClick={() => applyThemePreset(update, theme.id)}
-                className={`w-full rounded-2xl border p-4 text-left transition-all ${
-                  isActive
-                    ? "bg-violet-600/20 border-violet-500/50 shadow-[0_0_30px_rgba(124,58,237,0.18)]"
-                    : "bg-white/[0.03] border-white/10 hover:border-white/30 hover:bg-white/[0.06]"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-100 italic">{theme.name}</p>
-                  {isActive && <Check size={14} className="text-violet-300" strokeWidth={3} />}
-                </div>
-                <p className="text-[9px] text-slate-400 font-bold mb-3">{theme.mood}</p>
-                <div className="flex gap-1.5">
-                  {themePalette.swatches.map((swatch, i) => (
-                    <span key={i} className="h-4 flex-1 rounded-full border border-black/10" style={{ background: swatch }} />
-                  ))}
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <ThemeLibraryPanel design={design} update={update} compact={true} />
       </Accordion>
 
       <Accordion title="Visual Identity Presets" defaultOpen={true}>
@@ -661,9 +634,9 @@ function StylePanel({ design, update }: any) {
   );
 }
 
-function ThemeLibraryPanel({ design, update }: any) {
+function ThemeLibraryPanel({ design, update, compact = false }: any) {
   return (
-    <div className="space-y-4">
+    <div className={compact ? "space-y-3" : "space-y-4"}>
       {THEME_LIBRARY.map((theme) => {
         const isActive = design.themeLibraryPreset === theme.id;
         const palette = PALETTES.find((p) => p.id === theme.palettePreset) || PALETTES[0];
@@ -671,7 +644,7 @@ function ThemeLibraryPanel({ design, update }: any) {
           <button
             key={theme.id}
             onClick={() => applyThemePreset(update, theme.id)}
-            className={`w-full rounded-2xl border p-5 text-left transition-all ${
+            className={`w-full rounded-2xl border ${compact ? "p-4" : "p-5"} text-left transition-all ${
               isActive
                 ? "bg-violet-600/20 border-violet-500/50 shadow-[0_0_30px_rgba(124,58,237,0.18)]"
                 : "bg-white/[0.03] border-white/10 hover:border-white/30 hover:bg-white/[0.06]"
