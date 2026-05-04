@@ -55,6 +55,21 @@ const PALETTES = [
   { id: "ocean",   label: "Deep Ocean",     bg: "#0c1a25", text: "#e2e8f0", accent: "#38bdf8", swatches: ["#0c1a25","#e2e8f0","#38bdf8"] },
 ];
 
+const THEME_LIBRARY = [
+  { id: "editorial-luxe", name: "Editorial Luxe", mood: "High-contrast serif with generous spacing", palettePreset: "light", font: "Playfair Display", fontSize: "md", cornerStyle: "rounded", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "lift", productImageLayout: "stack", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 16, productCTA: "Read More" },
+  { id: "night-neon", name: "Night Neon", mood: "Dark cinematic storefront with energetic accents", palettePreset: "cyber", font: "Space Mono", fontSize: "md", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high", productCardStyle: "minimal", productHoverEffect: "glow", productImageLayout: "slider", productContentPosition: "below", productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 6, productCTA: "Buy Now" },
+  { id: "earthy-studio", name: "Earthy Studio", mood: "Warm lifestyle brand with artisan feel", palettePreset: "warm", font: "Fraunces", fontSize: "md", cornerStyle: "rounded", buttonStyle: "soft", animationLevel: "moderate", productCardStyle: "editorial", productHoverEffect: "zoom", productImageLayout: "stack", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 14, productCTA: "Discover" },
+  { id: "nordic-minimal", name: "Nordic Minimal", mood: "Clean product-first look focused on clarity", palettePreset: "nord", font: "Inter", fontSize: "sm", cornerStyle: "rounded", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "minimal", productHoverEffect: "lift", productImageLayout: "single", productContentPosition: "below", productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 8, productCTA: "View" },
+  { id: "botanical-boutique", name: "Botanical Boutique", mood: "Soft, premium organic aesthetic", palettePreset: "sage", font: "Cormorant", fontSize: "md", cornerStyle: "pill", buttonStyle: "soft", animationLevel: "moderate", productCardStyle: "classic", productHoverEffect: "zoom", productImageLayout: "stack", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 20, productCTA: "Shop Collection" },
+  { id: "royal-gallery", name: "Royal Gallery", mood: "Rich luxury visual system with dramatic hierarchy", palettePreset: "royal", font: "EB Garamond", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high", productCardStyle: "editorial", productHoverEffect: "glow", productImageLayout: "slider", productContentPosition: "below", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 4, productCTA: "Acquire" },
+  { id: "modern-atelier", name: "Modern Atelier", mood: "Refined studio layout with sleek modern lines", palettePreset: "minimal", font: "Outfit", fontSize: "md", cornerStyle: "sharp", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "minimal", productHoverEffect: "lift", productImageLayout: "single", productContentPosition: "below", productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 6, productCTA: "Explore" },
+  { id: "coastal-breeze", name: "Coastal Breeze", mood: "Airy coastal style with calm blue contrast", palettePreset: "ocean", font: "DM Sans", fontSize: "md", cornerStyle: "rounded", buttonStyle: "soft", animationLevel: "moderate", productCardStyle: "classic", productHoverEffect: "zoom", productImageLayout: "stack", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 18, productCTA: "View Details" },
+  { id: "velvet-rose", name: "Velvet Rose", mood: "Romantic boutique identity with warm highlights", palettePreset: "rose", font: "Lora", fontSize: "md", cornerStyle: "pill", buttonStyle: "solid", animationLevel: "moderate", productCardStyle: "classic", productHoverEffect: "glow", productImageLayout: "slider", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 22, productCTA: "Treat Yourself" },
+  { id: "forest-cabin", name: "Forest Cabin", mood: "Grounded rustic atmosphere with organic tones", palettePreset: "forest", font: "Montserrat", fontSize: "sm", cornerStyle: "rounded", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "lift", productImageLayout: "single", productContentPosition: "below", productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 10, productCTA: "Learn More" },
+  { id: "inkline-tech", name: "Inkline Tech", mood: "Minimal tech retail with punchy contrast accents", palettePreset: "ink", font: "Syne", fontSize: "sm", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high", productCardStyle: "minimal", productHoverEffect: "glow", productImageLayout: "slider", productContentPosition: "below", productColumnsDesktop: 5, productColumnsMobile: 2, cardRadius: 2, productCTA: "Add to Cart" },
+  { id: "golden-noir", name: "Golden Noir", mood: "Dark premium experience with luminous CTA focus", palettePreset: "dark", font: "Bebas Neue", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high", productCardStyle: "editorial", productHoverEffect: "glow", productImageLayout: "stack", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 6, productCTA: "Reserve" },
+];
+
 const FONTS = [
   { value: "Inter",           label: "Inter",          sub: "Sans-serif Modern" },
   { value: "Outfit",          label: "Outfit",         sub: "Geometric Soft" },
@@ -507,9 +522,63 @@ function StylePanel({ design, update }: any) {
   const currentPalette = PALETTES.find(p => p.id === design.palettePreset) || PALETTES[0];
   const backgroundColor = design.backgroundColor || currentPalette.bg;
   const textColor = design.textColor || currentPalette.text;
+  const applyTheme = (themeId: string) => {
+    const theme = THEME_LIBRARY.find((t) => t.id === themeId);
+    if (!theme) return;
+    const palette = PALETTES.find((p) => p.id === theme.palettePreset) || PALETTES[0];
+    update("palettePreset", theme.palettePreset);
+    update("primaryColor", palette.accent);
+    update("backgroundColor", palette.bg);
+    update("textColor", palette.text);
+    update("font", theme.font);
+    update("fontSize", theme.fontSize);
+    update("cornerStyle", theme.cornerStyle);
+    update("buttonStyle", theme.buttonStyle);
+    update("animationLevel", theme.animationLevel);
+    update("productCardStyle", theme.productCardStyle);
+    update("productHoverEffect", theme.productHoverEffect);
+    update("productImageLayout", theme.productImageLayout);
+    update("productContentPosition", theme.productContentPosition);
+    update("productColumnsDesktop", theme.productColumnsDesktop);
+    update("productColumnsMobile", theme.productColumnsMobile);
+    update("cardRadius", theme.cardRadius);
+    update("productCTA", theme.productCTA);
+    update("themeLibraryPreset", theme.id);
+  };
 
   return (
     <div className="space-y-8">
+      <Accordion title="Theme Library" defaultOpen={true}>
+        <div className="grid grid-cols-1 gap-3">
+          {THEME_LIBRARY.map((theme) => {
+            const isActive = design.themeLibraryPreset === theme.id;
+            const themePalette = PALETTES.find((p) => p.id === theme.palettePreset) || PALETTES[0];
+            return (
+              <button
+                key={theme.id}
+                onClick={() => applyTheme(theme.id)}
+                className={`w-full rounded-2xl border p-4 text-left transition-all ${
+                  isActive
+                    ? "bg-violet-600/20 border-violet-500/50 shadow-[0_0_30px_rgba(124,58,237,0.18)]"
+                    : "bg-white/[0.03] border-white/10 hover:border-white/30 hover:bg-white/[0.06]"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-100 italic">{theme.name}</p>
+                  {isActive && <Check size={14} className="text-violet-300" strokeWidth={3} />}
+                </div>
+                <p className="text-[9px] text-slate-400 font-bold mb-3">{theme.mood}</p>
+                <div className="flex gap-1.5">
+                  {themePalette.swatches.map((swatch, i) => (
+                    <span key={i} className="h-4 flex-1 rounded-full border border-black/10" style={{ background: swatch }} />
+                  ))}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </Accordion>
+
       <Accordion title="Visual Identity Presets" defaultOpen={true}>
         <div className="grid grid-cols-2 gap-4">
           {PALETTES.map((palette) => (
@@ -588,6 +657,63 @@ function StylePanel({ design, update }: any) {
           onChange={(val) => update("font", val)} 
         />
       </Accordion>
+    </div>
+  );
+}
+
+function ThemeLibraryPanel({ design, update }: any) {
+  const applyTheme = (themeId: string) => {
+    const theme = THEME_LIBRARY.find((t) => t.id === themeId);
+    if (!theme) return;
+    const palette = PALETTES.find((p) => p.id === theme.palettePreset) || PALETTES[0];
+    update("palettePreset", theme.palettePreset);
+    update("primaryColor", palette.accent);
+    update("backgroundColor", palette.bg);
+    update("textColor", palette.text);
+    update("font", theme.font);
+    update("fontSize", theme.fontSize);
+    update("cornerStyle", theme.cornerStyle);
+    update("buttonStyle", theme.buttonStyle);
+    update("animationLevel", theme.animationLevel);
+    update("productCardStyle", theme.productCardStyle);
+    update("productHoverEffect", theme.productHoverEffect);
+    update("productImageLayout", theme.productImageLayout);
+    update("productContentPosition", theme.productContentPosition);
+    update("productColumnsDesktop", theme.productColumnsDesktop);
+    update("productColumnsMobile", theme.productColumnsMobile);
+    update("cardRadius", theme.cardRadius);
+    update("productCTA", theme.productCTA);
+    update("themeLibraryPreset", theme.id);
+  };
+
+  return (
+    <div className="space-y-4">
+      {THEME_LIBRARY.map((theme) => {
+        const isActive = design.themeLibraryPreset === theme.id;
+        const palette = PALETTES.find((p) => p.id === theme.palettePreset) || PALETTES[0];
+        return (
+          <button
+            key={theme.id}
+            onClick={() => applyTheme(theme.id)}
+            className={`w-full rounded-2xl border p-5 text-left transition-all ${
+              isActive
+                ? "bg-violet-600/20 border-violet-500/50 shadow-[0_0_30px_rgba(124,58,237,0.18)]"
+                : "bg-white/[0.03] border-white/10 hover:border-white/30 hover:bg-white/[0.06]"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="text-[11px] font-black uppercase tracking-wider text-slate-100 italic">{theme.name}</p>
+              {isActive && <Check size={14} className="text-violet-300" strokeWidth={3} />}
+            </div>
+            <p className="text-[9px] text-slate-400 font-bold mb-3">{theme.mood}</p>
+            <div className="flex gap-1.5">
+              {palette.swatches.map((swatch, i) => (
+                <span key={i} className="h-4 flex-1 rounded-full border border-black/10" style={{ background: swatch }} />
+              ))}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -3579,6 +3705,22 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     <SeoPanel design={activeDesign} update={update} previewMode={previewMode} />
+                  </div>
+                </motion.div>
+              ) : activeTab === "templates" ? (
+                <motion.div
+                  key="templates"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="flex-1 flex flex-col overflow-hidden"
+                >
+                  <div className="p-8 pb-4">
+                    <span className="text-[10px] font-black tracking-[0.4em] text-fuchsia-500 uppercase italic mb-2 block">Design System</span>
+                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Theme Library</h2>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    <ThemeLibraryPanel design={activeDesign} update={update} />
                   </div>
                 </motion.div>
               ) : (
