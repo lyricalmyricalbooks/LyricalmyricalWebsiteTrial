@@ -1014,22 +1014,54 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         {(heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections) &&
         (heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections).length > 0 ? (
           <div className="flex flex-col">
-            {(heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections).map((section: any) => {
-              const SectionComponent = (Sections as any)[section.type];
-              if (!SectionComponent) return null;
-              
-              return (
-                <div key={section.id} id={`section-${section.id}`} data-section="homepage" data-section-id={section.id}>
-                  <SectionComponent 
-                    settings={section.settings || {}} 
-                    books={books}
-                    onCtaClick={() => setShowCatalog(true)}
-                    onProductClick={(book: any) => navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)}
-                    enableAnimations={heroDesign?.enableAnimations ?? true}
-                  />
-                </div>
-              );
-            })}
+            {(heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections)
+              .filter((section: any) => section.visible !== false)
+              .map((section: any) => {
+                const SectionComponent = (Sections as any)[section.type];
+                if (!SectionComponent) return null;
+
+                const s = section.settings || {};
+                const schemes: any[] = heroDesign.colorSchemes || activeDesign.colorSchemes || [];
+                const scheme = s.colorSchemeId
+                  ? schemes.find((sc: any) => sc.id === s.colorSchemeId)
+                  : null;
+                const wrapperStyle: React.CSSProperties = {
+                  paddingTop: s.paddingTop != null ? `${s.paddingTop}px` : undefined,
+                  paddingBottom: s.paddingBottom != null ? `${s.paddingBottom}px` : undefined,
+                  background: scheme?.background || s.sectionBackground || undefined,
+                  color: scheme?.text || undefined,
+                };
+                const wrapperCls = [
+                  "relative",
+                  s.fullWidth ? "w-full" : "",
+                  s.hideOnMobile ? "hidden md:block" : "",
+                  s.hideOnDesktop ? "block md:hidden" : "",
+                  s.customClass || "",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+
+                return (
+                  <div
+                    key={section.id}
+                    id={`section-${section.id}`}
+                    data-section="homepage"
+                    data-section-id={section.id}
+                    className={wrapperCls}
+                    style={wrapperStyle}
+                  >
+                    <SectionComponent
+                      settings={s}
+                      books={books}
+                      onCtaClick={() => setShowCatalog(true)}
+                      onProductClick={(book: any) =>
+                        navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
+                      }
+                      enableAnimations={heroDesign?.enableAnimations ?? true}
+                    />
+                  </div>
+                );
+              })}
           </div>
         ) : (
           /* Fallback to legacy structure */
