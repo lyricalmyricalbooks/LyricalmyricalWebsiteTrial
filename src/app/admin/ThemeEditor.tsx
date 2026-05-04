@@ -36,6 +36,21 @@ import {
 } from "lucide-react";
 import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
+import {
+  getSectionMeta,
+  getSectionFields,
+  getBlockFields,
+  NewSectionLibraryModal,
+  BlocksEditor,
+  SectionSettingsPanel,
+  SectionFieldEditor,
+  ColorSchemesPanel,
+  DEFAULT_COLOR_SCHEMES,
+  ThemeIOButtons,
+  PAGE_TEMPLATES,
+  type ColorScheme,
+} from "./ThemeEditorExtensions";
+import { Tablet } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour palette presets
@@ -800,7 +815,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
   );
 }
 
-function HomepagePanel({ design, update }: any) {
+function HomepagePanel({ design, update, colorSchemes = [] }: any) {
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
@@ -834,17 +849,26 @@ function HomepagePanel({ design, update }: any) {
 
   const addSection = (type: string) => {
     const id = crypto.randomUUID();
-    const defaults: any = {
-      HeroSection: { title: "NEW HERO", subtitle: "Something special", ctaText: "EXPLORE", overlayOpacity: 0.5 },
-      FeatureGridSection: { title: "FEATURE HIGHLIGHTS", items: [{ title: "Free Shipping", description: "On eligible orders" }, { title: "Curated Archive", description: "Handpicked editions" }, { title: "Worldwide Delivery", description: "Ships internationally" }] },
-      NewsletterSection: { title: "STAY IN TOUCH", description: "Get our latest news." },
-      TestimonialsSection: { title: "WHAT COLLECTORS SAY", items: [{ quote: "Beautiful curation and packaging.", author: "A. Reader" }, { quote: "Always find rare gems here.", author: "N. Collector" }] },
-      FAQSection: { title: "FREQUENTLY ASKED QUESTIONS", items: [{ question: "Do you ship internationally?", answer: "Yes, we ship worldwide." }, { question: "How long is delivery?", answer: "Usually 3-7 business days." }] },
+    const meta = getSectionMeta(type);
+    const newSection = {
+      id,
+      type,
+      visible: true,
+      settings: JSON.parse(JSON.stringify(meta?.defaults || {})),
     };
-    
-    const newSection = { id, type, visible: true, settings: defaults[type] || {} };
     updateSections([...sections, newSection]);
     setActiveSectionId(id);
+  };
+
+  const duplicateSection = (id: string, e?: any) => {
+    if (e) e.stopPropagation();
+    const idx = sections.findIndex((s: any) => s.id === id);
+    if (idx < 0) return;
+    const copy = JSON.parse(JSON.stringify(sections[idx]));
+    copy.id = crypto.randomUUID();
+    const next = [...sections];
+    next.splice(idx + 1, 0, copy);
+    updateSections(next);
   };
 
   const toggleSectionVisibility = (id: string, e: React.MouseEvent) => {
@@ -899,83 +923,61 @@ function HomepagePanel({ design, update }: any) {
           </div>
         </div>
 
-        <div className="p-4 space-y-6 overflow-y-auto flex-1">
-          {section.type === "HeroSection" && (
-            <div className="space-y-6">
-              <SidebarInput label="Headline" value={section.settings.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { title: v })} />
-              <SidebarInput label="Subtitle" value={section.settings.subtitle || ""} onChange={(v: string) => updateSectionSettings(section.id, { subtitle: v })} />
-              <div>
-                <SidebarLabel>Media</SidebarLabel>
-                <div className="bg-neutral-50 rounded-2xl p-4 border border-neutral-200 border-dashed space-y-4">
-                  {section.settings.imageUrl && (
-                    <div className="aspect-video w-full rounded-xl overflow-hidden border border-neutral-200">
-                      <img src={section.settings.imageUrl} className="w-full h-full object-cover" />
-                    </div>
-                  )}
-                  <div className="flex flex-col gap-2">
-                    <SidebarInput value={section.settings.imageUrl || ""} onChange={(v: string) => updateSectionSettings(section.id, { imageUrl: v })} placeholder="Paste Image URL..." />
-                    <div className="flex items-center gap-2">
-                       <input type="file" id={`upload-${section.id}`} className="hidden" accept="image/*" onChange={(e) => {
-                           const file = e.target.files?.[0];
-                           if (file) handleImageUpload(section.id, file);
-                       }} />
-                       <label htmlFor={`upload-${section.id}`} className="flex-1 py-1.5 bg-white border border-neutral-200 rounded-lg text-center text-[10px] font-bold cursor-pointer hover:bg-neutral-50 transition-colors">UPLOAD FILE</label>
-                    </div>
-                  </div>
-                </div>
+        <div className="p-4 space-y-5 overflow-y-auto flex-1">
+          {/* Field-driven editor */}
+          {(() => {
+            const fields = getSectionFields(section.type);
+            const uploadFile = (file: File) =>
+              adminApi.uploadFile(file, `sections/${section.id}_${Date.now()}`);
+            return (
+              <div className="space-y-3">
+                {fields.map((field) => (
+                  <SectionFieldEditor
+                    key={field.key}
+                    field={field}
+                    value={section.settings[field.key]}
+                    onChange={(v) => updateSectionSettings(section.id, { [field.key]: v })}
+                    uploadFile={uploadFile}
+                  />
+                ))}
               </div>
-              <SidebarRange label="Overlay Darken" value={Math.round((section.settings.overlayOpacity ?? 0.5) * 100)} min={0} max={90} suffix="%" onChange={(v) => updateSectionSettings(section.id, { overlayOpacity: v / 100 })} />
-              <ColorPicker label="Accent Color" value={section.settings.accentColor || "#A855F7"} onChange={(v) => updateSectionSettings(section.id, { accentColor: v })} />
-              <SidebarInput label="CTA Label" value={section.settings.ctaText || ""} onChange={(v: string) => updateSectionSettings(section.id, { ctaText: v })} />
+            );
+          })()}
+
+          {/* Blocks editor (only sections with blocks) */}
+          {getBlockFields(section.type).length > 0 && (
+            <div className="pt-4 border-t border-neutral-100">
+              <BlocksEditor
+                sectionType={section.type}
+                settings={section.settings}
+                onUpdate={(patch) => updateSectionSettings(section.id, patch)}
+                uploadFile={(file: File) => adminApi.uploadFile(file, `sections/${section.id}_${Date.now()}`)}
+              />
             </div>
           )}
 
-          {section.type === "FeatureGridSection" && (
-            <div className="space-y-6">
-              <SidebarInput label="Title" value={section.settings.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { title: v })} />
-              <SidebarInput label="Feature 1" value={section.settings.items?.[0]?.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { items: [{ ...(section.settings.items?.[0] || {}), title: v }, section.settings.items?.[1] || {}, section.settings.items?.[2] || {}] })} />
-              <SidebarInput label="Feature 2" value={section.settings.items?.[1]?.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { items: [section.settings.items?.[0] || {}, { ...(section.settings.items?.[1] || {}), title: v }, section.settings.items?.[2] || {}] })} />
-              <SidebarInput label="Feature 3" value={section.settings.items?.[2]?.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { items: [section.settings.items?.[0] || {}, section.settings.items?.[1] || {}, { ...(section.settings.items?.[2] || {}), title: v }] })} />
-            </div>
-          )}
+          {/* Per-section settings (padding, color scheme, full-width, custom class, hide) */}
+          <div className="pt-4 border-t border-neutral-100">
+            <SectionSettingsPanel
+              settings={section.settings}
+              onUpdate={(patch) => updateSectionSettings(section.id, patch)}
+              colorSchemes={colorSchemes}
+            />
+          </div>
 
-          {section.type === "NewsletterSection" && (
-            <div className="space-y-4">
-              <SidebarInput label="Title" value={section.settings.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { title: v })} />
-              <textarea value={section.settings.description || ""} onChange={(e) => updateSectionSettings(section.id, { description: e.target.value })} rows={4} className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm" placeholder="Newsletter description..." />
-            </div>
-          )}
-
-          {section.type === "TestimonialsSection" && (
-            <div className="space-y-4">
-              <SidebarInput label="Title" value={section.settings.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { title: v })} />
-              <textarea value={section.settings.items?.[0]?.quote || ""} onChange={(e) => updateSectionSettings(section.id, { items: [{ ...(section.settings.items?.[0] || {}), quote: e.target.value }, section.settings.items?.[1] || {}] })} rows={4} className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm" placeholder="First testimonial..." />
-              <textarea value={section.settings.items?.[1]?.quote || ""} onChange={(e) => updateSectionSettings(section.id, { items: [section.settings.items?.[0] || {}, { ...(section.settings.items?.[1] || {}), quote: e.target.value }] })} rows={4} className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm" placeholder="Second testimonial..." />
-              <button
-                onClick={() => updateSectionSettings(section.id, { items: [...(section.settings.items || []), { quote: "New testimonial", author: "Customer" }] })}
-                className="w-full py-3 rounded-xl border border-neutral-200 text-[10px] font-bold tracking-widest text-neutral-500 hover:bg-neutral-50"
-              >
-                ADD TESTIMONIAL BLOCK
-              </button>
-            </div>
-          )}
-
-          {section.type === "FAQSection" && (
-            <div className="space-y-4">
-              <SidebarInput label="Title" value={section.settings.title || ""} onChange={(v: string) => updateSectionSettings(section.id, { title: v })} />
-              <SidebarInput label="Question" value={section.settings.items?.[0]?.question || ""} onChange={(v: string) => updateSectionSettings(section.id, { items: [{ ...(section.settings.items?.[0] || {}), question: v }, section.settings.items?.[1] || {}] })} />
-              <textarea value={section.settings.items?.[0]?.answer || ""} onChange={(e) => updateSectionSettings(section.id, { items: [{ ...(section.settings.items?.[0] || {}), answer: e.target.value }, section.settings.items?.[1] || {}] })} rows={3} className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-4 py-3 text-[11px] outline-none focus:border-blue-400 transition-all resize-none shadow-sm" placeholder="Answer..." />
-              <button
-                onClick={() => updateSectionSettings(section.id, { items: [...(section.settings.items || []), { question: "New question?", answer: "New answer." }] })}
-                className="w-full py-3 rounded-xl border border-neutral-200 text-[10px] font-bold tracking-widest text-neutral-500 hover:bg-neutral-50"
-              >
-                ADD FAQ BLOCK
-              </button>
-            </div>
-          )}
-
-          <div className="pt-8 mt-12 border-t border-neutral-100">
-            <button onClick={() => removeSection(section.id)} className="w-full py-4 text-red-500 text-[10px] font-bold tracking-widest border-2 border-red-50 rounded-2xl hover:bg-red-50 transition-colors">DELETE SECTION</button>
+          <div className="pt-2 grid grid-cols-2 gap-2">
+            <button
+              onClick={(e) => duplicateSection(section.id, e)}
+              className="py-3 text-neutral-700 text-[10px] font-bold tracking-widest border border-neutral-200 rounded-2xl hover:bg-neutral-50 transition-colors"
+            >
+              DUPLICATE
+            </button>
+            <button
+              onClick={() => removeSection(section.id)}
+              className="py-3 text-red-500 text-[10px] font-bold tracking-widest border-2 border-red-50 rounded-2xl hover:bg-red-50 transition-colors"
+            >
+              DELETE
+            </button>
           </div>
         </div>
       </div>
@@ -1107,7 +1109,7 @@ function HomepagePanel({ design, update }: any) {
                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 flex-shrink-0 ${
                    isHidden ? "bg-neutral-100 text-neutral-300" : "bg-neutral-50 text-neutral-400 group-hover:bg-blue-50 group-hover:text-blue-600"
                  }`}>
-                    {section.type === "HeroSection" ? <LayoutTemplate size={16} /> : section.type === "FeatureGridSection" ? <ShoppingBag size={16} /> : section.type === "NewsletterSection" ? <Mail size={16} /> : <FileText size={16} />}
+                    {section.type === "HeroSection" || section.type === "SlideshowSection" || section.type === "ImageWithTextSection" ? <LayoutTemplate size={16} /> : section.type === "FeatureGridSection" || section.type === "MulticolumnSection" || section.type === "CollectionListSection" || section.type === "FeaturedProductSection" ? <ShoppingBag size={16} /> : section.type === "NewsletterSection" || section.type === "ContactFormSection" ? <Mail size={16} /> : <FileText size={16} />}
                  </div>
 
                  {/* Label */}
@@ -1127,6 +1129,14 @@ function HomepagePanel({ design, update }: any) {
                       title={isHidden ? "Show section" : "Hide section"}
                     >
                       {isHidden ? <EyeOff size={13} /> : <Eye size={13} />}
+                    </button>
+                    {/* Duplicate */}
+                    <button
+                      onClick={(e) => duplicateSection(section.id, e)}
+                      className="p-2 text-neutral-200 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                      title="Duplicate section"
+                    >
+                      <Layers size={13} />
                     </button>
                     {/* Delete */}
                     <button onClick={(e) => removeSection(section.id, e)} className="p-2 text-neutral-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"><X size={13} /></button>
@@ -1153,9 +1163,9 @@ function HomepagePanel({ design, update }: any) {
           </motion.button>
         </div>
 
-        {/* Section Library Modal */}
+        {/* Section Library Modal — full categorized library */}
         {showLibrary && (
-          <SectionLibraryModal
+          <NewSectionLibraryModal
             onAdd={addSection}
             onClose={() => setShowLibrary(false)}
           />
@@ -2467,6 +2477,7 @@ function SeoPanel({ design, update, previewMode }: { design: any; update: (k: st
 // ─────────────────────────────────────────────────────────────────────────────
 function LivePreview({ design, device, previewMode, iframeRef }: any) {
   const isDesktop = device === "desktop";
+  const isTablet = device === "tablet";
   
   // Derive the base URL from the current page — works on localhost AND GitHub Pages /RepoName/
   // e.g. https://user.github.io/Repo/admin -> https://user.github.io/Repo
@@ -2580,13 +2591,15 @@ function LivePreview({ design, device, previewMode, iframeRef }: any) {
       {/* Browser chrome / Device Frame */}
       <div
         className={`bg-white shadow-2xl relative transition-all duration-700 ease-in-out flex flex-col ${
-          isDesktop 
-            ? "rounded-2xl border border-neutral-300/50 w-full max-w-[1200px] h-full" 
+          isDesktop
+            ? "rounded-2xl border border-neutral-300/50 w-full max-w-[1200px] h-full"
+            : isTablet
+            ? "rounded-[2rem] border-[10px] border-neutral-900 w-[820px] h-[1080px] scale-[0.6] 2xl:scale-[0.75]"
             : "rounded-[3rem] border-[8px] border-neutral-900 w-[375px] h-[760px] scale-[0.85] 2xl:scale-100"
         }`}
       >
-        {/* Notch for Mobile */}
-        {!isDesktop && (
+        {/* Notch for Mobile only */}
+        {!isDesktop && !isTablet && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-neutral-900 rounded-b-2xl z-20 flex items-center justify-center gap-1.5">
             <div className="w-8 h-1 bg-white/10 rounded-full" />
             <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
@@ -2637,7 +2650,7 @@ function LivePreview({ design, device, previewMode, iframeRef }: any) {
 
       <p className="text-[10px] text-neutral-400 mt-4 font-bold tracking-[0.2em] uppercase flex items-center gap-2">
         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-        {isDesktop ? "Desktop" : "Mobile"} Viewport · Live Preview Sync
+        {isDesktop ? "Desktop" : isTablet ? "Tablet" : "Mobile"} Viewport · Live Preview Sync
       </p>
     </div>
   );
@@ -2892,8 +2905,8 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [pastDesigns, setPastDesigns] = useState<any[]>([]);
   const [futureDesigns, setFutureDesigns] = useState<any[]>([]);
 
-  const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
-  const [designSurface, setDesignSurface] = useState<"heroPage" | "storefront">("heroPage");
+  const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [designSurface, setDesignSurface] = useState<string>("heroPage");
   const [previewMode, setPreviewMode] = useState<"homepage" | "shop">("homepage");
   const [activeTab, setActiveTab] = useState<string>("settings");
   const [activeSection, setActiveSection] = useState<string | null>(null);
@@ -3227,6 +3240,13 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       description: "Manage additional template settings such as animations",
       pages: ["both"],
     },
+    {
+      id: "colorSchemes",
+      icon: <div className="w-4 h-4 rounded-full bg-gradient-to-br from-violet-400 via-pink-400 to-amber-400" />,
+      title: "Color schemes",
+      description: "Define palettes that any section can apply",
+      pages: ["both"],
+    },
   ];
 
   const filteredSections = useMemo(() => {
@@ -3248,7 +3268,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     switch (activeSection) {
       case "style":         return <StylePanel design={activeDesign} update={update} />;
       case "navigation":    return <NavigationPanel design={activeDesign} update={update} setActiveTab={setActiveTab} setActiveSection={setActiveSection} />;
-      case "homepage":      return <HomepagePanel design={activeDesign} update={update} />;
+      case "homepage":      return <HomepagePanel design={activeDesign} update={update} colorSchemes={design.colorSchemes || DEFAULT_COLOR_SCHEMES} />;
       case "products":      return <ProductsPanel design={activeDesign} update={update} />;
       case "layout":        return <LayoutPanel design={activeDesign} update={update} />;
       case "buttons":       return <ButtonsPanel design={activeDesign} update={update} />;
@@ -3257,6 +3277,12 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       case "textsize":      return <TextSizingPanel design={activeDesign} update={update} />;
       case "translations":  return <TranslationsPanel design={activeDesign} update={update} />;
       case "additional":    return <AdditionalPanel design={activeDesign} update={update} />;
+      case "colorSchemes":  return (
+        <ColorSchemesPanel
+          schemes={(design.colorSchemes && design.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES}
+          onChange={(next: ColorScheme[]) => update("colorSchemes", next, true)}
+        />
+      );
       default:              return null;
     }
   };
@@ -3319,6 +3345,17 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
             </button>
           </div>
 
+          {/* Theme import / export */}
+          <ThemeIOButtons
+            design={design}
+            onImport={(next) => {
+              setPastDesigns((prev) => [...prev.slice(-74), design]);
+              setFutureDesigns([]);
+              setDesign(next);
+              setSaveStatus("unsaved");
+            }}
+          />
+
           <button
             onClick={() => setSyncPreview((prev) => !prev)}
             className={`px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase border transition-all flex items-center gap-2 italic ${
@@ -3334,17 +3371,17 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
 
         {/* Device switcher */}
         <div className="flex items-center gap-1 bg-white/[0.03] border border-white/5 rounded-2xl p-1.5 backdrop-blur-xl shadow-2xl">
-          {(["desktop", "mobile"] as const).map((d) => (
+          {(["desktop", "tablet", "mobile"] as const).map((d) => (
             <button
               key={d}
               onClick={() => setDevice(d)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all relative group/btn ${
-                device === d 
-                  ? "bg-white/10 text-white shadow-inner border border-white/10" 
+                device === d
+                  ? "bg-white/10 text-white shadow-inner border border-white/10"
                   : "text-slate-500 hover:text-slate-300"
               }`}
             >
-              {d === "desktop" ? <Monitor size={14} strokeWidth={2.5} /> : <Smartphone size={14} strokeWidth={2.5} />}
+              {d === "desktop" ? <Monitor size={14} strokeWidth={2.5} /> : d === "tablet" ? <Tablet size={14} strokeWidth={2.5} /> : <Smartphone size={14} strokeWidth={2.5} />}
               <span className="text-[9px] font-black uppercase tracking-widest italic">{d}</span>
             </button>
           ))}
@@ -3514,34 +3551,35 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                         <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase italic mb-2 block">System Configuration</span>
                         <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Core Settings</h2>
 
-                        {/* Page context filter pills */}
+                        {/* Page template pills — Shopify-style template selector */}
                         {!settingsSearch && (
-                          <div className="flex items-center gap-2 mb-6">
-                            <button
-                              onClick={() => { setPreviewMode("homepage"); setDesignSurface("heroPage"); }}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black tracking-[0.25em] uppercase transition-all border ${
-                                previewMode === "homepage"
-                                  ? "bg-violet-600/20 text-violet-300 border-violet-500/40 shadow-[0_0_12px_rgba(124,58,237,0.2)]"
-                                  : "bg-white/[0.03] text-slate-600 border-white/5 hover:text-slate-400 hover:border-white/10"
-                              }`}
-                            >
-                              <Home size={10} strokeWidth={3} />
-                              Homepage
-                            </button>
-                            <button
-                              onClick={() => { setPreviewMode("shop"); setDesignSurface("storefront"); }}
-                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black tracking-[0.25em] uppercase transition-all border ${
-                                previewMode === "shop"
-                                  ? "bg-cyan-600/20 text-cyan-300 border-cyan-500/40 shadow-[0_0_12px_rgba(34,211,238,0.15)]"
-                                  : "bg-white/[0.03] text-slate-600 border-white/5 hover:text-slate-400 hover:border-white/10"
-                              }`}
-                            >
-                              <ShoppingBag size={10} strokeWidth={3} />
-                              Shop
-                            </button>
-                            <span className="text-[8px] text-slate-700 font-black tracking-widest ml-auto">
+                          <div className="mb-4">
+                            <p className="text-[8px] font-black tracking-[0.3em] text-slate-600 uppercase italic mb-2">Editing template</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {PAGE_TEMPLATES.map((tpl) => {
+                                const active = designSurface === tpl.id;
+                                return (
+                                  <button
+                                    key={tpl.id}
+                                    onClick={() => {
+                                      setDesignSurface(tpl.id as any);
+                                      setPreviewMode(tpl.previewMode);
+                                    }}
+                                    title={tpl.description}
+                                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[9px] font-black tracking-[0.2em] uppercase transition-all border ${
+                                      active
+                                        ? "bg-violet-600/20 text-violet-300 border-violet-500/40"
+                                        : "bg-white/[0.03] text-slate-600 border-white/5 hover:text-slate-400 hover:border-white/10"
+                                    }`}
+                                  >
+                                    {tpl.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <p className="text-[8px] text-slate-700 font-black tracking-widest mt-3">
                               {filteredSections.length} settings
-                            </span>
+                            </p>
                           </div>
                         )}
 
