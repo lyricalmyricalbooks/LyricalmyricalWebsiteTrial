@@ -653,6 +653,55 @@ function StylePanel({ design, update }: any) {
   );
 }
 
+function ThemeLibraryPanel({ design, update }: any) {
+  const applyTheme = (themeId: string) => {
+    const theme = THEME_LIBRARY.find((t) => t.id === themeId);
+    if (!theme) return;
+    const palette = PALETTES.find((p) => p.id === theme.palettePreset) || PALETTES[0];
+    update("palettePreset", theme.palettePreset);
+    update("primaryColor", palette.accent);
+    update("backgroundColor", palette.bg);
+    update("textColor", palette.text);
+    update("font", theme.font);
+    update("fontSize", theme.fontSize);
+    update("cornerStyle", theme.cornerStyle);
+    update("buttonStyle", theme.buttonStyle);
+    update("animationLevel", theme.animationLevel);
+    update("themeLibraryPreset", theme.id);
+  };
+
+  return (
+    <div className="space-y-4">
+      {THEME_LIBRARY.map((theme) => {
+        const isActive = design.themeLibraryPreset === theme.id;
+        const palette = PALETTES.find((p) => p.id === theme.palettePreset) || PALETTES[0];
+        return (
+          <button
+            key={theme.id}
+            onClick={() => applyTheme(theme.id)}
+            className={`w-full rounded-2xl border p-5 text-left transition-all ${
+              isActive
+                ? "bg-violet-600/20 border-violet-500/50 shadow-[0_0_30px_rgba(124,58,237,0.18)]"
+                : "bg-white/[0.03] border-white/10 hover:border-white/30 hover:bg-white/[0.06]"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="text-[11px] font-black uppercase tracking-wider text-slate-100 italic">{theme.name}</p>
+              {isActive && <Check size={14} className="text-violet-300" strokeWidth={3} />}
+            </div>
+            <p className="text-[9px] text-slate-400 font-bold mb-3">{theme.mood}</p>
+            <div className="flex gap-1.5">
+              {palette.swatches.map((swatch, i) => (
+                <span key={i} className="h-4 flex-1 rounded-full border border-black/10" style={{ background: swatch }} />
+              ))}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any) {
   const headerLinks = design.headerLinks || {};
   const updateHeaderLink = (key: string, value: boolean) => {
@@ -3640,6 +3689,22 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     <SeoPanel design={activeDesign} update={update} previewMode={previewMode} />
+                  </div>
+                </motion.div>
+              ) : activeTab === "templates" ? (
+                <motion.div
+                  key="templates"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="flex-1 flex flex-col overflow-hidden"
+                >
+                  <div className="p-8 pb-4">
+                    <span className="text-[10px] font-black tracking-[0.4em] text-fuchsia-500 uppercase italic mb-2 block">Design System</span>
+                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Theme Library</h2>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    <ThemeLibraryPanel design={activeDesign} update={update} />
                   </div>
                 </motion.div>
               ) : (
