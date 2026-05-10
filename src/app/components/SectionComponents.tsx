@@ -25,9 +25,18 @@ function AnimationContainer({ children, enabled, delay = 0 }: any) {
 // ──────────────────────────────
 
 export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
+  const heightCls =
+    settings.height === "full"
+      ? "h-screen min-h-[600px]"
+      : settings.height === "medium"
+      ? "h-[70vh] min-h-[480px]"
+      : settings.height === "small"
+      ? "h-[50vh] min-h-[320px]"
+      : "h-screen min-h-[600px]"; // default: full viewport
+
   return (
     <section
-      className={`relative w-full h-[80vh] min-h-[600px] flex items-center overflow-hidden ${
+      className={`relative w-full ${heightCls} flex items-center overflow-hidden ${
         settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center"
       }`}
       style={{ backgroundColor: settings.backgroundColor || "#000" }}

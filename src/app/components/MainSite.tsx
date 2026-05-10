@@ -1025,7 +1025,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // ── Homepage (hero) ──
   return (
     <div
-      className="size-full bg-[#030213] text-white overflow-hidden relative selection:bg-white selection:text-black font-sans"
+      className="min-h-screen w-full bg-[#030213] text-white overflow-x-hidden relative selection:bg-white selection:text-black font-sans"
       style={{ fontFamily: heroDesign?.font || "Inter, sans-serif" }}
     >
       <GoogleFontLoader font={heroDesign?.font || "Inter"} />

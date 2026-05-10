@@ -33,6 +33,7 @@ import {
   Save,
   Layers,
   MousePointer2,
+  BookOpen,
 } from "lucide-react";
 import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
@@ -2475,15 +2476,19 @@ function SeoPanel({ design, update, previewMode }: { design: any; update: (k: st
 // ─────────────────────────────────────────────────────────────────────────────
 // Live Preview — scaled render of the actual storefront
 // ─────────────────────────────────────────────────────────────────────────────
-function LivePreview({ design, device, previewMode, iframeRef }: any) {
+function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }: any) {
   const isDesktop = device === "desktop";
   const isTablet = device === "tablet";
-  
+
   // Derive the base URL from the current page — works on localhost AND GitHub Pages /RepoName/
-  // e.g. https://user.github.io/Repo/admin -> https://user.github.io/Repo
   const basePath = window.location.pathname.replace(/\/admin\/?.*$/, "").replace(/\/$/, "");
   const baseUrl = window.location.origin + basePath;
-  const previewUrl = baseUrl + (previewMode.value === "shop" ? "/?catalog=true&preview=true" : "/?preview=true");
+  const previewUrl =
+    previewMode.value === "shop"
+      ? baseUrl + "/?catalog=true&preview=true"
+      : previewMode.value === "product" && previewBookSlug
+      ? baseUrl + `/books/${previewBookSlug}?preview=true`
+      : baseUrl + "/?preview=true";
 
   // Inject click-to-select detector into the iframe once it loads.
   const handleIframeLoad = () => {
@@ -2571,21 +2576,45 @@ function LivePreview({ design, device, previewMode, iframeRef }: any) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center bg-[#e8e8e8] overflow-hidden p-6 pt-2">
       {/* Preview mode tabs */}
-      <div className="flex gap-1 bg-white/80 border border-neutral-200 rounded-full p-0.5 mb-4 shadow-sm">
-        {(["homepage", "shop"] as const).map((mode) => (
-          <button
-            key={mode}
-            onClick={() => previewMode.set(mode)}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all ${
-              previewMode.value === mode
-                ? "bg-neutral-900 text-white shadow"
-                : "text-neutral-500 hover:text-neutral-800"
-            }`}
-          >
-            {mode === "homepage" ? <Home size={10} /> : <ShoppingBag size={10} />}
-            {mode}
-          </button>
-        ))}
+      <div className="flex flex-col items-center gap-2 mb-4 w-full max-w-[480px]">
+        <div className="flex gap-1 bg-white/80 border border-neutral-200 rounded-full p-0.5 shadow-sm">
+          {([
+            { id: "homepage", icon: <Home size={10} />, label: "Home" },
+            { id: "shop",     icon: <ShoppingBag size={10} />, label: "Shop" },
+            { id: "product",  icon: <BookOpen size={10} />,    label: "Product" },
+          ] as const).map(({ id, icon, label }) => (
+            <button
+              key={id}
+              onClick={() => previewMode.set(id as any)}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all ${
+                previewMode.value === id
+                  ? "bg-neutral-900 text-white shadow"
+                  : "text-neutral-500 hover:text-neutral-800"
+              }`}
+            >
+              {icon}{label}
+            </button>
+          ))}
+        </div>
+
+        {/* Book selector — only shown in product mode */}
+        {previewMode.value === "product" && previewMode.books && previewMode.books.length > 0 && (
+          <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-full px-4 py-1.5 shadow-sm w-full max-w-xs">
+            <BookOpen size={10} className="text-neutral-400 flex-shrink-0" />
+            <select
+              value={previewMode.bookSlug}
+              onChange={e => previewMode.setBookSlug(e.target.value)}
+              className="flex-1 bg-transparent text-[10px] font-bold text-neutral-700 outline-none cursor-pointer truncate"
+            >
+              {previewMode.books.map((b: any) => {
+                const slug = b.slug || (b.title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+                return (
+                  <option key={b.id} value={slug}>{b.title || slug}</option>
+                );
+              })}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Browser chrome / Device Frame */}
@@ -2907,7 +2936,9 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
 
   const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [designSurface, setDesignSurface] = useState<string>("heroPage");
-  const [previewMode, setPreviewMode] = useState<"homepage" | "shop">("homepage");
+  const [previewMode, setPreviewMode] = useState<"homepage" | "shop" | "product">("homepage");
+  const [previewBooks, setPreviewBooks] = useState<any[]>([]);
+  const [previewBookSlug, setPreviewBookSlug] = useState<string>("");
   const [activeTab, setActiveTab] = useState<string>("settings");
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [settingsSearch, setSettingsSearch] = useState("");
@@ -3053,6 +3084,14 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
 
   useEffect(() => {
     adminApi.getPages().then(setPages);
+    adminApi.getBooks().then((books: any[]) => {
+      const published = books.filter((b: any) => b.status === "published" || !b.status);
+      setPreviewBooks(published);
+      if (published.length > 0 && !previewBookSlug) {
+        const first = published[0];
+        setPreviewBookSlug(first.slug || (first.title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -3062,6 +3101,12 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     if (heroSections.has(activeSection)) {
       setDesignSurface("heroPage");
       setPreviewMode("homepage");
+      return;
+    }
+    // Products section → switch to product page preview if a book is selected
+    if (activeSection === "products" && previewBookSlug) {
+      setDesignSurface("storefront");
+      setPreviewMode("product");
       return;
     }
     // Everything else previews the storefront/shop
@@ -3778,7 +3823,14 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           <LivePreview
             design={previewDesign}
             device={device}
-            previewMode={{ value: previewMode, set: (m: "homepage" | "shop") => { setPreviewMode(m); setIsPreviewReady(false); } }}
+            previewMode={{
+              value: previewMode,
+              set: (m: "homepage" | "shop" | "product") => { setPreviewMode(m); setIsPreviewReady(false); },
+              books: previewBooks,
+              bookSlug: previewBookSlug,
+              setBookSlug: (s: string) => { setPreviewBookSlug(s); setIsPreviewReady(false); },
+            }}
+            previewBookSlug={previewBookSlug}
             iframeRef={iframeRef}
           />
         </div>

@@ -476,23 +476,74 @@ export const adminApi = {
     });
   },
 
-  // DISCOUNTS
-  validateDiscount: async (code: string) => {
-    const q = query(collection(db, "discounts"), where("code", "==", code.toUpperCase()), where("active", "==", true));
-    const snap = await getDocs(q);
-    if (snap.empty) throw new Error("Invalid or expired discount code");
-    
-    const data = snap.docs[0].data();
+  // DISCOUNTS ─────────────────────────────────────────────────────────────────
+  getDiscounts: async () => {
+    const snap = await getDocs(collection(db, "discounts"));
+    return snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a: any, b: any) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  },
+
+  saveDiscount: async (discount: any) => {
     const now = new Date().toISOString();
-    
-    if (data.expiry && data.expiry < now) throw new Error("This code has expired");
-    if (data.usageLimit && (data.usageCount || 0) >= data.usageLimit) throw new Error("This code has reached its usage limit");
-    
+    const payload = {
+      code: (discount.code || "").toUpperCase(),
+      type: discount.type || "percentage",
+      value: discount.value ?? 0,
+      isActive: discount.isActive ?? true,
+      expiryDate: discount.expiryDate || null,
+      minOrderAmount: discount.minOrderAmount ?? null,
+      usageLimit: discount.usageLimit ?? null,
+      usageCount: discount.usageCount ?? 0,
+      onePerCustomer: discount.onePerCustomer ?? false,
+      appliesTo: discount.appliesTo || "all",
+      description: discount.description || "",
+      createdAt: now,
+      updatedAt: now,
+    };
+    const docRef = await addDoc(collection(db, "discounts"), payload);
+    return { id: docRef.id, ...payload };
+  },
+
+  updateDiscount: async (id: string, data: any) => {
+    const now = new Date().toISOString();
+    const payload = { ...data, updatedAt: now };
+    delete payload.id;
+    await updateDoc(doc(db, "discounts", id), payload);
+    return { id, ...payload };
+  },
+
+  deleteDiscount: async (id: string) => {
+    await deleteDoc(doc(db, "discounts", id));
+  },
+
+  validateDiscount: async (code: string) => {
+    // Support both isActive (new field) and active (legacy)
+    const snap = await getDocs(
+      query(collection(db, "discounts"), where("code", "==", code.toUpperCase()))
+    );
+    if (snap.empty) throw new Error("Invalid or expired discount code");
+
+    const docSnap = snap.docs[0];
+    const data = docSnap.data();
+    const isActive = data.isActive ?? data.active ?? true;
+    if (!isActive) throw new Error("This code is not currently active");
+
+    const now = new Date().toISOString();
+    const expiry = data.expiryDate || data.expiry;
+    if (expiry && expiry < now) throw new Error("This code has expired");
+    if (data.usageLimit && (data.usageCount || 0) >= data.usageLimit)
+      throw new Error("This code has reached its usage limit");
+
+    const minOrder = data.minOrderAmount;
+
     return {
-      id: snap.docs[0].id,
+      id: docSnap.id,
       code: data.code,
-      type: data.type, // 'percentage' or 'fixed'
-      value: data.value
+      type: data.type,
+      value: data.value,
+      minOrderAmount: minOrder ?? null,
+      onePerCustomer: data.onePerCustomer ?? false,
     };
   },
 
