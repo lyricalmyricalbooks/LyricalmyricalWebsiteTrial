@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowLeft, Heart } from "lucide-react";
 import { useSiteData } from "./useSiteData";
@@ -40,6 +40,12 @@ export default function CollectionPage() {
     description: `Browse the ${categoryName.toLowerCase()} collection from Lyricalmyrical Books.`,
     type: "website",
   });
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("preview=true")) {
+      window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
+    }
+  }, [slug]);
 
   if (loading) {
     return (

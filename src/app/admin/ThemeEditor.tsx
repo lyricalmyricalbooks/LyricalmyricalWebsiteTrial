@@ -34,6 +34,10 @@ import {
   Layers,
   MousePointer2,
   BookOpen,
+  Tag,
+  Heart,
+  User,
+  ShoppingCart,
 } from "lucide-react";
 import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
@@ -2331,7 +2335,7 @@ function ResponsivePanel({ design, update, device }: { design: any; update: (k: 
 // ─────────────────────────────────────────────────────────────────────────────
 // SEO Panel
 // ─────────────────────────────────────────────────────────────────────────────
-function SeoPanel({ design, update, previewMode }: { design: any; update: (k: string, v: any) => void; previewMode: "homepage" | "shop" }) {
+function SeoPanel({ design, update, previewMode }: { design: any; update: (k: string, v: any) => void; previewMode: string }) {
   const prefix = previewMode === "shop" ? "shop" : "home";
   const titleKey = `${prefix}SeoTitle`;
   const descKey = `${prefix}SeoDesc`;
@@ -2483,12 +2487,20 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
   // Derive the base URL from the current page — works on localhost AND GitHub Pages /RepoName/
   const basePath = window.location.pathname.replace(/\/admin\/?.*$/, "").replace(/\/$/, "");
   const baseUrl = window.location.origin + basePath;
-  const previewUrl =
-    previewMode.value === "shop"
-      ? baseUrl + "/?catalog=true&preview=true"
-      : previewMode.value === "product" && previewBookSlug
-      ? baseUrl + `/books/${previewBookSlug}?preview=true`
-      : baseUrl + "/?preview=true";
+  const withPreview = (path: string) => baseUrl + path + (path.includes("?") ? "&" : "?") + "preview=true";
+  const previewUrl = (() => {
+    switch (previewMode.value) {
+      case "shop":       return withPreview("/?catalog=true");
+      case "product":    return withPreview(`/books/${previewBookSlug || ""}`);
+      case "collection": return withPreview(`/collections/${previewMode.collectionSlug || ""}`);
+      case "page":       return withPreview(`/page/${previewMode.pageSlug || ""}`);
+      case "wishlist":   return withPreview("/wishlist");
+      case "account":    return withPreview("/account");
+      case "cart":       return withPreview("/checkout");
+      case "homepage":
+      default:           return withPreview("/");
+    }
+  })();
 
   // Inject click-to-select detector into the iframe once it loads.
   const handleIframeLoad = () => {
@@ -2538,6 +2550,9 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
             box.style.display='none';
           }, true);
           document.addEventListener('click', function(e){
+            // Let real navigation links/buttons through so the editor can browse all pages.
+            var navTarget = e.target && e.target.closest ? e.target.closest('a[href], button[type="submit"]') : null;
+            if (navTarget) return;
             var sid = getSectionId(e.target);
             if (!sid) return;
             e.preventDefault(); e.stopPropagation();
@@ -2576,17 +2591,22 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
   return (
     <div className="flex-1 flex flex-col items-center justify-center bg-[#e8e8e8] overflow-hidden p-6 pt-2">
       {/* Preview mode tabs */}
-      <div className="flex flex-col items-center gap-2 mb-4 w-full max-w-[480px]">
-        <div className="flex gap-1 bg-white/80 border border-neutral-200 rounded-full p-0.5 shadow-sm">
+      <div className="flex flex-col items-center gap-2 mb-4 w-full max-w-[640px]">
+        <div className="flex flex-wrap justify-center gap-1 bg-white/80 border border-neutral-200 rounded-full p-0.5 shadow-sm">
           {([
-            { id: "homepage", icon: <Home size={10} />, label: "Home" },
-            { id: "shop",     icon: <ShoppingBag size={10} />, label: "Shop" },
-            { id: "product",  icon: <BookOpen size={10} />,    label: "Product" },
+            { id: "homepage",   icon: <Home size={10} />,        label: "Home" },
+            { id: "shop",       icon: <ShoppingBag size={10} />, label: "Shop" },
+            { id: "product",    icon: <BookOpen size={10} />,    label: "Product" },
+            { id: "collection", icon: <Tag size={10} />,         label: "Collection" },
+            { id: "page",       icon: <FileText size={10} />,    label: "Page" },
+            { id: "wishlist",   icon: <Heart size={10} />,       label: "Wishlist" },
+            { id: "account",    icon: <User size={10} />,        label: "Account" },
+            { id: "cart",       icon: <ShoppingCart size={10} />, label: "Cart" },
           ] as const).map(({ id, icon, label }) => (
             <button
               key={id}
               onClick={() => previewMode.set(id as any)}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all ${
                 previewMode.value === id
                   ? "bg-neutral-900 text-white shadow"
                   : "text-neutral-500 hover:text-neutral-800"
@@ -2612,6 +2632,38 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
                   <option key={b.id} value={slug}>{b.title || slug}</option>
                 );
               })}
+            </select>
+          </div>
+        )}
+
+        {/* Custom-page selector — only shown in page mode */}
+        {previewMode.value === "page" && previewMode.pages && previewMode.pages.length > 0 && (
+          <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-full px-4 py-1.5 shadow-sm w-full max-w-xs">
+            <FileText size={10} className="text-neutral-400 flex-shrink-0" />
+            <select
+              value={previewMode.pageSlug || ""}
+              onChange={e => previewMode.setPageSlug(e.target.value)}
+              className="flex-1 bg-transparent text-[10px] font-bold text-neutral-700 outline-none cursor-pointer truncate"
+            >
+              {previewMode.pages.map((p: any) => (
+                <option key={p.id} value={p.slug}>{p.title || p.slug}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Collection selector — only shown in collection mode */}
+        {previewMode.value === "collection" && previewMode.collections && previewMode.collections.length > 0 && (
+          <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-full px-4 py-1.5 shadow-sm w-full max-w-xs">
+            <Tag size={10} className="text-neutral-400 flex-shrink-0" />
+            <select
+              value={previewMode.collectionSlug || ""}
+              onChange={e => previewMode.setCollectionSlug(e.target.value)}
+              className="flex-1 bg-transparent text-[10px] font-bold text-neutral-700 outline-none cursor-pointer truncate"
+            >
+              {previewMode.collections.map((c: { slug: string; name: string }) => (
+                <option key={c.slug} value={c.slug}>{c.name}</option>
+              ))}
             </select>
           </div>
         )}
@@ -2936,9 +2988,13 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
 
   const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [designSurface, setDesignSurface] = useState<string>("heroPage");
-  const [previewMode, setPreviewMode] = useState<"homepage" | "shop" | "product">("homepage");
+  const [previewMode, setPreviewMode] = useState<
+    "homepage" | "shop" | "product" | "collection" | "page" | "wishlist" | "account" | "cart"
+  >("homepage");
   const [previewBooks, setPreviewBooks] = useState<any[]>([]);
   const [previewBookSlug, setPreviewBookSlug] = useState<string>("");
+  const [previewPageSlug, setPreviewPageSlug] = useState<string>("");
+  const [previewCollectionSlug, setPreviewCollectionSlug] = useState<string>("");
   const [activeTab, setActiveTab] = useState<string>("settings");
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [settingsSearch, setSettingsSearch] = useState("");
@@ -3083,7 +3139,11 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   }, [design]);
 
   useEffect(() => {
-    adminApi.getPages().then(setPages);
+    adminApi.getPages().then((ps: any[]) => {
+      setPages(ps);
+      const firstPublished = ps.find((p: any) => p.status === "published" && p.slug) || ps.find((p: any) => p.slug);
+      if (firstPublished && !previewPageSlug) setPreviewPageSlug(firstPublished.slug);
+    });
     adminApi.getBooks().then((books: any[]) => {
       const published = books.filter((b: any) => b.status === "published" || !b.status);
       setPreviewBooks(published);
@@ -3093,6 +3153,24 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       }
     });
   }, []);
+
+  // Derive collections (slug + name) from design categories so the user can preview each.
+  const previewCollections = useMemo(() => {
+    const slugify = (s: string) =>
+      s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    const cats = (design?.heroPage?.categories || design?.storefront?.categories || design?.categories || []) as any[];
+    const list = cats
+      .map((c: any) => (typeof c === "string" ? c : c?.name))
+      .filter((name: any): name is string => typeof name === "string" && name.length > 0)
+      .map((name: string) => ({ name, slug: slugify(name) }));
+    return list.length > 0 ? list : [{ name: "Publications", slug: "publications" }];
+  }, [design]);
+
+  useEffect(() => {
+    if (!previewCollectionSlug && previewCollections.length > 0) {
+      setPreviewCollectionSlug(previewCollections[0].slug);
+    }
+  }, [previewCollections, previewCollectionSlug]);
 
   useEffect(() => {
     if (!syncPreview || !activeSection) return;
@@ -3825,10 +3903,16 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
             device={device}
             previewMode={{
               value: previewMode,
-              set: (m: "homepage" | "shop" | "product") => { setPreviewMode(m); setIsPreviewReady(false); },
+              set: (m: typeof previewMode) => { setPreviewMode(m); setIsPreviewReady(false); },
               books: previewBooks,
               bookSlug: previewBookSlug,
               setBookSlug: (s: string) => { setPreviewBookSlug(s); setIsPreviewReady(false); },
+              pages: pages.filter((p: any) => p.slug),
+              pageSlug: previewPageSlug,
+              setPageSlug: (s: string) => { setPreviewPageSlug(s); setIsPreviewReady(false); },
+              collections: previewCollections,
+              collectionSlug: previewCollectionSlug,
+              setCollectionSlug: (s: string) => { setPreviewCollectionSlug(s); setIsPreviewReady(false); },
             }}
             previewBookSlug={previewBookSlug}
             iframeRef={iframeRef}

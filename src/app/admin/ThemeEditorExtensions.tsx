@@ -1356,14 +1356,24 @@ export function SectionFieldEditor({
 // Page Templates registry
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type PageTemplateMeta = { id: string; label: string; description: string; previewMode: "homepage" | "shop" };
+export type PreviewModeId =
+  | "homepage"
+  | "shop"
+  | "product"
+  | "collection"
+  | "page"
+  | "cart"
+  | "wishlist"
+  | "account";
+
+export type PageTemplateMeta = { id: string; label: string; description: string; previewMode: PreviewModeId };
 
 export const PAGE_TEMPLATES: PageTemplateMeta[] = [
   { id: "heroPage", label: "Home", description: "Sections shown on the storefront homepage.", previewMode: "homepage" },
   { id: "storefront", label: "Catalog / Shop", description: "Sections for the product catalog page.", previewMode: "shop" },
-  { id: "productPage", label: "Product", description: "Sections shown on individual product pages.", previewMode: "shop" },
-  { id: "collectionPage", label: "Collection", description: "Sections for category/collection pages.", previewMode: "shop" },
-  { id: "cartPage", label: "Cart", description: "Sections shown on the cart drawer/page.", previewMode: "shop" },
-  { id: "page", label: "Custom Pages", description: "Default sections for editorial/custom pages.", previewMode: "homepage" },
+  { id: "productPage", label: "Product", description: "Sections shown on individual product pages.", previewMode: "product" },
+  { id: "collectionPage", label: "Collection", description: "Sections for category/collection pages.", previewMode: "collection" },
+  { id: "cartPage", label: "Cart", description: "Sections shown on the cart drawer/page.", previewMode: "cart" },
+  { id: "page", label: "Custom Pages", description: "Default sections for editorial/custom pages.", previewMode: "page" },
   { id: "page404", label: "404", description: "Sections shown when a URL is not found.", previewMode: "homepage" },
 ];

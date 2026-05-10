@@ -118,6 +118,9 @@ export function Checkout() {
   // Track funnel + abandoned cart on email entry
   useEffect(() => {
     funnelApi.track("checkout_start");
+    if (typeof window !== "undefined" && window.location.search.includes("preview=true")) {
+      window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
+    }
   }, []);
 
   useEffect(() => {
