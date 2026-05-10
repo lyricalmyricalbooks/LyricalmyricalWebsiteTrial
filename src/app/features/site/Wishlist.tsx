@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Link } from "react-router";
 import { Heart, ArrowLeft, ShoppingBag, Trash2 } from "lucide-react";
 import { useWishlist } from "../../lib/wishlist";
@@ -15,6 +16,12 @@ export default function WishlistPage() {
     title: "Your Wishlist",
     description: "Books you've saved for later from Lyricalmyrical Books.",
   });
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("preview=true")) {
+      window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
+    }
+  }, []);
 
   const items = books.filter(b => ids.includes(b.id));
 

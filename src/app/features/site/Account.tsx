@@ -49,6 +49,12 @@ export default function AccountPage() {
   useSEO({ title: "Your Account", description: "Manage your account, orders and saved addresses." });
 
   useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("preview=true")) {
+      window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
+    }
+  }, []);
+
+  useEffect(() => {
     const unsub = onAuthStateChanged(auth, async u => {
       setUser(u);
       setAuthLoading(false);
