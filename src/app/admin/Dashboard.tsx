@@ -42,6 +42,7 @@ import { OrderDetail } from "./OrderDetail";
 import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import { ShopSettings } from "./ShopSettings";
 import { ThemeEditor } from "./ThemeEditor";
+import ReviewsModeration from "./ReviewsModeration";
 import { adminApi } from "./api";
 
 export function Dashboard() {
@@ -162,6 +163,7 @@ export function Dashboard() {
     { id: "orders", label: "Fulfillment", icon: ShoppingCart, color: "text-violet-400" },
     { id: "catalog", label: "Book Registry", icon: BookOpen, color: "text-emerald-400" },
     { id: "discounts", label: "Campaigns", icon: Tag, color: "text-amber-400" },
+    { id: "reviews", label: "Reviews", icon: BadgePercent, color: "text-pink-400" },
     { id: "pages", label: "Site Architecture", icon: Layers, color: "text-indigo-400" },
     { id: "settings", label: "Publisher Tools", icon: Settings, color: "text-rose-400", children: [
         { id: "general", label: "Global Settings", icon: ShieldCheck },
@@ -386,6 +388,7 @@ export function Dashboard() {
                             return <AnalyticsDashboard />;
                           case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
                           case "discounts": return <Discounts />;
+                          case "reviews": return <ReviewsModeration />;
                           case "orders": 
                             return selectedOrder ? (
                               <OrderDetail orderId={selectedOrder.id} onClose={() => setSelectedOrder(null)} />

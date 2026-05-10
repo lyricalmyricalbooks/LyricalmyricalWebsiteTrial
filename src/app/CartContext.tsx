@@ -9,6 +9,7 @@ interface CartItem {
   quantity: number;
   photoUrl: string;
   stripePriceId?: string;
+  stockLimit?: number;
 }
 
 interface CartContextType {
@@ -47,11 +48,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [cart]);
 
   const addToCart = (product: any, variant?: any) => {
+    const stockLimit = variant ? variant.stock : product.stockLevel;
+    if (stockLimit === 0) return;
+
     setCart(prev => {
       const existing = prev.find(i => i.id === product.id && i.variantId === variant?.id);
       if (existing) {
-        return prev.map(i => (i.id === product.id && i.variantId === variant?.id) 
-          ? { ...i, quantity: i.quantity + 1 } 
+        if (typeof stockLimit === "number" && stockLimit !== 999 && existing.quantity >= stockLimit) {
+          return prev;
+        }
+        return prev.map(i => (i.id === product.id && i.variantId === variant?.id)
+          ? { ...i, quantity: i.quantity + 1 }
           : i
         );
       }
@@ -63,7 +70,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         price: variant ? variant.price : (product.isOnSale ? product.salePrice : product.retailPrice),
         quantity: 1,
         photoUrl: product.photos?.[0]?.url || "",
-        stripePriceId: variant?.stripePriceId || product.stripePriceId || ""
+        stripePriceId: variant?.stripePriceId || product.stripePriceId || "",
+        stockLimit: typeof stockLimit === "number" ? stockLimit : undefined,
       }];
     });
     setIsCartOpen(true);
@@ -76,7 +84,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const updateQuantity = (id: string, variantId: string | undefined, delta: number) => {
     setCart(prev => prev.map(i => {
       if (i.id === id && i.variantId === variantId) {
-        const newQty = Math.max(1, i.quantity + delta);
+        let newQty = Math.max(1, i.quantity + delta);
+        if (typeof i.stockLimit === "number" && i.stockLimit !== 999) {
+          newQty = Math.min(newQty, i.stockLimit);
+        }
         return { ...i, quantity: newQty };
       }
       return i;

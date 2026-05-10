@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/sitemap.xml

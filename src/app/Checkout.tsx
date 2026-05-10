@@ -8,6 +8,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { loadStripe } from "@stripe/stripe-js";
 import { adminApi } from "./admin/api";
+import { abandonedCartApi, funnelApi } from "./lib/commerce";
+import { useSEO } from "./lib/seo";
 
 // ─── Reusable input ───────────────────────────────────────────────────────────
 function Field({
@@ -111,6 +113,27 @@ export function Checkout() {
   const finalShipping   = isFreeShipping ? 0 : shippingCost;
   const finalTotal      = cartTotal - discountAmount + finalShipping;
 
+  useSEO({ title: "Checkout", description: "Secure checkout for Lyricalmyrical Books." });
+
+  // Track funnel + abandoned cart on email entry
+  useEffect(() => {
+    funnelApi.track("checkout_start");
+  }, []);
+
+  useEffect(() => {
+    if (!customer.email || !customer.email.includes("@") || cart.length === 0) return;
+    const cartKey = `${customer.email}_${Date.now().toString(36).slice(-4)}`.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    const t = setTimeout(() => {
+      abandonedCartApi.upsert(`active_${customer.email.toLowerCase()}`, {
+        email: customer.email,
+        items: cart.map(i => ({ id: i.id, title: i.title, qty: i.quantity, price: i.price })),
+        subtotal: cartTotal,
+        customer,
+      });
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [customer.email, cart, cartTotal]);
+
   const handleCompletePurchase = async () => {
     if (!customer.name || !customer.email || !customer.address.street) {
       alert("Please fill in all required shipping details.");
@@ -165,7 +188,15 @@ export function Checkout() {
     const params = new URLSearchParams(window.location.hash.split("?")[1]);
     if (params.get("success")) {
       const oid = params.get("order_id") || "";
-      if (oid) { setOrderNumber(oid); adminApi.updateOrder(oid, { status: "paid" }); }
+      if (oid) {
+        setOrderNumber(oid);
+        adminApi.updateOrder(oid, { status: "paid", paymentStatus: "paid", fulfillmentStatus: "paid" });
+      }
+      funnelApi.track("purchase");
+      // Mark abandoned cart as recovered if any
+      if (customer.email) {
+        abandonedCartApi.markRecovered(`active_${customer.email.toLowerCase()}`);
+      }
       setIsSuccess(true);
       clearCart();
     }

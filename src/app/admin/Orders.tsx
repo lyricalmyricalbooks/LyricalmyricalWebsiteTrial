@@ -17,12 +17,58 @@ import {
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
+import { orderApi, FULFILLMENT_LABELS, type FulfillmentStatus } from "../lib/commerce";
+import { Download, CheckSquare, Square } from "lucide-react";
 
 export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Open");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState<FulfillmentStatus>("processing");
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllFiltered = (ids: string[]) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      const allSelected = ids.every(id => next.has(id));
+      if (allSelected) ids.forEach(id => next.delete(id));
+      else ids.forEach(id => next.add(id));
+      return next;
+    });
+  };
+
+  const handleExportCsv = () => {
+    const list = selected.size > 0 ? orders.filter(o => selected.has(o.id)) : orders;
+    if (!list.length) {
+      toast.error("Nothing to export");
+      return;
+    }
+    const csv = orderApi.exportToCsv(list);
+    orderApi.downloadCsv(`orders-${new Date().toISOString().split("T")[0]}.csv`, csv);
+    toast.success(`Exported ${list.length} order${list.length === 1 ? "" : "s"}`);
+  };
+
+  const handleBulkUpdate = async () => {
+    if (selected.size === 0) return;
+    try {
+      await orderApi.bulkSetStatus(Array.from(selected), bulkStatus);
+      toast.success(`Updated ${selected.size} order${selected.size === 1 ? "" : "s"} → ${FULFILLMENT_LABELS[bulkStatus]}`);
+      setSelected(new Set());
+      loadOrders();
+    } catch {
+      toast.error("Bulk update failed");
+    }
+  };
 
   useEffect(() => {
     loadOrders();
@@ -65,6 +111,15 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-white/[0.03] border border-white/5 rounded-3xl py-5 pl-14 pr-6 text-sm text-white focus:border-violet-500/50 focus:bg-white/[0.07] outline-none transition-all shadow-2xl tracking-wide placeholder:text-slate-600 backdrop-blur-md"
           />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExportCsv}
+            className="flex items-center gap-2 bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] text-slate-300 px-5 py-3 rounded-2xl text-[10px] tracking-[0.3em] font-black uppercase transition-all"
+          >
+            <Download size={14} /> Export CSV
+          </button>
         </div>
 
         <div className="flex bg-white/[0.03] rounded-[2.5rem] p-2 border border-white/5 backdrop-blur-md">
@@ -122,6 +177,43 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
           </button>
         </div>
       ) : (
+        <>
+          {/* Selection / bulk action bar */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6 p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+            <button
+              onClick={() => selectAllFiltered(filteredOrders.map(o => o.id))}
+              className="flex items-center gap-3 text-[10px] font-black tracking-widest text-slate-400 hover:text-white uppercase"
+            >
+              {filteredOrders.every(o => selected.has(o.id)) ? <CheckSquare size={14} /> : <Square size={14} />}
+              {selected.size > 0 ? `${selected.size} selected` : "Select all"}
+            </button>
+            {selected.size > 0 && (
+              <div className="flex items-center gap-3">
+                <select
+                  value={bulkStatus}
+                  onChange={e => setBulkStatus(e.target.value as FulfillmentStatus)}
+                  className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[10px] tracking-widest uppercase text-white outline-none cursor-pointer"
+                >
+                  {(Object.keys(FULFILLMENT_LABELS) as FulfillmentStatus[]).map(k => (
+                    <option key={k} value={k} className="bg-[#0A0A0B]">{FULFILLMENT_LABELS[k]}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleBulkUpdate}
+                  className="bg-violet-600 hover:bg-violet-500 text-white px-5 py-2 rounded-xl text-[10px] tracking-widest font-black uppercase transition-colors"
+                >
+                  Apply to {selected.size}
+                </button>
+                <button
+                  onClick={() => setSelected(new Set())}
+                  className="text-[10px] font-black tracking-widest text-slate-500 hover:text-white uppercase"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-10">
           {filteredOrders.map((order, i) => (
             <motion.div
@@ -132,6 +224,17 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
               onClick={() => onSelectOrder(order)}
               className="group relative bg-white/[0.02] border border-white/5 rounded-[3rem] overflow-hidden cursor-pointer transition-all duration-700 hover:border-violet-500/30 hover:-translate-y-2 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.8)] flex flex-col"
             >
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleSelect(order.id); }}
+                aria-label="Select order"
+                className={`absolute top-4 right-4 z-20 w-9 h-9 rounded-xl flex items-center justify-center backdrop-blur-md border transition-colors ${
+                  selected.has(order.id)
+                    ? "bg-violet-500 border-violet-400 text-white"
+                    : "bg-black/40 border-white/10 text-white/60 hover:text-white"
+                }`}
+              >
+                {selected.has(order.id) ? <CheckSquare size={14} /> : <Square size={14} />}
+              </button>
               <div className="aspect-[16/10] bg-slate-950 relative overflow-hidden">
                 <img 
                   src={order.items?.[0]?.photoUrl || "https://images.unsplash.com/photo-1544377193-33dcf4d68fb5?auto=format"} 
@@ -209,6 +312,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
             </motion.div>
           ))}
         </div>
+        </>
       )}
     </div>
   );

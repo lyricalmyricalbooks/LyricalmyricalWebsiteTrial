@@ -23,7 +23,13 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
     }
     match /orders/{orderId} {
-      allow read, write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      // Admin can do anything; signed-in customers can read their own orders;
+      // anyone can create an order (checkout flow uses unauthenticated writes)
+      allow read: if request.auth != null
+        && (request.auth.token.email == "lyricalmyricalbooks@gmail.com"
+            || request.auth.token.email == resource.data.customer.email);
+      allow create: if true;
+      allow update, delete: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
     }
     match /analytics/{docId} {
       allow read, write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
@@ -32,7 +38,33 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
     }
     match /customers/{customerId} {
-      allow read, write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      // Customers can read/write their own profile; admin can read all
+      allow read: if request.auth != null
+        && (request.auth.uid == customerId || request.auth.token.email == "lyricalmyricalbooks@gmail.com");
+      allow create, update: if request.auth != null && request.auth.uid == customerId;
+      allow delete: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+    }
+    match /newsletter/{docId} {
+      allow create: if true;
+      allow read, update, delete: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+    }
+    match /reviews/{reviewId} {
+      // Public can read approved reviews (we filter client-side too)
+      allow read: if true;
+      // Anyone can submit a review (will land in "pending"); only admin can mutate after
+      allow create: if request.resource.data.status == "pending"
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.bookId is string
+        && request.resource.data.body is string
+        && request.resource.data.body.size() <= 4000;
+      allow update, delete: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+    }
+    match /abandoned-carts/{cartId} {
+      // Anyone can write their own pending cart; only admin reads
+      allow create, update: if true;
+      allow read, delete: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
     }
   }
 }
