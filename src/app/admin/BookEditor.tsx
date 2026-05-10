@@ -89,6 +89,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     subtitle: "",
     description: "",
     isbn: "",
+    barcode: "",
     sku: "",
     retailPrice: 0,
     costPrice: 0,
@@ -106,8 +107,18 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     isOnSale: false,
     salePrice: 0,
     categories: [],
+    tags: [],
     variants: [],
     scheduleDate: "",
+    publisher: "",
+    publishDate: "",
+    pageCount: 0,
+    edition: "",
+    chargeTax: true,
+    trackInventory: true,
+    allowBackorder: false,
+    metaTitle: "",
+    metaDescription: "",
   });
 
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
@@ -146,6 +157,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         subtitle: "",
         description: "",
         isbn: "",
+        barcode: "",
         sku: "",
         retailPrice: 0,
         costPrice: 0,
@@ -162,6 +174,15 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         isOnSale: false,
         salePrice: 0,
         scheduleDate: "",
+        publisher: "",
+        publishDate: "",
+        pageCount: 0,
+        edition: "",
+        chargeTax: true,
+        trackInventory: true,
+        allowBackorder: false,
+        metaTitle: "",
+        metaDescription: "",
       };
 
       const dataToLoad = {
@@ -170,6 +191,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         photos: Array.isArray(book.photos) ? book.photos : [],
         variants: Array.isArray(book.variants) ? book.variants : [],
         categories: Array.isArray(book.categories) ? book.categories : [],
+        tags: Array.isArray((book as any).tags) ? (book as any).tags : [],
       };
       // Sanitize through JSON round-trip to strip any non-serializable Firebase
       // SDK internals (e.g. PlatformLoggerServiceImpl) that Firestore may attach
@@ -426,11 +448,12 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           </div>
         </div>
         <div className="flex gap-6 items-center">
-          {book && (
-            <a 
-              href={`/#/books/${formData.slug}`} 
-              target="_blank" 
+          {book && (book.slug || formData.slug) && (
+            <a
+              href={`/#/books/${book.slug || formData.slug}?preview=true`}
+              target="_blank"
               rel="noreferrer"
+              title={book.slug && book.slug !== formData.slug ? "Opens with the last-saved slug. Save to update the live URL." : "Opens the public page in a new tab. Edits broadcast live."}
               className="px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black tracking-[0.3em] text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-3"
             >
               <ExternalLink size={16} className="text-violet-400" />
@@ -542,10 +565,10 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                   </div>
                   <div className="space-y-4">
                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">FORMAT</label>
-                     <select 
-                       name="format" 
-                       value={formData.format} 
-                       onChange={handleChange} 
+                     <select
+                       name="format"
+                       value={formData.format}
+                       onChange={handleChange}
                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all appearance-none cursor-pointer"
                      >
                        <option className="bg-[#0A0A0B]">Paperback</option>
@@ -554,6 +577,83 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                        <option className="bg-[#0A0A0B]">Box Set</option>
                        <option className="bg-[#0A0A0B]">Zine</option>
                      </select>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">PUBLISHER / VENDOR</label>
+                    <input
+                      name="publisher"
+                      value={formData.publisher || ""}
+                      onChange={handleChange}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all"
+                      placeholder="Lyrical Myrical Press"
+                    />
+                  </div>
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">PUBLICATION DATE</label>
+                    <input
+                      type="date"
+                      name="publishDate"
+                      value={formData.publishDate || ""}
+                      onChange={handleChange}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all font-mono"
+                    />
+                  </div>
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">EDITION</label>
+                    <input
+                      name="edition"
+                      value={formData.edition || ""}
+                      onChange={handleChange}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all"
+                      placeholder="First Edition"
+                    />
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mt-8">
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">PAGE COUNT</label>
+                    <input
+                      type="number"
+                      min={0}
+                      name="pageCount"
+                      value={formData.pageCount ?? 0}
+                      onChange={handleChange}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all font-mono"
+                    />
+                  </div>
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">LANGUAGE</label>
+                    <input
+                      name="language"
+                      value={formData.language || ""}
+                      onChange={handleChange}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all"
+                      placeholder="English"
+                    />
+                  </div>
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">DIMENSIONS</label>
+                    <input
+                      name="dimensions"
+                      value={formData.dimensions || ""}
+                      onChange={handleChange}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all"
+                      placeholder="6 x 9 in"
+                    />
+                  </div>
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">BARCODE / UPC</label>
+                    <input
+                      name="barcode"
+                      value={formData.barcode || ""}
+                      onChange={handleChange}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all font-mono"
+                      placeholder="0-00000-00000-0"
+                    />
                   </div>
                </div>
 
@@ -670,6 +770,87 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                     </button>
                   );
                 })}
+              </div>
+
+              <div className="mt-12 pt-10 border-t border-white/5 space-y-6">
+                <div>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">TAGS</label>
+                  <p className="text-[8px] text-slate-600 uppercase tracking-widest mt-1 ml-1">Searchable keywords. Comma-separated.</p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {(Array.isArray(formData.tags) ? formData.tags : []).map((tag: string) => (
+                    <span key={tag} className="inline-flex items-center gap-2 pl-4 pr-2 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[10px] font-black text-emerald-400 tracking-widest">
+                      {tag.toUpperCase()}
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev: any) => ({ ...prev, tags: (prev.tags || []).filter((t: string) => t !== tag) }))}
+                        className="w-5 h-5 rounded-md flex items-center justify-center hover:bg-red-500/20 hover:text-red-400 transition-all"
+                        aria-label={`Remove tag ${tag}`}
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Type a tag and press Enter or comma..."
+                  onKeyDown={(e) => {
+                    const target = e.target as HTMLInputElement;
+                    if ((e.key === "Enter" || e.key === ",") && target.value.trim()) {
+                      e.preventDefault();
+                      const newTags = target.value.split(",").map(t => t.trim()).filter(Boolean);
+                      setFormData((prev: any) => {
+                        const existing = Array.isArray(prev.tags) ? prev.tags : [];
+                        const merged = Array.from(new Set([...existing, ...newTags]));
+                        return { ...prev, tags: merged };
+                      });
+                      target.value = "";
+                    }
+                  }}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-emerald-500/50 outline-none transition-all"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-tr from-sky-500/[0.03] to-transparent pointer-events-none" />
+            <div className="relative z-10">
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">VI. SEO & Discoverability</h4>
+              <div className="space-y-10">
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">META TITLE</label>
+                  <input
+                    name="metaTitle"
+                    value={formData.metaTitle || ""}
+                    onChange={handleChange}
+                    maxLength={70}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-sky-500/50 outline-none transition-all"
+                    placeholder={formData.title || "Search engine title"}
+                  />
+                  <p className="text-[8px] text-slate-600 uppercase tracking-widest ml-1">{(formData.metaTitle || "").length}/70 characters</p>
+                </div>
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">META DESCRIPTION</label>
+                  <textarea
+                    name="metaDescription"
+                    value={formData.metaDescription || ""}
+                    onChange={handleChange}
+                    rows={3}
+                    maxLength={160}
+                    className="w-full bg-white/5 border border-white/10 rounded-3xl py-4 px-6 text-xs text-slate-300 focus:border-sky-500/50 outline-none transition-all leading-relaxed"
+                    placeholder="Short summary that appears in search results"
+                  />
+                  <p className="text-[8px] text-slate-600 uppercase tracking-widest ml-1">{(formData.metaDescription || "").length}/160 characters</p>
+                </div>
+
+                <div className="p-8 bg-white/[0.02] border border-white/5 rounded-3xl space-y-2">
+                  <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Search listing preview</p>
+                  <p className="text-sky-400 text-sm font-mono truncate">/books/{formData.slug || "your-book"}</p>
+                  <p className="text-white text-base font-bold truncate">{formData.metaTitle || formData.title || "Your book title"}</p>
+                  <p className="text-slate-400 text-xs leading-relaxed line-clamp-2">{formData.metaDescription || formData.description || "Your book description will appear here."}</p>
+                </div>
               </div>
             </div>
           </section>
@@ -803,15 +984,62 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 <div className="space-y-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
                    <div className="flex items-center justify-between">
                       <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">CHARGE TAX</label>
+                        <p className="text-[8px] text-slate-600 uppercase tracking-widest">Apply sales tax at checkout</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        name="chargeTax"
+                        checked={!!formData.chargeTax}
+                        onChange={handleChange}
+                        className="w-6 h-6 rounded-lg bg-white/5 border-white/10 text-amber-500 focus:ring-amber-500/50"
+                      />
+                   </div>
+                </div>
+
+                <div className="space-y-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
+                   <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">TRACK INVENTORY</label>
+                        <p className="text-[8px] text-slate-600 uppercase tracking-widest">Decrement stock on each sale</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        name="trackInventory"
+                        checked={!!formData.trackInventory}
+                        onChange={handleChange}
+                        className="w-6 h-6 rounded-lg bg-white/5 border-white/10 text-amber-500 focus:ring-amber-500/50"
+                      />
+                   </div>
+                   {formData.trackInventory && (
+                     <div className="flex items-center justify-between mt-6 pt-6 border-t border-white/5">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">CONTINUE SELLING WHEN OUT OF STOCK</label>
+                          <p className="text-[8px] text-slate-600 uppercase tracking-widest">Allow backorders / pre-orders</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          name="allowBackorder"
+                          checked={!!formData.allowBackorder}
+                          onChange={handleChange}
+                          className="w-6 h-6 rounded-lg bg-white/5 border-white/10 text-amber-500 focus:ring-amber-500/50"
+                        />
+                     </div>
+                   )}
+                </div>
+
+                <div className="space-y-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
+                   <div className="flex items-center justify-between">
+                      <div className="space-y-1">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">ON SALE</label>
                         <p className="text-[8px] text-slate-600 uppercase tracking-widest">Toggle promotional pricing</p>
                       </div>
-                      <input 
-                        type="checkbox" 
-                        name="isOnSale" 
-                        checked={formData.isOnSale} 
-                        onChange={handleChange} 
-                        className="w-6 h-6 rounded-lg bg-white/5 border-white/10 text-amber-500 focus:ring-amber-500/50" 
+                      <input
+                        type="checkbox"
+                        name="isOnSale"
+                        checked={formData.isOnSale}
+                        onChange={handleChange}
+                        className="w-6 h-6 rounded-lg bg-white/5 border-white/10 text-amber-500 focus:ring-amber-500/50"
                       />
                    </div>
                    {formData.isOnSale && (

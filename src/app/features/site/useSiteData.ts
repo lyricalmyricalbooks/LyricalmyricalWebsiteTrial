@@ -85,7 +85,9 @@ export function useSiteData() {
 
     // Live Preview Listener
     const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
+      // BroadcastChannel events have an empty origin; only enforce the origin
+      // check for window postMessage events.
+      if (event.origin && event.origin !== window.location.origin) return;
       if (!event.data) return;
 
       if (event.data.type === "THEME_UPDATE") {
