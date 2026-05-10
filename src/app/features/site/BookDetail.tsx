@@ -337,7 +337,7 @@ export default function BookDetail() {
                               : "border-white/[0.08] opacity-40 hover:opacity-70 hover:border-white/20"
                           }`}
                         >
-                          <img src={photo.url} alt="" className="w-full h-full object-cover" />
+                          <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         </button>
                       ))}
                     </div>
@@ -347,7 +347,7 @@ export default function BookDetail() {
                 <div className="grid grid-cols-2 gap-4">
                   {photos.map((photo: any, i: number) => (
                     <div key={i} className={`${i === 0 ? "col-span-2" : ""} relative aspect-[3/4] bg-neutral-950 rounded-[1.5rem] overflow-hidden`}>
-                      <img src={photo.url} alt="" className="w-full h-full object-cover" />
+                      <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
                           <span className="border border-white/30 text-white text-[10px] font-black tracking-[0.5em] px-8 py-3 rounded-full uppercase">Sold Out</span>
@@ -360,7 +360,7 @@ export default function BookDetail() {
                 <div className="space-y-4">
                   {photos.map((photo: any, i: number) => (
                     <div key={i} className="relative aspect-[3/4] bg-neutral-950 rounded-[1.5rem] overflow-hidden">
-                      <img src={photo.url} alt="" className="w-full h-full object-cover" />
+                      <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
                           <span className="border border-white/30 text-white text-[10px] font-black tracking-[0.5em] px-8 py-3 rounded-full uppercase">Sold Out</span>

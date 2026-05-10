@@ -197,7 +197,7 @@ export function PagesManager() {
             <div className="flex items-center gap-4">
               {editing.id && !isNew && (
                 <a
-                  href={`#/page/${editing.slug}`}
+                  href={`${import.meta.env.BASE_URL}page/${editing.slug}`}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-2.5 text-[10px] font-black tracking-[0.3em] text-slate-400 hover:text-white transition-all border border-white/5 bg-white/5 rounded-2xl px-6 py-4 uppercase italic"

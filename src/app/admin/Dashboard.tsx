@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { HashRouter, Routes, Route, Link } from "react-router";
+import { Link } from "react-router";
 import { 
   BookOpen, 
   Users, 
@@ -63,7 +63,7 @@ export function Dashboard() {
 
   useEffect(() => {
     // Debug bypass
-    const params = new URLSearchParams(window.location.hash.split('?')[1]);
+    const params = new URLSearchParams(window.location.search);
     if (params.get('debug') === 'true') {
       console.log("DEBUG MODE: Bypassing auth");
       setUser({

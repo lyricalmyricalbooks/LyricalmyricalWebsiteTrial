@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, X, Instagram, Mail, ArrowRight, Send, Heart, User as UserIcon, Zap } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Instagram, Mail, ArrowRight, Send, Heart, User as UserIcon, Zap, Search as SearchIcon } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router";
 import { useCart } from "../CartContext";
 import { CATEGORIES, DEFAULT_IMAGE } from "../features/site/constants";
@@ -14,6 +14,7 @@ import { useWishlist } from "../lib/wishlist";
 import { useSEO } from "../lib/seo";
 import { CatalogControls, applyCatalogControls, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
+import { SearchOverlay } from "../features/site/SearchOverlay";
 
 // ──────────────────────────────
 // Image with skeleton loader
@@ -379,6 +380,9 @@ function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive:
           key={activeSlide.id}
           src={activeSlide.imageUrl}
           alt={activeSlide.title || "Homepage hero"}
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
           className="absolute inset-0 w-full h-full object-cover"
         />
       ) : (
@@ -583,6 +587,18 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   // Catalog controls: search + sort + in-stock filter
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const [sort, setSort] = useState<SortKey>("newest");
   const [inStockOnly, setInStockOnly] = useState(false);
 
@@ -815,6 +831,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   INFORMATION
                 </button>
               )}
+              <button
+                onClick={() => setSearchOpen(true)}
+                aria-label="Search"
+                className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-colors text-white/50 hover:text-white"
+              >
+                <SearchIcon size={14} />
+              </button>
               <Link
                 to="/wishlist"
                 aria-label="Wishlist"
@@ -834,12 +857,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               >
                 <UserIcon size={14} />
               </Link>
-              <a
-                href="#/admin"
+              <Link
+                to="/admin"
                 className="hidden sm:flex items-center gap-1.5 text-[9px] tracking-[0.2em] font-bold text-white/30 hover:text-white transition-colors uppercase mr-2"
               >
                 Admin
-              </a>
+              </Link>
               {showBag && (
                 <button onClick={() => setIsCartOpen(true)} className="group flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/5 transition-colors shadow-lg">
                   <span className="text-[10px] tracking-[0.2em] font-semibold">{bagLabel}</span>
@@ -863,7 +886,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               >
                 {activeCategory.imageUrl && (
                   <div className="aspect-[21/9] w-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
-                    <img src={activeCategory.imageUrl} className="w-full h-full object-cover" alt={activeCategory.name} />
+                    <img src={activeCategory.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={activeCategory.name} />
                   </div>
                 )}
                 <div className="max-w-3xl">
@@ -993,6 +1016,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         <AnimatePresence>
           {showAbout && <AboutPanel settings={settings} pages={pages} onClose={() => setShowAbout(false)} />}
         </AnimatePresence>
+
+        <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} />
       </div>
     );
   }
@@ -1080,6 +1105,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             </nav>
           )}
 
+          <button
+            onClick={() => setSearchOpen(true)}
+            aria-label="Search"
+            className="hidden sm:flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-colors text-white/70 hover:text-white"
+          >
+            <SearchIcon size={15} />
+          </button>
           {showBag && (
             <button
               onClick={() => setIsCartOpen(true)}
@@ -1175,6 +1207,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       <AnimatePresence>
         {showAbout && <AboutPanel settings={settings} pages={pages} onClose={() => setShowAbout(false)} />}
       </AnimatePresence>
+
+      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} />
     </div>
   );
 }

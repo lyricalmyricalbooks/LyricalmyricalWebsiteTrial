@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Generates dist/sitemap.xml and dist/robots.txt by reading published books + pages from Firestore.
+// Generates dist/sitemap.xml and dist/robots.txt from Firestore data.
 // Usage: node scripts/generate-sitemap.mjs
 //
-// Requires Firebase Admin credentials via GOOGLE_APPLICATION_CREDENTIALS or
-// FIREBASE_SERVICE_ACCOUNT (JSON string). Falls back to public REST endpoint
-// using the firebaseConfig in src/lib/firebase.ts when no service account is set.
+// Reads books, pages, and collections via the public Firestore REST endpoint
+// (collections must have public read rules). Override SITE_URL via env if
+// the site moves to a custom domain.
 
 import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -14,19 +14,20 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 
 const SITE_URL =
-  process.env.SITE_URL || "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial";
+  process.env.SITE_URL ||
+  "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial";
 
 async function fetchCollection(projectId, collectionId) {
-  // Firestore REST: list documents (for collections with public read rules)
   const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collectionId}?pageSize=300`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed ${collectionId}: ${res.status}`);
   const data = await res.json();
   return (data.documents || []).map(doc => {
     const fields = doc.fields || {};
-    const obj = {};
+    const obj = { _updateTime: doc.updateTime };
     for (const [k, v] of Object.entries(fields)) {
-      obj[k] = v.stringValue ?? v.integerValue ?? v.booleanValue ?? v.timestampValue ?? null;
+      obj[k] =
+        v.stringValue ?? v.integerValue ?? v.booleanValue ?? v.timestampValue ?? null;
     }
     return obj;
   });
@@ -38,11 +39,19 @@ function readProjectId() {
   return m ? m[1] : null;
 }
 
-function xmlUrl(loc, lastmod) {
-  return `  <url>\n    <loc>${loc}</loc>${lastmod ? `\n    <lastmod>${lastmod.split("T")[0]}</lastmod>` : ""}\n  </url>`;
+function xmlUrl({ loc, lastmod, changefreq, priority }) {
+  const parts = [`    <loc>${loc}</loc>`];
+  if (lastmod) parts.push(`    <lastmod>${lastmod.split("T")[0]}</lastmod>`);
+  if (changefreq) parts.push(`    <changefreq>${changefreq}</changefreq>`);
+  if (priority) parts.push(`    <priority>${priority}</priority>`);
+  return `  <url>\n${parts.join("\n")}\n  </url>`;
 }
 
-const slugify = s => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+const slugify = s =>
+  (s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 
 async function main() {
   const projectId = readProjectId();
@@ -51,13 +60,23 @@ async function main() {
     process.exit(1);
   }
 
-  const urls = [`${SITE_URL}/`, `${SITE_URL}/#/wishlist`, `${SITE_URL}/#/account`];
+  const today = new Date().toISOString().split("T")[0];
+
+  const urls = [
+    { loc: `${SITE_URL}/`, lastmod: today, changefreq: "daily", priority: "1.0" },
+    { loc: `${SITE_URL}/wishlist`, changefreq: "monthly", priority: "0.3" },
+    { loc: `${SITE_URL}/account`, changefreq: "monthly", priority: "0.3" },
+  ];
 
   let books = [];
   let pages = [];
+  let collections = [];
   try {
-    books = await fetchCollection(projectId, "books");
-    pages = await fetchCollection(projectId, "pages");
+    [books, pages, collections] = await Promise.all([
+      fetchCollection(projectId, "books").catch(() => []),
+      fetchCollection(projectId, "pages").catch(() => []),
+      fetchCollection(projectId, "collections").catch(() => []),
+    ]);
   } catch (e) {
     console.warn("Could not fetch live data, generating shell sitemap:", e.message);
   }
@@ -66,34 +85,49 @@ async function main() {
     if (b.status !== "published") continue;
     const slug = b.slug || slugify(b.title);
     if (!slug) continue;
-    urls.push(`${SITE_URL}/#/books/${slug}`);
+    urls.push({
+      loc: `${SITE_URL}/books/${slug}`,
+      lastmod: b.updatedAt || b._updateTime,
+      changefreq: "weekly",
+      priority: "0.8",
+    });
   }
   for (const p of pages) {
-    if (p.status !== "published") continue;
-    if (!p.slug) continue;
-    urls.push(`${SITE_URL}/#/page/${p.slug}`);
+    if (p.status !== "published" || !p.slug) continue;
+    urls.push({
+      loc: `${SITE_URL}/page/${p.slug}`,
+      lastmod: p.updatedAt || p._updateTime,
+      changefreq: "monthly",
+      priority: "0.5",
+    });
+  }
+  for (const c of collections) {
+    const slug = c.slug || slugify(c.name);
+    if (!slug) continue;
+    urls.push({
+      loc: `${SITE_URL}/collections/${slug}`,
+      lastmod: c.updatedAt || c._updateTime,
+      changefreq: "weekly",
+      priority: "0.6",
+    });
   }
 
   const xml =
-    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-    urls.map(u => xmlUrl(u)).join("\n") +
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+    urls.map(xmlUrl).join("\n") +
     `\n</urlset>\n`;
 
-  const robots =
-    `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
+  const robots = `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /checkout\nDisallow: /account\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
 
-  const out = resolve(ROOT, "dist");
-  mkdirSync(out, { recursive: true });
-  writeFileSync(resolve(out, "sitemap.xml"), xml);
-  writeFileSync(resolve(out, "robots.txt"), robots);
+  for (const dir of ["dist", "public"]) {
+    const out = resolve(ROOT, dir);
+    mkdirSync(out, { recursive: true });
+    writeFileSync(resolve(out, "sitemap.xml"), xml);
+    writeFileSync(resolve(out, "robots.txt"), robots);
+  }
 
-  // Also write to /public so Vite picks them up on dev
-  const pub = resolve(ROOT, "public");
-  mkdirSync(pub, { recursive: true });
-  writeFileSync(resolve(pub, "sitemap.xml"), xml);
-  writeFileSync(resolve(pub, "robots.txt"), robots);
-
-  console.log(`✓ Wrote sitemap with ${urls.length} URLs`);
+  console.log(`✓ Wrote sitemap with ${urls.length} URLs (${books.length} books, ${pages.length} pages, ${collections.length} collections)`);
 }
 
 main().catch(err => {
