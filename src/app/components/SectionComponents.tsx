@@ -33,7 +33,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
       style={{ backgroundColor: settings.backgroundColor || "#000" }}
     >
       {settings.imageUrl && (
-        <img src={settings.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        <img src={settings.imageUrl} alt="" loading="eager" decoding="async" fetchPriority="high" className="absolute inset-0 w-full h-full object-cover" />
       )}
       <div className="absolute inset-0 bg-black" style={{ opacity: settings.overlayOpacity ?? 0.5 }} />
       <div
@@ -224,7 +224,7 @@ export function ImageWithTextSection({ settings, enableAnimations }: any) {
         <div className={`grid md:grid-cols-2 gap-12 items-center ${reverse ? "md:[&>*:first-child]:order-2" : ""}`}>
           <div className="aspect-[4/3] overflow-hidden rounded-2xl bg-white/5 border border-white/10">
             {settings.imageUrl ? (
-              <img src={settings.imageUrl} className="w-full h-full object-cover" alt={settings.imageAlt || ""} />
+              <img src={settings.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={settings.imageAlt || ""} />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-white/20 text-xs uppercase tracking-widest">No Image</div>
             )}
@@ -295,7 +295,7 @@ export function MulticolumnSection({ settings, enableAnimations }: any) {
             <div className="text-center space-y-4">
               {item.imageUrl && (
                 <div className="aspect-square w-32 mx-auto rounded-full overflow-hidden border border-white/10">
-                  <img src={item.imageUrl} className="w-full h-full object-cover" alt={item.title || ""} />
+                  <img src={item.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={item.title || ""} />
                 </div>
               )}
               <h3 className="text-lg font-bold text-white">{item.title || "Column"}</h3>
@@ -340,7 +340,7 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
   return (
     <section className="relative w-full h-[70vh] min-h-[480px] overflow-hidden">
       {slide.imageUrl && (
-        <img src={slide.imageUrl} className="absolute inset-0 w-full h-full object-cover" alt={slide.title || ""} />
+        <img src={slide.imageUrl} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" alt={slide.title || ""} />
       )}
       <div className="absolute inset-0 bg-black" style={{ opacity: slide.overlayOpacity ?? 0.4 }} />
       <AnimationContainer enabled={enableAnimations}>
@@ -454,7 +454,7 @@ export function LogoListSection({ settings, enableAnimations }: any) {
           {items.map((item: any, idx: number) => (
             <div key={idx} className="opacity-60 hover:opacity-100 transition-opacity">
               {item.logoUrl ? (
-                <img src={item.logoUrl} alt={item.alt || ""} className="h-10 w-auto object-contain" />
+                <img src={item.logoUrl} alt={item.alt || ""} loading="lazy" decoding="async" className="h-10 w-auto object-contain" />
               ) : (
                 <span className="text-white/40 text-sm font-bold uppercase tracking-widest">{item.alt || "Logo"}</span>
               )}
@@ -522,6 +522,8 @@ export function CollectionListSection({ settings, enableAnimations }: any) {
                 <img
                   src={item.imageUrl}
                   alt={item.title || ""}
+                  loading="lazy"
+                  decoding="async"
                   className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                 />
               )}
@@ -558,7 +560,7 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
       <AnimationContainer enabled={enableAnimations}>
         <div className="grid md:grid-cols-2 gap-10 items-center">
           <div className="aspect-[3/4] overflow-hidden rounded-2xl bg-white/5">
-            {photo ? <img src={photo} className="w-full h-full object-cover" alt={target.title} /> : null}
+            {photo ? <img src={photo} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
           </div>
           <div className="space-y-5">
             <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50">{settings.eyebrow || "Featured"}</p>
@@ -773,6 +775,8 @@ export function GallerySection({ settings, enableAnimations }: any) {
               <img
                 src={item.imageUrl}
                 alt={item.alt || ""}
+                loading="lazy"
+                decoding="async"
                 className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
               />
             )}

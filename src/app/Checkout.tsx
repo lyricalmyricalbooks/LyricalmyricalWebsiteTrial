@@ -172,8 +172,8 @@ export function Checkout() {
       const lineItems = cart.map(item => ({ price: item.stripePriceId, quantity: item.quantity }));
       const { error } = await stripe.redirectToCheckout({
         lineItems, mode: "payment",
-        successUrl: `${window.location.origin}/#/checkout?success=true&order_id=${orderId}`,
-        cancelUrl:  `${window.location.origin}/#/checkout?canceled=true`,
+        successUrl: `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${orderId}`,
+        cancelUrl:  `${window.location.origin}${import.meta.env.BASE_URL}checkout?canceled=true`,
         clientReferenceId: orderId,
         customerEmail: customer.email,
       });
@@ -185,7 +185,7 @@ export function Checkout() {
   };
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.hash.split("?")[1]);
+    const params = new URLSearchParams(window.location.search);
     if (params.get("success")) {
       const oid = params.get("order_id") || "";
       if (oid) {
@@ -289,7 +289,7 @@ export function Checkout() {
                   className="flex gap-6 bg-white/[0.03] border border-white/5 rounded-2xl p-5 hover:border-violet-500/20 transition-all group"
                 >
                   <div className="w-16 aspect-[3/4] bg-black rounded-xl overflow-hidden shrink-0 shadow-lg border border-white/5">
-                    <img src={item.photoUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                    <img src={item.photoUrl} alt={item.title || ""} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                   </div>
                   <div className="flex-1 flex flex-col justify-center gap-2">
                     <h3 className="text-xs font-black tracking-[0.2em] uppercase text-white">{item.title}</h3>

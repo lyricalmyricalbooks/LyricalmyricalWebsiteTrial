@@ -59,7 +59,7 @@ export function CartDrawer() {
               {cart.map((item) => (
                 <div key={`${item.id}-${item.variantId || ""}`} className="flex gap-6 group">
                   <div className="w-24 aspect-[3/4] bg-neutral-100 overflow-hidden flex-shrink-0">
-                    <img src={item.photoUrl} className="w-full h-full object-cover grayscale" />
+                    <img src={item.photoUrl} alt={item.title || ""} loading="lazy" decoding="async" className="w-full h-full object-cover grayscale" />
                   </div>
                   <div className="flex-1 flex flex-col justify-between py-1">
                     <div>

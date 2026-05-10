@@ -1,9 +1,14 @@
 import { useState, lazy, Suspense } from "react";
 import { motion } from "framer-motion";
-import { HashRouter, Routes, Route } from "react-router";
+import { BrowserRouter, Routes, Route } from "react-router";
 import { CartProvider } from "./CartContext";
 import { Toaster } from "react-hot-toast";
 import { CartDrawer } from "./components/CartDrawer";
+import { CookieConsent } from "./components/CookieConsent";
+
+// import.meta.env.BASE_URL is the Vite `base` config (e.g. "/LyricalmyricalWebsiteTrial/").
+// Strip the trailing slash so React Router treats it as a basename.
+const ROUTER_BASENAME = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
 
 // Lazy-loaded components for performance
 const MainSite = lazy(() => import("./components/MainSite"));
@@ -44,8 +49,9 @@ export default function App() {
 
   return (
     <CartProvider>
-      <HashRouter>
+      <BrowserRouter basename={ROUTER_BASENAME}>
         <CartDrawer />
+        <CookieConsent />
         <Suspense fallback={<LoadingFallback />}>
               <Toaster 
                 position="top-center" 
@@ -78,7 +84,7 @@ export default function App() {
                 <Route path="/checkout" element={<Checkout />} />
               </Routes>
         </Suspense>
-      </HashRouter>
+      </BrowserRouter>
     </CartProvider>
   );
 }
