@@ -1,273 +1,585 @@
 import { useState, useEffect } from "react";
-import { 
-  Plus, 
-  Trash2, 
-  Tag, 
-  Calendar, 
-  Percent, 
-  DollarSign, 
-  Truck, 
-  X, 
-  Save,
-  Ticket,
-  ChevronRight,
-  ShieldCheck,
-  AlertCircle
+import {
+  Plus, Trash2, Tag, Calendar, Percent, DollarSign, Truck, X, Save,
+  Ticket, ShieldCheck, AlertCircle, ToggleLeft, ToggleRight, Copy,
+  Users, ShoppingCart, Edit3, ChevronDown, ChevronUp, Hash, BarChart2,
+  Clock, Infinity as InfinityIcon, RefreshCw,
 } from "lucide-react";
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 
-export function Discounts() {
-  const [discounts, setDiscounts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isAdding, setIsAdding] = useState(false);
-  const [newDiscount, setNewDiscount] = useState({
-    code: "",
-    type: "percentage",
-    value: 10,
-    isActive: true,
-    expiryDate: "",
-  });
+// ─── helpers ────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    loadDiscounts();
-  }, []);
+function fmt(n: number | null | undefined) {
+  return n != null ? `$${Number(n).toFixed(2)}` : "—";
+}
 
-  async function loadDiscounts() {
-    try {
-      const data = await adminApi.getDiscounts();
-      setDiscounts(data);
-    } catch (err) {
-      console.error("Failed to load discounts", err);
-      toast.error("Registry connection interrupted");
-    } finally {
-      setLoading(false);
-    }
-  }
+const TYPE_OPTIONS = [
+  { id: "percentage", icon: Percent,    label: "Percentage",     desc: "e.g. 20% off" },
+  { id: "fixed",      icon: DollarSign, label: "Fixed amount",   desc: "e.g. $10 off" },
+  { id: "freeship",   icon: Truck,      label: "Free shipping",  desc: "Waive shipping cost" },
+];
 
-  const handleSave = async () => {
-    if (!newDiscount.code) return;
-    try {
-      await adminApi.saveDiscount({
-        ...newDiscount,
-        code: newDiscount.code.toUpperCase()
-      });
-      setIsAdding(false);
-      setNewDiscount({ code: "", type: "percentage", value: 10, isActive: true, expiryDate: "" });
-      toast.success("Promotion code manifested");
-      loadDiscounts();
-    } catch (err) {
-      toast.error("Code crystallization failed");
-    }
+const APPLIES_OPTIONS = [
+  { id: "all",     label: "All products" },
+  { id: "catalog", label: "Entire catalog" },
+];
+
+const EMPTY: any = {
+  code: "",
+  type: "percentage",
+  value: 10,
+  isActive: true,
+  expiryDate: "",
+  minOrderAmount: "",
+  usageLimit: "",
+  onePerCustomer: false,
+  appliesTo: "all",
+  description: "",
+};
+
+// ─── Stat chip ──────────────────────────────────────────────────────────────
+
+function StatChip({ icon: Icon, label, value, accent = false }: any) {
+  return (
+    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[9px] font-black tracking-widest uppercase ${
+      accent ? "border-violet-500/30 bg-violet-500/10 text-violet-400" : "border-white/5 bg-white/[0.02] text-slate-500"
+    }`}>
+      <Icon size={10} />
+      <span>{label}: {value}</span>
+    </div>
+  );
+}
+
+// ─── Card ────────────────────────────────────────────────────────────────────
+
+function DiscountCard({ d, onDelete, onToggle, onEdit }: {
+  d: any;
+  onDelete: () => void;
+  onToggle: () => void;
+  onEdit: () => void;
+}) {
+  const Icon = TYPE_OPTIONS.find(t => t.id === d.type)?.icon ?? Tag;
+  const isExpired = d.expiryDate && d.expiryDate < new Date().toISOString().split("T")[0];
+  const usedUp = d.usageLimit && (d.usageCount || 0) >= d.usageLimit;
+  const effective = d.isActive && !isExpired && !usedUp;
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(d.code);
+    toast.success("Code copied");
   };
 
-  const deleteDiscount = async (id: string) => {
-    if (confirm("De-manifest this discount code?")) {
-      try {
-        await adminApi.deleteDiscount(id);
-        toast.success("Code purged from registry");
-        loadDiscounts();
-      } catch (err) {
-        toast.error("Purge sequence failed");
-      }
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8 hover:border-violet-500/20 transition-all duration-500 relative group overflow-hidden flex flex-col gap-6"
+    >
+      {/* glow */}
+      <div className="absolute top-0 right-0 w-40 h-40 bg-violet-600/5 blur-[60px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+
+      {/* header row */}
+      <div className="flex items-start justify-between gap-3">
+        <div className={`p-4 rounded-2xl border transition-all duration-500 ${
+          effective ? "bg-violet-600/10 border-violet-500/20 text-violet-400" : "bg-white/[0.03] border-white/5 text-slate-600"
+        }`}>
+          <Icon size={20} />
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onEdit} title="Edit" className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-slate-600 hover:text-white hover:border-white/20 transition-all">
+            <Edit3 size={14} />
+          </button>
+          <button onClick={copyCode} title="Copy code" className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-slate-600 hover:text-violet-400 hover:border-violet-500/30 transition-all">
+            <Copy size={14} />
+          </button>
+          <button onClick={onDelete} title="Delete" className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-slate-600 hover:text-rose-500 hover:border-rose-500/20 transition-all">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* code + description */}
+      <div>
+        <h4 className="text-3xl font-black tracking-tighter text-white uppercase italic leading-none mb-1">{d.code}</h4>
+        {d.description && <p className="text-[10px] text-slate-500 tracking-wide mt-1 line-clamp-2">{d.description}</p>}
+      </div>
+
+      {/* value badge */}
+      <div className="flex flex-wrap gap-2">
+        {d.type !== "freeship" && (
+          <span className="px-3 py-1 rounded-full bg-white/5 text-white text-[10px] font-black tracking-widest uppercase">
+            {d.type === "percentage" ? `${d.value}% off` : `${fmt(d.value)} off`}
+          </span>
+        )}
+        {d.type === "freeship" && (
+          <span className="px-3 py-1 rounded-full bg-white/5 text-white text-[10px] font-black tracking-widest uppercase">Free shipping</span>
+        )}
+        {d.minOrderAmount && (
+          <span className="px-3 py-1 rounded-full bg-white/[0.03] border border-white/5 text-slate-500 text-[9px] font-black tracking-widest uppercase">
+            Min {fmt(d.minOrderAmount)}
+          </span>
+        )}
+        {d.onePerCustomer && (
+          <span className="px-3 py-1 rounded-full bg-white/[0.03] border border-white/5 text-slate-500 text-[9px] font-black tracking-widest uppercase">
+            1× / customer
+          </span>
+        )}
+      </div>
+
+      {/* stats row */}
+      <div className="grid grid-cols-2 gap-2">
+        <StatChip icon={Hash} label="Used" value={d.usageCount || 0} accent={(d.usageCount || 0) > 0} />
+        <StatChip
+          icon={d.usageLimit ? ShoppingCart : InfinityIcon}
+          label="Limit"
+          value={d.usageLimit ?? "∞"}
+        />
+      </div>
+
+      {/* footer */}
+      <div className="flex items-center justify-between pt-4 border-t border-white/5">
+        <button
+          onClick={onToggle}
+          className="flex items-center gap-2 text-[9px] font-black tracking-widest uppercase transition-colors"
+        >
+          {d.isActive
+            ? <ToggleRight size={18} className="text-emerald-500" />
+            : <ToggleLeft size={18} className="text-slate-600" />}
+          <span className={d.isActive ? "text-emerald-500" : "text-slate-600"}>
+            {isExpired ? "Expired" : usedUp ? "Exhausted" : d.isActive ? "Active" : "Paused"}
+          </span>
+        </button>
+        {d.expiryDate && (
+          <div className="flex items-center gap-1.5 text-[9px] font-black tracking-widest uppercase text-slate-500">
+            <Clock size={10} />
+            {new Date(d.expiryDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+
+function DiscountModal({ initial, onClose, onSave }: {
+  initial?: any;
+  onClose: () => void;
+  onSave: (data: any) => void;
+}) {
+  const isEdit = !!initial?.id;
+  const [form, setForm] = useState<any>(initial ?? EMPTY);
+  const [saving, setSaving] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(
+    !!(initial?.minOrderAmount || initial?.usageLimit || initial?.onePerCustomer || initial?.description)
+  );
+
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
+
+  const handleSave = async () => {
+    if (!form.code.trim()) { toast.error("Code is required"); return; }
+    setSaving(true);
+    try {
+      await onSave({
+        ...form,
+        code: form.code.toUpperCase().trim(),
+        value: form.type === "freeship" ? 0 : Number(form.value) || 0,
+        minOrderAmount: form.minOrderAmount !== "" ? Number(form.minOrderAmount) : null,
+        usageLimit: form.usageLimit !== "" ? Number(form.usageLimit) : null,
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <div className="space-y-12 pb-32">
-      <header className="flex justify-between items-center">
-        <div>
-          <h2 className="text-4xl font-black tracking-tighter text-white uppercase italic">Promotion Registry</h2>
-          <p className="text-[10px] tracking-[0.4em] text-slate-500 uppercase mt-2 font-black flex items-center gap-3">
-             <Ticket size={12} className="text-violet-400" /> Catalog of active incentives
-          </p>
-        </div>
-        <button 
-          onClick={() => setIsAdding(true)}
-          className="bg-violet-600 text-white px-10 py-4 rounded-3xl text-[10px] tracking-[0.4em] font-black hover:bg-violet-500 transition-all shadow-[0_20px_40px_rgba(124,58,237,0.3)] active:scale-95 flex items-center gap-4"
-        >
-          <Plus size={16} /> ADD DISCOUNT
-        </button>
-      </header>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6">
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-slate-950/80 backdrop-blur-3xl"
+        onClick={onClose}
+      />
+      <motion.div
+        initial={{ scale: 0.96, opacity: 0, y: 16 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.96, opacity: 0, y: 16 }}
+        className="relative bg-slate-900 border border-white/10 w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+      >
+        <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-violet-500/60 to-transparent" />
 
-      {loading ? (
-        <div className="h-[40vh] flex flex-col items-center justify-center space-y-6">
-           <div className="w-16 h-16 border-2 border-violet-500/10 border-t-violet-500 rounded-full animate-spin"></div>
-           <p className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">Syncing Promotional Buffer...</p>
-        </div>
-      ) : discounts.length === 0 && !isAdding ? (
-        <div className="py-32 flex flex-col items-center justify-center bg-white/[0.01] rounded-[4rem] border border-white/5 relative overflow-hidden group">
-          <div className="absolute inset-0 bg-gradient-to-b from-violet-500/5 to-transparent pointer-events-none" />
-          <Tag size={64} strokeWidth={0.5} className="text-slate-800 mb-10 group-hover:scale-110 transition-transform duration-700" />
-          <h3 className="text-2xl font-black text-white mb-3 uppercase tracking-tighter italic">Registry Vacant</h3>
-          <p className="text-[10px] tracking-[0.3em] text-slate-500 uppercase mb-12 font-black">Initiate growth protocols with your first code</p>
-          <button 
-            onClick={() => setIsAdding(true)}
-            className="bg-white/5 text-white border border-white/10 px-12 py-5 rounded-3xl text-[10px] tracking-[0.4em] font-black hover:bg-white/10 transition-all shadow-2xl active:scale-95"
-          >
-            INITIALIZE CODE
+        {/* Header */}
+        <div className="flex justify-between items-start p-10 pb-0 flex-shrink-0">
+          <div>
+            <h3 className="text-2xl font-black text-white tracking-tighter uppercase italic">
+              {isEdit ? "Edit Discount" : "New Discount Code"}
+            </h3>
+            <p className="text-[10px] tracking-[0.4em] text-slate-500 uppercase font-black mt-1">
+              {isEdit ? "Update promotional metadata" : "Configure a new incentive"}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-3 bg-white/5 rounded-2xl text-slate-400 hover:text-white transition-colors flex-shrink-0">
+            <X size={18} />
           </button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-          {discounts.map((d, i) => (
-            <motion.div 
-              key={d.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className="bg-white/[0.02] border border-white/5 p-10 rounded-[3rem] shadow-sm hover:border-violet-500/30 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.8)] transition-all duration-700 relative group overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-32 h-32 bg-violet-600/5 blur-[60px] -translate-y-1/2 translate-x-1/2" />
-              
-              <div className="flex justify-between items-start mb-10">
-                <div className="p-5 bg-white/[0.03] rounded-3xl border border-white/5 text-violet-400 shadow-inner group-hover:scale-110 group-hover:bg-violet-600 group-hover:text-white transition-all duration-500">
-                  {d.type === 'percentage' && <Percent size={24} />}
-                  {d.type === 'fixed' && <DollarSign size={24} />}
-                  {d.type === 'freeship' && <Truck size={24} />}
-                </div>
-                <button 
-                  onClick={() => deleteDiscount(d.id)}
-                  className="p-3 bg-white/[0.01] rounded-2xl border border-white/5 text-slate-600 hover:text-rose-500 hover:border-rose-500/30 transition-all active:scale-90"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
 
-              <div className="space-y-2 mb-10">
-                <h4 className="text-4xl font-black tracking-tighter text-white uppercase italic leading-none">{d.code}</h4>
-                <p className="text-[10px] tracking-[0.3em] text-slate-500 uppercase font-black">
-                  {d.type === 'percentage' ? `${d.value}% RELATIVE ADJUSTMENT` : d.type === 'fixed' ? `CA$${d.value} FLAT DEDUCTION` : 'LOGISTICS EXEMPTION'}
-                </p>
-              </div>
-              
-              <div className="flex items-center justify-between pt-8 border-t border-white/5">
-                <div className="flex items-center gap-3">
-                   <div className={`w-2 h-2 rounded-full ${d.isActive ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)]' : 'bg-slate-700'}`} />
-                   <span className={`text-[9px] font-black tracking-[.3em] uppercase ${d.isActive ? 'text-emerald-500' : 'text-slate-600'}`}>
-                    {d.isActive ? 'OPERATIONAL' : 'DORMANT'}
-                  </span>
-                </div>
-                {d.expiryDate && (
-                  <div className="flex items-center gap-3 text-slate-500 group-hover:text-slate-300 transition-colors">
-                    <Calendar size={12} />
-                    <span className="text-[9px] font-black tracking-[.2em] uppercase">{new Date(d.expiryDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      )}
-
-      {/* Add Modal overlay */}
-      <AnimatePresence>
-        {isAdding && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-            <motion.div 
-               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-               className="absolute inset-0 bg-slate-950/80 backdrop-blur-3xl" 
-               onClick={() => setIsAdding(false)} 
+        {/* Scrollable body */}
+        <div className="overflow-y-auto p-10 pt-8 space-y-8">
+          {/* Code */}
+          <div className="space-y-3">
+            <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">Code</label>
+            <input
+              type="text"
+              value={form.code}
+              onChange={e => set("code", e.target.value.toUpperCase())}
+              placeholder="E.G. SUMMER25"
+              className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-5 px-8 text-2xl font-black tracking-tighter uppercase italic text-white focus:border-violet-500/50 outline-none transition-all placeholder:text-slate-800"
             />
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="relative bg-slate-900 border border-white/10 w-full max-w-2xl rounded-[4rem] shadow-2xl p-12 overflow-hidden"
-            >
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-violet-500 to-transparent opacity-50" />
-              
-              <div className="flex justify-between items-start mb-12">
-                <div>
-                  <h3 className="text-3xl font-black text-white tracking-tighter uppercase italic">Code Formulation</h3>
-                  <p className="text-[10px] tracking-[0.4em] text-slate-500 uppercase font-black mt-2">Configuring promotional metadata</p>
-                </div>
-                <button onClick={() => setIsAdding(false)} className="p-4 bg-white/5 rounded-3xl text-slate-400 hover:text-white transition-colors">
-                  <X size={20} />
+          </div>
+
+          {/* Description */}
+          <div className="space-y-3">
+            <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">Description <span className="text-slate-700">(internal)</span></label>
+            <input
+              type="text"
+              value={form.description}
+              onChange={e => set("description", e.target.value)}
+              placeholder="e.g. Summer sale 2026"
+              className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-4 px-6 text-sm text-white/80 focus:border-violet-500/50 outline-none transition-all placeholder:text-slate-700"
+            />
+          </div>
+
+          {/* Type */}
+          <div className="space-y-3">
+            <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">Discount type</label>
+            <div className="grid grid-cols-3 gap-4">
+              {TYPE_OPTIONS.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => set("type", t.id)}
+                  className={`p-5 rounded-2xl border flex flex-col items-center gap-3 transition-all duration-300 text-center ${
+                    form.type === t.id
+                      ? "bg-violet-600 text-white border-violet-400 shadow-[0_10px_30px_rgba(124,58,237,0.3)]"
+                      : "bg-white/[0.02] border-white/5 text-slate-500 hover:bg-white/5 hover:border-white/10"
+                  }`}
+                >
+                  <t.icon size={22} strokeWidth={form.type === t.id ? 2.5 : 1.5} />
+                  <div>
+                    <p className="text-[9px] font-black tracking-[0.3em] uppercase">{t.label}</p>
+                    <p className="text-[8px] opacity-70 mt-0.5">{t.desc}</p>
+                  </div>
                 </button>
-              </div>
-              
-              <div className="space-y-10">
-                <div className="space-y-4">
-                  <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black ml-2">Manifestation Code</label>
-                  <input 
-                    type="text" 
-                    value={newDiscount.code} 
-                    onChange={e => setNewDiscount({ ...newDiscount, code: e.target.value.toUpperCase() })}
-                    placeholder="E.G. NOIR25"
-                    className="w-full bg-white/[0.03] border border-white/5 rounded-3xl py-6 px-10 text-3xl font-black tracking-tighter uppercase italic text-white focus:border-violet-500/50 outline-none transition-all placeholder:text-slate-800"
+              ))}
+            </div>
+          </div>
+
+          {/* Value + Expiry */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {form.type !== "freeship" && (
+              <div className="space-y-3">
+                <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">
+                  {form.type === "percentage" ? "Percentage off" : "Amount off (CA$)"}
+                </label>
+                <div className="relative">
+                  <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 font-black text-lg">
+                    {form.type === "percentage" ? "%" : "$"}
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    max={form.type === "percentage" ? 100 : undefined}
+                    value={form.value}
+                    onChange={e => set("value", e.target.value)}
+                    className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-xl font-black text-white focus:border-violet-500/50 outline-none transition-all"
                   />
                 </div>
+              </div>
+            )}
+            <div className="space-y-3">
+              <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">Expiry date <span className="text-slate-700">(optional)</span></label>
+              <div className="relative">
+                <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                <input
+                  type="date"
+                  value={form.expiryDate || ""}
+                  onChange={e => set("expiryDate", e.target.value)}
+                  className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-sm font-bold text-white focus:border-violet-500/50 outline-none transition-all tracking-widest"
+                />
+              </div>
+            </div>
+          </div>
 
-                <div className="grid grid-cols-3 gap-6">
-                  {[
-                    { id: 'percentage', icon: Percent, label: 'Relative' },
-                    { id: 'fixed', icon: DollarSign, label: 'Absolute' },
-                    { id: 'freeship', icon: Truck, label: 'Logistics' }
-                  ].map(t => (
-                    <button
-                      key={t.id}
-                      onClick={() => setNewDiscount({ ...newDiscount, type: t.id })}
-                      className={`p-8 rounded-[2.5rem] border flex flex-col items-center gap-4 transition-all duration-500 ${
-                        newDiscount.type === t.id 
-                          ? 'bg-violet-600 text-white border-violet-400 shadow-[0_20px_40px_rgba(124,58,237,0.3)]' 
-                          : 'bg-white/[0.02] border-white/5 text-slate-500 hover:bg-white/[0.05] hover:border-white/10'
-                      }`}
-                    >
-                      <t.icon size={28} strokeWidth={newDiscount.type === t.id ? 2.5 : 1.5} />
-                      <span className="text-[10px] font-black tracking-[0.4em] uppercase">{t.label}</span>
-                    </button>
-                  ))}
-                </div>
+          {/* Advanced toggle */}
+          <button
+            onClick={() => setShowAdvanced(v => !v)}
+            className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] uppercase text-slate-500 hover:text-white transition-colors w-full"
+          >
+            <div className="flex-1 h-px bg-white/5" />
+            {showAdvanced ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            <span>{showAdvanced ? "Hide" : "Show"} advanced options</span>
+            {showAdvanced ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            <div className="flex-1 h-px bg-white/5" />
+          </button>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                  {newDiscount.type !== 'freeship' && (
-                    <div className="space-y-4">
-                      <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black ml-2">Impact Magnitude</label>
-                      <div className="relative">
-                        <span className="absolute left-8 top-1/2 -translate-y-1/2 text-slate-500 font-black text-xl">
-                          {newDiscount.type === 'percentage' ? '%' : 'CA$'}
-                        </span>
-                        <input 
-                          type="number" 
-                          value={newDiscount.value} 
-                          onChange={e => setNewDiscount({ ...newDiscount, value: Number(e.target.value) })}
-                          className="w-full bg-white/[0.03] border border-white/5 rounded-3xl py-6 pl-16 pr-8 text-2xl font-black text-white focus:border-violet-500/50 outline-none transition-all shadow-inner"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-4">
-                    <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black ml-2">Temporal Limit</label>
+          <AnimatePresence>
+            {showAdvanced && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden space-y-6"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Min order */}
+                  <div className="space-y-3">
+                    <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">Minimum order (CA$)</label>
                     <div className="relative">
-                      <Calendar className="absolute left-8 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
-                      <input 
-                        type="date" 
-                        value={newDiscount.expiryDate} 
-                        onChange={e => setNewDiscount({ ...newDiscount, expiryDate: e.target.value })}
-                        className="w-full bg-white/[0.03] border border-white/5 rounded-3xl py-6 pl-16 pr-8 text-sm font-black text-white focus:border-violet-500/50 outline-none transition-all shadow-inner uppercase tracking-widest"
+                      <span className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 font-black">$</span>
+                      <input
+                        type="number" min="0"
+                        value={form.minOrderAmount}
+                        onChange={e => set("minOrderAmount", e.target.value)}
+                        placeholder="No minimum"
+                        className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-4 pl-10 pr-6 text-sm font-bold text-white focus:border-violet-500/50 outline-none transition-all placeholder:text-slate-700"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Usage limit */}
+                  <div className="space-y-3">
+                    <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">Total usage limit</label>
+                    <div className="relative">
+                      <Hash className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                      <input
+                        type="number" min="1"
+                        value={form.usageLimit}
+                        onChange={e => set("usageLimit", e.target.value)}
+                        placeholder="Unlimited"
+                        className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-4 pl-10 pr-6 text-sm font-bold text-white focus:border-violet-500/50 outline-none transition-all placeholder:text-slate-700"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="flex gap-6 pt-10">
-                  <button onClick={() => setIsAdding(false)} className="flex-1 px-10 py-6 text-[10px] tracking-[0.5em] font-black text-slate-500 hover:text-white transition-colors uppercase">Abortion</button>
-                  <button 
-                    onClick={handleSave} 
-                    className="flex-1 bg-violet-600 text-white rounded-[2.5rem] py-6 text-[10px] tracking-[0.5em] font-black shadow-2xl hover:bg-violet-500 transition-all active:scale-95 flex items-center justify-center gap-4"
+                {/* Toggles */}
+                <div className="space-y-4">
+                  <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">Restrictions</label>
+                  <button
+                    onClick={() => set("onePerCustomer", !form.onePerCustomer)}
+                    className="flex items-center justify-between w-full p-5 bg-white/[0.02] border border-white/5 rounded-2xl hover:border-white/10 transition-all"
                   >
-                    SAVE LOGIC <ShieldCheck size={18} />
+                    <div className="flex items-center gap-3 text-left">
+                      <Users size={16} className="text-slate-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-[11px] font-black tracking-[0.2em] uppercase text-white">One use per customer</p>
+                        <p className="text-[9px] text-slate-500 mt-0.5">Each email can redeem this code only once</p>
+                      </div>
+                    </div>
+                    {form.onePerCustomer
+                      ? <ToggleRight size={22} className="text-violet-400 flex-shrink-0" />
+                      : <ToggleLeft size={22} className="text-slate-600 flex-shrink-0" />}
+                  </button>
+                  <button
+                    onClick={() => set("isActive", !form.isActive)}
+                    className="flex items-center justify-between w-full p-5 bg-white/[0.02] border border-white/5 rounded-2xl hover:border-white/10 transition-all"
+                  >
+                    <div className="flex items-center gap-3 text-left">
+                      <ShieldCheck size={16} className="text-slate-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-[11px] font-black tracking-[0.2em] uppercase text-white">Code is active</p>
+                        <p className="text-[9px] text-slate-500 mt-0.5">Disable to pause without deleting</p>
+                      </div>
+                    </div>
+                    {form.isActive
+                      ? <ToggleRight size={22} className="text-emerald-400 flex-shrink-0" />
+                      : <ToggleLeft size={22} className="text-slate-600 flex-shrink-0" />}
                   </button>
                 </div>
-              </div>
-            </motion.div>
-          </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-4 p-10 pt-0 flex-shrink-0 border-t border-white/5 mt-auto">
+          <button onClick={onClose} className="px-8 py-4 text-[10px] tracking-[0.5em] font-black text-slate-500 hover:text-white transition-colors uppercase">
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 bg-violet-600 text-white rounded-2xl py-4 text-[10px] tracking-[0.5em] font-black shadow-xl hover:bg-violet-500 transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+          >
+            {saving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+            {isEdit ? "SAVE CHANGES" : "CREATE CODE"}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export function Discounts() {
+  const [discounts, setDiscounts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<any | null>(null);
+  const [filter, setFilter] = useState<"all" | "active" | "expired" | "paused">("all");
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      setDiscounts(await adminApi.getDiscounts());
+    } catch {
+      toast.error("Failed to load discounts");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const handleSave = async (data: any) => {
+    try {
+      if (data.id) {
+        await adminApi.updateDiscount(data.id, data);
+        toast.success("Discount updated");
+      } else {
+        await adminApi.saveDiscount(data);
+        toast.success("Discount code created");
+      }
+      setModalOpen(false);
+      setEditing(null);
+      load();
+    } catch (err: any) {
+      toast.error(err.message || "Save failed");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this discount code?")) return;
+    try {
+      await adminApi.deleteDiscount(id);
+      toast.success("Discount deleted");
+      load();
+    } catch {
+      toast.error("Delete failed");
+    }
+  };
+
+  const handleToggle = async (d: any) => {
+    try {
+      await adminApi.updateDiscount(d.id, { isActive: !d.isActive });
+      toast.success(d.isActive ? "Code paused" : "Code activated");
+      load();
+    } catch {
+      toast.error("Toggle failed");
+    }
+  };
+
+  const now = new Date().toISOString().split("T")[0];
+  const filtered = discounts.filter(d => {
+    if (filter === "active") return d.isActive && (!d.expiryDate || d.expiryDate >= now) && !(d.usageLimit && (d.usageCount || 0) >= d.usageLimit);
+    if (filter === "expired") return d.expiryDate && d.expiryDate < now;
+    if (filter === "paused") return !d.isActive;
+    return true;
+  });
+
+  const totalRedemptions = discounts.reduce((acc, d) => acc + (d.usageCount || 0), 0);
+  const activeCodes = discounts.filter(d => d.isActive && (!d.expiryDate || d.expiryDate >= now)).length;
+
+  return (
+    <div className="space-y-10 pb-32">
+      {/* Header */}
+      <header className="flex flex-wrap gap-6 justify-between items-start">
+        <div>
+          <h2 className="text-4xl font-black tracking-tighter text-white uppercase italic">Discounts</h2>
+          <p className="text-[10px] tracking-[0.4em] text-slate-500 uppercase mt-1 font-black flex items-center gap-2">
+            <Ticket size={11} className="text-violet-400" /> Promotional code management
+          </p>
+        </div>
+        <button
+          onClick={() => { setEditing(null); setModalOpen(true); }}
+          className="bg-violet-600 text-white px-8 py-4 rounded-2xl text-[10px] tracking-[0.4em] font-black hover:bg-violet-500 transition-all shadow-[0_12px_30px_rgba(124,58,237,0.3)] active:scale-95 flex items-center gap-3"
+        >
+          <Plus size={15} /> NEW CODE
+        </button>
+      </header>
+
+      {/* Stats bar */}
+      {discounts.length > 0 && (
+        <div className="flex flex-wrap gap-3">
+          <StatChip icon={Tag} label="Total codes" value={discounts.length} />
+          <StatChip icon={ShieldCheck} label="Active" value={activeCodes} accent={activeCodes > 0} />
+          <StatChip icon={BarChart2} label="Total redemptions" value={totalRedemptions} accent={totalRedemptions > 0} />
+        </div>
+      )}
+
+      {/* Filter tabs */}
+      {discounts.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          {(["all", "active", "expired", "paused"] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-5 py-2 rounded-full text-[9px] font-black tracking-[0.3em] uppercase transition-all border ${
+                filter === f
+                  ? "bg-white text-black border-white"
+                  : "bg-white/[0.03] text-slate-500 border-white/5 hover:border-white/15 hover:text-white"
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Body */}
+      {loading ? (
+        <div className="h-[40vh] flex flex-col items-center justify-center gap-6">
+          <div className="w-12 h-12 border-2 border-violet-500/10 border-t-violet-500 rounded-full animate-spin" />
+          <p className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">Loading…</p>
+        </div>
+      ) : discounts.length === 0 ? (
+        <div className="py-32 flex flex-col items-center justify-center bg-white/[0.01] rounded-[3rem] border border-white/5">
+          <Tag size={52} strokeWidth={0.5} className="text-slate-800 mb-8" />
+          <h3 className="text-xl font-black text-white mb-2 uppercase tracking-tighter italic">No discount codes yet</h3>
+          <p className="text-[10px] tracking-[0.3em] text-slate-500 uppercase mb-10 font-black">Create your first promotional code</p>
+          <button
+            onClick={() => { setEditing(null); setModalOpen(true); }}
+            className="bg-white/5 text-white border border-white/10 px-10 py-4 rounded-2xl text-[10px] tracking-[0.4em] font-black hover:bg-white/10 transition-all active:scale-95"
+          >
+            CREATE FIRST CODE
+          </button>
+        </div>
+      ) : filtered.length === 0 ? (
+        <p className="text-center py-20 text-[10px] tracking-[0.4em] text-slate-600 uppercase font-black">No codes match this filter</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filtered.map(d => (
+            <DiscountCard
+              key={d.id}
+              d={d}
+              onDelete={() => handleDelete(d.id)}
+              onToggle={() => handleToggle(d)}
+              onEdit={() => { setEditing(d); setModalOpen(true); }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Modal */}
+      <AnimatePresence>
+        {modalOpen && (
+          <DiscountModal
+            initial={editing}
+            onClose={() => { setModalOpen(false); setEditing(null); }}
+            onSave={handleSave}
+          />
         )}
       </AnimatePresence>
     </div>
   );
 }
-
