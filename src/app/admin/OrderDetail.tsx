@@ -16,6 +16,7 @@ import {
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
+import { orderApi, FULFILLMENT_FLOW, FULFILLMENT_LABELS, type FulfillmentStatus } from "../lib/commerce";
 
 export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: () => void }) {
   const [order, setOrder] = useState<any>(null);
@@ -52,6 +53,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     try {
       await adminApi.updateOrder(orderId, {
         status: "completed",
+        fulfillmentStatus: "shipped",
         trackingCarrier,
         trackingNumber: trackingNumber.trim(),
         shippedAt: new Date().toISOString(),
@@ -135,6 +137,42 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
           </div>
         </div>
       </header>
+
+      {/* Fulfillment status timeline */}
+      <section className="glass-card rounded-[2rem] border border-white/5 p-8 print:hidden">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-[10px] tracking-[0.4em] text-slate-400 uppercase font-black">Fulfillment Pipeline</h3>
+          <select
+            value={order.fulfillmentStatus || (order.status === "completed" ? "delivered" : "paid")}
+            onChange={async (e) => {
+              const next = e.target.value as FulfillmentStatus;
+              await orderApi.setFulfillmentStatus(orderId, next);
+              loadOrder();
+              toast.success(`Status: ${FULFILLMENT_LABELS[next]}`);
+            }}
+            className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-[10px] tracking-widest uppercase text-white outline-none focus:border-violet-500/50 cursor-pointer"
+          >
+            {(Object.keys(FULFILLMENT_LABELS) as FulfillmentStatus[]).map(k => (
+              <option key={k} value={k} className="bg-[#0A0A0B]">{FULFILLMENT_LABELS[k]}</option>
+            ))}
+          </select>
+        </div>
+        <ol className="grid grid-cols-5 gap-2">
+          {FULFILLMENT_FLOW.map((step, idx) => {
+            const current = order.fulfillmentStatus || (order.status === "completed" ? "delivered" : "paid");
+            const currentIdx = FULFILLMENT_FLOW.indexOf(current as FulfillmentStatus);
+            const reached = idx <= currentIdx;
+            return (
+              <li key={step} className="flex flex-col gap-2">
+                <div className={`h-1 rounded-full ${reached ? "bg-violet-500" : "bg-white/5"}`} />
+                <span className={`text-[9px] tracking-widest uppercase font-black ${reached ? "text-white" : "text-white/30"}`}>
+                  {FULFILLMENT_LABELS[step]}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         {/* Left Column: Details */}

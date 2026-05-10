@@ -4,12 +4,18 @@ import { useParams, Link, useNavigate } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
   Package, Share2, Check, BookOpen, Globe, Ruler,
-  Weight, Tag, Truck, ShieldCheck, Zap
+  Weight, Tag, Truck, ShieldCheck, Zap, Heart
 } from "lucide-react";
 import { useCart } from "../../CartContext";
 import { useSiteData } from "./useSiteData";
 import { DEFAULT_IMAGE } from "./constants";
 import type { Book } from "./types";
+import { trackBookView } from "../../lib/recentlyViewed";
+import { useWishlist } from "../../lib/wishlist";
+import { useSEO } from "../../lib/seo";
+import { funnelApi } from "../../lib/commerce";
+import ReviewsSection from "./ReviewsSection";
+import RecentlyViewedRow from "./RecentlyViewedRow";
 
 // ── small helper ────────────────────────────────────────────────────────────
 function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
@@ -47,9 +53,57 @@ export default function BookDetail() {
   const showRelatedProducts    = storefrontDesign.showRelatedProducts    ?? true;
   const showSocialShare        = storefrontDesign.showSocialShare        ?? true;
 
-  const otherBooks = books
-    .filter((b) => b.id !== book?.id && b.status === "published")
-    .slice(0, 4);
+  const bookCategories = (book as any)?.categories || (book as any)?.genres || [];
+  const otherBooks = (() => {
+    const published = books.filter(b => b.id !== book?.id && b.status === "published");
+    const sameCategory = published.filter(b =>
+      ((b as any).categories || (b as any).genres || []).some((c: string) => bookCategories.includes(c)),
+    );
+    return (sameCategory.length >= 4 ? sameCategory : [...sameCategory, ...published.filter(b => !sameCategory.includes(b))]).slice(0, 4);
+  })();
+
+  const { has: isWished, toggle: toggleWish } = useWishlist();
+  const wished = book ? isWished(book.id) : false;
+
+  useSEO(
+    book
+      ? {
+          title: book.title,
+          description: (book as any).description || `${book.title} — Lyricalmyrical Books`,
+          image: (book as any).photos?.[0]?.url,
+          type: "book",
+          jsonLd: {
+            "@context": "https://schema.org",
+            "@type": "Book",
+            name: book.title,
+            description: (book as any).description || "",
+            image: (book as any).photos?.map((p: any) => p.url) || [],
+            isbn: (book as any).isbn,
+            inLanguage: (book as any).language,
+            offers: {
+              "@type": "Offer",
+              priceCurrency: "USD",
+              price:
+                (book as any).isOnSale && (book as any).salePrice
+                  ? (book as any).salePrice
+                  : (book as any).retailPrice,
+              availability:
+                ((book as any).stockLevel ?? 999) === 0
+                  ? "https://schema.org/OutOfStock"
+                  : "https://schema.org/InStock",
+              url: typeof window !== "undefined" ? window.location.href : undefined,
+            },
+          },
+        }
+      : { title: "Publication" },
+  );
+
+  useEffect(() => {
+    if (book?.id) {
+      trackBookView(book.id);
+      funnelApi.track("view");
+    }
+  }, [book?.id]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -65,6 +119,7 @@ export default function BookDetail() {
     const stock = (book as any).stockLevel ?? 999;
     if (stock === 0) return;
     addToCart(book);
+    funnelApi.track("add_to_cart");
     setAdded(true);
     setTimeout(() => setAdded(false), 2500);
   };
@@ -418,6 +473,19 @@ export default function BookDetail() {
                   )}
                 </motion.button>
 
+                <button
+                  onClick={() => book && toggleWish(book.id)}
+                  aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
+                  title={wished ? "In wishlist" : "Save to wishlist"}
+                  className={`w-16 h-16 rounded-2xl border flex items-center justify-center transition-all ${
+                    wished
+                      ? "border-rose-400/40 bg-rose-500/10 text-rose-400"
+                      : "border-white/[0.08] hover:bg-white/[0.06] hover:border-white/20 text-white/40"
+                  }`}
+                >
+                  <Heart size={15} fill={wished ? "currentColor" : "none"} />
+                </button>
+
                 {showSocialShare && (
                   <button
                     onClick={handleShare}
@@ -427,6 +495,19 @@ export default function BookDetail() {
                     <Share2 size={15} className="text-white/40" />
                   </button>
                 )}
+              </div>
+
+              {/* Trust signals */}
+              <div className="grid grid-cols-3 gap-3 pt-4">
+                <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
+                  <Truck size={12} className="text-white/30" /> Tracked shipping
+                </div>
+                <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
+                  <ShieldCheck size={12} className="text-white/30" /> 14-day returns
+                </div>
+                <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
+                  <Package size={12} className="text-white/30" /> Ships in 1–2 days
+                </div>
               </div>
 
 
@@ -489,6 +570,12 @@ export default function BookDetail() {
             </div>
           </section>
         )}
+
+        {/* ── Reviews ── */}
+        {book && <ReviewsSection bookId={book.id} />}
+
+        {/* ── Recently viewed ── */}
+        <RecentlyViewedRow excludeId={book?.id} />
 
         {/* ── Footer ── */}
         <footer className="relative z-10 border-t border-white/[0.06] py-10 text-center">

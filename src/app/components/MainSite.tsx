@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, X, Instagram, Mail, ArrowRight, Send } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Instagram, Mail, ArrowRight, Send, Heart, User as UserIcon, Zap } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router";
 import { useCart } from "../CartContext";
 import { CATEGORIES, DEFAULT_IMAGE } from "../features/site/constants";
@@ -10,6 +10,10 @@ import { useSiteData } from "../features/site/useSiteData";
 import { addDoc, collection } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import * as Sections from "./SectionComponents";
+import { useWishlist } from "../lib/wishlist";
+import { useSEO } from "../lib/seo";
+import { CatalogControls, applyCatalogControls, type SortKey } from "../features/site/CatalogControls";
+import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 
 // ──────────────────────────────
 // Image with skeleton loader
@@ -571,11 +575,37 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   }, [categories, activeCategory]);
 
   const publications = useMemo(() => getPublications(getFeaturedBooks(books)), [books]);
-  const filteredItems = useMemo(
+  const baseFilteredItems = useMemo(
     () => getFilteredItems(books, activeCategory, new Date().toISOString()),
     [books, activeCategory],
   );
   const publishedBooks = useMemo(() => getPublishedBooks(books), [books]);
+
+  // Catalog controls: search + sort + in-stock filter
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sort, setSort] = useState<SortKey>("newest");
+  const [inStockOnly, setInStockOnly] = useState(false);
+
+  const filteredItems = useMemo(
+    () => applyCatalogControls(baseFilteredItems, searchQuery, sort, inStockOnly, [0, Infinity]),
+    [baseFilteredItems, searchQuery, sort, inStockOnly],
+  );
+
+  const { has: isWished, toggle: toggleWish, count: wishlistCount } = useWishlist();
+
+  useSEO({
+    title: showCatalog ? "Archive" : undefined,
+    description: settings?.info?.description,
+    image: settings?.assets?.profileUrl,
+    type: "website",
+    jsonLd: {
+      "@context": "https://schema.org",
+      "@type": "BookStore",
+      name: settings?.info?.name || "Lyricalmyrical Books",
+      url: settings?.info?.website,
+      description: settings?.info?.description,
+    },
+  });
 
   const logoPosition = storefrontDesign?.logoPosition || "left";
   const isHeaderTransparent = storefrontDesign?.transparentHeader && !scrolled;
@@ -785,8 +815,27 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   INFORMATION
                 </button>
               )}
-              <a 
-                href="#/admin" 
+              <Link
+                to="/wishlist"
+                aria-label="Wishlist"
+                className="relative hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-colors text-white/50 hover:text-white"
+              >
+                <Heart size={14} />
+                {wishlistCount > 0 && (
+                  <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-rose-500 text-white rounded-full px-1.5 py-0.5">
+                    {wishlistCount}
+                  </span>
+                )}
+              </Link>
+              <Link
+                to="/account"
+                aria-label="Account"
+                className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-colors text-white/50 hover:text-white"
+              >
+                <UserIcon size={14} />
+              </Link>
+              <a
+                href="#/admin"
                 className="hidden sm:flex items-center gap-1.5 text-[9px] tracking-[0.2em] font-bold text-white/30 hover:text-white transition-colors uppercase mr-2"
               >
                 Admin
@@ -831,21 +880,51 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             )}
           </AnimatePresence>
 
+          <CatalogControls
+            query={searchQuery}
+            setQuery={setSearchQuery}
+            sort={sort}
+            setSort={setSort}
+            inStockOnly={inStockOnly}
+            setInStockOnly={setInStockOnly}
+            resultCount={filteredItems.length}
+          />
+
+          {filteredItems.length === 0 && (
+            <p className="py-20 text-center text-[10px] tracking-[0.4em] text-white/30 uppercase">
+              No publications match these filters.
+            </p>
+          )}
+
           <div className={`grid ${mobileColsClass} ${desktopColsClass} gap-8`} style={{ rowGap: shopSectionSpacing }}>
             {filteredItems.map((item: any, index: number) => {
               const slug = getBookSlug(item);
-              const isOutOfStock = (item.stockLevel ?? 999) === 0;
+              const stock = item.stockLevel ?? 999;
+              const isOutOfStock = stock === 0;
+              const isLowStock = stock > 0 && stock !== 999 && stock <= 5;
+              const wished = isWished(item.id);
               return (
                 <motion.article
                   key={item.id || index}
                   initial={(storefrontDesign?.enableAnimations ?? true) ? { opacity: 0, y: 30 } : { opacity: 1, y: 0 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={(storefrontDesign?.enableAnimations ?? true) 
+                  transition={(storefrontDesign?.enableAnimations ?? true)
                     ? { duration: 0.8, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }
                     : { duration: 0 }
                   }
                   className={`group relative transition-all duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""}`}
                 >
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleWish(item.id); }}
+                    aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
+                    className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center transition-colors ${
+                      wished
+                        ? "bg-rose-500/20 text-rose-400 border border-rose-400/40"
+                        : "bg-black/40 text-white/70 border border-white/10 hover:text-white opacity-0 group-hover:opacity-100"
+                    }`}
+                  >
+                    <Heart size={13} fill={wished ? "currentColor" : "none"} />
+                  </button>
                   <Link to={`/books/${slug}`}>
                     <div className={`relative ${imageAspectClass} bg-neutral-900/50 mb-4 overflow-hidden border border-white/5 shadow-2xl`} style={{ borderRadius: storefrontCardRadius }}>
                       <SkeletonImage
@@ -859,6 +938,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                           <span className="bg-black/80 text-white/70 text-[8px] tracking-widest px-2 py-1 uppercase border border-white/20">
                             {soldOutLabel}
                           </span>
+                        </div>
+                      )}
+                      {!isOutOfStock && isLowStock && (
+                        <div className="absolute top-3 left-3 flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 backdrop-blur-md text-amber-300 text-[8px] tracking-widest px-2 py-1 uppercase rounded-full">
+                          <Zap size={9} /> Only {stock} left
                         </div>
                       )}
                       {/* Hover overlay — show "VIEW" instead of add directly */}
@@ -898,6 +982,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           </div>
         </main>
 
+        <RecentlyViewedRow />
         <Newsletter />
         <SiteFooter settings={settings} pages={pages} onAboutOpen={() => setShowAbout(true)} />
         {(storefrontDesign?.showPoweredBy ?? false) && (

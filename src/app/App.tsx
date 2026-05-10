@@ -11,6 +11,9 @@ const Dashboard = lazy(() => import("./admin/Dashboard").then(m => ({ default: m
 const Checkout = lazy(() => import("./Checkout").then(m => ({ default: m.Checkout })));
 const BookDetail = lazy(() => import("./features/site/BookDetail"));
 const PageView = lazy(() => import("./features/site/PageView").then(m => ({ default: m.PageView })));
+const WishlistPage = lazy(() => import("./features/site/Wishlist"));
+const CollectionPage = lazy(() => import("./features/site/CollectionPage"));
+const AccountPage = lazy(() => import("./features/site/Account"));
 
 function LoadingFallback() {
   return (
@@ -67,6 +70,9 @@ export default function App() {
                   />
                 } />
                 <Route path="/books/:slug" element={<BookDetail />} />
+                <Route path="/collections/:slug" element={<CollectionPage />} />
+                <Route path="/wishlist" element={<WishlistPage />} />
+                <Route path="/account/*" element={<AccountPage />} />
                 <Route path="/page/:slug" element={<PageView />} />
                 <Route path="/admin/*" element={<Dashboard />} />
                 <Route path="/checkout" element={<Checkout />} />

@@ -65,6 +65,26 @@ export function AnalyticsDashboard() {
   const totalRevenue = last30.reduce((acc: number, d: any) => acc + (d.revenue || 0), 0);
   const conversionRate = totalVisits > 0 ? (totalOrders / totalVisits) * 100 : 0;
 
+  // Funnel aggregation
+  const funnel = last30.reduce(
+    (acc: any, d: any) => {
+      const f = d.funnel || {};
+      acc.view += f.view || 0;
+      acc.add_to_cart += f.add_to_cart || 0;
+      acc.checkout_start += f.checkout_start || 0;
+      acc.purchase += f.purchase || 0;
+      return acc;
+    },
+    { view: 0, add_to_cart: 0, checkout_start: 0, purchase: 0 },
+  );
+  const funnelSteps = [
+    { key: "view", label: "Product Views", count: funnel.view },
+    { key: "add_to_cart", label: "Added to Cart", count: funnel.add_to_cart },
+    { key: "checkout_start", label: "Started Checkout", count: funnel.checkout_start },
+    { key: "purchase", label: "Completed Purchase", count: funnel.purchase },
+  ];
+  const maxFunnel = Math.max(1, ...funnelSteps.map(s => s.count));
+
   const kpis = [
     { label: "Readers", subLabel: "Visitors", value: totalVisits.toLocaleString(), trend: "+12.4%", icon: Users, color: "violet" },
     { label: "Sales", subLabel: "Orders", value: totalOrders.toLocaleString(), trend: "+5.2%", icon: ShoppingBag, color: "cyan" },
@@ -295,6 +315,47 @@ export function AnalyticsDashboard() {
                  <Activity size={100} strokeWidth={0.5} className="text-white" />
               </div>
            </div>
+        </div>
+      </div>
+
+      {/* Conversion Funnel */}
+      <div className="bg-white/[0.02] border border-white/5 rounded-[3rem] p-12 shadow-2xl">
+        <div className="flex items-center justify-between mb-10">
+          <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Conversion Funnel · Last 30 days</h3>
+          <span className="text-[10px] tracking-widest font-black uppercase text-slate-500">
+            {funnel.view > 0
+              ? `${((funnel.purchase / funnel.view) * 100).toFixed(2)}% view → buy`
+              : "no data yet"}
+          </span>
+        </div>
+        <div className="space-y-5">
+          {funnelSteps.map((step, idx) => {
+            const prev = idx === 0 ? null : funnelSteps[idx - 1].count;
+            const dropoff = prev ? Math.max(0, prev - step.count) : 0;
+            const dropPct = prev ? ((dropoff / prev) * 100).toFixed(1) : null;
+            const widthPct = (step.count / maxFunnel) * 100;
+            return (
+              <div key={step.key} className="grid grid-cols-12 items-center gap-4">
+                <span className="col-span-3 text-[10px] tracking-widest uppercase font-black text-slate-400">
+                  {step.label}
+                </span>
+                <div className="col-span-7 h-3 bg-white/[0.04] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-violet-500 to-cyan-500 rounded-full transition-all duration-700"
+                    style={{ width: `${widthPct}%` }}
+                  />
+                </div>
+                <span className="col-span-2 text-right">
+                  <span className="text-sm font-black text-white tabular-nums">{step.count.toLocaleString()}</span>
+                  {dropPct && (
+                    <span className="ml-2 text-[9px] font-black tracking-widest uppercase text-rose-400/70">
+                      −{dropPct}%
+                    </span>
+                  )}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
