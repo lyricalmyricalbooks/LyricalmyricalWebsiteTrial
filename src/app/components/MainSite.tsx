@@ -506,6 +506,39 @@ function GoogleFontLoader({ font }: { font: string }) {
 }
 
 // ──────────────────────────────
+// Typography tokens — turns the editor's type settings into real CSS.
+// Applied via a scoped <style> targeting [data-fm-store] so heading vs body
+// fonts, weights, base size, line-height and tracking work site-wide without
+// editing every component. (rem-based Tailwind sizes are left intact.)
+// ──────────────────────────────
+export function resolveTypography(design: any) {
+  const body = design?.bodyFont || design?.font || "Inter";
+  const heading = design?.headingFont || design?.font || "Inter";
+  const base = design?.baseFontSize ?? (design?.fontSize === "sm" ? 15 : design?.fontSize === "lg" ? 18 : 16);
+  const tracking =
+    design?.letterSpacing === "ultra" ? "0.08em" : design?.letterSpacing === "wide" ? "0.03em" : "normal";
+  const lineHeight = design?.lineHeight ?? 1.6;
+  const headingWeight = design?.headingWeight ?? 800;
+  const bodyWeight = design?.bodyWeight ?? 400;
+  return { body, heading, base, tracking, lineHeight, headingWeight, bodyWeight };
+}
+
+function TypographyTokens({ design }: { design: any }) {
+  const t = resolveTypography(design);
+  const css = `
+[data-fm-store]{font-family:'${t.body}',sans-serif;font-size:${t.base}px;line-height:${t.lineHeight};font-weight:${t.bodyWeight};}
+[data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3,[data-fm-store] h4,[data-fm-store] h5,[data-fm-store] h6{font-family:'${t.heading}',sans-serif;font-weight:${t.headingWeight};letter-spacing:${t.tracking};}
+`;
+  return (
+    <>
+      <GoogleFontLoader font={t.body} />
+      <GoogleFontLoader font={t.heading} />
+      <style>{css}</style>
+    </>
+  );
+}
+
+// ──────────────────────────────
 // Main exported component
 // ──────────────────────────────
 export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
@@ -730,10 +763,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   if (showCatalog) {
     return (
       <div
+        data-fm-store
         className="min-h-screen overflow-y-auto selection:bg-white selection:text-black"
-        style={{ fontFamily: storefrontDesign?.font || "Inter, sans-serif", backgroundColor: storefrontBg, color: storefrontText }}
+        style={{ fontFamily: `'${resolveTypography(storefrontDesign).body}', sans-serif`, backgroundColor: storefrontBg, color: storefrontText }}
       >
-        <GoogleFontLoader font={storefrontDesign?.font || "Inter"} />
+        <TypographyTokens design={storefrontDesign} />
         {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
         {/* Promo / announcement banner */}
         {showAnnouncement && announcementMsg && (
@@ -1054,10 +1088,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // ── Homepage (hero) ──
   return (
     <div
+      data-fm-store
       className="min-h-screen w-full bg-[#030213] text-white overflow-x-hidden relative selection:bg-white selection:text-black font-sans"
-      style={{ fontFamily: heroDesign?.font || "Inter, sans-serif" }}
+      style={{ fontFamily: `'${resolveTypography(heroDesign).body}', sans-serif` }}
     >
-      <GoogleFontLoader font={heroDesign?.font || "Inter"} />
+      <TypographyTokens design={heroDesign} />
       {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
       <header 
         className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-6 transition-all duration-500 ${scrolled ? "bg-black/80 backdrop-blur-xl border-b border-white/5 py-4" : "bg-gradient-to-b from-black/70 to-transparent"}`}

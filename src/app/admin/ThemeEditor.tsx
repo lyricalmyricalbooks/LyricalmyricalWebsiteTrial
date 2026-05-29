@@ -753,10 +753,25 @@ function StylePanel({ design, update }: any) {
       </Accordion>
 
       <Accordion title="Typography">
-        <FontSelector 
-          value={design.font || "Inter"} 
-          onChange={(val) => update("font", val)} 
-        />
+        <div className="space-y-8">
+          <div>
+            <SidebarLabel>Body font</SidebarLabel>
+            <FontSelector
+              value={design.font || "Inter"}
+              onChange={(val) => update("font", val)}
+            />
+          </div>
+          <div>
+            <SidebarLabel>Heading font</SidebarLabel>
+            <FontSelector
+              value={design.headingFont || design.font || "Inter"}
+              onChange={(val) => update("headingFont", val)}
+            />
+            <p className="text-[9px] text-slate-600 font-bold mt-2 italic">
+              Used for all headings. Defaults to the body font.
+            </p>
+          </div>
+        </div>
       </Accordion>
     </div>
   );
@@ -1995,22 +2010,78 @@ function TextSizingPanel({ design, update }: any) {
         </div>
       </Accordion>
 
+      <Accordion title="Fine Tuning" defaultOpen={true}>
+        <div className="space-y-8">
+          <SidebarRange
+            label="Base font size"
+            value={design.baseFontSize ?? (design.fontSize === "sm" ? 15 : design.fontSize === "lg" ? 18 : 16)}
+            min={12}
+            max={22}
+            step={1}
+            suffix="px"
+            onChange={(v: number) => update("baseFontSize", v)}
+          />
+          <SidebarRange
+            label="Line height"
+            value={Math.round((design.lineHeight ?? 1.6) * 100)}
+            min={110}
+            max={210}
+            step={5}
+            suffix="%"
+            onChange={(v: number) => update("lineHeight", v / 100)}
+          />
+          <div>
+            <SidebarLabel>Heading weight</SidebarLabel>
+            <SidebarRadioGroup
+              value={String(design.headingWeight ?? 800)}
+              onChange={(v) => update("headingWeight", Number(v))}
+              options={[
+                { value: "400", label: "Regular" },
+                { value: "600", label: "Semibold" },
+                { value: "800", label: "Bold" },
+                { value: "900", label: "Black" },
+              ]}
+            />
+          </div>
+          <div>
+            <SidebarLabel>Body weight</SidebarLabel>
+            <SidebarRadioGroup
+              value={String(design.bodyWeight ?? 400)}
+              onChange={(v) => update("bodyWeight", Number(v))}
+              options={[
+                { value: "300", label: "Light" },
+                { value: "400", label: "Regular" },
+                { value: "500", label: "Medium" },
+              ]}
+            />
+          </div>
+        </div>
+      </Accordion>
+
       <Accordion title="Type Specimen">
         <div className="bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-8 relative overflow-hidden group">
            <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 to-transparent pointer-events-none" />
            <p className="text-[10px] text-slate-500 mb-6 font-black uppercase tracking-[0.4em] border-b border-white/5 pb-4 italic">Render Preview</p>
            <div className="space-y-4 relative z-10">
              <p
-               className="font-black text-white leading-none uppercase italic"
+               className="text-white leading-none uppercase italic"
                style={{
-                 fontFamily: design.font || "Inter",
+                 fontFamily: design.headingFont || design.font || "Inter",
+                 fontWeight: design.headingWeight ?? 800,
                  fontSize: design.fontSize === "sm" ? 28 : design.fontSize === "lg" ? 48 : 36,
                  letterSpacing: design.letterSpacing === "ultra" ? "0.15em" : design.letterSpacing === "wide" ? "0.05em" : "0",
                }}
              >
-               Aa — {design.font || "Inter"}
+               Aa — {design.headingFont || design.font || "Inter"}
              </p>
-             <p className="text-slate-400 text-[13px] leading-relaxed font-bold italic tracking-tight" style={{ fontFamily: design.font || "Inter" }}>
+             <p
+               className="text-slate-400 text-[13px] italic tracking-tight"
+               style={{
+                 fontFamily: design.font || "Inter",
+                 fontWeight: design.bodyWeight ?? 400,
+                 lineHeight: design.lineHeight ?? 1.6,
+               }}
+             >
                THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG. ARCHIVAL TEXTURE MANIFESTO.
              </p>
            </div>
