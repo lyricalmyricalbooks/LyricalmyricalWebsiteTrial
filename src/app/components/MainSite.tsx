@@ -7,6 +7,7 @@ import { CATEGORIES, DEFAULT_IMAGE } from "../features/site/constants";
 import { getFeaturedBooks, getFilteredItems, getPublications, getPublishedBooks } from "../features/site/selectors";
 import type { Book } from "../features/site/types";
 import { useSiteData } from "../features/site/useSiteData";
+import { getCopy } from "../features/site/storeCopy";
 import { addDoc, collection } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import * as Sections from "./SectionComponents";
@@ -173,7 +174,7 @@ function AboutPanel({ settings, pages, onClose }: { settings: any; pages: any[];
 // ──────────────────────────────
 // Newsletter sign-up
 // ──────────────────────────────
-function Newsletter() {
+function Newsletter({ design }: { design?: any }) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
@@ -197,9 +198,9 @@ function Newsletter() {
   return (
     <div className="py-16 border-t border-white/10 text-center space-y-6">
       <div className="space-y-2">
-        <h3 className="text-lg font-bold tracking-tight">Join the Archive</h3>
+        <h3 className="text-lg font-bold tracking-tight">{getCopy(design, "newsletterHeading")}</h3>
         <p className="text-white/40 text-xs tracking-widest max-w-sm mx-auto">
-          New publications, limited editions, and press announcements — delivered quietly.
+          {getCopy(design, "newsletterText")}
         </p>
       </div>
       {status === "success" ? (
@@ -208,7 +209,7 @@ function Newsletter() {
           animate={{ opacity: 1, y: 0 }}
           className="text-[10px] tracking-[0.4em] text-white/60 uppercase"
         >
-          ✓ You're on the list.
+          {getCopy(design, "newsletterSuccess")}
         </motion.p>
       ) : (
         <form onSubmit={handleSubmit} className="flex gap-2 max-w-sm mx-auto">
@@ -216,7 +217,7 @@ function Newsletter() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="your@email.com"
+            placeholder={getCopy(design, "newsletterPlaceholder")}
             required
             className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-3 text-xs text-white placeholder-white/30 outline-none focus:border-white/30 transition-all"
           />
@@ -226,12 +227,12 @@ function Newsletter() {
             className="bg-white text-black rounded-full px-5 py-3 text-[10px] font-bold tracking-widest hover:bg-white/90 transition-all disabled:opacity-50 flex items-center gap-2"
           >
             <Send size={12} />
-            {status === "loading" ? "..." : "JOIN"}
+            {status === "loading" ? "..." : getCopy(design, "newsletterButton")}
           </button>
         </form>
       )}
       {status === "error" && (
-        <p className="text-red-400 text-[10px] tracking-widest">Something went wrong. Try again.</p>
+        <p className="text-red-400 text-[10px] tracking-widest">{getCopy(design, "newsletterError")}</p>
       )}
     </div>
   );
@@ -249,13 +250,13 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
         <div className="space-y-4">
           <p className="text-white font-bold tracking-widest text-xs">LYRICALMYRICAL BOOKS</p>
           <p className="leading-relaxed max-w-xs">
-            {settings?.info?.description || "An independent publishing house based in Toronto, specializing in contemporary photography and art books."}
+            {settings?.info?.description || getCopy(settings?.design, "footerAbout")}
           </p>
         </div>
 
         {/* Col 2: Navigation */}
         <div className="space-y-3">
-          <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">Navigate</p>
+          <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerNavHeading")}</p>
           <button onClick={onAboutOpen} className="block hover:text-white transition-colors">About</button>
           <Link to="/" className="block hover:text-white transition-colors">Shop</Link>
           {navPages.map(page => (
@@ -278,18 +279,18 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
 
         {/* Col 3: Policies / Info */}
         <div className="space-y-3">
-          <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">Legal</p>
+          <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLegalHeading")}</p>
           {settings?.policies?.shipping && <p className="hover:text-white cursor-default transition-colors">Shipping Policy</p>}
           {settings?.policies?.returns && <p className="hover:text-white cursor-default transition-colors">Returns Policy</p>}
           {settings?.policies?.privacy && <p className="hover:text-white cursor-default transition-colors">Privacy Policy</p>}
-          <p className="mt-6">{settings?.location?.city || "Toronto"}, Canada</p>
+          <p className="mt-6">{getCopy(settings?.design, "footerLocation")}</p>
         </div>
       </div>
 
       {/* Bottom bar */}
       <div className="border-t border-white/5 max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-2">
         <p className="text-[9px] tracking-widest text-white/20 uppercase">
-          © {new Date().getFullYear()} Lyricalmyrical Books · All rights reserved
+          {getCopy(settings?.design, "footerCopyright")}
         </p>
         <div className="flex gap-4">
           <a
@@ -505,6 +506,39 @@ function GoogleFontLoader({ font }: { font: string }) {
 }
 
 // ──────────────────────────────
+// Typography tokens — turns the editor's type settings into real CSS.
+// Applied via a scoped <style> targeting [data-fm-store] so heading vs body
+// fonts, weights, base size, line-height and tracking work site-wide without
+// editing every component. (rem-based Tailwind sizes are left intact.)
+// ──────────────────────────────
+export function resolveTypography(design: any) {
+  const body = design?.bodyFont || design?.font || "Inter";
+  const heading = design?.headingFont || design?.font || "Inter";
+  const base = design?.baseFontSize ?? (design?.fontSize === "sm" ? 15 : design?.fontSize === "lg" ? 18 : 16);
+  const tracking =
+    design?.letterSpacing === "ultra" ? "0.08em" : design?.letterSpacing === "wide" ? "0.03em" : "normal";
+  const lineHeight = design?.lineHeight ?? 1.6;
+  const headingWeight = design?.headingWeight ?? 800;
+  const bodyWeight = design?.bodyWeight ?? 400;
+  return { body, heading, base, tracking, lineHeight, headingWeight, bodyWeight };
+}
+
+function TypographyTokens({ design }: { design: any }) {
+  const t = resolveTypography(design);
+  const css = `
+[data-fm-store]{font-family:'${t.body}',sans-serif;font-size:${t.base}px;line-height:${t.lineHeight};font-weight:${t.bodyWeight};}
+[data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3,[data-fm-store] h4,[data-fm-store] h5,[data-fm-store] h6{font-family:'${t.heading}',sans-serif;font-weight:${t.headingWeight};letter-spacing:${t.tracking};}
+`;
+  return (
+    <>
+      <GoogleFontLoader font={t.body} />
+      <GoogleFontLoader font={t.heading} />
+      <style>{css}</style>
+    </>
+  );
+}
+
+// ──────────────────────────────
 // Main exported component
 // ──────────────────────────────
 export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
@@ -654,6 +688,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const soldOutLabel = storefrontDesign?.soldOutLabel || "SOLD OUT";
   const showCollectionMeta = storefrontDesign?.showCollectionMeta ?? true;
   const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
+  const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
+  const saleBadgeLabel = storefrontDesign?.saleBadgeLabel || "SALE";
+  const showNewBadge = storefrontDesign?.showNewBadge ?? false;
+  const newBadgeLabel = storefrontDesign?.newBadgeLabel || "NEW";
+  const newBadgeDays = Math.max(1, Math.min(365, storefrontDesign?.newBadgeDays ?? 30));
   const bagLabel = storefrontDesign?.cartLabel || "BAG";
   const showAnnouncement = storefrontDesign?.showAnnouncement ?? true;
   const announcementMsg = storefrontDesign?.announcementText || settings?.announcements?.[0]?.message;
@@ -724,10 +763,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   if (showCatalog) {
     return (
       <div
+        data-fm-store
         className="min-h-screen overflow-y-auto selection:bg-white selection:text-black"
-        style={{ fontFamily: storefrontDesign?.font || "Inter, sans-serif", backgroundColor: storefrontBg, color: storefrontText }}
+        style={{ fontFamily: `'${resolveTypography(storefrontDesign).body}', sans-serif`, backgroundColor: storefrontBg, color: storefrontText }}
       >
-        <GoogleFontLoader font={storefrontDesign?.font || "Inter"} />
+        <TypographyTokens design={storefrontDesign} />
         {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
         {/* Promo / announcement banner */}
         {showAnnouncement && announcementMsg && (
@@ -915,7 +955,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
           {filteredItems.length === 0 && (
             <p className="py-20 text-center text-[10px] tracking-[0.4em] text-white/30 uppercase">
-              No publications match these filters.
+              {getCopy(storefrontDesign, "catalogEmpty")}
             </p>
           )}
 
@@ -925,6 +965,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               const stock = item.stockLevel ?? 999;
               const isOutOfStock = stock === 0;
               const isLowStock = stock > 0 && stock !== 999 && stock <= 5;
+              const onSale = !!item.isOnSale && item.salePrice > 0 && item.salePrice < (item.retailPrice ?? 0);
+              const displayPrice = onSale ? item.salePrice : item.retailPrice;
+              const isNewArrival = (() => {
+                if (!item.createdAt) return false;
+                const created = new Date(item.createdAt).getTime();
+                if (Number.isNaN(created)) return false;
+                return (Date.now() - created) <= newBadgeDays * 86_400_000;
+              })();
               const wished = isWished(item.id);
               return (
                 <motion.article
@@ -955,19 +1003,29 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         alt={item.title}
                         className={`w-full h-full object-cover transition-transform duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}
                       />
-                      {/* Sold out ribbon */}
-                      {isOutOfStock && showSoldOutBadge && (
-                        <div className="absolute top-3 left-3">
+                      {/* Status ribbons */}
+                      <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5">
+                        {isOutOfStock && showSoldOutBadge && (
                           <span className="bg-black/80 text-white/70 text-[8px] tracking-widest px-2 py-1 uppercase border border-white/20">
                             {soldOutLabel}
                           </span>
-                        </div>
-                      )}
-                      {!isOutOfStock && isLowStock && (
-                        <div className="absolute top-3 left-3 flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 backdrop-blur-md text-amber-300 text-[8px] tracking-widest px-2 py-1 uppercase rounded-full">
-                          <Zap size={9} /> Only {stock} left
-                        </div>
-                      )}
+                        )}
+                        {!isOutOfStock && onSale && showSaleBadge && (
+                          <span className="bg-rose-500/90 text-white text-[8px] font-bold tracking-widest px-2 py-1 uppercase border border-rose-300/40 rounded-sm">
+                            {saleBadgeLabel}
+                          </span>
+                        )}
+                        {!isOutOfStock && isNewArrival && showNewBadge && (
+                          <span className="bg-emerald-500/90 text-black text-[8px] font-bold tracking-widest px-2 py-1 uppercase border border-emerald-300/40 rounded-sm">
+                            {newBadgeLabel}
+                          </span>
+                        )}
+                        {!isOutOfStock && isLowStock && (
+                          <span className="flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 backdrop-blur-md text-amber-300 text-[8px] tracking-widest px-2 py-1 uppercase rounded-full">
+                            <Zap size={9} /> Only {stock} left
+                          </span>
+                        )}
+                      </div>
                       {/* Hover overlay — show "VIEW" instead of add directly */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
                         <span
@@ -993,8 +1051,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         ) : (
                           <span />
                         )}
-                        {item.retailPrice > 0 && (
-                          <span className="text-[10px] text-white/50">${item.retailPrice?.toFixed(2)}</span>
+                        {displayPrice > 0 && (
+                          <span className="text-[10px] flex items-center gap-1.5">
+                            {onSale && (
+                              <span className="text-white/30 line-through">${item.retailPrice?.toFixed(2)}</span>
+                            )}
+                            <span className={onSale ? "text-rose-400 font-semibold" : "text-white/50"}>${displayPrice?.toFixed(2)}</span>
+                          </span>
                         )}
                       </div>
                     </div>
@@ -1006,7 +1069,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         </main>
 
         <RecentlyViewedRow />
-        <Newsletter />
+        <Newsletter design={settings?.design} />
         <SiteFooter settings={settings} pages={pages} onAboutOpen={() => setShowAbout(true)} />
         {(storefrontDesign?.showPoweredBy ?? false) && (
           <p className="text-center pb-8 text-[9px] tracking-[0.3em] uppercase opacity-50">Powered by Lyricalmyrical</p>
@@ -1025,10 +1088,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // ── Homepage (hero) ──
   return (
     <div
+      data-fm-store
       className="min-h-screen w-full bg-[#030213] text-white overflow-x-hidden relative selection:bg-white selection:text-black font-sans"
-      style={{ fontFamily: heroDesign?.font || "Inter, sans-serif" }}
+      style={{ fontFamily: `'${resolveTypography(heroDesign).body}', sans-serif` }}
     >
-      <GoogleFontLoader font={heroDesign?.font || "Inter"} />
+      <TypographyTokens design={heroDesign} />
       {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
       <header 
         className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-6 transition-all duration-500 ${scrolled ? "bg-black/80 backdrop-blur-xl border-b border-white/5 py-4" : "bg-gradient-to-b from-black/70 to-transparent"}`}

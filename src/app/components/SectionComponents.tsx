@@ -283,6 +283,45 @@ export function RichTextSection({ settings, enableAnimations }: any) {
 }
 
 // ──────────────────────────────
+// SCROLLING TEXT (marquee)
+// ──────────────────────────────
+
+export function MarqueeSection({ settings }: any) {
+  const text = settings.text || "Free shipping over $100 · New arrivals weekly · Independent & original";
+  const separator = settings.separator || "·";
+  const speed = Math.max(5, Math.min(120, settings.speed ?? 20));
+  const fontSize = Math.max(10, Math.min(120, settings.fontSize ?? 28));
+  const bold = settings.bold ?? true;
+  const uppercase = settings.uppercase ?? true;
+  const background = settings.background || "transparent";
+  const color = settings.color || undefined;
+
+  // Repeat the phrase so the strip stays full, then render two copies for a seamless -50% loop.
+  const phrase = Array.from({ length: 4 }).map(() => text).join(`  ${separator}  `);
+
+  return (
+    <section className="overflow-hidden py-8" style={{ background }}>
+      <div
+        className="flex w-max animate-marquee"
+        style={{ ["--marquee-duration" as any]: `${speed}s` }}
+      >
+        {[0, 1].map((copy) => (
+          <span
+            key={copy}
+            aria-hidden={copy === 1}
+            className={`px-6 ${bold ? "font-black" : "font-medium"} ${uppercase ? "uppercase" : ""} tracking-tight`}
+            style={{ fontSize, color }}
+          >
+            {phrase}
+            {`  ${separator}  `}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
 // MULTICOLUMN (with column blocks)
 // ──────────────────────────────
 

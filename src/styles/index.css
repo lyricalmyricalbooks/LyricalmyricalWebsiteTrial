@@ -19,6 +19,20 @@
   }
 }
 
+/* Marquee / scrolling text — used by the announcement bar and Scrolling Text section */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee var(--marquee-duration, 20s) linear infinite;
+  white-space: nowrap;
+  will-change: transform;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
 /* Custom scrollbar for dark mode */
 ::-webkit-scrollbar {
   width: 8px;

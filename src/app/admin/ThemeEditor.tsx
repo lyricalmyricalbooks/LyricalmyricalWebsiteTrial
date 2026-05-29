@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
+import { COPY_SCHEMA } from "../features/site/storeCopy";
 import {
   getSectionMeta,
   getSectionFields,
@@ -250,6 +251,80 @@ function SidebarRange({
         onChange={(e) => onChange(Number(e.target.value))}
         className="w-full accent-violet-500 h-1 bg-white/10 rounded-full appearance-none cursor-pointer hover:bg-white/20 transition-all"
       />
+    </div>
+  );
+}
+
+// ──────────────────────────────
+// WCAG contrast helpers
+// ──────────────────────────────
+function hexToRgb(hex: string): [number, number, number] | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || "").trim());
+  if (!m) return null;
+  const int = parseInt(m[1], 16);
+  return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
+}
+
+function relativeLuminance([r, g, b]: [number, number, number]): number {
+  const channel = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+// Returns the WCAG contrast ratio (1–21) between two hex colors, or null if invalid.
+function contrastRatio(a: string, b: string): number | null {
+  const rgbA = hexToRgb(a);
+  const rgbB = hexToRgb(b);
+  if (!rgbA || !rgbB) return null;
+  const lA = relativeLuminance(rgbA);
+  const lB = relativeLuminance(rgbB);
+  const lighter = Math.max(lA, lB);
+  const darker = Math.min(lA, lB);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+// Live WCAG readability badge for a background/text pairing.
+function ContrastBadge({ background, text }: { background: string; text: string }) {
+  const ratio = contrastRatio(background, text);
+  if (ratio == null) return null;
+
+  const passAA = ratio >= 4.5;          // normal body text
+  const passAALarge = ratio >= 3;       // large/heading text
+  const passAAA = ratio >= 7;
+  const grade = passAAA ? "AAA" : passAA ? "AA" : passAALarge ? "AA Large" : "Fail";
+  const ok = passAA;
+  const warnOnly = !passAA && passAALarge;
+
+  const tone = ok
+    ? { ring: "border-emerald-500/40 bg-emerald-500/10", text: "text-emerald-300", dot: "#34d399" }
+    : warnOnly
+      ? { ring: "border-amber-500/40 bg-amber-500/10", text: "text-amber-300", dot: "#fbbf24" }
+      : { ring: "border-rose-500/40 bg-rose-500/10", text: "text-rose-300", dot: "#fb7185" };
+
+  return (
+    <div className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 ${tone.ring}`}>
+      <div className="flex items-center gap-3 min-w-0">
+        <span
+          className="flex-shrink-0 w-9 h-9 rounded-lg border border-white/10 flex items-center justify-center text-[13px] font-black"
+          style={{ background, color: text }}
+        >
+          Aa
+        </span>
+        <div className="min-w-0">
+          <p className={`text-[10px] font-black uppercase tracking-widest italic ${tone.text}`}>
+            {ok ? "Readable" : warnOnly ? "Large text only" : "Hard to read"}
+          </p>
+          <p className="text-[9px] text-slate-500 font-bold">
+            Contrast {ratio.toFixed(2)}:1 — needs 4.5:1 for body text
+          </p>
+        </div>
+      </div>
+      <span className={`flex-shrink-0 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${tone.text}`}>
+        <span className="w-2 h-2 rounded-full" style={{ background: tone.dot }} />
+        {grade}
+      </span>
     </div>
   );
 }
@@ -658,12 +733,13 @@ function StylePanel({ design, update }: any) {
               value={backgroundColor} 
               onChange={(val) => update("backgroundColor", val)} 
             />
-            <ColorPicker 
-              label="Primary Typography" 
-              value={textColor} 
-              onChange={(val) => update("textColor", val)} 
+            <ColorPicker
+              label="Primary Typography"
+              value={textColor}
+              onChange={(val) => update("textColor", val)}
             />
           </div>
+          <ContrastBadge background={backgroundColor} text={textColor} />
           <button
             onClick={() => {
               update("backgroundColor", currentPalette.bg);
@@ -677,10 +753,25 @@ function StylePanel({ design, update }: any) {
       </Accordion>
 
       <Accordion title="Typography">
-        <FontSelector 
-          value={design.font || "Inter"} 
-          onChange={(val) => update("font", val)} 
-        />
+        <div className="space-y-8">
+          <div>
+            <SidebarLabel>Body font</SidebarLabel>
+            <FontSelector
+              value={design.font || "Inter"}
+              onChange={(val) => update("font", val)}
+            />
+          </div>
+          <div>
+            <SidebarLabel>Heading font</SidebarLabel>
+            <FontSelector
+              value={design.headingFont || design.font || "Inter"}
+              onChange={(val) => update("headingFont", val)}
+            />
+            <p className="text-[9px] text-slate-600 font-bold mt-2 italic">
+              Used for all headings. Defaults to the body font.
+            </p>
+          </div>
+        </div>
       </Accordion>
     </div>
   );
@@ -814,6 +905,36 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
             checked={design.showSocialInFooter ?? true}
             onChange={(v: boolean) => update("showSocialInFooter", v)}
           />
+        </div>
+      </Accordion>
+
+      <Accordion title="Cart">
+        <div className="space-y-6">
+          <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden">
+            <SidebarToggle
+              label="Free-shipping progress bar"
+              description="Show how far shoppers are from free shipping"
+              checked={design.showFreeShipBar ?? true}
+              onChange={(v: boolean) => update("showFreeShipBar", v)}
+            />
+            <SidebarToggle
+              label="Cart trust badges"
+              description="Show secure / tracked / returns reassurance"
+              checked={design.showCartTrustBadges ?? true}
+              onChange={(v: boolean) => update("showCartTrustBadges", v)}
+            />
+          </div>
+          {(design.showFreeShipBar ?? true) && (
+            <SidebarRange
+              label="Free-shipping threshold"
+              value={design.freeShipThreshold ?? 100}
+              min={10}
+              max={500}
+              step={5}
+              suffix=" USD"
+              onChange={(v: number) => update("freeShipThreshold", v)}
+            />
+          )}
         </div>
       </Accordion>
     </div>
@@ -1591,6 +1712,48 @@ function ProductsPanel({ design, update }: any) {
             checked={design.showSoldOutBadge ?? true}
             onChange={(v: boolean) => update("showSoldOutBadge", v)}
           />
+          <SidebarToggle
+            label="Sale badge"
+            description="Flag discounted items on the card."
+            checked={design.showSaleBadge ?? true}
+            onChange={(v: boolean) => update("showSaleBadge", v)}
+          />
+          <SidebarToggle
+            label="New badge"
+            description="Highlight recently added products."
+            checked={design.showNewBadge ?? false}
+            onChange={(v: boolean) => update("showNewBadge", v)}
+          />
+        </div>
+      </Accordion>
+
+      <Accordion title="Badge Labels">
+        <div className="space-y-6">
+          <div>
+            <SidebarLabel>Sale badge text</SidebarLabel>
+            <SidebarInput
+              value={design.saleBadgeLabel || "SALE"}
+              onChange={(v: string) => update("saleBadgeLabel", v)}
+              placeholder="SALE"
+            />
+          </div>
+          <div>
+            <SidebarLabel>New badge text</SidebarLabel>
+            <SidebarInput
+              value={design.newBadgeLabel || "NEW"}
+              onChange={(v: string) => update("newBadgeLabel", v)}
+              placeholder="NEW"
+            />
+          </div>
+          <SidebarRange
+            label="Mark as new for"
+            value={design.newBadgeDays ?? 30}
+            min={1}
+            max={90}
+            step={1}
+            onChange={(v: number) => update("newBadgeDays", v)}
+            suffix=" days"
+          />
         </div>
       </Accordion>
     </div>
@@ -1847,22 +2010,78 @@ function TextSizingPanel({ design, update }: any) {
         </div>
       </Accordion>
 
+      <Accordion title="Fine Tuning" defaultOpen={true}>
+        <div className="space-y-8">
+          <SidebarRange
+            label="Base font size"
+            value={design.baseFontSize ?? (design.fontSize === "sm" ? 15 : design.fontSize === "lg" ? 18 : 16)}
+            min={12}
+            max={22}
+            step={1}
+            suffix="px"
+            onChange={(v: number) => update("baseFontSize", v)}
+          />
+          <SidebarRange
+            label="Line height"
+            value={Math.round((design.lineHeight ?? 1.6) * 100)}
+            min={110}
+            max={210}
+            step={5}
+            suffix="%"
+            onChange={(v: number) => update("lineHeight", v / 100)}
+          />
+          <div>
+            <SidebarLabel>Heading weight</SidebarLabel>
+            <SidebarRadioGroup
+              value={String(design.headingWeight ?? 800)}
+              onChange={(v) => update("headingWeight", Number(v))}
+              options={[
+                { value: "400", label: "Regular" },
+                { value: "600", label: "Semibold" },
+                { value: "800", label: "Bold" },
+                { value: "900", label: "Black" },
+              ]}
+            />
+          </div>
+          <div>
+            <SidebarLabel>Body weight</SidebarLabel>
+            <SidebarRadioGroup
+              value={String(design.bodyWeight ?? 400)}
+              onChange={(v) => update("bodyWeight", Number(v))}
+              options={[
+                { value: "300", label: "Light" },
+                { value: "400", label: "Regular" },
+                { value: "500", label: "Medium" },
+              ]}
+            />
+          </div>
+        </div>
+      </Accordion>
+
       <Accordion title="Type Specimen">
         <div className="bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-8 relative overflow-hidden group">
            <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 to-transparent pointer-events-none" />
            <p className="text-[10px] text-slate-500 mb-6 font-black uppercase tracking-[0.4em] border-b border-white/5 pb-4 italic">Render Preview</p>
            <div className="space-y-4 relative z-10">
              <p
-               className="font-black text-white leading-none uppercase italic"
+               className="text-white leading-none uppercase italic"
                style={{
-                 fontFamily: design.font || "Inter",
+                 fontFamily: design.headingFont || design.font || "Inter",
+                 fontWeight: design.headingWeight ?? 800,
                  fontSize: design.fontSize === "sm" ? 28 : design.fontSize === "lg" ? 48 : 36,
                  letterSpacing: design.letterSpacing === "ultra" ? "0.15em" : design.letterSpacing === "wide" ? "0.05em" : "0",
                }}
              >
-               Aa — {design.font || "Inter"}
+               Aa — {design.headingFont || design.font || "Inter"}
              </p>
-             <p className="text-slate-400 text-[13px] leading-relaxed font-bold italic tracking-tight" style={{ fontFamily: design.font || "Inter" }}>
+             <p
+               className="text-slate-400 text-[13px] italic tracking-tight"
+               style={{
+                 fontFamily: design.font || "Inter",
+                 fontWeight: design.bodyWeight ?? 400,
+                 lineHeight: design.lineHeight ?? 1.6,
+               }}
+             >
                THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG. ARCHIVAL TEXTURE MANIFESTO.
              </p>
            </div>
@@ -1873,19 +2092,19 @@ function TextSizingPanel({ design, update }: any) {
 }
 
 function TranslationsPanel({ design, update }: any) {
-  return (
-    <div className="flex-1 flex flex-col space-y-10">
-      <div className="px-2">
-        <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-[0.2em] italic mb-10">
-          Linguistic mapping for consumer-facing interaction nodes.
-        </p>
+  const copy = design.copy || {};
+  const updateCopy = (key: string, value: string) =>
+    update("copy", { ...copy, [key]: value });
 
-        <div className="space-y-10">
+  return (
+    <div className="p-4 space-y-2 overflow-y-auto flex-1">
+      <Accordion title="System Labels" defaultOpen={true}>
+        <div className="space-y-6">
           {[
-            { key: "cartLabel",      label: "Cart Core Identifier",     ph: "BAG" },
-            { key: "shopButtonLabel",label: "Acquisition Trigger",      ph: "SHOP NOW" },
-            { key: "soldOutLabel",   label: "Depletion Status",         ph: "SOLD OUT" },
-            { key: "productCTA",     label: "Inspection Trigger",       ph: "VIEW" },
+            { key: "cartLabel",      label: "Cart label",        ph: "BAG" },
+            { key: "shopButtonLabel",label: "Shop button",       ph: "SHOP NOW" },
+            { key: "soldOutLabel",   label: "Sold-out label",    ph: "SOLD OUT" },
+            { key: "productCTA",     label: "Product CTA",       ph: "VIEW" },
           ].map(({ key, label, ph }) => (
             <div key={key}>
               <SidebarLabel>{label}</SidebarLabel>
@@ -1898,7 +2117,7 @@ function TranslationsPanel({ design, update }: any) {
           ))}
 
           <div>
-            <SidebarLabel>Fiscal Symbol Positioning</SidebarLabel>
+            <SidebarLabel>Currency symbol position</SidebarLabel>
             <SidebarRadioGroup
               value={design.currencyPosition || "before"}
               onChange={(v) => update("currencyPosition", v)}
@@ -1909,7 +2128,38 @@ function TranslationsPanel({ design, update }: any) {
             />
           </div>
         </div>
-      </div>
+      </Accordion>
+
+      {/* Auto-generated from COPY_SCHEMA — every shopper-facing string. */}
+      {COPY_SCHEMA.map((groupDef) => (
+        <Accordion key={groupDef.group} title={groupDef.group}>
+          <div className="space-y-6">
+            {groupDef.fields.map((field) => (
+              <div key={field.key}>
+                <SidebarLabel>{field.label}</SidebarLabel>
+                {field.multiline ? (
+                  <textarea
+                    value={copy[field.key] ?? ""}
+                    onChange={(e) => updateCopy(field.key, e.target.value)}
+                    rows={3}
+                    placeholder={field.default}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-[11px] font-bold text-slate-200 outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-700 resize-none"
+                  />
+                ) : (
+                  <SidebarInput
+                    value={copy[field.key] ?? ""}
+                    onChange={(v: string) => updateCopy(field.key, v)}
+                    placeholder={field.default}
+                  />
+                )}
+                {field.hint && (
+                  <p className="text-[9px] text-slate-600 font-bold mt-1.5 italic">{field.hint}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </Accordion>
+      ))}
     </div>
   );
 }
