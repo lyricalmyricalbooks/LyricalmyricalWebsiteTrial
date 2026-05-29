@@ -255,6 +255,80 @@ function SidebarRange({
 }
 
 // ──────────────────────────────
+// WCAG contrast helpers
+// ──────────────────────────────
+function hexToRgb(hex: string): [number, number, number] | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || "").trim());
+  if (!m) return null;
+  const int = parseInt(m[1], 16);
+  return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
+}
+
+function relativeLuminance([r, g, b]: [number, number, number]): number {
+  const channel = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+// Returns the WCAG contrast ratio (1–21) between two hex colors, or null if invalid.
+function contrastRatio(a: string, b: string): number | null {
+  const rgbA = hexToRgb(a);
+  const rgbB = hexToRgb(b);
+  if (!rgbA || !rgbB) return null;
+  const lA = relativeLuminance(rgbA);
+  const lB = relativeLuminance(rgbB);
+  const lighter = Math.max(lA, lB);
+  const darker = Math.min(lA, lB);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+// Live WCAG readability badge for a background/text pairing.
+function ContrastBadge({ background, text }: { background: string; text: string }) {
+  const ratio = contrastRatio(background, text);
+  if (ratio == null) return null;
+
+  const passAA = ratio >= 4.5;          // normal body text
+  const passAALarge = ratio >= 3;       // large/heading text
+  const passAAA = ratio >= 7;
+  const grade = passAAA ? "AAA" : passAA ? "AA" : passAALarge ? "AA Large" : "Fail";
+  const ok = passAA;
+  const warnOnly = !passAA && passAALarge;
+
+  const tone = ok
+    ? { ring: "border-emerald-500/40 bg-emerald-500/10", text: "text-emerald-300", dot: "#34d399" }
+    : warnOnly
+      ? { ring: "border-amber-500/40 bg-amber-500/10", text: "text-amber-300", dot: "#fbbf24" }
+      : { ring: "border-rose-500/40 bg-rose-500/10", text: "text-rose-300", dot: "#fb7185" };
+
+  return (
+    <div className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 ${tone.ring}`}>
+      <div className="flex items-center gap-3 min-w-0">
+        <span
+          className="flex-shrink-0 w-9 h-9 rounded-lg border border-white/10 flex items-center justify-center text-[13px] font-black"
+          style={{ background, color: text }}
+        >
+          Aa
+        </span>
+        <div className="min-w-0">
+          <p className={`text-[10px] font-black uppercase tracking-widest italic ${tone.text}`}>
+            {ok ? "Readable" : warnOnly ? "Large text only" : "Hard to read"}
+          </p>
+          <p className="text-[9px] text-slate-500 font-bold">
+            Contrast {ratio.toFixed(2)}:1 — needs 4.5:1 for body text
+          </p>
+        </div>
+      </div>
+      <span className={`flex-shrink-0 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${tone.text}`}>
+        <span className="w-2 h-2 rounded-full" style={{ background: tone.dot }} />
+        {grade}
+      </span>
+    </div>
+  );
+}
+
+// ──────────────────────────────
 // Enhanced Color Picker with Hex input
 // ──────────────────────────────
 function ColorPicker({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
@@ -658,12 +732,13 @@ function StylePanel({ design, update }: any) {
               value={backgroundColor} 
               onChange={(val) => update("backgroundColor", val)} 
             />
-            <ColorPicker 
-              label="Primary Typography" 
-              value={textColor} 
-              onChange={(val) => update("textColor", val)} 
+            <ColorPicker
+              label="Primary Typography"
+              value={textColor}
+              onChange={(val) => update("textColor", val)}
             />
           </div>
+          <ContrastBadge background={backgroundColor} text={textColor} />
           <button
             onClick={() => {
               update("backgroundColor", currentPalette.bg);
