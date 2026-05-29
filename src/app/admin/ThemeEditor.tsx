@@ -42,6 +42,7 @@ import {
 import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
 import { COPY_SCHEMA } from "../features/site/storeCopy";
+import { MENU_LINK_TYPES, slugify, newMenuItem, type MenuItem } from "../features/site/storeMenu";
 import {
   getSectionMeta,
   getSectionFields,
@@ -2091,6 +2092,162 @@ function TextSizingPanel({ design, update }: any) {
   );
 }
 
+// ──────────────────────────────
+// Menu Builder — nested header/footer navigation
+// ──────────────────────────────
+function MenuLinkFields({
+  item,
+  onPatch,
+  pageOpts,
+  collOpts,
+}: {
+  item: MenuItem;
+  onPatch: (patch: Partial<MenuItem>) => void;
+  pageOpts: { value: string; label: string }[];
+  collOpts: { value: string; label: string }[];
+}) {
+  return (
+    <div className="space-y-3">
+      <SidebarInput value={item.label} onChange={(v: string) => onPatch({ label: v })} placeholder="Link label" />
+      <SidebarSelect
+        value={item.type}
+        onChange={(v: string) => onPatch({ type: v as MenuItem["type"], value: "" })}
+        options={MENU_LINK_TYPES as any}
+      />
+      {item.type === "page" && (
+        <SidebarSelect value={item.value || ""} onChange={(v: string) => onPatch({ value: v })} options={pageOpts} />
+      )}
+      {item.type === "collection" && (
+        <SidebarSelect value={item.value || ""} onChange={(v: string) => onPatch({ value: v })} options={collOpts} />
+      )}
+      {item.type === "url" && (
+        <SidebarInput value={item.value || ""} onChange={(v: string) => onPatch({ value: v })} placeholder="https://… or /path" />
+      )}
+    </div>
+  );
+}
+
+function MenuBuilderPanel({ design, update, pages = [] }: any) {
+  const [tab, setTab] = useState<"header" | "footer">("header");
+  const menus = design.menus || {};
+  const items: MenuItem[] = menus[tab] || [];
+  const setItems = (next: MenuItem[]) => update("menus", { ...menus, [tab]: next }, true);
+
+  const rawCategories = design.categories || CATEGORIES;
+  const categoryNames: string[] = rawCategories.map((c: any) => (typeof c === "string" ? c : c.name));
+  const pageOpts = [{ value: "", label: "Select page…" }, ...pages.map((p: any) => ({ value: p.slug, label: p.title }))];
+  const collOpts = [{ value: "", label: "Select collection…" }, ...categoryNames.map((n) => ({ value: slugify(n), label: n }))];
+
+  const move = (arr: MenuItem[], i: number, dir: number): MenuItem[] => {
+    const j = i + dir;
+    if (j < 0 || j >= arr.length) return arr;
+    const copy = [...arr];
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+    return copy;
+  };
+
+  const patchTop = (i: number, patch: Partial<MenuItem>) =>
+    setItems(items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+  const removeTop = (i: number) => setItems(items.filter((_, idx) => idx !== i));
+  const addChild = (i: number) =>
+    setItems(items.map((it, idx) => (idx === i ? { ...it, children: [...(it.children || []), newMenuItem()] } : it)));
+  const patchChild = (i: number, j: number, patch: Partial<MenuItem>) =>
+    setItems(items.map((it, idx) =>
+      idx === i ? { ...it, children: (it.children || []).map((c, cj) => (cj === j ? { ...c, ...patch } : c)) } : it,
+    ));
+  const removeChild = (i: number, j: number) =>
+    setItems(items.map((it, idx) =>
+      idx === i ? { ...it, children: (it.children || []).filter((_, cj) => cj !== j) } : it,
+    ));
+  const moveChild = (i: number, j: number, dir: number) =>
+    setItems(items.map((it, idx) =>
+      idx === i ? { ...it, children: move(it.children || [], j, dir) } : it,
+    ));
+
+  return (
+    <div className="p-4 space-y-5 overflow-y-auto flex-1">
+      {/* Header / Footer switch */}
+      <div className="flex gap-2 bg-white/[0.03] border border-white/10 rounded-2xl p-1.5">
+        {(["header", "footer"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] italic transition-all ${
+              tab === t ? "bg-violet-600 text-white shadow-lg" : "text-slate-500 hover:text-white"
+            }`}
+          >
+            {t} menu
+          </button>
+        ))}
+      </div>
+
+      <p className="text-[9px] text-slate-600 font-bold leading-relaxed italic px-1">
+        Build the {tab} navigation. Add links to pages, collections or any URL. Add sub-links to create a
+        {tab === "header" ? " dropdown menu." : " grouped list."}
+      </p>
+
+      {items.length === 0 && (
+        <div className="py-10 text-center text-[10px] tracking-[0.3em] text-slate-600 uppercase italic">
+          No links yet.
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {items.map((item, i) => (
+          <div key={item.id} className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1 text-slate-600">
+                <GripVertical size={14} />
+                <span className="text-[9px] font-black uppercase tracking-widest italic text-slate-500">Link {i + 1}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setItems(move(items, i, -1))} disabled={i === 0} className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 disabled:opacity-20 transition-all"><ChevronUp size={14} /></button>
+                <button onClick={() => setItems(move(items, i, 1))} disabled={i === items.length - 1} className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 disabled:opacity-20 transition-all"><ChevronDown size={14} /></button>
+                <button onClick={() => removeTop(i)} className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"><Trash2 size={13} /></button>
+              </div>
+            </div>
+
+            <MenuLinkFields item={item} onPatch={(p) => patchTop(i, p)} pageOpts={pageOpts} collOpts={collOpts} />
+
+            {/* Children */}
+            {(item.children || []).length > 0 && (
+              <div className="pl-4 border-l-2 border-violet-500/20 space-y-3">
+                {(item.children || []).map((child, j) => (
+                  <div key={child.id} className="bg-white/[0.02] border border-white/5 rounded-xl p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[8px] font-black uppercase tracking-widest italic text-slate-600">Sub-link {j + 1}</span>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => moveChild(i, j, -1)} disabled={j === 0} className="p-1 rounded text-slate-500 hover:text-white disabled:opacity-20"><ChevronUp size={12} /></button>
+                        <button onClick={() => moveChild(i, j, 1)} disabled={j === (item.children || []).length - 1} className="p-1 rounded text-slate-500 hover:text-white disabled:opacity-20"><ChevronDown size={12} /></button>
+                        <button onClick={() => removeChild(i, j)} className="p-1 rounded text-slate-500 hover:text-red-400"><Trash2 size={12} /></button>
+                      </div>
+                    </div>
+                    <MenuLinkFields item={child} onPatch={(p) => patchChild(i, j, p)} pageOpts={pageOpts} collOpts={collOpts} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => addChild(i)}
+              className="text-[9px] font-black uppercase tracking-widest italic text-violet-400 hover:text-violet-300 flex items-center gap-1.5"
+            >
+              <Plus size={12} /> Add sub-link
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <button
+        onClick={() => setItems([...items, newMenuItem()])}
+        className="w-full py-4 bg-violet-600/15 border border-violet-500/30 rounded-2xl text-[10px] font-black text-violet-300 hover:bg-violet-600/25 transition-all uppercase tracking-[0.2em] italic flex items-center justify-center gap-2"
+      >
+        <Plus size={14} /> Add link
+      </button>
+    </div>
+  );
+}
+
 function TranslationsPanel({ design, update }: any) {
   const copy = design.copy || {};
   const updateCopy = (key: string, value: string) =>
@@ -3545,6 +3702,13 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       pages: ["both"],
     },
     {
+      id: "menus",
+      icon: <LayoutTemplate size={14} />,
+      title: "Menus",
+      description: "Build nested header and footer navigation menus",
+      pages: ["both"],
+    },
+    {
       id: "homepage",
       icon: <Home size={14} />,
       title: "Homepage",
@@ -3641,6 +3805,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     switch (activeSection) {
       case "style":         return <StylePanel design={activeDesign} update={update} />;
       case "navigation":    return <NavigationPanel design={activeDesign} update={update} setActiveTab={setActiveTab} setActiveSection={setActiveSection} />;
+      case "menus":         return <MenuBuilderPanel design={activeDesign} update={update} pages={pages} />;
       case "homepage":      return <HomepagePanel design={activeDesign} update={update} colorSchemes={design.colorSchemes || DEFAULT_COLOR_SCHEMES} />;
       case "products":      return <ProductsPanel design={activeDesign} update={update} />;
       case "layout":        return <LayoutPanel design={activeDesign} update={update} />;
