@@ -942,13 +942,21 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
   );
 }
 
-function HomepagePanel({ design, update, colorSchemes = [] }: any) {
+function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, onConsumeRequest }: any) {
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
   const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null);
   const sections = design.sections || design.homepageSections || [];
-  
+
+  // Click-to-edit: the preview can request a specific section instance be opened.
+  useEffect(() => {
+    if (requestedSectionId) {
+      setActiveSectionId(requestedSectionId);
+      onConsumeRequest?.();
+    }
+  }, [requestedSectionId]);
+
   useEffect(() => {
     if (sections.length === 0 && !design.sections && !design.homepageSections) {
       const initialSections = [
@@ -2945,6 +2953,24 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
           lbl.style.cssText = 'position:absolute;top:-22px;left:0;background:rgba(124,58,237,0.9);color:#fff;font-size:9px;font-weight:900;letter-spacing:0.2em;padding:2px 8px;border-radius:4px;white-space:nowrap;text-transform:uppercase;font-family:monospace;';
           box.appendChild(lbl);
           document.body.appendChild(box);
+          // Persistent highlight for the currently-selected section instance.
+          var selBox = document.createElement('div');
+          selBox.style.cssText = 'position:fixed;pointer-events:none;border:2px solid rgba(16,185,129,0.9);border-radius:6px;z-index:99998;background:rgba(16,185,129,0.06);display:none;';
+          document.body.appendChild(selBox);
+          var selectedId = null;
+          function drawSel(){
+            if(!selectedId){ selBox.style.display='none'; return; }
+            var node = document.querySelector('[data-section-id="'+selectedId+'"]');
+            if(!node){ selBox.style.display='none'; return; }
+            var r = node.getBoundingClientRect();
+            selBox.style.display='block';
+            selBox.style.top=r.top+'px'; selBox.style.left=r.left+'px'; selBox.style.width=r.width+'px'; selBox.style.height=r.height+'px';
+          }
+          window.addEventListener('message', function(e){
+            if(e.data && e.data.type==='HIGHLIGHT_SECTION'){ selectedId = e.data.instanceId || null; drawSel(); }
+          });
+          window.addEventListener('scroll', drawSel, true);
+          window.addEventListener('resize', drawSel);
           document.addEventListener('mouseover', function(e){
             var sid = getSectionId(e.target);
             if (!sid) { box.style.display='none'; return; }
@@ -2960,10 +2986,13 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
             // Let real navigation links/buttons through so the editor can browse all pages.
             var navTarget = e.target && e.target.closest ? e.target.closest('a[href], button[type="submit"]') : null;
             if (navTarget) return;
+            var instNode = e.target && e.target.closest ? e.target.closest('[data-section-id]') : null;
+            var instanceId = instNode ? instNode.getAttribute('data-section-id') : null;
             var sid = getSectionId(e.target);
-            if (!sid) return;
+            if (!sid && !instanceId) return;
             e.preventDefault(); e.stopPropagation();
-            window.parent.postMessage({ type:'SECTION_SELECT', sectionId: sid }, window.location.origin);
+            if (instanceId) { selectedId = instanceId; drawSel(); }
+            window.parent.postMessage({ type:'SECTION_SELECT', sectionId: sid, instanceId: instanceId }, window.location.origin);
           }, true);
           document.addEventListener('dblclick', function(e){
             var fieldNode = e.target && e.target.closest ? e.target.closest('[data-theme-field]') : null;
@@ -3394,6 +3423,9 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [futureDesigns, setFutureDesigns] = useState<any[]>([]);
 
   const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  // Click-to-edit: section instance requested from the preview, and the one currently highlighted.
+  const [pendingSectionId, setPendingSectionId] = useState<string | null>(null);
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [designSurface, setDesignSurface] = useState<string>("heroPage");
   const [previewMode, setPreviewMode] = useState<
     "homepage" | "shop" | "product" | "collection" | "page" | "wishlist" | "account" | "cart"
@@ -3523,11 +3555,17 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           );
         } catch (_) {}
       }
-      // Click-to-select: iframe posts SECTION_SELECT with a sectionId
-      if (event.data?.type === "SECTION_SELECT" && event.data?.sectionId) {
-        const sectionId = event.data.sectionId;
+      // Click-to-select: iframe posts SECTION_SELECT with a panel id and/or a section instance id.
+      if (event.data?.type === "SECTION_SELECT" && (event.data?.sectionId || event.data?.instanceId)) {
         setActiveTab("settings");
-        setActiveSection(sectionId);
+        if (event.data.instanceId) {
+          // A concrete homepage section was clicked — open its field editor directly.
+          setActiveSection("homepage");
+          setPendingSectionId(event.data.instanceId);
+          setSelectedInstanceId(event.data.instanceId);
+        } else {
+          setActiveSection(event.data.sectionId);
+        }
       }
       // Inline text editing: iframe double-click posts TEXT_EDIT with {field, value}
       if (event.data?.type === "TEXT_EDIT" && event.data?.sectionId && event.data?.settingKey) {
@@ -3544,6 +3582,16 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, [design]);
+
+  // Echo the selected section instance back to the preview so it stays highlighted.
+  useEffect(() => {
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        { type: "HIGHLIGHT_SECTION", instanceId: selectedInstanceId },
+        window.location.origin,
+      );
+    } catch (_) {}
+  }, [selectedInstanceId, isPreviewReady, previewMode]);
 
   useEffect(() => {
     adminApi.getPages().then((ps: any[]) => {
@@ -3806,7 +3854,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       case "style":         return <StylePanel design={activeDesign} update={update} />;
       case "navigation":    return <NavigationPanel design={activeDesign} update={update} setActiveTab={setActiveTab} setActiveSection={setActiveSection} />;
       case "menus":         return <MenuBuilderPanel design={activeDesign} update={update} pages={pages} />;
-      case "homepage":      return <HomepagePanel design={activeDesign} update={update} colorSchemes={design.colorSchemes || DEFAULT_COLOR_SCHEMES} />;
+      case "homepage":      return <HomepagePanel design={activeDesign} update={update} colorSchemes={design.colorSchemes || DEFAULT_COLOR_SCHEMES} requestedSectionId={pendingSectionId} onConsumeRequest={() => setPendingSectionId(null)} />;
       case "products":      return <ProductsPanel design={activeDesign} update={update} />;
       case "layout":        return <LayoutPanel design={activeDesign} update={update} />;
       case "buttons":       return <ButtonsPanel design={activeDesign} update={update} />;
