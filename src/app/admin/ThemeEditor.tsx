@@ -1666,6 +1666,48 @@ function ProductsPanel({ design, update }: any) {
             checked={design.showSoldOutBadge ?? true}
             onChange={(v: boolean) => update("showSoldOutBadge", v)}
           />
+          <SidebarToggle
+            label="Sale badge"
+            description="Flag discounted items on the card."
+            checked={design.showSaleBadge ?? true}
+            onChange={(v: boolean) => update("showSaleBadge", v)}
+          />
+          <SidebarToggle
+            label="New badge"
+            description="Highlight recently added products."
+            checked={design.showNewBadge ?? false}
+            onChange={(v: boolean) => update("showNewBadge", v)}
+          />
+        </div>
+      </Accordion>
+
+      <Accordion title="Badge Labels">
+        <div className="space-y-6">
+          <div>
+            <SidebarLabel>Sale badge text</SidebarLabel>
+            <SidebarInput
+              value={design.saleBadgeLabel || "SALE"}
+              onChange={(v: string) => update("saleBadgeLabel", v)}
+              placeholder="SALE"
+            />
+          </div>
+          <div>
+            <SidebarLabel>New badge text</SidebarLabel>
+            <SidebarInput
+              value={design.newBadgeLabel || "NEW"}
+              onChange={(v: string) => update("newBadgeLabel", v)}
+              placeholder="NEW"
+            />
+          </div>
+          <SidebarRange
+            label="Mark as new for"
+            value={design.newBadgeDays ?? 30}
+            min={1}
+            max={90}
+            step={1}
+            onChange={(v: number) => update("newBadgeDays", v)}
+            suffix=" days"
+          />
         </div>
       </Accordion>
     </div>

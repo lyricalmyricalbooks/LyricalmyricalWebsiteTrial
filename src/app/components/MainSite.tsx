@@ -654,6 +654,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const soldOutLabel = storefrontDesign?.soldOutLabel || "SOLD OUT";
   const showCollectionMeta = storefrontDesign?.showCollectionMeta ?? true;
   const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
+  const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
+  const saleBadgeLabel = storefrontDesign?.saleBadgeLabel || "SALE";
+  const showNewBadge = storefrontDesign?.showNewBadge ?? false;
+  const newBadgeLabel = storefrontDesign?.newBadgeLabel || "NEW";
+  const newBadgeDays = Math.max(1, Math.min(365, storefrontDesign?.newBadgeDays ?? 30));
   const bagLabel = storefrontDesign?.cartLabel || "BAG";
   const showAnnouncement = storefrontDesign?.showAnnouncement ?? true;
   const announcementMsg = storefrontDesign?.announcementText || settings?.announcements?.[0]?.message;
@@ -925,6 +930,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               const stock = item.stockLevel ?? 999;
               const isOutOfStock = stock === 0;
               const isLowStock = stock > 0 && stock !== 999 && stock <= 5;
+              const onSale = !!item.isOnSale && item.salePrice > 0 && item.salePrice < (item.retailPrice ?? 0);
+              const displayPrice = onSale ? item.salePrice : item.retailPrice;
+              const isNewArrival = (() => {
+                if (!item.createdAt) return false;
+                const created = new Date(item.createdAt).getTime();
+                if (Number.isNaN(created)) return false;
+                return (Date.now() - created) <= newBadgeDays * 86_400_000;
+              })();
               const wished = isWished(item.id);
               return (
                 <motion.article
@@ -955,19 +968,29 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         alt={item.title}
                         className={`w-full h-full object-cover transition-transform duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}
                       />
-                      {/* Sold out ribbon */}
-                      {isOutOfStock && showSoldOutBadge && (
-                        <div className="absolute top-3 left-3">
+                      {/* Status ribbons */}
+                      <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5">
+                        {isOutOfStock && showSoldOutBadge && (
                           <span className="bg-black/80 text-white/70 text-[8px] tracking-widest px-2 py-1 uppercase border border-white/20">
                             {soldOutLabel}
                           </span>
-                        </div>
-                      )}
-                      {!isOutOfStock && isLowStock && (
-                        <div className="absolute top-3 left-3 flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 backdrop-blur-md text-amber-300 text-[8px] tracking-widest px-2 py-1 uppercase rounded-full">
-                          <Zap size={9} /> Only {stock} left
-                        </div>
-                      )}
+                        )}
+                        {!isOutOfStock && onSale && showSaleBadge && (
+                          <span className="bg-rose-500/90 text-white text-[8px] font-bold tracking-widest px-2 py-1 uppercase border border-rose-300/40 rounded-sm">
+                            {saleBadgeLabel}
+                          </span>
+                        )}
+                        {!isOutOfStock && isNewArrival && showNewBadge && (
+                          <span className="bg-emerald-500/90 text-black text-[8px] font-bold tracking-widest px-2 py-1 uppercase border border-emerald-300/40 rounded-sm">
+                            {newBadgeLabel}
+                          </span>
+                        )}
+                        {!isOutOfStock && isLowStock && (
+                          <span className="flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 backdrop-blur-md text-amber-300 text-[8px] tracking-widest px-2 py-1 uppercase rounded-full">
+                            <Zap size={9} /> Only {stock} left
+                          </span>
+                        )}
+                      </div>
                       {/* Hover overlay — show "VIEW" instead of add directly */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
                         <span
@@ -993,8 +1016,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         ) : (
                           <span />
                         )}
-                        {item.retailPrice > 0 && (
-                          <span className="text-[10px] text-white/50">${item.retailPrice?.toFixed(2)}</span>
+                        {displayPrice > 0 && (
+                          <span className="text-[10px] flex items-center gap-1.5">
+                            {onSale && (
+                              <span className="text-white/30 line-through">${item.retailPrice?.toFixed(2)}</span>
+                            )}
+                            <span className={onSale ? "text-rose-400 font-semibold" : "text-white/50"}>${displayPrice?.toFixed(2)}</span>
+                          </span>
                         )}
                       </div>
                     </div>
