@@ -1,15 +1,23 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router";
 import { useCart } from "../CartContext";
+import { useSiteData } from "../features/site/useSiteData";
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
 
 export function CartDrawer() {
   const { cart, removeFromCart, updateQuantity, cartTotal, isCartOpen, setIsCartOpen } = useCart();
   const navigate = useNavigate();
+  const { settings } = useSiteData();
 
-  const FREE_SHIP_THRESHOLD = 100;
+  // Resolve storefront design settings (flat or nested under `.storefront`).
+  const rawDesign = (settings as any)?.design || {};
+  const design = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? rawDesign.storefront : rawDesign;
+  const showFreeShipBar = design.showFreeShipBar ?? true;
+  const showTrustBadges = design.showCartTrustBadges ?? true;
+
+  const FREE_SHIP_THRESHOLD = Math.max(0, design.freeShipThreshold ?? 100);
   const remaining = Math.max(0, FREE_SHIP_THRESHOLD - cartTotal);
-  const progress = Math.min(100, (cartTotal / FREE_SHIP_THRESHOLD) * 100);
+  const progress = FREE_SHIP_THRESHOLD > 0 ? Math.min(100, (cartTotal / FREE_SHIP_THRESHOLD) * 100) : 100;
 
   return (
     <AnimatePresence>
@@ -36,7 +44,7 @@ export function CartDrawer() {
             </div>
 
             {/* Free shipping progress */}
-            {cart.length > 0 && (
+            {cart.length > 0 && showFreeShipBar && (
               <div className="px-8 pb-4">
                 <div className="flex items-center gap-2 text-[10px] tracking-widest text-neutral-500 uppercase mb-2">
                   <Truck size={12} />
@@ -97,6 +105,7 @@ export function CartDrawer() {
                </div>
 
                {/* Trust signals */}
+               {showTrustBadges && (
                <div className="grid grid-cols-3 gap-2 text-[8px] tracking-widest text-neutral-400 uppercase">
                   <div className="flex flex-col items-center gap-1 py-2">
                     <Lock size={12} />
@@ -111,6 +120,7 @@ export function CartDrawer() {
                     <span>Returns</span>
                   </div>
                </div>
+               )}
 
                <button
                   disabled={cart.length === 0}

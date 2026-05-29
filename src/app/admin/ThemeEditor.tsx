@@ -891,6 +891,36 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
           />
         </div>
       </Accordion>
+
+      <Accordion title="Cart">
+        <div className="space-y-6">
+          <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden">
+            <SidebarToggle
+              label="Free-shipping progress bar"
+              description="Show how far shoppers are from free shipping"
+              checked={design.showFreeShipBar ?? true}
+              onChange={(v: boolean) => update("showFreeShipBar", v)}
+            />
+            <SidebarToggle
+              label="Cart trust badges"
+              description="Show secure / tracked / returns reassurance"
+              checked={design.showCartTrustBadges ?? true}
+              onChange={(v: boolean) => update("showCartTrustBadges", v)}
+            />
+          </div>
+          {(design.showFreeShipBar ?? true) && (
+            <SidebarRange
+              label="Free-shipping threshold"
+              value={design.freeShipThreshold ?? 100}
+              min={10}
+              max={500}
+              step={5}
+              suffix=" USD"
+              onChange={(v: number) => update("freeShipThreshold", v)}
+            />
+          )}
+        </div>
+      </Accordion>
     </div>
   );
 }
