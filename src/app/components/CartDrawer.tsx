@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router";
 import { useCart } from "../CartContext";
 import { useSiteData } from "../features/site/useSiteData";
+import { getCopy } from "../features/site/storeCopy";
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
 
 export function CartDrawer() {
@@ -35,7 +36,7 @@ export function CartDrawer() {
           >
             <div className="px-8 pb-4 flex justify-between items-center bg-white">
               <div>
-                <h3 className="text-2xl font-light tracking-tight">Shopping Bag</h3>
+                <h3 className="text-2xl font-light tracking-tight">{getCopy(design, "cartTitle")}</h3>
                 <p className="text-[10px] tracking-widest text-neutral-400 uppercase mt-1">{cart.length} unique entries</p>
               </div>
               <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-neutral-50 rounded-full transition-colors">
@@ -93,14 +94,14 @@ export function CartDrawer() {
                    <div className="w-16 h-16 bg-neutral-50 rounded-full flex items-center justify-center mx-auto">
                       <ShoppingBag size={24} className="text-neutral-200" />
                    </div>
-                   <p className="text-[10px] tracking-[.3em] text-neutral-300 uppercase italic">The archive is empty.</p>
+                   <p className="text-[10px] tracking-[.3em] text-neutral-300 uppercase italic">{getCopy(design, "cartEmpty")}</p>
                 </div>
               )}
             </div>
 
             <div className="p-8 border-t border-neutral-100 bg-white space-y-4">
                <div className="flex justify-between items-end">
-                  <span className="text-[10px] tracking-[.4em] text-neutral-400 uppercase">Estimated Total</span>
+                  <span className="text-[10px] tracking-[.4em] text-neutral-400 uppercase">{getCopy(design, "cartTotalLabel")}</span>
                   <span className="text-3xl font-light">$ {cartTotal.toFixed(2)}</span>
                </div>
 
@@ -109,15 +110,15 @@ export function CartDrawer() {
                <div className="grid grid-cols-3 gap-2 text-[8px] tracking-widest text-neutral-400 uppercase">
                   <div className="flex flex-col items-center gap-1 py-2">
                     <Lock size={12} />
-                    <span>Secure</span>
+                    <span>{getCopy(design, "trustSecureLabel")}</span>
                   </div>
                   <div className="flex flex-col items-center gap-1 py-2">
                     <Truck size={12} />
-                    <span>Tracked</span>
+                    <span>{getCopy(design, "trustTrackedLabel")}</span>
                   </div>
                   <div className="flex flex-col items-center gap-1 py-2">
                     <ShieldCheck size={12} />
-                    <span>Returns</span>
+                    <span>{getCopy(design, "trustReturnsLabel")}</span>
                   </div>
                </div>
                )}
@@ -127,10 +128,10 @@ export function CartDrawer() {
                   onClick={() => { setIsCartOpen(false); navigate("/checkout"); }}
                   className="w-full bg-black text-white py-5 rounded-full text-[10px] tracking-[.4em] font-bold hover:bg-neutral-800 transition-all flex items-center justify-center gap-3 disabled:opacity-30 shadow-2xl"
                >
-                  PROCEED TO CHECKOUT <ArrowRight size={14} />
+                  {getCopy(design, "cartCheckoutButton")} <ArrowRight size={14} />
                </button>
                <p className="text-center text-[9px] text-neutral-400 tracking-widest">
-                 Estimated delivery 5–7 business days · Taxes calculated at checkout
+                 {getCopy(design, "cartDeliveryNote")}
                </p>
             </div>
           </motion.div>

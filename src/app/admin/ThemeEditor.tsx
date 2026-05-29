@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
+import { COPY_SCHEMA } from "../features/site/storeCopy";
 import {
   getSectionMeta,
   getSectionFields,
@@ -2020,19 +2021,19 @@ function TextSizingPanel({ design, update }: any) {
 }
 
 function TranslationsPanel({ design, update }: any) {
-  return (
-    <div className="flex-1 flex flex-col space-y-10">
-      <div className="px-2">
-        <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-[0.2em] italic mb-10">
-          Linguistic mapping for consumer-facing interaction nodes.
-        </p>
+  const copy = design.copy || {};
+  const updateCopy = (key: string, value: string) =>
+    update("copy", { ...copy, [key]: value });
 
-        <div className="space-y-10">
+  return (
+    <div className="p-4 space-y-2 overflow-y-auto flex-1">
+      <Accordion title="System Labels" defaultOpen={true}>
+        <div className="space-y-6">
           {[
-            { key: "cartLabel",      label: "Cart Core Identifier",     ph: "BAG" },
-            { key: "shopButtonLabel",label: "Acquisition Trigger",      ph: "SHOP NOW" },
-            { key: "soldOutLabel",   label: "Depletion Status",         ph: "SOLD OUT" },
-            { key: "productCTA",     label: "Inspection Trigger",       ph: "VIEW" },
+            { key: "cartLabel",      label: "Cart label",        ph: "BAG" },
+            { key: "shopButtonLabel",label: "Shop button",       ph: "SHOP NOW" },
+            { key: "soldOutLabel",   label: "Sold-out label",    ph: "SOLD OUT" },
+            { key: "productCTA",     label: "Product CTA",       ph: "VIEW" },
           ].map(({ key, label, ph }) => (
             <div key={key}>
               <SidebarLabel>{label}</SidebarLabel>
@@ -2045,7 +2046,7 @@ function TranslationsPanel({ design, update }: any) {
           ))}
 
           <div>
-            <SidebarLabel>Fiscal Symbol Positioning</SidebarLabel>
+            <SidebarLabel>Currency symbol position</SidebarLabel>
             <SidebarRadioGroup
               value={design.currencyPosition || "before"}
               onChange={(v) => update("currencyPosition", v)}
@@ -2056,7 +2057,38 @@ function TranslationsPanel({ design, update }: any) {
             />
           </div>
         </div>
-      </div>
+      </Accordion>
+
+      {/* Auto-generated from COPY_SCHEMA — every shopper-facing string. */}
+      {COPY_SCHEMA.map((groupDef) => (
+        <Accordion key={groupDef.group} title={groupDef.group}>
+          <div className="space-y-6">
+            {groupDef.fields.map((field) => (
+              <div key={field.key}>
+                <SidebarLabel>{field.label}</SidebarLabel>
+                {field.multiline ? (
+                  <textarea
+                    value={copy[field.key] ?? ""}
+                    onChange={(e) => updateCopy(field.key, e.target.value)}
+                    rows={3}
+                    placeholder={field.default}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-[11px] font-bold text-slate-200 outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-700 resize-none"
+                  />
+                ) : (
+                  <SidebarInput
+                    value={copy[field.key] ?? ""}
+                    onChange={(v: string) => updateCopy(field.key, v)}
+                    placeholder={field.default}
+                  />
+                )}
+                {field.hint && (
+                  <p className="text-[9px] text-slate-600 font-bold mt-1.5 italic">{field.hint}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </Accordion>
+      ))}
     </div>
   );
 }

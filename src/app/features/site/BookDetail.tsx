@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useCart } from "../../CartContext";
 import { useSiteData } from "./useSiteData";
+import { getCopy } from "./storeCopy";
 import { DEFAULT_IMAGE } from "./constants";
 import type { Book } from "./types";
 import { trackBookView } from "../../lib/recentlyViewed";
@@ -197,7 +198,7 @@ export default function BookDetail() {
             className="flex items-center gap-2.5 text-white/40 hover:text-white transition-colors group"
           >
             <ArrowLeft size={15} className="group-hover:-translate-x-1 transition-transform" />
-            <span className="text-[9px] font-black tracking-[0.35em] uppercase">Back</span>
+            <span className="text-[9px] font-black tracking-[0.35em] uppercase">{getCopy(settings?.design, "backToCatalog")}</span>
           </button>
 
           <Link to="/" className="text-[11px] font-black tracking-[0.3em] text-white/80 hover:text-white transition-colors">
@@ -500,13 +501,13 @@ export default function BookDetail() {
               {/* Trust signals */}
               <div className="grid grid-cols-3 gap-3 pt-4">
                 <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
-                  <Truck size={12} className="text-white/30" /> Tracked shipping
+                  <Truck size={12} className="text-white/30" /> {getCopy(settings?.design, "productTrust1")}
                 </div>
                 <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
-                  <ShieldCheck size={12} className="text-white/30" /> 14-day returns
+                  <ShieldCheck size={12} className="text-white/30" /> {getCopy(settings?.design, "productTrust2")}
                 </div>
                 <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
-                  <Package size={12} className="text-white/30" /> Ships in 1–2 days
+                  <Package size={12} className="text-white/30" /> {getCopy(settings?.design, "productTrust3")}
                 </div>
               </div>
 
@@ -521,7 +522,7 @@ export default function BookDetail() {
             <div className="max-w-8xl mx-auto px-6 py-20">
               <div className="flex items-center gap-6 mb-12">
                 <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">
-                  From the Archive
+                  {getCopy(settings?.design, "relatedHeading")}
                 </h2>
                 <div className="flex-1 h-px bg-white/[0.06]" />
               </div>

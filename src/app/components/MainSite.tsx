@@ -7,6 +7,7 @@ import { CATEGORIES, DEFAULT_IMAGE } from "../features/site/constants";
 import { getFeaturedBooks, getFilteredItems, getPublications, getPublishedBooks } from "../features/site/selectors";
 import type { Book } from "../features/site/types";
 import { useSiteData } from "../features/site/useSiteData";
+import { getCopy } from "../features/site/storeCopy";
 import { addDoc, collection } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import * as Sections from "./SectionComponents";
@@ -173,7 +174,7 @@ function AboutPanel({ settings, pages, onClose }: { settings: any; pages: any[];
 // ──────────────────────────────
 // Newsletter sign-up
 // ──────────────────────────────
-function Newsletter() {
+function Newsletter({ design }: { design?: any }) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
@@ -197,9 +198,9 @@ function Newsletter() {
   return (
     <div className="py-16 border-t border-white/10 text-center space-y-6">
       <div className="space-y-2">
-        <h3 className="text-lg font-bold tracking-tight">Join the Archive</h3>
+        <h3 className="text-lg font-bold tracking-tight">{getCopy(design, "newsletterHeading")}</h3>
         <p className="text-white/40 text-xs tracking-widest max-w-sm mx-auto">
-          New publications, limited editions, and press announcements — delivered quietly.
+          {getCopy(design, "newsletterText")}
         </p>
       </div>
       {status === "success" ? (
@@ -208,7 +209,7 @@ function Newsletter() {
           animate={{ opacity: 1, y: 0 }}
           className="text-[10px] tracking-[0.4em] text-white/60 uppercase"
         >
-          ✓ You're on the list.
+          {getCopy(design, "newsletterSuccess")}
         </motion.p>
       ) : (
         <form onSubmit={handleSubmit} className="flex gap-2 max-w-sm mx-auto">
@@ -216,7 +217,7 @@ function Newsletter() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="your@email.com"
+            placeholder={getCopy(design, "newsletterPlaceholder")}
             required
             className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-3 text-xs text-white placeholder-white/30 outline-none focus:border-white/30 transition-all"
           />
@@ -226,12 +227,12 @@ function Newsletter() {
             className="bg-white text-black rounded-full px-5 py-3 text-[10px] font-bold tracking-widest hover:bg-white/90 transition-all disabled:opacity-50 flex items-center gap-2"
           >
             <Send size={12} />
-            {status === "loading" ? "..." : "JOIN"}
+            {status === "loading" ? "..." : getCopy(design, "newsletterButton")}
           </button>
         </form>
       )}
       {status === "error" && (
-        <p className="text-red-400 text-[10px] tracking-widest">Something went wrong. Try again.</p>
+        <p className="text-red-400 text-[10px] tracking-widest">{getCopy(design, "newsletterError")}</p>
       )}
     </div>
   );
@@ -249,13 +250,13 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
         <div className="space-y-4">
           <p className="text-white font-bold tracking-widest text-xs">LYRICALMYRICAL BOOKS</p>
           <p className="leading-relaxed max-w-xs">
-            {settings?.info?.description || "An independent publishing house based in Toronto, specializing in contemporary photography and art books."}
+            {settings?.info?.description || getCopy(settings?.design, "footerAbout")}
           </p>
         </div>
 
         {/* Col 2: Navigation */}
         <div className="space-y-3">
-          <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">Navigate</p>
+          <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerNavHeading")}</p>
           <button onClick={onAboutOpen} className="block hover:text-white transition-colors">About</button>
           <Link to="/" className="block hover:text-white transition-colors">Shop</Link>
           {navPages.map(page => (
@@ -278,18 +279,18 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
 
         {/* Col 3: Policies / Info */}
         <div className="space-y-3">
-          <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">Legal</p>
+          <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLegalHeading")}</p>
           {settings?.policies?.shipping && <p className="hover:text-white cursor-default transition-colors">Shipping Policy</p>}
           {settings?.policies?.returns && <p className="hover:text-white cursor-default transition-colors">Returns Policy</p>}
           {settings?.policies?.privacy && <p className="hover:text-white cursor-default transition-colors">Privacy Policy</p>}
-          <p className="mt-6">{settings?.location?.city || "Toronto"}, Canada</p>
+          <p className="mt-6">{getCopy(settings?.design, "footerLocation")}</p>
         </div>
       </div>
 
       {/* Bottom bar */}
       <div className="border-t border-white/5 max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-2">
         <p className="text-[9px] tracking-widest text-white/20 uppercase">
-          © {new Date().getFullYear()} Lyricalmyrical Books · All rights reserved
+          {getCopy(settings?.design, "footerCopyright")}
         </p>
         <div className="flex gap-4">
           <a
@@ -920,7 +921,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
           {filteredItems.length === 0 && (
             <p className="py-20 text-center text-[10px] tracking-[0.4em] text-white/30 uppercase">
-              No publications match these filters.
+              {getCopy(storefrontDesign, "catalogEmpty")}
             </p>
           )}
 
@@ -1034,7 +1035,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         </main>
 
         <RecentlyViewedRow />
-        <Newsletter />
+        <Newsletter design={settings?.design} />
         <SiteFooter settings={settings} pages={pages} onAboutOpen={() => setShowAbout(true)} />
         {(storefrontDesign?.showPoweredBy ?? false) && (
           <p className="text-center pb-8 text-[9px] tracking-[0.3em] uppercase opacity-50">Powered by Lyricalmyrical</p>
