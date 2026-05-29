@@ -8,6 +8,7 @@ import { getFeaturedBooks, getFilteredItems, getPublications, getPublishedBooks 
 import type { Book } from "../features/site/types";
 import { useSiteData } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
+import { StoreMenu, FooterMenu } from "./StoreMenu";
 import { addDoc, collection } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import * as Sections from "./SectionComponents";
@@ -257,24 +258,30 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
         {/* Col 2: Navigation */}
         <div className="space-y-3">
           <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerNavHeading")}</p>
-          <button onClick={onAboutOpen} className="block hover:text-white transition-colors">About</button>
-          <Link to="/" className="block hover:text-white transition-colors">Shop</Link>
-          {navPages.map(page => (
-            <Link 
-              key={page.id} 
-              to={`/page/${page.slug}`} 
-              className="block hover:text-white transition-colors"
-            >
-              {page.title}
-            </Link>
-          ))}
-          <a href="https://www.instagram.com/lyricalmyricalbooks" target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">Instagram</a>
-          <a
-            href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
-            className="block hover:text-white transition-colors"
-          >
-            Contact
-          </a>
+          {settings?.design?.menus?.footer?.length > 0 ? (
+            <FooterMenu items={settings.design.menus.footer} />
+          ) : (
+            <>
+              <button onClick={onAboutOpen} className="block hover:text-white transition-colors">About</button>
+              <Link to="/" className="block hover:text-white transition-colors">Shop</Link>
+              {navPages.map(page => (
+                <Link
+                  key={page.id}
+                  to={`/page/${page.slug}`}
+                  className="block hover:text-white transition-colors"
+                >
+                  {page.title}
+                </Link>
+              ))}
+              <a href="https://www.instagram.com/lyricalmyricalbooks" target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">Instagram</a>
+              <a
+                href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
+                className="block hover:text-white transition-colors"
+              >
+                Contact
+              </a>
+            </>
+          )}
         </div>
 
         {/* Col 3: Policies / Info */}
@@ -843,6 +850,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               )}
 
               {showCustomPages && (
+                storefrontDesign?.menus?.header?.length > 0 ? (
+                  <div className="mr-2"><StoreMenu items={storefrontDesign.menus.header} /></div>
+                ) : (
                 <nav className="hidden lg:flex items-center gap-6 mr-2">
                   {pages.some((p:any) => p.showInNav && p.status === "published") && (
                     <span className="text-[10px] tracking-[0.3em] font-bold text-white/20 uppercase select-none mr-2">
@@ -852,15 +862,16 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   {(pages || [])
                     .filter((p: any) => p.showInNav && p.status === "published")
                     .map((page: any) => (
-                      <Link 
-                        key={page.id} 
-                        to={`/page/${page.slug}`} 
+                      <Link
+                        key={page.id}
+                        to={`/page/${page.slug}`}
                         className="text-[10px] tracking-[0.2em] text-white/40 hover:text-white transition-colors uppercase whitespace-nowrap"
                       >
                         {page.title}
                       </Link>
                     ))}
                 </nav>
+                )
               )}
 
               {showInformation && (
@@ -1149,6 +1160,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           
           {/* Custom Pages in Home Header */}
           {showCustomPages && (
+            heroDesign?.menus?.header?.length > 0 ? (
+              <StoreMenu items={heroDesign.menus.header} />
+            ) : (
             <nav className="hidden lg:flex items-center gap-6">
               {pages.some((p: any) => p.showInNav && p.status === "published") && (
                 <span className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white/20 uppercase select-none mr-2">
@@ -1158,15 +1172,16 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               {(pages || [])
                 .filter((p: any) => p.showInNav && p.status === "published")
                 .map((page: any) => (
-                  <Link 
-                    key={page.id} 
-                    to={`/page/${page.slug}`} 
+                  <Link
+                    key={page.id}
+                    to={`/page/${page.slug}`}
                     className="text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-60 hover:opacity-100 transition-opacity uppercase"
                   >
                     {page.title}
                   </Link>
                 ))}
             </nav>
+            )
           )}
 
           <button
