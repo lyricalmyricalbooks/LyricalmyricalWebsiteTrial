@@ -9,6 +9,7 @@ import type { Book } from "../features/site/types";
 import { useSiteData } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
+import { ThemeToggle } from "./theme/ThemeToggle";
 import { addDoc, collection } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import * as Sections from "./SectionComponents";
@@ -908,6 +909,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               >
                 <UserIcon size={14} />
               </Link>
+              <div className="hidden sm:flex items-center justify-center">
+                <ThemeToggle />
+              </div>
               <Link
                 to="/admin"
                 className="hidden sm:flex items-center gap-1.5 text-[9px] tracking-[0.2em] font-bold text-white/30 hover:text-white transition-colors uppercase mr-2"

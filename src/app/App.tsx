@@ -5,6 +5,7 @@ import { CartProvider } from "./CartContext";
 import { Toaster } from "react-hot-toast";
 import { CartDrawer } from "./components/CartDrawer";
 import { CookieConsent } from "./components/CookieConsent";
+import { ThemeProvider } from "./components/theme/ThemeProvider";
 
 // import.meta.env.BASE_URL is the Vite `base` config (e.g. "/LyricalmyricalWebsiteTrial/").
 // Strip the trailing slash so React Router treats it as a basename.
@@ -48,8 +49,9 @@ export default function App() {
   };
 
   return (
-    <CartProvider>
-      <BrowserRouter basename={ROUTER_BASENAME}>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <CartProvider>
+        <BrowserRouter basename={ROUTER_BASENAME}>
         <CartDrawer />
         <CookieConsent />
         <Suspense fallback={<LoadingFallback />}>
@@ -84,7 +86,8 @@ export default function App() {
                 <Route path="/checkout" element={<Checkout />} />
               </Routes>
         </Suspense>
-      </BrowserRouter>
-    </CartProvider>
+        </BrowserRouter>
+      </CartProvider>
+    </ThemeProvider>
   );
 }
