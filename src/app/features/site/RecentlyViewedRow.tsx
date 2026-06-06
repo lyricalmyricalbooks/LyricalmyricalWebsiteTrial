@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link } from "react-router";
 import { useRecentlyViewed } from "../../lib/recentlyViewed";
 import { useSiteData } from "./useSiteData";
@@ -7,11 +8,14 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
   const { ids } = useRecentlyViewed();
   const { books } = useSiteData();
 
-  const items = ids
-    .filter(id => id !== excludeId)
-    .map(id => books.find(b => b.id === id))
-    .filter(Boolean)
-    .slice(0, 6) as any[];
+  const items = useMemo(() => {
+    const bookMap = new Map(books.map(b => [b.id, b]));
+    return ids
+      .filter(id => id !== excludeId)
+      .map(id => bookMap.get(id))
+      .filter(Boolean)
+      .slice(0, 6) as any[];
+  }, [ids, books, excludeId]);
 
   if (items.length === 0) return null;
 

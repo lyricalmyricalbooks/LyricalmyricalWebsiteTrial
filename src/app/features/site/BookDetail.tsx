@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
@@ -54,14 +54,20 @@ export default function BookDetail() {
   const showRelatedProducts    = storefrontDesign.showRelatedProducts    ?? true;
   const showSocialShare        = storefrontDesign.showSocialShare        ?? true;
 
-  const bookCategories = (book as any)?.categories || (book as any)?.genres || [];
-  const otherBooks = (() => {
+  const bookCategories = useMemo(
+    () => (book as any)?.categories || (book as any)?.genres || [],
+    [book],
+  );
+  const otherBooks = useMemo(() => {
+    const bookCatSet = new Set<string>(bookCategories);
     const published = books.filter(b => b.id !== book?.id && b.status === "published");
     const sameCategory = published.filter(b =>
-      ((b as any).categories || (b as any).genres || []).some((c: string) => bookCategories.includes(c)),
+      ((b as any).categories || (b as any).genres || []).some((c: string) => bookCatSet.has(c)),
     );
-    return (sameCategory.length >= 4 ? sameCategory : [...sameCategory, ...published.filter(b => !sameCategory.includes(b))]).slice(0, 4);
-  })();
+    if (sameCategory.length >= 4) return sameCategory.slice(0, 4);
+    const sameCatIds = new Set(sameCategory.map(b => b.id));
+    return [...sameCategory, ...published.filter(b => !sameCatIds.has(b.id))].slice(0, 4);
+  }, [books, book?.id, bookCategories]);
 
   const { has: isWished, toggle: toggleWish } = useWishlist();
   const wished = book ? isWished(book.id) : false;
