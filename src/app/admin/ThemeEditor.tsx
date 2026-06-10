@@ -38,6 +38,11 @@ import {
   Heart,
   User,
   ShoppingCart,
+  Wand2,
+  ShieldCheck,
+  Braces,
+  Command as CommandIcon,
+  GitCompare,
 } from "lucide-react";
 import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
@@ -57,6 +62,15 @@ import {
   PAGE_TEMPLATES,
   type ColorScheme,
 } from "./ThemeEditorExtensions";
+import {
+  PaletteLabPanel,
+  AccessibilityAuditPanel,
+  DesignTokensPanel,
+  FontPairingsGrid,
+  CommandPalette,
+  surpriseMe,
+  type CommandAction,
+} from "./ThemeEditorPro";
 import { Tablet } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -772,6 +786,15 @@ function StylePanel({ design, update }: any) {
               Used for all headings. Defaults to the body font.
             </p>
           </div>
+        </div>
+      </Accordion>
+
+      <Accordion title="Curated Font Pairings">
+        <div className="space-y-4">
+          <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+            Designer-matched heading and body combinations — apply both in one click.
+          </p>
+          <FontPairingsGrid design={design} update={update} />
         </div>
       </Accordion>
     </div>
@@ -3449,15 +3472,26 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   // ── Version History (up to 20 named snapshots) ──
   const [versionHistory, setVersionHistory] = useState<VersionEntry[]>([]);
   const [previewingVersion, setPreviewingVersion] = useState<string | null>(null);
-  // When previewing a past version, send IT to the iframe instead of live design
-  const previewDesign = previewingVersion
-    ? versionHistory.find((v) => v.id === previewingVersion)?.design ?? design
-    : design;
+  // ── Before/After compare: hold the button to flash the last-saved design ──
+  const [comparing, setComparing] = useState(false);
+  // ── Command palette (Ctrl+K) ──
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  // When comparing or previewing a past version, send THAT to the iframe instead
+  const previewDesign = comparing
+    ? savedDesign
+    : previewingVersion
+      ? versionHistory.find((v) => v.id === previewingVersion)?.design ?? design
+      : design;
 
   // ── Undo / Redo via Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) ──
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
+      if (e.key === "k") {
+        e.preventDefault();
+        setShowCommandPalette((prev) => !prev);
+        return;
+      }
       if (e.key === "z" && !e.shiftKey) {
         e.preventDefault();
         // undo
@@ -3520,7 +3554,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     const targetOrigin = window.location.origin;
 
     const send = () => {
-      const update = { type: "THEME_UPDATE", design };
+      const update = { type: "THEME_UPDATE", design: previewDesign };
       try {
         iframeRef.current?.contentWindow?.postMessage(update, targetOrigin);
       } catch (_) {}
@@ -3539,7 +3573,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       clearTimeout(timeout);
       syncPending.current = false;
     };
-  }, [design]);
+  }, [previewDesign]);
 
   // Listen for preview ready + SECTION_SELECT messages from iframe
   useEffect(() => {
@@ -3550,7 +3584,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         syncPending.current = false;
         try {
           iframeRef.current?.contentWindow?.postMessage(
-            { type: "THEME_UPDATE", design },
+            { type: "THEME_UPDATE", design: previewDesign },
             window.location.origin
           );
         } catch (_) {}
@@ -3581,7 +3615,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [design]);
+  }, [design, previewDesign, designSurface]);
 
   // Echo the selected section instance back to the preview so it stays highlighted.
   useEffect(() => {
@@ -3832,6 +3866,27 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       description: "Define palettes that any section can apply",
       pages: ["both"],
     },
+    {
+      id: "colorLab",
+      icon: <Wand2 size={14} />,
+      title: "Color lab",
+      description: "Generate palettes from a brand color, image or pure luck",
+      pages: ["both"],
+    },
+    {
+      id: "a11y",
+      icon: <ShieldCheck size={14} />,
+      title: "Accessibility audit",
+      description: "Scan every color pairing for WCAG issues and auto-fix them",
+      pages: ["both"],
+    },
+    {
+      id: "tokens",
+      icon: <Braces size={14} />,
+      title: "Design tokens",
+      description: "Export the theme as CSS variables, Tailwind or JSON",
+      pages: ["both"],
+    },
   ];
 
   const filteredSections = useMemo(() => {
@@ -3869,6 +3924,21 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           onChange={(next: ColorScheme[]) => update("colorSchemes", next, true)}
         />
       );
+      case "colorLab":      return <PaletteLabPanel design={activeDesign} update={update} />;
+      case "a11y":          return (
+        <AccessibilityAuditPanel
+          design={activeDesign}
+          schemes={(design.colorSchemes && design.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES}
+          update={update}
+          onFixSchemes={(next: ColorScheme[]) => update("colorSchemes", next, true)}
+        />
+      );
+      case "tokens":        return (
+        <DesignTokensPanel
+          design={activeDesign}
+          schemes={(design.colorSchemes && design.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES}
+        />
+      );
       default:              return null;
     }
   };
@@ -3878,6 +3948,79 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   };
 
   const currentSectionTitle = SECTIONS.find(s => s.id === activeSection)?.title || "";
+
+  // ── Command palette actions (Ctrl+K) ──
+  const commandActions: CommandAction[] = [
+    ...SECTIONS.map((s) => ({
+      id: `goto-${s.id}`,
+      label: s.title,
+      group: "Settings",
+      keywords: s.description,
+      perform: () => {
+        setActiveTab("settings");
+        setActiveSection(s.id);
+      },
+    })),
+    ...([
+      { id: "pages", label: "Pages" },
+      { id: "code", label: "Source / Custom Code" },
+      { id: "templates", label: "Theme Library" },
+      { id: "history", label: "Version History" },
+      { id: "responsive", label: "Breakpoints" },
+      { id: "seo", label: "SEO & Metadata" },
+    ].map((tab) => ({
+      id: `tab-${tab.id}`,
+      label: tab.label,
+      group: "Views",
+      perform: () => {
+        setActiveTab(tab.id);
+        setActiveSection(null);
+      },
+    }))),
+    ...(["desktop", "tablet", "mobile"] as const).map((d) => ({
+      id: `device-${d}`,
+      label: `Preview on ${d}`,
+      group: "Preview",
+      keywords: "device viewport responsive",
+      perform: () => setDevice(d),
+    })),
+    {
+      id: "save-draft",
+      label: "Save draft",
+      group: "Actions",
+      hint: "saves without publishing",
+      perform: () => handleSave({ publish: false }),
+    },
+    {
+      id: "publish",
+      label: "Publish to live",
+      group: "Actions",
+      hint: "opens confirmation",
+      perform: () => setShowPublishModal(true),
+    },
+    { id: "undo", label: "Undo last change", group: "Actions", hint: "Ctrl+Z", perform: undo },
+    { id: "redo", label: "Redo change", group: "Actions", hint: "Ctrl+Y", perform: redo },
+    {
+      id: "toggle-sync",
+      label: syncPreview ? "Pause live preview sync" : "Resume live preview sync",
+      group: "Actions",
+      perform: () => setSyncPreview((prev) => !prev),
+    },
+    {
+      id: "surprise-me",
+      label: "Surprise me — remix colors and fonts",
+      group: "Actions",
+      keywords: "random shuffle generate theme",
+      perform: () => surpriseMe(update),
+    },
+    ...THEME_LIBRARY.map((theme) => ({
+      id: `theme-${theme.id}`,
+      label: `Apply theme: ${theme.name}`,
+      group: "Theme Library",
+      keywords: theme.mood,
+      perform: () => applyThemePreset(update, theme),
+    })),
+  ];
 
   return (
     <div className="fixed inset-0 z-[200] flex flex-col bg-[#050506] text-white overflow-hidden" style={{ fontFamily: "'Outfit', sans-serif" }}>
@@ -3941,6 +4084,37 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
               setSaveStatus("unsaved");
             }}
           />
+
+          {/* Hold to flash the last-saved design in the preview */}
+          <button
+            onMouseDown={() => setComparing(true)}
+            onMouseUp={() => setComparing(false)}
+            onMouseLeave={() => setComparing(false)}
+            onTouchStart={() => setComparing(true)}
+            onTouchEnd={() => setComparing(false)}
+            disabled={!hasChanges}
+            title="Hold to preview the last-saved design — release to come back"
+            className={`px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase border transition-all flex items-center gap-2 italic select-none ${
+              comparing
+                ? "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_20px_rgba(251,191,36,0.15)]"
+                : hasChanges
+                ? "bg-white/5 text-slate-400 border-white/10 hover:text-white hover:bg-white/10"
+                : "bg-white/5 text-slate-700 border-white/5 opacity-40 cursor-not-allowed"
+            }`}
+          >
+            <GitCompare size={12} strokeWidth={2.5} />
+            {comparing ? "Viewing Saved" : "Hold: Compare"}
+          </button>
+
+          {/* Command palette launcher */}
+          <button
+            onClick={() => setShowCommandPalette(true)}
+            title="Open command palette (Ctrl+K)"
+            className="px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase border border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2 italic"
+          >
+            <CommandIcon size={12} strokeWidth={2.5} />
+            <span>K</span>
+          </button>
 
           <button
             onClick={() => setSyncPreview((prev) => !prev)}
@@ -4024,6 +4198,13 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           </button>
         </div>
       </div>
+
+      {/* Command Palette (Ctrl+K) */}
+      <CommandPalette
+        open={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        actions={commandActions}
+      />
 
       {/* Publish Confirmation Modal */}
       <AnimatePresence>
