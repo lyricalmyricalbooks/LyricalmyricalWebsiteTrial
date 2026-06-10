@@ -21,7 +21,65 @@ function MenuLink({ item, className }: { item: MenuItem; className?: string }) {
   );
 }
 
-/** Header navigation built from an editor-defined menu, with hover dropdowns. */
+/** Mega menu panel: child items become link-group columns (their own children are
+ *  the group links), plus an optional featured image card on the right. */
+function MegaMenuPanel({ item }: { item: MenuItem }) {
+  const groups = item.children || [];
+  return (
+    <div className="absolute right-0 top-full pt-3 z-50">
+      <div className="w-[min(760px,calc(100vw-3rem))] bg-black/95 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 shadow-2xl">
+        <div className="flex gap-10">
+          <div
+            className="flex-1 grid gap-8"
+            style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.min(4, groups.length))}, minmax(0, 1fr))` }}
+          >
+            {groups.map((group) => {
+              const links = group.children || [];
+              return (
+                <div key={group.id} className="space-y-3">
+                  <MenuLink
+                    item={group}
+                    className="block text-[10px] tracking-[0.3em] font-bold text-white uppercase whitespace-nowrap hover:text-white/70 transition-colors"
+                  />
+                  {links.map((link) => (
+                    <MenuLink
+                      key={link.id}
+                      item={link}
+                      className="block text-[10px] tracking-[0.2em] text-white/40 hover:text-white transition-colors uppercase whitespace-nowrap"
+                    />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+          {item.featuredImage && (
+            <Link
+              to={item.featuredLink || "/"}
+              className="group relative w-56 flex-shrink-0 aspect-[4/5] rounded-2xl overflow-hidden border border-white/10"
+            >
+              <img
+                src={item.featuredImage}
+                alt={item.featuredTitle || ""}
+                loading="lazy"
+                decoding="async"
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+              {item.featuredTitle && (
+                <p className="absolute bottom-0 left-0 right-0 p-4 text-white text-[10px] font-bold tracking-[0.25em] uppercase">
+                  {item.featuredTitle}
+                </p>
+              )}
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Header navigation built from an editor-defined menu, with hover dropdowns
+ *  and optional full-width mega-menu panels. */
 export function StoreMenu({ items }: { items: MenuItem[] }) {
   const [openId, setOpenId] = useState<string | null>(null);
   if (!items || items.length === 0) return null;
@@ -33,6 +91,7 @@ export function StoreMenu({ items }: { items: MenuItem[] }) {
         if (children.length === 0) {
           return <MenuLink key={item.id} item={item} />;
         }
+        const isMega = item.mega === true;
         return (
           <div
             key={item.id}
@@ -45,17 +104,21 @@ export function StoreMenu({ items }: { items: MenuItem[] }) {
               <ChevronDown size={10} className="opacity-60" />
             </button>
             {openId === item.id && (
-              <div className="absolute left-0 top-full pt-3 z-50">
-                <div className="min-w-[180px] bg-black/90 backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-2xl flex flex-col">
-                  {children.map((child) => (
-                    <MenuLink
-                      key={child.id}
-                      item={child}
-                      className="px-4 py-2.5 rounded-xl text-[10px] tracking-[0.2em] text-white/50 hover:text-white hover:bg-white/5 transition-colors uppercase whitespace-nowrap"
-                    />
-                  ))}
+              isMega ? (
+                <MegaMenuPanel item={item} />
+              ) : (
+                <div className="absolute left-0 top-full pt-3 z-50">
+                  <div className="min-w-[180px] bg-black/90 backdrop-blur-xl border border-white/10 rounded-2xl p-2 shadow-2xl flex flex-col">
+                    {children.map((child) => (
+                      <MenuLink
+                        key={child.id}
+                        item={child}
+                        className="px-4 py-2.5 rounded-xl text-[10px] tracking-[0.2em] text-white/50 hover:text-white hover:bg-white/5 transition-colors uppercase whitespace-nowrap"
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )
             )}
           </div>
         );

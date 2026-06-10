@@ -315,6 +315,25 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     blockLabel: "Image",
   },
   {
+    type: "RowSection",
+    label: "Row / Columns",
+    description: "Pick a column split and fill each column with text, image, button or video.",
+    category: "Layout",
+    defaults: {
+      title: "",
+      layout: "50-50",
+      gap: 48,
+      verticalAlign: "center",
+      items: [
+        { kind: "text", title: "Tell your story", body: "Combine any blocks side by side — text, images, buttons or video.", buttonText: "", buttonUrl: "#" },
+        { kind: "image", imageUrl: "" },
+      ],
+    },
+    blockType: "column",
+    blockDefaults: { kind: "text", title: "New column", body: "", imageUrl: "", buttonText: "", buttonUrl: "#", videoUrl: "" },
+    blockLabel: "Column",
+  },
+  {
     type: "CustomHTMLSection",
     label: "Custom HTML / Liquid",
     description: "Drop in raw HTML, embeds or scripts.",
@@ -331,12 +350,25 @@ export function getSectionMeta(type: string): SectionTypeMeta | undefined {
 // Section Library Modal — categorized
 // ─────────────────────────────────────────────────────────────────────────────
 
+export type SectionPreset = {
+  id: string;
+  name: string;
+  type: string;
+  settings: Record<string, any>;
+};
+
 export function NewSectionLibraryModal({
   onAdd,
   onClose,
+  presets = [],
+  onAddPreset,
+  onDeletePreset,
 }: {
   onAdd: (type: string) => void;
   onClose: () => void;
+  presets?: SectionPreset[];
+  onAddPreset?: (preset: SectionPreset) => void;
+  onDeletePreset?: (id: string) => void;
 }) {
   const [search, setSearch] = useState("");
   const categories = Array.from(new Set(SECTION_REGISTRY.map((s) => s.category)));
@@ -345,6 +377,9 @@ export function NewSectionLibraryModal({
       !search ||
       s.label.toLowerCase().includes(search.toLowerCase()) ||
       s.description.toLowerCase().includes(search.toLowerCase()),
+  );
+  const filteredPresets = presets.filter(
+    (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.type.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -376,6 +411,44 @@ export function NewSectionLibraryModal({
             />
           </div>
           <div className="overflow-y-auto p-8 space-y-8">
+            {filteredPresets.length > 0 && onAddPreset && (
+              <div>
+                <p className="text-[10px] font-black tracking-[0.3em] text-amber-400 uppercase italic mb-3">My Presets</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {filteredPresets.map((preset) => (
+                    <div
+                      key={preset.id}
+                      className="relative text-left p-4 rounded-2xl bg-amber-500/[0.04] border border-amber-500/20 hover:border-amber-400/50 transition-all group"
+                    >
+                      <button
+                        onClick={() => {
+                          onAddPreset(preset);
+                          onClose();
+                        }}
+                        className="text-left w-full"
+                      >
+                        <p className="text-white text-sm font-black uppercase tracking-tight italic mb-1 pr-6">{preset.name}</p>
+                        <p className="text-slate-400 text-xs leading-relaxed">
+                          Saved {getSectionMeta(preset.type)?.label || preset.type.replace("Section", "")} with your content and styling.
+                        </p>
+                      </button>
+                      {onDeletePreset && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeletePreset(preset.id);
+                          }}
+                          title="Delete preset"
+                          className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {categories.map((cat) => {
               const items = filtered.filter((s) => s.category === cat);
               if (items.length === 0) return null;
@@ -417,7 +490,8 @@ type BlockField =
   | { key: string; label: string; kind: "image" }
   | { key: string; label: string; kind: "html" }
   | { key: string; label: string; kind: "color" }
-  | { key: string; label: string; kind: "number"; min?: number; max?: number; step?: number };
+  | { key: string; label: string; kind: "number"; min?: number; max?: number; step?: number }
+  | { key: string; label: string; kind: "select"; options: { value: string; label: string }[] };
 
 const BLOCK_FIELDS: Record<string, BlockField[]> = {
   HeroSection: [],
@@ -470,6 +544,26 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "imageUrl", label: "Image", kind: "image" },
     { key: "linkUrl", label: "Link URL", kind: "text" },
     { key: "alt", label: "Alt text", kind: "text" },
+  ],
+  RowSection: [
+    {
+      key: "kind",
+      label: "Block type",
+      kind: "select",
+      options: [
+        { value: "text", label: "Text" },
+        { value: "image", label: "Image" },
+        { value: "button", label: "Button" },
+        { value: "video", label: "Video" },
+      ],
+    },
+    { key: "title", label: "Title (text blocks)", kind: "text" },
+    { key: "body", label: "Body (text blocks)", kind: "textarea", rows: 3 },
+    { key: "imageUrl", label: "Image (image blocks)", kind: "image" },
+    { key: "buttonText", label: "Button label", kind: "text" },
+    { key: "buttonUrl", label: "Button URL", kind: "text" },
+    { key: "videoUrl", label: "Video URL (video blocks)", kind: "text" },
+    { key: "accentColor", label: "Accent", kind: "color" },
   ],
 };
 
@@ -746,6 +840,25 @@ function BlockFieldEditor({
     );
   }
 
+  if (field.kind === "select") {
+    return (
+      <div>
+        {labelEl}
+        <select
+          value={value || field.options[0]?.value || ""}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+        >
+          {field.options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
   // image
   return (
     <div>
@@ -795,6 +908,22 @@ function BlockFieldEditor({
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-section settings: padding, color scheme, full-width, custom class, hide
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Font choices offered for per-section overrides (matches the editor's core set).
+const SECTION_FONT_OPTIONS = [
+  "Inter", "Outfit", "DM Sans", "Montserrat", "Syne", "Fraunces",
+  "Cormorant", "Playfair Display", "Lora", "EB Garamond", "Space Mono", "Bebas Neue",
+];
+
+export const SECTION_ANIMATIONS = [
+  { value: "", label: "Inherit (default)" },
+  { value: "none", label: "None" },
+  { value: "fade-up", label: "Fade up" },
+  { value: "fade", label: "Fade in" },
+  { value: "slide-left", label: "Slide from right" },
+  { value: "slide-right", label: "Slide from left" },
+  { value: "zoom", label: "Zoom in" },
+];
 
 export function SectionSettingsPanel({
   settings,
@@ -848,6 +977,48 @@ export function SectionSettingsPanel({
             <option key={cs.id} value={cs.id}>
               {cs.name}
             </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Heading font</label>
+          <select
+            value={settings.headingFontOverride || ""}
+            onChange={(e) => onUpdate({ headingFontOverride: e.target.value || undefined })}
+            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+          >
+            <option value="">— Inherit —</option>
+            {SECTION_FONT_OPTIONS.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Body font</label>
+          <select
+            value={settings.bodyFontOverride || ""}
+            onChange={(e) => onUpdate({ bodyFontOverride: e.target.value || undefined })}
+            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+          >
+            <option value="">— Inherit —</option>
+            {SECTION_FONT_OPTIONS.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Entrance animation</label>
+        <select
+          value={settings.animation || ""}
+          onChange={(e) => onUpdate({ animation: e.target.value || undefined })}
+          className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+        >
+          {SECTION_ANIMATIONS.map((a) => (
+            <option key={a.value} value={a.value}>{a.label}</option>
           ))}
         </select>
       </div>
@@ -1194,6 +1365,32 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   CustomHTMLSection: [
     { key: "html", label: "HTML", kind: "html" },
     { key: "fullBleed", label: "Full bleed (no padding)", kind: "toggle" },
+  ],
+  RowSection: [
+    { key: "title", label: "Title (optional)", kind: "text" },
+    {
+      key: "layout",
+      label: "Column layout",
+      kind: "select",
+      options: [
+        { value: "50-50", label: "50 / 50" },
+        { value: "33-67", label: "33 / 67" },
+        { value: "67-33", label: "67 / 33" },
+        { value: "thirds", label: "3 columns" },
+        { value: "quarters", label: "4 columns" },
+      ],
+    },
+    { key: "gap", label: "Column gap (px)", kind: "number", min: 8, max: 120, step: 4 },
+    {
+      key: "verticalAlign",
+      label: "Vertical alignment",
+      kind: "select",
+      options: [
+        { value: "top", label: "Top" },
+        { value: "center", label: "Center" },
+        { value: "bottom", label: "Bottom" },
+      ],
+    },
   ],
 };
 

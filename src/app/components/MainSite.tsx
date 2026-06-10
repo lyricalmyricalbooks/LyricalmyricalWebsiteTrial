@@ -528,21 +528,129 @@ export function resolveTypography(design: any) {
   const lineHeight = design?.lineHeight ?? 1.6;
   const headingWeight = design?.headingWeight ?? 800;
   const bodyWeight = design?.bodyWeight ?? 400;
-  return { body, heading, base, tracking, lineHeight, headingWeight, bodyWeight };
+  // Modular type scale (Type Scale Designer): a ratio like 1.25 computes h1–h6
+  // from the base size. 0/undefined = off (Tailwind sizes stay untouched).
+  const typeScale = design?.typeScale || 0;
+  return { body, heading, base, tracking, lineHeight, headingWeight, bodyWeight, typeScale };
 }
 
 function TypographyTokens({ design }: { design: any }) {
   const t = resolveTypography(design);
-  const css = `
+  let css = `
 [data-fm-store]{font-family:'${t.body}',sans-serif;font-size:${t.base}px;line-height:${t.lineHeight};font-weight:${t.bodyWeight};}
 [data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3,[data-fm-store] h4,[data-fm-store] h5,[data-fm-store] h6{font-family:'${t.heading}',sans-serif;font-weight:${t.headingWeight};letter-spacing:${t.tracking};}
 `;
+  if (t.typeScale) {
+    const size = (steps: number) => Math.round(t.base * Math.pow(t.typeScale, steps) * 10) / 10;
+    css += `
+[data-fm-store] h1{font-size:${size(5)}px;line-height:1.1;}
+[data-fm-store] h2{font-size:${size(4)}px;line-height:1.15;}
+[data-fm-store] h3{font-size:${size(3)}px;line-height:1.2;}
+[data-fm-store] h4{font-size:${size(2)}px;line-height:1.25;}
+[data-fm-store] h5{font-size:${size(1)}px;line-height:1.3;}
+[data-fm-store] h6{font-size:${t.base}px;line-height:1.4;}
+`;
+  }
+  // Density system: one control rescales the vertical rhythm of every section.
+  const density = design?.density;
+  if (density === "compact") {
+    css += `[data-fm-store] [data-section-id] > section{padding-top:3rem;padding-bottom:3rem;}`;
+  } else if (density === "spacious") {
+    css += `[data-fm-store] [data-section-id] > section{padding-top:8.5rem;padding-bottom:8.5rem;}`;
+  }
   return (
     <>
       <GoogleFontLoader font={t.body} />
       <GoogleFontLoader font={t.heading} />
       <style>{css}</style>
     </>
+  );
+}
+
+// ──────────────────────────────
+// Per-section helpers: font overrides + entrance animations
+// ──────────────────────────────
+
+/** Scoped style + font loading for a section's heading/body font overrides. */
+function SectionFontOverride({ sectionId, settings }: { sectionId: string; settings: any }) {
+  const heading = settings?.headingFontOverride;
+  const body = settings?.bodyFontOverride;
+  if (!heading && !body) return null;
+  let css = "";
+  if (body) css += `[data-section-id="${sectionId}"]{font-family:'${body}',sans-serif;}`;
+  if (heading)
+    css += `[data-section-id="${sectionId}"] h1,[data-section-id="${sectionId}"] h2,[data-section-id="${sectionId}"] h3,[data-section-id="${sectionId}"] h4{font-family:'${heading}',sans-serif;}`;
+  return (
+    <>
+      {heading && <GoogleFontLoader font={heading} />}
+      {body && <GoogleFontLoader font={body} />}
+      <style>{css}</style>
+    </>
+  );
+}
+
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+/** Entrance animation wrapper driven by section.settings.animation. */
+function SectionReveal({ animation, enableAnimations, children }: any) {
+  const mode = animation || (enableAnimations ? "" : "none");
+  if (mode === "none" || mode === "" || prefersReducedMotion()) return children;
+  const initials: Record<string, any> = {
+    "fade-up": { opacity: 0, y: 36 },
+    fade: { opacity: 0 },
+    "slide-left": { opacity: 0, x: 60 },
+    "slide-right": { opacity: 0, x: -60 },
+    zoom: { opacity: 0, scale: 0.92 },
+  };
+  const initial = initials[mode];
+  if (!initial) return children;
+  return (
+    <motion.div
+      initial={initial}
+      whileInView={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.9, ease: [0.215, 0.61, 0.355, 1] }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/** Global sections render on every page, just above the footer. */
+export function GlobalSections({ design, books, onCtaClick, onProductClick }: any) {
+  const sections: any[] = design?.globalSections || [];
+  if (sections.length === 0) return null;
+  const schemes: any[] = design?.colorSchemes || [];
+  return (
+    <div className="flex flex-col">
+      {sections
+        .filter((section: any) => section.visible !== false)
+        .map((section: any) => {
+          const SectionComponent = (Sections as any)[section.type];
+          if (!SectionComponent) return null;
+          const s = section.settings || {};
+          const scheme = s.colorSchemeId ? schemes.find((sc: any) => sc.id === s.colorSchemeId) : null;
+          return (
+            <div
+              key={section.id}
+              data-section-id={section.id}
+              className={[s.hideOnMobile ? "hidden md:block" : "", s.hideOnDesktop ? "block md:hidden" : "", s.customClass || ""].filter(Boolean).join(" ") || undefined}
+              style={{
+                paddingTop: s.paddingTop != null ? `${s.paddingTop}px` : undefined,
+                paddingBottom: s.paddingBottom != null ? `${s.paddingBottom}px` : undefined,
+                background: scheme?.background || s.sectionBackground || undefined,
+                color: scheme?.text || undefined,
+              }}
+            >
+              <SectionFontOverride sectionId={section.id} settings={s} />
+              <SectionReveal animation={s.animation} enableAnimations={false}>
+                <SectionComponent settings={s} books={books} onCtaClick={onCtaClick} onProductClick={onProductClick} enableAnimations={false} />
+              </SectionReveal>
+            </div>
+          );
+        })}
+    </div>
   );
 }
 
@@ -1083,6 +1191,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           </div>
         </main>
 
+        <GlobalSections
+          design={activeDesign}
+          books={books}
+          onCtaClick={() => setShowCatalog(true)}
+          onProductClick={(book: any) =>
+            navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
+          }
+        />
         <RecentlyViewedRow />
         <Newsletter design={settings?.design} />
         <SiteFooter settings={settings} pages={pages} onAboutOpen={() => setShowAbout(true)} />
@@ -1250,15 +1366,18 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     className={wrapperCls}
                     style={wrapperStyle}
                   >
-                    <SectionComponent
-                      settings={s}
-                      books={books}
-                      onCtaClick={() => setShowCatalog(true)}
-                      onProductClick={(book: any) =>
-                        navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
-                      }
-                      enableAnimations={heroDesign?.enableAnimations ?? true}
-                    />
+                    <SectionFontOverride sectionId={section.id} settings={s} />
+                    <SectionReveal animation={s.animation} enableAnimations={heroDesign?.enableAnimations ?? true}>
+                      <SectionComponent
+                        settings={s}
+                        books={books}
+                        onCtaClick={() => setShowCatalog(true)}
+                        onProductClick={(book: any) =>
+                          navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
+                        }
+                        enableAnimations={heroDesign?.enableAnimations ?? true}
+                      />
+                    </SectionReveal>
                   </div>
                 );
               })}
@@ -1285,6 +1404,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           </>
         )}
       </main>
+
+      <GlobalSections
+        design={activeDesign}
+        books={books}
+        onCtaClick={() => setShowCatalog(true)}
+        onProductClick={(book: any) =>
+          navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
+        }
+      />
 
       {/* About panel (available from homepage too) */}
       <AnimatePresence>
