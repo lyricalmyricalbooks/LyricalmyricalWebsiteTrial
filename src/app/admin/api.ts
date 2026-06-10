@@ -249,7 +249,9 @@ export const adminApi = {
 
   updateSettings: (settings: any, options: { publish?: boolean } = {}) => {
     const docRef = doc(db, "settings", "website");
-    const payload = { ...settings };
+    // Deep-strip undefined values — Firestore rejects them, and editor controls
+    // use `undefined` to mean "inherit / unset".
+    const payload = JSON.parse(JSON.stringify({ ...settings }));
     
     // If we're updating 'design' (the theme), handle the draft/publish logic
     if (settings.design) {

@@ -797,6 +797,115 @@ export function MapSection({ settings, enableAnimations }: any) {
 }
 
 // ──────────────────────────────
+// ROW (multi-column layout where each column holds any block kind)
+// ──────────────────────────────
+
+function RowBlock({ block, accentFallback }: any) {
+  const kind = block.kind || "text";
+
+  if (kind === "image") {
+    return (
+      <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+        {block.imageUrl ? (
+          <img src={block.imageUrl} alt={block.title || ""} loading="lazy" decoding="async" className="w-full h-auto object-cover" />
+        ) : (
+          <div className="aspect-video w-full flex items-center justify-center text-white/20 text-xs uppercase tracking-widest">No Image</div>
+        )}
+      </div>
+    );
+  }
+
+  if (kind === "button") {
+    return (
+      <div className="flex justify-center">
+        <a
+          href={block.buttonUrl || "#"}
+          className="inline-block px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black"
+          style={{ backgroundColor: block.accentColor || accentFallback || "#A855F7" }}
+        >
+          {block.buttonText || "Shop now"}
+        </a>
+      </div>
+    );
+  }
+
+  if (kind === "video") {
+    const url = block.videoUrl || "";
+    const ytId = url.match(/(?:v=|youtu\.be\/)([\w-]{6,})/)?.[1];
+    const vimeoId = url.match(/vimeo\.com\/(\d+)/)?.[1];
+    const embed = ytId
+      ? `https://www.youtube.com/embed/${ytId}?rel=0`
+      : vimeoId
+      ? `https://player.vimeo.com/video/${vimeoId}`
+      : "";
+    return (
+      <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black border border-white/10">
+        {embed ? (
+          <iframe src={embed} title={block.title || "Video"} allow="autoplay; fullscreen" allowFullScreen className="w-full h-full" />
+        ) : url ? (
+          <video src={url} controls className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-white/20 text-xs uppercase tracking-widest">No Video</div>
+        )}
+      </div>
+    );
+  }
+
+  // text (default)
+  return (
+    <div className="space-y-4">
+      {block.title && <h3 className="text-2xl font-bold tracking-tight text-white">{block.title}</h3>}
+      {block.body && <p className="text-white/60 leading-relaxed text-sm">{block.body}</p>}
+      {block.buttonText && (
+        <a
+          href={block.buttonUrl || "#"}
+          className="inline-block text-[10px] font-bold tracking-[0.25em] uppercase underline underline-offset-4"
+          style={{ color: block.accentColor || accentFallback || undefined }}
+        >
+          {block.buttonText}
+        </a>
+      )}
+    </div>
+  );
+}
+
+export function RowSection({ settings, enableAnimations }: any) {
+  const blocks = settings.items || settings.blocks || [];
+  const template =
+    ({
+      "50-50": "1fr 1fr",
+      "33-67": "1fr 2fr",
+      "67-33": "2fr 1fr",
+      thirds: "1fr 1fr 1fr",
+      quarters: "1fr 1fr 1fr 1fr",
+    } as Record<string, string>)[settings.layout || "50-50"] || "1fr 1fr";
+  const alignItems = settings.verticalAlign === "top" ? "start" : settings.verticalAlign === "bottom" ? "end" : "center";
+  const gap = Math.max(8, Math.min(120, settings.gap ?? 48));
+
+  return (
+    <section className="py-20 px-6 max-w-7xl mx-auto">
+      <AnimationContainer enabled={enableAnimations}>
+        {settings.title && (
+          <h2 className="text-3xl font-bold tracking-tight uppercase text-white mb-12 text-center" data-theme-field="title">
+            {settings.title}
+          </h2>
+        )}
+        <div
+          className="grid grid-cols-1 md:[grid-template-columns:var(--row-template)]"
+          style={{ ["--row-template" as any]: template, gap, alignItems }}
+        >
+          {(blocks.length ? blocks : [{ kind: "text", title: "Add columns", body: "Use the Row section to combine text, images, buttons and video side by side." }]).map(
+            (block: any, idx: number) => (
+              <RowBlock key={idx} block={block} accentFallback={settings.accentColor} />
+            ),
+          )}
+        </div>
+      </AnimationContainer>
+    </section>
+  );
+}
+
+// ──────────────────────────────
 // IMAGE GALLERY
 // ──────────────────────────────
 

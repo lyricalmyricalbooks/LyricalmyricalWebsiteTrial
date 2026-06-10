@@ -61,7 +61,14 @@ import {
   ThemeIOButtons,
   PAGE_TEMPLATES,
   type ColorScheme,
+  type SectionPreset,
 } from "./ThemeEditorExtensions";
+import {
+  FontBrowserModal,
+  TypeScaleDesigner,
+  GlobalSectionsPanel,
+  ABLayoutSwitcher,
+} from "./ThemeEditorBuilder";
 import {
   PaletteLabPanel,
   AccessibilityAuditPanel,
@@ -655,10 +662,15 @@ function StylePanel({ design, update }: any) {
   const currentPalette = PALETTES.find(p => p.id === design.palettePreset) || PALETTES[0];
   const backgroundColor = design.backgroundColor || currentPalette.bg;
   const textColor = design.textColor || currentPalette.text;
+  const [showFontBrowser, setShowFontBrowser] = useState(false);
   const applyTheme = (themeId: string) => {
     const theme = THEME_LIBRARY.find((t) => t.id === themeId);
     if (!theme) return;
     applyThemePreset(update, theme);
+  };
+  const applyBrowsedFont = (font: string, target: "body" | "heading" | "both") => {
+    if (target === "body" || target === "both") update("font", font);
+    if (target === "heading" || target === "both") update("headingFont", font);
   };
 
   return (
@@ -769,6 +781,21 @@ function StylePanel({ design, update }: any) {
 
       <Accordion title="Typography">
         <div className="space-y-8">
+          <button
+            onClick={() => setShowFontBrowser(true)}
+            className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 border border-violet-500/30 rounded-2xl py-4 text-[10px] font-black text-violet-300 hover:text-white hover:border-violet-400/50 transition-all uppercase tracking-[0.25em] italic"
+          >
+            Browse 190+ Google Fonts
+          </button>
+          {showFontBrowser && (
+            <FontBrowserModal
+              onApply={(font, target) => {
+                applyBrowsedFont(font, target);
+                setShowFontBrowser(false);
+              }}
+              onClose={() => setShowFontBrowser(false)}
+            />
+          )}
           <div>
             <SidebarLabel>Body font</SidebarLabel>
             <FontSelector
@@ -965,7 +992,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
   );
 }
 
-function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, onConsumeRequest }: any) {
+function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, onConsumeRequest, sectionPresets = [], onSavePreset, onDeletePreset }: any) {
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
@@ -1123,6 +1150,24 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
             />
           </div>
 
+          {onSavePreset && (
+            <button
+              onClick={() => {
+                const name = window.prompt("Name this preset:", section.settings?.title || section.type.replace("Section", ""));
+                if (!name) return;
+                onSavePreset({
+                  id: crypto.randomUUID(),
+                  name,
+                  type: section.type,
+                  settings: JSON.parse(JSON.stringify(section.settings || {})),
+                });
+              }}
+              className="w-full py-3 text-amber-600 text-[10px] font-bold tracking-widest border border-amber-200 bg-amber-50/50 rounded-2xl hover:bg-amber-50 transition-colors"
+            >
+              SAVE AS REUSABLE PRESET
+            </button>
+          )}
+
           <div className="pt-2 grid grid-cols-2 gap-2">
             <button
               onClick={(e) => duplicateSection(section.id, e)}
@@ -1211,6 +1256,9 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
           </div>
         )}
       </div>
+
+      {/* A/B layout switcher — keep an alternate arrangement and flip between them */}
+      <ABLayoutSwitcher design={design} update={update} />
 
       <div className="space-y-3 pb-8">
         {sections.length === 0 ? (
@@ -1321,11 +1369,21 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
           </motion.button>
         </div>
 
-        {/* Section Library Modal — full categorized library */}
+        {/* Section Library Modal — full categorized library + saved presets */}
         {showLibrary && (
           <NewSectionLibraryModal
             onAdd={addSection}
             onClose={() => setShowLibrary(false)}
+            presets={sectionPresets}
+            onAddPreset={(preset: SectionPreset) => {
+              const id = crypto.randomUUID();
+              updateSections([
+                ...sections,
+                { id, type: preset.type, visible: true, settings: JSON.parse(JSON.stringify(preset.settings || {})) },
+              ]);
+              setActiveSectionId(id);
+            }}
+            onDeletePreset={onDeletePreset}
           />
         )}
       </div>
@@ -2042,6 +2100,10 @@ function TextSizingPanel({ design, update }: any) {
         </div>
       </Accordion>
 
+      <Accordion title="Type Scale Designer" defaultOpen={true}>
+        <TypeScaleDesigner design={design} update={update} />
+      </Accordion>
+
       <Accordion title="Fine Tuning" defaultOpen={true}>
         <div className="space-y-8">
           <SidebarRange
@@ -2195,6 +2257,19 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
       idx === i ? { ...it, children: move(it.children || [], j, dir) } : it,
     ));
 
+  // Grandchildren — used by mega menus, where each sub-link is a column
+  // heading and its own children are the column's links.
+  const patchChildAt = (i: number, j: number, mutate: (c: MenuItem) => MenuItem) =>
+    setItems(items.map((it, idx) =>
+      idx === i ? { ...it, children: (it.children || []).map((c, cj) => (cj === j ? mutate(c) : c)) } : it,
+    ));
+  const addGrand = (i: number, j: number) =>
+    patchChildAt(i, j, (c) => ({ ...c, children: [...(c.children || []), newMenuItem()] }));
+  const patchGrand = (i: number, j: number, k: number, patch: Partial<MenuItem>) =>
+    patchChildAt(i, j, (c) => ({ ...c, children: (c.children || []).map((g, gk) => (gk === k ? { ...g, ...patch } : g)) }));
+  const removeGrand = (i: number, j: number, k: number) =>
+    patchChildAt(i, j, (c) => ({ ...c, children: (c.children || []).filter((_, gk) => gk !== k) }));
+
   return (
     <div className="p-4 space-y-5 overflow-y-auto flex-1">
       {/* Header / Footer switch */}
@@ -2240,6 +2315,50 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
 
             <MenuLinkFields item={item} onPatch={(p) => patchTop(i, p)} pageOpts={pageOpts} collOpts={collOpts} />
 
+            {/* Mega menu (header only): children become link-group columns */}
+            {tab === "header" && (
+              <div className="space-y-3 p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest italic text-slate-400">Mega menu</p>
+                    <p className="text-[8px] text-slate-600 font-bold mt-0.5">
+                      Sub-links become columns; their own sub-links become the column's links.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => patchTop(i, { mega: !item.mega })}
+                    className={`flex-shrink-0 w-10 h-5 rounded-full relative transition-all ${item.mega ? "bg-violet-600" : "bg-white/10"}`}
+                  >
+                    <span className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${item.mega ? "left-6" : "left-1"}`} />
+                  </button>
+                </div>
+                {item.mega && (
+                  <div className="space-y-2">
+                    <input
+                      value={item.featuredImage || ""}
+                      onChange={(e) => patchTop(i, { featuredImage: e.target.value })}
+                      placeholder="Featured image URL (optional)"
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-[10px] font-bold text-slate-200 outline-none focus:border-violet-500/50 placeholder:text-slate-700"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        value={item.featuredTitle || ""}
+                        onChange={(e) => patchTop(i, { featuredTitle: e.target.value })}
+                        placeholder="Featured title"
+                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-[10px] font-bold text-slate-200 outline-none focus:border-violet-500/50 placeholder:text-slate-700"
+                      />
+                      <input
+                        value={item.featuredLink || ""}
+                        onChange={(e) => patchTop(i, { featuredLink: e.target.value })}
+                        placeholder="Featured link"
+                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-[10px] font-bold text-slate-200 outline-none focus:border-violet-500/50 placeholder:text-slate-700"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Children */}
             {(item.children || []).length > 0 && (
               <div className="pl-4 border-l-2 border-violet-500/20 space-y-3">
@@ -2254,6 +2373,27 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
                       </div>
                     </div>
                     <MenuLinkFields item={child} onPatch={(p) => patchChild(i, j, p)} pageOpts={pageOpts} collOpts={collOpts} />
+
+                    {/* Mega menus: this sub-link is a column heading — its links live here */}
+                    {tab === "header" && item.mega && (
+                      <div className="pl-3 border-l border-amber-500/20 space-y-2">
+                        {(child.children || []).map((grand, k) => (
+                          <div key={grand.id} className="bg-white/[0.02] border border-white/5 rounded-lg p-2.5 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[8px] font-black uppercase tracking-widest italic text-slate-600">Column link {k + 1}</span>
+                              <button onClick={() => removeGrand(i, j, k)} className="p-1 rounded text-slate-500 hover:text-red-400"><Trash2 size={11} /></button>
+                            </div>
+                            <MenuLinkFields item={grand} onPatch={(p) => patchGrand(i, j, k, p)} pageOpts={pageOpts} collOpts={collOpts} />
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => addGrand(i, j)}
+                          className="text-[8px] font-black uppercase tracking-widest italic text-amber-400 hover:text-amber-300 flex items-center gap-1.5"
+                        >
+                          <Plus size={10} /> Add column link
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -2355,6 +2495,23 @@ function TranslationsPanel({ design, update }: any) {
 function AdditionalPanel({ design, update }: any) {
   return (
     <div className="flex-1 flex flex-col space-y-10">
+      <div className="p-6 bg-white/[0.03] border border-white/10 rounded-[2rem] relative overflow-hidden">
+        <SidebarLabel>Spacing density</SidebarLabel>
+        <p className="text-[9px] text-slate-500 font-bold leading-relaxed mb-4">
+          One control rescales the vertical rhythm of every section — compact for dense storefronts,
+          spacious for an editorial, gallery feel.
+        </p>
+        <SidebarRadioGroup
+          value={design.density || "comfortable"}
+          onChange={(v) => update("density", v === "comfortable" ? undefined : v)}
+          options={[
+            { value: "compact", label: "Compact" },
+            { value: "comfortable", label: "Comfort" },
+            { value: "spacious", label: "Spacious" },
+          ]}
+        />
+      </div>
+
       <div className="p-6 bg-white/[0.03] border border-white/10 rounded-[2rem] relative overflow-hidden group">
         <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 to-transparent pointer-events-none" />
         <div className="space-y-2 relative z-10">
@@ -3798,6 +3955,13 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       pages: ["homepage"],
     },
     {
+      id: "globalSections",
+      icon: <Globe size={14} />,
+      title: "Global sections",
+      description: "Sections that appear on every page, edited once",
+      pages: ["both"],
+    },
+    {
       id: "products",
       icon: <ShoppingBag size={14} />,
       title: "Products",
@@ -3909,7 +4073,25 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       case "style":         return <StylePanel design={activeDesign} update={update} />;
       case "navigation":    return <NavigationPanel design={activeDesign} update={update} setActiveTab={setActiveTab} setActiveSection={setActiveSection} />;
       case "menus":         return <MenuBuilderPanel design={activeDesign} update={update} pages={pages} />;
-      case "homepage":      return <HomepagePanel design={activeDesign} update={update} colorSchemes={design.colorSchemes || DEFAULT_COLOR_SCHEMES} requestedSectionId={pendingSectionId} onConsumeRequest={() => setPendingSectionId(null)} />;
+      case "homepage":      return (
+        <HomepagePanel
+          design={activeDesign}
+          update={update}
+          colorSchemes={design.colorSchemes || DEFAULT_COLOR_SCHEMES}
+          requestedSectionId={pendingSectionId}
+          onConsumeRequest={() => setPendingSectionId(null)}
+          sectionPresets={design.sectionPresets || []}
+          onSavePreset={(preset: SectionPreset) => update("sectionPresets", [...(design.sectionPresets || []), preset], true)}
+          onDeletePreset={(id: string) => update("sectionPresets", (design.sectionPresets || []).filter((p: SectionPreset) => p.id !== id), true)}
+        />
+      );
+      case "globalSections": return (
+        <GlobalSectionsPanel
+          design={design}
+          update={update}
+          colorSchemes={(design.colorSchemes && design.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES}
+        />
+      );
       case "products":      return <ProductsPanel design={activeDesign} update={update} />;
       case "layout":        return <LayoutPanel design={activeDesign} update={update} />;
       case "buttons":       return <ButtonsPanel design={activeDesign} update={update} />;
