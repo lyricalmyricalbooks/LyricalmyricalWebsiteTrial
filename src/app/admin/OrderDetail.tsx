@@ -54,6 +54,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
   const [loading, setLoading] = useState(true);
   const [note, setNote] = useState("");
   const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
+  const [isVoiding, setIsVoiding] = useState(false);
 
   // Parcel Modal States
   const [isParcelModalOpen, setIsParcelModalOpen] = useState(false);
@@ -166,6 +167,31 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     setNote("");
     loadOrder();
     toast.success("Note added");
+  };
+
+  const handleVoidAndRefund = async () => {
+    const confirmText = "Are you sure you want to VOID and REFUND this order? This will cancel the order, mark it as refunded, and record a timeline note. This action is irreversible.";
+    if (!window.confirm(confirmText)) {
+      return;
+    }
+    setIsVoiding(true);
+    try {
+      await adminApi.updateOrder(orderId, {
+        status: "cancelled",
+        paymentStatus: "refunded"
+      });
+      await adminApi.addOrderNote(
+        orderId,
+        "Order voided and refunded by administrator."
+      );
+      toast.success("Order cancelled and refunded");
+      loadOrder();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to void and refund order.");
+    } finally {
+      setIsVoiding(false);
+    }
   };
 
 
@@ -576,8 +602,12 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
 
                    <div className="p-8 bg-white/[0.02] border border-white/5 rounded-[2.5rem] space-y-4">
                       <p className="text-[9px] tracking-[0.3em] text-slate-700 font-black uppercase mb-4 text-center">Administrative Overrides</p>
-                      <button className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-rose-400 transition-all group">
-                         VOID & REFUND <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
+                      <button 
+                        onClick={handleVoidAndRefund}
+                        disabled={isVoiding || order.status === "cancelled" || order.paymentStatus === "refunded"}
+                        className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-rose-400 transition-all group disabled:opacity-30 disabled:hover:text-slate-400 disabled:cursor-not-allowed"
+                      >
+                         {isVoiding ? "VOID & REFUNDING..." : order.status === "cancelled" ? "ORDER CANCELLED" : "VOID & REFUND"} <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
                       </button>
                       <div className="h-px bg-white/5" />
                       <button className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-blue-400 transition-all group">

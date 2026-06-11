@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "../../lib/firebase";
+import { db, auth } from "../../lib/firebase";
 import { motion } from "framer-motion";
 import { Mail, Globe, Save, Info, AlertCircle } from "lucide-react";
+import { functionUrl } from "../lib/functionsBase";
 import toast from "react-hot-toast";
 
 type TemplateFields = {
@@ -10,6 +11,7 @@ type TemplateFields = {
   body: string;
   buttonText: string;
   signoff: string;
+  enabled?: boolean;
 };
 
 type NotificationSettings = {
@@ -20,6 +22,10 @@ type NotificationSettings = {
   order_confirmation: TemplateFields;
   shipping_confirmation: TemplateFields;
   abandoned_cart: TemplateFields;
+  order_cancelled: TemplateFields;
+  order_refunded: TemplateFields;
+  customer_welcome: TemplateFields;
+  delivery_update: TemplateFields;
 };
 
 const DEFAULT_SETTINGS: NotificationSettings = {
@@ -31,21 +37,62 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     subject: "Order confirmed: {{order_id}}",
     body: "Hi {{customer_name}},\n\nThank you for your purchase! We've received your order and are preparing it for shipment. We will send you another email when it has shipped.",
     buttonText: "View your order",
-    signoff: "Thanks,\nThe Lyricalmyrical Team"
+    signoff: "Thanks,\nThe Lyricalmyrical Team",
+    enabled: true
   },
   shipping_confirmation: {
     subject: "Your order is on the way!",
     body: "Hi {{customer_name}},\n\nGood news! Your order has been shipped and is on the way. You can track its progress using the link below.",
     buttonText: "Track your shipment",
-    signoff: "Best,\nThe Lyricalmyrical Team"
+    signoff: "Best,\nThe Lyricalmyrical Team",
+    enabled: true
   },
   abandoned_cart: {
     subject: "Did you forget something?",
     body: "Hi {{customer_name}},\n\nWe noticed you left some items in your cart. We've saved them for you, so you can easily complete your purchase whenever you're ready!",
     buttonText: "Resume purchase",
-    signoff: "Thanks,\nThe Lyricalmyrical Team"
+    signoff: "Thanks,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
+  order_cancelled: {
+    subject: "Order cancelled: {{order_id}}",
+    body: "Hi {{customer_name}},\n\nYour order has been cancelled and you will not be charged. If you have any questions, please contact us.",
+    buttonText: "",
+    signoff: "Best,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
+  order_refunded: {
+    subject: "Order refunded: {{order_id}}",
+    body: "Hi {{customer_name}},\n\nWe have successfully refunded CA${{total_price}} for your order. The funds should return to your original payment method in 5-10 business days.",
+    buttonText: "",
+    signoff: "Best,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
+  customer_welcome: {
+    subject: "Welcome to Lyricalmyrical Books!",
+    body: "Hi {{customer_name}},\n\nThank you for creating an account with Lyricalmyrical Books! You can now log in to view your orders, save shipping addresses, and download digital library books.",
+    buttonText: "Go to your account",
+    signoff: "Warmly,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
+  delivery_update: {
+    subject: "Delivery Update: Your order is {{status}}",
+    body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
+    buttonText: "Track shipment",
+    signoff: "Best,\nThe Lyricalmyrical Team",
+    enabled: true
   }
 };
+
+const TABS = [
+  { id: "order_confirmation", label: "Order Paid" },
+  { id: "shipping_confirmation", label: "Order Shipped" },
+  { id: "abandoned_cart", label: "Abandoned Cart" },
+  { id: "order_cancelled", label: "Order Cancelled" },
+  { id: "order_refunded", label: "Order Refunded" },
+  { id: "customer_welcome", label: "Welcome" },
+  { id: "delivery_update", label: "Delivery" }
+] as const;
 
 function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand">, data: NotificationSettings) {
   const brand = data.brand || {};
@@ -53,7 +100,6 @@ function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand"
   const brandColor = brand.brandColor || "#7C3AED";
   
   const template = data[templateId] || DEFAULT_SETTINGS[templateId];
-  const subject = template.subject || "";
   const body = template.body || "";
   const buttonText = template.buttonText || "";
   const signoff = template.signoff || "";
@@ -63,6 +109,12 @@ function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand"
     .replace(/\{\{order_id\}\}/g, "LM-98241")
     .replace(/\{\{tracking_carrier\}\}/g, "Canada Post")
     .replace(/\{\{tracking_number\}\}/g, "123456789012")
+    .replace(/\{\{total_price\}\}/g, "45.00")
+    .replace(/\{\{email\}\}/g, "julianne.smith@gmail.com")
+    .replace(/\{\{status\}\}/g, "out for delivery")
+    .replace(/\{\{tracking_url\}\}/g, "#")
+    .replace(/\{\{cart_url\}\}/g, "#")
+    .replace(/\{\{order_url\}\}/g, "#")
     .replace(/\n/g, "<br/>");
 
   let ctaButtonHtml = "";
@@ -153,7 +205,7 @@ function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand"
     <body>
       <div class="container">
         <div class="header">
-          ${logoUrl ? `<img src="${logoUrl}" class="logo" alt="Logo" />` : `<h2 style="margin: 0; font-weight: 800; letter-spacing: -0.03em;">Lyricalmyrical</h2>`}
+          ${logoUrl ? `<img src="${logoUrl}" class="logo" alt="Logo" />` : `<h2 style="margin: 0; font-weight: 800; letter-spacing: -0.03em; color: #111;">Lyricalmyrical</h2>`}
         </div>
         <div class="content">
           <p>${finalBody}</p>
@@ -175,6 +227,10 @@ export function NotificationEditor() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<keyof Omit<NotificationSettings, "brand">>("order_confirmation");
   const [saving, setSaving] = useState(false);
+  
+  // Test Email states
+  const [testEmail, setTestEmail] = useState("");
+  const [sendingTest, setSendingTest] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -185,7 +241,18 @@ export function NotificationEditor() {
       const docRef = doc(db, "settings", "notifications");
       const snap = await getDoc(docRef);
       if (snap.exists()) {
-        setData(snap.data() as NotificationSettings);
+        const dbData = snap.data() as any;
+        // Merge dbData with default settings to prevent issues with missing fields
+        setData({
+          brand: { ...DEFAULT_SETTINGS.brand, ...(dbData.brand || {}) },
+          order_confirmation: { ...DEFAULT_SETTINGS.order_confirmation, ...(dbData.order_confirmation || {}) },
+          shipping_confirmation: { ...DEFAULT_SETTINGS.shipping_confirmation, ...(dbData.shipping_confirmation || {}) },
+          abandoned_cart: { ...DEFAULT_SETTINGS.abandoned_cart, ...(dbData.abandoned_cart || {}) },
+          order_cancelled: { ...DEFAULT_SETTINGS.order_cancelled, ...(dbData.order_cancelled || {}) },
+          order_refunded: { ...DEFAULT_SETTINGS.order_refunded, ...(dbData.order_refunded || {}) },
+          customer_welcome: { ...DEFAULT_SETTINGS.customer_welcome, ...(dbData.customer_welcome || {}) },
+          delivery_update: { ...DEFAULT_SETTINGS.delivery_update, ...(dbData.delivery_update || {}) }
+        });
       } else {
         // Pre-fill general site settings logo if available
         try {
@@ -227,7 +294,7 @@ export function NotificationEditor() {
     }
   }
 
-  const handleFieldChange = (field: keyof TemplateFields, val: string) => {
+  const handleFieldChange = (field: keyof TemplateFields, val: any) => {
     setData(prev => ({
       ...prev,
       [activeTab]: {
@@ -235,6 +302,11 @@ export function NotificationEditor() {
         [field]: val
       }
     }));
+  };
+
+  const handleToggleActive = () => {
+    const isCurrentlyEnabled = currentTemplate.enabled !== false;
+    handleFieldChange("enabled", !isCurrentlyEnabled);
   };
 
   const handleBrandChange = (field: "logoUrl" | "brandColor", val: string) => {
@@ -247,10 +319,50 @@ export function NotificationEditor() {
     }));
   };
 
+  const handleSendTestEmail = async () => {
+    if (!testEmail || !testEmail.includes("@")) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+    setSendingTest(true);
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) throw new Error("Unauthorized: You must be logged in as administrator.");
+
+      const response = await fetch(functionUrl("sendTestEmail"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          templateId: activeTab,
+          email: testEmail.trim()
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Failed to send test email.");
+      }
+
+      toast.success(`Test email sent to ${testEmail}!`);
+    } catch (err: any) {
+      console.error("Test Email error:", err);
+      toast.error(err.message || "Failed to dispatch test notification.");
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
   const placeholders = {
     order_confirmation: ["{{customer_name}}", "{{order_id}}", "{{order_url}}", "{{items_table}}", "{{total_price}}"],
     shipping_confirmation: ["{{customer_name}}", "{{order_id}}", "{{tracking_carrier}}", "{{tracking_number}}", "{{tracking_url}}"],
-    abandoned_cart: ["{{customer_name}}", "{{cart_url}}", "{{items_table}}"]
+    abandoned_cart: ["{{customer_name}}", "{{cart_url}}", "{{items_table}}"],
+    order_cancelled: ["{{customer_name}}", "{{order_id}}"],
+    order_refunded: ["{{customer_name}}", "{{order_id}}", "{{total_price}}"],
+    customer_welcome: ["{{customer_name}}", "{{email}}"],
+    delivery_update: ["{{customer_name}}", "{{order_id}}", "{{status}}", "{{tracking_carrier}}", "{{tracking_number}}", "{{tracking_url}}"]
   };
 
   if (loading) {
@@ -328,23 +440,52 @@ export function NotificationEditor() {
         {/* Left Form */}
         <section className="glass-card rounded-[3.5rem] p-12 border border-white/5 space-y-10">
           {/* Tab buttons */}
-          <div className="flex border-b border-white/5 pb-2 gap-6 overflow-x-auto shrink-0">
-            {(["order_confirmation", "shipping_confirmation", "abandoned_cart"] as const).map(tab => (
+          <div className="flex border-b border-white/5 pb-2 gap-4 overflow-x-auto shrink-0 scrollbar-thin">
+            {TABS.map(tab => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`pb-4 text-[10px] uppercase tracking-[0.25em] font-black transition-all ${
-                  activeTab === tab 
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  // Auto fill test email with current user email if empty
+                  if (!testEmail && auth.currentUser?.email) {
+                    setTestEmail(auth.currentUser.email);
+                  }
+                }}
+                className={`pb-4 text-[10px] uppercase tracking-[0.2em] font-black transition-all shrink-0 ${
+                  activeTab === tab.id 
                     ? "text-violet-400 border-b-2 border-violet-500" 
                     : "text-slate-500 hover:text-slate-300"
                 }`}
               >
-                {tab.replace(/_/g, " ")}
+                {tab.label}
               </button>
             ))}
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-8">
+            {/* Active Switcher */}
+            <div className="flex justify-between items-center bg-white/[0.02] border border-white/5 p-6 rounded-2xl">
+              <div>
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-355">Automated Dispatch</h4>
+                <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-black">Trigger this email automatically on state change</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleActive}
+                className={`w-14 h-8 rounded-full transition-all duration-300 relative border ${
+                  currentTemplate.enabled !== false 
+                    ? "bg-violet-600 border-violet-500" 
+                    : "bg-white/5 border-white/10"
+                }`}
+              >
+                <motion.div
+                  animate={{ x: currentTemplate.enabled !== false ? 26 : 4 }}
+                  className="w-5 h-5 bg-white rounded-full absolute top-1"
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                />
+              </button>
+            </div>
+
             <div className="space-y-3">
               <label className="text-[9px] font-black uppercase tracking-widest text-slate-600 ml-1">Email Subject Line</label>
               <input
@@ -373,7 +514,7 @@ export function NotificationEditor() {
                 type="text"
                 value={currentTemplate.buttonText}
                 onChange={(e) => handleFieldChange("buttonText", e.target.value)}
-                placeholder="View order"
+                placeholder="View details"
                 className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-violet-500/50"
               />
             </div>
@@ -396,11 +537,10 @@ export function NotificationEditor() {
                 <h5 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Available Placeholders</h5>
               </div>
               <div className="flex flex-wrap gap-2 pt-1">
-                {placeholders[activeTab].map(placeholder => (
+                {(placeholders[activeTab] || []).map(placeholder => (
                   <span
                     key={placeholder}
                     onClick={() => {
-                      // Append placeholder to body textarea
                       handleFieldChange("body", currentTemplate.body + " " + placeholder);
                       toast.success(`Appended ${placeholder}`);
                     }}
@@ -412,6 +552,34 @@ export function NotificationEditor() {
               </div>
               <p className="text-[9px] text-slate-500 italic mt-2 leading-relaxed">
                 Click any bubble to append the placeholder code directly to your email body copy.
+              </p>
+            </div>
+
+            {/* Send Test Email Card */}
+            <div className="p-8 bg-white/[0.02] border border-white/5 rounded-[2.5rem] space-y-6">
+              <div className="flex items-center gap-3">
+                <Mail size={16} className="text-violet-400" />
+                <h4 className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">Send Test Notification</h4>
+              </div>
+              <div className="flex gap-4">
+                <input
+                  type="email"
+                  value={testEmail}
+                  onChange={(e) => setTestEmail(e.target.value)}
+                  placeholder="e.g. admin@example.com"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-violet-500/50"
+                />
+                <button
+                  type="button"
+                  onClick={handleSendTestEmail}
+                  disabled={sendingTest || !testEmail}
+                  className="px-8 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-2xl text-[9px] font-black tracking-widest uppercase transition-all shrink-0 active:scale-95 border border-violet-400/20"
+                >
+                  {sendingTest ? "SENDING..." : "SEND TEST"}
+                </button>
+              </div>
+              <p className="text-[9px] text-slate-500 leading-relaxed uppercase tracking-wider">
+                Send a mock email of this template to verify style rendering and variable interpolation.
               </p>
             </div>
           </div>
@@ -438,7 +606,7 @@ export function NotificationEditor() {
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
               </div>
               <p className="text-[9px] font-black tracking-widest uppercase text-slate-400 max-w-[200px] truncate">
-                {currentTemplate.subject.replace(/\{\{order_id\}\}/g, "LM-98241")}
+                {currentTemplate.subject.replace(/\{\{order_id\}\}/g, "LM-98241").replace(/\{\{status\}\}/g, "out for delivery")}
               </p>
               <div className="w-12 h-1 bg-white/5 rounded-full" />
             </div>

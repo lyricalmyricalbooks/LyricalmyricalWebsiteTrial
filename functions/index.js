@@ -9,7 +9,7 @@
  *   6. abandonedCartSweep (scheduled)     -> Send recovery email after 1h
  */
 
-const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const { onDocumentUpdated, onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onRequest } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
@@ -789,32 +789,73 @@ const DEFAULT_NOTIFICATIONS = {
     subject: "Order confirmed: {{order_id}}",
     body: "Hi {{customer_name}},\n\nThank you for your purchase! We've received your order and are preparing it for shipment. We will send you another email when it has shipped.",
     buttonText: "View your order",
-    signoff: "Thanks,\nThe Lyricalmyrical Team"
+    signoff: "Thanks,\nThe Lyricalmyrical Team",
+    enabled: true
   },
   shipping_confirmation: {
     subject: "Your order is on the way!",
     body: "Hi {{customer_name}},\n\nGood news! Your order has been shipped and is on the way. You can track its progress using the link below.",
     buttonText: "Track your shipment",
-    signoff: "Best,\nThe Lyricalmyrical Team"
+    signoff: "Best,\nThe Lyricalmyrical Team",
+    enabled: true
   },
   abandoned_cart: {
     subject: "Did you forget something?",
     body: "Hi {{customer_name}},\n\nWe noticed you left some items in your cart. We've saved them for you, so you can easily complete your purchase whenever you're ready!",
     buttonText: "Resume purchase",
-    signoff: "Thanks,\nThe Lyricalmyrical Team"
+    signoff: "Thanks,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
+  order_cancelled: {
+    subject: "Order cancelled: {{order_id}}",
+    body: "Hi {{customer_name}},\n\nYour order has been cancelled and you will not be charged. If you have any questions, please contact us.",
+    buttonText: "",
+    signoff: "Best,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
+  order_refunded: {
+    subject: "Order refunded: {{order_id}}",
+    body: "Hi {{customer_name}},\n\nWe have successfully refunded CA${{total_price}} for your order. The funds should return to your original payment method in 5-10 business days.",
+    buttonText: "",
+    signoff: "Best,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
+  customer_welcome: {
+    subject: "Welcome to Lyricalmyrical Books!",
+    body: "Hi {{customer_name}},\n\nThank you for creating an account with Lyricalmyrical Books! You can now log in to view your orders, save shipping addresses, and download digital library books.",
+    buttonText: "Go to your account",
+    signoff: "Warmly,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
+  delivery_update: {
+    subject: "Delivery Update: Your order is {{status}}",
+    body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
+    buttonText: "Track shipment",
+    signoff: "Best,\nThe Lyricalmyrical Team",
+    enabled: true
   }
 };
 
 async function loadNotificationSettings() {
+  let dbSettings = {};
   try {
     const snap = await db.collection("settings").doc("notifications").get();
     if (snap.exists) {
-      return snap.data();
+      dbSettings = snap.data() || {};
     }
   } catch (err) {
     console.warn("Failed to load notifications from Firestore, using default fallback:", err);
   }
-  return DEFAULT_NOTIFICATIONS;
+
+  const merged = { ...DEFAULT_NOTIFICATIONS };
+  for (const key of Object.keys(DEFAULT_NOTIFICATIONS)) {
+    if (key === "brand") {
+      merged.brand = { ...DEFAULT_NOTIFICATIONS.brand, ...(dbSettings.brand || {}) };
+    } else {
+      merged[key] = { ...DEFAULT_NOTIFICATIONS[key], ...(dbSettings[key] || {}) };
+    }
+  }
+  return merged;
 }
 
 function getTrackingUrl(carrier, trackingNum) {
@@ -946,122 +987,159 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
 // ──────────────────────────────────────────────────────────────
 // 5. Order Paid: Trigger notifications only AFTER successful payment
 // ──────────────────────────────────────────────────────────────
-exports.onOrderPaid = onDocumentUpdated(
+exports.onOrderUpdated = onDocumentUpdated(
   { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
   async event => {
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
+    const orderId = event.params.orderId;
 
-    const becamePaid = before.paymentStatus !== "paid" && after.paymentStatus === "paid";
-    if (!becamePaid || !after.customer?.email) return;
-
-    const order = after;
-
-    // Compile digital items download section if any digital formats exist
-    const digitalItems = (order.items || []).filter(item => {
-      const format = (item.format || "").toLowerCase();
-      return format.includes("e-book") || format.includes("epub") || format.includes("pdf") || format.includes("audiobook");
-    });
-
-    let downloadSection = "";
-    if (digitalItems.length > 0) {
-      downloadSection = `
-        <div style="margin-top:28px;padding:24px;background:#f8f6ff;border-radius:16px;border:1px solid #7c3aed20;">
-          <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">Digital Library Access</h3>
-          <p style="font-size:11px;color:#666;margin-bottom:16px;line-height:1.5;">Click the links below to download your digital books. For security, these download links are active for 24 hours.</p>
-          <table style="width:100%;font-size:12px;border-collapse:collapse;">
-            ${digitalItems.map(item => `
-              <tr>
-                <td style="padding:8px 0;border-bottom:1px solid #7c3aed10;"><strong>${item.title}</strong></td>
-                <td style="padding:8px 0;text-align:right;border-bottom:1px solid #7c3aed10;">
-                  <a href="https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/downloadDigitalAsset?orderId=${encodeURIComponent(event.params.orderId)}&itemId=${encodeURIComponent(item.id)}&token=${encodeURIComponent(order.downloadToken || "")}"
-                     style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">Download File</a>
-                </td>
-              </tr>
-            `).join("")}
-          </table>
-        </div>
-      `;
-    }
-
-    const itemsTable = `
-      <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:13px;">
-        ${orderRowsHtml(order.items)}
-        <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${moneyFmt(order.subtotal)}</td></tr>
-        <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${moneyFmt(order.shipping)}</td></tr>
-        ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${moneyFmt(order.tax)}</td></tr>` : ""}
-        ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">Discount</td><td style="text-align:right;color:#0a7;">−${moneyFmt(order.discount)}</td></tr>` : ""}
-        <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${moneyFmt(order.total)}</td></tr>
-      </table>
-    `;
+    if (!after.customer?.email) return;
 
     const notificationSettings = await loadNotificationSettings();
-    const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
-      customer_name: order.customer.name || "there",
-      order_id: order.orderId || event.params.orderId,
-      button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${event.params.orderId}`,
-      items_table: itemsTable,
-      total_price: moneyFmt(order.total)
-    }, downloadSection);
 
-    const adminHtml = `
-      <p>Payment completed for order <strong>${order.orderId || event.params.orderId}</strong> · ${moneyFmt(order.total)}</p>
-      <p>${order.customer.name} &lt;${order.customer.email}&gt;</p>
-      <p>${(order.items || []).length} item(s)</p>`;
+    // 1. Order Confirmation (Order Paid)
+    const becamePaid = before.paymentStatus !== "paid" && after.paymentStatus === "paid";
+    if (becamePaid && notificationSettings.order_confirmation?.enabled !== false) {
+      const order = after;
 
-    try {
-      await sendEmail({
-        to: order.customer.email,
-        subject: compiled.subject,
-        html: compiled.html,
-        secret: RESEND_API_KEY.value(),
+      // Compile digital items download section if any digital formats exist
+      const digitalItems = (order.items || []).filter(item => {
+        const format = (item.format || "").toLowerCase();
+        return format.includes("e-book") || format.includes("epub") || format.includes("pdf") || format.includes("audiobook");
       });
-      await sendEmail({
-        to: ADMIN_TO,
-        subject: `[PAYMENT SUCCESS] ${order.orderId || event.params.orderId}`,
-        html: adminHtml,
-        secret: RESEND_API_KEY.value(),
+
+      let downloadSection = "";
+      if (digitalItems.length > 0) {
+        downloadSection = `
+          <div style="margin-top:28px;padding:24px;background:#f8f6ff;border-radius:16px;border:1px solid #7c3aed20;">
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">Digital Library Access</h3>
+            <p style="font-size:11px;color:#666;margin-bottom:16px;line-height:1.5;">Click the links below to download your digital books. For security, these download links are active for 24 hours.</p>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+              ${digitalItems.map(item => `
+                <tr>
+                  <td style="padding:8px 0;border-bottom:1px solid #7c3aed10;"><strong>${item.title}</strong></td>
+                  <td style="padding:8px 0;text-align:right;border-bottom:1px solid #7c3aed10;">
+                    <a href="https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/downloadDigitalAsset?orderId=${encodeURIComponent(orderId)}&itemId=${encodeURIComponent(item.id)}&token=${encodeURIComponent(order.downloadToken || "")}"
+                       style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">Download File</a>
+                  </td>
+                </tr>
+              `).join("")}
+            </table>
+          </div>
+        `;
+      }
+
+      const itemsTable = `
+        <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:13px;">
+          ${orderRowsHtml(order.items)}
+          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${moneyFmt(order.subtotal)}</td></tr>
+          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${moneyFmt(order.shipping)}</td></tr>
+          ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${moneyFmt(order.tax)}</td></tr>` : ""}
+          ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">Discount</td><td style="text-align:right;color:#0a7;">−${moneyFmt(order.discount)}</td></tr>` : ""}
+          <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${moneyFmt(order.total)}</td></tr>
+        </table>
+      `;
+
+      const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
+        customer_name: order.customer.name || "there",
+        order_id: order.orderId || orderId,
+        button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`,
+        items_table: itemsTable,
+        total_price: moneyFmt(order.total)
+      }, downloadSection);
+
+      const adminHtml = `
+        <p>Payment completed for order <strong>${order.orderId || orderId}</strong> · ${moneyFmt(order.total)}</p>
+        <p>${order.customer.name} &lt;${order.customer.email}&gt;</p>
+        <p>${(order.items || []).length} item(s)</p>`;
+
+      try {
+        await sendEmail({
+          to: order.customer.email,
+          subject: compiled.subject,
+          html: compiled.html,
+          secret: RESEND_API_KEY.value(),
+        });
+        await sendEmail({
+          to: ADMIN_TO,
+          subject: `[PAYMENT SUCCESS] ${order.orderId || orderId}`,
+          html: adminHtml,
+          secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Payment confirmation email failed", err);
+      }
+    }
+
+    // 2. Shipping Confirmation (Order Shipped)
+    const becameShipped = before.fulfillmentStatus !== "shipped" && after.fulfillmentStatus === "shipped";
+    if (becameShipped && notificationSettings.shipping_confirmation?.enabled !== false) {
+      const trackingUrl = getTrackingUrl(after.trackingCarrier, after.trackingNumber);
+      const compiled = compileEmailTemplate("shipping_confirmation", notificationSettings, {
+        customer_name: after.customer?.name || "there",
+        order_id: after.orderId || orderId,
+        tracking_carrier: after.trackingCarrier || "carrier",
+        tracking_number: after.trackingNumber || "",
+        button_url: trackingUrl,
+        tracking_url: trackingUrl
       });
-    } catch (err) {
-      console.error("Email failed", err);
+
+      try {
+        await sendEmail({
+          to: after.customer.email,
+          subject: compiled.subject,
+          html: compiled.html,
+          secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Shipping confirmation email failed", err);
+      }
+    }
+
+    // 3. Order Cancelled
+    const becameCancelled = before.status !== "cancelled" && after.status === "cancelled";
+    if (becameCancelled && notificationSettings.order_cancelled?.enabled !== false) {
+      const compiled = compileEmailTemplate("order_cancelled", notificationSettings, {
+        customer_name: after.customer?.name || "there",
+        order_id: after.orderId || orderId,
+        button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`
+      });
+
+      try {
+        await sendEmail({
+          to: after.customer.email,
+          subject: compiled.subject,
+          html: compiled.html,
+          secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Order cancelled email failed", err);
+      }
+    }
+
+    // 4. Order Refunded
+    const becameRefunded = before.paymentStatus !== "refunded" && after.paymentStatus === "refunded";
+    if (becameRefunded && notificationSettings.order_refunded?.enabled !== false) {
+      const compiled = compileEmailTemplate("order_refunded", notificationSettings, {
+        customer_name: after.customer?.name || "there",
+        order_id: after.orderId || orderId,
+        total_price: Number(after.total || 0).toFixed(2),
+        button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`
+      });
+
+      try {
+        await sendEmail({
+          to: after.customer.email,
+          subject: compiled.subject,
+          html: compiled.html,
+          secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Order refunded email failed", err);
+      }
     }
   }
-);
-
-// ──────────────────────────────────────────────────────────────
-// 6. Order shipped: email customer with tracking
-// ──────────────────────────────────────────────────────────────
-exports.onOrderShipped = onDocumentUpdated(
-  { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
-  async event => {
-    const before = event.data?.before?.data() || {};
-    const after = event.data?.after?.data() || {};
-    const becameShipped =
-      before.fulfillmentStatus !== "shipped" && after.fulfillmentStatus === "shipped";
-    if (!becameShipped || !after.customer?.email) return;
-
-    const trackingUrl = getTrackingUrl(after.trackingCarrier, after.trackingNumber);
-    const notificationSettings = await loadNotificationSettings();
-    const compiled = compileEmailTemplate("shipping_confirmation", notificationSettings, {
-      customer_name: after.customer?.name || "there",
-      order_id: after.orderId || event.params.orderId,
-      tracking_carrier: after.trackingCarrier || "carrier",
-      tracking_number: after.trackingNumber || "",
-      button_url: trackingUrl,
-      tracking_url: trackingUrl
-    });
-
-    try {
-      await sendEmail({
-        to: after.customer.email,
-        subject: compiled.subject,
-        html: compiled.html,
-        secret: RESEND_API_KEY.value(),
-      });
-    } catch (err) {
-      console.error("Shipping email failed", err);
-    }
-  },
 );
 
 // ──────────────────────────────────────────────────────────────
@@ -1432,3 +1510,233 @@ exports.validateDiscountCode = onRequest(async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+
+// ──────────────────────────────────────────────────────────────
+// 10. Customer Welcome Trigger
+// ──────────────────────────────────────────────────────────────
+exports.onCustomerCreated = onDocumentCreated(
+  { document: "customers/{customerId}", secrets: [RESEND_API_KEY] },
+  async event => {
+    const customer = event.data?.data() || {};
+    if (!customer.email) return;
+
+    const notificationSettings = await loadNotificationSettings();
+    if (notificationSettings.customer_welcome?.enabled === false) {
+      return;
+    }
+
+    const compiled = compileEmailTemplate("customer_welcome", notificationSettings, {
+      customer_name: customer.name || "there",
+      email: customer.email,
+      button_url: "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/account",
+    });
+
+    try {
+      await sendEmail({
+        to: customer.email,
+        subject: compiled.subject,
+        html: compiled.html,
+        secret: RESEND_API_KEY.value(),
+      });
+      console.log(`Welcome email successfully sent to customer: ${customer.email}`);
+    } catch (err) {
+      console.error("Welcome email failed", err);
+    }
+  }
+);
+
+// ──────────────────────────────────────────────────────────────
+// 11. HTTP Endpoint: Send Test Email (Admin Secure)
+// ──────────────────────────────────────────────────────────────
+exports.sendTestEmail = onRequest(
+  { secrets: [RESEND_API_KEY] },
+  async (req, res) => {
+    if (applyCors(req, res)) return;
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+
+    const { templateId, email } = req.body;
+    if (!templateId || !email) {
+      res.status(400).json({ error: "Missing templateId or email" });
+      return;
+    }
+
+    try {
+      const notificationSettings = await loadNotificationSettings();
+
+      const mockVars = {
+        customer_name: "Julianne Smith",
+        order_id: "LM-98241",
+        tracking_carrier: "Canada Post",
+        tracking_number: "123456789012",
+        total_price: "45.00",
+        email: "julianne.smith@gmail.com",
+        status: "out for delivery",
+        tracking_url: "https://www.canadapost-postescanada.ca/track-reperage/en",
+        cart_url: "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/checkout",
+        button_url: "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/account",
+        items_table: `
+          <div style="margin: 30px 0; border-top: 1px solid #eeeeee; padding-top: 20px;">
+            <h4 style="margin-top: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #888888;">Order Details</h4>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+              <tr style="border-bottom: 1px solid #eeeeee;">
+                <td style="padding: 10px 0; font-weight: bold;">Visions of Toronto - Limited Edition (x1)</td>
+                <td style="padding: 10px 0; text-align: right; font-family: monospace;">CA$35.00</td>
+              </tr>
+              <tr>
+                <td style="padding: 10px 0; color: #666666;">Subtotal</td>
+                <td style="padding: 10px 0; text-align: right; font-family: monospace;">CA$35.00</td>
+              </tr>
+              <tr>
+                <td style="padding: 5px 0; color: #666666;">Shipping</td>
+                <td style="padding: 5px 0; text-align: right; font-family: monospace;">CA$10.00</td>
+              </tr>
+              <tr style="font-size: 15px; font-weight: bold; border-top: 1px solid #dddddd;">
+                <td style="padding: 15px 0;">Total</td>
+                <td style="padding: 15px 0; text-align: right; font-family: monospace;">CA$45.00</td>
+              </tr>
+            </table>
+          </div>
+        `
+      };
+
+      let sampleDownloadSection = "";
+      if (templateId === "order_confirmation") {
+        sampleDownloadSection = `
+          <div style="margin-top:28px;padding:24px;background:#f8f6ff;border-radius:16px;border:1px solid #7c3aed20;">
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#7c3aed;">Digital Library Access (Sample)</h3>
+            <p style="font-size:11px;color:#666;margin-bottom:16px;line-height:1.5;">Click the links below to download your digital books. For security, these download links are active for 24 hours.</p>
+            <table style="width:100%;font-size:12px;border-collapse:collapse;">
+              <tr>
+                <td style="padding:8px 0;border-bottom:1px solid #7c3aed10;"><strong>Visions of Toronto - PDF Edition</strong></td>
+                <td style="padding:8px 0;text-align:right;border-bottom:1px solid #7c3aed10;">
+                  <a href="#" style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">Download File</a>
+                </td>
+              </tr>
+            </table>
+          </div>
+        `;
+      }
+
+      const compiled = compileEmailTemplate(templateId, notificationSettings, mockVars, sampleDownloadSection);
+
+      await sendEmail({
+        to: email,
+        subject: `[TEST] ${compiled.subject}`,
+        html: compiled.html,
+        secret: RESEND_API_KEY.value(),
+      });
+
+      res.status(200).json({ success: true });
+    } catch (err) {
+      console.error("sendTestEmail failed:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ──────────────────────────────────────────────────────────────
+// 12. HTTP Endpoint: Shippo Webhook Status Updates (Carrier Integration)
+// ──────────────────────────────────────────────────────────────
+exports.shippoWebhook = onRequest(
+  { secrets: [RESEND_API_KEY] },
+  async (req, res) => {
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    const payload = req.body || {};
+    const trackingNum = payload.data?.tracking_number;
+    const trackingStatusObj = payload.data?.tracking_status;
+    const trackingStatus = trackingStatusObj?.status;
+    const carrier = payload.data?.carrier;
+
+    if (!trackingNum) {
+      console.warn("Shippo webhook invoked without tracking number.");
+      res.status(400).send("Missing tracking number");
+      return;
+    }
+
+    try {
+      const snap = await db.collection("orders").where("trackingNumber", "==", trackingNum).limit(1).get();
+      if (snap.empty) {
+        console.log(`Shippo webhook: No order matches tracking number ${trackingNum}`);
+        res.status(200).json({ success: true, message: "No matching order found" });
+        return;
+      }
+
+      const orderDoc = snap.docs[0];
+      const order = orderDoc.data();
+      const orderId = orderDoc.id;
+
+      const prevFulfillmentStatus = order.fulfillmentStatus;
+      let nextFulfillmentStatus = null;
+      let orderStatus = order.status;
+
+      if (trackingStatus === "DELIVERED") {
+        nextFulfillmentStatus = "delivered";
+        orderStatus = "completed";
+      } else if (trackingStatus === "OUT_FOR_DELIVERY") {
+        nextFulfillmentStatus = "out_for_delivery";
+      }
+
+      if (nextFulfillmentStatus && nextFulfillmentStatus !== prevFulfillmentStatus) {
+        const activity = order.activity || [];
+        const newNote = {
+          type: "event",
+          message: `Shippo tracking update: ${trackingStatus.replace(/_/g, " ")}.`,
+          createdAt: new Date().toISOString()
+        };
+
+        await orderDoc.ref.update({
+          fulfillmentStatus: nextFulfillmentStatus,
+          status: orderStatus,
+          activity: [...activity, newNote],
+          updatedAt: new Date().toISOString()
+        });
+
+        // Send delivery_update CRM email automatically
+        const notificationSettings = await loadNotificationSettings();
+        if (notificationSettings.delivery_update?.enabled !== false) {
+          const finalCarrier = carrier || order.trackingCarrier || "Carrier";
+          const trackingUrl = getTrackingUrl(finalCarrier, trackingNum);
+          const humanStatus = trackingStatus === "DELIVERED" ? "delivered" : "out for delivery";
+
+          const compiled = compileEmailTemplate("delivery_update", notificationSettings, {
+            customer_name: order.customer?.name || "there",
+            order_id: order.orderId || orderId,
+            status: humanStatus,
+            tracking_carrier: finalCarrier,
+            tracking_number: trackingNum,
+            tracking_url: trackingUrl,
+            button_url: trackingUrl
+          });
+
+          try {
+            await sendEmail({
+              to: order.customer.email,
+              subject: compiled.subject,
+              html: compiled.html,
+              secret: RESEND_API_KEY.value(),
+            });
+            console.log(`Delivery update email sent for order ${orderId} (${humanStatus})`);
+          } catch (emailErr) {
+            console.error("Failed to send delivery update email:", emailErr);
+          }
+        }
+      }
+
+      res.status(200).json({ success: true });
+    } catch (err) {
+      console.error("shippoWebhook error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
