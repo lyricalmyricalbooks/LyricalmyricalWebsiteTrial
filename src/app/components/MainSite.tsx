@@ -44,6 +44,9 @@ function SkeletonImage({ src, alt, className }: { src: string; alt: string; clas
 // Maintenance splash
 // ──────────────────────────────
 function MaintenancePage({ message }: { message?: string }) {
+  const debug = typeof window !== "undefined" && window.location.search.includes("debug=true");
+  const adminPath = debug ? "/admin?debug=true" : "/admin";
+
   return (
     <div className="h-screen bg-[#030213] text-white flex flex-col items-center justify-center gap-6 text-center px-6">
       <div className="w-16 h-16 rounded-full border border-white/20 flex items-center justify-center mb-4">
@@ -53,7 +56,15 @@ function MaintenancePage({ message }: { message?: string }) {
       <p className="text-white/50 text-sm max-w-sm leading-relaxed">
         {message || "We are updating our archive. Please check back soon."}
       </p>
-      <p className="text-[9px] tracking-[0.4em] text-white/20 uppercase mt-4">Lyricalmyrical Books · Toronto</p>
+      <div className="mt-4 flex flex-col items-center gap-6">
+        <p className="text-[9px] tracking-[0.4em] text-white/20 uppercase">Lyricalmyrical Books · Toronto</p>
+        <Link 
+          to={adminPath} 
+          className="px-5 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] tracking-[0.2em] uppercase font-bold text-white/40 hover:text-white transition-all duration-300 shadow-lg active:scale-95"
+        >
+          Admin Console
+        </Link>
+      </div>
     </div>
   );
 }
