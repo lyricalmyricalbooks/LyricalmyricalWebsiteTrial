@@ -1,11 +1,13 @@
 # Cloud Functions
 
-Three functions:
+Cloud Functions:
 
 | Function | Trigger | Purpose |
 |---|---|---|
-| `onOrderCreated` | Firestore create on `orders/{id}` | Sends order confirmation email to customer + admin notification |
-| `onOrderShipped` | Firestore update on `orders/{id}` (when `fulfillmentStatus` becomes `shipped`) | Sends shipping confirmation with tracking |
+| `onOrderUpdated` | Firestore update on `orders/{id}` | Consolidated trigger for payment confirmation, shipping, cancellation, and refund emails |
+| `onCustomerCreated` | Firestore create on `customers/{id}` | Sends welcome emails automatically to new users |
+| `sendTestEmail` | HTTP Post (Admin-only) | Allows sending preview test emails from the dashboard settings |
+| `shippoWebhook` | HTTP Post (Shippo webhook) | Receives status updates, updates order timeline, and sends delivery updates |
 | `abandonedCartSweep` | Schedule (every 60 min) | Emails customers whose cart entered checkout but did not complete after 1 hour |
 
 ## Setup
