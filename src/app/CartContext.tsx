@@ -58,7 +58,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (typeof stockLimit === "number" && stockLimit !== 999 && existing.quantity >= stockLimit) {
           return prev;
         }
-        return prev.map(i => (i.id === product.id && i.variantId === variant?.id)
+        return prev.map(i => i === existing
           ? { ...i, quantity: i.quantity + 1 }
           : i
         );
