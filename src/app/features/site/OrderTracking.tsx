@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { adminApi } from "../../admin/api";
+import { functionUrl } from "../../lib/functionsBase";
 import { useCurrency } from "../../CurrencyContext";
 
 export default function OrderTracking() {
@@ -68,11 +69,13 @@ export default function OrderTracking() {
   };
 
   const handleDownload = (itemId: string) => {
-    if (!order) return;
-    const functionsUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-      ? "http://127.0.0.1:5001/lyricalmyrical-web-v2/us-central1/downloadDigitalAsset"
-      : "https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/downloadDigitalAsset";
-    window.open(`${functionsUrl}?orderId=${order.orderId}&email=${encodeURIComponent(order.customer.email.toLowerCase())}&itemId=${itemId}`, "_blank");
+    if (!order || !order.downloadToken) return;
+    // The download endpoint authorizes via the secret token issued at
+    // payment time, not the (guessable) customer email.
+    window.open(
+      `${functionUrl("downloadDigitalAsset")}?orderId=${encodeURIComponent(order.id || order.orderId)}&itemId=${encodeURIComponent(itemId)}&token=${encodeURIComponent(order.downloadToken)}`,
+      "_blank"
+    );
   };
 
   // Resolve tracking status step index
