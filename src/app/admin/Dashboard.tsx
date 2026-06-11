@@ -167,7 +167,7 @@ export function Dashboard() {
       <div className="h-screen bg-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-6">
           <div className="w-16 h-16 border-4 border-violet-500/10 border-t-violet-500 rounded-full animate-spin" />
-          <p className="text-white text-[10px] tracking-[0.6em] font-black animate-pulse">INITIALIZING PUBLISHER CORE</p>
+          <p className="text-white text-[10px] tracking-[0.6em] font-black animate-pulse">LOADING ADMIN DASHBOARD</p>
         </div>
       </div>
     );
@@ -192,17 +192,17 @@ export function Dashboard() {
   };
 
   const navItems = [
-    { id: "overview", label: "Ledger", icon: LayoutDashboard, color: "text-cyan-400" },
-    { id: "orders", label: "Fulfillment", icon: ShoppingCart, color: "text-violet-400" },
-    { id: "catalog", label: "Book Registry", icon: BookOpen, color: "text-emerald-400" },
-    { id: "discounts", label: "Campaigns", icon: Tag, color: "text-amber-400" },
+    { id: "overview", label: "Overview", icon: LayoutDashboard, color: "text-cyan-400" },
+    { id: "orders", label: "Orders", icon: ShoppingCart, color: "text-violet-400" },
+    { id: "catalog", label: "Books", icon: BookOpen, color: "text-emerald-400" },
+    { id: "discounts", label: "Discounts", icon: Tag, color: "text-amber-400" },
     { id: "reviews", label: "Reviews", icon: BadgePercent, color: "text-pink-400" },
-    { id: "pages", label: "Site Architecture", icon: Layers, color: "text-indigo-400" },
-    { id: "settings", label: "Publisher Tools", icon: Settings, color: "text-rose-400", children: [
-        { id: "general", label: "Global Settings", icon: ShieldCheck },
-        { id: "shipping", label: "Shipping Matrix", icon: Truck },
-        { id: "payments", label: "Royalty & Payments", icon: CreditCard },
-        { id: "designer", label: "Theme Orchestrator", icon: LayoutGrid },
+    { id: "pages", label: "Pages", icon: Layers, color: "text-indigo-400" },
+    { id: "settings", label: "Settings", icon: Settings, color: "text-rose-400", children: [
+        { id: "general", label: "General Settings", icon: ShieldCheck },
+        { id: "shipping", label: "Shipping", icon: Truck },
+        { id: "payments", label: "Payments", icon: CreditCard },
+        { id: "designer", label: "Design", icon: LayoutGrid },
       ]
     },
   ];
@@ -305,11 +305,18 @@ export function Dashboard() {
               </div>
             </div>
             <button 
+              onClick={() => window.open(window.location.origin, "_blank")}
+              className="w-full flex items-center justify-center gap-3 py-3 text-[9px] font-black text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/5 rounded-xl border border-transparent hover:border-cyan-500/20 transition-all uppercase tracking-[0.2em] mb-2"
+            >
+              <Globe size={14} />
+              View Site
+            </button>
+            <button 
               onClick={handleLogout}
               className="w-full flex items-center justify-center gap-3 py-3 text-[9px] font-black text-slate-500 hover:text-rose-400 hover:bg-rose-500/5 rounded-xl border border-transparent hover:border-rose-500/20 transition-all uppercase tracking-[0.2em]"
             >
               <LogOut size={14} />
-              Terminate Session
+              Log Out
             </button>
           </div>
         </div>
@@ -333,7 +340,7 @@ export function Dashboard() {
               <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-violet-500 transition-colors" size={16} />
               <input 
                 type="text" 
-                placeholder="Search library archives..." 
+                placeholder="Search books, orders, discounts..." 
                 className="w-full bg-slate-900/50 border border-white/5 rounded-2xl py-4 pl-16 pr-6 text-xs text-white placeholder:text-slate-600 outline-none focus:border-violet-500/30 focus:bg-slate-900/80 transition-all font-medium"
               />
             </div>
@@ -342,11 +349,19 @@ export function Dashboard() {
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <button 
+                onClick={() => window.open(window.location.origin, "_blank")}
+                className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all active:scale-95 group relative"
+                title="View Live Website"
+              >
+                <Globe size={16} className="text-cyan-400 group-hover:text-cyan-300" />
+                <span className="font-black tracking-[0.2em] uppercase text-[10px]">View Site</span>
+              </button>
+              <button 
                 onClick={handleAddBook}
                 className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all active:scale-95 group relative"
               >
                 <Plus size={16} className="text-violet-400 group-hover:text-violet-300" />
-                <span className="font-black tracking-[0.2em] uppercase text-[10px]">New Title</span>
+                <span className="font-black tracking-[0.2em] uppercase text-[10px]">Add Book</span>
               </button>
               <button className="p-3 text-slate-500 hover:text-white transition-all hover:bg-white/5 rounded-xl border border-transparent hover:border-white/10 active:scale-95">
                 <HelpCircle size={20} />
@@ -364,7 +379,7 @@ export function Dashboard() {
                <div className="text-right hidden sm:block">
                  <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[10px] font-black text-emerald-500/80 tracking-widest uppercase">Platform Live</span>
+                  <span className="text-[10px] font-black text-emerald-500/80 tracking-widest uppercase">Storefront Live</span>
                  </div>
                  <p className="text-[8px] text-emerald-500 font-mono mt-1">Uptime: 99.9%</p>
                </div>
@@ -381,7 +396,7 @@ export function Dashboard() {
                 <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
                   <div>
                     <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.4em] text-slate-500 mb-4 font-black">
-                      <span className="opacity-50">Registry</span>
+                      <span className="opacity-50">Storefront</span>
                       <ChevronRight size={10} className="text-slate-800" />
                       <span className="text-violet-400">{activeTab}</span>
                       {activeTab === "settings" && (
@@ -393,7 +408,7 @@ export function Dashboard() {
                     </div>
                     <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">{activeTab}</h2>
                     <p className="text-slate-500 text-xs font-medium mt-4 max-w-xl leading-relaxed">
-                      Administrative Portal for {activeTab} management. Accessing secure book-world records for real-time library synchronization.
+                      Manage your {activeTab}. All changes are synced in real-time with the live website.
                     </p>
                   </div>
                   
@@ -403,14 +418,14 @@ export function Dashboard() {
                       className="flex items-center gap-3 bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95"
                     >
                       <History size={16} className="text-slate-500" />
-                      View Logs
+                      Activity Logs
                     </button>
                     <button 
                       onClick={handleAddBook}
-                      className="flex items-center gap-3 bg-violet-600 hover:bg-violet-500 text-white px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 shadow-[0_10px_30px_rgba(124,58,237,0.3)] border border-violet-400/20"
+                      className="flex items-center gap-3 bg-violet-600 hover:bg-violet-50 text-white px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 shadow-[0_10px_30px_rgba(124,58,237,0.3)] border border-violet-400/20"
                     >
                       <Plus size={18} />
-                      New Title
+                      Add Book
                     </button>
                   </div>
                 </header>
@@ -554,8 +569,8 @@ export function Dashboard() {
                     <History size={20} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-black uppercase tracking-widest text-white italic">System Audit Trail</h3>
-                    <p className="text-[10px] text-slate-500 font-medium tracking-wide mt-1">REAL-TIME PUBLISHER ACTION LEDGER</p>
+                    <h3 className="text-xl font-black uppercase tracking-widest text-white italic">Activity Logs</h3>
+                    <p className="text-[10px] text-slate-500 font-medium tracking-wide mt-1">REAL-TIME LOG OF ACTIONS AND CHANGES</p>
                   </div>
                 </div>
                 <button
@@ -571,7 +586,7 @@ export function Dashboard() {
                 {logsLoading ? (
                   <div className="h-full flex flex-col items-center justify-center space-y-6">
                     <div className="w-12 h-12 border-2 border-violet-500/10 border-t-violet-500 rounded-full animate-spin" />
-                    <p className="text-[10px] tracking-[0.4em] font-black uppercase text-slate-500">Retrieving system ledger...</p>
+                    <p className="text-[10px] tracking-[0.4em] font-black uppercase text-slate-500">Retrieving logs...</p>
                   </div>
                 ) : logs.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center">
@@ -640,13 +655,13 @@ export function Dashboard() {
               {/* Footer */}
               <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-md flex items-center justify-between shrink-0">
                 <span className="text-[9px] font-black text-slate-600 tracking-widest uppercase">
-                  Audit logs are tamper-evident & restricted to administrator access
+                  Activity logs are encrypted and restricted to administrators
                 </span>
                 <button
                   onClick={loadLogs}
                   className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:text-white uppercase tracking-widest transition-all active:scale-95"
                 >
-                  Refresh Log
+                  Refresh Logs
                 </button>
               </div>
             </motion.div>

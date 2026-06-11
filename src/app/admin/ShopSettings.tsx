@@ -120,7 +120,7 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
         <div className="flex justify-between items-end">
           <div>
             <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">General Settings</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Core Publisher Parameters & Identity</p>
+            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Store Profile & Identity</p>
           </div>
           {hasChanges('general') && (
             <button
@@ -140,14 +140,14 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
         <div className="flex justify-between items-start gap-12 relative z-10">
            <div className="flex-1 space-y-6">
               <SectionHeader 
-                title="Maintenance mode" 
+                title="Maintenance Mode" 
                 subtitle="Offline Mode" 
                 icon={Lock} 
                 color="amber" 
               />
               <p className="text-xs text-slate-400 leading-relaxed max-w-xl font-medium">
-                 Inhibit transaction processing temporarily during system upgrades or operational hiatus. 
-                 <span className="text-amber-400/80 ml-2 font-black uppercase tracking-widest text-[9px]">Use with caution.</span>
+                 Temporarily disable the checkout while making updates to the storefront.
+                 <span className="text-amber-400/80 ml-2 font-black uppercase tracking-widest text-[9px]">Customers will see a maintenance message.</span>
               </p>
               
               <AnimatePresence>
@@ -210,7 +210,7 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
 
         <div className="relative z-10">
            <InputField 
-             label="CUSTOM DOMAIN LINK"
+             label="CUSTOM DOMAIN (URL)" 
              icon={Globe}
              value={settings.domain?.custom || ""}
              placeholder="www.yourdomain.com"
@@ -253,7 +253,7 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
             <div className="space-y-2">
                <InputField 
-                 label="PUBLISHING HOUSE NAME"
+                 label="PUBLISHER NAME"
                  value={settings.info?.name || ""}
                  onChange={(e: any) => setSettings({...settings, info: {...settings.info, name: e.target.value}})}
                />
@@ -261,7 +261,7 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
             </div>
             <div className="space-y-2">
                <InputField 
-                 label="PRIMARY CONTACT FREQUENCY"
+                 label="CONTACT EMAIL"
                  icon={Mail}
                  value={settings.info?.email || ""}
                  placeholder="hello@lyricalmyricalbooks.com"
@@ -269,7 +269,7 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
                />
             </div>
             <div className="md:col-span-2 space-y-4">
-               <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">PUBLISHER BIO / MANIFESTO</label>
+               <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">PUBLISHER DESCRIPTION</label>
                <textarea 
                  rows={5}
                  className="w-full bg-white/[0.03] border border-white/10 rounded-[2.5rem] px-10 py-8 text-sm text-white outline-none focus:border-violet-500/50 focus:bg-white/[0.06] transition-all resize-none leading-relaxed font-medium shadow-inner"
@@ -304,7 +304,7 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
             <div className="md:col-span-2">
                <InputField 
-                 label="STREET COORDINATES"
+                 label="STREET ADDRESS"
                  icon={Building}
                  value={settings.location?.street || ""}
                  placeholder="456 Montrose Avenue"
@@ -313,7 +313,7 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
             </div>
             <div>
                <InputField 
-                 label="CITY / METROPOLIS"
+                 label="CITY"
                  value={settings.location?.city || ""} 
                  placeholder="Toronto"
                  onChange={(e: any) => setSettings({...settings, location: {...settings.location, city: e.target.value}})}
@@ -321,7 +321,7 @@ function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savin
             </div>
             <div>
                <InputField 
-                 label="ZONE / PROVINCE"
+                 label="STATE / PROVINCE"
                  value={settings.location?.state || ""} 
                  placeholder="Ontario"
                  onChange={(e: any) => setSettings({...settings, location: {...settings.location, state: e.target.value}})}
@@ -718,8 +718,8 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
          <div className="relative z-10">
             <div className="flex justify-between items-start mb-12">
                <SectionHeader 
-                  title="Stripe Checkout" 
-                  subtitle="Primary secure payment processor" 
+                  title="Stripe Integration" 
+                  subtitle="Accept credit and debit card payments" 
                   icon={ShieldCheck} 
                   color="violet"
                />
@@ -733,7 +733,7 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
             
             <div className="flex items-center gap-8 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 shadow-inner">
                <div className="flex items-center gap-4">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Protocol Status</span>
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Stripe Checkout Status</span>
                   <Switch 
                     checked={stripe.connected} 
                     onChange={(val) => updateStripe({ connected: val })} 
@@ -747,7 +747,7 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                   />
                </div>
                <span className={`text-[10px] font-black uppercase tracking-[0.4em] w-24 text-right ${stripe.connected ? 'text-emerald-400' : 'text-slate-600'}`}>
-                 {stripe.connected ? 'ONLINE' : 'OFFLINE'}
+                 {stripe.connected ? 'Active' : 'Inactive'}
                </span>
             </div>
 
@@ -822,8 +822,8 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
          <div className="relative z-10">
             <div className="flex justify-between items-start mb-12">
                <SectionHeader 
-                  title="PayPal Protocol" 
-                  subtitle="Secondary global currency relay" 
+                  title="PayPal Integration" 
+                  subtitle="Allow customers to pay via PayPal" 
                   icon={DollarSign} 
                   color="blue"
                />
@@ -831,7 +831,7 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
 
             <div className="flex items-center gap-8 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 shadow-inner">
                <div className="flex items-center gap-4">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Protocol Status</span>
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">PayPal Integration Status</span>
                   <Switch 
                     checked={paypal.connected} 
                     onChange={(val) => updatePaypal({ connected: val })} 
@@ -845,7 +845,7 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                   />
                </div>
                <span className={`text-[10px] font-black uppercase tracking-[0.4em] w-24 text-right ${paypal.connected ? 'text-emerald-400' : 'text-slate-600'}`}>
-                 {paypal.connected ? 'ONLINE' : 'OFFLINE'}
+                 {paypal.connected ? 'Active' : 'Inactive'}
                </span>
             </div>
 
@@ -858,7 +858,7 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                     className="mt-12"
                   >
                      <InputField 
-                        label="PAYPAL CLIENT IDENTIFIER" 
+                        label="PAYPAL CLIENT ID" 
                         placeholder="Client ID..."
                         icon={Lock}
                         value={paypal.clientId || ""}
@@ -876,8 +876,8 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
             <Lock size={24} className="text-amber-400" />
          </div>
          <div className="flex-1">
-            <h4 className="text-xs font-black text-amber-500 uppercase tracking-[0.4em] mb-1 italic">Vault Security Protocol Active</h4>
-            <p className="text-xs text-slate-400 font-bold leading-relaxed">All fiscal identifiers are encrypted at rest using AES-256 standards. Primary keys are never transmitted in plaintext and are masked during input sequences.</p>
+            <h4 className="text-xs font-black text-amber-500 uppercase tracking-[0.4em] mb-1 italic">Secure Encryption Active</h4>
+            <p className="text-xs text-slate-400 font-bold leading-relaxed">All payment credentials and API keys are stored securely. Client IDs and secret keys are masked for security.</p>
          </div>
       </div>
     </div>
@@ -908,8 +908,8 @@ function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingS
       <header className="flex flex-col gap-2 mb-12">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Tax Protocols</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Global fiscal compliance & VAT mapping</p>
+            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Tax Settings</h2>
+            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Set up country-specific tax rates to calculate at checkout</p>
           </div>
           <div className="flex items-center gap-4">
             <button 
@@ -917,7 +917,7 @@ function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingS
               className="bg-white/5 border border-white/10 px-8 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] flex items-center gap-3 hover:bg-white/10 transition-all text-white shadow-xl shadow-black/20"
             >
               {isAdding ? <X size={16} className="text-rose-400" /> : <Plus size={16} className="text-violet-400" />} 
-              {isAdding ? "ABORT" : "NEW REGULATION"}
+              {isAdding ? "Cancel" : "Add Tax Rate"}
             </button>
             {hasChanges('taxes') && (
               <button
@@ -936,21 +936,21 @@ function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingS
         <section className="glass-card rounded-[3rem] p-12 border border-violet-500/20 bg-violet-500/[0.03] space-y-12 relative overflow-hidden animate-in zoom-in-95 duration-500">
           <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent pointer-events-none" />
           <SectionHeader 
-            title="Define Fiscal Constraint" 
-            subtitle="Establish statutory tax requirements for target jurisdiction" 
+            title="Add Tax Rate" 
+            subtitle="Define tax requirements for a specific country or region" 
             icon={Percent} 
             color="rose"
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
             <InputField 
-              label="JURISDICTION (COUNTRY/REGION)" 
+              label="COUNTRY / REGION" 
               icon={Globe}
               placeholder="e.g. United Kingdom" 
               value={country} 
               onChange={(e: any) => setCountry(e.target.value)} 
             />
             <InputField 
-              label="STATUTORY RATE (%)" 
+              label="TAX RATE (%)" 
               icon={Hash}
               placeholder="20" 
               value={rate} 
@@ -963,7 +963,7 @@ function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingS
               onClick={handleAdd} 
               className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/30 hover:bg-violet-500 active:scale-95 transition-all"
             >
-              AUTHORIZE RATE
+              SAVE TAX RATE
             </button>
             <button 
               onClick={() => setIsAdding(false)} 
@@ -978,19 +978,19 @@ function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingS
       <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-bl from-violet-500/[0.02] to-transparent pointer-events-none" />
         <SectionHeader 
-          title="Active Regulation Grid" 
-          subtitle="Current statutory tax mapping across supported regions" 
+          title="Active Tax Rates" 
+          subtitle="Tax rates calculated at checkout for each country" 
           icon={Database} 
           color="violet"
         />
-
+ 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pt-4 relative z-10">
           {(!settings.taxes?.rates || settings.taxes.rates.length === 0) && (
             <div className="col-span-full h-64 flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-[3rem] gap-6">
               <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
                 <Percent size={32} className="text-slate-700" />
               </div>
-              <p className="text-[10px] text-slate-600 font-black uppercase tracking-[0.4em]">No active regulations detected</p>
+              <p className="text-[10px] text-slate-600 font-black uppercase tracking-[0.4em]">No tax rates configured yet</p>
             </div>
           )}
           
@@ -1016,12 +1016,12 @@ function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingS
                   <h4 className="text-sm font-black text-white uppercase tracking-[0.15em] italic">{r.country}</h4>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-[9px] text-slate-600 font-black uppercase tracking-[0.3em]">STATUTORY RATE</p>
+                  <p className="text-[9px] text-slate-600 font-black uppercase tracking-[0.3em]">Tax Rate</p>
                   <p className="text-5xl font-black text-white font-mono tracking-tighter italic">{r.rate}<span className="text-violet-500/50 text-2xl ml-1">%</span></p>
                 </div>
                 <div className="flex items-center gap-3 px-5 py-2 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 w-fit">
                   <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
-                  <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Compliant</span>
+                  <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Active</span>
                 </div>
               </div>
             </motion.div>

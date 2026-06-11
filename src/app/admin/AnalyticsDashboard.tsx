@@ -106,7 +106,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <div className="w-24 h-24 border-2 border-violet-500/5 border-t-violet-500 rounded-full animate-spin"></div>
           <div className="absolute inset-0 w-24 h-24 border-2 border-cyan-500/5 border-b-cyan-500 rounded-full animate-spin-slow"></div>
        </div>
-       <p className="text-[10px] tracking-[0.6em] text-slate-500 uppercase font-black animate-pulse">Analyzing Library Performance...</p>
+       <p className="text-[10px] tracking-[0.6em] text-slate-500 uppercase font-black animate-pulse">Loading Analytics...</p>
     </div>
   );
 
@@ -137,10 +137,10 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const maxFunnel = Math.max(1, ...funnelSteps.map(s => s.count));
 
   const kpis = [
-    { label: "Readers", subLabel: "Visitors", value: totalVisits.toLocaleString(), trend: "+12.4%", icon: Users, color: "violet" },
-    { label: "Sales", subLabel: "Orders", value: totalOrders.toLocaleString(), trend: "+5.2%", icon: ShoppingBag, color: "cyan" },
-    { label: "Engagement", subLabel: "Conversion", value: `${conversionRate.toFixed(1)}%`, trend: "-0.2%", icon: Activity, color: "emerald" },
-    { label: "Revenue", subLabel: "Sales", value: `CA$${totalRevenue.toLocaleString()}`, trend: "+18.9%", icon: DollarSign, color: "amber" },
+    { label: "Visitors", subLabel: "Total Visits", value: totalVisits.toLocaleString(), trend: "+12.4%", icon: Users, color: "violet" },
+    { label: "Orders", subLabel: "Total Sales", value: totalOrders.toLocaleString(), trend: "+5.2%", icon: ShoppingBag, color: "cyan" },
+    { label: "Conversion Rate", subLabel: "Visitor to Sale", value: `${conversionRate.toFixed(1)}%`, trend: "-0.2%", icon: Activity, color: "emerald" },
+    { label: "Total Revenue", subLabel: "Gross Sales", value: `CA$${totalRevenue.toLocaleString()}`, trend: "+18.9%", icon: DollarSign, color: "amber" },
   ];
 
   return (
@@ -180,7 +180,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             <div className="space-y-1">
               <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500 font-black">{kpi.label}</p>
               <h4 className="text-3xl font-black tracking-tighter text-white uppercase italic">{kpi.value}</h4>
-              <p className="text-[9px] text-slate-600 font-black tracking-widest uppercase mt-1">{kpi.subLabel} Ledger</p>
+              <p className="text-[9px] text-slate-600 font-black tracking-widest uppercase mt-1">{kpi.subLabel}</p>
             </div>
 
             <div className="mt-8 h-1.5 w-full bg-white/[0.03] rounded-full overflow-hidden">
@@ -206,10 +206,10 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12 relative z-10">
            <div>
               <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.4em] text-slate-500 mb-3 font-black">
-                <Globe size={12} className="text-violet-400" /> Global Traffic
+                <Globe size={12} className="text-violet-400" /> Store Traffic
               </div>
-              <h3 className="text-4xl font-black tracking-tighter text-white uppercase italic leading-none">Reader Engagement</h3>
-              <p className="text-xs text-slate-500 font-medium mt-3 max-w-lg leading-relaxed">Real-time visualization of book library engagement and sales density over the last 30 days.</p>
+              <h3 className="text-4xl font-black tracking-tighter text-white uppercase italic leading-none">Visitor Traffic</h3>
+              <p className="text-xs text-slate-500 font-medium mt-3 max-w-lg leading-relaxed">Overview of visitor traffic and sales performance over the past 30 days.</p>
            </div>
            <div className="flex p-2 bg-white/[0.03] rounded-3xl border border-white/5 backdrop-blur-md">
               {(['Live', '7d', '30d'] as const).map((p) => (
@@ -272,7 +272,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
               <Area 
                 type="monotone" 
                 dataKey="visits" 
-                name="Reader Activity"
+                name="Visitors"
                 stroke="#8b5cf6" 
                 strokeWidth={4}
                 fillOpacity={1} 
@@ -281,7 +281,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
               <Area 
                 type="monotone" 
                 dataKey="orders" 
-                name="Books Sold"
+                name="Sales"
                 stroke="#22d3ee" 
                 strokeWidth={4}
                 fillOpacity={1} 
@@ -297,12 +297,12 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         {/* Top Sellers */}
         <div className="bg-white/[0.01] border border-white/5 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden group">
            <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-6">
-              <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Top Titles</h3>
+              <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Best Selling Items</h3>
               <button
                 onClick={() => setActiveTab && setActiveTab("catalog")}
                 className="text-[10px] font-black text-violet-400 hover:text-white transition-all uppercase tracking-widest border border-white/5 px-4 py-2 rounded-xl"
               >
-                Full Audit
+                Manage Inventory
               </button>
            </div>
            <div className="space-y-8">
@@ -323,7 +323,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
                             {item.title}
                             {fetchingBookId === item.id && <Loader2 size={12} className="animate-spin text-violet-400" />}
                           </p>
-                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-3 bg-white/[0.03] w-fit px-3 py-1 rounded-lg border border-white/5">{item.sold} SOLD</p>
+                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-3 bg-white/[0.03] w-fit px-3 py-1 rounded-lg border border-white/5">{item.sold} Sold</p>
                        </div>
                     </div>
                     <div className="text-right">
@@ -339,7 +339,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
                   <div className="w-20 h-20 rounded-full bg-white/[0.02] border border-white/5 flex items-center justify-center text-slate-800 mx-auto mb-6 shadow-inner">
                     <Database size={40} strokeWidth={0.5} />
                   </div>
-                  <p className="text-slate-600 text-[10px] tracking-[0.5em] uppercase font-black italic">No titles found.</p>
+                  <p className="text-slate-600 text-[10px] tracking-[0.5em] uppercase font-black italic">No records found.</p>
                 </div>
               )}
            </div>
@@ -348,10 +348,10 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         {/* Categories Analysis */}
         <div className="bg-white/[0.01] border border-white/5 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden group">
            <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-6">
-              <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Genre Performance</h3>
+              <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Inventory Categories</h3>
               <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Active Sync</span>
+                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Active</span>
               </div>
            </div>
            <div className="space-y-8">
@@ -379,8 +379,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
 
            <div className="mt-12 p-8 rounded-[2rem] bg-gradient-to-br from-violet-600/20 to-cyan-600/20 border border-white/10 relative overflow-hidden">
               <div className="relative z-10">
-                <h5 className="text-sm font-black text-white uppercase tracking-widest mb-2">Publishing Insights</h5>
-                <p className="text-[11px] text-slate-400 leading-relaxed max-w-xs">AI-driven predictive models suggest a 15% increase in demand over the next month.</p>
+                <h5 className="text-sm font-black text-white uppercase tracking-widest mb-2">Sales Insights</h5>
+                <p className="text-[11px] text-slate-400 leading-relaxed max-w-xs">Forecasts suggest a steady increase in sales over the upcoming weeks.</p>
               </div>
               <div className="absolute -right-4 -bottom-4 opacity-10">
                  <Activity size={100} strokeWidth={0.5} className="text-white" />
@@ -392,10 +392,10 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       {/* Conversion Funnel */}
       <div className="bg-white/[0.02] border border-white/5 rounded-[3rem] p-12 shadow-2xl">
         <div className="flex items-center justify-between mb-10">
-          <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Conversion Funnel · Last 30 days</h3>
+          <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Sales Conversion Funnel (Last 30 Days)</h3>
           <span className="text-[10px] tracking-widest font-black uppercase text-slate-500">
             {funnel.view > 0
-              ? `${((funnel.purchase / funnel.view) * 100).toFixed(2)}% view → buy`
+              ? `${((funnel.purchase / funnel.view) * 100).toFixed(2)}% Views to Purchase`
               : "no data yet"}
           </span>
         </div>
