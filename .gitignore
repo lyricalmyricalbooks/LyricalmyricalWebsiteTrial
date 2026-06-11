@@ -5,3 +5,4 @@ dist/
 backend/data/store.json
 backend/uploads/*
 !backend/uploads/.gitkeep
+coverage/
