@@ -1,4 +1,4 @@
-# Cloud Functions
+# Cloud Functions Integration
 
 Cloud Functions:
 
