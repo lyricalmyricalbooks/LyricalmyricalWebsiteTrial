@@ -32,7 +32,8 @@ import {
   Moon,
   Layers,
   ShoppingCart,
-  CreditCard
+  CreditCard,
+  Globe
 } from "lucide-react";
 
 import { Login } from "./Login";

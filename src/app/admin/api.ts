@@ -621,7 +621,7 @@ export const adminApi = {
   },
 
   getAnalytics: async () => {
-    const q = query(collection(db, "analytics"), orderBy("date", "desc"), limit(30));
+    const q = query(collection(db, "analytics"), orderBy("date", "desc"), limit(60));
     const snap = await getDocs(q);
     const data = snap.docs.map(d => d.data()).reverse();
     
