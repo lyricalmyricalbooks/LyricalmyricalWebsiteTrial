@@ -36,19 +36,8 @@ export const reviewsApi = {
           orderBy("createdAt", "desc"),
           limit(50),
         );
-    try {
-      const snap = await getDocs(q);
-      return snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-    } catch {
-      // Index may not exist yet — fallback to client filtering
-      const snap = await getDocs(query(base, where("bookId", "==", bookId)));
-      const all = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })) as Review[];
-      return includePending
-        ? all.sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
-        : all
-            .filter(r => r.status === "approved")
-            .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1));
-    }
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
   },
 
   create: async (input: Omit<Review, "id" | "status" | "createdAt">) => {
