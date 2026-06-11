@@ -16,6 +16,7 @@ const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const { Resend } = require("resend");
 const Stripe = require("stripe");
+const { matchShippingZone } = require("./shippingGeo");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -106,22 +107,19 @@ async function callShippo(endpoint, method, body, token) {
 // Dynamic Shipping Cost Calculation Helper
 // ──────────────────────────────────────────────────────────────
 function calculateShipping(items, customerAddress, profiles) {
-  const country = (customerAddress.country || "Canada").trim().toLowerCase();
+  const country = customerAddress.country || "Canada";
   let highestBase = 0;
   let totalAdditional = 0;
 
   const subtotal = items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
 
+  // Geography-aware zone for this destination: explicit country > continent >
+  // legacy region name > rest-of-world. Per-item shippingProfileId still wins.
+  const zoneForCountry = matchShippingZone(country, profiles) || profiles[0];
+
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    let profile = profiles.find(p => p.id === item.shippingProfileId);
-    if (!profile) {
-      // Fallback matching logic
-      profile = profiles.find(p => p.region.toLowerCase() === country) ||
-                profiles.find(p => p.region.toLowerCase() === "international") ||
-                profiles.find(p => p.region.toLowerCase() === "everywhere else") ||
-                profiles[0];
-    }
+    let profile = profiles.find(p => p.id === item.shippingProfileId) || zoneForCountry;
 
     const freeThreshold = profile?.freeThreshold ? Number(profile.freeThreshold) : 0;
     let base = Number(profile?.base || 15);

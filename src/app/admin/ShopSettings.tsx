@@ -32,6 +32,7 @@ import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
 import { ThemeEditor } from "./ThemeEditor";
 import { PagesManager } from "./PagesManager";
+import { COUNTRIES, CONTINENTS, describeZoneGeography } from "../features/site/shippingZones";
 
 const PURPLE = "#A855F7";
 
@@ -505,6 +506,128 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
   );
 }
 
+function ZoneGeographyPicker({
+  countries, continents, restOfWorld, setCountries, setContinents, setRestOfWorld,
+}: {
+  countries: string[]; continents: string[]; restOfWorld: boolean;
+  setCountries: (v: string[]) => void; setContinents: (v: string[]) => void; setRestOfWorld: (v: boolean) => void;
+}) {
+  const [search, setSearch] = useState("");
+
+  const toggleContinent = (c: string) => {
+    setRestOfWorld(false);
+    setContinents(continents.includes(c) ? continents.filter(x => x !== c) : [...continents, c]);
+  };
+  const toggleCountry = (code: string) => {
+    setRestOfWorld(false);
+    setCountries(countries.includes(code) ? countries.filter(x => x !== code) : [...countries, code]);
+  };
+  const results = search.trim()
+    ? COUNTRIES.filter(c => c.name.toLowerCase().includes(search.trim().toLowerCase())).slice(0, 40)
+    : [];
+
+  const chip = "px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all cursor-pointer";
+
+  return (
+    <div className="space-y-5">
+      {/* Rest of world */}
+      <button
+        type="button"
+        onClick={() => {
+          const next = !restOfWorld;
+          setRestOfWorld(next);
+          if (next) { setCountries([]); setContinents([]); }
+        }}
+        className={`w-full flex items-center justify-between px-6 py-4 rounded-2xl border text-left transition-all cursor-pointer ${
+          restOfWorld
+            ? "bg-violet-50 dark:bg-violet-950/30 border-violet-400 text-violet-700 dark:text-violet-300"
+            : "bg-white dark:bg-zinc-850 border-[#EBEAEF] dark:border-zinc-800 text-slate-600 dark:text-zinc-300 hover:border-violet-300"
+        }`}
+      >
+        <span className="flex items-center gap-3 text-[11px] font-black uppercase tracking-widest">
+          <Globe size={15} /> Rest of world — everywhere not covered by another zone
+        </span>
+        {restOfWorld && <Check size={16} />}
+      </button>
+
+      {!restOfWorld && (
+        <>
+          {/* Continents */}
+          <div>
+            <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.2em] mb-2 ml-1">Whole continents</p>
+            <div className="flex flex-wrap gap-2">
+              {CONTINENTS.map((c) => {
+                const active = continents.includes(c);
+                return (
+                  <button key={c} type="button" onClick={() => toggleContinent(c)}
+                    className={`${chip} ${active
+                      ? "bg-cyan-50 dark:bg-cyan-950/30 border-cyan-400 text-cyan-700 dark:text-cyan-300"
+                      : "bg-white dark:bg-zinc-850 border-[#EBEAEF] dark:border-zinc-800 text-slate-500 dark:text-zinc-400 hover:border-cyan-300"}`}>
+                    {c}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Specific countries */}
+          <div>
+            <div className="flex items-center justify-between mb-2 ml-1">
+              <p className="text-[9px] text-slate-400 font-black uppercase tracking-[0.2em]">
+                Specific countries{countries.length > 0 ? ` · ${countries.length} selected` : ""}
+              </p>
+              {countries.length > 0 && (
+                <button type="button" onClick={() => setCountries([])}
+                  className="text-[9px] font-black text-slate-400 hover:text-red-500 uppercase tracking-widest cursor-pointer">
+                  Clear
+                </button>
+              )}
+            </div>
+            {countries.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {countries.map((code) => {
+                  const c = COUNTRIES.find(x => x.code === code);
+                  return (
+                    <button key={code} type="button" onClick={() => toggleCountry(code)} title="Remove"
+                      className="flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[10px] font-bold bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-900 hover:border-red-300 cursor-pointer">
+                      {c?.name || code} <X size={10} />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search 190+ countries… (e.g. Japan, Brazil, France)"
+              className="w-full bg-white dark:bg-zinc-850 border border-[#EBEAEF] dark:border-zinc-800 rounded-full px-6 py-3.5 text-xs text-slate-800 dark:text-zinc-100 outline-none shadow-inner focus:border-violet-500 placeholder:text-slate-350 dark:placeholder:text-zinc-500 font-semibold"
+            />
+            {results.length > 0 && (
+              <div className="mt-2 max-h-52 overflow-y-auto rounded-2xl border border-[#EBEAEF] dark:border-zinc-800 bg-white dark:bg-zinc-900 divide-y divide-slate-100 dark:divide-zinc-800">
+                {results.map((c) => {
+                  const active = countries.includes(c.code);
+                  return (
+                    <button key={c.code} type="button" onClick={() => toggleCountry(c.code)}
+                      className={`w-full flex items-center justify-between px-5 py-2.5 text-left transition-colors cursor-pointer ${
+                        active ? "bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300" : "text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-800"}`}>
+                      <span className="text-xs font-bold">{c.name}</span>
+                      <span className="flex items-center gap-2">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{c.continent}</span>
+                        {active && <Check size={13} />}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ShippingSettings({ profiles, refreshProfiles }: any) {
   const [isAdding, setIsAdding] = useState(false);
   const [newRegion, setNewRegion] = useState("");
@@ -513,25 +636,46 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   const [newFreeThreshold, setNewFreeThreshold] = useState("");
   const [newDeliveryDays, setNewDeliveryDays] = useState("");
   const [newServiceName, setNewServiceName] = useState("");
+  // Geography targeting
+  const [newCountries, setNewCountries] = useState<string[]>([]);
+  const [newContinents, setNewContinents] = useState<string[]>([]);
+  const [newRestOfWorld, setNewRestOfWorld] = useState(false);
+
+  const resetForm = () => {
+    setIsAdding(false);
+    setNewRegion("");
+    setNewBase("");
+    setNewAdd("");
+    setNewFreeThreshold("");
+    setNewDeliveryDays("");
+    setNewServiceName("");
+    setNewCountries([]);
+    setNewContinents([]);
+    setNewRestOfWorld(false);
+  };
 
   const handleCreate = async () => {
-    if (!newRegion) return;
+    if (!newRegion) {
+      alert("Give this zone a name (e.g. Domestic, Europe, International).");
+      return;
+    }
+    if (!newRestOfWorld && newCountries.length === 0 && newContinents.length === 0) {
+      alert("Choose a geography: specific countries, whole continents, or Rest of world.");
+      return;
+    }
     try {
-      await adminApi.createShippingProfile({ 
-        region: newRegion, 
-        base: Number(newBase) || 0, 
+      await adminApi.createShippingProfile({
+        region: newRegion,
+        base: Number(newBase) || 0,
         additional: Number(newAdd) || 0,
         freeThreshold: newFreeThreshold ? Number(newFreeThreshold) : 0,
         deliveryDays: newDeliveryDays || "3-7",
-        serviceName: newServiceName || "Standard Shipping"
+        serviceName: newServiceName || "Standard Shipping",
+        countries: newCountries,
+        continents: newContinents,
+        restOfWorld: newRestOfWorld,
       });
-      setIsAdding(false);
-      setNewRegion("");
-      setNewBase("");
-      setNewAdd("");
-      setNewFreeThreshold("");
-      setNewDeliveryDays("");
-      setNewServiceName("");
+      resetForm();
       refreshProfiles();
     } catch {
       alert("Error adding shipping profile");
@@ -556,11 +700,11 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
             <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Shipping Matrix</h2>
             <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Global fulfillment & shipping rates</p>
           </div>
-          <button 
-            onClick={() => setIsAdding(!isAdding)} 
+          <button
+            onClick={() => (isAdding ? resetForm() : setIsAdding(true))}
             className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2 cursor-pointer transition-all active:scale-95 shadow-md shadow-violet-500/10"
           >
-             {isAdding ? <X size={14} /> : <Plus size={14} />} 
+             {isAdding ? <X size={14} /> : <Plus size={14} />}
              {isAdding ? "CANCEL" : "ADD SHIPPING ZONE"}
           </button>
         </div>
@@ -648,17 +792,32 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
                    />
                  </div>
               </div>
+
+              {/* Geography targeting */}
+              <div className="pt-2">
+                <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] block ml-1 mb-3">
+                  Which destinations does this zone cover?
+                </label>
+                <ZoneGeographyPicker
+                  countries={newCountries}
+                  continents={newContinents}
+                  restOfWorld={newRestOfWorld}
+                  setCountries={setNewCountries}
+                  setContinents={setNewContinents}
+                  setRestOfWorld={setNewRestOfWorld}
+                />
+              </div>
             </div>
 
             <div className="flex gap-4 relative z-10 pt-4">
-              <button 
-                onClick={handleCreate} 
+              <button
+                onClick={handleCreate}
                 className="bg-white text-slate-900 border border-[#EBEAEF] px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
               >
                   SAVE SHIPPING ZONE
               </button>
-              <button 
-                onClick={() => setIsAdding(false)} 
+              <button
+                onClick={resetForm}
                 className="bg-slate-100 text-slate-700 px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest hover:bg-slate-200 transition-all cursor-pointer"
               >
                  CANCEL
@@ -699,6 +858,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
                        </div>
                        <div>
                           <span className="text-base font-black tracking-tight text-slate-900 dark:text-white uppercase italic">{r.region}</span>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5 max-w-md truncate">{describeZoneGeography(r)}</p>
                           <div className="flex items-center gap-2 mt-1">
                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                              <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">ACTIVE LANE</span>
