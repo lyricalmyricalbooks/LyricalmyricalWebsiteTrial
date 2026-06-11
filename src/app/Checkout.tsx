@@ -12,6 +12,9 @@ import { functionUrl } from "./lib/functionsBase";
 import { useSEO } from "./lib/seo";
 import { useCurrency } from "./CurrencyContext";
 import { COUNTRIES, matchShippingZone } from "./features/site/shippingZones";
+import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../lib/firebase";
 
 // ─── Country selector (matches Field styling) ─────────────────────────────────
 function CountryField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -110,6 +113,53 @@ export function Checkout() {
   const [settings, setSettings] = useState<any>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
   const [successOrder, setSuccessOrder] = useState<any>(null);
+
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      setCurrentUser(u);
+      if (u) {
+        try {
+          const profRef = doc(db, "customers", u.uid);
+          const profSnap = await getDoc(profRef);
+          if (profSnap.exists()) {
+            const data = profSnap.data();
+            setCustomer(prev => ({
+              name: data.name || u.displayName || prev.name,
+              email: u.email || prev.email,
+              phone: data.phone || prev.phone,
+              address: {
+                street: data.defaultAddress?.street || prev.address.street,
+                city: data.defaultAddress?.city || prev.address.city,
+                state: data.defaultAddress?.state || prev.address.state,
+                zip: data.defaultAddress?.zip || prev.address.zip,
+                country: data.defaultAddress?.country || prev.address.country,
+              }
+            }));
+          } else {
+            setCustomer(prev => ({
+              ...prev,
+              name: u.displayName || prev.name,
+              email: u.email || prev.email,
+            }));
+          }
+        } catch (err) {
+          console.warn("Prefill customer address failed:", err);
+        }
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (err) {
+      console.warn("Checkout login failed:", err);
+    }
+  };
 
   useEffect(() => {
     async function loadFulfillmentSettings() {
@@ -538,8 +588,12 @@ export function Checkout() {
         manualMethod = (settings?.payments?.manualMethods || []).find((m: any) => m.id === manualId);
       }
 
+      const referralSource = typeof window !== "undefined" ? window.sessionStorage.getItem("referral_source") : null;
+
       const orderData = {
         customer,
+        customerId: currentUser?.uid || null,
+        referralSource: referralSource || "direct",
         addressVerified,
         addressError,
         items: cart.map(item => ({
@@ -869,6 +923,21 @@ export function Checkout() {
           {/* 03 Shipping Details */}
           <section>
             <StepBadge n="03" label="Shipping Details" />
+            {!currentUser && (
+              <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex justify-between items-center mb-6">
+                <div>
+                  <p className="text-[9px] font-black tracking-widest text-slate-500 uppercase">Save Time</p>
+                  <p className="text-[10px] font-bold text-white mt-1">Log in to prefill shipping details.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGoogleLogin}
+                  className="bg-white text-black text-[9px] font-black tracking-widest uppercase px-6 py-3 rounded-xl hover:bg-slate-200 transition-all cursor-pointer"
+                >
+                  Login with Google
+                </button>
+              </div>
+            )}
             <div className="space-y-4">
               <Field label="Full Name" value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

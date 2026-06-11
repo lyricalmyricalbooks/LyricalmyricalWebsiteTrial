@@ -5,6 +5,9 @@ import {
   signInWithPopup,
   signOut,
   onAuthStateChanged,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
   type User,
 } from "firebase/auth";
 import {
@@ -19,9 +22,15 @@ import {
   limit,
 } from "firebase/firestore";
 import { auth, db, googleProvider } from "../../../lib/firebase";
-import { ArrowLeft, LogOut, Package, Heart, MapPin, User as UserIcon, Loader2 } from "lucide-react";
+import { 
+  ArrowLeft, LogOut, Package, Heart, MapPin, User as UserIcon, Loader2, 
+  ChevronDown, ChevronUp, Copy, Check, Mail, ExternalLink, Download 
+} from "lucide-react";
 import { useSEO } from "../../lib/seo";
 import { useWishlist } from "../../lib/wishlist";
+import { adminApi } from "../../admin/api";
+import { functionUrl } from "../../lib/functionsBase";
+import toast from "react-hot-toast";
 
 type CustomerProfile = {
   uid: string;
@@ -43,22 +52,69 @@ export default function AccountPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [loadingData, setLoadingData] = useState(false);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [digitalItems, setDigitalItems] = useState<Record<string, Record<string, boolean>>>({});
+  
+  // Auth states
+  const [emailLinkInput, setEmailLinkInput] = useState("");
+  const [sendingLink, setSendingLink] = useState(false);
+  
+  // Address edit states
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [addressForm, setAddressForm] = useState({
+    street: "",
+    city: "",
+    state: "",
+    zip: "",
+    country: "Canada",
+    phone: "",
+    name: "",
+  });
 
   const { count: wishlistCount } = useWishlist();
 
   useSEO({ title: "Your Account", description: "Manage your account, orders and saved addresses." });
 
+  // Handle incoming Magic Link authentication on mount
+  useEffect(() => {
+    const handleEmailAuthRedirect = async () => {
+      if (isSignInWithEmailLink(auth, window.location.href)) {
+        setAuthLoading(true);
+        let email = window.localStorage.getItem("emailForSignIn");
+        if (!email) {
+          email = window.prompt("Please enter your email to confirm sign-in:");
+        }
+        if (email) {
+          try {
+            await signInWithEmailLink(auth, email, window.location.href);
+            window.localStorage.removeItem("emailForSignIn");
+            toast.success("Successfully signed in with email link!");
+          } catch (err: any) {
+            console.error("Email link sign in error:", err);
+            toast.error(err.message || "Failed to sign in. Link may be expired.");
+          }
+        }
+        setAuthLoading(false);
+      }
+    };
+    handleEmailAuthRedirect();
+  }, []);
+
+  // Standard preview handler
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.search.includes("preview=true")) {
       window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
     }
   }, []);
 
+  // Auth state listener
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async u => {
       setUser(u);
       setAuthLoading(false);
-      if (u) loadCustomerData(u);
+      if (u) {
+        loadCustomerData(u);
+      }
     });
     return () => unsub();
   }, []);
@@ -69,7 +125,18 @@ export default function AccountPage() {
       const profRef = doc(db, "customers", u.uid);
       const profSnap = await getDoc(profRef);
       if (profSnap.exists()) {
-        setProfile(profSnap.data() as CustomerProfile);
+        const data = profSnap.data() as CustomerProfile;
+        setProfile(data);
+        // Pre-fill address edit form
+        setAddressForm({
+          street: data.defaultAddress?.street || "",
+          city: data.defaultAddress?.city || "",
+          state: data.defaultAddress?.state || "",
+          zip: data.defaultAddress?.zip || "",
+          country: data.defaultAddress?.country || "Canada",
+          phone: data.phone || "",
+          name: data.name || u.displayName || "",
+        });
       } else {
         const fresh: CustomerProfile = {
           uid: u.uid,
@@ -78,7 +145,12 @@ export default function AccountPage() {
         };
         await setDoc(profRef, fresh);
         setProfile(fresh);
+        setAddressForm(prev => ({
+          ...prev,
+          name: fresh.name,
+        }));
       }
+      
       try {
         const q = query(
           collection(db, "orders"),
@@ -87,21 +159,21 @@ export default function AccountPage() {
           limit(50),
         );
         const snap = await getDocs(q);
-        setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const loadedOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setOrders(loadedOrders);
+        checkDigitalAssets(loadedOrders);
       } catch {
-        // index may not exist; fallback to client sort
-        // fetch only user's orders using equality filter which doesn't require composite index
         const fallbackQuery = query(
           collection(db, "orders"),
           where("customer.email", "==", u.email)
         );
         const snap = await getDocs(fallbackQuery);
-        setOrders(
-          snap.docs
-            .map(d => ({ id: d.id, ...(d.data() as any) }))
-            .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
-            .slice(0, 50),
-        );
+        const loadedOrders = snap.docs
+          .map(d => ({ id: d.id, ...(d.data() as any) }))
+          .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
+          .slice(0, 50);
+        setOrders(loadedOrders);
+        checkDigitalAssets(loadedOrders);
       }
     } catch (err) {
       console.error("Failed to load account data", err);
@@ -110,128 +182,555 @@ export default function AccountPage() {
     }
   }
 
-  async function handleSignIn() {
+  // Scan order items for secure digital eBook versions
+  async function checkDigitalAssets(loadedOrders: any[]) {
+    const assetMap: Record<string, Record<string, boolean>> = {};
+    for (const order of loadedOrders) {
+      if (order.paymentStatus !== "paid") continue;
+      const orderDigitalItems: Record<string, boolean> = {};
+      for (const item of order.items || []) {
+        try {
+          const book = await adminApi.getBook(item.id);
+          if (book && book.digitalFileName) {
+            orderDigitalItems[item.id] = true;
+          }
+        } catch (err) {
+          console.warn("E-Book metadata scan error:", err);
+        }
+      }
+      if (Object.keys(orderDigitalItems).length > 0) {
+        assetMap[order.id] = orderDigitalItems;
+      }
+    }
+    setDigitalItems(assetMap);
+  }
+
+  // Passwordless Email Link triggers
+  async function handleSendMagicLink(e: React.FormEvent) {
+    e.preventDefault();
+    if (!emailLinkInput.trim()) return;
+    setSendingLink(true);
+    try {
+      const actionCodeSettings = {
+        url: window.location.origin + window.location.pathname,
+        handleCodeInApp: true,
+      };
+      await sendSignInLinkToEmail(auth, emailLinkInput.trim(), actionCodeSettings);
+      window.localStorage.setItem("emailForSignIn", emailLinkInput.trim());
+      toast.success("Magic sign-in link dispatched! Check your email.");
+      setEmailLinkInput("");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to send magic link.");
+    } finally {
+      setSendingLink(false);
+    }
+  }
+
+  async function handleGoogleSignIn() {
     try {
       const provider = googleProvider || new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-    } catch (err) {
+      toast.success("Successfully logged in!");
+    } catch (err: any) {
       console.error(err);
+      toast.error(err.message || "Google Authentication failed.");
     }
   }
+
+  async function handleSaveAddress(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) return;
+    setLoadingData(true);
+    try {
+      const updatedProfile: CustomerProfile = {
+        uid: user.uid,
+        email: user.email || "",
+        name: addressForm.name,
+        phone: addressForm.phone,
+        defaultAddress: {
+          street: addressForm.street,
+          city: addressForm.city,
+          state: addressForm.state,
+          zip: addressForm.zip,
+          country: addressForm.country,
+        }
+      };
+      await setDoc(doc(db, "customers", user.uid), updatedProfile);
+      setProfile(updatedProfile);
+      setIsEditingAddress(false);
+      toast.success("Profile address updated successfully!");
+    } catch (err: any) {
+      toast.error("Failed to save address details.");
+    } finally {
+      setLoadingData(false);
+    }
+  }
+
+  const handleDownloadDigitalAsset = (order: any, itemId: string) => {
+    if (!order.downloadToken) {
+      toast.error("Download token has expired or is invalid.");
+      return;
+    }
+    window.open(
+      `${functionUrl("downloadDigitalAsset")}?orderId=${encodeURIComponent(order.id || order.orderId)}&itemId=${encodeURIComponent(itemId)}&token=${encodeURIComponent(order.downloadToken)}`,
+      "_blank"
+    );
+  };
+
+  const getTrackingUrl = (carrier: string, trackingNum: string) => {
+    const cleanCarrier = (carrier || "").trim().toLowerCase();
+    const cleanNum = (trackingNum || "").trim();
+    if (cleanCarrier.includes("canada post")) {
+      return `https://www.canadapost-postescanada.ca/track-reperage/en#/resultList?searchKeys=${encodeURIComponent(cleanNum)}`;
+    }
+    if (cleanCarrier.includes("usps")) {
+      return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(cleanNum)}`;
+    }
+    if (cleanCarrier.includes("ups")) {
+      return `https://www.ups.com/track?tracknum=${encodeURIComponent(cleanNum)}`;
+    }
+    return `https://www.google.com/search?q=${encodeURIComponent(carrier + " " + cleanNum)}`;
+  };
 
   if (authLoading) {
     return (
       <div className="min-h-screen bg-[#050508] text-white flex items-center justify-center">
-        <Loader2 size={20} className="animate-spin text-white/40" />
+        <Loader2 size={24} className="animate-spin text-violet-400" />
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#050508] text-white flex flex-col items-center justify-center px-6 text-center">
-        <UserIcon size={32} className="text-white/30 mb-6" strokeWidth={1.4} />
-        <h1 className="text-3xl font-light tracking-tight mb-3">Account</h1>
-        <p className="text-white/50 text-sm max-w-xs mb-10 leading-relaxed">
-          Sign in to view your order history, save addresses and manage your wishlist.
-        </p>
-        <button
-          onClick={handleSignIn}
-          className="bg-white text-black px-10 py-4 rounded-full text-[10px] tracking-[0.4em] font-bold uppercase hover:bg-white/90 transition-colors"
-        >
-          Continue with Google
-        </button>
-        <Link to="/" className="mt-8 text-[10px] tracking-[0.3em] text-white/40 hover:text-white uppercase">
-          Back to shop
-        </Link>
+      <div className="min-h-screen bg-[#050508] text-white flex flex-col items-center justify-center px-6 relative overflow-hidden">
+        {/* Glow Effects */}
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-violet-600/5 blur-[120px] rounded-full pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-cyan-600/5 blur-[120px] rounded-full pointer-events-none" />
+
+        <div className="glass-card max-w-md w-full border border-white/5 p-10 rounded-[2.5rem] relative z-10 space-y-8 shadow-2xl">
+          <div className="text-center">
+            <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 mx-auto">
+              <UserIcon size={28} className="text-violet-400" strokeWidth={1.5} />
+            </div>
+            <h1 className="text-3xl font-black tracking-tight uppercase italic leading-none">Customer Account</h1>
+            <p className="text-[10px] tracking-[0.2em] text-white/30 uppercase mt-3 font-bold">Lyricalmyrical Books Ledger</p>
+          </div>
+
+          <form onSubmit={handleSendMagicLink} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block ml-1">Passwordless Sign In</label>
+              <div className="relative">
+                <input
+                  type="email"
+                  required
+                  placeholder="name@example.com"
+                  value={emailLinkInput}
+                  onChange={(e) => setEmailLinkInput(e.target.value)}
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-xs text-white outline-none focus:border-violet-500/30 focus:bg-white/[0.05] transition-all"
+                />
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={sendingLink}
+              className="w-full bg-white/5 border border-white/10 hover:bg-white/10 text-white py-4 rounded-2xl text-[9px] font-black tracking-[0.3em] uppercase transition-all flex items-center justify-center gap-2"
+            >
+              {sendingLink ? <Loader2 size={12} className="animate-spin" /> : "Send Magic Link"}
+            </button>
+          </form>
+
+          <div className="relative flex py-2 items-center">
+            <div className="flex-grow border-t border-white/5"></div>
+            <span className="flex-shrink mx-4 text-[9px] font-black tracking-widest text-white/20 uppercase">OR</span>
+            <div className="flex-grow border-t border-white/5"></div>
+          </div>
+
+          <button
+            onClick={handleGoogleSignIn}
+            className="w-full bg-white text-black py-4.5 rounded-2xl text-[9px] font-black tracking-[0.3em] uppercase hover:bg-white/90 transition-all flex items-center justify-center gap-2 shadow-xl shadow-white/5"
+          >
+            Continue with Google
+          </button>
+
+          <div className="text-center pt-2">
+            <Link to="/" className="text-[9px] tracking-[0.3em] text-white/40 hover:text-white uppercase transition-colors">
+              Back to Storefront
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#050508] text-white">
-      <header className="border-b border-white/10 px-6 py-5 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 text-[10px] tracking-[0.3em] text-white/50 hover:text-white uppercase">
-          <ArrowLeft size={14} /> Shop
+    <div className="min-h-screen bg-[#050508] text-white relative overflow-hidden pb-24">
+      {/* Background glow */}
+      <div className="fixed top-0 right-0 w-[600px] h-[600px] bg-violet-600/5 blur-[120px] rounded-full pointer-events-none -mr-64 -mt-64" />
+      <div className="fixed bottom-0 left-0 w-[400px] h-[400px] bg-cyan-600/5 blur-[100px] rounded-full pointer-events-none" />
+
+      <header className="border-b border-white/5 px-8 py-6 flex items-center justify-between backdrop-blur-xl bg-black/20 relative z-20">
+        <Link to="/" className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-white transition-colors group uppercase">
+          <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> Storefront
         </Link>
-        <span className="text-[10px] tracking-[0.4em] text-white/40 uppercase">Account</span>
+        <span className="text-[9px] font-black tracking-[0.4em] text-white/30 uppercase">Vault Portal</span>
         <button
           onClick={() => signOut(auth)}
-          className="flex items-center gap-2 text-[10px] tracking-[0.3em] text-white/50 hover:text-rose-400 uppercase"
+          className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-rose-400 transition-colors uppercase"
         >
-          <LogOut size={12} /> Sign out
+          <LogOut size={14} /> Sign out
         </button>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-12 space-y-12">
-        <section className="flex items-center gap-5">
+      <main className="max-w-4xl mx-auto px-6 pt-16 relative z-10 space-y-12">
+        
+        {/* Customer Header Info */}
+        <section className="glass-card rounded-[2.5rem] border border-white/5 p-8 flex items-center gap-6">
           {user.photoURL ? (
             <img src={user.photoURL} className="w-16 h-16 rounded-full border border-white/10" alt="" />
           ) : (
-            <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xl font-bold">
-              {(user.displayName || user.email || "?")[0].toUpperCase()}
+            <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xl font-black text-violet-400 uppercase">
+              {(user.displayName || user.email || "?")[0]}
             </div>
           )}
           <div>
-            <h1 className="text-2xl font-light tracking-tight">{user.displayName || profile?.name || "Customer"}</h1>
-            <p className="text-[11px] tracking-widest uppercase text-white/40">{user.email}</p>
+            <h1 className="text-3xl font-black tracking-tighter uppercase italic">{user.displayName || profile?.name || "Customer Account"}</h1>
+            <p className="text-[10px] tracking-widest uppercase text-slate-500 font-mono mt-1">{user.email}</p>
           </div>
         </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link to="/wishlist" className="border border-white/10 rounded-2xl p-6 hover:bg-white/[0.03] transition-colors flex flex-col gap-2">
-            <Heart size={16} className="text-rose-400" />
-            <p className="text-[10px] tracking-widest uppercase text-white/40">Wishlist</p>
-            <p className="text-2xl font-light tracking-tight">{wishlistCount}</p>
+        {/* Dashboard Vitals Grid */}
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Link to="/wishlist" className="glass-card border border-white/5 rounded-[2rem] p-8 hover:bg-white/[0.02] transition-colors flex flex-col gap-3 group">
+            <Heart size={20} className="text-rose-400 group-hover:scale-110 transition-transform" />
+            <div>
+              <p className="text-[9px] font-black tracking-widest uppercase text-slate-500">Wishlist Ledger</p>
+              <p className="text-3xl font-black tracking-tight mt-1">{wishlistCount} Saved</p>
+            </div>
           </Link>
-          <div className="border border-white/10 rounded-2xl p-6 flex flex-col gap-2">
-            <Package size={16} className="text-violet-400" />
-            <p className="text-[10px] tracking-widest uppercase text-white/40">Orders</p>
-            <p className="text-2xl font-light tracking-tight">{orders.length}</p>
+
+          <div className="glass-card border border-white/5 rounded-[2rem] p-8 flex flex-col gap-3">
+            <Package size={20} className="text-violet-400" />
+            <div>
+              <p className="text-[9px] font-black tracking-widest uppercase text-slate-500">Order Logs</p>
+              <p className="text-3xl font-black tracking-tight mt-1">{orders.length} Transacted</p>
+            </div>
           </div>
-          <div className="border border-white/10 rounded-2xl p-6 flex flex-col gap-2">
-            <MapPin size={16} className="text-cyan-400" />
-            <p className="text-[10px] tracking-widest uppercase text-white/40">Default address</p>
-            <p className="text-xs text-white/60 leading-relaxed">
-              {profile?.defaultAddress?.city
-                ? `${profile.defaultAddress.city}, ${profile.defaultAddress.country}`
-                : "Not set yet"}
-            </p>
+
+          <div className="glass-card border border-white/5 rounded-[2rem] p-8 flex flex-col gap-3 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/[0.02] to-transparent pointer-events-none" />
+            <MapPin size={20} className="text-cyan-400" />
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-[9px] font-black tracking-widest uppercase text-slate-500">Shipping Vector</p>
+                <p className="text-[11px] font-bold text-white/75 leading-relaxed mt-2 uppercase tracking-wide">
+                  {profile?.defaultAddress?.city
+                    ? `${profile.defaultAddress.city}, ${profile.defaultAddress.country}`
+                    : "Unconfigured"}
+                </p>
+              </div>
+              <button 
+                onClick={() => setIsEditingAddress(!isEditingAddress)}
+                className="text-[9px] font-black tracking-[0.25em] text-cyan-400 hover:text-cyan-300 uppercase shrink-0"
+              >
+                {isEditingAddress ? "CLOSE" : "MANAGE"}
+              </button>
+            </div>
           </div>
         </section>
 
-        <section>
-          <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase mb-6">Order History</h2>
+        {/* Address configuration form (drawer-like) */}
+        {isEditingAddress && (
+          <section className="glass-card border border-white/5 rounded-[2.5rem] p-10 animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
+              <h3 className="text-xs font-black tracking-[0.4em] uppercase text-cyan-400">Configure Shipping Vector</h3>
+              <button onClick={() => setIsEditingAddress(false)} className="text-[9px] font-black tracking-widest text-slate-500 hover:text-white uppercase">ABORT</button>
+            </div>
+
+            <form onSubmit={handleSaveAddress} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Full Legal Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.name}
+                    onChange={(e) => setAddressForm({ ...addressForm, name: e.target.value })}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-xs text-white outline-none focus:border-cyan-500/50 transition-all font-semibold"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Contact Phone</label>
+                  <input
+                    type="text"
+                    value={addressForm.phone}
+                    onChange={(e) => setAddressForm({ ...addressForm, phone: e.target.value })}
+                    placeholder="e.g. 647 123 4567"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-xs text-white outline-none focus:border-cyan-500/50 transition-all font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Street Address</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 456 Montrose Ave"
+                  value={addressForm.street}
+                  onChange={(e) => setAddressForm({ ...addressForm, street: e.target.value })}
+                  className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-xs text-white outline-none focus:border-cyan-500/50 transition-all"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="space-y-2 col-span-2 md:col-span-1">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">City</label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.city}
+                    onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-xs text-white outline-none focus:border-cyan-500/50 transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">State / Province</label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.state}
+                    onChange={(e) => setAddressForm({ ...addressForm, state: e.target.value })}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-xs text-white outline-none focus:border-cyan-500/50 transition-all"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Postal Code</label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.zip}
+                    onChange={(e) => setAddressForm({ ...addressForm, zip: e.target.value })}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-xs text-white outline-none focus:border-cyan-500/50 transition-all font-mono"
+                  />
+                </div>
+                <div className="space-y-2 col-span-2 md:col-span-1">
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Country</label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.country}
+                    onChange={(e) => setAddressForm({ ...addressForm, country: e.target.value })}
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-xs text-white outline-none focus:border-cyan-500/50 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-4">
+                <button
+                  type="submit"
+                  className="bg-cyan-600 hover:bg-cyan-500 text-white px-8 py-4 rounded-xl text-[9px] font-black tracking-[0.3em] uppercase transition-all shadow-lg shadow-cyan-600/10"
+                >
+                  Save Vector Details
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingAddress(false)}
+                  className="px-6 py-4 text-[9px] font-black tracking-widest text-slate-500 hover:text-white uppercase"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
+
+        {/* Order History Details View */}
+        <section className="glass-card border border-white/5 rounded-[2.5rem] p-10">
+          <h2 className="text-xs font-black tracking-[0.5em] text-white/30 uppercase mb-8">Purchase History Log</h2>
           {loadingData ? (
-            <p className="text-[10px] tracking-widest text-white/30 uppercase">Loading orders…</p>
+            <div className="py-20 flex flex-col items-center justify-center space-y-4">
+              <Loader2 className="animate-spin text-violet-400" size={24} />
+              <p className="text-[9px] font-black tracking-[0.3em] text-slate-500 uppercase">Accessing transaction logs...</p>
+            </div>
           ) : orders.length === 0 ? (
-            <p className="text-white/40 text-sm">No orders yet — when you place one, it will appear here.</p>
+            <div className="py-16 text-center space-y-3">
+              <Package size={32} className="mx-auto text-slate-800" strokeWidth={1.2} />
+              <p className="text-white/40 text-xs font-bold tracking-widest uppercase">No transaction entries found</p>
+            </div>
           ) : (
-            <ul className="divide-y divide-white/5 border-y border-white/5">
-              {orders.map(o => (
-                <li key={o.id} className="py-5 flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-bold tracking-widest text-white">{o.orderId || o.id}</p>
-                    <p className="text-[10px] tracking-widest text-white/30 uppercase">
-                      {new Date(o.createdAt).toLocaleDateString()} · {(o.items || []).length} item{(o.items || []).length === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span
-                      className={`text-[9px] font-black tracking-widest uppercase px-3 py-1 rounded-full border ${
-                        o.fulfillmentStatus === "delivered" || o.status === "completed"
-                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                          : o.fulfillmentStatus === "shipped"
-                          ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"
-                          : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                      }`}
+            <ul className="space-y-6">
+              {orders.map(o => {
+                const isExpanded = expandedOrderId === o.id;
+                const orderDigitalAssets = digitalItems[o.id] || {};
+                
+                return (
+                  <li key={o.id} className="glass-card border border-white/5 rounded-[2rem] overflow-hidden transition-all duration-300 hover:border-white/10">
+                    {/* Collapsed header row */}
+                    <div 
+                      onClick={() => setExpandedOrderId(isExpanded ? null : o.id)}
+                      className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 cursor-pointer"
                     >
-                      {o.fulfillmentStatus || o.status || "open"}
-                    </span>
-                    <span className="text-sm font-bold text-white tabular-nums">${(o.total ?? 0).toFixed(2)}</span>
-                  </div>
-                </li>
-              ))}
+                      <div className="flex items-center gap-6">
+                        <div className={`p-3 rounded-xl ${o.paymentStatus === 'paid' ? 'bg-emerald-500/5 text-emerald-400' : 'bg-amber-500/5 text-amber-400'}`}>
+                          <Package size={18} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-black tracking-widest text-white">{o.orderId || o.id}</p>
+                          <p className="text-[9px] tracking-widest text-slate-500 uppercase mt-1">
+                            {new Date(o.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })} · {(o.items || []).length} book{(o.items || []).length === 1 ? "" : "s"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-6 self-stretch md:self-auto justify-between border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`text-[8px] font-black tracking-widest uppercase px-3.5 py-1.5 rounded-xl border ${
+                              o.fulfillmentStatus === "delivered" || o.status === "completed"
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                : o.fulfillmentStatus === "shipped"
+                                ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"
+                                : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                            }`}
+                          >
+                            {o.fulfillmentStatus?.toUpperCase() || (o.status === 'completed' ? 'DELIVERED' : 'UNFULFILLED')}
+                          </span>
+                          <span className={`text-[8px] font-black tracking-widest uppercase px-3.5 py-1.5 rounded-xl border ${
+                            o.paymentStatus === 'paid'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                          }`}>
+                            {o.paymentStatus?.toUpperCase()}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                          <span className="text-sm font-black text-white font-mono">CA${(o.total ?? 0).toFixed(2)}</span>
+                          {isExpanded ? <ChevronUp size={14} className="text-slate-600" /> : <ChevronDown size={14} className="text-slate-600" />}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expanded details container */}
+                    {isExpanded && (
+                      <div className="p-8 border-t border-white/5 bg-white/[0.01] space-y-8 animate-in fade-in duration-300">
+                        
+                        {/* E-book downloads section */}
+                        {Object.keys(orderDigitalAssets).length > 0 && o.paymentStatus === 'paid' && (
+                          <div className="bg-violet-950/20 border border-violet-500/20 p-6 rounded-2xl space-y-4">
+                            <div>
+                              <h4 className="text-xs font-black tracking-[0.3em] uppercase text-violet-400">Digital Archive Access</h4>
+                              <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">Download your digital secure purchases. Tokens refresh automatically.</p>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {o.items.map((item: any) => {
+                                if (!orderDigitalAssets[item.id]) return null;
+                                return (
+                                  <div key={item.id} className="bg-slate-950/50 border border-white/5 rounded-xl p-4 flex justify-between items-center">
+                                    <div className="truncate pr-4">
+                                      <p className="text-[10px] font-bold text-white uppercase truncate">{item.title}</p>
+                                      <p className="text-[8px] text-slate-600 uppercase tracking-widest mt-1">E-Book File</p>
+                                    </div>
+                                    <button
+                                      onClick={() => handleDownloadDigitalAsset(o, item.id)}
+                                      className="bg-violet-600 hover:bg-violet-500 text-white p-2.5 rounded-lg transition-all flex items-center justify-center shrink-0 active:scale-95"
+                                      title="Download E-Book"
+                                    >
+                                      <Download size={12} />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Line items details */}
+                        <div className="space-y-4">
+                          <h4 className="text-[9px] font-black tracking-widest text-slate-500 uppercase">Items Breakdown</h4>
+                          <div className="space-y-3">
+                            {o.items?.map((item: any, idx: number) => (
+                              <div key={idx} className="flex gap-4 items-center">
+                                <div className="w-10 aspect-[3/4] bg-neutral-900 rounded-md overflow-hidden border border-white/5 shrink-0">
+                                  <img src={item.photoUrl} alt="" className="w-full h-full object-cover" />
+                                </div>
+                                <div className="flex-grow min-w-0">
+                                  <p className="text-[11px] font-black text-white uppercase tracking-wider truncate">{item.title}</p>
+                                  <p className="text-[9px] text-slate-500 font-mono mt-1">QTY: {item.quantity} × CA${item.price.toFixed(2)}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Delivery logistics tracking details */}
+                        {o.trackingNumber && (
+                          <div className="bg-cyan-950/20 border border-cyan-500/15 p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                            <div>
+                              <p className="text-[9px] font-black tracking-[0.3em] text-cyan-400 uppercase">Dispatch Logistics</p>
+                              <p className="text-xs font-mono text-slate-300 mt-2">
+                                Carrier: {o.trackingCarrier} <span className="mx-2 text-slate-700">|</span> Code: {o.trackingNumber}
+                              </p>
+                            </div>
+                            <a 
+                              href={getTrackingUrl(o.trackingCarrier, o.trackingNumber)} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="px-6 py-3 bg-white text-black hover:bg-slate-200 text-[9px] font-black tracking-widest uppercase rounded-xl transition-all flex items-center gap-2 shadow-lg"
+                            >
+                              Track Package <ExternalLink size={12} />
+                            </a>
+                          </div>
+                        )}
+
+                        {/* Order breakdown summary */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-white/5 text-[11px] text-slate-500">
+                          <div className="space-y-1">
+                            <p className="text-[9px] font-black tracking-widest text-slate-600 uppercase">Shipping Address</p>
+                            <p className="text-xs text-white/60 font-bold uppercase leading-relaxed mt-1">
+                              {o.customer?.name}<br/>
+                              {o.customer?.address?.street}<br/>
+                              {o.customer?.address?.city}, {o.customer?.address?.state} {o.customer?.address?.zip}<br/>
+                              {o.customer?.address?.country}
+                            </p>
+                          </div>
+
+                          <div className="space-y-3 font-semibold text-slate-400">
+                            <div className="flex justify-between">
+                              <span className="uppercase text-[9px] tracking-widest text-slate-600">Subtotal</span>
+                              <span className="font-mono text-white/80">CA${o.subtotal?.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="uppercase text-[9px] tracking-widest text-slate-600">Logistics Fee</span>
+                              <span className="font-mono text-white/80">CA${o.shipping?.toFixed(2)}</span>
+                            </div>
+                            {o.discount > 0 && (
+                              <div className="flex justify-between text-emerald-400">
+                                <span className="uppercase text-[9px] tracking-widest">Discount</span>
+                                <span className="font-mono">-CA${o.discount?.toFixed(2)}</span>
+                              </div>
+                            )}
+                            {o.tax > 0 && (
+                              <div className="flex justify-between">
+                                <span className="uppercase text-[9px] tracking-widest text-slate-600">Estimated Tax</span>
+                                <span className="font-mono text-white/80">CA${o.tax?.toFixed(2)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between border-t border-white/5 pt-3 text-white font-black">
+                              <span className="uppercase text-[9px] tracking-widest text-white/30">Total</span>
+                              <span className="font-mono text-base">CA${o.total?.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

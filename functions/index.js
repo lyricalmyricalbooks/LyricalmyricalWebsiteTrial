@@ -778,7 +778,173 @@ exports.downloadDigitalAsset = onRequest(
 );
 
 // ──────────────────────────────────────────────────────────────
-// 4. Order Paid: Trigger notifications only AFTER successful payment
+// 4. Notification Settings and Helper Functions
+// ──────────────────────────────────────────────────────────────
+const DEFAULT_NOTIFICATIONS = {
+  brand: {
+    logoUrl: "",
+    brandColor: "#7C3AED"
+  },
+  order_confirmation: {
+    subject: "Order confirmed: {{order_id}}",
+    body: "Hi {{customer_name}},\n\nThank you for your purchase! We've received your order and are preparing it for shipment. We will send you another email when it has shipped.",
+    buttonText: "View your order",
+    signoff: "Thanks,\nThe Lyricalmyrical Team"
+  },
+  shipping_confirmation: {
+    subject: "Your order is on the way!",
+    body: "Hi {{customer_name}},\n\nGood news! Your order has been shipped and is on the way. You can track its progress using the link below.",
+    buttonText: "Track your shipment",
+    signoff: "Best,\nThe Lyricalmyrical Team"
+  },
+  abandoned_cart: {
+    subject: "Did you forget something?",
+    body: "Hi {{customer_name}},\n\nWe noticed you left some items in your cart. We've saved them for you, so you can easily complete your purchase whenever you're ready!",
+    buttonText: "Resume purchase",
+    signoff: "Thanks,\nThe Lyricalmyrical Team"
+  }
+};
+
+async function loadNotificationSettings() {
+  try {
+    const snap = await db.collection("settings").doc("notifications").get();
+    if (snap.exists) {
+      return snap.data();
+    }
+  } catch (err) {
+    console.warn("Failed to load notifications from Firestore, using default fallback:", err);
+  }
+  return DEFAULT_NOTIFICATIONS;
+}
+
+function getTrackingUrl(carrier, trackingNum) {
+  const cleanCarrier = (carrier || "").trim().toLowerCase();
+  const cleanNum = (trackingNum || "").trim();
+  if (cleanCarrier.includes("canada post")) {
+    return `https://www.canadapost-postescanada.ca/track-reperage/en#/resultList?searchKeys=${encodeURIComponent(cleanNum)}`;
+  }
+  if (cleanCarrier.includes("usps")) {
+    return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(cleanNum)}`;
+  }
+  if (cleanCarrier.includes("ups")) {
+    return `https://www.ups.com/track?tracknum=${encodeURIComponent(cleanNum)}`;
+  }
+  if (cleanCarrier.includes("fedex")) {
+    return `https://www.fedex.com/apps/fedextrack/?tracknumbers=${encodeURIComponent(cleanNum)}`;
+  }
+  if (cleanCarrier.includes("dhl")) {
+    return `https://www.dhl.com/en/express/tracking.html?AWB=${encodeURIComponent(cleanNum)}`;
+  }
+  return `https://www.google.com/search?q=${encodeURIComponent(carrier + " " + cleanNum)}`;
+}
+
+function compileEmailTemplate(templateId, settings, vars, additionalSection) {
+  const brand = settings.brand || {};
+  const logoUrl = brand.logoUrl || "";
+  const brandColor = brand.brandColor || "#7C3AED";
+  
+  const template = settings[templateId] || DEFAULT_NOTIFICATIONS[templateId];
+  let subject = template.subject || DEFAULT_NOTIFICATIONS[templateId].subject;
+  let body = template.body || DEFAULT_NOTIFICATIONS[templateId].body;
+  let buttonText = template.buttonText !== undefined ? template.buttonText : DEFAULT_NOTIFICATIONS[templateId].buttonText;
+  let signoff = template.signoff || DEFAULT_NOTIFICATIONS[templateId].signoff;
+
+  // Replace placeholders in subject and body
+  for (const [key, value] of Object.entries(vars)) {
+    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+    subject = subject.replace(regex, value || "");
+    body = body.replace(regex, value || "");
+  }
+
+  let ctaButtonHtml = "";
+  if (buttonText && vars.button_url) {
+    ctaButtonHtml = `
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${vars.button_url}" style="background-color: ${brandColor}; color: #ffffff; padding: 12px 30px; text-decoration: none; font-size: 13px; font-weight: bold; border-radius: 8px; letter-spacing: 0.1em; text-transform: uppercase; display: inline-block;">
+          ${buttonText}
+        </a>
+      </div>
+    `;
+  }
+
+  let itemsTableHtml = "";
+  if (vars.items_table) {
+    itemsTableHtml = vars.items_table;
+  }
+
+  const finalBody = body.replace(/\n/g, "<br/>");
+  const signoffHtml = signoff.replace(/\n/g, "<br/>");
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          background-color: #f6f6f9;
+          color: #333333;
+          margin: 0;
+          padding: 20px;
+          line-height: 1.6;
+        }
+        .container {
+          max-width: 600px;
+          margin: 0 auto;
+          background: #ffffff;
+          padding: 40px;
+          border-radius: 16px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        }
+        .header {
+          text-align: center;
+          margin-bottom: 30px;
+        }
+        .logo {
+          max-height: 40px;
+          width: auto;
+        }
+        .content {
+          font-size: 14px;
+        }
+        .footer {
+          margin-top: 40px;
+          text-align: center;
+          font-size: 11px;
+          color: #999999;
+          border-top: 1px solid #eeeeee;
+          padding-top: 20px;
+          letter-spacing: 0.05em;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          ${logoUrl ? `<img src="${logoUrl}" class="logo" alt="Logo" />` : `<h2 style="margin: 0; font-weight: 800; letter-spacing: -0.03em; color: #111;">Lyricalmyrical</h2>`}
+        </div>
+        <div class="content">
+          <p>${finalBody}</p>
+          ${ctaButtonHtml}
+          ${itemsTableHtml}
+          ${additionalSection || ""}
+          <p style="margin-top: 30px; font-weight: 500; color: #555555;">${signoffHtml}</p>
+        </div>
+        <div class="footer">
+          &copy; ${new Date().getFullYear()} Lyricalmyrical Books. All rights reserved.
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return { subject, html };
+}
+
+// ──────────────────────────────────────────────────────────────
+// 5. Order Paid: Trigger notifications only AFTER successful payment
 // ──────────────────────────────────────────────────────────────
 exports.onOrderPaid = onDocumentUpdated(
   { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
@@ -818,23 +984,25 @@ exports.onOrderPaid = onDocumentUpdated(
       `;
     }
 
-    const customerHtml = `
-      <div style="font-family:Inter,system-ui,sans-serif;max-width:560px;margin:auto;padding:32px;color:#111;">
-        <h1 style="font-size:18px;letter-spacing:.3em;text-transform:uppercase;margin-bottom:24px;">Thank you for your order</h1>
-        <p>Hi ${order.customer.name || "there"},</p>
-        <p>Your payment for order <strong>${order.orderId || event.params.orderId}</strong> has been successfully received and is being processed.</p>
-        <table style="width:100%;border-collapse:collapse;margin:24px 0;">
-          ${orderRowsHtml(order.items)}
-          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${moneyFmt(order.subtotal)}</td></tr>
-          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${moneyFmt(order.shipping)}</td></tr>
-          ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${moneyFmt(order.tax)}</td></tr>` : ""}
-          ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">Discount</td><td style="text-align:right;color:#0a7;">−${moneyFmt(order.discount)}</td></tr>` : ""}
-          <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${moneyFmt(order.total)}</td></tr>
-        </table>
-        ${downloadSection}
-        <p style="color:#888;font-size:12px;margin-top:24px;">A second email will follow when your physical package ships.</p>
-        <p style="color:#aaa;font-size:11px;margin-top:32px;">Lyricalmyrical Books · Toronto</p>
-      </div>`;
+    const itemsTable = `
+      <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:13px;">
+        ${orderRowsHtml(order.items)}
+        <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${moneyFmt(order.subtotal)}</td></tr>
+        <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${moneyFmt(order.shipping)}</td></tr>
+        ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${moneyFmt(order.tax)}</td></tr>` : ""}
+        ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">Discount</td><td style="text-align:right;color:#0a7;">−${moneyFmt(order.discount)}</td></tr>` : ""}
+        <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${moneyFmt(order.total)}</td></tr>
+      </table>
+    `;
+
+    const notificationSettings = await loadNotificationSettings();
+    const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
+      customer_name: order.customer.name || "there",
+      order_id: order.orderId || event.params.orderId,
+      button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${event.params.orderId}`,
+      items_table: itemsTable,
+      total_price: moneyFmt(order.total)
+    }, downloadSection);
 
     const adminHtml = `
       <p>Payment completed for order <strong>${order.orderId || event.params.orderId}</strong> · ${moneyFmt(order.total)}</p>
@@ -844,8 +1012,8 @@ exports.onOrderPaid = onDocumentUpdated(
     try {
       await sendEmail({
         to: order.customer.email,
-        subject: `Order payment received · ${order.orderId || event.params.orderId}`,
-        html: customerHtml,
+        subject: compiled.subject,
+        html: compiled.html,
         secret: RESEND_API_KEY.value(),
       });
       await sendEmail({
@@ -861,7 +1029,7 @@ exports.onOrderPaid = onDocumentUpdated(
 );
 
 // ──────────────────────────────────────────────────────────────
-// 5. Order shipped: email customer with tracking
+// 6. Order shipped: email customer with tracking
 // ──────────────────────────────────────────────────────────────
 exports.onOrderShipped = onDocumentUpdated(
   { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
@@ -872,19 +1040,22 @@ exports.onOrderShipped = onDocumentUpdated(
       before.fulfillmentStatus !== "shipped" && after.fulfillmentStatus === "shipped";
     if (!becameShipped || !after.customer?.email) return;
 
-    const html = `
-      <div style="font-family:Inter,system-ui,sans-serif;max-width:560px;margin:auto;padding:32px;color:#111;">
-        <h1 style="font-size:18px;letter-spacing:.3em;text-transform:uppercase;">Your order is on its way</h1>
-        <p>Order <strong>${after.orderId || event.params.orderId}</strong> shipped via <strong>${after.trackingCarrier || "carrier"}</strong>.</p>
-        ${after.trackingNumber ? `<p>Tracking number: <strong>${after.trackingNumber}</strong></p>` : ""}
-        <p style="color:#888;font-size:12px;">Estimated delivery 5–7 business days.</p>
-      </div>`;
+    const trackingUrl = getTrackingUrl(after.trackingCarrier, after.trackingNumber);
+    const notificationSettings = await loadNotificationSettings();
+    const compiled = compileEmailTemplate("shipping_confirmation", notificationSettings, {
+      customer_name: after.customer?.name || "there",
+      order_id: after.orderId || event.params.orderId,
+      tracking_carrier: after.trackingCarrier || "carrier",
+      tracking_number: after.trackingNumber || "",
+      button_url: trackingUrl,
+      tracking_url: trackingUrl
+    });
 
     try {
       await sendEmail({
         to: after.customer.email,
-        subject: `Shipped · ${after.orderId || event.params.orderId}`,
-        html,
+        subject: compiled.subject,
+        html: compiled.html,
         secret: RESEND_API_KEY.value(),
       });
     } catch (err) {
@@ -894,14 +1065,13 @@ exports.onOrderShipped = onDocumentUpdated(
 );
 
 // ──────────────────────────────────────────────────────────────
-// 6. Abandoned cart sweep: every hour, recover carts older than 1h
+// 7. Abandoned cart sweep: every hour, recover carts older than 1h
 // ──────────────────────────────────────────────────────────────
 exports.abandonedCartSweep = onSchedule(
   { schedule: "every 60 minutes", secrets: [RESEND_API_KEY] },
   async () => {
+    const notificationSettings = await loadNotificationSettings();
     const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    // Firestore forbids inequality filters on two different fields in one
-    // query, so `notified` is filtered in code instead of with `!=`.
     const snap = await db
       .collection("abandoned-carts")
       .where("recovered", "==", false)
@@ -913,17 +1083,37 @@ exports.abandonedCartSweep = onSchedule(
     const promises = pending.map(async (doc) => {
       const c = doc.data();
       if (!c.email) return;
-      const html = `
-        <div style="font-family:Inter,system-ui,sans-serif;max-width:560px;margin:auto;padding:32px;color:#111;">
-          <h1 style="font-size:18px;letter-spacing:.3em;text-transform:uppercase;">You left something behind</h1>
-          <p>Your cart at Lyricalmyrical Books is still waiting. Total: <strong>${moneyFmt(c.subtotal)}</strong>.</p>
-          <p><a href="https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/checkout" style="display:inline-block;background:#000;color:#fff;text-decoration:none;padding:14px 28px;border-radius:999px;font-size:11px;letter-spacing:.3em;text-transform:uppercase;">Resume checkout</a></p>
-        </div>`;
+
+      const itemsTable = `
+        <div style="margin: 20px 0; border-top: 1px solid #eee; padding-top: 15px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            ${(c.items || []).map(item => `
+              <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 8px 0;">${item.title} (x${item.quantity || 1})</td>
+                <td style="padding: 8px 0; text-align: right; font-family: monospace;">${moneyFmt(item.price * (item.quantity || 1))}</td>
+              </tr>
+            `).join("")}
+            <tr style="font-weight: bold;">
+              <td style="padding: 12px 0;">Total</td>
+              <td style="padding: 12px 0; text-align: right; font-family: monospace;">${moneyFmt(c.subtotal)}</td>
+            </tr>
+          </table>
+        </div>
+      `;
+
+      const cartUrl = `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/checkout?cartId=${doc.id}`;
+      const compiled = compileEmailTemplate("abandoned_cart", notificationSettings, {
+        customer_name: c.name || "there",
+        cart_url: cartUrl,
+        button_url: cartUrl,
+        items_table: itemsTable
+      });
+
       try {
         await sendEmail({
           to: c.email,
-          subject: "You left something behind",
-          html,
+          subject: compiled.subject,
+          html: compiled.html,
           secret: RESEND_API_KEY.value(),
         });
         await doc.ref.update({ notified: true, notifiedAt: new Date().toISOString() });
@@ -1125,15 +1315,16 @@ exports.createShippingLabel = onRequest(
         email: order.customer.email
       };
 
-      // 3. Define Parcel (scale weight by quantity)
+      // 3. Define Parcel (scale weight by quantity or use custom parameters from req.body)
       const totalQty = (order.items || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
+      const customParcel = req.body.parcel || {};
       const parcel = {
-        length: "10",
-        width: "8",
-        height: "2",
-        distance_unit: "in",
-        weight: (1.5 * totalQty).toFixed(1),
-        mass_unit: "lb"
+        length: customParcel.length ? String(customParcel.length) : "10",
+        width: customParcel.width ? String(customParcel.width) : "8",
+        height: customParcel.height ? String(customParcel.height) : "2",
+        distance_unit: customParcel.distance_unit || "in",
+        weight: customParcel.weight ? String(customParcel.weight) : (1.5 * totalQty).toFixed(1),
+        mass_unit: customParcel.mass_unit || "lb"
       };
 
       // 4. Create Shipment on Shippo

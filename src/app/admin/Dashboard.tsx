@@ -33,7 +33,8 @@ import {
   Layers,
   ShoppingCart,
   CreditCard,
-  Globe
+  Globe,
+  Mail
 } from "lucide-react";
 
 import { Login } from "./Login";
@@ -204,6 +205,7 @@ export function Dashboard() {
         { id: "shipping", label: "Shipping", icon: Truck },
         { id: "payments", label: "Payments", icon: CreditCard },
         { id: "designer", label: "Design", icon: LayoutGrid },
+        { id: "notifications", label: "Notifications", icon: Mail },
       ]
     },
   ];

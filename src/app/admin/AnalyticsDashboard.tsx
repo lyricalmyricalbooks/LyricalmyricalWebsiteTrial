@@ -34,6 +34,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<"Live" | "7d" | "30d">("30d");
+  const [chartTab, setChartTab] = useState<"traffic" | "revenue">("traffic");
   const [chartData, setChartData] = useState<any[]>([]);
   const [fetchingBookId, setFetchingBookId] = useState<string | null>(null);
 
@@ -61,10 +62,14 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         const ratio = (baseHourVisits[hour] + baseHourVisits[hour+1]) / totalBaseVisits;
         const visits = Math.max(1, Math.round(todayVisits * ratio * (0.8 + Math.random() * 0.4)));
         const orders = Math.random() > 0.8 ? 1 : 0;
+        const netRevenue = orders * (35 + Math.random() * 25);
+        const grossRevenue = netRevenue * 1.15;
         hoursData.push({
           date: hourStr,
           visits,
           orders,
+          netRevenue,
+          grossRevenue
         });
       }
       setChartData(hoursData);
@@ -256,10 +261,28 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12 relative z-10">
            <div>
               <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.4em] text-slate-500 mb-3 font-black">
-                <Globe size={12} className="text-violet-400" /> Store Traffic
+                <Globe size={12} className="text-violet-400" /> Store Metrics
               </div>
-              <h3 className="text-4xl font-black tracking-tighter text-white uppercase italic leading-none">Visitor Traffic</h3>
-              <p className="text-xs text-slate-500 font-medium mt-3 max-w-lg leading-relaxed">Overview of visitor traffic and sales performance over the past 30 days.</p>
+              <div className="flex items-center gap-6">
+                <button
+                  onClick={() => setChartTab("traffic")}
+                  className={`text-4xl font-black tracking-tighter uppercase italic leading-none transition-colors ${chartTab === "traffic" ? "text-white" : "text-slate-600 hover:text-slate-400"}`}
+                >
+                  Traffic
+                </button>
+                <span className="text-2xl text-slate-800">/</span>
+                <button
+                  onClick={() => setChartTab("revenue")}
+                  className={`text-4xl font-black tracking-tighter uppercase italic leading-none transition-colors ${chartTab === "revenue" ? "text-white" : "text-slate-600 hover:text-slate-400"}`}
+                >
+                  Revenue
+                </button>
+              </div>
+              <p className="text-xs text-slate-500 font-medium mt-3 max-w-lg leading-relaxed">
+                {chartTab === "traffic" 
+                  ? "Overview of visitor traffic and sales performance over the selected period." 
+                  : "Gross subtotal revenue compared with final net revenue lines."}
+              </p>
            </div>
            <div className="flex p-2 bg-white/[0.03] rounded-3xl border border-white/5 backdrop-blur-md">
               {(['Live', '7d', '30d'] as const).map((p) => (
@@ -285,6 +308,14 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
                 <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.2}/>
                   <stop offset="95%" stopColor="#22d3ee" stopOpacity={0}/>
+                </linearGradient>
+                <linearGradient id="colorGross" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.2}/>
+                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                </linearGradient>
+                <linearGradient id="colorNet" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="10 10" vertical={false} stroke="rgba(255,255,255,0.03)" />
@@ -319,24 +350,49 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
                 itemStyle={{ fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '4px 0' }}
                 cursor={{ stroke: 'rgba(139,92,246,0.2)', strokeWidth: 2 }}
               />
-              <Area 
-                type="monotone" 
-                dataKey="visits" 
-                name="Visitors"
-                stroke="#8b5cf6" 
-                strokeWidth={4}
-                fillOpacity={1} 
-                fill="url(#colorVisits)" 
-              />
-              <Area 
-                type="monotone" 
-                dataKey="orders" 
-                name="Sales"
-                stroke="#22d3ee" 
-                strokeWidth={4}
-                fillOpacity={1} 
-                fill="url(#colorOrders)" 
-              />
+              {chartTab === "traffic" ? (
+                <>
+                  <Area 
+                    type="monotone" 
+                    dataKey="visits" 
+                    name="Visitors"
+                    stroke="#8b5cf6" 
+                    strokeWidth={4}
+                    fillOpacity={1} 
+                    fill="url(#colorVisits)" 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="orders" 
+                    name="Sales"
+                    stroke="#22d3ee" 
+                    strokeWidth={4}
+                    fillOpacity={1} 
+                    fill="url(#colorOrders)" 
+                  />
+                </>
+              ) : (
+                <>
+                  <Area 
+                    type="monotone" 
+                    dataKey="grossRevenue" 
+                    name="Gross Revenue (CA$)"
+                    stroke="#f59e0b" 
+                    strokeWidth={4}
+                    fillOpacity={1} 
+                    fill="url(#colorGross)" 
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="netRevenue" 
+                    name="Net Revenue (CA$)"
+                    stroke="#10b981" 
+                    strokeWidth={4}
+                    fillOpacity={1} 
+                    fill="url(#colorNet)" 
+                  />
+                </>
+              )}
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -469,44 +525,98 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         </div>
       </div>
 
-      {/* Conversion Funnel */}
-      <div className="bg-white/[0.02] border border-white/5 rounded-[3rem] p-12 shadow-2xl">
-        <div className="flex items-center justify-between mb-10">
-          <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Sales Conversion Funnel (Last 30 Days)</h3>
-          <span className="text-[10px] tracking-widest font-black uppercase text-slate-500">
-            {funnel.view > 0
-              ? `${((funnel.purchase / funnel.view) * 100).toFixed(2)}% Views to Purchase`
-              : "no data yet"}
-          </span>
-        </div>
-        <div className="space-y-5">
-          {funnelSteps.map((step, idx) => {
-            const prev = idx === 0 ? null : funnelSteps[idx - 1].count;
-            const dropoff = prev ? Math.max(0, prev - step.count) : 0;
-            const dropPct = prev ? ((dropoff / prev) * 100).toFixed(1) : null;
-            const widthPct = (step.count / maxFunnel) * 100;
-            return (
-              <div key={step.key} className="grid grid-cols-12 items-center gap-4">
-                <span className="col-span-3 text-[10px] tracking-widest uppercase font-black text-slate-400">
-                  {step.label}
-                </span>
-                <div className="col-span-7 h-3 bg-white/[0.04] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-violet-500 to-cyan-500 rounded-full transition-all duration-700"
-                    style={{ width: `${widthPct}%` }}
-                  />
-                </div>
-                <span className="col-span-2 text-right">
-                  <span className="text-sm font-black text-white tabular-nums">{step.count.toLocaleString()}</span>
-                  {dropPct && (
-                    <span className="ml-2 text-[9px] font-black tracking-widest uppercase text-rose-400/70">
-                      −{dropPct}%
-                    </span>
-                  )}
-                </span>
+      {/* Referral Campaign and Conversion Funnel */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        {/* Referral Traffic */}
+        <div className="bg-white/[0.01] border border-white/5 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden group">
+           <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-6">
+              <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Referrals & Campaigns</h3>
+              <div className="flex items-center gap-2 bg-violet-500/10 px-3 py-1.5 rounded-full border border-violet-500/20">
+                <Globe size={12} className="text-violet-400" />
+                <span className="text-[9px] font-black text-violet-400 uppercase tracking-widest">Campaign Metrics</span>
               </div>
-            );
-          })}
+           </div>
+           <div className="space-y-6">
+              {data?.referrals && data.referrals.length > 0 ? (
+                data.referrals.map((ref: any, index: number) => {
+                  const maxRevenue = Math.max(1, ...data.referrals.map((r: any) => r.revenue));
+                  const pct = (ref.revenue / maxRevenue) * 100;
+                  return (
+                    <div key={ref.name} className="space-y-2">
+                      <div className="flex justify-between items-center text-xs">
+                        <div className="flex items-center gap-3">
+                          <span className="w-5 h-5 rounded-full bg-white/5 flex items-center justify-center text-[9px] font-black text-slate-500">
+                            {index + 1}
+                          </span>
+                          <span className="font-black text-white uppercase tracking-wider">{ref.name}</span>
+                        </div>
+                        <div className="text-right flex items-center gap-3">
+                          <span className="font-mono text-white font-black text-sm">CA${ref.revenue.toFixed(2)}</span>
+                          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black font-mono">({ref.ordersCount} Sales)</span>
+                        </div>
+                      </div>
+                      <div className="h-1.5 w-full bg-white/[0.02] rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-violet-500 to-cyan-400 rounded-full"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="py-16 text-center space-y-4">
+                  <div className="w-16 h-16 rounded-full bg-white/[0.02] border border-white/5 flex items-center justify-center text-slate-800 mx-auto mb-4">
+                    <Globe size={32} strokeWidth={0.5} />
+                  </div>
+                  <p className="text-slate-500 text-[10px] tracking-[0.3em] uppercase font-black">No Campaign Telemetry</p>
+                  <p className="text-[9px] text-slate-600 max-w-xs mx-auto leading-relaxed">
+                    Orders placed with a <code className="text-violet-400 font-mono">?ref=...</code> parameter will appear here.
+                  </p>
+                </div>
+              )}
+           </div>
+        </div>
+
+        {/* Conversion Funnel */}
+        <div className="bg-white/[0.01] border border-white/5 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden group">
+          <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-6">
+            <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Conversion Funnel</h3>
+            <span className="text-[10px] tracking-widest font-black uppercase text-slate-500 bg-white/5 border border-white/5 px-3 py-1 rounded-full">
+              {funnel.view > 0
+                ? `${((funnel.purchase / funnel.view) * 100).toFixed(2)}% Conversion`
+                : "No data"}
+            </span>
+          </div>
+          <div className="space-y-6">
+            {funnelSteps.map((step, idx) => {
+              const prev = idx === 0 ? null : funnelSteps[idx - 1].count;
+              const dropoff = prev ? Math.max(0, prev - step.count) : 0;
+              const dropPct = prev ? ((dropoff / prev) * 100).toFixed(1) : null;
+              const widthPct = (step.count / maxFunnel) * 100;
+              return (
+                <div key={step.key} className="grid grid-cols-12 items-center gap-4">
+                  <span className="col-span-4 text-[10px] tracking-widest uppercase font-black text-slate-400">
+                    {step.label}
+                  </span>
+                  <div className="col-span-5 h-2 bg-white/[0.04] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-violet-500 to-cyan-500 rounded-full transition-all duration-700"
+                      style={{ width: `${widthPct}%` }}
+                    />
+                  </div>
+                  <span className="col-span-3 text-right">
+                    <span className="text-xs font-black text-white font-mono">{step.count.toLocaleString()}</span>
+                    {dropPct && (
+                      <span className="ml-2 text-[9px] font-black tracking-widest uppercase text-rose-400/70 font-mono">
+                        −{dropPct}%
+                      </span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

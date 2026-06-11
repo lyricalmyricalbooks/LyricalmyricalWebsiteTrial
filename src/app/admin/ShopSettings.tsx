@@ -36,6 +36,7 @@ import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
 import { ThemeEditor } from "./ThemeEditor";
 import { PagesManager } from "./PagesManager";
+import { NotificationEditor } from "./NotificationEditor";
 import { COUNTRIES, CONTINENTS, describeZoneGeography } from "../features/site/shippingZones";
 
 const PURPLE = "#A855F7";
@@ -113,6 +114,7 @@ export function ShopSettings({
           {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} refreshProfiles={loadShippingProfiles} />}
           {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
+          {activeTab === "notifications" && <NotificationEditor />}
         </motion.div>
       </AnimatePresence>
     </div>

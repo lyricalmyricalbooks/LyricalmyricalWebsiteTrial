@@ -664,7 +664,7 @@ export const adminApi = {
     });
   },
 
-  createShippingLabel: async (orderId: string) => {
+  createShippingLabel: async (orderId: string, parcel?: any) => {
     // Endpoint is admin-only on the backend; it verifies this ID token.
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to generate labels.");
@@ -675,7 +675,7 @@ export const adminApi = {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${idToken}`,
       },
-      body: JSON.stringify({ orderId }),
+      body: JSON.stringify({ orderId, parcel }),
     });
 
     if (!response.ok) {
@@ -893,10 +893,51 @@ export const adminApi = {
       };
     });
 
+    // Process referral source statistics from orders
+    const referralStats: Record<string, { name: string; ordersCount: number; revenue: number }> = {};
+    const dailyOrderStats: Record<string, { gross: number; net: number }> = {};
+
+    orders.forEach((o: any) => {
+      const source = (o.referralSource || "direct").trim().toLowerCase();
+      if (!referralStats[source]) {
+        referralStats[source] = {
+          name: source.charAt(0).toUpperCase() + source.slice(1),
+          ordersCount: 0,
+          revenue: 0
+        };
+      }
+      referralStats[source].ordersCount += 1;
+      referralStats[source].revenue += (o.total || 0);
+
+      // Process daily revenue curves
+      if (o.createdAt) {
+        const dateStr = o.createdAt.split("T")[0];
+        if (!dailyOrderStats[dateStr]) {
+          dailyOrderStats[dateStr] = { gross: 0, net: 0 };
+        }
+        dailyOrderStats[dateStr].gross += (o.subtotal || 0);
+        dailyOrderStats[dateStr].net += (o.total || 0);
+      }
+    });
+
+    const referralData = Object.values(referralStats).sort((a: any, b: any) => b.revenue - a.revenue);
+
+    // Merge gross and net revenue into dailyData
+    dailyData.forEach((d: any) => {
+      let dateKey = d.date || "";
+      if (dateKey.includes("T")) {
+        dateKey = dateKey.split("T")[0];
+      }
+      const stats = dailyOrderStats[dateKey] || { gross: 0, net: 0 };
+      d.grossRevenue = stats.gross || d.revenue || 0;
+      d.netRevenue = stats.net || d.revenue || 0;
+    });
+
     return {
       daily: dailyData,
       topSellers: Object.values(productStats).sort((a: any, b: any) => b.revenue - a.revenue).slice(0, 5),
-      categories: categoriesData
+      categories: categoriesData,
+      referrals: referralData
     };
   },
 

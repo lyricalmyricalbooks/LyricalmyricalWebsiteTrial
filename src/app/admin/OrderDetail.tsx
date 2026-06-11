@@ -12,7 +12,8 @@ import {
   Clock,
   User,
   Plus,
-  AlertCircle
+  AlertCircle,
+  X
 } from "lucide-react";
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -40,15 +41,61 @@ const getTrackingUrl = (carrier: string, trackingNum: string) => {
   return `https://www.google.com/search?q=${encodeURIComponent(carrier + " " + cleanNum)}`;
 };
 
+const PARCEL_PRESETS = [
+  { id: "custom", name: "Custom Size" },
+  { id: "envelope", name: "Flat Rate Envelope (10 x 5 x 0.5 in)", length: "10", width: "5", height: "0.5", distance_unit: "in" },
+  { id: "small", name: "Small Box (8.6 x 5.4 x 1.6 in)", length: "8.6", width: "5.4", height: "1.6", distance_unit: "in" },
+  { id: "medium", name: "Medium Box (11 x 8.5 x 5.5 in)", length: "11", width: "8.5", height: "5.5", distance_unit: "in" },
+  { id: "large", name: "Large Box (12 x 12 x 8 in)", length: "12", width: "12", height: "8", distance_unit: "in" }
+];
+
 export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: () => void }) {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [note, setNote] = useState("");
   const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
 
+  // Parcel Modal States
+  const [isParcelModalOpen, setIsParcelModalOpen] = useState(false);
+  const [parcelPreset, setParcelPreset] = useState("custom");
+  const [parcelForm, setParcelForm] = useState({
+    length: "10",
+    width: "8",
+    height: "2",
+    distance_unit: "in",
+    weight: "1.5",
+    mass_unit: "lb"
+  });
+
   useEffect(() => {
     loadOrder();
   }, [orderId]);
+
+  useEffect(() => {
+    if (order) {
+      const totalQty = (order.items || []).reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
+      setParcelForm(prev => ({
+        ...prev,
+        weight: (1.5 * totalQty).toFixed(1)
+      }));
+    }
+  }, [order]);
+
+  const handlePresetChange = (presetId: string) => {
+    setParcelPreset(presetId);
+    if (presetId !== "custom") {
+      const preset = PARCEL_PRESETS.find(p => p.id === presetId);
+      if (preset) {
+        setParcelForm(prev => ({
+          ...prev,
+          length: preset.length || prev.length,
+          width: preset.width || prev.width,
+          height: preset.height || prev.height,
+          distance_unit: preset.distance_unit || prev.distance_unit
+        }));
+      }
+    }
+  };
 
   async function loadOrder() {
     try {
@@ -99,11 +146,12 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     window.print();
   };
 
-  const handleCreateShippingLabel = async () => {
+  const handleCreateShippingLabel = async (parcelDetails?: any) => {
     setIsGeneratingLabel(true);
     try {
-      await adminApi.createShippingLabel(orderId);
+      await adminApi.createShippingLabel(orderId, parcelDetails);
       loadOrder();
+      setIsParcelModalOpen(false);
       toast.success("Label generated successfully");
     } catch (err: any) {
       toast.error(err.message || "Failed to generate shipping label.");
@@ -246,7 +294,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                    </a>
                  ) : (
                    <button 
-                     onClick={handleCreateShippingLabel}
+                     onClick={() => setIsParcelModalOpen(true)}
                      disabled={isGeneratingLabel}
                      className="px-8 py-3.5 bg-white/5 border border-white/10 hover:bg-white/10 text-[10px] tracking-[.3em] font-black text-slate-300 rounded-2xl transition-all disabled:opacity-50 flex items-center gap-3"
                    >
@@ -541,6 +589,173 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
            </section>
         </div>
       </div>
+
+      {/* Parcel Dimensions Modal */}
+      <AnimatePresence>
+        {isParcelModalOpen && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 print:hidden">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsParcelModalOpen(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-lg bg-[#0D0B21] border border-white/10 rounded-[2.5rem] shadow-2xl p-10 overflow-hidden text-white z-10"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.02] to-cyan-500/[0.02] pointer-events-none" />
+              
+              <div className="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
+                <div className="flex items-center gap-3">
+                  <Package className="text-cyan-400" size={20} />
+                  <h3 className="text-xs font-black tracking-[0.4em] uppercase">Package Dimensions</h3>
+                </div>
+                <button
+                  onClick={() => setIsParcelModalOpen(false)}
+                  className="p-2 hover:bg-white/5 rounded-full transition-colors text-slate-400 hover:text-white"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="space-y-8">
+                {/* Presets */}
+                <div className="space-y-3">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Parcel Preset</label>
+                  <select
+                    value={parcelPreset}
+                    onChange={(e) => handlePresetChange(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-cyan-500/50 appearance-none cursor-pointer"
+                  >
+                    {PARCEL_PRESETS.map(preset => (
+                      <option key={preset.id} value={preset.id} className="bg-[#0D0B21]">
+                        {preset.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Dimensions (L x W x H) */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-3">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Length</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={parcelForm.length}
+                      onChange={(e) => setParcelForm({ ...parcelForm, length: e.target.value })}
+                      placeholder="L"
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-xs text-white outline-none focus:border-cyan-500/50 text-center font-mono"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Width</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={parcelForm.width}
+                      onChange={(e) => setParcelForm({ ...parcelForm, width: e.target.value })}
+                      placeholder="W"
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-xs text-white outline-none focus:border-cyan-500/50 text-center font-mono"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Height</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={parcelForm.height}
+                      onChange={(e) => setParcelForm({ ...parcelForm, height: e.target.value })}
+                      placeholder="H"
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-xs text-white outline-none focus:border-cyan-500/50 text-center font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Distance Unit */}
+                  <div className="space-y-3">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Distance Unit</label>
+                    <select
+                      value={parcelForm.distance_unit}
+                      onChange={(e) => setParcelForm({ ...parcelForm, distance_unit: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-cyan-500/50 appearance-none cursor-pointer"
+                    >
+                      <option className="bg-[#0D0B21]" value="in">Inches (in)</option>
+                      <option className="bg-[#0D0B21]" value="cm">Centimeters (cm)</option>
+                      <option className="bg-[#0D0B21]" value="mm">Millimeters (mm)</option>
+                    </select>
+                  </div>
+
+                  {/* Weight */}
+                  <div className="space-y-3">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Weight</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={parcelForm.weight}
+                      onChange={(e) => setParcelForm({ ...parcelForm, weight: e.target.value })}
+                      placeholder="e.g. 1.5"
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-cyan-500/50 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Mass Unit */}
+                  <div className="space-y-3">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Mass Unit</label>
+                    <select
+                      value={parcelForm.mass_unit}
+                      onChange={(e) => setParcelForm({ ...parcelForm, mass_unit: e.target.value })}
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-cyan-500/50 appearance-none cursor-pointer"
+                    >
+                      <option className="bg-[#0D0B21]" value="lb">Pounds (lb)</option>
+                      <option className="bg-[#0D0B21]" value="oz">Ounces (oz)</option>
+                      <option className="bg-[#0D0B21]" value="g">Grams (g)</option>
+                      <option className="bg-[#0D0B21]" value="kg">Kilograms (kg)</option>
+                    </select>
+                  </div>
+                  
+                  {/* Estimated Weight Banner */}
+                  <div className="flex flex-col justify-end pb-1 pl-2">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-600">Calculated Defaults</p>
+                    <p className="text-xs text-slate-400 font-mono mt-1">Weight: {order ? (1.5 * order.items?.reduce((s: number, i: any) => s + (i.quantity || 1), 0)).toFixed(1) : "1.5"} lb</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-10 border-t border-white/5 mt-10">
+                <button
+                  onClick={() => handleCreateShippingLabel({
+                    length: parseFloat(parcelForm.length),
+                    width: parseFloat(parcelForm.width),
+                    height: parseFloat(parcelForm.height),
+                    distance_unit: parcelForm.distance_unit,
+                    weight: parseFloat(parcelForm.weight),
+                    mass_unit: parcelForm.mass_unit
+                  })}
+                  disabled={isGeneratingLabel || !parcelForm.length || !parcelForm.width || !parcelForm.height || !parcelForm.weight}
+                  className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white py-4 rounded-2xl text-[10px] tracking-[.3em] font-black transition-all shadow-lg shadow-cyan-600/20 disabled:opacity-50"
+                >
+                  {isGeneratingLabel ? "GENERATING..." : "PURCHASE & GENERATE LABEL"}
+                </button>
+                <button
+                  onClick={() => setIsParcelModalOpen(false)}
+                  className="px-8 py-4 bg-white/5 border border-white/10 text-[10px] tracking-[.3em] font-black text-slate-500 hover:text-white rounded-2xl hover:bg-white/10 transition-all"
+                >
+                  CANCEL
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

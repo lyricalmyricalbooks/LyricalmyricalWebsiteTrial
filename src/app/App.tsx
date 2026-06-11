@@ -50,6 +50,36 @@ export default function App() {
     }
   }, []);
 
+  // Capture referral traffic source if present in query parameters or HTTP referrer
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get("ref");
+      if (ref) {
+        window.sessionStorage.setItem("referral_source", ref.toLowerCase());
+      } else if (!window.sessionStorage.getItem("referral_source")) {
+        const referrer = document.referrer;
+        if (referrer) {
+          try {
+            const url = new URL(referrer);
+            if (!url.hostname.includes(window.location.hostname)) {
+              let source = url.hostname.replace("www.", "");
+              if (source.includes("google")) source = "google";
+              else if (source.includes("instagram")) source = "instagram";
+              else if (source.includes("facebook")) source = "facebook";
+              else if (source.includes("twitter") || source.includes("t.co")) source = "twitter";
+              else if (source.includes("tiktok")) source = "tiktok";
+              else if (source.includes("pinterest")) source = "pinterest";
+              window.sessionStorage.setItem("referral_source", source);
+            }
+          } catch (e) {
+            // Ignore URL parse errors
+          }
+        }
+      }
+    }
+  }, []);
+
   const nextPage = () => {
     setCurrentPage((prev) => prev + 1);
   };
