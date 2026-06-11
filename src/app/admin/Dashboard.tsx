@@ -309,7 +309,11 @@ export function Dashboard() {
               </div>
             </div>
             <button 
-              onClick={() => window.open(window.location.origin, "_blank")}
+              onClick={() => {
+                const adminIdx = window.location.pathname.toLowerCase().indexOf("/admin");
+                const basePath = adminIdx !== -1 ? window.location.pathname.substring(0, adminIdx) : "";
+                window.open(window.location.origin + basePath + "/", "_blank");
+              }}
               className="w-full flex items-center justify-center gap-3 py-3 text-[9px] font-black text-slate-500 hover:text-cyan-400 hover:bg-cyan-500/5 rounded-xl border border-transparent hover:border-cyan-500/20 transition-all uppercase tracking-[0.2em] mb-2"
             >
               <Globe size={14} />
@@ -353,7 +357,11 @@ export function Dashboard() {
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <button 
-                onClick={() => window.open(window.location.origin, "_blank")}
+                onClick={() => {
+                  const adminIdx = window.location.pathname.toLowerCase().indexOf("/admin");
+                  const basePath = adminIdx !== -1 ? window.location.pathname.substring(0, adminIdx) : "";
+                  window.open(window.location.origin + basePath + "/", "_blank");
+                }}
                 className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all active:scale-95 group relative"
                 title="View Live Website"
               >
