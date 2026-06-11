@@ -966,11 +966,10 @@ export const adminApi = {
   },
 
   getPublishedPages: async (): Promise<Page[]> => {
-    const snap = await getDocs(collection(db, "pages"));
+    const q = query(collection(db, "pages"), where("status", "==", "published"));
+    const snap = await getDocs(q);
     const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
-    return docs
-      .filter((d) => d.status === "published")
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return docs.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   },
 
   createPage: async (data: any) => {
