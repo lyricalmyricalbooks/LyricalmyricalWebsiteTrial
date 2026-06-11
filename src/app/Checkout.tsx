@@ -84,22 +84,90 @@ export function Checkout() {
   const [taxCost, setTaxCost] = useState(0);
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [taxRates, setTaxRates] = useState<any[]>([]);
+  const [books, setBooks] = useState<any[]>([]);
 
   useEffect(() => {
     async function loadFulfillmentSettings() {
       try {
-        const [profiles, settings] = await Promise.all([
+        const [profiles, settings, bookList] = await Promise.all([
           adminApi.getShippingProfiles(),
-          adminApi.getSettings() as Promise<any>
+          adminApi.getSettings() as Promise<any>,
+          adminApi.getBooks(100)
         ]);
         setShippingProfiles(profiles);
         setTaxRates(settings?.taxes?.rates || []);
+        setBooks(bookList);
       } catch (err) {
         console.error("Failed to load checkout settings", err);
       }
     }
     loadFulfillmentSettings();
   }, []);
+
+  const validateDiscountRestrictions = (discount: any, email: string, cartItems: any[], booksCatalog: any[]) => {
+    // 1. Min quantity
+    const totalQty = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+    if (discount.minQuantity && totalQty < discount.minQuantity) {
+      throw new Error(`This code requires a minimum of ${discount.minQuantity} items in your cart.`);
+    }
+
+    // 2. Email domain / email list
+    const hasEmailRestrictions = (discount.allowedCustomerEmails && discount.allowedCustomerEmails.trim()) || 
+                                  (discount.allowedEmailDomains && discount.allowedEmailDomains.trim());
+    if (hasEmailRestrictions && !email.trim()) {
+      throw new Error("Please enter your email address under 'Shipping Details' first to apply this code.");
+    }
+
+    if (email.trim()) {
+      const lowerEmail = email.trim().toLowerCase();
+      
+      // Check specific customer emails
+      if (discount.allowedCustomerEmails && discount.allowedCustomerEmails.trim()) {
+        const allowedEmails = discount.allowedCustomerEmails.split(",")
+          .map((e: string) => e.trim().toLowerCase())
+          .filter(Boolean);
+        if (allowedEmails.length > 0 && !allowedEmails.includes(lowerEmail)) {
+          throw new Error("This code is restricted to specific VIP customer emails.");
+        }
+      }
+
+      // Check email domains
+      if (discount.allowedEmailDomains && discount.allowedEmailDomains.trim()) {
+        const allowedDomains = discount.allowedEmailDomains.split(",")
+          .map((d: string) => d.trim().toLowerCase())
+          .filter(Boolean);
+        const matchesDomain = allowedDomains.some((domain: string) => {
+          if (domain.startsWith(".")) {
+            return lowerEmail.endsWith(domain);
+          } else {
+            return lowerEmail.endsWith("@" + domain) || lowerEmail.endsWith("." + domain);
+          }
+        });
+        if (allowedDomains.length > 0 && !matchesDomain) {
+          throw new Error(`This code is restricted to specific email domains (e.g. ${discount.allowedEmailDomains}).`);
+        }
+      }
+    }
+
+    // 3. Product / Category targeting
+    if (discount.appliesTo === "categories") {
+      const selectedCats = discount.selectedCategories || [];
+      const hasMatchingCategory = cartItems.some(item => {
+        const catalogBook = booksCatalog.find(b => b.id === item.id);
+        const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
+        return bookCats.some(cat => selectedCats.includes(cat));
+      });
+      if (!hasMatchingCategory) {
+        throw new Error(`This code only applies to categories: ${selectedCats.join(", ")}.`);
+      }
+    } else if (discount.appliesTo === "products") {
+      const selectedProds = discount.selectedProducts || [];
+      const hasMatchingProduct = cartItems.some(item => selectedProds.includes(item.id));
+      if (!hasMatchingProduct) {
+        throw new Error("This code only applies to specific products not currently in your cart.");
+      }
+    }
+  };
 
   useEffect(() => {
     if (cart.length === 0 || shippingProfiles.length === 0) {
@@ -110,7 +178,7 @@ export function Checkout() {
     
     let highestBase = 0;
     let totalAdditional = 0;
-
+ 
     cart.forEach((item, i) => {
       let profile = shippingProfiles.find(p => p.id === item.shippingProfileId);
       if (!profile) {
@@ -119,10 +187,10 @@ export function Checkout() {
                   shippingProfiles.find(p => p.region.toLowerCase() === "everywhere else") ||
                   shippingProfiles[0];
       }
-
+ 
       const base = Number(profile?.base || 15);
       const additional = Number(profile?.additional || 5);
-
+ 
       if (i === 0) {
         highestBase = base;
         totalAdditional += additional * (item.quantity - 1);
@@ -136,10 +204,22 @@ export function Checkout() {
         }
       }
     });
-
+ 
     setShippingCost(highestBase + totalAdditional);
   }, [customer.address.country, cart, shippingProfiles]);
 
+  // Re-validate discount whenever email or cart changes
+  useEffect(() => {
+    if (appliedDiscount && books.length > 0) {
+      try {
+        validateDiscountRestrictions(appliedDiscount, customer.email, cart, books);
+      } catch (err: any) {
+        setAppliedDiscount(null);
+        setDiscountError(err.message || "Discount no longer valid.");
+      }
+    }
+  }, [customer.email, cart, books, appliedDiscount]);
+ 
   useEffect(() => {
     const country = (customer.address.country || "United States").trim().toLowerCase();
     const matchedTaxRate = taxRates.find(r => r.country.toLowerCase() === country);
@@ -149,13 +229,14 @@ export function Checkout() {
     const subtotalAfterDiscount = cartTotal - discountAmount;
     setTaxCost(subtotalAfterDiscount * (taxPercent / 100));
   }, [customer.address.country, cartTotal, appliedDiscount, taxRates]);
-
+ 
   const applyDiscount = async () => {
     if (!discountCode) return;
     setIsApplying(true);
     setDiscountError("");
     try {
       const discount = await adminApi.validateDiscount(discountCode);
+      validateDiscountRestrictions(discount, customer.email, cart, books);
       setAppliedDiscount(discount);
     } catch (err: any) {
       setDiscountError(err.message || "INVALID OR EXPIRED CODE");
@@ -164,17 +245,40 @@ export function Checkout() {
       setIsApplying(false);
     }
   };
-
+ 
   const removeDiscount = () => {
     setAppliedDiscount(null);
     setDiscountCode("");
     setDiscountError("");
   };
-
+ 
   const calculateDiscountAmount = () => {
     if (!appliedDiscount) return 0;
-    if (appliedDiscount.type === "percentage") return cartTotal * (appliedDiscount.value / 100);
-    if (appliedDiscount.type === "fixed") return Math.min(appliedDiscount.value, cartTotal);
+    
+    // Calculate qualifying subtotal
+    const qualifyingSubtotal = (() => {
+      if (appliedDiscount.appliesTo === "all" || appliedDiscount.appliesTo === "catalog") {
+        return cartTotal;
+      }
+      return cart.reduce((sum, item) => {
+        let qualifies = false;
+        if (appliedDiscount.appliesTo === "categories") {
+          const catalogBook = books.find(b => b.id === item.id);
+          const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
+          qualifies = bookCats.some(cat => appliedDiscount.selectedCategories?.includes(cat));
+        } else if (appliedDiscount.appliesTo === "products") {
+          qualifies = appliedDiscount.selectedProducts?.includes(item.id);
+        }
+        return qualifies ? sum + item.quantity * item.price : sum;
+      }, 0);
+    })();
+
+    if (appliedDiscount.type === "percentage") {
+      return qualifyingSubtotal * (appliedDiscount.value / 100);
+    }
+    if (appliedDiscount.type === "fixed") {
+      return Math.min(appliedDiscount.value, qualifyingSubtotal);
+    }
     return 0;
   };
 

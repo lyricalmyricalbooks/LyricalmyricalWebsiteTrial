@@ -3,11 +3,12 @@ import {
   Plus, Trash2, Tag, Calendar, Percent, DollarSign, Truck, X, Save,
   Ticket, ShieldCheck, AlertCircle, ToggleLeft, ToggleRight, Copy,
   Users, ShoppingCart, Edit3, ChevronDown, ChevronUp, Hash, BarChart2,
-  Clock, Infinity as InfinityIcon, RefreshCw,
+  Clock, Infinity as InfinityIcon, RefreshCw, BookOpen
 } from "lucide-react";
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
+import { CATEGORIES } from "../features/site/constants";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -33,9 +34,14 @@ const EMPTY: any = {
   isActive: true,
   expiryDate: "",
   minOrderAmount: "",
+  minQuantity: "",
   usageLimit: "",
   onePerCustomer: false,
   appliesTo: "all",
+  selectedCategories: [],
+  selectedProducts: [],
+  allowedEmailDomains: "",
+  allowedCustomerEmails: "",
   description: "",
 };
 
@@ -120,9 +126,29 @@ function DiscountCard({ d, onDelete, onToggle, onEdit }: {
             Min {fmt(d.minOrderAmount)}
           </span>
         )}
+        {d.minQuantity && (
+          <span className="px-3 py-1 rounded-full bg-white/[0.03] border border-white/5 text-slate-500 text-[9px] font-black tracking-widest uppercase">
+            Min qty: {d.minQuantity}
+          </span>
+        )}
+        {d.appliesTo === "categories" && d.selectedCategories?.length > 0 && (
+          <span className="px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-[9px] font-black tracking-widest uppercase">
+            {d.selectedCategories.join(", ")} Only
+          </span>
+        )}
+        {d.appliesTo === "products" && d.selectedProducts?.length > 0 && (
+          <span className="px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-[9px] font-black tracking-widest uppercase">
+            {d.selectedProducts.length} Books Only
+          </span>
+        )}
         {d.onePerCustomer && (
           <span className="px-3 py-1 rounded-full bg-white/[0.03] border border-white/5 text-slate-500 text-[9px] font-black tracking-widest uppercase">
             1× / customer
+          </span>
+        )}
+        {(d.allowedEmailDomains || d.allowedCustomerEmails) && (
+          <span className="px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[9px] font-black tracking-widest uppercase">
+            Restricted Email
           </span>
         )}
       </div>
@@ -171,9 +197,22 @@ function DiscountModal({ initial, onClose, onSave }: {
   const isEdit = !!initial?.id;
   const [form, setForm] = useState<any>(initial ?? EMPTY);
   const [saving, setSaving] = useState(false);
+  const [books, setBooks] = useState<any[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(
-    !!(initial?.minOrderAmount || initial?.usageLimit || initial?.onePerCustomer || initial?.description)
+    !!(initial?.minOrderAmount || initial?.minQuantity || initial?.usageLimit || initial?.onePerCustomer || initial?.allowedEmailDomains || initial?.allowedCustomerEmails || initial?.description)
   );
+
+  useEffect(() => {
+    async function loadBooks() {
+      try {
+        const list = await adminApi.getBooks(100);
+        setBooks(list);
+      } catch (err) {
+        console.error("Failed to load books", err);
+      }
+    }
+    loadBooks();
+  }, []);
 
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
@@ -186,7 +225,12 @@ function DiscountModal({ initial, onClose, onSave }: {
         code: form.code.toUpperCase().trim(),
         value: form.type === "freeship" ? 0 : Number(form.value) || 0,
         minOrderAmount: form.minOrderAmount !== "" ? Number(form.minOrderAmount) : null,
+        minQuantity: form.minQuantity !== "" ? Number(form.minQuantity) : null,
         usageLimit: form.usageLimit !== "" ? Number(form.usageLimit) : null,
+        selectedCategories: form.appliesTo === "categories" ? (form.selectedCategories || []) : [],
+        selectedProducts: form.appliesTo === "products" ? (form.selectedProducts || []) : [],
+        allowedEmailDomains: form.allowedEmailDomains || "",
+        allowedCustomerEmails: form.allowedCustomerEmails || "",
       });
     } finally {
       setSaving(false);
@@ -247,6 +291,104 @@ function DiscountModal({ initial, onClose, onSave }: {
               placeholder="e.g. Summer sale 2026"
               className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-4 px-6 text-sm text-white/80 focus:border-violet-500/50 outline-none transition-all placeholder:text-slate-700"
             />
+          </div>
+
+          {/* Applies To / Targeting */}
+          <div className="space-y-4">
+            <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">Applies to</label>
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { id: "all", label: "All Products" },
+                { id: "categories", label: "Categories" },
+                { id: "products", label: "Specific Books" }
+              ].map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => set("appliesTo", opt.id)}
+                  className={`py-3 px-4 rounded-xl border text-[9px] font-black tracking-widest uppercase transition-all ${
+                    form.appliesTo === opt.id
+                      ? "bg-violet-600 text-white border-violet-400 shadow-[0_5px_15px_rgba(124,58,237,0.2)]"
+                      : "bg-white/[0.02] border-white/5 text-slate-500 hover:bg-white/5 hover:border-white/10"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {/* If applies to categories */}
+            {form.appliesTo === "categories" && (
+              <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl space-y-3">
+                <p className="text-[9px] tracking-wider font-black uppercase text-slate-500 mb-2">Select Categories</p>
+                <div className="flex flex-wrap gap-3">
+                  {CATEGORIES.map(cat => {
+                    const selected = form.selectedCategories?.includes(cat);
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => {
+                          const current = form.selectedCategories || [];
+                          if (current.includes(cat)) {
+                            set("selectedCategories", current.filter((c: string) => c !== cat));
+                          } else {
+                            set("selectedCategories", [...current, cat]);
+                          }
+                        }}
+                        className={`px-4 py-2 rounded-xl border text-[9px] font-black tracking-widest uppercase transition-all ${
+                          selected
+                            ? "bg-violet-500/20 border-violet-500/50 text-violet-400"
+                            : "bg-black/30 border-white/5 text-slate-500 hover:text-white"
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* If applies to products */}
+            {form.appliesTo === "products" && (
+              <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl space-y-3">
+                <p className="text-[9px] tracking-wider font-black uppercase text-slate-500 mb-2">Select Books</p>
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                  {books.length === 0 ? (
+                    <p className="text-[9px] text-slate-600 uppercase tracking-widest font-black py-2">Loading catalog...</p>
+                  ) : (
+                    books.map(book => {
+                      const selected = form.selectedProducts?.includes(book.id);
+                      return (
+                        <button
+                          key={book.id}
+                          type="button"
+                          onClick={() => {
+                            const current = form.selectedProducts || [];
+                            if (current.includes(book.id)) {
+                              set("selectedProducts", current.filter((id: string) => id !== book.id));
+                            } else {
+                              set("selectedProducts", [...current, book.id]);
+                            }
+                          }}
+                          className={`w-full flex items-center justify-between p-3.5 rounded-xl border text-left transition-all ${
+                            selected
+                              ? "bg-violet-500/10 border-violet-500/35 text-white"
+                              : "bg-black/20 border-white/5 text-slate-400 hover:border-white/10 hover:text-white"
+                          }`}
+                        >
+                          <span className="text-xs font-bold uppercase tracking-tight">{book.title}</span>
+                          <span className={`text-[8px] font-black tracking-widest uppercase px-2 py-0.5 rounded ${selected ? "bg-violet-500 text-white" : "bg-white/5 text-slate-500"}`}>
+                            {selected ? "SELECTED" : "SELECT"}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Type */}
@@ -329,7 +471,7 @@ function DiscountModal({ initial, onClose, onSave }: {
                 exit={{ opacity: 0, height: 0 }}
                 className="overflow-hidden space-y-6"
               >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* Min order */}
                   <div className="space-y-3">
                     <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">Minimum order (CA$)</label>
@@ -339,6 +481,21 @@ function DiscountModal({ initial, onClose, onSave }: {
                         type="number" min="0"
                         value={form.minOrderAmount}
                         onChange={e => set("minOrderAmount", e.target.value)}
+                        placeholder="No minimum"
+                        className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-4 pl-10 pr-6 text-sm font-bold text-white focus:border-violet-500/50 outline-none transition-all placeholder:text-slate-700"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Min quantity */}
+                  <div className="space-y-3">
+                    <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">Min quantity</label>
+                    <div className="relative">
+                      <ShoppingCart className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                      <input
+                        type="number" min="0"
+                        value={form.minQuantity}
+                        onChange={e => set("minQuantity", e.target.value)}
                         placeholder="No minimum"
                         className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-4 pl-10 pr-6 text-sm font-bold text-white focus:border-violet-500/50 outline-none transition-all placeholder:text-slate-700"
                       />
@@ -394,6 +551,39 @@ function DiscountModal({ initial, onClose, onSave }: {
                       ? <ToggleRight size={22} className="text-emerald-400 flex-shrink-0" />
                       : <ToggleLeft size={22} className="text-slate-600 flex-shrink-0" />}
                   </button>
+                </div>
+
+                {/* Email / Domain Restrictions */}
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">Email Restrictions</label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-[10px] font-black tracking-[0.2em] uppercase text-white">Allowed Email Domains</p>
+                        <p className="text-[8px] text-slate-500 mt-0.5">Comma separated, e.g. .edu, gmail.com</p>
+                      </div>
+                      <input
+                        type="text"
+                        value={form.allowedEmailDomains || ""}
+                        onChange={e => set("allowedEmailDomains", e.target.value)}
+                        placeholder="e.g. .edu, student.ca"
+                        className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-4 px-6 text-sm text-white/80 focus:border-violet-500/50 outline-none transition-all placeholder:text-slate-700 font-mono text-xs"
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-[10px] font-black tracking-[0.2em] uppercase text-white">Allowed Customer Emails</p>
+                        <p className="text-[8px] text-slate-500 mt-0.5">Comma separated list of specific VIP emails</p>
+                      </div>
+                      <input
+                        type="text"
+                        value={form.allowedCustomerEmails || ""}
+                        onChange={e => set("allowedCustomerEmails", e.target.value)}
+                        placeholder="e.g. vip@gmail.com, collector@mail.ca"
+                        className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-4 px-6 text-sm text-white/80 focus:border-violet-500/50 outline-none transition-all placeholder:text-slate-700 font-mono text-xs"
+                      />
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}

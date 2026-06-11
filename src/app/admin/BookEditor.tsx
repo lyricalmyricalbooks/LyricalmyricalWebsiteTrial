@@ -67,11 +67,11 @@ function SortablePhoto({ photo, index, onRemove }: { photo: any; index: number; 
           onClick={(e) => { e.stopPropagation(); onRemove(photo.id); }} 
           className="w-full py-3 bg-red-500/20 text-red-400 rounded-xl hover:bg-red-500 hover:text-white transition-all text-[10px] font-black tracking-widest backdrop-blur-md border border-red-500/20"
         >
-          REMOVE IMAGE
+          Remove Image
         </button>
       </div>
       <div className="absolute top-4 left-4 px-3 py-1 bg-black/60 backdrop-blur-md text-[8px] text-white/60 rounded-full font-black tracking-[0.2em] border border-white/5">
-        ASSET {index + 1}
+        Image {index + 1}
       </div>
     </div>
   );
@@ -460,16 +460,14 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             <ArrowLeft size={20} className="text-slate-400 group-hover:text-white transition-colors" />
           </button>
           <div>
-            <h3 className="text-3xl font-black tracking-tighter text-white uppercase">{book ? "Edit Book" : "New Title"}</h3>
-            <div className="flex items-center gap-3 mt-1">
-              <span className="text-[9px] font-black text-violet-400 uppercase tracking-[0.3em]">
-                {book ? `Library ID: ${book.id}` : "New Manuscript"}
-              </span>
-              <div className="w-1 h-1 rounded-full bg-slate-700" />
-              <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em]">
-                Library System v2.4
-              </span>
-            </div>
+            <h3 className="text-3xl font-black tracking-tighter text-white uppercase">{book ? "Edit Book" : "New Book"}</h3>
+            {book && (
+              <div className="flex items-center gap-3 mt-1">
+                <span className="text-[9px] font-black text-violet-400 uppercase tracking-[0.3em]">
+                  Product ID: {book.id}
+                </span>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex gap-6 items-center">
@@ -482,7 +480,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
               className="px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black tracking-[0.3em] text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-3"
             >
               <ExternalLink size={16} className="text-violet-400" />
-              LIVE PREVIEW
+              PREVIEW PAGE
             </a>
           )}
           <button 
@@ -497,7 +495,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             disabled={loading}
             className="flex items-center gap-4 bg-violet-600 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] hover:bg-violet-500 active:scale-95 transition-all shadow-2xl shadow-violet-600/20 disabled:opacity-50"
           >
-            {loading ? <><Loader2 size={16} className="animate-spin" /> SAVING...</> : <><Save size={16} /> SAVE TO LIBRARY</>}
+            {loading ? <><Loader2 size={16} className="animate-spin" /> SAVING...</> : <><Save size={16} /> SAVE BOOK</>}
           </button>
         </div>
       </header>
@@ -508,10 +506,10 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
             <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">I. Book Details</h4>
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">Book Details</h4>
               <div className="space-y-10">
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">BOOK TITLE</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Book Title</label>
                   <input 
                     name="title" 
                     value={formData.title} 
@@ -524,7 +522,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">AUTHOR(S) / CONTRIBUTORS</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Author / Contributors</label>
                     <input 
                       name="subtitle" 
                       value={formData.subtitle} 
@@ -534,7 +532,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                     />
                   </div>
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">SYSTEM SLUG (URL HANDLE)</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Web Link Address (URL Slug)</label>
                     <div className="relative">
                       <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 text-[10px] font-mono">/books/</div>
                       <input 
@@ -549,7 +547,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 </div>
 
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">DESCRIPTION / BLURB</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Description</label>
                   <textarea 
                     name="description" 
                     value={formData.description} 
@@ -566,10 +564,10 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-bl from-cyan-500/[0.03] to-transparent pointer-events-none" />
             <div className="relative z-10">
-               <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">II. Publishing Details</h4>
+               <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">Publishing Details</h4>
                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                   <div className="space-y-4">
-                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">ISBN / EAN-13</label>
+                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">ISBN</label>
                      <input 
                        name="isbn" 
                        value={formData.isbn} 
@@ -579,7 +577,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                      />
                   </div>
                   <div className="space-y-4">
-                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">SKU / INTERNAL ID</label>
+                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">SKU</label>
                      <input 
                        name="sku" 
                        value={formData.sku} 
@@ -589,7 +587,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                      />
                   </div>
                   <div className="space-y-4">
-                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">FORMAT</label>
+                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Format</label>
                      <select
                        name="format"
                        value={formData.format}
@@ -610,7 +608,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">PUBLISHER / VENDOR</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Publisher</label>
                     <input
                       name="publisher"
                       value={formData.publisher || ""}
@@ -620,7 +618,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                     />
                   </div>
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">PUBLICATION DATE</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Publication Date</label>
                     <input
                       type="date"
                       name="publishDate"
@@ -630,7 +628,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                     />
                   </div>
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">EDITION</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Edition</label>
                     <input
                       name="edition"
                       value={formData.edition || ""}
@@ -643,7 +641,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
                <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mt-8">
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">PAGE COUNT</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Page Count</label>
                     <input
                       type="number"
                       min={0}
@@ -654,7 +652,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                     />
                   </div>
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">LANGUAGE</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Language</label>
                     <input
                       name="language"
                       value={formData.language || ""}
@@ -664,7 +662,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                     />
                   </div>
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">DIMENSIONS</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Dimensions</label>
                     <input
                       name="dimensions"
                       value={formData.dimensions || ""}
@@ -674,7 +672,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                     />
                   </div>
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">BARCODE / UPC</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Barcode / UPC</label>
                     <input
                       name="barcode"
                       value={formData.barcode || ""}
@@ -697,7 +695,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                      className="bg-white/5 border border-white/10 px-6 py-3 rounded-xl text-[9px] font-black text-white flex items-center gap-3 hover:bg-white/10 transition-all shadow-xl"
                    >
                      <Plus size={14} className="text-cyan-400" /> 
-                     ADD EDITION
+                     Add Edition
                    </button>
                  </div>
                  <div className="space-y-4">
@@ -705,7 +703,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                     {formData.variants.map((v: Variant) => (
                       <div key={v.id} className="grid grid-cols-1 md:grid-cols-6 gap-6 bg-white/[0.02] border border-white/5 p-8 rounded-[2.5rem] relative group hover:border-cyan-500/30 transition-all shadow-2xl">
                         <div className="md:col-span-2 space-y-3">
-                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">EDITION NAME</label>
+                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Edition Name</label>
                           <input 
                             placeholder="e.g. Signed Collector's Copy" 
                             value={v.name} 
@@ -723,7 +721,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                           />
                         </div>
                         <div className="space-y-3">
-                           <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">PRICE</label>
+                           <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Price</label>
                            <div className="relative">
                               <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[11px] text-slate-600">$</span>
                               <input 
@@ -735,7 +733,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                            </div>
                         </div>
                         <div className="space-y-3">
-                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">STOCK</label>
+                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Stock</label>
                           <input 
                             type="number" 
                             value={v.stock} 
@@ -744,7 +742,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                           />
                         </div>
                         <div className="space-y-3">
-                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">WEIGHT</label>
+                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Weight</label>
                           <input 
                             placeholder="0.5kg" 
                             value={v.weight || ""} 
@@ -767,7 +765,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                         <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-700 group-hover:text-cyan-400 transition-colors">
                           <Plus size={20} />
                         </div>
-                        <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.3em]">No variants defined. Using base book settings.</p>
+                        <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.3em]">No special editions defined. Base pricing and stock will apply.</p>
                       </div>
                     )}
                   </div>
@@ -834,7 +832,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/[0.03] to-transparent pointer-events-none" />
             <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">III. Genres & Categories</h4>
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">Categories</h4>
               <div className="flex flex-wrap gap-4">
                 {Array.from(new Set([...categories, "Photography", "Contemporary", "Artist Book", "Zine", "Archive"])).map(cat => {
                   const isSelected = Array.isArray(formData.categories) && formData.categories.includes(cat);
@@ -857,7 +855,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
               <div className="mt-12 pt-10 border-t border-white/5 space-y-6">
                 <div>
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">TAGS</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Tags</label>
                   <p className="text-[8px] text-slate-600 uppercase tracking-widest mt-1 ml-1">Searchable keywords. Comma-separated.</p>
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -900,10 +898,10 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-tr from-sky-500/[0.03] to-transparent pointer-events-none" />
             <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">VI. SEO & Discoverability</h4>
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">Search Engine Listing (SEO)</h4>
               <div className="space-y-10">
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">META TITLE</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Meta Title</label>
                   <input
                     name="metaTitle"
                     value={formData.metaTitle || ""}
@@ -915,7 +913,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                   <p className="text-[8px] text-slate-600 uppercase tracking-widest ml-1">{(formData.metaTitle || "").length}/70 characters</p>
                 </div>
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">META DESCRIPTION</label>
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Meta Description</label>
                   <textarea
                     name="metaDescription"
                     value={formData.metaDescription || ""}
@@ -929,7 +927,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 </div>
 
                 <div className="p-8 bg-white/[0.02] border border-white/5 rounded-3xl space-y-2">
-                  <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Search listing preview</p>
+                  <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Search Listing Preview</p>
                   <p className="text-sky-400 text-sm font-mono truncate">/books/{formData.slug || "your-book"}</p>
                   <p className="text-white text-base font-bold truncate">{formData.metaTitle || formData.title || "Your book title"}</p>
                   <p className="text-slate-400 text-xs leading-relaxed line-clamp-2">{formData.metaDescription || formData.description || "Your book description will appear here."}</p>
@@ -944,7 +942,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-b from-violet-500/[0.03] to-transparent pointer-events-none" />
             <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">IV. Book Covers & Media</h4>
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">Book Cover Images</h4>
               
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <div className="grid grid-cols-2 gap-6 mb-10">
@@ -988,7 +986,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
               />
 
               <div className="space-y-4">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">ADD IMAGE VIA URL</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Add Image from URL</label>
                 <div className="flex gap-4">
                   <input 
                     type="text" 
@@ -1005,7 +1003,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                     <Plus size={20} />
                   </button>
                 </div>
-                <p className="text-[8px] text-slate-600 uppercase tracking-widest text-center mt-2">Supports high-fidelity CDNs and direct image links</p>
+                <p className="text-[8px] text-slate-600 uppercase tracking-widest text-center mt-2">Supports web URLs and direct image links</p>
               </div>
             </div>
           </section>
@@ -1013,11 +1011,11 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/[0.03] to-transparent pointer-events-none" />
             <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">V. Availability & Sales</h4>
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">Pricing & Inventory</h4>
               <div className="space-y-10">
                 <div className="grid grid-cols-2 gap-8">
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">RETAIL PRICE (USD)</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Price (CAD)</label>
                     <div className="relative">
                       <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 text-xs">$</span>
                       <input
@@ -1032,7 +1030,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">COST PRICE (USD)</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Cost Price (CAD)</label>
                     <div className="relative">
                       <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 text-xs">$</span>
                       <input
@@ -1051,7 +1049,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 <div className="grid grid-cols-2 gap-8">
                   <div className="space-y-4">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">
-                      STOCK LEVEL {formData.variants?.length > 0 && "(CALCULATED FROM EDITIONS)"}
+                      Stock Level {formData.variants?.length > 0 && "(Calculated from Editions)"}
                     </label>
                     <input 
                       type="number" 
@@ -1067,7 +1065,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 <div className="space-y-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
                    <div className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">CHARGE TAX</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Charge Tax</label>
                         <p className="text-[8px] text-slate-600 uppercase tracking-widest">Apply sales tax at checkout</p>
                       </div>
                       <input
@@ -1083,7 +1081,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 <div className="space-y-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
                    <div className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">TRACK INVENTORY</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Track Inventory</label>
                         <p className="text-[8px] text-slate-600 uppercase tracking-widest">Decrement stock on each sale</p>
                       </div>
                       <input
@@ -1097,7 +1095,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                    {formData.trackInventory && (
                      <div className="flex items-center justify-between mt-6 pt-6 border-t border-white/5">
                         <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">CONTINUE SELLING WHEN OUT OF STOCK</label>
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Continue Selling when Out of Stock</label>
                           <p className="text-[8px] text-slate-600 uppercase tracking-widest">Allow backorders / pre-orders</p>
                         </div>
                         <input
@@ -1114,7 +1112,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 <div className="space-y-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
                    <div className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">ON SALE</label>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">On Sale</label>
                         <p className="text-[8px] text-slate-600 uppercase tracking-widest">Toggle promotional pricing</p>
                       </div>
                       <input
@@ -1127,7 +1125,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                    </div>
                    {formData.isOnSale && (
                      <div className="space-y-4 mt-6 pt-6 border-t border-white/5 animate-in slide-in-from-top-4 duration-300">
-                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">PROMOTIONAL PRICE (USD)</label>
+                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Sale Price (CAD)</label>
                        <div className="relative">
                          <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 text-xs">$</span>
                          <input 
@@ -1144,19 +1142,19 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
                 <div className="grid grid-cols-1 gap-8">
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">SHIPPING PROFILE</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Shipping Profile</label>
                     <select 
                       name="shippingProfileId" 
                       value={formData.shippingProfileId} 
                       onChange={handleChange} 
                       className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-amber-500/50 outline-none transition-all appearance-none cursor-pointer"
                     >
-                      {shippingProfiles.map(p => <option key={p.id} value={p.id} className="bg-[#0A0A0B]">{p.name}</option>)}
+                      {shippingProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
 
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">BOOK STATUS</label>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Status</label>
                     <select 
                       name="status" 
                       value={formData.status} 
@@ -1167,9 +1165,9 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                           : 'bg-white/5 border-white/10 text-slate-400'
                       }`}
                     >
-                      <option value="draft" className="bg-[#0A0A0B]">Draft</option>
-                      <option value="published" className="bg-[#0A0A0B]">Published</option>
-                      <option value="archived" className="bg-[#0A0A0B]">Archived</option>
+                      <option value="draft">Draft</option>
+                      <option value="published">Published</option>
+                      <option value="archived">Archived</option>
                     </select>
                   </div>
                 </div>

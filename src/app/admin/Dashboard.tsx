@@ -209,8 +209,8 @@ export function Dashboard() {
   ];
 
   return (
-    <>
-    <div className={`flex h-screen overflow-hidden font-manrope antialiased selection:bg-violet-500/30 ${adminTheme === "light" ? "admin-light bg-[#f8fafc] text-slate-900" : "bg-[#050506] text-white"}`}>
+    <div className={adminTheme === "light" ? "admin-light" : ""}>
+    <div className={`flex h-screen overflow-hidden font-manrope antialiased selection:bg-violet-500/30 ${adminTheme === "light" ? "bg-[#f8fafc] text-slate-900" : "bg-[#050506] text-white"}`}>
       {/* Sidebar Overlay */}
       <AnimatePresence>
         {sidebarOpen && (
@@ -226,16 +226,19 @@ export function Dashboard() {
 
       {/* Sidebar */}
       <aside className={`fixed lg:static inset-y-0 left-0 w-72 bg-black/40 backdrop-blur-2xl border-r border-white/5 flex flex-col z-[70] transform transition-all duration-500 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        <div className="p-8 flex items-center gap-4 mb-8">
-          <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 to-cyan-600 rounded-xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
-            <div className="relative h-12 w-12 rounded-xl bg-black border border-white/10 flex items-center justify-center shadow-2xl">
-              <ShieldCheck className="text-violet-500" size={28} />
+        <div className="p-8 flex items-center gap-3.5 mb-8 border-b border-white/5">
+          <div className="relative group shrink-0">
+            <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 to-indigo-600 rounded-xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
+            <div className="relative h-11 w-11 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+              <BookOpen className="text-white" size={20} />
             </div>
           </div>
-          <div>
-            <span className="text-white font-black tracking-tighter text-xl italic group-hover:text-violet-400 transition-colors">LYRICALMYRICAL</span>
-            <span className="bg-violet-500 text-[8px] font-black px-2 py-0.5 rounded ml-2 tracking-widest uppercase">Publisher</span>
+          <div className="truncate">
+            <div className="flex items-center gap-1">
+              <span className="font-extrabold tracking-[0.12em] text-sm text-white select-none">LYRICAL</span>
+              <span className="font-black tracking-[0.12em] text-sm text-violet-500 select-none">MYRICAL</span>
+            </div>
+            <span className="text-[8px] font-black tracking-[0.3em] text-slate-500 block mt-1 uppercase">PUBLISHING HOUSE</span>
           </div>
         </div>
 
@@ -669,6 +672,6 @@ export function Dashboard() {
           </div>
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
 }

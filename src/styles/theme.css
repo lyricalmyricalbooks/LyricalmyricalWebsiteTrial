@@ -548,3 +548,26 @@
   border-color: #cffafe !important;
 }
 
+/* Ensure dark buttons in admin light mode keep white text and icons */
+.admin-light button.bg-violet-600,
+.admin-light button.bg-violet-600 *,
+.admin-light button.bg-violet-500,
+.admin-light button.bg-violet-500 *,
+.admin-light button.bg-red-500,
+.admin-light button.bg-red-500 *,
+.admin-light button.bg-rose-500,
+.admin-light button.bg-rose-500 *,
+.admin-light button.bg-rose-600,
+.admin-light button.bg-rose-600 *,
+.admin-light button.bg-emerald-600,
+.admin-light button.bg-emerald-600 *,
+.admin-light button.bg-slate-950,
+.admin-light button.bg-slate-950 * {
+  color: #ffffff !important;
+}
+
+.admin-light select option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
