@@ -1,5 +1,7 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "lyricalmyrical-web-v2"
+  },
   "targets": {},
   "etags": {}
 }
