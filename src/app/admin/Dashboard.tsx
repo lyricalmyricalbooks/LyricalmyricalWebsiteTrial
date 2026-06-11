@@ -60,6 +60,27 @@ export function Dashboard() {
   const [originalSettings, setOriginalSettings] = useState<any>(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [catalogRefreshKey, setCatalogRefreshKey] = useState(0);
+  const [showLogs, setShowLogs] = useState(false);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+
+  async function loadLogs() {
+    setLogsLoading(true);
+    try {
+      const data = await adminApi.getAuditLog(50);
+      setLogs(data);
+    } catch (err) {
+      console.error("Failed to load audit logs:", err);
+    } finally {
+      setLogsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (showLogs) {
+      loadLogs();
+    }
+  }, [showLogs]);
 
   useEffect(() => {
     // Debug bypass
@@ -358,7 +379,10 @@ export function Dashboard() {
                   </div>
                   
                   <div className="flex gap-4">
-                    <button className="flex items-center gap-3 bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95">
+                    <button 
+                      onClick={() => setShowLogs(true)}
+                      className="flex items-center gap-3 bg-white/5 border border-white/10 hover:bg-white/10 text-slate-300 px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95"
+                    >
                       <History size={16} className="text-slate-500" />
                       View Logs
                     </button>
@@ -385,7 +409,7 @@ export function Dashboard() {
                         switch (activeTab) {
                           case "overview": 
                           case "analytics":
-                            return <AnalyticsDashboard />;
+                            return <AnalyticsDashboard setActiveTab={setActiveTab} onEditBook={handleEditBook} />;
                           case "catalog": return <BookCatalog onEdit={handleEditBook} onAdd={handleAddBook} refreshTrigger={catalogRefreshKey} />;
                           case "discounts": return <Discounts />;
                           case "reviews": return <ReviewsModeration />;
@@ -490,6 +514,124 @@ export function Dashboard() {
               onExit={() => setSettingsTab("general")}
             />
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Audit Logs Takeover */}
+      <AnimatePresence>
+        {showLogs && (
+          <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 md:p-12">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.4, ease: "circOut" }}
+              className="w-full max-w-4xl h-full max-h-[85vh] bg-[#050506] border border-white/10 rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl relative"
+            >
+              {/* Header */}
+              <div className="p-8 border-b border-white/5 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-xl text-violet-400">
+                    <History size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black uppercase tracking-widest text-white italic">System Audit Trail</h3>
+                    <p className="text-[10px] text-slate-500 font-medium tracking-wide mt-1">REAL-TIME PUBLISHER ACTION LEDGER</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowLogs(false)}
+                  className="p-3 bg-white/5 rounded-xl text-slate-400 hover:text-white border border-white/10 transition-all hover:bg-white/10 active:scale-95"
+                >
+                  <CloseIcon size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                {logsLoading ? (
+                  <div className="h-full flex flex-col items-center justify-center space-y-6">
+                    <div className="w-12 h-12 border-2 border-violet-500/10 border-t-violet-500 rounded-full animate-spin" />
+                    <p className="text-[10px] tracking-[0.4em] font-black uppercase text-slate-500">Retrieving system ledger...</p>
+                  </div>
+                ) : logs.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center">
+                    <div className="w-16 h-16 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-center text-slate-700 mb-6">
+                      <Database size={28} />
+                    </div>
+                    <p className="text-slate-500 text-[10px] tracking-[0.3em] uppercase font-black italic">No records in audit path.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {logs.map((log: any) => {
+                      const date = new Date(log.createdAt);
+                      const formattedTime = isNaN(date.getTime()) 
+                        ? log.createdAt 
+                        : date.toLocaleString(undefined, { 
+                            year: 'numeric', 
+                            month: 'short', 
+                            day: 'numeric', 
+                            hour: '2-digit', 
+                            minute: '2-digit', 
+                            second: '2-digit' 
+                          });
+
+                      let categoryClass = "text-slate-400 bg-slate-500/5 border-slate-500/10";
+                      switch (log.type) {
+                        case "catalog":
+                          categoryClass = "text-emerald-400 bg-emerald-500/5 border-emerald-500/10";
+                          break;
+                        case "shipping":
+                          categoryClass = "text-rose-400 bg-rose-500/5 border-rose-500/10";
+                          break;
+                        case "campaigns":
+                          categoryClass = "text-amber-400 bg-amber-500/5 border-amber-500/10";
+                          break;
+                        case "settings":
+                          categoryClass = "text-indigo-400 bg-indigo-500/5 border-indigo-500/10";
+                          break;
+                        case "inventory":
+                          categoryClass = "text-cyan-400 bg-cyan-500/5 border-cyan-500/10";
+                          break;
+                      }
+
+                      return (
+                        <div 
+                          key={log.id} 
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-white/[0.01] border border-white/5 hover:bg-white/[0.02] hover:border-white/10 transition-all group"
+                        >
+                          <div className="flex items-start gap-4">
+                            <span className={`px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-md border shrink-0 mt-0.5 ${categoryClass}`}>
+                              {log.type}
+                            </span>
+                            <p className="text-xs font-semibold text-slate-200 group-hover:text-white transition-colors mt-0.5">
+                              {log.message}
+                            </p>
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-mono tracking-tight text-left sm:text-right shrink-0">
+                            {formattedTime}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-md flex items-center justify-between shrink-0">
+                <span className="text-[9px] font-black text-slate-600 tracking-widest uppercase">
+                  Audit logs are tamper-evident & restricted to administrator access
+                </span>
+                <button
+                  onClick={loadLogs}
+                  className="px-5 py-2.5 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:text-white uppercase tracking-widest transition-all active:scale-95"
+                >
+                  Refresh Log
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </>

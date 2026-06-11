@@ -7,6 +7,7 @@ import {
   Weight, Tag, Truck, ShieldCheck, Zap, Heart
 } from "lucide-react";
 import { useCart } from "../../CartContext";
+import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
 import { getCopy } from "./storeCopy";
 import { DEFAULT_IMAGE } from "./constants";
@@ -37,9 +38,11 @@ export default function BookDetail() {
   const navigate = useNavigate();
   const { books, settings, loading } = useSiteData();
   const { addToCart, setIsCartOpen, cartCount } = useCart();
+  const { formatPrice } = useCurrency();
 
   const [activePhoto, setActivePhoto] = useState(0);
   const [added, setAdded]             = useState(false);
+  const [addingBoth, setAddingBoth]   = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imgBg, setImgBg]             = useState("transparent");
 
@@ -123,6 +126,20 @@ export default function BookDetail() {
     funnelApi.track("add_to_cart");
     setAdded(true);
     setTimeout(() => setAdded(false), 2500);
+  };
+
+  const bundleBook = otherBooks[0];
+
+  const handleAddBothToBag = () => {
+    if (!book || !bundleBook) return;
+    addToCart(book);
+    addToCart(bundleBook);
+    setAddingBoth(true);
+    funnelApi.track("add_to_cart");
+    setTimeout(() => {
+      setAddingBoth(false);
+      setIsCartOpen(true);
+    }, 1000);
   };
 
   const handleShare = () => {
@@ -406,15 +423,15 @@ export default function BookDetail() {
               <div className="flex items-baseline gap-4">
                 {isOnSale ? (
                   <>
-                    <span className="text-4xl font-black tracking-tight text-white">${salePrice.toFixed(2)}</span>
-                    <span className="text-white/25 line-through text-xl">${retailPrice.toFixed(2)}</span>
+                    <span className="text-4xl font-black tracking-tight text-white">{formatPrice(salePrice)}</span>
+                    <span className="text-white/25 line-through text-xl">{formatPrice(retailPrice)}</span>
                     <span className="text-[9px] font-black tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full uppercase">
-                      Save ${(retailPrice - salePrice).toFixed(2)}
+                      Save {formatPrice(retailPrice - salePrice)}
                     </span>
                   </>
                 ) : (
                   <span className="text-4xl font-black tracking-tight text-white">
-                    {retailPrice > 0 ? `$${retailPrice.toFixed(2)}` : "Price on request"}
+                    {retailPrice > 0 ? formatPrice(retailPrice) : "Price on request"}
                   </span>
                 )}
               </div>
@@ -511,6 +528,42 @@ export default function BookDetail() {
                 </div>
               </div>
 
+              {/* Frequently Bought Together Widget */}
+              {bundleBook && (
+                <div className="mt-8 pt-8 border-t border-white/5 space-y-6">
+                  <h4 className="text-[10px] font-black tracking-[0.3em] uppercase text-white/40">Frequently Bought Together</h4>
+                  <div className="flex flex-col sm:flex-row items-center gap-6 bg-white/[0.02] border border-white/5 rounded-3xl p-6 relative overflow-hidden group/bundle hover:border-violet-500/20 transition-all">
+                    {/* Cover Art Previews */}
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 aspect-[3/4] bg-neutral-950 rounded-xl border border-white/10 shadow-lg shrink-0">
+                        <img src={photos[0]?.url || DEFAULT_IMAGE} alt={book.title} className="w-full h-full object-cover" />
+                      </div>
+                      <span className="text-white/20 font-black text-lg">+</span>
+                      <div className="w-16 aspect-[3/4] bg-neutral-950 rounded-xl border border-white/10 shadow-lg shrink-0">
+                        <img src={bundleBook.photos?.[0]?.url || DEFAULT_IMAGE} alt={bundleBook.title} className="w-full h-full object-cover" />
+                      </div>
+                    </div>
+
+                    {/* Bundle Info & CTA */}
+                    <div className="flex-1 flex flex-col gap-4 text-center sm:text-left">
+                      <div>
+                        <p className="text-[11px] font-bold text-white uppercase leading-tight truncate max-w-[200px]">{book.title} + {bundleBook.title}</p>
+                        <p className="text-[10px] text-white/40 mt-1.5 font-mono">
+                          Total: <span className="text-white font-black">{formatPrice((isOnSale ? salePrice : retailPrice) + (bundleBook.isOnSale && bundleBook.salePrice ? bundleBook.salePrice : bundleBook.retailPrice))}</span>
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleAddBothToBag}
+                        disabled={addingBoth}
+                        className="w-full sm:w-fit bg-violet-600 hover:bg-violet-500 text-white text-[9px] font-black tracking-[0.2em] px-6 py-3.5 rounded-xl transition-all uppercase active:scale-95 shadow-[0_10px_30px_rgba(124,58,237,0.25)] border border-violet-500/20"
+                      >
+                        {addingBoth ? "Adding Both..." : "Add Both to Bag"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
 
             </div>
           </div>
@@ -560,7 +613,7 @@ export default function BookDetail() {
                         </p>
                         {relPrice > 0 && (
                           <p className="text-[11px] font-medium text-white/25 group-hover:text-white/50 transition-colors">
-                            ${relPrice.toFixed(2)}
+                            {formatPrice(relPrice)}
                           </p>
                         )}
                       </Link>

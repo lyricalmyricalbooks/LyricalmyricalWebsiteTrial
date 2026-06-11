@@ -90,6 +90,31 @@ function calculateShipping(items, customerAddress, profiles) {
   return highestBase + totalAdditional;
 }
 
+const FALLBACK_RATES = {
+  cad: 1.0,
+  usd: 0.73,
+  eur: 0.67,
+};
+
+async function getExchangeRates() {
+  try {
+    const res = await fetch("https://open.er-api.com/v6/latest/CAD");
+    if (res.ok) {
+      const data = await res.json();
+      if (data.rates) {
+        return {
+          cad: 1.0,
+          usd: data.rates.USD || FALLBACK_RATES.usd,
+          eur: data.rates.EUR || FALLBACK_RATES.eur,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("Could not fetch live exchange rates on backend, using static fallbacks:", err);
+  }
+  return FALLBACK_RATES;
+}
+
 // ──────────────────────────────────────────────────────────────
 // 1. HTTP Endpoint: Create Stripe Checkout Session (Secure)
 // ──────────────────────────────────────────────────────────────
@@ -106,7 +131,8 @@ exports.createStripeCheckoutSession = onRequest(
       return;
     }
 
-    const { orderId } = req.body;
+    const { orderId, currency: reqCurrency } = req.body;
+    const checkoutCurrency = (reqCurrency || "cad").toLowerCase();
     if (!orderId) {
       res.status(400).json({ error: "Missing orderId" });
       return;
@@ -178,10 +204,16 @@ exports.createStripeCheckoutSession = onRequest(
 
       // Update Order totals in database
       const finalTotal = order.subtotal - (order.discount || 0) + shippingCost + taxCost;
+      
+      const rates = await getExchangeRates();
+      const exchangeRate = rates[checkoutCurrency] || FALLBACK_RATES[checkoutCurrency] || 1.0;
+
       await orderRef.update({
         shipping: shippingCost,
         tax: taxCost,
         total: finalTotal,
+        checkoutCurrency: checkoutCurrency.toUpperCase(),
+        exchangeRate: exchangeRate,
         updatedAt: new Date().toISOString()
       });
 
@@ -192,14 +224,15 @@ exports.createStripeCheckoutSession = onRequest(
       const discountFactor = subtotal > 0 ? (subtotal - discount) / subtotal : 1;
 
       const lineItems = order.items.map(item => {
-        const itemPriceInCents = Math.round(item.price * discountFactor * 100);
+        const convertedPrice = item.price * exchangeRate;
+        const itemPriceInCents = Math.round(convertedPrice * discountFactor * 100);
         let title = item.title;
         if (item.variantName) {
           title += ` (${item.variantName})`;
         }
         return {
           price_data: {
-            currency: "usd",
+            currency: checkoutCurrency,
             product_data: {
               name: title,
               images: item.photoUrl ? [item.photoUrl] : [],
@@ -213,11 +246,11 @@ exports.createStripeCheckoutSession = onRequest(
       if (shippingCost > 0) {
         lineItems.push({
           price_data: {
-            currency: "usd",
+            currency: checkoutCurrency,
             product_data: {
               name: "Shipping & Handling",
             },
-            unit_amount: Math.round(shippingCost * 100),
+            unit_amount: Math.round(shippingCost * exchangeRate * 100),
           },
           quantity: 1,
         });
@@ -226,11 +259,11 @@ exports.createStripeCheckoutSession = onRequest(
       if (taxCost > 0) {
         lineItems.push({
           price_data: {
-            currency: "usd",
+            currency: checkoutCurrency,
             product_data: {
               name: "Estimated Sales Tax",
             },
-            unit_amount: Math.round(taxCost * 100),
+            unit_amount: Math.round(taxCost * exchangeRate * 100),
           },
           quantity: 1,
         });

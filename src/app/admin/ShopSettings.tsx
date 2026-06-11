@@ -723,9 +723,12 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                   icon={ShieldCheck} 
                   color="violet"
                />
-               <button className="bg-white/5 border border-white/10 px-8 py-3 rounded-2xl text-[9px] font-black tracking-[0.2em] text-slate-300 hover:bg-white/10 transition-all flex items-center gap-3 uppercase shadow-lg">
-                  STRIPE DASHBOARD <ExternalLink size={14} className="text-violet-400" />
-               </button>
+               <button 
+                  onClick={() => window.open("https://dashboard.stripe.com", "_blank")}
+                  className="bg-white/5 border border-white/10 px-8 py-3 rounded-2xl text-[9px] font-black tracking-[0.2em] text-slate-300 hover:bg-white/10 transition-all flex items-center gap-3 uppercase shadow-lg cursor-pointer"
+                >
+                   STRIPE DASHBOARD <ExternalLink size={14} className="text-violet-400" />
+                </button>
             </div>
             
             <div className="flex items-center gap-8 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 shadow-inner">

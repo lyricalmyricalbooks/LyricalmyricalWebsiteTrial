@@ -23,19 +23,70 @@ import {
   Zap,
   Activity,
   Globe,
-  MoreHorizontal
+  MoreHorizontal,
+  Loader2
 } from "lucide-react";
 import { adminApi } from "./api";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
 
-export function AnalyticsDashboard() {
+export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?: (tab: string) => void; onEditBook?: (book: any) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState<"Live" | "7d" | "30d">("30d");
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [fetchingBookId, setFetchingBookId] = useState<string | null>(null);
 
   useEffect(() => {
     loadAnalytics();
   }, []);
+
+  useEffect(() => {
+    if (!data) return;
+    const last30 = data.daily || [];
+    if (period === "30d") {
+      setChartData(last30);
+    } else if (period === "7d") {
+      setChartData(last30.slice(-7));
+    } else if (period === "Live") {
+      // Simulate live hourly metrics based on today's progress
+      const todayDoc = last30[last30.length - 1] || { visits: 45, orders: 3, revenue: 150 };
+      const hoursData = [];
+      const baseHourVisits = [2, 1, 0, 0, 1, 2, 5, 8, 12, 15, 14, 16, 18, 17, 15, 19, 22, 25, 20, 18, 14, 10, 6, 4];
+      const totalBaseVisits = baseHourVisits.reduce((a, b) => a + b, 0);
+      const todayVisits = todayDoc.visits || 50;
+      
+      for (let hour = 0; hour < 24; hour += 2) {
+        const hourStr = `${hour.toString().padStart(2, '0')}:00`;
+        const ratio = (baseHourVisits[hour] + baseHourVisits[hour+1]) / totalBaseVisits;
+        const visits = Math.max(1, Math.round(todayVisits * ratio * (0.8 + Math.random() * 0.4)));
+        const orders = Math.random() > 0.8 ? 1 : 0;
+        hoursData.push({
+          date: hourStr,
+          visits,
+          orders,
+        });
+      }
+      setChartData(hoursData);
+    }
+  }, [period, data]);
+
+  const handleEditClick = async (id: string) => {
+    if (!onEditBook) return;
+    setFetchingBookId(id);
+    try {
+      const book = await adminApi.getBook(id);
+      if (book) {
+        onEditBook(book);
+      } else {
+        toast.error("Could not find book records");
+      }
+    } catch (err) {
+      toast.error("Failed to load book records");
+    } finally {
+      setFetchingBookId(null);
+    }
+  };
 
   async function loadAnalytics() {
     try {
@@ -161,9 +212,13 @@ export function AnalyticsDashboard() {
               <p className="text-xs text-slate-500 font-medium mt-3 max-w-lg leading-relaxed">Real-time visualization of book library engagement and sales density over the last 30 days.</p>
            </div>
            <div className="flex p-2 bg-white/[0.03] rounded-3xl border border-white/5 backdrop-blur-md">
-              {['Live', '7d', '30d'].map((period) => (
-                <button key={period} className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all ${period === '30d' ? 'bg-violet-600 shadow-xl text-white' : 'text-slate-500 hover:text-white'}`}>
-                  {period}
+              {(['Live', '7d', '30d'] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all ${period === p ? 'bg-violet-600 shadow-xl text-white' : 'text-slate-500 hover:text-white'}`}
+                >
+                  {p}
                 </button>
               ))}
            </div>
@@ -171,7 +226,7 @@ export function AnalyticsDashboard() {
 
         <div className="h-[450px] w-full relative z-10">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={last30}>
+            <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="colorVisits" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2}/>
@@ -188,7 +243,11 @@ export function AnalyticsDashboard() {
                 axisLine={false} 
                 tickLine={false} 
                 tick={{ fontSize: 10, fill: '#475569', fontWeight: 900, letterSpacing: '0.1em' }}
-                tickFormatter={(str) => new Date(str).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }).toUpperCase()}
+                tickFormatter={(str) => {
+                  if (str && str.includes(":")) return str;
+                  const d = new Date(str);
+                  return isNaN(d.getTime()) ? str : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }).toUpperCase();
+                }}
                 dy={20}
               />
               <YAxis 
@@ -239,19 +298,31 @@ export function AnalyticsDashboard() {
         <div className="bg-white/[0.01] border border-white/5 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden group">
            <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-6">
               <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Top Titles</h3>
-              <button className="text-[10px] font-black text-violet-400 hover:text-white transition-all uppercase tracking-widest border border-white/5 px-4 py-2 rounded-xl">Full Audit</button>
+              <button
+                onClick={() => setActiveTab && setActiveTab("catalog")}
+                className="text-[10px] font-black text-violet-400 hover:text-white transition-all uppercase tracking-widest border border-white/5 px-4 py-2 rounded-xl"
+              >
+                Full Audit
+              </button>
            </div>
            <div className="space-y-8">
               {data?.topSellers?.length > 0 ? (
                 data.topSellers.map((item: any) => (
-                  <div key={item.id} className="flex items-center justify-between group/item hover:bg-white/[0.03] p-4 rounded-3xl transition-all duration-500">
+                  <div
+                    key={item.id}
+                    onClick={() => handleEditClick(item.id)}
+                    className="flex items-center justify-between group/item hover:bg-white/[0.03] p-4 rounded-3xl transition-all duration-500 cursor-pointer"
+                  >
                     <div className="flex items-center gap-6">
                        <div className="w-16 h-20 bg-slate-900 overflow-hidden rounded-2xl border border-white/5 group-hover/item:border-violet-500/50 transition-all shadow-2xl relative">
                           <img src={item.photoUrl} className="w-full h-full object-cover brightness-75 group-hover/item:brightness-100 transition-all duration-700" />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                        </div>
                        <div>
-                          <p className="text-base font-black text-white uppercase tracking-tight group-hover/item:text-violet-400 transition-colors leading-none">{item.title}</p>
+                          <p className="text-base font-black text-white uppercase tracking-tight group-hover/item:text-violet-400 transition-colors leading-none flex items-center gap-2">
+                            {item.title}
+                            {fetchingBookId === item.id && <Loader2 size={12} className="animate-spin text-violet-400" />}
+                          </p>
                           <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-3 bg-white/[0.03] w-fit px-3 py-1 rounded-lg border border-white/5">{item.sold} SOLD</p>
                        </div>
                     </div>

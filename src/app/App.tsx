@@ -2,6 +2,7 @@ import { useState, lazy, Suspense } from "react";
 import { motion } from "framer-motion";
 import { BrowserRouter, Routes, Route } from "react-router";
 import { CartProvider } from "./CartContext";
+import { CurrencyProvider } from "./CurrencyContext";
 import { Toaster } from "react-hot-toast";
 import { CartDrawer } from "./components/CartDrawer";
 import { CookieConsent } from "./components/CookieConsent";
@@ -20,6 +21,7 @@ const PageView = lazy(() => import("./features/site/PageView").then(m => ({ defa
 const WishlistPage = lazy(() => import("./features/site/Wishlist"));
 const CollectionPage = lazy(() => import("./features/site/CollectionPage"));
 const AccountPage = lazy(() => import("./features/site/Account"));
+const OrderTracking = lazy(() => import("./features/site/OrderTracking"));
 
 function LoadingFallback() {
   return (
@@ -50,44 +52,48 @@ export default function App() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <CartProvider>
-        <BrowserRouter basename={ROUTER_BASENAME}>
-        <CartDrawer />
-        <CookieConsent />
-        <Suspense fallback={<LoadingFallback />}>
-              <Toaster 
-                position="top-center" 
-                toastOptions={{
-                  style: {
-                    background: '#171717',
-                    color: '#fff',
-                    fontSize: '12px',
-                    letterSpacing: '0.05em',
-                  },
-                }} 
-              />
-              <Routes>
-                <Route path="/" element={
-                  <MainSite 
-                    setShowCatalog={setShowCatalog}
-                    showCatalog={showCatalog}
-                    setCurrentPage={setCurrentPage}
-                    currentPage={currentPage}
-                    nextPage={nextPage}
-                    prevPage={prevPage}
-                  />
-                } />
-                <Route path="/books/:slug" element={<BookDetail />} />
-                <Route path="/collections/:slug" element={<CollectionPage />} />
-                <Route path="/wishlist" element={<WishlistPage />} />
-                <Route path="/account/*" element={<AccountPage />} />
-                <Route path="/page/:slug" element={<PageView />} />
-                <Route path="/admin/*" element={<Dashboard />} />
-                <Route path="/checkout" element={<Checkout />} />
-              </Routes>
-        </Suspense>
-        </BrowserRouter>
-      </CartProvider>
+      <CurrencyProvider>
+        <CartProvider>
+          <BrowserRouter basename={ROUTER_BASENAME}>
+          <CartDrawer />
+          <CookieConsent />
+          <Suspense fallback={<LoadingFallback />}>
+                <Toaster 
+                  position="top-center" 
+                  toastOptions={{
+                    style: {
+                      background: '#171717',
+                      color: '#fff',
+                      fontSize: '12px',
+                      letterSpacing: '0.05em',
+                      zIndex: 99999,
+                    },
+                  }} 
+                />
+                <Routes>
+                  <Route path="/" element={
+                    <MainSite 
+                      setShowCatalog={setShowCatalog}
+                      showCatalog={showCatalog}
+                      setCurrentPage={setCurrentPage}
+                      currentPage={currentPage}
+                      nextPage={nextPage}
+                      prevPage={prevPage}
+                    />
+                  } />
+                  <Route path="/books/:slug" element={<BookDetail />} />
+                  <Route path="/collections/:slug" element={<CollectionPage />} />
+                  <Route path="/wishlist" element={<WishlistPage />} />
+                  <Route path="/account/*" element={<AccountPage />} />
+                  <Route path="/page/:slug" element={<PageView />} />
+                  <Route path="/admin/*" element={<Dashboard />} />
+                  <Route path="/checkout" element={<Checkout />} />
+                  <Route path="/track" element={<OrderTracking />} />
+                </Routes>
+          </Suspense>
+          </BrowserRouter>
+        </CartProvider>
+      </CurrencyProvider>
     </ThemeProvider>
   );
 }

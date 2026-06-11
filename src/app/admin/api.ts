@@ -114,6 +114,12 @@ export const adminApi = {
     return snap.docs.map(d => ({ id: d.id, ...d.data(), _lastDoc: d }));
   },
 
+  getBook: async (id: string) => {
+    const snap = await getDoc(doc(db, "books", id));
+    if (!snap.exists()) return null;
+    return { id: snap.id, ...snap.data() };
+  },
+
   createBook: async (book: any) => {
     const dataToSave = { ...book };
     delete dataToSave.id;
@@ -124,6 +130,7 @@ export const adminApi = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+    await adminApi.recordAuditLog("catalog", `Created book: ${dataToSave.title}`);
     return { id: docRef.id, ...dataToSave };
   },
 
@@ -137,23 +144,35 @@ export const adminApi = {
       ...dataToSave,
       updatedAt: new Date().toISOString(),
     });
+    await adminApi.recordAuditLog("catalog", `Updated book: ${dataToSave.title}`);
     return { id, ...dataToSave };
   },
 
-  deleteBook: (id: string) => deleteDoc(doc(db, "books", id)),
+  deleteBook: async (id: string) => {
+    try {
+      const snap = await getDoc(doc(db, "books", id));
+      const title = snap.exists() ? snap.data().title : id;
+      await deleteDoc(doc(db, "books", id));
+      await adminApi.recordAuditLog("catalog", `Deleted book: ${title}`);
+    } catch (err) {
+      await deleteDoc(doc(db, "books", id));
+    }
+  },
 
   duplicateBook: async (id: string) => {
     const docRef = doc(db, "books", id);
     const snap = await getDoc(docRef);
     if (!snap.exists()) throw new Error("Original book not found");
     const data = snap.data();
-    return await addDoc(collection(db, "books"), {
+    const newDoc = await addDoc(collection(db, "books"), {
       ...data,
       title: `${data.title} (Copy)`,
       status: "draft",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+    await adminApi.recordAuditLog("catalog", `Duplicated book: ${data.title}`);
+    return newDoc;
   },
 
   addPhotos: async (bookId: string, photos: any[]) => {
@@ -219,6 +238,7 @@ export const adminApi = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+    await adminApi.recordAuditLog("shipping", `Created shipping zone for ${profile.region}`);
     return { id: docRef.id, ...profile };
   },
 
@@ -228,10 +248,20 @@ export const adminApi = {
       ...profile,
       updatedAt: new Date().toISOString()
     });
+    await adminApi.recordAuditLog("shipping", `Updated shipping zone for ${profile.region}`);
     return { id, ...profile };
   },
 
-  deleteShippingProfile: (id: string) => deleteDoc(doc(db, "shipping-profiles", id)),
+  deleteShippingProfile: async (id: string) => {
+    try {
+      const snap = await getDoc(doc(db, "shipping-profiles", id));
+      const region = snap.exists() ? snap.data().region : id;
+      await deleteDoc(doc(db, "shipping-profiles", id));
+      await adminApi.recordAuditLog("shipping", `Deleted shipping zone: ${region}`);
+    } catch (err) {
+      await deleteDoc(doc(db, "shipping-profiles", id));
+    }
+  },
 
   // Settings
   getSettings: async () => {
@@ -248,7 +278,7 @@ export const adminApi = {
     return { ...defaultSettings, ...snap.data() };
   },
 
-  updateSettings: (settings: any, options: { publish?: boolean } = {}) => {
+  updateSettings: async (settings: any, options: { publish?: boolean } = {}) => {
     const docRef = doc(db, "settings", "website");
     // Deep-strip undefined values — Firestore rejects them, and editor controls
     // use `undefined` to mean "inherit / unset".
@@ -267,7 +297,9 @@ export const adminApi = {
       }
     }
     
-    return setDoc(docRef, payload, { merge: true });
+    await setDoc(docRef, payload, { merge: true });
+    const sections = Object.keys(settings);
+    await adminApi.recordAuditLog("settings", `Updated settings: ${sections.join(", ")}`);
   },
 
   // Schedule a design to go live at a future time. The storefront applies it
@@ -518,6 +550,7 @@ export const adminApi = {
       updatedAt: now,
     };
     const docRef = await addDoc(collection(db, "discounts"), payload);
+    await adminApi.recordAuditLog("campaigns", `Created campaign: ${payload.code}`);
     return { id: docRef.id, ...payload };
   },
 
@@ -526,11 +559,19 @@ export const adminApi = {
     const payload = { ...data, updatedAt: now };
     delete payload.id;
     await updateDoc(doc(db, "discounts", id), payload);
+    await adminApi.recordAuditLog("campaigns", `Updated campaign: ${payload.code || id}`);
     return { id, ...payload };
   },
 
   deleteDiscount: async (id: string) => {
-    await deleteDoc(doc(db, "discounts", id));
+    try {
+      const snap = await getDoc(doc(db, "discounts", id));
+      const code = snap.exists() ? snap.data().code : id;
+      await deleteDoc(doc(db, "discounts", id));
+      await adminApi.recordAuditLog("campaigns", `Deleted campaign: ${code}`);
+    } catch (err) {
+      await deleteDoc(doc(db, "discounts", id));
+    }
   },
 
   validateDiscount: async (code: string) => {
@@ -742,6 +783,8 @@ export const adminApi = {
       { merge: true }
     );
 
+    await adminApi.recordAuditLog("inventory", `Synchronized inventory with legacy core. ${updateCount} records updated.`);
+
     return {
       synced: updateCount,
       unmatched: results.filter((r) => !r.matched).length,
@@ -783,6 +826,7 @@ export const adminApi = {
       createdAt: now,
       updatedAt: now,
     });
+    await adminApi.recordAuditLog("settings", `Created page: ${data.title}`);
     return { id: docRef.id, ...data, createdAt: now, updatedAt: now };
   },
 
@@ -791,10 +835,30 @@ export const adminApi = {
     const payload = { ...data, updatedAt: now };
     delete payload.id;
     await updateDoc(doc(db, "pages", id), payload);
+    await adminApi.recordAuditLog("settings", `Updated page: ${data.title || id}`);
     return { id, ...payload };
   },
 
   deletePage: async (id: string) => {
-    await deleteDoc(doc(db, "pages", id));
+    try {
+      const snap = await getDoc(doc(db, "pages", id));
+      const title = snap.exists() ? snap.data().title : id;
+      await deleteDoc(doc(db, "pages", id));
+      await adminApi.recordAuditLog("settings", `Deleted page: ${title}`);
+    } catch (err) {
+      await deleteDoc(doc(db, "pages", id));
+    }
+  },
+
+  recordAuditLog: async (type: string, message: string) => {
+    try {
+      await addDoc(collection(db, "audit-log"), {
+        type,
+        message,
+        createdAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.warn("Could not save audit log:", err);
+    }
   },
 };

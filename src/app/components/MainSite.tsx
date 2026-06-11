@@ -265,6 +265,7 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
             <>
               <button onClick={onAboutOpen} className="block hover:text-white transition-colors">About</button>
               <Link to="/" className="block hover:text-white transition-colors">Shop</Link>
+              <Link to="/track" className="block hover:text-white transition-colors">Track Order</Link>
               {navPages.map(page => (
                 <Link
                   key={page.id}

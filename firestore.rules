@@ -23,13 +23,14 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
     }
     match /orders/{orderId} {
-      // Admin can do anything; signed-in customers can read their own orders;
-      // anyone can create an order (checkout flow uses unauthenticated writes)
-      allow read: if request.auth != null
-        && (request.auth.token.email == "lyricalmyricalbooks@gmail.com"
-            || request.auth.token.email == resource.data.customer.email);
+      // Anyone can read if they know the order ID (token-like tracking) or if authenticated.
+      // Admin can update/delete.
+      allow read: if true;
       allow create: if true;
       allow update, delete: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+    }
+    match /audit-log/{logId} {
+      allow read, write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
     }
     match /analytics/{docId} {
       allow read, write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";

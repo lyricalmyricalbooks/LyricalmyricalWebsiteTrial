@@ -10,6 +10,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { adminApi } from "./admin/api";
 import { abandonedCartApi, funnelApi } from "./lib/commerce";
 import { useSEO } from "./lib/seo";
+import { useCurrency } from "./CurrencyContext";
 
 // ─── Reusable input ───────────────────────────────────────────────────────────
 function Field({
@@ -63,6 +64,7 @@ function StepBadge({ n, label }: { n: string; label: string }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 export function Checkout() {
   const { cart, cartTotal, clearCart } = useCart();
+  const { currency, formatPrice } = useCurrency();
 
   const [isApplying, setIsApplying]     = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -250,7 +252,7 @@ export function Checkout() {
       const sessionResponse = await fetch(functionsUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId }),
+        body: JSON.stringify({ orderId, currency: currency.toLowerCase() }),
       });
 
       if (!sessionResponse.ok) {
@@ -379,8 +381,8 @@ export function Checkout() {
                   </div>
                   <div className="flex-1 flex flex-col justify-center gap-2">
                     <h3 className="text-xs font-black tracking-[0.2em] uppercase text-white">{item.title}</h3>
-                    <p className="text-[10px] text-white/30 font-mono">QTY: {item.quantity} × ${item.price.toFixed(2)}</p>
-                    <p className="text-sm font-black text-white/80 tracking-tight">${(item.quantity * item.price).toFixed(2)}</p>
+                    <p className="text-[10px] text-white/30 font-mono">QTY: {item.quantity} × {formatPrice(item.price)}</p>
+                    <p className="text-sm font-black text-white/80 tracking-tight">{formatPrice(item.quantity * item.price)}</p>
                   </div>
                   <div className="self-center">
                     <span className="text-[8px] font-black tracking-widest text-violet-400 bg-violet-500/10 border border-violet-500/20 px-3 py-1.5 rounded-lg uppercase">
@@ -472,7 +474,7 @@ export function Checkout() {
                 <div className="space-y-4 mb-8">
                   <div className="flex justify-between items-center">
                     <span className="text-[10px] font-black tracking-[0.2em] text-white/40 uppercase">Subtotal</span>
-                    <span className="text-sm font-black text-white/70 font-mono">${cartTotal.toFixed(2)}</span>
+                    <span className="text-sm font-black text-white/70 font-mono">{formatPrice(cartTotal)}</span>
                   </div>
 
                   <AnimatePresence>
@@ -480,7 +482,7 @@ export function Checkout() {
                       <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
                         className="flex justify-between items-center">
                         <span className="text-[10px] font-black tracking-[0.2em] text-emerald-400 uppercase">Discount ({appliedDiscount.code})</span>
-                        <span className="text-sm font-black text-emerald-400 font-mono">−${discountAmount.toFixed(2)}</span>
+                        <span className="text-sm font-black text-emerald-400 font-mono">−{formatPrice(discountAmount)}</span>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -490,14 +492,14 @@ export function Checkout() {
                       <Truck size={12} className="text-white/20" /> Shipping
                     </span>
                     <span className={`text-sm font-black font-mono ${isFreeShipping ? "line-through text-white/20" : "text-white/70"}`}>
-                      ${shippingCost.toFixed(2)}
+                      {formatPrice(shippingCost)}
                     </span>
                   </div>
 
                   {taxCost > 0 && (
                     <div className="flex justify-between items-center">
                       <span className="text-[10px] font-black tracking-[0.2em] text-white/40 uppercase">Estimated Tax</span>
-                      <span className="text-sm font-black text-white/70 font-mono">${taxCost.toFixed(2)}</span>
+                      <span className="text-sm font-black text-white/70 font-mono">{formatPrice(taxCost)}</span>
                     </div>
                   )}
 
@@ -516,15 +518,15 @@ export function Checkout() {
                   <div className="flex justify-between items-end">
                     <div>
                       <p className="text-[9px] font-black tracking-[0.35em] text-white/30 uppercase mb-1">Total Payable</p>
-                      <p className="text-[9px] font-black tracking-widest text-white/20 uppercase">USD</p>
+                      <p className="text-[9px] font-black tracking-widest text-white/20 uppercase">{currency}</p>
                     </div>
                     <motion.span
                       key={finalTotal}
                       initial={{ y: -10, opacity: 0 }}
                       animate={{ y: 0, opacity: 1 }}
-                      className="text-5xl font-black tracking-tighter text-white"
+                      className="text-5xl font-black tracking-tighter text-white animate-fade-in"
                     >
-                      ${finalTotal.toFixed(2)}
+                      {formatPrice(finalTotal)}
                     </motion.span>
                   </div>
                 </div>

@@ -3,12 +3,34 @@ import { useNavigate } from "react-router";
 import { useCart } from "../CartContext";
 import { useSiteData } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
+import { useCurrency } from "../CurrencyContext";
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
 
 export function CartDrawer() {
-  const { cart, removeFromCart, updateQuantity, cartTotal, isCartOpen, setIsCartOpen } = useCart();
+  const { cart, addToCart, removeFromCart, updateQuantity, cartTotal, isCartOpen, setIsCartOpen } = useCart();
   const navigate = useNavigate();
-  const { settings } = useSiteData();
+  const { books, settings } = useSiteData();
+  const { formatPrice } = useCurrency();
+
+  // Find a recommended book for "Complete your collection"
+  const cartIds = new Set(cart.map((i) => i.id));
+  const candidateBooks = (books || []).filter((b) => !cartIds.has(b.id) && b.status === "published");
+  
+  // Find match in same category if possible
+  const cartCategories = new Set(
+    cart.flatMap((i) => {
+      const match = (books || []).find((b) => b.id === i.id);
+      return match?.categories || [];
+    })
+  );
+
+  let recommendedBook = candidateBooks.find((b) => 
+    b.categories?.some((cat) => cartCategories.has(cat))
+  );
+
+  if (!recommendedBook && candidateBooks.length > 0) {
+    recommendedBook = candidateBooks[0]; // fallback
+  }
 
   // Resolve storefront design settings (flat or nested under `.storefront`).
   const rawDesign = (settings as any)?.design || {};
@@ -50,7 +72,7 @@ export function CartDrawer() {
                 <div className="flex items-center gap-2 text-[10px] tracking-widest text-neutral-500 uppercase mb-2">
                   <Truck size={12} />
                   {remaining > 0 ? (
-                    <span>${remaining.toFixed(2)} away from free shipping</span>
+                    <span>{formatPrice(remaining)} away from free shipping</span>
                   ) : (
                     <span className="text-emerald-600">You qualify for free shipping</span>
                   )}
@@ -76,7 +98,7 @@ export function CartDrawer() {
                       {item.variantName && (
                         <p className="text-[9px] text-neutral-400 tracking-widest uppercase mb-1">{item.variantName}</p>
                       )}
-                      <p className="text-[10px] text-neutral-400">$ {item.price.toFixed(2)} USD</p>
+                      <p className="text-[10px] text-neutral-400">{formatPrice(item.price)}</p>
                     </div>
                     <div className="flex items-center justify-between mt-4">
                       <div className="flex items-center gap-4 bg-neutral-50 px-3 py-1.5 rounded-full">
@@ -97,12 +119,40 @@ export function CartDrawer() {
                    <p className="text-[10px] tracking-[.3em] text-neutral-300 uppercase italic">{getCopy(design, "cartEmpty")}</p>
                 </div>
               )}
+
+              {/* Complete your Collection recommendation card */}
+              {cart.length > 0 && recommendedBook && (
+                <div className="pt-6 border-t border-neutral-100 mt-8">
+                  <p className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase mb-4">Complete your collection</p>
+                  <div className="flex gap-6 bg-neutral-50 p-4 rounded-2xl group/rec relative">
+                    <div className="w-16 aspect-[3/4] bg-neutral-200 overflow-hidden flex-shrink-0">
+                      <img
+                        src={recommendedBook.photos?.[0]?.url || ""}
+                        alt={recommendedBook.title}
+                        className="w-full h-full object-cover grayscale group-hover/rec:grayscale-0 transition-all duration-500"
+                      />
+                    </div>
+                    <div className="flex-1 flex flex-col justify-between py-1">
+                      <div>
+                        <h4 className="text-[10px] font-bold tracking-widest uppercase mb-1 leading-tight">{recommendedBook.title}</h4>
+                        <p className="text-[9px] text-neutral-400">{formatPrice(recommendedBook.isOnSale ? recommendedBook.salePrice! : recommendedBook.retailPrice)}</p>
+                      </div>
+                      <button
+                        onClick={() => addToCart(recommendedBook)}
+                        className="mt-3 w-fit bg-black text-white hover:bg-neutral-800 text-[8px] font-black tracking-widest px-4 py-2 rounded-full transition-all uppercase"
+                      >
+                        + Add to Bag
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-8 border-t border-neutral-100 bg-white space-y-4">
                <div className="flex justify-between items-end">
                   <span className="text-[10px] tracking-[.4em] text-neutral-400 uppercase">{getCopy(design, "cartTotalLabel")}</span>
-                  <span className="text-3xl font-light">$ {cartTotal.toFixed(2)}</span>
+                  <span className="text-3xl font-light">{formatPrice(cartTotal)}</span>
                </div>
 
                {/* Trust signals */}
