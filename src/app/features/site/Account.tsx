@@ -89,13 +89,18 @@ export default function AccountPage() {
         const snap = await getDocs(q);
         setOrders(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch {
-        // index may not exist; fallback to client filter on small dataset
-        const snap = await getDocs(collection(db, "orders"));
+        // index may not exist; fallback to client sort
+        // fetch only user's orders using equality filter which doesn't require composite index
+        const fallbackQuery = query(
+          collection(db, "orders"),
+          where("customer.email", "==", u.email)
+        );
+        const snap = await getDocs(fallbackQuery);
         setOrders(
           snap.docs
             .map(d => ({ id: d.id, ...(d.data() as any) }))
-            .filter(o => o.customer?.email === u.email)
-            .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1)),
+            .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
+            .slice(0, 50),
         );
       }
     } catch (err) {
