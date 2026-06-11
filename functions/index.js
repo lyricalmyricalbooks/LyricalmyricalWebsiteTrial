@@ -662,9 +662,9 @@ exports.abandonedCartSweep = onSchedule(
       .where("updatedAt", "<", cutoff)
       .get();
 
-    for (const doc of snap.docs) {
+    const promises = snap.docs.map(async (doc) => {
       const c = doc.data();
-      if (!c.email) continue;
+      if (!c.email) return;
       const html = `
         <div style="font-family:Inter,system-ui,sans-serif;max-width:560px;margin:auto;padding:32px;color:#111;">
           <h1 style="font-size:18px;letter-spacing:.3em;text-transform:uppercase;">You left something behind</h1>
@@ -682,7 +682,9 @@ exports.abandonedCartSweep = onSchedule(
       } catch (err) {
         console.error("Abandoned cart email failed", err);
       }
-    }
+    });
+
+    await Promise.allSettled(promises);
   },
 );
 
