@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, X, Instagram, Mail, ArrowRight, Send, Heart, User as UserIcon, Zap, Search as SearchIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router";
 import { useCart } from "../CartContext";
 import { CATEGORIES, DEFAULT_IMAGE } from "../features/site/constants";
