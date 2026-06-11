@@ -188,8 +188,14 @@ export function Checkout() {
                   shippingProfiles[0];
       }
  
-      const base = Number(profile?.base || 15);
-      const additional = Number(profile?.additional || 5);
+      const freeThreshold = profile?.freeThreshold ? Number(profile.freeThreshold) : 0;
+      let base = Number(profile?.base || 15);
+      let additional = Number(profile?.additional || 5);
+
+      if (freeThreshold > 0 && cartTotal >= freeThreshold) {
+        base = 0;
+        additional = 0;
+      }
  
       if (i === 0) {
         highestBase = base;
@@ -206,7 +212,7 @@ export function Checkout() {
     });
  
     setShippingCost(highestBase + totalAdditional);
-  }, [customer.address.country, cart, shippingProfiles]);
+  }, [customer.address.country, cart, shippingProfiles, cartTotal]);
 
   // Re-validate discount whenever email or cart changes
   useEffect(() => {
@@ -286,6 +292,20 @@ export function Checkout() {
   const discountAmount  = calculateDiscountAmount();
   const finalShipping   = isFreeShipping ? 0 : shippingCost;
   const finalTotal      = cartTotal - discountAmount + finalShipping + taxCost;
+
+  const getActiveShippingDetails = () => {
+    if (cart.length === 0 || shippingProfiles.length === 0) return null;
+    const country = (customer.address.country || "United States").trim().toLowerCase();
+    const firstItem = cart[0];
+    let profile = shippingProfiles.find(p => p.id === firstItem.shippingProfileId);
+    if (!profile) {
+      profile = shippingProfiles.find(p => p.region.toLowerCase() === country) ||
+                shippingProfiles.find(p => p.region.toLowerCase() === "international") ||
+                shippingProfiles.find(p => p.region.toLowerCase() === "everywhere else") ||
+                shippingProfiles[0];
+    }
+    return profile;
+  };
 
   useSEO({ title: "Checkout", description: "Secure checkout for Lyricalmyrical Books." });
 
@@ -621,12 +641,20 @@ export function Checkout() {
                     )}
                   </AnimatePresence>
 
-                  <div className="flex justify-between items-center">
-                    <span className="flex items-center gap-2 text-[10px] font-black tracking-[0.2em] text-white/40 uppercase">
-                      <Truck size={12} className="text-white/20" /> Shipping
-                    </span>
-                    <span className={`text-sm font-black font-mono ${isFreeShipping ? "line-through text-white/20" : "text-white/70"}`}>
-                      {formatPrice(shippingCost)}
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <span className="flex items-center gap-2 text-[10px] font-black tracking-[0.2em] text-white/40 uppercase">
+                        <Truck size={12} className="text-white/20" /> Shipping
+                      </span>
+                      {getActiveShippingDetails() && (
+                        <p className="text-[8px] text-white/30 uppercase tracking-widest pl-5 font-semibold">
+                          {getActiveShippingDetails()?.serviceName || "Standard Shipping"}
+                          {getActiveShippingDetails()?.deliveryDays && ` (${getActiveShippingDetails()?.deliveryDays} Days)`}
+                        </p>
+                      )}
+                    </div>
+                    <span className={`text-sm font-black font-mono ${isFreeShipping || shippingCost === 0 ? "text-emerald-400 font-bold" : "text-white/70"}`}>
+                      {isFreeShipping || shippingCost === 0 ? "FREE" : formatPrice(shippingCost)}
                     </span>
                   </div>
 

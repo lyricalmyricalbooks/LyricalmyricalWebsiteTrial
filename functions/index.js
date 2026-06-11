@@ -110,6 +110,8 @@ function calculateShipping(items, customerAddress, profiles) {
   let highestBase = 0;
   let totalAdditional = 0;
 
+  const subtotal = items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     let profile = profiles.find(p => p.id === item.shippingProfileId);
@@ -121,8 +123,14 @@ function calculateShipping(items, customerAddress, profiles) {
                 profiles[0];
     }
 
-    const base = Number(profile?.base || 15);
-    const additional = Number(profile?.additional || 5);
+    const freeThreshold = profile?.freeThreshold ? Number(profile.freeThreshold) : 0;
+    let base = Number(profile?.base || 15);
+    let additional = Number(profile?.additional || 5);
+
+    if (freeThreshold > 0 && subtotal >= freeThreshold) {
+      base = 0;
+      additional = 0;
+    }
 
     if (i === 0) {
       highestBase = base;
