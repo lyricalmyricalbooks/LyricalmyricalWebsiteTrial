@@ -1563,6 +1563,17 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
 function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
   const stripe = settings.payments?.stripe || {};
   const paypal = settings.payments?.paypal || {};
+  const testMode = settings.payments?.testMode || false;
+  const manualMethods = settings.payments?.manualMethods || [];
+  const footerBadges = settings.payments?.footerBadges || [];
+
+  // Manual payment modal state
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [editingMethod, setEditingMethod] = useState<any | null>(null);
+  const [methodName, setMethodName] = useState("");
+  const [methodInstructions, setMethodInstructions] = useState("");
+  const [methodType, setMethodType] = useState<"bank" | "cod" | "custom">("bank");
+  const [methodEnabled, setMethodEnabled] = useState(true);
 
   const updateStripe = (patch: any) => {
     setSettings({
@@ -1578,12 +1589,107 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
     });
   };
 
+  const updateTestMode = (val: boolean) => {
+    setSettings({
+      ...settings,
+      payments: { ...settings.payments, testMode: val }
+    });
+  };
+
+  const openAddMethod = (type: "bank" | "cod" | "custom") => {
+    let defaultName = "";
+    let defaultInstructions = "";
+    if (type === "bank") {
+      defaultName = "Bank Deposit / e-Transfer";
+      defaultInstructions = "Please send your Interac e-Transfer to payments@lyricalmyricalbooks.com. Use your order number as the transaction message.";
+    } else if (type === "cod") {
+      defaultName = "Cash on Delivery (COD)";
+      defaultInstructions = "Please prepare the exact amount of cash for your order. Our delivery agent will collect it upon delivery.";
+    } else {
+      defaultName = "Custom Payment Method";
+      defaultInstructions = "Please follow these instructions to complete payment for your order.";
+    }
+    setEditingMethod(null);
+    setMethodType(type);
+    setMethodName(defaultName);
+    setMethodInstructions(defaultInstructions);
+    setMethodEnabled(true);
+    setIsManualModalOpen(true);
+  };
+
+  const openEditMethod = (method: any) => {
+    setEditingMethod(method);
+    setMethodType(method.type);
+    setMethodName(method.name);
+    setMethodInstructions(method.instructions);
+    setMethodEnabled(method.enabled);
+    setIsManualModalOpen(true);
+  };
+
+  const handleSaveMethod = () => {
+    if (!methodName.trim()) {
+      alert("Please enter a payment method name.");
+      return;
+    }
+
+    let updatedMethods = [];
+    if (editingMethod) {
+      updatedMethods = manualMethods.map((m: any) =>
+        m.id === editingMethod.id
+          ? { ...m, name: methodName, instructions: methodInstructions, enabled: methodEnabled }
+          : m
+      );
+    } else {
+      const newMethod = {
+        id: `manual_${Date.now()}`,
+        type: methodType,
+        name: methodName,
+        instructions: methodInstructions,
+        enabled: methodEnabled
+      };
+      updatedMethods = [...manualMethods, newMethod];
+    }
+
+    setSettings({
+      ...settings,
+      payments: {
+        ...settings.payments,
+        manualMethods: updatedMethods
+      }
+    });
+    setIsManualModalOpen(false);
+  };
+
+  const handleDeleteMethod = (id: string) => {
+    const updatedMethods = manualMethods.filter((m: any) => m.id !== id);
+    setSettings({
+      ...settings,
+      payments: {
+        ...settings.payments,
+        manualMethods: updatedMethods
+      }
+    });
+  };
+
+  const handleToggleMethodStatus = (id: string, enabled: boolean) => {
+    const updatedMethods = manualMethods.map((m: any) =>
+      m.id === id ? { ...m, enabled } : m
+    );
+    setSettings({
+      ...settings,
+      payments: {
+        ...settings.payments,
+        manualMethods: updatedMethods
+      }
+    });
+  };
+
   return (
     <div className="space-y-16">
       <header className="flex flex-col gap-2 mb-12">
         <div className="flex justify-between items-end">
           <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Payment Gateway</h2>
+            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Payment Gateways</h2>
             <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Transaction processing & payment settings</p>
           </div>
           {hasChanges('payments') && (
@@ -1597,6 +1703,38 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
           )}
         </div>
       </header>
+
+      {/* Global Test Mode Switcher */}
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 relative overflow-hidden group">
+        <div className={`absolute inset-0 bg-gradient-to-br transition-all duration-700 ${
+          testMode 
+            ? "from-amber-500/[0.05] via-transparent to-transparent" 
+            : "from-emerald-500/[0.03] via-transparent to-transparent"
+        } pointer-events-none`} />
+        
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 relative z-10">
+          <div className="flex-1 space-y-4">
+            <SectionHeader 
+              title="Store Test Mode" 
+              subtitle="Environment Settings" 
+              icon={ShieldCheck} 
+              color={testMode ? "amber" : "emerald"} 
+            />
+            <p className="text-xs text-slate-400 leading-relaxed max-w-xl font-medium">
+              Run transactions in live mode or sandbox (test) mode. In Sandbox mode, Stripe and PayPal will process test charges and orders will be flagged as <span className="text-amber-400 font-bold uppercase tracking-wider">test mode orders</span>.
+            </p>
+          </div>
+          <div className="flex items-center gap-6">
+            <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${testMode ? "text-amber-400" : "text-emerald-400"}`}>
+              {testMode ? "Sandbox Active" : "Live Processing Active"}
+            </span>
+            <Switch 
+              checked={testMode} 
+              onChange={updateTestMode} 
+            />
+          </div>
+        </div>
+      </section>
 
       {/* Stripe Card */}
       <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
@@ -1648,21 +1786,49 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                     className="space-y-12 mt-12"
                   >
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                        <InputField 
-                           label="STRIPE PUBLISHABLE KEY" 
-                           placeholder="pk_live_..."
-                           icon={Lock}
-                           value={stripe.publicKey || ""}
-                           onChange={(e: any) => updateStripe({ publicKey: e.target.value })}
-                        />
-                        <InputField 
-                           label="STRIPE SECRET KEY" 
-                           placeholder="sk_live_..."
-                           icon={ShieldCheck}
-                           type="password"
-                           value={stripe.secretKey || ""}
-                           onChange={(e: any) => updateStripe({ secretKey: e.target.value })}
-                        />
+                        {/* Live Keys */}
+                        <div className={`space-y-8 p-8 bg-white/[0.01] border rounded-[2rem] transition-all ${
+                          !testMode ? "border-violet-500/20 shadow-lg shadow-violet-500/[0.02]" : "border-white/5 opacity-50"
+                        }`}>
+                           <h4 className="text-[10px] font-black tracking-[0.25em] text-white uppercase italic">Live Environment Keys</h4>
+                           <InputField 
+                              label="STRIPE PUBLISHABLE KEY" 
+                              placeholder="pk_live_..."
+                              icon={Lock}
+                              value={stripe.publicKey || ""}
+                              onChange={(e: any) => updateStripe({ publicKey: e.target.value })}
+                           />
+                           <InputField 
+                              label="STRIPE SECRET KEY" 
+                              placeholder="sk_live_..."
+                              icon={ShieldCheck}
+                              type="password"
+                              value={stripe.secretKey || ""}
+                              onChange={(e: any) => updateStripe({ secretKey: e.target.value })}
+                           />
+                        </div>
+                        
+                        {/* Test Keys */}
+                        <div className={`space-y-8 p-8 bg-white/[0.01] border rounded-[2rem] transition-all ${
+                          testMode ? "border-amber-500/20 shadow-lg shadow-amber-500/[0.02]" : "border-white/5 opacity-50"
+                        }`}>
+                           <h4 className="text-[10px] font-black tracking-[0.25em] text-white uppercase italic">Test (Sandbox) Keys</h4>
+                           <InputField 
+                              label="STRIPE TEST PUBLISHABLE KEY" 
+                              placeholder="pk_test_..."
+                              icon={Lock}
+                              value={stripe.testPublicKey || ""}
+                              onChange={(e: any) => updateStripe({ testPublicKey: e.target.value })}
+                           />
+                           <InputField 
+                              label="STRIPE TEST SECRET KEY" 
+                              placeholder="sk_test_..."
+                              icon={ShieldCheck}
+                              type="password"
+                              value={stripe.testSecretKey || ""}
+                              onChange={(e: any) => updateStripe({ testSecretKey: e.target.value })}
+                           />
+                        </div>
                      </div>
 
                      {/* Wallets */}
@@ -1743,19 +1909,180 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 20 }}
-                    className="mt-12"
+                    className="mt-12 space-y-12"
                   >
-                     <InputField 
-                        label="PAYPAL CLIENT ID" 
-                        placeholder="Client ID..."
-                        icon={Lock}
-                        value={paypal.clientId || ""}
-                        onChange={(e: any) => updatePaypal({ clientId: e.target.value })}
-                     />
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                        {/* Live Client ID */}
+                        <div className={`space-y-6 p-8 bg-white/[0.01] border rounded-[2rem] transition-all ${
+                          !testMode ? "border-blue-500/20 shadow-lg shadow-blue-500/[0.02]" : "border-white/5 opacity-50"
+                        }`}>
+                           <h4 className="text-[10px] font-black tracking-[0.25em] text-white uppercase italic">Live Client ID</h4>
+                           <InputField 
+                              label="PAYPAL CLIENT ID" 
+                              placeholder="Client ID..."
+                              icon={Lock}
+                              value={paypal.clientId || ""}
+                              onChange={(e: any) => updatePaypal({ clientId: e.target.value })}
+                           />
+                        </div>
+                        
+                        {/* Test Client ID */}
+                        <div className={`space-y-6 p-8 bg-white/[0.01] border rounded-[2rem] transition-all ${
+                          testMode ? "border-amber-500/20 shadow-lg shadow-amber-500/[0.02]" : "border-white/5 opacity-50"
+                        }`}>
+                           <h4 className="text-[10px] font-black tracking-[0.25em] text-white uppercase italic">Test Client ID</h4>
+                           <InputField 
+                              label="PAYPAL TEST CLIENT ID" 
+                              placeholder="Test Client ID..."
+                              icon={Lock}
+                              value={paypal.testClientId || ""}
+                              onChange={(e: any) => updatePaypal({ testClientId: e.target.value })}
+                           />
+                        </div>
+                     </div>
                   </motion.div>
                )}
             </AnimatePresence>
          </div>
+      </section>
+
+      {/* Manual Payment Methods Card */}
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+          <SectionHeader 
+            title="Manual Payment Methods" 
+            subtitle="Alternative payment gateways" 
+            icon={Building} 
+            color="emerald"
+          />
+          
+          <div className="flex flex-wrap gap-4">
+            <button 
+              onClick={() => openAddMethod("bank")}
+              className="bg-white/5 border border-white/10 hover:bg-white/10 text-white px-5 py-3 rounded-2xl font-black text-[9px] uppercase tracking-[0.2em] transition-all flex items-center gap-2"
+            >
+              <Plus size={12} /> + e-Transfer
+            </button>
+            <button 
+              onClick={() => openAddMethod("cod")}
+              className="bg-white/5 border border-white/10 hover:bg-white/10 text-white px-5 py-3 rounded-2xl font-black text-[9px] uppercase tracking-[0.2em] transition-all flex items-center gap-2"
+            >
+              <Plus size={12} /> + COD
+            </button>
+            <button 
+              onClick={() => openAddMethod("custom")}
+              className="bg-white/5 border border-white/10 hover:bg-white/10 text-white px-5 py-3 rounded-2xl font-black text-[9px] uppercase tracking-[0.2em] transition-all flex items-center gap-2"
+            >
+              <Plus size={12} /> + Custom
+            </button>
+          </div>
+        </div>
+
+        {manualMethods.length === 0 ? (
+          <div className="p-12 border border-dashed border-white/10 rounded-[2.5rem] text-center bg-white/[0.01]">
+            <p className="text-xs text-slate-500 uppercase tracking-widest font-black italic">No manual payment methods configured.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {manualMethods.map((method: any) => (
+              <div 
+                key={method.id}
+                className="p-8 bg-white/[0.02] border border-white/5 rounded-[2.5rem] hover:border-violet-500/20 transition-all flex flex-col justify-between gap-6"
+              >
+                <div className="flex justify-between items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <h4 className="text-sm font-black text-white uppercase tracking-widest italic truncate">{method.name}</h4>
+                      <span className="px-2 py-0.5 rounded bg-violet-600/20 border border-violet-500/30 text-[8px] font-black text-violet-400 tracking-wider uppercase shrink-0">
+                        {method.type === "bank" ? "e-Transfer" : method.type === "cod" ? "COD" : "Custom"}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.15em] mt-4 line-clamp-3">
+                      {method.instructions || "No custom instructions configured."}
+                    </p>
+                  </div>
+                  
+                  <Switch 
+                    checked={method.enabled}
+                    onChange={(val) => handleToggleMethodStatus(method.id, val)}
+                  />
+                </div>
+                
+                <div className="flex gap-4 pt-4 border-t border-white/5 justify-end">
+                  <button 
+                    onClick={() => openEditMethod(method)}
+                    className="p-3 bg-white/5 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-colors"
+                    title="Edit Method"
+                  >
+                    <Edit size={14} />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteMethod(method.id)}
+                    className="p-3 bg-red-500/5 hover:bg-red-500/10 rounded-xl text-red-400/60 hover:text-red-400 transition-colors"
+                    title="Delete Method"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Footer Badges Selector */}
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
+        <SectionHeader 
+          title="Footer Payment Icons" 
+          subtitle="Display trust badges in footer" 
+          icon={CreditCard} 
+          color="violet"
+        />
+        
+        <p className="text-xs text-slate-400 leading-relaxed max-w-xl font-medium">
+          Select which payment methods will appear as monochrome icons in the footer of your storefront.
+        </p>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+          {[
+            { id: "visa", label: "Visa" },
+            { id: "mastercard", label: "Mastercard" },
+            { id: "amex", label: "American Express" },
+            { id: "paypal", label: "PayPal" },
+            { id: "applepay", label: "Apple Pay" },
+            { id: "googlepay", label: "Google Pay" },
+            { id: "afterpay", label: "Afterpay" },
+            { id: "klarna", label: "Klarna" }
+          ].map((badge) => {
+            const isChecked = footerBadges.includes(badge.id);
+            return (
+              <label 
+                key={badge.id}
+                onClick={() => {
+                  const newBadges = isChecked
+                    ? footerBadges.filter((b: string) => b !== badge.id)
+                    : [...footerBadges, badge.id];
+                  setSettings({
+                    ...settings,
+                    payments: { ...settings.payments, footerBadges: newBadges }
+                  });
+                }}
+                className={`p-6 bg-white/[0.02] border rounded-[2rem] hover:border-violet-500/20 cursor-pointer flex items-center justify-between transition-all ${
+                  isChecked ? "border-violet-500/30 bg-violet-600/[0.02]" : "border-white/5"
+                }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
+                    isChecked ? "border-violet-500 bg-violet-600" : "border-white/10 bg-white/5"
+                  }`}>
+                    {isChecked && <Check size={12} className="text-white font-bold" />}
+                  </div>
+                  <span className="text-[10px] font-black tracking-widest text-slate-300 uppercase">{badge.label}</span>
+                </div>
+              </label>
+            );
+          })}
+        </div>
       </section>
 
       {/* Security note */}
@@ -1768,6 +2095,96 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
             <p className="text-xs text-slate-400 font-bold leading-relaxed">All payment credentials and API keys are stored securely. Client IDs and secret keys are masked for security.</p>
          </div>
       </div>
+
+      {/* Manual Payment Edit Modal */}
+      <AnimatePresence>
+        {isManualModalOpen && (
+          <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 md:p-12">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ duration: 0.4, ease: "circOut" }}
+              className="w-full max-w-2xl bg-[#050506] border border-white/10 rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl relative"
+            >
+              {/* Header */}
+              <div className="p-8 border-b border-white/5 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-xl text-violet-400">
+                    <Building size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black uppercase tracking-widest text-white italic">
+                      {editingMethod ? "Edit Payment Method" : "Add Payment Method"}
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-medium tracking-wide mt-1 uppercase">
+                      {editingMethod ? "Update configured instructions" : "Setup alternative manual transaction option"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsManualModalOpen(false)}
+                  className="p-3 bg-white/5 rounded-xl text-slate-400 hover:text-white border border-white/10 transition-all hover:bg-white/10 active:scale-95"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-8 space-y-8">
+                <InputField 
+                  label="PAYMENT METHOD TITLE" 
+                  placeholder="e.g. Bank Deposit, Interac e-Transfer"
+                  icon={CreditCard}
+                  value={methodName}
+                  onChange={(e: any) => setMethodName(e.target.value)}
+                />
+                
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">Payment Instructions</label>
+                  <textarea
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 outline-none focus:border-violet-500/50 focus:bg-white/[0.06] transition-all text-sm text-white font-bold placeholder:text-slate-800"
+                    rows={6}
+                    placeholder="Enter instructions for customers. e.g., send e-transfer to payment@example.com."
+                    value={methodInstructions}
+                    onChange={(e: any) => setMethodInstructions(e.target.value)}
+                  />
+                  <p className="text-[8px] text-slate-600 uppercase tracking-wider block ml-1 leading-relaxed">
+                    These instructions will be displayed to customers on the checkout confirmation page after placing their order.
+                  </p>
+                </div>
+
+                <div className="flex justify-between items-center p-8 bg-white/[0.01] border border-white/5 rounded-[2rem]">
+                  <div>
+                    <h4 className="text-xs font-black text-white uppercase tracking-widest italic">Status</h4>
+                    <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-1">Enable or disable this payment option immediately</p>
+                  </div>
+                  <Switch 
+                    checked={methodEnabled}
+                    onChange={setMethodEnabled}
+                  />
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-md flex items-center justify-end gap-4 shrink-0">
+                <button
+                  onClick={() => setIsManualModalOpen(false)}
+                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:text-white uppercase tracking-widest transition-all active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveMethod}
+                  className="px-8 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-violet-600/20 border border-violet-400/20"
+                >
+                  Save Method
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

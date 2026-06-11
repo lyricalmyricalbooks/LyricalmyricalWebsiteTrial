@@ -450,7 +450,19 @@ exports.createStripeCheckoutSession = onRequest(
       });
 
       // 5. Stripe checkout parameters
-      const stripe = new Stripe(STRIPE_SECRET_KEY.value());
+      const testMode = settings.payments?.testMode || false;
+      const stripeSettings = settings.payments?.stripe || {};
+      const stripeSecret = testMode 
+        ? stripeSettings.testSecretKey 
+        : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
+
+      if (!stripeSecret) {
+        throw new Error(testMode 
+          ? "Stripe Test Secret Key is not configured in settings." 
+          : "Stripe Secret Key is not configured.");
+      }
+
+      const stripe = new Stripe(stripeSecret);
       const subtotal = subtotalTrusted;
       const discount = discountAmount;
       const discountFactor = subtotal > 0 ? (subtotal - discount) / subtotal : 1;
@@ -544,7 +556,25 @@ exports.stripeWebhook = onRequest(
       return;
     }
 
-    const stripe = new Stripe(STRIPE_SECRET_KEY.value());
+    let testMode = false;
+    let stripeSecret = STRIPE_SECRET_KEY.value();
+    try {
+      const settingsDoc = await db.collection("settings").doc("website").get();
+      if (settingsDoc.exists) {
+        const settings = settingsDoc.data() || {};
+        testMode = settings.payments?.testMode || false;
+        const stripeSettings = settings.payments?.stripe || {};
+        if (testMode && stripeSettings.testSecretKey) {
+          stripeSecret = stripeSettings.testSecretKey;
+        } else if (!testMode && stripeSettings.secretKey) {
+          stripeSecret = stripeSettings.secretKey;
+        }
+      }
+    } catch (dbErr) {
+      console.warn("Failed to load settings in webhook, falling back to env secret key:", dbErr);
+    }
+
+    const stripe = new Stripe(stripeSecret);
     const sig = req.headers["stripe-signature"];
 
     let event;

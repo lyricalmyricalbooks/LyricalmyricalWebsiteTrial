@@ -468,9 +468,14 @@ export const adminApi = {
     // Providers default to disconnected; flip these only once the
     // corresponding integration is actually live.
     payments: {
+      testMode: false,
       stripe: {
         connected: false,
         email: "",
+        publicKey: "",
+        secretKey: "",
+        testPublicKey: "",
+        testSecretKey: "",
         applePay: false,
         googlePay: false,
         afterpay: false,
@@ -481,9 +486,13 @@ export const adminApi = {
       paypal: {
         connected: false,
         email: "",
+        clientId: "",
+        testClientId: "",
         venmo: false,
         buyNowPayLater: false
-      }
+      },
+      manualMethods: [],
+      footerBadges: ["visa", "mastercard", "paypal", "applepay", "googlepay"]
     },
     taxes: {
       rates: []

@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { useCart } from "./CartContext";
 import {
   ChevronLeft, Tag, ShieldCheck, X, AlertCircle,
-  Package, Truck, CreditCard, CheckCircle2, Loader2, Lock
+  Package, Truck, CreditCard, CheckCircle2, Loader2, Lock, Building
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { adminApi } from "./admin/api";
@@ -107,18 +107,35 @@ export function Checkout() {
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [taxRates, setTaxRates] = useState<any[]>([]);
   const [books, setBooks] = useState<any[]>([]);
+  const [settings, setSettings] = useState<any>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
+  const [successOrder, setSuccessOrder] = useState<any>(null);
 
   useEffect(() => {
     async function loadFulfillmentSettings() {
       try {
-        const [profiles, settings, bookList] = await Promise.all([
+        const [profiles, siteSettings, bookList] = await Promise.all([
           adminApi.getShippingProfiles(),
           adminApi.getSettings() as Promise<any>,
           adminApi.getBooks(100)
         ]);
         setShippingProfiles(profiles);
-        setTaxRates(settings?.taxes?.rates || []);
+        setTaxRates(siteSettings?.taxes?.rates || []);
         setBooks(bookList);
+        setSettings(siteSettings);
+
+        // Auto-select first available payment gateway
+        const payments = siteSettings?.payments || {};
+        if (payments.stripe?.connected) {
+          setSelectedPaymentMethod("stripe");
+        } else if (payments.paypal?.connected) {
+          setSelectedPaymentMethod("paypal");
+        } else {
+          const firstManual = (payments.manualMethods || []).find((m: any) => m.enabled);
+          if (firstManual) {
+            setSelectedPaymentMethod(`manual_${firstManual.id}`);
+          }
+        }
       } catch (err) {
         console.error("Failed to load checkout settings", err);
       }
@@ -514,6 +531,13 @@ export function Checkout() {
       const addressVerified = valData.isValid === true && valData.unverified !== true;
       const addressError = addressVerified ? "" : (valData.messages || []).map((m: any) => m.text).join(", ");
 
+      const isManual = selectedPaymentMethod.startsWith("manual_");
+      let manualMethod = null;
+      if (isManual) {
+        const manualId = selectedPaymentMethod.replace("manual_", "");
+        manualMethod = (settings?.payments?.manualMethods || []).find((m: any) => m.id === manualId);
+      }
+
       const orderData = {
         customer,
         addressVerified,
@@ -536,7 +560,10 @@ export function Checkout() {
         tax: taxCost,
         total: finalTotal,
         status: "pending_payment",
-        paymentStatus: "unpaid",
+        paymentStatus: isManual ? "pending" : "unpaid",
+        paymentMethod: isManual ? (manualMethod?.name || "Manual") : (selectedPaymentMethod === "paypal" ? "PayPal" : "Stripe"),
+        paymentInstructions: isManual ? (manualMethod?.instructions || "") : "",
+        testMode: settings?.payments?.testMode || false,
         appliedDiscount: appliedDiscount
           ? { id: appliedDiscount.id, code: appliedDiscount.code, type: appliedDiscount.type, value: appliedDiscount.value }
           : null,
@@ -547,6 +574,16 @@ export function Checkout() {
       localStorage.setItem("last_customer_email", customer.email);
       
       const orderId = await adminApi.createOrder(orderData);
+
+      if (isManual) {
+        window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${orderId}&manual=true`;
+        return;
+      }
+
+      if (selectedPaymentMethod === "paypal") {
+        window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${orderId}&paypal=true`;
+        return;
+      }
 
       // Tell the backend exactly where this checkout page lives. On GitHub
       // Pages the site sits under a sub-path, so origin alone is not enough
@@ -587,24 +624,49 @@ export function Checkout() {
       // marked the order paid (poll briefly to absorb webhook latency).
       let cancelled = false;
       (async () => {
-        for (let attempt = 0; attempt < 4 && !cancelled; attempt++) {
-          try {
-            const order: any = await adminApi.getOrderById(oid);
-            if (order && order.paymentStatus === "paid") {
-              if (cancelled) return;
+        try {
+          const order: any = await adminApi.getOrderById(oid);
+          if (order) {
+            setSuccessOrder(order);
+            if (params.get("paypal")) {
               setPaymentConfirmed(true);
-              funnelApi.track("purchase");
-              const email = customer.email || localStorage.getItem("last_customer_email") || "";
-              if (email) {
-                abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
-              }
-              return;
+            } else if (order.paymentStatus === "paid") {
+              setPaymentConfirmed(true);
+            } else if (order.paymentStatus === "pending") {
+              setPaymentConfirmed(false);
             }
-            if (!order) return; // forged/unknown order id — leave unconfirmed
-          } catch {
-            // transient read failure — retry
           }
-          await new Promise(r => setTimeout(r, 2500));
+        } catch (err) {
+          console.error("Failed to load order on success landing", err);
+        }
+
+        // If it's not a manual or paypal order, poll to confirm payment
+        if (!params.get("manual") && !params.get("paypal")) {
+          for (let attempt = 0; attempt < 4 && !cancelled; attempt++) {
+            try {
+              const order: any = await adminApi.getOrderById(oid);
+              if (order && order.paymentStatus === "paid") {
+                if (cancelled) return;
+                setPaymentConfirmed(true);
+                funnelApi.track("purchase");
+                const email = customer.email || localStorage.getItem("last_customer_email") || "";
+                if (email) {
+                  abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
+                }
+                return;
+              }
+            } catch {
+              // retry
+            }
+            await new Promise(r => setTimeout(r, 2500));
+          }
+        } else {
+          // Manual/PayPal tracking
+          funnelApi.track("purchase");
+          const email = customer.email || localStorage.getItem("last_customer_email") || "";
+          if (email) {
+            abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
+          }
         }
       })();
 
@@ -617,24 +679,46 @@ export function Checkout() {
 
   // ── Success screen ──────────────────────────────────────────────────────────
   if (isSuccess) {
+    const isManual = successOrder?.paymentStatus === "pending";
     return (
       <div className="h-screen bg-[#050506] text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.15)_0%,transparent_70%)] pointer-events-none" />
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", duration: 0.8 }}
-          className="relative z-10 flex flex-col items-center">
+          className="relative z-10 flex flex-col items-center max-w-md w-full">
           <div className="w-24 h-24 rounded-[2rem] bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mb-10 shadow-[0_0_60px_rgba(124,58,237,0.3)]">
             <CheckCircle2 size={44} className="text-violet-400" />
           </div>
           <p className="text-[9px] font-black tracking-[0.5em] text-violet-400 uppercase mb-4">
-            {paymentConfirmed ? "Order Confirmed" : "Finalizing Payment"}
+            {isManual 
+              ? "Order Placed" 
+              : (paymentConfirmed ? "Order Confirmed" : "Finalizing Payment")}
           </p>
           <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white mb-4">Thank You</h2>
           <p className="text-white/30 text-xs font-mono mb-2 tracking-widest">ORDER #{orderNumber}</p>
-          <p className="text-white/20 text-[10px] tracking-widest mb-14">
-            {paymentConfirmed
-              ? "A confirmation will be sent to your email."
-              : "Your payment is being confirmed — the receipt email will follow shortly."}
-          </p>
+          
+          {isManual ? (
+            <div className="w-full mt-4 mb-10 p-8 bg-white/[0.02] border border-white/5 rounded-[2rem] text-left space-y-4 shadow-inner animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <h4 className="text-[10px] font-black text-violet-400 uppercase tracking-[0.25em] italic flex items-center gap-2">
+                <Building size={14} /> {successOrder?.paymentMethod || "Payment Instructions"}
+              </h4>
+              <p className="text-white/80 text-xs font-bold leading-relaxed whitespace-pre-wrap">
+                {successOrder?.paymentInstructions || "Please check your email for payment instructions."}
+              </p>
+              <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl flex gap-3 items-center">
+                <AlertCircle size={14} className="text-amber-400 shrink-0" />
+                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-relaxed">
+                  Your order is pending verification of payment. We will ship once received.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-white/20 text-[10px] tracking-widest mb-14">
+              {paymentConfirmed
+                ? "A confirmation will be sent to your email."
+                : "Your payment is being confirmed — the receipt email will follow shortly."}
+            </p>
+          )}
+          
           <Link to="/"
             className="flex items-center gap-3 bg-violet-600 hover:bg-violet-500 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase transition-all active:scale-95 shadow-[0_10px_40px_rgba(124,58,237,0.4)]">
             Continue Exploring
@@ -667,6 +751,16 @@ export function Checkout() {
   // ── Main checkout ───────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#050506] text-white font-sans selection:bg-violet-500/30">
+
+      {/* Test Mode Warning Banner */}
+      {settings?.payments?.testMode && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 py-3.5 px-6 flex items-center justify-center gap-3 relative z-20 shadow-md">
+          <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <p className="text-[10px] text-amber-400 font-black tracking-[0.2em] uppercase text-center">
+            Test Mode Active &bull; Checkout is running in sandbox mode &bull; Real charges will not occur
+          </p>
+        </div>
+      )}
 
       {/* Ambient glow */}
       <div className="fixed top-0 right-0 w-[600px] h-[600px] bg-violet-600/8 blur-[140px] rounded-full pointer-events-none -mr-72 -mt-72" />
@@ -845,6 +939,103 @@ export function Checkout() {
               </div>
             </section>
           )}
+          {/* 3.8 Payment Method */}
+          {settings?.payments && (
+            <section className="animate-in fade-in slide-in-from-top-4 duration-300 mt-12">
+              <StepBadge n="3.8" label="Payment Method" />
+              <div className="space-y-4">
+                {/* Stripe Card Option */}
+                {settings.payments.stripe?.connected && (
+                  <div
+                    onClick={() => setSelectedPaymentMethod("stripe")}
+                    className={`flex items-center justify-between p-6 rounded-[2rem] border transition-all cursor-pointer ${
+                      selectedPaymentMethod === "stripe"
+                        ? "bg-violet-600/10 border-violet-500/50 text-white"
+                        : "bg-white/[0.03] border-white/5 text-white hover:border-white/10"
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                        selectedPaymentMethod === "stripe" ? "border-violet-500" : "border-white/20"
+                      }`}>
+                        {selectedPaymentMethod === "stripe" && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+                        )}
+                      </div>
+                      <div className="text-left">
+                        <p className="text-xs font-black tracking-widest uppercase">Credit / Debit Card</p>
+                        <p className="text-[9px] text-white/30 tracking-widest mt-1 uppercase font-semibold">
+                          Pay securely with Stripe
+                        </p>
+                      </div>
+                    </div>
+                    <CreditCard size={18} className="text-white/40" />
+                  </div>
+                )}
+
+                {/* PayPal Option */}
+                {settings.payments.paypal?.connected && (
+                  <div
+                    onClick={() => setSelectedPaymentMethod("paypal")}
+                    className={`flex items-center justify-between p-6 rounded-[2rem] border transition-all cursor-pointer ${
+                      selectedPaymentMethod === "paypal"
+                        ? "bg-violet-600/10 border-violet-500/50 text-white"
+                        : "bg-white/[0.03] border-white/5 text-white hover:border-white/10"
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                        selectedPaymentMethod === "paypal" ? "border-violet-500" : "border-white/20"
+                      }`}>
+                        {selectedPaymentMethod === "paypal" && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+                        )}
+                      </div>
+                      <div className="text-left">
+                        <p className="text-xs font-black tracking-widest uppercase">PayPal</p>
+                        <p className="text-[9px] text-white/30 tracking-widest mt-1 uppercase font-semibold">
+                          Pay with your PayPal account
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-black italic text-white/40">PayPal</span>
+                  </div>
+                )}
+
+                {/* Manual Methods Options */}
+                {(settings.payments.manualMethods || [])
+                  .filter((m: any) => m.enabled)
+                  .map((method: any) => (
+                    <div
+                      key={method.id}
+                      onClick={() => setSelectedPaymentMethod(`manual_${method.id}`)}
+                      className={`flex items-center justify-between p-6 rounded-[2rem] border transition-all cursor-pointer ${
+                        selectedPaymentMethod === `manual_${method.id}`
+                          ? "bg-violet-600/10 border-violet-500/50 text-white"
+                          : "bg-white/[0.03] border-white/5 text-white hover:border-white/10"
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                          selectedPaymentMethod === `manual_${method.id}` ? "border-violet-500" : "border-white/20"
+                        }`}>
+                          {selectedPaymentMethod === `manual_${method.id}` && (
+                            <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+                          )}
+                        </div>
+                        <div className="text-left">
+                          <p className="text-xs font-black tracking-widest uppercase">{method.name}</p>
+                          <p className="text-[9px] text-white/30 tracking-widest mt-1 uppercase font-semibold">
+                            Manual Payment Instructions provided on success
+                          </p>
+                        </div>
+                      </div>
+                      <Building size={16} className="text-white/40" />
+                    </div>
+                  ))}
+              </div>
+            </section>
+          )}
         </div>
 
         {/* ── RIGHT: Order total + payment ─────────────────────────────────────── */}
@@ -933,11 +1124,23 @@ export function Checkout() {
               <div className="relative z-10 space-y-6">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center">
-                    <CreditCard size={18} className="text-violet-400" />
+                    {selectedPaymentMethod.startsWith("manual_") ? (
+                      <Building size={18} className="text-violet-400" />
+                    ) : (
+                      <CreditCard size={18} className="text-violet-400" />
+                    )}
                   </div>
                   <div>
-                    <p className="text-[10px] font-black tracking-[0.25em] text-white uppercase">Secure Payment</p>
-                    <p className="text-[9px] text-white/30 tracking-widest">Powered by Stripe</p>
+                    <p className="text-[10px] font-black tracking-[0.25em] text-white uppercase">
+                      {selectedPaymentMethod.startsWith("manual_") ? "Manual Order" : "Secure Payment"}
+                    </p>
+                    <p className="text-[9px] text-white/30 tracking-widest">
+                      {selectedPaymentMethod === "stripe"
+                        ? "Powered by Stripe"
+                        : selectedPaymentMethod === "paypal"
+                        ? "Powered by PayPal"
+                        : "Direct Settlement"}
+                    </p>
                   </div>
                   <div className="ml-auto">
                     <ShieldCheck size={20} className="text-white/10" />
@@ -950,10 +1153,15 @@ export function Checkout() {
                   className="w-full relative overflow-hidden bg-violet-600 hover:bg-violet-500 text-white py-5 rounded-2xl text-[11px] font-black tracking-[0.4em] uppercase transition-all active:scale-[0.98] disabled:opacity-60 shadow-[0_20px_50px_rgba(124,58,237,0.35)] group"
                 >
                   <span className="relative z-10 flex items-center justify-center gap-3">
-                    {isCompleting
-                      ? <><Loader2 size={16} className="animate-spin" /> Processing...</>
-                      : <><Lock size={14} /> Pay with Stripe</>
-                    }
+                    {isCompleting ? (
+                      <><Loader2 size={16} className="animate-spin" /> Processing...</>
+                    ) : selectedPaymentMethod === "stripe" ? (
+                      <><Lock size={14} /> Pay with Stripe</>
+                    ) : selectedPaymentMethod === "paypal" ? (
+                      <><Lock size={14} /> Pay with PayPal</>
+                    ) : (
+                      <><Lock size={14} /> Place Order</>
+                    )}
                   </span>
                   <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
