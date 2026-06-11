@@ -6,9 +6,9 @@ import {
   Package, Truck, CreditCard, CheckCircle2, Loader2, Lock
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { loadStripe } from "@stripe/stripe-js";
 import { adminApi } from "./admin/api";
 import { abandonedCartApi, funnelApi } from "./lib/commerce";
+import { functionUrl } from "./lib/functionsBase";
 import { useSEO } from "./lib/seo";
 import { useCurrency } from "./CurrencyContext";
 import { COUNTRIES, matchShippingZone } from "./features/site/shippingZones";
@@ -90,6 +90,7 @@ export function Checkout() {
   const [isApplying, setIsApplying]     = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isSuccess, setIsSuccess]       = useState(false);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [orderNumber, setOrderNumber]   = useState("");
 
   const [discountCode, setDiscountCode]       = useState("");
@@ -149,10 +150,14 @@ export function Checkout() {
   }, []);
 
   const validateDiscountRestrictions = (discount: any, email: string, cartItems: any[], booksCatalog: any[]) => {
-    // 1. Min quantity
+    // 1. Min quantity / min order amount
     const totalQty = cartItems.reduce((sum, item) => sum + item.quantity, 0);
     if (discount.minQuantity && totalQty < discount.minQuantity) {
       throw new Error(`This code requires a minimum of ${discount.minQuantity} items in your cart.`);
+    }
+    const itemsSubtotal = cartItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
+    if (discount.minOrderAmount && itemsSubtotal < Number(discount.minOrderAmount)) {
+      throw new Error(`This code requires a minimum order of ${Number(discount.minOrderAmount).toFixed(2)}.`);
     }
 
     // 2. Email domain / email list
@@ -267,14 +272,21 @@ export function Checkout() {
   }, [customer.email, cart, books, appliedDiscount]);
  
   useEffect(() => {
+    // Region-aware estimate: prefer a rate whose region matches the
+    // state/province, then fall back to the country-wide rate. The backend
+    // recomputes the authoritative amount at session creation.
     const country = (customer.address.country || "United States").trim().toLowerCase();
-    const matchedTaxRate = taxRates.find(r => r.country.toLowerCase() === country);
+    const state = (customer.address.state || "").trim().toLowerCase();
+    const countryRates = taxRates.filter(r => (r.country || "").trim().toLowerCase() === country);
+    const matchedTaxRate =
+      countryRates.find(r => (r.region || "").trim().toLowerCase() === state && state !== "") ||
+      countryRates.find(r => !r.region);
     const taxPercent = matchedTaxRate ? Number(matchedTaxRate.rate) : 0;
-    
+
     const discountAmount = calculateDiscountAmount();
     const subtotalAfterDiscount = cartTotal - discountAmount;
     setTaxCost(subtotalAfterDiscount * (taxPercent / 100));
-  }, [customer.address.country, cartTotal, appliedDiscount, taxRates]);
+  }, [customer.address.country, customer.address.state, cartTotal, appliedDiscount, taxRates]);
  
   const applyDiscount = async () => {
     if (!discountCode) return;
@@ -355,7 +367,6 @@ export function Checkout() {
 
   useEffect(() => {
     if (!customer.email || !customer.email.includes("@") || cart.length === 0) return;
-    const cartKey = `${customer.email}_${Date.now().toString(36).slice(-4)}`.toLowerCase().replace(/[^a-z0-9_]/g, "");
     const t = setTimeout(() => {
       abandonedCartApi.upsert(`active_${customer.email.toLowerCase()}`, {
         email: customer.email,
@@ -375,11 +386,7 @@ export function Checkout() {
     setIsCompleting(true);
     try {
       // 1. Verify and Validate address using Shippo API Cloud Function
-      const validateUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-        ? "http://127.0.0.1:5001/lyricalmyrical-web-v2/us-central1/validateAddress"
-        : "https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/validateAddress";
-
-      const valResponse = await fetch(validateUrl, {
+      const valResponse = await fetch(functionUrl("validateAddress"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -399,7 +406,9 @@ export function Checkout() {
       }
 
       const valData = await valResponse.json();
-      const addressVerified = valData.isValid === true;
+      // `unverified` means the verification service itself was unavailable —
+      // the checkout proceeds, but the order is flagged for manual review.
+      const addressVerified = valData.isValid === true && valData.unverified !== true;
       const addressError = addressVerified ? "" : (valData.messages || []).map((m: any) => m.text).join(", ");
 
       const orderData = {
@@ -435,14 +444,15 @@ export function Checkout() {
       
       const orderId = await adminApi.createOrder(orderData);
 
-      const functionsUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-        ? "http://127.0.0.1:5001/lyricalmyrical-web-v2/us-central1/createStripeCheckoutSession"
-        : "https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/createStripeCheckoutSession";
+      // Tell the backend exactly where this checkout page lives. On GitHub
+      // Pages the site sits under a sub-path, so origin alone is not enough
+      // for Stripe's success/cancel redirects.
+      const returnUrl = `${window.location.origin}${import.meta.env.BASE_URL}checkout`;
 
-      const sessionResponse = await fetch(functionsUrl, {
+      const sessionResponse = await fetch(functionUrl("createStripeCheckoutSession"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, currency: currency.toLowerCase() }),
+        body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
       });
 
       if (!sessionResponse.ok) {
@@ -466,17 +476,37 @@ export function Checkout() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("success")) {
       const oid = params.get("order_id") || "";
-      if (oid) {
-        setOrderNumber(oid);
-      }
-      funnelApi.track("purchase");
-      // Mark abandoned cart as recovered if any
-      const email = customer.email || localStorage.getItem("last_customer_email") || "";
-      if (email) {
-        abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
-      }
+      if (!oid) return;
+      setOrderNumber(oid);
+
+      // Don't trust the URL parameter alone: confirm the webhook actually
+      // marked the order paid (poll briefly to absorb webhook latency).
+      let cancelled = false;
+      (async () => {
+        for (let attempt = 0; attempt < 4 && !cancelled; attempt++) {
+          try {
+            const order: any = await adminApi.getOrderById(oid);
+            if (order && order.paymentStatus === "paid") {
+              if (cancelled) return;
+              setPaymentConfirmed(true);
+              funnelApi.track("purchase");
+              const email = customer.email || localStorage.getItem("last_customer_email") || "";
+              if (email) {
+                abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
+              }
+              return;
+            }
+            if (!order) return; // forged/unknown order id — leave unconfirmed
+          } catch {
+            // transient read failure — retry
+          }
+          await new Promise(r => setTimeout(r, 2500));
+        }
+      })();
+
       setIsSuccess(true);
       clearCart();
+      return () => { cancelled = true; };
     }
     if (params.get("canceled")) alert("Order payment was canceled.");
   }, [customer.email]);
@@ -491,10 +521,16 @@ export function Checkout() {
           <div className="w-24 h-24 rounded-[2rem] bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mb-10 shadow-[0_0_60px_rgba(124,58,237,0.3)]">
             <CheckCircle2 size={44} className="text-violet-400" />
           </div>
-          <p className="text-[9px] font-black tracking-[0.5em] text-violet-400 uppercase mb-4">Order Confirmed</p>
+          <p className="text-[9px] font-black tracking-[0.5em] text-violet-400 uppercase mb-4">
+            {paymentConfirmed ? "Order Confirmed" : "Finalizing Payment"}
+          </p>
           <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white mb-4">Thank You</h2>
           <p className="text-white/30 text-xs font-mono mb-2 tracking-widest">ORDER #{orderNumber}</p>
-          <p className="text-white/20 text-[10px] tracking-widest mb-14">A confirmation will be sent to your email.</p>
+          <p className="text-white/20 text-[10px] tracking-widest mb-14">
+            {paymentConfirmed
+              ? "A confirmation will be sent to your email."
+              : "Your payment is being confirmed — the receipt email will follow shortly."}
+          </p>
           <Link to="/"
             className="flex items-center gap-3 bg-violet-600 hover:bg-violet-500 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase transition-all active:scale-95 shadow-[0_10px_40px_rgba(124,58,237,0.4)]">
             Continue Exploring

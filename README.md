@@ -104,3 +104,30 @@ This repo now includes a GitHub Actions workflow at `.github/workflows/deploy-pa
 - You can also run it manually from **Actions → Deploy to GitHub Pages → Run workflow**.
 
 > Note: GitHub Pages only hosts the frontend static site. The backend (`backend/server.js`) must be deployed on a Node host (Render/Railway/Fly.io/VM) and pointed to by your frontend.
+
+## Going live checklist (e-commerce)
+
+The payment/fulfillment backend runs on Firebase. Before taking real orders:
+
+1. **Secrets (Firebase → Functions → Secrets)** — set real values for:
+   - `STRIPE_SECRET_KEY` (live key, `sk_live_...`)
+   - `STRIPE_WEBHOOK_SECRET` (from the Stripe webhook endpoint pointing at `stripeWebhook`)
+   - `RESEND_API_KEY` (transactional email)
+   - `SHIPPO_API_TOKEN` (address verification + labels; without it addresses are flagged unverified and label generation refuses to run)
+2. **GitHub secret `FIREBASE_SERVICE_ACCOUNT`** — JSON service-account key so the
+   `Deploy Firebase` workflow can ship Firestore rules, indexes, Storage rules
+   and Cloud Functions automatically. Until it is set, deploy manually with
+   `npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage,functions`.
+3. **Stripe webhook** — in the Stripe dashboard add an endpoint for
+   `checkout.session.completed` pointing to
+   `https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/stripeWebhook`.
+   Orders are created `unpaid` and only this webhook marks them paid,
+   decrements stock, counts discount redemptions and records revenue.
+4. **Policies** — fill in shipping / returns / privacy / terms in Admin →
+   Settings before launch (required by Stripe and card networks).
+5. **Tax rates** — Admin → Taxes now supports an optional state/province per
+   rate (e.g. Canada + Ontario = 13). Add one row per region you must collect
+   in; a row with an empty region is the country-wide fallback.
+6. **Allowed origins** — if the site moves to a custom domain, add it to
+   `ALLOWED_ORIGINS` in `functions/index.js` and to the OAuth redirect URIs in
+   `firebase.json`, and set `SITE_BASE=/` when building.

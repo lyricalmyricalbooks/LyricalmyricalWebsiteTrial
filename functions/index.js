@@ -14,12 +14,64 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onRequest } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
+const crypto = require("crypto");
 const { Resend } = require("resend");
 const Stripe = require("stripe");
 const { matchShippingZone } = require("./shippingGeo");
 
 admin.initializeApp();
 const db = admin.firestore();
+
+const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
+
+const ADMIN_EMAILS = ["lyricalmyricalbooks@gmail.com"];
+
+const ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:4000",
+  "https://lyricalmyricalbooks.github.io",
+  "https://lyricalmyricalbooks.com",
+  "https://www.lyricalmyricalbooks.com",
+];
+
+// Returns true when the request was an OPTIONS preflight (already answered).
+function applyCors(req, res) {
+  const origin = req.headers.origin || "";
+  if (ALLOWED_ORIGINS.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+    res.set("Vary", "Origin");
+  }
+  if (req.method === "OPTIONS") {
+    res.set("Access-Control-Allow-Methods", "POST");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Access-Control-Max-Age", "3600");
+    res.status(204).send("");
+    return true;
+  }
+  return false;
+}
+
+// Verifies the Firebase ID token in the Authorization header and that it
+// belongs to an admin. Sends the error response itself; returns null on failure.
+async function requireAdmin(req, res) {
+  const match = (req.headers.authorization || "").match(/^Bearer (.+)$/);
+  if (!match) {
+    res.status(401).json({ error: "Missing Authorization token" });
+    return null;
+  }
+  try {
+    const decoded = await admin.auth().verifyIdToken(match[1]);
+    if (!ADMIN_EMAILS.includes(decoded.email) || decoded.email_verified !== true) {
+      res.status(403).json({ error: "Admin access required" });
+      return null;
+    }
+    return decoded;
+  } catch (err) {
+    res.status(401).json({ error: "Invalid Authorization token" });
+    return null;
+  }
+}
 
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
@@ -147,6 +199,76 @@ function calculateShipping(items, customerAddress, profiles) {
   return highestBase + totalAdditional;
 }
 
+// Region-aware tax matching: prefer a rate whose region matches the
+// destination state/province, otherwise fall back to the country-wide rate.
+function matchTaxRate(rates, country, state) {
+  const c = (country || "").trim().toLowerCase();
+  const countryRates = (rates || []).filter(
+    r => (r.country || "").trim().toLowerCase() === c
+  );
+  if (countryRates.length === 0) return null;
+  const stateCode = getStateCode(state || "");
+  const regional = countryRates.find(r => {
+    const region = (r.region || "").trim();
+    return region && getStateCode(region) === stateCode;
+  });
+  return regional || countryRates.find(r => !r.region) || null;
+}
+
+// Loads a discount by code and enforces active / expiry / usage limits.
+// Throws with a customer-readable message when the code cannot be used.
+async function fetchValidDiscount(code) {
+  const snap = await db
+    .collection("discounts")
+    .where("code", "==", String(code || "").toUpperCase())
+    .limit(1)
+    .get();
+  if (snap.empty) throw new Error("Invalid or expired discount code");
+  const docSnap = snap.docs[0];
+  const data = docSnap.data();
+  const isActive = data.isActive ?? data.active ?? true;
+  if (!isActive) throw new Error("This code is not currently active");
+  const expiry = data.expiryDate || data.expiry;
+  if (expiry && expiry < new Date().toISOString()) throw new Error("This code has expired");
+  if (data.usageLimit && (data.usageCount || 0) >= data.usageLimit) {
+    throw new Error("This code has reached its usage limit");
+  }
+  return { id: docSnap.id, ...data };
+}
+
+// Computes the discount amount from server-trusted item prices.
+// booksById maps item.id -> book data (for category targeting).
+function computeDiscountAmount(discount, items, booksById) {
+  const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  if (discount.minOrderAmount && subtotal < Number(discount.minOrderAmount)) {
+    throw new Error(`This code requires a minimum order of ${moneyFmt(discount.minOrderAmount)}.`);
+  }
+  const totalQty = items.reduce((s, i) => s + i.quantity, 0);
+  if (discount.minQuantity && totalQty < Number(discount.minQuantity)) {
+    throw new Error(`This code requires a minimum of ${discount.minQuantity} items.`);
+  }
+
+  let qualifying = subtotal;
+  if (discount.appliesTo === "categories") {
+    const selected = discount.selectedCategories || [];
+    qualifying = items.reduce((s, i) => {
+      const cats = (booksById[i.id] && booksById[i.id].categories) || [];
+      return cats.some(c => selected.includes(c)) ? s + i.price * i.quantity : s;
+    }, 0);
+    if (qualifying === 0) throw new Error("This code only applies to specific categories not in your cart.");
+  } else if (discount.appliesTo === "products") {
+    const selected = discount.selectedProducts || [];
+    qualifying = items.reduce(
+      (s, i) => (selected.includes(i.id) ? s + i.price * i.quantity : s), 0
+    );
+    if (qualifying === 0) throw new Error("This code only applies to specific products not in your cart.");
+  }
+
+  if (discount.type === "percentage") return qualifying * (Number(discount.value) / 100);
+  if (discount.type === "fixed") return Math.min(Number(discount.value), qualifying);
+  return 0; // "freeship" is applied to the shipping line instead
+}
+
 const FALLBACK_RATES = {
   cad: 1.0,
   usd: 0.73,
@@ -178,17 +300,13 @@ async function getExchangeRates() {
 exports.createStripeCheckoutSession = onRequest(
   { secrets: [STRIPE_SECRET_KEY] },
   async (req, res) => {
-    // Enable CORS
-    res.set("Access-Control-Allow-Origin", "*");
-    if (req.method === "OPTIONS") {
-      res.set("Access-Control-Allow-Methods", "POST");
-      res.set("Access-Control-Allow-Headers", "Content-Type");
-      res.set("Access-Control-Max-Age", "3600");
-      res.status(204).send("");
+    if (applyCors(req, res)) return;
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
       return;
     }
 
-    const { orderId, currency: reqCurrency } = req.body;
+    const { orderId, currency: reqCurrency, returnUrl } = req.body;
     const checkoutCurrency = (reqCurrency || "cad").toLowerCase();
     if (!orderId) {
       res.status(400).json({ error: "Missing orderId" });
@@ -209,7 +327,10 @@ exports.createStripeCheckoutSession = onRequest(
         return;
       }
 
-      // 1. Verify Inventory levels first
+      // 1. Load each book once: inventory check + authoritative pricing +
+      //    shipping profile. Client-supplied prices are never trusted.
+      const booksById = {};
+      const items = [];
       for (const item of order.items || []) {
         const bookDoc = await db.collection("books").doc(item.id).get();
         if (!bookDoc.exists) {
@@ -217,49 +338,78 @@ exports.createStripeCheckoutSession = onRequest(
           return;
         }
         const book = bookDoc.data();
+        booksById[item.id] = book;
+
+        let variant = null;
+        if (item.variantId) {
+          variant = (book.variants || []).find(v => v.id === item.variantId) || null;
+        }
         if (book.trackInventory) {
-          if (item.variantId) {
-            const variant = (book.variants || []).find(v => v.id === item.variantId);
-            if (variant && variant.stock < item.quantity) {
+          if (variant) {
+            if (variant.stock < item.quantity) {
               res.status(400).json({ error: `Insufficient stock for ${item.title} (${variant.name}). Only ${variant.stock} left.` });
               return;
             }
-          } else {
-            if (book.stockLevel < item.quantity) {
-              res.status(400).json({ error: `Insufficient stock for ${item.title}. Only ${book.stockLevel} left.` });
-              return;
-            }
+          } else if (book.stockLevel < item.quantity) {
+            res.status(400).json({ error: `Insufficient stock for ${item.title}. Only ${book.stockLevel} left.` });
+            return;
           }
         }
-      }
 
-      // 2. Dynamic Shipping Calculation
-      const profilesSnap = await db.collection("shipping-profiles").get();
-      const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-      const itemsWithProfiles = [];
-      for (const item of order.items) {
-        const bookDoc = await db.collection("books").doc(item.id).get();
-        const bookData = bookDoc.data() || {};
-        itemsWithProfiles.push({
+        const unitPrice = variant
+          ? Number(variant.price)
+          : (book.isOnSale && book.salePrice ? Number(book.salePrice) : Number(book.retailPrice));
+        items.push({
           ...item,
-          shippingProfileId: bookData.shippingProfileId
+          price: unitPrice,
+          quantity: Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1))),
+          shippingProfileId: book.shippingProfileId || null,
         });
       }
 
-      const shippingCost = calculateShipping(itemsWithProfiles, order.customer.address, profiles);
+      const subtotalTrusted = items.reduce((s, i) => s + i.price * i.quantity, 0);
 
-      // 3. Dynamic Tax Calculation
+      // 2. Server-side discount validation (codes, limits, targeting)
+      let discountAmount = 0;
+      let appliedDiscount = null;
+      if (order.appliedDiscount && order.appliedDiscount.code) {
+        let discount;
+        try {
+          discount = await fetchValidDiscount(order.appliedDiscount.code);
+          discountAmount = computeDiscountAmount(discount, items, booksById);
+        } catch (discountErr) {
+          res.status(400).json({ error: `Discount code error: ${discountErr.message}` });
+          return;
+        }
+        appliedDiscount = {
+          id: discount.id,
+          code: discount.code,
+          type: discount.type,
+          value: discount.value,
+        };
+      }
+
+      // 3. Dynamic Shipping Calculation (free when a freeship code applies)
+      const profilesSnap = await db.collection("shipping-profiles").get();
+      const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      let shippingCost = calculateShipping(items, order.customer.address, profiles);
+      if (appliedDiscount && appliedDiscount.type === "freeship") {
+        shippingCost = 0;
+      }
+
+      // 4. Dynamic Tax Calculation (region-aware: state/province before country)
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.data() || {};
       const taxRates = settings.taxes?.rates || [];
-      const country = (order.customer.address.country || "Canada").trim().toLowerCase();
-
-      const matchedTaxRate = taxRates.find(r => r.country.toLowerCase() === country);
+      const matchedTaxRate = matchTaxRate(
+        taxRates,
+        order.customer.address.country || "Canada",
+        order.customer.address.state || ""
+      );
       const taxRatePercent = matchedTaxRate ? Number(matchedTaxRate.rate) : 0;
-      const taxCost = (order.subtotal - (order.discount || 0)) * (taxRatePercent / 100);
+      const taxCost = (subtotalTrusted - discountAmount) * (taxRatePercent / 100);
 
-      const finalTotal = order.subtotal - (order.discount || 0) + shippingCost + taxCost;
+      const finalTotal = subtotalTrusted - discountAmount + shippingCost + taxCost;
       const rates = await getExchangeRates();
       const exchangeRate = rates[checkoutCurrency] || FALLBACK_RATES[checkoutCurrency] || 1.0;
 
@@ -284,6 +434,10 @@ exports.createStripeCheckoutSession = onRequest(
       const ipCountryMatchesShipping = !ipCountry || ipCountry.toUpperCase() === shippingCountryCode.toUpperCase();
 
       await orderRef.update({
+        items: items.map(({ shippingProfileId, ...rest }) => rest),
+        subtotal: subtotalTrusted,
+        discount: discountAmount,
+        appliedDiscount: appliedDiscount,
         shipping: shippingCost,
         tax: taxCost,
         total: finalTotal,
@@ -295,13 +449,13 @@ exports.createStripeCheckoutSession = onRequest(
         updatedAt: new Date().toISOString()
       });
 
-      // 4. Stripe checkout parameters
+      // 5. Stripe checkout parameters
       const stripe = new Stripe(STRIPE_SECRET_KEY.value());
-      const subtotal = order.subtotal;
-      const discount = order.discount || 0;
+      const subtotal = subtotalTrusted;
+      const discount = discountAmount;
       const discountFactor = subtotal > 0 ? (subtotal - discount) / subtotal : 1;
 
-      const lineItems = order.items.map(item => {
+      const lineItems = items.map(item => {
         const convertedPrice = item.price * exchangeRate;
         const itemPriceInCents = Math.round(convertedPrice * discountFactor * 100);
         let title = item.title;
@@ -347,14 +501,28 @@ exports.createStripeCheckoutSession = onRequest(
         });
       }
 
+      // The storefront passes its own checkout URL (it may live under a
+      // sub-path, e.g. GitHub Pages). Only accept it if it belongs to an
+      // allowed origin; otherwise fall back to origin + /checkout.
+      let checkoutBase = `${req.headers.origin || "http://localhost:5173"}/checkout`;
+      if (
+        typeof returnUrl === "string" &&
+        ALLOWED_ORIGINS.some(o => returnUrl === o || returnUrl.startsWith(`${o}/`))
+      ) {
+        checkoutBase = returnUrl;
+      }
+      const joiner = checkoutBase.includes("?") ? "&" : "?";
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: lineItems,
         mode: "payment",
         client_reference_id: orderId,
         customer_email: order.customer.email,
-        success_url: `${req.headers.origin || "http://localhost:5173"}/checkout?success=true&order_id=${orderId}`,
-        cancel_url: `${req.headers.origin || "http://localhost:5173"}/checkout?canceled=true`,
+        // Shorten the unpaid-stock-hold window: session dies after 30 minutes.
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+        success_url: `${checkoutBase}${joiner}success=true&order_id=${orderId}`,
+        cancel_url: `${checkoutBase}${joiner}canceled=true`,
       });
 
       res.status(200).json({ sessionId: session.id, url: session.url });
@@ -399,7 +567,10 @@ exports.stripeWebhook = onRequest(
       if (orderId) {
         try {
           const orderRef = db.collection("orders").doc(orderId);
+          let paidTotal = null;
+
           await db.runTransaction(async transaction => {
+            // Firestore transactions require ALL reads before any writes.
             const orderDoc = await transaction.get(orderRef);
             if (!orderDoc.exists) return;
             const order = orderDoc.data();
@@ -408,10 +579,26 @@ exports.stripeWebhook = onRequest(
               return;
             }
 
+            const itemList = order.items || [];
+            const bookRefs = itemList.map(item => db.collection("books").doc(item.id));
+            const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
+
+            let discountRef = null;
+            let discountDoc = null;
+            if (order.appliedDiscount?.id) {
+              discountRef = db.collection("discounts").doc(order.appliedDiscount.id);
+              discountDoc = await transaction.get(discountRef);
+            }
+
+            // Single-use token securing digital download links in emails.
+            const downloadToken = crypto.randomBytes(32).toString("hex");
+
             transaction.update(orderRef, {
               paymentStatus: "paid",
               fulfillmentStatus: "paid",
               status: "open",
+              downloadToken,
+              paidAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
               activity: [
                 ...(order.activity || []),
@@ -420,35 +607,55 @@ exports.stripeWebhook = onRequest(
             });
 
             // Atomic Stock Level Decrement
-            for (const item of order.items || []) {
-              const bookRef = db.collection("books").doc(item.id);
-              const bookDoc = await transaction.get(bookRef);
-              if (!bookDoc.exists) continue;
+            itemList.forEach((item, idx) => {
+              const bookDoc = bookDocs[idx];
+              if (!bookDoc.exists) return;
               const book = bookDoc.data();
+              if (!book.trackInventory) return;
 
-              if (book.trackInventory) {
-                if (item.variantId) {
-                  const variants = book.variants || [];
-                  const updatedVariants = variants.map(v => {
-                    if (v.id === item.variantId) {
-                      return { ...v, stock: Math.max(0, v.stock - item.quantity) };
-                    }
-                    return v;
-                  });
-                  transaction.update(bookRef, {
-                    variants: updatedVariants,
-                    stockLevel: Math.max(0, (book.stockLevel || 0) - item.quantity),
-                    updatedAt: new Date().toISOString()
-                  });
-                } else {
-                  transaction.update(bookRef, {
-                    stockLevel: Math.max(0, (book.stockLevel || 0) - item.quantity),
-                    updatedAt: new Date().toISOString()
-                  });
-                }
+              if (item.variantId) {
+                const variants = book.variants || [];
+                const updatedVariants = variants.map(v => {
+                  if (v.id === item.variantId) {
+                    return { ...v, stock: Math.max(0, v.stock - item.quantity) };
+                  }
+                  return v;
+                });
+                transaction.update(bookRefs[idx], {
+                  variants: updatedVariants,
+                  stockLevel: Math.max(0, (book.stockLevel || 0) - item.quantity),
+                  updatedAt: new Date().toISOString()
+                });
+              } else {
+                transaction.update(bookRefs[idx], {
+                  stockLevel: Math.max(0, (book.stockLevel || 0) - item.quantity),
+                  updatedAt: new Date().toISOString()
+                });
               }
+            });
+
+            // Count discount redemptions so usage limits are enforceable.
+            if (discountRef && discountDoc?.exists) {
+              transaction.update(discountRef, {
+                usageCount: (discountDoc.data().usageCount || 0) + 1,
+                updatedAt: new Date().toISOString()
+              });
             }
+
+            paidTotal = Number(order.total) || 0;
           });
+
+          // Revenue/order analytics are recorded here — at payment time —
+          // never client-side at order creation.
+          if (paidTotal !== null) {
+            const today = new Date().toISOString().split("T")[0];
+            await db.collection("analytics").doc(today).set({
+              date: today,
+              orders: admin.firestore.FieldValue.increment(1),
+              revenue: admin.firestore.FieldValue.increment(paidTotal),
+            }, { merge: true });
+          }
+
           console.log(`Order ${orderId} successfully processed via webhook.`);
         } catch (err) {
           console.error("Failed to process order update in transaction:", err);
@@ -467,8 +674,8 @@ exports.stripeWebhook = onRequest(
 // ──────────────────────────────────────────────────────────────
 exports.downloadDigitalAsset = onRequest(
   async (req, res) => {
-    const { orderId, email, itemId } = req.query;
-    if (!orderId || !email || !itemId) {
+    const { orderId, itemId, token } = req.query;
+    if (!orderId || !itemId || !token) {
       res.status(400).send("Missing download parameters");
       return;
     }
@@ -481,7 +688,15 @@ exports.downloadDigitalAsset = onRequest(
       }
 
       const order = orderDoc.data();
-      if (order.customer.email.toLowerCase() !== email.toLowerCase()) {
+      // The token is a random secret generated at payment time and only ever
+      // delivered to the buyer's inbox — possession proves entitlement.
+      const expected = order.downloadToken || "";
+      const provided = String(token);
+      const valid =
+        expected.length > 0 &&
+        expected.length === provided.length &&
+        crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
+      if (!valid) {
         res.status(403).send("Unauthorized access");
         return;
       }
@@ -563,7 +778,7 @@ exports.onOrderPaid = onDocumentUpdated(
               <tr>
                 <td style="padding:8px 0;border-bottom:1px solid #7c3aed10;"><strong>${item.title}</strong></td>
                 <td style="padding:8px 0;text-align:right;border-bottom:1px solid #7c3aed10;">
-                  <a href="https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/downloadDigitalAsset?orderId=${order.orderId || event.params.orderId}&email=${encodeURIComponent(order.customer.email)}&itemId=${item.id}" 
+                  <a href="https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/downloadDigitalAsset?orderId=${encodeURIComponent(event.params.orderId)}&itemId=${encodeURIComponent(item.id)}&token=${encodeURIComponent(order.downloadToken || "")}"
                      style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">Download File</a>
                 </td>
               </tr>
@@ -655,14 +870,17 @@ exports.abandonedCartSweep = onSchedule(
   { schedule: "every 60 minutes", secrets: [RESEND_API_KEY] },
   async () => {
     const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    // Firestore forbids inequality filters on two different fields in one
+    // query, so `notified` is filtered in code instead of with `!=`.
     const snap = await db
       .collection("abandoned-carts")
       .where("recovered", "==", false)
-      .where("notified", "!=", true)
       .where("updatedAt", "<", cutoff)
       .get();
 
-    const promises = snap.docs.map(async (doc) => {
+    const pending = snap.docs.filter(doc => doc.data().notified !== true);
+
+    const promises = pending.map(async (doc) => {
       const c = doc.data();
       if (!c.email) return;
       const html = `
@@ -694,14 +912,7 @@ exports.abandonedCartSweep = onSchedule(
 exports.validateAddress = onRequest(
   { secrets: [SHIPPO_API_TOKEN] },
   async (req, res) => {
-    res.set("Access-Control-Allow-Origin", "*");
-    if (req.method === "OPTIONS") {
-      res.set("Access-Control-Allow-Methods", "POST");
-      res.set("Access-Control-Allow-Headers", "Content-Type");
-      res.set("Access-Control-Max-Age", "3600");
-      res.status(204).send("");
-      return;
-    }
+    if (applyCors(req, res)) return;
 
     if (req.method !== "POST") {
       res.status(405).send("Method Not Allowed");
@@ -723,20 +934,31 @@ exports.validateAddress = onRequest(
       }
 
       if (!shippoToken || shippoToken === "your_shippo_api_token") {
-        console.warn("Using dev address verification fallback.");
-        const isTestInvalid = (address.street || "").toLowerCase().includes("invalid");
-        if (isTestInvalid) {
-          res.status(200).json({
-            isValid: false,
-            messages: [{
-              code: "address_not_found",
-              text: "The street address 'invalid' is not recognized by carrier databases.",
-              source: "USPS"
-            }]
-          });
-        } else {
-          res.status(200).json({ isValid: true, messages: [] });
+        if (IS_EMULATOR) {
+          console.warn("Using dev address verification fallback (emulator only).");
+          const isTestInvalid = (address.street || "").toLowerCase().includes("invalid");
+          if (isTestInvalid) {
+            res.status(200).json({
+              isValid: false,
+              messages: [{
+                code: "address_not_found",
+                text: "The street address 'invalid' is not recognized by carrier databases.",
+                source: "USPS"
+              }]
+            });
+          } else {
+            res.status(200).json({ isValid: true, messages: [] });
+          }
+          return;
         }
+        // In production a missing token must not silently "verify" every
+        // address. Let checkout proceed, but flag the order as unverified.
+        console.error("SHIPPO_API_TOKEN missing in production — address NOT verified.");
+        res.status(200).json({
+          isValid: true,
+          unverified: true,
+          messages: [{ code: "verification_unavailable", text: "Address verification service is not configured; address was not verified." }]
+        });
         return;
       }
 
@@ -773,19 +995,16 @@ exports.validateAddress = onRequest(
 exports.createShippingLabel = onRequest(
   { secrets: [SHIPPO_API_TOKEN] },
   async (req, res) => {
-    res.set("Access-Control-Allow-Origin", "*");
-    if (req.method === "OPTIONS") {
-      res.set("Access-Control-Allow-Methods", "POST");
-      res.set("Access-Control-Allow-Headers", "Content-Type");
-      res.set("Access-Control-Max-Age", "3600");
-      res.status(204).send("");
-      return;
-    }
+    if (applyCors(req, res)) return;
 
     if (req.method !== "POST") {
       res.status(405).send("Method Not Allowed");
       return;
     }
+
+    // Buying a label spends real money on the Shippo account — admin only.
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
 
     const { orderId } = req.body;
     if (!orderId) {
@@ -815,6 +1034,11 @@ exports.createShippingLabel = onRequest(
       }
 
       if (!shippoToken || shippoToken === "your_shippo_api_token") {
+        if (!IS_EMULATOR) {
+          // Never hand out fake tracking numbers on real orders.
+          res.status(500).json({ error: "SHIPPO_API_TOKEN is not configured — cannot generate a real shipping label." });
+          return;
+        }
         console.warn("Using dev label generation fallback (mock PDF and tracking).");
         const mockTracking = `MOCK-${Math.floor(10000000 + Math.random() * 90000000)}`;
         const mockLabelUrl = "https://goshippo.com/wp-content/uploads/2016/04/Shippo_Label.pdf";
@@ -945,3 +1169,45 @@ exports.createShippingLabel = onRequest(
     }
   }
 );
+
+// ──────────────────────────────────────────────────────────────
+// 9. HTTP Endpoint: Validate Discount Code (public checkout)
+//    The discounts collection is admin-only in Firestore rules, so the
+//    storefront validates codes through this endpoint instead.
+// ──────────────────────────────────────────────────────────────
+exports.validateDiscountCode = onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
+
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+
+  const { code } = req.body;
+  if (!code || typeof code !== "string") {
+    res.status(400).json({ error: "Missing discount code" });
+    return;
+  }
+
+  try {
+    const d = await fetchValidDiscount(code);
+    res.status(200).json({
+      discount: {
+        id: d.id,
+        code: d.code,
+        type: d.type,
+        value: d.value,
+        minOrderAmount: d.minOrderAmount ?? null,
+        minQuantity: d.minQuantity ?? null,
+        onePerCustomer: d.onePerCustomer ?? false,
+        appliesTo: d.appliesTo ?? "all",
+        selectedCategories: d.selectedCategories ?? [],
+        selectedProducts: d.selectedProducts ?? [],
+        allowedEmailDomains: d.allowedEmailDomains ?? "",
+        allowedCustomerEmails: d.allowedCustomerEmails ?? "",
+      },
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});

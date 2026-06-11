@@ -24,6 +24,7 @@ import {
   signInWithCredential,
 } from "firebase/auth";
 import { db, auth, storage, googleProvider } from "../../lib/firebase";
+import { functionUrl } from "../lib/functionsBase";
 import { legacyDb, legacyAuth } from "../../lib/legacyFirebase";
 import { ref as dbRef, get as dbGet } from "firebase/database";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -341,22 +342,24 @@ export const adminApi = {
       receiptMessage: "",
       newOrderNotifications: true
     },
+    // Providers default to disconnected; flip these only once the
+    // corresponding integration is actually live.
     payments: {
       stripe: {
-        connected: true,
-        email: "julianiacobelli1@gmail.com",
-        applePay: true,
-        googlePay: true,
-        afterpay: true,
-        affirm: true,
-        klarna: true,
+        connected: false,
+        email: "",
+        applePay: false,
+        googlePay: false,
+        afterpay: false,
+        affirm: false,
+        klarna: false,
         subscriptions: false
       },
       paypal: {
-        connected: true,
-        email: "lyricalmyricalbooks@gmail.com",
-        venmo: true,
-        buyNowPayLater: true
+        connected: false,
+        email: "",
+        venmo: false,
+        buyNowPayLater: false
       }
     },
     taxes: {
@@ -481,43 +484,27 @@ export const adminApi = {
   },
 
   createOrder: async (order: any) => {
-    // Generate a random-ish ID similar to the screenshot FRQZ-047691
+    // Random typeable ID, e.g. FRQZ-047691-K2XP. The extra segment makes IDs
+    // hard to enumerate since a known ID grants read access for tracking.
     const prefix = Math.random().toString(36).substring(2, 6).toUpperCase();
     const suffix = Math.floor(100000 + Math.random() * 900000);
-    const orderId = `${prefix}-${suffix}`;
-    
+    const extra = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const orderId = `${prefix}-${suffix}-${extra}`;
+
+    // Orders default to UNPAID; only the Stripe webhook flips them to paid
+    // (and records revenue analytics at that point). Firestore rules reject
+    // non-admin attempts to create an order in any other state.
     await setDoc(doc(db, "orders", orderId), {
       ...order,
       orderId, // Display ID
-      status: "open",
-      paymentStatus: "paid",
+      status: order.status || "pending_payment",
+      paymentStatus: order.paymentStatus || "unpaid",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       activity: [
-        { type: "event", message: "Order created", createdAt: new Date().toISOString() },
-        { type: "event", message: "Payment completed (Stripe)", createdAt: new Date().toISOString() }
+        { type: "event", message: "Order created", createdAt: new Date().toISOString() }
       ]
     });
-
-    // Also update daily analytics counters
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const analyticsRef = doc(db, "analytics", today);
-      const snap = await getDoc(analyticsRef);
-      const data = snap.exists() ? snap.data() : { date: today, visits: 1, orders: 0, revenue: 0 };
-      
-      const newOrders = (data.orders || 0) + 1;
-      const newRevenue = (data.revenue || 0) + (order.total || 0);
-      
-      await setDoc(analyticsRef, {
-        ...data,
-        orders: newOrders,
-        revenue: newRevenue,
-        conversion: (data.visits && data.visits > 0) ? (newOrders / data.visits) * 100 : 0
-      }, { merge: true });
-    } catch (e) {
-      console.warn("Failed to update daily analytics for order:", e);
-    }
 
     return orderId;
   },
@@ -546,13 +533,16 @@ export const adminApi = {
   },
 
   createShippingLabel: async (orderId: string) => {
-    const functionsUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-      ? "http://127.0.0.1:5001/lyricalmyrical-web-v2/us-central1/createShippingLabel"
-      : "https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/createShippingLabel";
+    // Endpoint is admin-only on the backend; it verifies this ID token.
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin to generate labels.");
 
-    const response = await fetch(functionsUrl, {
+    const response = await fetch(functionUrl("createShippingLabel"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`,
+      },
       body: JSON.stringify({ orderId }),
     });
 
@@ -619,39 +609,19 @@ export const adminApi = {
   },
 
   validateDiscount: async (code: string) => {
-    // Support both isActive (new field) and active (legacy)
-    const snap = await getDocs(
-      query(collection(db, "discounts"), where("code", "==", code.toUpperCase()))
-    );
-    if (snap.empty) throw new Error("Invalid or expired discount code");
-
-    const docSnap = snap.docs[0];
-    const data = docSnap.data();
-    const isActive = data.isActive ?? data.active ?? true;
-    if (!isActive) throw new Error("This code is not currently active");
-
-    const now = new Date().toISOString();
-    const expiry = data.expiryDate || data.expiry;
-    if (expiry && expiry < now) throw new Error("This code has expired");
-    if (data.usageLimit && (data.usageCount || 0) >= data.usageLimit)
-      throw new Error("This code has reached its usage limit");
-
-    const minOrder = data.minOrderAmount;
-
-    return {
-      id: docSnap.id,
-      code: data.code,
-      type: data.type,
-      value: data.value,
-      minOrderAmount: minOrder ?? null,
-      minQuantity: data.minQuantity ?? null,
-      onePerCustomer: data.onePerCustomer ?? false,
-      appliesTo: data.appliesTo ?? "all",
-      selectedCategories: data.selectedCategories ?? [],
-      selectedProducts: data.selectedProducts ?? [],
-      allowedEmailDomains: data.allowedEmailDomains ?? "",
-      allowedCustomerEmails: data.allowedCustomerEmails ?? "",
-    };
+    // The discounts collection is admin-only in Firestore rules, so the
+    // public checkout validates codes through a Cloud Function. The server
+    // re-validates again at payment time regardless.
+    const response = await fetch(functionUrl("validateDiscountCode"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Invalid or expired discount code");
+    }
+    return data.discount;
   },
 
   // ANALYTICS

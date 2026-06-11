@@ -2,53 +2,82 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == "lyricalmyricalbooks@gmail.com"
+        && request.auth.token.email_verified == true;
+    }
+
     match /books/{bookId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      allow write: if isAdmin();
     }
     match /settings/{docId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      allow write: if isAdmin();
     }
     match /authors/{authorId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      allow write: if isAdmin();
     }
     match /shipping-profiles/{profileId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      allow write: if isAdmin();
     }
     match /pages/{pageId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      allow write: if isAdmin();
     }
     match /orders/{orderId} {
-      // Anyone can read if they know the order ID (token-like tracking) or if authenticated.
-      // Admin can update/delete.
-      allow read: if true;
-      allow create: if true;
-      allow update, delete: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      // Single-document fetch with a known order ID acts as token-like access
+      // for guest order tracking. Listing/querying is restricted: admins see
+      // everything, signed-in customers only their own orders.
+      allow get: if true;
+      allow list: if isAdmin()
+        || (request.auth != null && resource.data.customer.email == request.auth.token.email);
+      // Orders are always created unpaid; only the Stripe webhook (Admin SDK)
+      // flips them to paid. Admins may create orders in any state (e.g.
+      // manual/sample orders).
+      allow create: if isAdmin()
+        || (request.resource.data.paymentStatus == "unpaid"
+        && request.resource.data.status == "pending_payment"
+        && request.resource.data.customer.email is string
+        && request.resource.data.items is list
+        && request.resource.data.items.size() > 0
+        && request.resource.data.items.size() <= 50);
+      allow update, delete: if isAdmin();
     }
     match /audit-log/{logId} {
-      allow read, write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      allow read, write: if isAdmin();
     }
     match /analytics/{docId} {
-      allow read, create, update: if true;
-      allow delete: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      // Visitors may bump traffic/funnel counters, but order and revenue
+      // figures are written exclusively by the payment webhook (Admin SDK).
+      allow read: if true;
+      allow create: if isAdmin() || (
+        request.resource.data.keys().hasOnly(['date', 'visits', 'orders', 'revenue', 'conversion', 'funnel', 'categoryViews'])
+        && (!('orders' in request.resource.data) || request.resource.data.orders == 0)
+        && (!('revenue' in request.resource.data) || request.resource.data.revenue == 0)
+      );
+      allow update: if isAdmin()
+        || request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['date', 'visits', 'funnel', 'categoryViews']);
+      allow delete: if isAdmin();
     }
     match /discounts/{docId} {
-      allow read, write: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      // Public code validation happens via the validateDiscountCode function.
+      allow read, write: if isAdmin();
     }
     match /customers/{customerId} {
       // Customers can read/write their own profile; admin can read all
       allow read: if request.auth != null
-        && (request.auth.uid == customerId || request.auth.token.email == "lyricalmyricalbooks@gmail.com");
+        && (request.auth.uid == customerId || isAdmin());
       allow create, update: if request.auth != null && request.auth.uid == customerId;
-      allow delete: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      allow delete: if isAdmin();
     }
     match /newsletter/{docId} {
       allow create: if true;
-      allow read, update, delete: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      allow read, update, delete: if isAdmin();
     }
     match /reviews/{reviewId} {
       // Public can read approved reviews (we filter client-side too)
@@ -61,12 +90,13 @@ service cloud.firestore {
         && request.resource.data.bookId is string
         && request.resource.data.body is string
         && request.resource.data.body.size() <= 4000;
-      allow update, delete: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      allow update, delete: if isAdmin();
     }
     match /abandoned-carts/{cartId} {
       // Anyone can write their own pending cart; only admin reads
-      allow create, update: if true;
-      allow read, delete: if request.auth != null && request.auth.token.email == "lyricalmyricalbooks@gmail.com";
+      allow create, update: if request.resource.data.email is string
+        && request.resource.data.email.size() <= 254;
+      allow read, delete: if isAdmin();
     }
   }
 }

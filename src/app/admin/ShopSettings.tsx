@@ -1129,14 +1129,18 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
 function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
   const [isAdding, setIsAdding] = useState(false);
   const [country, setCountry] = useState("");
+  const [region, setRegion] = useState("");
   const [rate, setRate] = useState("");
 
   const handleAdd = () => {
     if (!country || !rate) return;
-    const newRates = [...(settings.taxes?.rates || []), { country, rate }];
+    // region is optional: empty = country-wide rate, set = state/province
+    // override (e.g. country "Canada" + region "Ontario" for HST).
+    const newRates = [...(settings.taxes?.rates || []), { country, region: region.trim(), rate }];
     setSettings({ ...settings, taxes: { ...settings.taxes, rates: newRates } });
     setIsAdding(false);
     setCountry("");
+    setRegion("");
     setRate("");
   };
 
@@ -1183,20 +1187,27 @@ function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingS
             icon={Percent} 
             color="rose"
           />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
-            <InputField 
-              label="COUNTRY / REGION" 
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative z-10">
+            <InputField
+              label="COUNTRY"
               icon={Globe}
-              placeholder="e.g. United Kingdom" 
-              value={country} 
-              onChange={(e: any) => setCountry(e.target.value)} 
+              placeholder="e.g. Canada"
+              value={country}
+              onChange={(e: any) => setCountry(e.target.value)}
             />
-            <InputField 
-              label="TAX RATE (%)" 
+            <InputField
+              label="STATE / PROVINCE (OPTIONAL)"
+              icon={Globe}
+              placeholder="e.g. Ontario — blank = whole country"
+              value={region}
+              onChange={(e: any) => setRegion(e.target.value)}
+            />
+            <InputField
+              label="TAX RATE (%)"
               icon={Hash}
-              placeholder="20" 
-              value={rate} 
-              onChange={(e: any) => setRate(e.target.value)} 
+              placeholder="13"
+              value={rate}
+              onChange={(e: any) => setRate(e.target.value)}
               className="font-mono"
             />
           </div>
@@ -1255,7 +1266,9 @@ function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingS
                   <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center border border-violet-500/20">
                     <Globe size={18} className="text-violet-400" />
                   </div>
-                  <h4 className="text-sm font-black text-white uppercase tracking-[0.15em] italic">{r.country}</h4>
+                  <h4 className="text-sm font-black text-white uppercase tracking-[0.15em] italic">
+                    {r.country}{r.region ? ` · ${r.region}` : ""}
+                  </h4>
                 </div>
                 <div className="space-y-2">
                   <p className="text-[9px] text-slate-600 font-black uppercase tracking-[0.3em]">Tax Rate</p>
