@@ -12,6 +12,8 @@ import {
   Download,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section type registry — drives the Add Section library + per-type editor
@@ -1023,6 +1025,30 @@ export function SectionSettingsPanel({
         </select>
       </div>
 
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Show from</label>
+          <input
+            type="datetime-local"
+            value={settings.showFrom || ""}
+            onChange={(e) => onUpdate({ showFrom: e.target.value || undefined })}
+            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[10px] outline-none focus:border-blue-400"
+          />
+        </div>
+        <div>
+          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Show until</label>
+          <input
+            type="datetime-local"
+            value={settings.showUntil || ""}
+            onChange={(e) => onUpdate({ showUntil: e.target.value || undefined })}
+            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[10px] outline-none focus:border-blue-400"
+          />
+        </div>
+        <p className="col-span-2 text-[8px] text-neutral-400 font-medium -mt-1">
+          Optional publish window — the section only renders between these times (e.g. a sale banner).
+        </p>
+      </div>
+
       <div>
         <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Custom CSS class</label>
         <input
@@ -1230,6 +1256,7 @@ type SectionFieldSchema =
   | { key: string; label: string; kind: "textarea"; rows?: number }
   | { key: string; label: string; kind: "image" }
   | { key: string; label: string; kind: "html" }
+  | { key: string; label: string; kind: "richtext" }
   | { key: string; label: string; kind: "color" }
   | { key: string; label: string; kind: "number"; min?: number; max?: number; step?: number; suffix?: string }
   | { key: string; label: string; kind: "select"; options: { value: string; label: string }[] }
@@ -1301,7 +1328,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
         { value: "right", label: "Right" },
       ],
     },
-    { key: "html", label: "HTML content", kind: "html" },
+    { key: "html", label: "Content", kind: "richtext" },
   ],
   MarqueeSection: [
     { key: "text", label: "Text", kind: "text" },
@@ -1443,6 +1470,27 @@ export function SectionFieldEditor({
               field.kind === "html" ? "font-mono" : ""
             }`}
           />
+        </div>
+      );
+    case "richtext":
+      return (
+        <div>
+          {labelEl}
+          <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden [&_.ql-toolbar]:!border-0 [&_.ql-toolbar]:!border-b [&_.ql-toolbar]:!border-neutral-100 [&_.ql-container]:!border-0 [&_.ql-editor]:min-h-[120px] [&_.ql-editor]:text-[12px]">
+            <ReactQuill
+              theme="snow"
+              value={value || ""}
+              onChange={(html) => onChange(html)}
+              modules={{
+                toolbar: [
+                  [{ header: [2, 3, false] }],
+                  ["bold", "italic", "underline"],
+                  [{ list: "ordered" }, { list: "bullet" }],
+                  ["link", "clean"],
+                ],
+              }}
+            />
+          </div>
         </div>
       );
     case "color":

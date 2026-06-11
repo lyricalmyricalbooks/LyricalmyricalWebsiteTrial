@@ -56,6 +56,13 @@ export function useSiteData() {
           safeSettings.design = safeSettings.draftDesign;
         }
 
+        // Scheduled publishing: once the scheduled time passes, shoppers see
+        // the scheduled design (preview keeps showing the editor's draft).
+        const sched = safeSettings.scheduledPublish;
+        if (!isPreview && sched?.at && sched?.design && new Date(sched.at).getTime() <= Date.now()) {
+          safeSettings.design = sched.design;
+        }
+
         const safePages = Array.isArray(pagesResponse) ? (pagesResponse as Page[]) : [];
 
         setBooks(safeBooks);

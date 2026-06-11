@@ -670,5 +670,111 @@ export function GlobalSectionsPanel({
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Homepage layout templates — full curated section arrangements, one click
+// ─────────────────────────────────────────────────────────────────────────────
+export type HomeLayoutTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  sections: { type: string; settings?: Record<string, any> }[];
+};
+
+export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
+  {
+    id: "editorial-launch",
+    name: "Editorial Launch",
+    description: "Hero, story, featured title, social proof and email capture — a classic publisher homepage.",
+    sections: [
+      { type: "HeroSection", settings: { title: "THE NEW COLLECTION", subtitle: "Photography & art books", ctaText: "EXPLORE", align: "center", overlayOpacity: 0.5 } },
+      { type: "ImageWithTextSection", settings: { eyebrow: "OUR STORY", title: "Independent by design", body: "Tell the story behind your imprint — what you publish and why it matters.", ctaText: "Read more", layout: "image-left" } },
+      { type: "FeaturedProductSection", settings: { eyebrow: "FEATURED", ctaText: "View product" } },
+      { type: "TestimonialsSection", settings: { title: "WHAT COLLECTORS SAY" } },
+      { type: "NewsletterSection", settings: { title: "JOIN THE ARCHIVE", description: "Occasional dispatches about new publications." } },
+    ],
+  },
+  {
+    id: "conversion-focused",
+    name: "Conversion Focused",
+    description: "Promo marquee, collections, benefits and a countdown — built to sell.",
+    sections: [
+      { type: "HeroSection", settings: { title: "SHOP THE DROP", subtitle: "Limited editions, while they last", ctaText: "SHOP NOW", height: "medium", align: "center" } },
+      { type: "MarqueeSection", settings: { text: "Free shipping over $100 · New arrivals weekly", speed: 20, fontSize: 24 } },
+      { type: "CollectionListSection", settings: { title: "Shop by collection", columns: 3 } },
+      { type: "FeatureGridSection", settings: { title: "WHY SHOP WITH US", columns: 3 } },
+      { type: "CountdownSection", settings: { eyebrow: "LIMITED TIME", title: "Sale ends soon", ctaText: "Shop the sale" } },
+      { type: "NewsletterSection", settings: { title: "10% OFF YOUR FIRST ORDER", description: "Join the list for the code." } },
+    ],
+  },
+  {
+    id: "storyteller",
+    name: "Storyteller",
+    description: "Slideshow, long-form copy, side-by-side columns, gallery and FAQ — editorial depth.",
+    sections: [
+      { type: "SlideshowSection", settings: { autoplay: true, autoplaySpeed: 5000 } },
+      { type: "TextContentSection", settings: { title: "Our story", content: "Add your mission statement or store introduction here." } },
+      { type: "RowSection", settings: { layout: "50-50", gap: 48, items: [
+        { kind: "text", title: "Crafted with care", body: "Use rows to pair copy with imagery.", buttonText: "Discover", buttonUrl: "#" },
+        { kind: "image", imageUrl: "" },
+      ] } },
+      { type: "GallerySection", settings: { title: "Gallery", columns: 3 } },
+      { type: "FAQSection", settings: { title: "FREQUENTLY ASKED QUESTIONS" } },
+      { type: "ContactFormSection", settings: { title: "Get in touch" } },
+    ],
+  },
+  {
+    id: "minimal-gallery",
+    name: "Minimal Gallery",
+    description: "A quiet, image-first page: hero, gallery, one paragraph, email capture.",
+    sections: [
+      { type: "HeroSection", settings: { title: "F✶M", subtitle: "Photography & art books", ctaText: "ENTER", overlayOpacity: 0.35, align: "center" } },
+      { type: "GallerySection", settings: { columns: 3 } },
+      { type: "TextContentSection", settings: { title: "", content: "A short statement about your practice." } },
+      { type: "NewsletterSection", settings: { title: "STAY IN TOUCH" } },
+    ],
+  },
+];
+
+/** Materialize a layout template into ready-to-use section instances. */
+export function buildTemplateSections(template: HomeLayoutTemplate): any[] {
+  return template.sections.map((s) => {
+    const meta = getSectionMeta(s.type);
+    return {
+      id: crypto.randomUUID(),
+      type: s.type,
+      visible: true,
+      settings: { ...JSON.parse(JSON.stringify(meta?.defaults || {})), ...(s.settings || {}) },
+    };
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section clipboard — copy a section on one page, paste it on another
+// ─────────────────────────────────────────────────────────────────────────────
+const SECTION_CLIPBOARD_KEY = "fm-section-clipboard";
+
+export function copySectionToClipboard(section: any) {
+  try {
+    localStorage.setItem(
+      SECTION_CLIPBOARD_KEY,
+      JSON.stringify({ type: section.type, settings: section.settings || {} }),
+    );
+  } catch {
+    // storage unavailable — copy silently fails
+  }
+}
+
+export function readSectionClipboard(): { type: string; settings: any } | null {
+  try {
+    const raw = localStorage.getItem(SECTION_CLIPBOARD_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.type) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 // Re-export for hosts that want a quick check icon (keeps imports tidy).
 export { Check as BuilderCheckIcon };
