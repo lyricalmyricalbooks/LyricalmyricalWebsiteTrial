@@ -11,6 +11,27 @@ import { adminApi } from "./admin/api";
 import { abandonedCartApi, funnelApi } from "./lib/commerce";
 import { useSEO } from "./lib/seo";
 import { useCurrency } from "./CurrencyContext";
+import { COUNTRIES, matchShippingZone } from "./features/site/shippingZones";
+
+// ─── Country selector (matches Field styling) ─────────────────────────────────
+function CountryField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label="Country"
+        className="peer w-full bg-white/[0.04] border border-white/10 rounded-2xl pt-6 pb-3 px-5 text-sm text-white outline-none transition-all duration-300 focus:border-violet-500/60 focus:bg-white/[0.07] appearance-none cursor-pointer"
+      >
+        {COUNTRIES.map((c) => (
+          <option key={c.code} value={c.name} className="bg-[#0a0a0c] text-white">{c.name}</option>
+        ))}
+      </select>
+      <label className="absolute left-5 top-2 text-[8px] font-black tracking-[0.15em] uppercase text-violet-400 pointer-events-none">Country</label>
+      <span className="absolute right-5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none text-xs">▾</span>
+    </div>
+  );
+}
 
 // ─── Reusable input ───────────────────────────────────────────────────────────
 function Field({
@@ -197,20 +218,16 @@ export function Checkout() {
       setShippingCost(0);
       return;
     }
-    const country = (customer.address.country || "United States").trim().toLowerCase();
-    
+    // Geography-aware zone: explicit country > continent > legacy region name >
+    // rest-of-world. Per-item shippingProfileId still wins when set.
+    const zoneForCountry = matchShippingZone(customer.address.country, shippingProfiles) || shippingProfiles[0];
+
     let highestBase = 0;
     let totalAdditional = 0;
- 
+
     cart.forEach((item, i) => {
-      let profile = shippingProfiles.find(p => p.id === item.shippingProfileId);
-      if (!profile) {
-        profile = shippingProfiles.find(p => p.region.toLowerCase() === country) ||
-                  shippingProfiles.find(p => p.region.toLowerCase() === "international") ||
-                  shippingProfiles.find(p => p.region.toLowerCase() === "everywhere else") ||
-                  shippingProfiles[0];
-      }
- 
+      const profile = shippingProfiles.find(p => p.id === item.shippingProfileId) || zoneForCountry;
+
       const freeThreshold = profile?.freeThreshold ? Number(profile.freeThreshold) : 0;
       let base = Number(profile?.base || 15);
       let additional = Number(profile?.additional || 5);
@@ -318,16 +335,12 @@ export function Checkout() {
 
   const getActiveShippingDetails = () => {
     if (cart.length === 0 || shippingProfiles.length === 0) return null;
-    const country = (customer.address.country || "United States").trim().toLowerCase();
     const firstItem = cart[0];
-    let profile = shippingProfiles.find(p => p.id === firstItem.shippingProfileId);
-    if (!profile) {
-      profile = shippingProfiles.find(p => p.region.toLowerCase() === country) ||
-                shippingProfiles.find(p => p.region.toLowerCase() === "international") ||
-                shippingProfiles.find(p => p.region.toLowerCase() === "everywhere else") ||
-                shippingProfiles[0];
-    }
-    return profile;
+    return (
+      shippingProfiles.find(p => p.id === firstItem.shippingProfileId) ||
+      matchShippingZone(customer.address.country, shippingProfiles) ||
+      shippingProfiles[0]
+    );
   };
 
   useSEO({ title: "Checkout", description: "Secure checkout for Lyricalmyrical Books." });
@@ -634,6 +647,21 @@ export function Checkout() {
                 <Field label="State" value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" />
                 <Field label="Postal Code" value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" />
               </div>
+              <CountryField
+                value={customer.address.country}
+                onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v } })}
+              />
+              {(() => {
+                const z = getActiveShippingDetails();
+                return z ? (
+                  <p className="text-[9px] font-black tracking-[0.2em] text-white/30 uppercase px-1">
+                    Ships via <span className="text-violet-400">{z.region}</span> zone
+                    {Number(z.freeThreshold) > 0 && (
+                      <span className="text-emerald-400"> · free over {formatPrice(Number(z.freeThreshold))}</span>
+                    )}
+                  </p>
+                ) : null;
+              })()}
             </div>
           </section>
         </div>
