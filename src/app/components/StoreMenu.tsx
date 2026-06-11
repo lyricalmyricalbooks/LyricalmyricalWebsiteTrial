@@ -3,7 +3,10 @@ import { Link } from "react-router";
 import { ChevronDown } from "lucide-react";
 import { resolveHref, isExternal, type MenuItem } from "../features/site/storeMenu";
 
-const linkCls = "text-[10px] tracking-[0.2em] text-white/40 hover:text-white transition-colors uppercase whitespace-nowrap";
+// Top-level links inherit the header's text color (set by the theme), so the
+// menu stays readable on both light and dark backgrounds. Dropdown/mega panels
+// keep explicit white text on their dark surfaces.
+const linkCls = "text-[10px] tracking-[0.2em] text-current opacity-50 hover:opacity-100 transition-opacity uppercase whitespace-nowrap";
 
 function MenuLink({ item, className }: { item: MenuItem; className?: string }) {
   const href = resolveHref(item);

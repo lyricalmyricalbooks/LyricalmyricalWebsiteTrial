@@ -413,8 +413,11 @@ function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive:
           }`}>
             <button
               onClick={handleSlideCta}
-              className="px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black transition-transform hover:scale-[1.02]"
-              style={{ backgroundColor: design?.primaryColor || "#A855F7" }}
+              className="px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase transition-transform hover:scale-[1.02]"
+              style={{
+                backgroundColor: design?.buttonColor || design?.primaryColor || "#A855F7",
+                color: design?.buttonTextColor || "#000000",
+              }}
             >
               {activeSlide?.ctaText || "ENTER ARCHIVE"}
             </button>
@@ -536,8 +539,12 @@ export function resolveTypography(design: any) {
 
 function TypographyTokens({ design }: { design: any }) {
   const t = resolveTypography(design);
+  // Global button colors — every CTA reads these vars unless a section
+  // overrides its own accent.
+  const btnBg = design?.buttonColor || design?.primaryColor || "#A855F7";
+  const btnText = design?.buttonTextColor || "#000000";
   let css = `
-[data-fm-store]{font-family:'${t.body}',sans-serif;font-size:${t.base}px;line-height:${t.lineHeight};font-weight:${t.bodyWeight};}
+[data-fm-store]{font-family:'${t.body}',sans-serif;font-size:${t.base}px;line-height:${t.lineHeight};font-weight:${t.bodyWeight};--btn-bg:${btnBg};--btn-text:${btnText};}
 [data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3,[data-fm-store] h4,[data-fm-store] h5,[data-fm-store] h6{font-family:'${t.heading}',sans-serif;font-weight:${t.headingWeight};letter-spacing:${t.tracking};}
 `;
   if (t.typeScale) {
@@ -800,6 +807,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontBg = storefrontDesign?.backgroundColor || "#050505";
   const storefrontText = storefrontDesign?.textColor || "#ffffff";
   const storefrontAccent = storefrontDesign?.primaryColor || "#ffffff";
+  const storefrontButtonBg = storefrontDesign?.buttonColor || storefrontAccent;
+  const storefrontButtonText = storefrontDesign?.buttonTextColor || "#000000";
   const storefrontMaxWidth = Math.max(900, Math.min(1600, storefrontDesign?.containerWidth ?? 1200));
   const storefrontMobileColumns = Math.max(1, Math.min(3, storefrontDesign?.productColumnsMobile ?? 2));
   const storefrontDesktopColumns = Math.max(2, Math.min(6, storefrontDesign?.productColumnsDesktop ?? 4));
@@ -934,8 +943,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     <button
                       key={catName}
                       onClick={() => setActiveCategory(cat)}
+                      style={{ color: storefrontText }}
                       className={`text-[10px] tracking-[0.2em] font-medium transition-all ${
-                        isActive ? "text-white" : "text-white/40 hover:text-white/80"
+                        isActive ? "opacity-100" : "opacity-40 hover:opacity-80"
                       }`}
                     >
                       {catName}
@@ -968,11 +978,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
               {showCustomPages && (
                 storefrontDesign?.menus?.header?.length > 0 ? (
-                  <div className="mr-2"><StoreMenu items={storefrontDesign.menus.header} /></div>
+                  <div className="mr-2" style={{ color: storefrontText }}><StoreMenu items={storefrontDesign.menus.header} /></div>
                 ) : (
-                <nav className="hidden lg:flex items-center gap-6 mr-2">
+                <nav className="hidden lg:flex items-center gap-6 mr-2" style={{ color: storefrontText }}>
                   {pages.some((p:any) => p.showInNav && p.status === "published") && (
-                    <span className="text-[10px] tracking-[0.3em] font-bold text-white/20 uppercase select-none mr-2">
+                    <span className="text-[10px] tracking-[0.3em] font-bold opacity-25 uppercase select-none mr-2">
                       {storefrontDesign?.navHeading || "INFO"}
                     </span>
                   )}
@@ -982,7 +992,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       <Link
                         key={page.id}
                         to={`/page/${page.slug}`}
-                        className="text-[10px] tracking-[0.2em] text-white/40 hover:text-white transition-colors uppercase whitespace-nowrap"
+                        className="text-[10px] tracking-[0.2em] opacity-40 hover:opacity-100 transition-opacity uppercase whitespace-nowrap"
                       >
                         {page.title}
                       </Link>
@@ -994,7 +1004,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               {showInformation && (
                 <button
                   onClick={() => setShowAbout(true)}
-                  className="text-[10px] tracking-[0.2em] text-white/50 hover:text-white transition-colors hidden md:block"
+                  style={{ color: storefrontText }}
+                  className="text-[10px] tracking-[0.2em] opacity-50 hover:opacity-100 transition-opacity hidden md:block"
                 >
                   INFORMATION
                 </button>
@@ -1161,9 +1172,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
                         <span
                           style={{
-                            backgroundColor: storefrontButtonStyle === "ghost" ? "transparent" : storefrontAccent,
-                            color: storefrontButtonStyle === "solid" ? "#000000" : storefrontAccent,
-                            border: storefrontButtonStyle === "outline" || storefrontButtonStyle === "ghost" ? `1px solid ${storefrontAccent}` : "none",
+                            backgroundColor: storefrontButtonStyle === "ghost" ? "transparent" : storefrontButtonBg,
+                            color: storefrontButtonStyle === "solid" ? storefrontButtonText : storefrontButtonBg,
+                            border: storefrontButtonStyle === "outline" || storefrontButtonStyle === "ghost" ? `1px solid ${storefrontButtonBg}` : "none",
                             borderRadius: storefrontButtonRadius,
                           }}
                           className={`w-full py-3 text-[10px] tracking-[0.2em] font-bold text-center transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 ${storefrontButtonShadow ? "shadow-xl" : ""} ${storefrontButtonUppercase ? "uppercase" : ""}`}
@@ -1402,8 +1413,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 </p>
                 <button
                   onClick={() => setShowCatalog(true)}
-                  className="px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black"
-                  style={{ backgroundColor: heroDesign?.primaryColor || "#A855F7" }}
+                  className="px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
+                  style={{
+                    backgroundColor: heroDesign?.buttonColor || heroDesign?.primaryColor || "#A855F7",
+                    color: heroDesign?.buttonTextColor || "#000000",
+                  }}
                 >
                   {heroDesign?.heroCTA || "ENTER ARCHIVE"}
                 </button>

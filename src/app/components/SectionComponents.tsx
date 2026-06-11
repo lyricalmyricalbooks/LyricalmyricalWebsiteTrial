@@ -20,6 +20,11 @@ function AnimationContainer({ children, enabled, delay = 0 }: any) {
   );
 }
 
+// Blocks can be hidden from the editor's outline tree without deleting them.
+function visibleBlocks(list: any[]): any[] {
+  return (list || []).filter((b: any) => !b?.hidden);
+}
+
 // ──────────────────────────────
 // HERO
 // ──────────────────────────────
@@ -62,8 +67,8 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
           }`}>
             <button
               onClick={onCtaClick}
-              className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black hover:scale-105 transition-transform"
-              style={{ backgroundColor: settings.accentColor || "#A855F7" }}
+              className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase hover:scale-105 transition-transform"
+              style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)" }}
             >
               <span data-theme-field="ctaText">{settings.ctaText || "Explore"}</span>
             </button>
@@ -84,7 +89,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function FeatureGridSection({ settings, enableAnimations }: any) {
-  const items = settings.items || settings.blocks || [];
+  const items = visibleBlocks(settings.items || settings.blocks || []);
   const cols = settings.columns ?? 3;
   return (
     <section className="py-24 px-6 max-w-7xl mx-auto">
@@ -152,7 +157,7 @@ export function NewsletterSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function TestimonialsSection({ settings, enableAnimations }: any) {
-  const items = settings.items || settings.blocks || [];
+  const items = visibleBlocks(settings.items || settings.blocks || []);
   return (
     <section className="py-24 px-6 max-w-6xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
@@ -178,7 +183,7 @@ export function TestimonialsSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function FAQSection({ settings, enableAnimations }: any) {
-  const items = settings.items || settings.blocks || [];
+  const items = visibleBlocks(settings.items || settings.blocks || []);
   return (
     <section className="py-24 px-6 max-w-4xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
@@ -251,8 +256,8 @@ export function ImageWithTextSection({ settings, enableAnimations }: any) {
             {settings.ctaText && (
               <a
                 href={settings.ctaUrl || "#"}
-                className="inline-block px-7 py-3 rounded-full text-[10px] font-bold tracking-[0.3em] uppercase text-black"
-                style={{ backgroundColor: settings.accentColor || "#A855F7" }}
+                className="inline-block px-7 py-3 rounded-full text-[10px] font-bold tracking-[0.3em] uppercase"
+                style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)" }}
               >
                 {settings.ctaText}
               </a>
@@ -326,7 +331,7 @@ export function MarqueeSection({ settings }: any) {
 // ──────────────────────────────
 
 export function MulticolumnSection({ settings, enableAnimations }: any) {
-  const items = settings.items || settings.blocks || [];
+  const items = visibleBlocks(settings.items || settings.blocks || []);
   const cols = Math.max(2, Math.min(6, settings.columns ?? 3));
   return (
     <section className="py-24 px-6 max-w-7xl mx-auto">
@@ -366,7 +371,7 @@ export function MulticolumnSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function SlideshowSection({ settings, enableAnimations }: any) {
-  const slides = settings.slides || settings.items || settings.blocks || [];
+  const slides = visibleBlocks(settings.slides || settings.items || settings.blocks || []);
   const [active, setActive] = useState(0);
 
   useEffect(() => {
@@ -489,7 +494,7 @@ export function VideoSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function LogoListSection({ settings, enableAnimations }: any) {
-  const items = settings.items || settings.blocks || [];
+  const items = visibleBlocks(settings.items || settings.blocks || []);
   return (
     <section className="py-16 px-6 max-w-7xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
@@ -519,7 +524,7 @@ export function LogoListSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function CollapsibleSection({ settings, enableAnimations }: any) {
-  const items = settings.items || settings.blocks || [];
+  const items = visibleBlocks(settings.items || settings.blocks || []);
   return (
     <section className="py-20 px-6 max-w-3xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
@@ -550,7 +555,7 @@ export function CollapsibleSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function CollectionListSection({ settings, enableAnimations }: any) {
-  const items = settings.items || settings.blocks || [];
+  const items = visibleBlocks(settings.items || settings.blocks || []);
   const cols = Math.max(2, Math.min(5, settings.columns ?? 3));
   return (
     <section className="py-24 px-6 max-w-7xl mx-auto">
@@ -618,8 +623,8 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
             <p className="text-white/60 text-sm leading-relaxed line-clamp-4">{target.description || ""}</p>
             <button
               onClick={() => onProductClick?.(target)}
-              className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black"
-              style={{ backgroundColor: settings.accentColor || "#A855F7" }}
+              className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
+              style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)" }}
             >
               {settings.ctaText || "View product"}
             </button>
@@ -688,8 +693,8 @@ export function CountdownSection({ settings, enableAnimations }: any) {
         {settings.ctaText && (
           <a
             href={settings.ctaUrl || "#"}
-            className="inline-block mt-10 px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black"
-            style={{ backgroundColor: settings.accentColor || "#A855F7" }}
+            className="inline-block mt-10 px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
+            style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)" }}
           >
             {settings.ctaText}
           </a>
@@ -749,8 +754,8 @@ export function ContactFormSection({ settings, enableAnimations }: any) {
             />
             <button
               type="submit"
-              className="w-full py-4 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black"
-              style={{ backgroundColor: settings.accentColor || "#A855F7" }}
+              className="w-full py-4 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
+              style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)" }}
             >
               {settings.buttonLabel || "Send message"}
             </button>
@@ -820,8 +825,8 @@ function RowBlock({ block, accentFallback }: any) {
       <div className="flex justify-center">
         <a
           href={block.buttonUrl || "#"}
-          className="inline-block px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black"
-          style={{ backgroundColor: block.accentColor || accentFallback || "#A855F7" }}
+          className="inline-block px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
+          style={{ backgroundColor: block.accentColor || accentFallback || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)" }}
         >
           {block.buttonText || "Shop now"}
         </a>
@@ -870,7 +875,7 @@ function RowBlock({ block, accentFallback }: any) {
 }
 
 export function RowSection({ settings, enableAnimations }: any) {
-  const blocks = settings.items || settings.blocks || [];
+  const blocks = visibleBlocks(settings.items || settings.blocks || []);
   const template =
     ({
       "50-50": "1fr 1fr",
@@ -910,7 +915,7 @@ export function RowSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function GallerySection({ settings, enableAnimations }: any) {
-  const items = settings.items || settings.blocks || [];
+  const items = visibleBlocks(settings.items || settings.blocks || []);
   const cols = Math.max(2, Math.min(6, settings.columns ?? 3));
   return (
     <section className="py-20 px-6 max-w-7xl mx-auto">

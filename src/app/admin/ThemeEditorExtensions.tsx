@@ -10,6 +10,8 @@ import {
   Palette as PaletteIcon,
   Upload,
   Download,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactQuill from "react-quill";
@@ -671,8 +673,19 @@ export function BlocksEditor({
                 className="w-full flex items-center gap-2 px-3 py-3 hover:bg-neutral-50 transition-colors"
               >
                 <GripVertical size={14} className="text-neutral-300 flex-shrink-0 cursor-grab" />
-                <span className="text-[11px] font-bold text-neutral-700 truncate flex-1 text-left">
+                <span className={`text-[11px] font-bold truncate flex-1 text-left ${block.hidden ? "text-neutral-300 line-through" : "text-neutral-700"}`}>
                   {block.title || block.question || block.heading || block.author || block.alt || `${meta.blockLabel} ${idx + 1}`}
+                </span>
+                <span
+                  role="button"
+                  title={block.hidden ? "Show block" : "Hide block"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateBlock(idx, "hidden", !block.hidden);
+                  }}
+                  className={`p-1 rounded-lg transition-colors ${block.hidden ? "text-neutral-300 hover:text-emerald-500" : "text-neutral-400 hover:text-neutral-700"}`}
+                >
+                  {block.hidden ? <EyeOff size={13} /> : <Eye size={13} />}
                 </span>
                 <ChevronDown size={13} className={`text-neutral-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
               </button>
@@ -1259,6 +1272,7 @@ type SectionFieldSchema =
   | { key: string; label: string; kind: "richtext" }
   | { key: string; label: string; kind: "color" }
   | { key: string; label: string; kind: "number"; min?: number; max?: number; step?: number; suffix?: string }
+  | { key: string; label: string; kind: "range"; min: number; max: number; step?: number; suffix?: string }
   | { key: string; label: string; kind: "select"; options: { value: string; label: string }[] }
   | { key: string; label: string; kind: "toggle" }
   | { key: string; label: string; kind: "date" };
@@ -1268,7 +1282,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "title", label: "Headline", kind: "text" },
     { key: "subtitle", label: "Subtitle", kind: "text" },
     { key: "imageUrl", label: "Background image", kind: "image" },
-    { key: "overlayOpacity", label: "Overlay (0–1)", kind: "number", min: 0, max: 1, step: 0.05 },
+    { key: "overlayOpacity", label: "Overlay darkness", kind: "range", min: 0, max: 1, step: 0.05 },
     { key: "accentColor", label: "Accent color", kind: "color" },
     { key: "ctaText", label: "CTA label", kind: "text" },
     { key: "secondaryCtaText", label: "Secondary CTA", kind: "text" },
@@ -1285,7 +1299,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   ],
   FeatureGridSection: [
     { key: "title", label: "Title", kind: "text" },
-    { key: "columns", label: "Columns", kind: "number", min: 2, max: 4 },
+    { key: "columns", label: "Columns", kind: "range", min: 2, max: 4 },
   ],
   TestimonialsSection: [{ key: "title", label: "Title", kind: "text" }],
   FAQSection: [{ key: "title", label: "Title", kind: "text" }],
@@ -1333,8 +1347,8 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   MarqueeSection: [
     { key: "text", label: "Text", kind: "text" },
     { key: "separator", label: "Separator", kind: "text" },
-    { key: "speed", label: "Scroll duration", kind: "number", min: 5, max: 120, step: 1, suffix: "s" },
-    { key: "fontSize", label: "Font size", kind: "number", min: 10, max: 120, step: 1, suffix: "px" },
+    { key: "speed", label: "Scroll duration", kind: "range", min: 5, max: 120, step: 1, suffix: "s" },
+    { key: "fontSize", label: "Font size", kind: "range", min: 10, max: 120, step: 1, suffix: "px" },
     { key: "bold", label: "Bold", kind: "toggle" },
     { key: "uppercase", label: "Uppercase", kind: "toggle" },
     { key: "background", label: "Background color", kind: "color" },
@@ -1342,7 +1356,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   ],
   MulticolumnSection: [
     { key: "title", label: "Title", kind: "text" },
-    { key: "columns", label: "Columns", kind: "number", min: 2, max: 6 },
+    { key: "columns", label: "Columns", kind: "range", min: 2, max: 6 },
   ],
   SlideshowSection: [
     { key: "autoplay", label: "Autoplay", kind: "toggle" },
@@ -1357,7 +1371,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   CollapsibleSection: [{ key: "title", label: "Title", kind: "text" }],
   CollectionListSection: [
     { key: "title", label: "Title", kind: "text" },
-    { key: "columns", label: "Columns", kind: "number", min: 2, max: 5 },
+    { key: "columns", label: "Columns", kind: "range", min: 2, max: 5 },
   ],
   FeaturedProductSection: [
     { key: "eyebrow", label: "Eyebrow", kind: "text" },
@@ -1387,7 +1401,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   ],
   GallerySection: [
     { key: "title", label: "Title", kind: "text" },
-    { key: "columns", label: "Columns", kind: "number", min: 2, max: 6 },
+    { key: "columns", label: "Columns", kind: "range", min: 2, max: 6 },
   ],
   CustomHTMLSection: [
     { key: "html", label: "HTML", kind: "html" },
@@ -1407,7 +1421,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
         { value: "quarters", label: "4 columns" },
       ],
     },
-    { key: "gap", label: "Column gap (px)", kind: "number", min: 8, max: 120, step: 4 },
+    { key: "gap", label: "Column gap", kind: "range", min: 8, max: 120, step: 4, suffix: "px" },
     {
       key: "verticalAlign",
       label: "Vertical alignment",
@@ -1532,6 +1546,29 @@ export function SectionFieldEditor({
           />
         </div>
       );
+    case "range": {
+      const current = value ?? field.min;
+      return (
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            {labelEl}
+            <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-lg mb-1.5">
+              {current}
+              {field.suffix || ""}
+            </span>
+          </div>
+          <input
+            type="range"
+            min={field.min}
+            max={field.max}
+            step={field.step ?? 1}
+            value={current}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="w-full accent-blue-600 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer"
+          />
+        </div>
+      );
+    }
     case "select":
       return (
         <div>

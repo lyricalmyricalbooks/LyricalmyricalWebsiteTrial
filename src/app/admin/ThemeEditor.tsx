@@ -52,6 +52,7 @@ import {
   getSectionMeta,
   getSectionFields,
   getBlockFields,
+  getBlocksKey,
   NewSectionLibraryModal,
   BlocksEditor,
   SectionSettingsPanel,
@@ -1001,6 +1002,8 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
   const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null);
+  // Outline tree: which section's nested block list is expanded
+  const [outlineId, setOutlineId] = useState<string | null>(null);
   const sections = design.sections || design.homepageSections || [];
 
   // Click-to-edit: the preview can request a specific section instance be opened.
@@ -1347,12 +1350,13 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                  animate={{ opacity: 1, y: 0 }}
                  exit={{ opacity: 0, y: -8 }}
                  onClick={() => !isHidden && setActiveSectionId(section.id)}
-                 className={`group relative border rounded-3xl p-4 transition-all flex items-center gap-3 ${
+                 className={`group relative border rounded-3xl p-4 transition-all ${
                    isHidden
                      ? "bg-neutral-50/40 border-neutral-100 cursor-default opacity-50"
                      : `bg-white border-neutral-200 hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/5 cursor-pointer ${draggingSectionId === section.id ? "opacity-40" : ""}`
                  }`}
                >
+                <div className="flex items-center gap-3">
                  {/* Drag handle */}
                  <div className="text-neutral-200 hover:text-neutral-400 transition-colors cursor-grab active:cursor-grabbing flex-shrink-0">
                    <GripVertical size={16} />
@@ -1401,6 +1405,66 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                     <button onClick={(e) => removeSection(section.id, e)} className="p-2 text-neutral-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"><X size={13} /></button>
                     {!isHidden && <ChevronRight size={13} className="text-neutral-200 group-hover:text-neutral-400 transition-colors" />}
                  </div>
+                </div>
+
+                {/* Outline tree: nested blocks with show/hide, Shopify-style */}
+                {(() => {
+                  const meta = getSectionMeta(section.type);
+                  if (!meta?.blockType) return null;
+                  const blocksKey = getBlocksKey(section.type);
+                  const blocks: any[] = section.settings?.[blocksKey] || [];
+                  if (blocks.length === 0) return null;
+                  const isOpen = outlineId === section.id;
+                  const toggleBlockHidden = (bi: number) => {
+                    updateSections(sections.map((s: any) =>
+                      s.id === section.id
+                        ? {
+                            ...s,
+                            settings: {
+                              ...s.settings,
+                              [blocksKey]: blocks.map((b: any, i: number) => (i === bi ? { ...b, hidden: !b.hidden } : b)),
+                            },
+                          }
+                        : s,
+                    ));
+                  };
+                  return (
+                    <div onClick={(e) => e.stopPropagation()} className="cursor-default">
+                      <button
+                        onClick={() => setOutlineId(isOpen ? null : section.id)}
+                        className="mt-2 ml-12 flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest text-neutral-400 hover:text-blue-600 transition-colors"
+                      >
+                        <ChevronRight size={10} className={`transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                        {blocks.length} {meta.blockLabel?.toLowerCase()}{blocks.length === 1 ? "" : "s"}
+                      </button>
+                      {isOpen && (
+                        <div className="mt-1.5 ml-12 pl-3 border-l-2 border-neutral-100 space-y-0.5">
+                          {blocks.map((block: any, bi: number) => (
+                            <div key={bi} className="flex items-center justify-between gap-2 py-1 group/block">
+                              <button
+                                onClick={() => setActiveSectionId(section.id)}
+                                className={`text-[10px] font-bold truncate text-left flex-1 transition-colors ${
+                                  block.hidden ? "text-neutral-300 line-through" : "text-neutral-500 hover:text-blue-600"
+                                }`}
+                              >
+                                {block.title || block.question || block.heading || block.author || block.alt || `${meta.blockLabel} ${bi + 1}`}
+                              </button>
+                              <button
+                                onClick={() => toggleBlockHidden(bi)}
+                                title={block.hidden ? "Show block" : "Hide block"}
+                                className={`p-1 rounded transition-colors ${
+                                  block.hidden ? "text-neutral-300 hover:text-emerald-500" : "text-neutral-300 hover:text-neutral-600"
+                                }`}
+                              >
+                                {block.hidden ? <EyeOff size={11} /> : <Eye size={11} />}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                </motion.div>
                );
              })}
@@ -1979,8 +2043,55 @@ function LayoutPanel({ design, update }: any) {
 }
 
 function ButtonsPanel({ design, update }: any) {
+  const buttonBg = design.buttonColor || design.primaryColor || "#A855F7";
+  const buttonText = design.buttonTextColor || "#000000";
   return (
     <div className="p-4 space-y-2 overflow-y-auto flex-1">
+      <Accordion title="Button Colors" defaultOpen={true}>
+        <div className="space-y-6">
+          <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+            By default buttons use your accent color. Override them here for every CTA across the store —
+            individual sections can still set their own accent.
+          </p>
+          <ColorPicker
+            label="Button background"
+            value={buttonBg}
+            onChange={(val) => update("buttonColor", val)}
+          />
+          <ColorPicker
+            label="Button text"
+            value={buttonText}
+            onChange={(val) => update("buttonTextColor", val)}
+          />
+          <ContrastBadge background={buttonBg} text={buttonText} />
+          {/* Live sample */}
+          <div className="flex items-center justify-center py-5 rounded-2xl bg-white/[0.03] border border-white/10">
+            <span
+              className={`px-8 py-3.5 text-[10px] tracking-[0.3em] font-bold ${design.buttonUppercase ?? true ? "uppercase" : ""} ${design.buttonShadow ?? true ? "shadow-xl" : ""}`}
+              style={{
+                backgroundColor: (design.buttonStyle || "solid") === "solid" ? buttonBg : "transparent",
+                color: (design.buttonStyle || "solid") === "solid" ? buttonText : buttonBg,
+                border: (design.buttonStyle || "solid") !== "solid" ? `1px solid ${buttonBg}` : "none",
+                borderRadius: design.buttonRadius ?? 999,
+              }}
+            >
+              {design.productCTA || "SHOP NOW"}
+            </span>
+          </div>
+          {design.buttonColor && (
+            <button
+              onClick={() => {
+                update("buttonColor", undefined);
+                update("buttonTextColor", undefined);
+              }}
+              className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 text-[10px] font-black text-slate-500 hover:text-white hover:bg-white/10 transition-all uppercase tracking-[0.2em] italic"
+            >
+              Reset to accent color
+            </button>
+          )}
+        </div>
+      </Accordion>
+
       <Accordion title="Visual Style" defaultOpen={true}>
         <div>
           <SidebarLabel>Button Theme</SidebarLabel>
