@@ -545,6 +545,24 @@ export const adminApi = {
     });
   },
 
+  createShippingLabel: async (orderId: string) => {
+    const functionsUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+      ? "http://127.0.0.1:5001/lyricalmyrical-web-v2/us-central1/createShippingLabel"
+      : "https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/createShippingLabel";
+
+    const response = await fetch(functionsUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || "Failed to generate shipping label.");
+    }
+    return await response.json();
+  },
+
   // DISCOUNTS ─────────────────────────────────────────────────────────────────
   getDiscounts: async () => {
     const snap = await getDocs(collection(db, "discounts"));

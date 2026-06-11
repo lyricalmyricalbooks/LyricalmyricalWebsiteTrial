@@ -38,7 +38,7 @@ export default function BookDetail() {
   const navigate = useNavigate();
   const { books, settings, loading } = useSiteData();
   const { addToCart, setIsCartOpen, cartCount } = useCart();
-  const { formatPrice } = useCurrency();
+  const { formatPrice, formatBookPrice, getBookPrice } = useCurrency();
 
   const [activePhoto, setActivePhoto] = useState(0);
   const [added, setAdded]             = useState(false);
@@ -427,15 +427,15 @@ export default function BookDetail() {
               <div className="flex items-baseline gap-4">
                 {isOnSale ? (
                   <>
-                    <span className="text-4xl font-black tracking-tight text-white">{formatPrice(salePrice)}</span>
-                    <span className="text-white/25 line-through text-xl">{formatPrice(retailPrice)}</span>
+                    <span className="text-4xl font-black tracking-tight text-white">{formatBookPrice(book)}</span>
+                    <span className="text-white/25 line-through text-xl">{formatBookPrice(book, true)}</span>
                     <span className="text-[9px] font-black tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full uppercase">
-                      Save {formatPrice(retailPrice - salePrice)}
+                      Save {formatPrice(getBookPrice(book, true) - getBookPrice(book))}
                     </span>
                   </>
                 ) : (
                   <span className="text-4xl font-black tracking-tight text-white">
-                    {retailPrice > 0 ? formatPrice(retailPrice) : "Price on request"}
+                    {retailPrice > 0 ? formatBookPrice(book) : "Price on request"}
                   </span>
                 )}
               </div>

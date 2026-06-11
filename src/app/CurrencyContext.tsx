@@ -8,6 +8,10 @@ interface CurrencyContextType {
   rates: Record<Currency, number>;
   convertPrice: (priceInCAD: number) => number;
   formatPrice: (priceInCAD: number) => string;
+  getBookPrice: (book: any, ignoreSale?: boolean) => number;
+  formatBookPrice: (book: any, ignoreSale?: boolean) => string;
+  getVariantPrice: (variant: any, parentBook?: any) => number;
+  formatVariantPrice: (variant: any, parentBook?: any) => string;
 }
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
@@ -90,8 +94,60 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     return `${symbol}${converted.toFixed(2)}`;
   };
 
+  const getBookPrice = (book: any, ignoreSale: boolean = false) => {
+    if (!book) return 0;
+    const basePrice = book.retailPrice || 0;
+    const salePrice = book.salePrice || 0;
+    const isOnSale = !ignoreSale && book.isOnSale && salePrice > 0;
+    const priceToUse = isOnSale ? salePrice : basePrice;
+
+    if (currency === "USD") {
+      const usdOverride = isOnSale ? book.usdSalePrice : book.usdPrice;
+      if (usdOverride !== undefined && usdOverride > 0) return usdOverride;
+    } else if (currency === "EUR") {
+      const eurOverride = isOnSale ? book.eurSalePrice : book.eurPrice;
+      if (eurOverride !== undefined && eurOverride > 0) return eurOverride;
+    }
+
+    return priceToUse * (rates[currency] || 1.0);
+  };
+
+  const formatBookPrice = (book: any, ignoreSale: boolean = false) => {
+    const price = getBookPrice(book, ignoreSale);
+    const symbol = CURRENCY_SYMBOLS[currency];
+    return `${symbol}${price.toFixed(2)}`;
+  };
+
+  const getVariantPrice = (variant: any, parentBook?: any) => {
+    if (!variant) return 0;
+    if (currency === "USD" && variant.usdPrice !== undefined && variant.usdPrice > 0) {
+      return variant.usdPrice;
+    }
+    if (currency === "EUR" && variant.eurPrice !== undefined && variant.eurPrice > 0) {
+      return variant.eurPrice;
+    }
+    const base = variant.price || (parentBook ? (parentBook.isOnSale ? parentBook.salePrice : parentBook.retailPrice) : 0);
+    return base * (rates[currency] || 1.0);
+  };
+
+  const formatVariantPrice = (variant: any, parentBook?: any) => {
+    const price = getVariantPrice(variant, parentBook);
+    const symbol = CURRENCY_SYMBOLS[currency];
+    return `${symbol}${price.toFixed(2)}`;
+  };
+
   return (
-    <CurrencyContext.Provider value={{ currency, setCurrency, rates, convertPrice, formatPrice }}>
+    <CurrencyContext.Provider value={{ 
+      currency, 
+      setCurrency, 
+      rates, 
+      convertPrice, 
+      formatPrice,
+      getBookPrice,
+      formatBookPrice,
+      getVariantPrice,
+      formatVariantPrice
+    }}>
       {children}
     </CurrencyContext.Provider>
   );

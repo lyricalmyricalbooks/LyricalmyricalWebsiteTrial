@@ -312,14 +312,44 @@ export function Checkout() {
   }, [customer.email, cart, cartTotal]);
 
   const handleCompletePurchase = async () => {
-    if (!customer.name || !customer.email || !customer.address.street) {
-      alert("Please fill in all required shipping details.");
+    if (!customer.name || !customer.email || !customer.address.street || !customer.address.city || !customer.address.state || !customer.address.zip) {
+      alert("Please fill in all required shipping details including city, state/province, and postal/zip code.");
       return;
     }
     setIsCompleting(true);
     try {
+      // 1. Verify and Validate address using Shippo API Cloud Function
+      const validateUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+        ? "http://127.0.0.1:5001/lyricalmyrical-web-v2/us-central1/validateAddress"
+        : "https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/validateAddress";
+
+      const valResponse = await fetch(validateUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: {
+            name: customer.name,
+            street: customer.address.street,
+            city: customer.address.city,
+            state: customer.address.state,
+            zip: customer.address.zip,
+            country: customer.address.country
+          }
+        })
+      });
+
+      if (!valResponse.ok) {
+        throw new Error("Could not connect to address verification service.");
+      }
+
+      const valData = await valResponse.json();
+      const addressVerified = valData.isValid === true;
+      const addressError = addressVerified ? "" : (valData.messages || []).map((m: any) => m.text).join(", ");
+
       const orderData = {
         customer,
+        addressVerified,
+        addressError,
         items: cart.map(item => ({
           id: item.id,
           variantId: item.variantId || null,

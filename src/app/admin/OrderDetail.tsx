@@ -11,7 +11,8 @@ import {
   Info,
   Clock,
   User,
-  Plus
+  Plus,
+  AlertCircle
 } from "lucide-react";
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -98,14 +99,17 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     window.print();
   };
 
-  const handleCreateShippingLabel = () => {
+  const handleCreateShippingLabel = async () => {
     setIsGeneratingLabel(true);
-    setTimeout(() => {
-      setIsGeneratingLabel(false);
-      adminApi.addOrderNote(orderId, "Shipping Label #ARCH-882910 generated via dashboard.");
+    try {
+      await adminApi.createShippingLabel(orderId);
       loadOrder();
       toast.success("Label generated successfully");
-    }, 2000);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate shipping label.");
+    } finally {
+      setIsGeneratingLabel(false);
+    }
   };
 
   const handleAddNote = async () => {
@@ -230,14 +234,26 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
               </div>
 
               <div className="mt-16 flex flex-wrap gap-4 pt-10 border-t border-white/5 print:hidden">
-                 <button 
-                   onClick={handleCreateShippingLabel}
-                   disabled={isGeneratingLabel}
-                   className="px-8 py-3.5 bg-white/5 border border-white/10 hover:bg-white/10 text-[10px] tracking-[.3em] font-black text-slate-300 rounded-2xl transition-all disabled:opacity-50 flex items-center gap-3"
-                 >
-                   <ClipboardCheck size={16} className="text-cyan-400" />
-                   {isGeneratingLabel ? "GENERATING..." : "GENERATE SHIPPING LABEL"}
-                 </button>
+                 {order.labelUrl ? (
+                   <a 
+                     href={order.labelUrl}
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     className="px-8 py-3.5 bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] tracking-[.3em] font-black rounded-2xl transition-all flex items-center gap-3 shadow-lg shadow-cyan-600/20 animate-in fade-in"
+                   >
+                     <ExternalLink size={16} />
+                     DOWNLOAD SHIPPING LABEL
+                   </a>
+                 ) : (
+                   <button 
+                     onClick={handleCreateShippingLabel}
+                     disabled={isGeneratingLabel}
+                     className="px-8 py-3.5 bg-white/5 border border-white/10 hover:bg-white/10 text-[10px] tracking-[.3em] font-black text-slate-300 rounded-2xl transition-all disabled:opacity-50 flex items-center gap-3"
+                   >
+                     <ClipboardCheck size={16} className="text-cyan-400" />
+                     {isGeneratingLabel ? "GENERATING..." : "GENERATE SHIPPING LABEL"}
+                   </button>
+                 )}
                  {order.status !== 'completed' && !showShipForm && (
                    <button 
                      onClick={() => setShowShipForm(true)}
@@ -460,6 +476,15 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                             {order.customer?.address?.city}, {order.customer?.address?.state} {order.customer?.address?.zip}<br/>
                             {order.customer?.address?.country}
                           </p>
+                          {order.addressVerified === false && (
+                            <div className="mt-4 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-[10px] text-rose-400 uppercase tracking-widest font-black leading-relaxed flex items-start gap-3 animate-in fade-in">
+                              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-extrabold text-rose-300">Unverified Address</p>
+                                <p className="text-[9px] text-rose-400/80 mt-1 normal-case font-mono font-medium">{order.addressError || "Could not verify address with postal systems."}</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                    </div>

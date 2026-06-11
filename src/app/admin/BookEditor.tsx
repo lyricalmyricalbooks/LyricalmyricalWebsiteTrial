@@ -33,6 +33,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
 import { Book, Variant } from "../features/site/types";
+import { useCurrency } from "../CurrencyContext";
 
 function SortablePhoto({ photo, index, onRemove }: { photo: any; index: number; onRemove: (id: string) => void }) {
   const {
@@ -57,20 +58,20 @@ function SortablePhoto({ photo, index, onRemove }: { photo: any; index: number; 
       style={style} 
       {...attributes} 
       {...listeners} 
-      className="relative aspect-[3/4] bg-white/[0.02] rounded-[2rem] overflow-hidden group border border-white/5 cursor-grab active:cursor-grabbing hover:border-violet-500/30 transition-all duration-500 shadow-xl shadow-black/40"
+      className="relative aspect-[3/4] bg-slate-100 rounded-3xl overflow-hidden group border border-slate-200 cursor-grab active:cursor-grabbing hover:border-violet-500/30 transition-all duration-500 shadow-sm"
     >
       <img src={photo.url} className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-end p-6">
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-end p-4">
         <button 
           type="button" 
           onPointerDown={(e) => e.stopPropagation()} 
           onClick={(e) => { e.stopPropagation(); onRemove(photo.id); }} 
-          className="w-full py-3 bg-red-500/20 text-red-400 rounded-xl hover:bg-red-500 hover:text-white transition-all text-[10px] font-black tracking-widest backdrop-blur-md border border-red-500/20"
+          className="w-full py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all text-[9px] font-black tracking-widest shadow-md cursor-pointer"
         >
           Remove Image
         </button>
       </div>
-      <div className="absolute top-4 left-4 px-3 py-1 bg-black/60 backdrop-blur-md text-[8px] text-white/60 rounded-full font-black tracking-[0.2em] border border-white/5">
+      <div className="absolute top-3 left-3 px-2 py-1 bg-slate-900/80 backdrop-blur-md text-[8px] text-white rounded-full font-black tracking-[0.1em]">
         Image {index + 1}
       </div>
     </div>
@@ -84,6 +85,7 @@ interface BookEditorProps {
 }
 
 export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
+  const { rates } = useCurrency();
   const [formData, setFormData] = useState<any>({
     title: "",
     subtitle: "",
@@ -92,7 +94,11 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     barcode: "",
     sku: "",
     retailPrice: 0,
+    usdPrice: 0,
+    eurPrice: 0,
     costPrice: 0,
+    usdCostPrice: 0,
+    eurCostPrice: 0,
     stockLevel: 0,
     format: "Paperback",
     dimensions: "",
@@ -106,6 +112,9 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     slug: "",
     isOnSale: false,
     salePrice: 0,
+    usdSalePrice: 0,
+    eurSalePrice: 0,
+    manualCurrencyOverrides: false,
     categories: [],
     tags: [],
     variants: [],
@@ -162,7 +171,11 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         barcode: "",
         sku: "",
         retailPrice: 0,
+        usdPrice: 0,
+        eurPrice: 0,
         costPrice: 0,
+        usdCostPrice: 0,
+        eurCostPrice: 0,
         stockLevel: 0,
         format: "Paperback",
         dimensions: "",
@@ -175,6 +188,9 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         slug: "",
         isOnSale: false,
         salePrice: 0,
+        usdSalePrice: 0,
+        eurSalePrice: 0,
+        manualCurrencyOverrides: false,
         scheduleDate: "",
         publisher: "",
         publishDate: "",
@@ -236,6 +252,81 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     }
   }, [formData, book?.id]);
 
+  // Auto-calculate USD/EUR prices using exchange rates if manual overrides are disabled
+  useEffect(() => {
+    if (!formData.manualCurrencyOverrides) {
+      const usdRate = rates.USD || 0.73;
+      const eurRate = rates.EUR || 0.67;
+      
+      setFormData((prev: any) => {
+        const retailPrice = prev.retailPrice || 0;
+        const costPrice = prev.costPrice || 0;
+        const salePrice = prev.salePrice || 0;
+
+        const newUsdPrice = Number((retailPrice * usdRate).toFixed(2));
+        const newEurPrice = Number((retailPrice * eurRate).toFixed(2));
+        const newUsdCostPrice = Number((costPrice * usdRate).toFixed(2));
+        const newEurCostPrice = Number((costPrice * eurRate).toFixed(2));
+        const newUsdSalePrice = Number((salePrice * usdRate).toFixed(2));
+        const newEurSalePrice = Number((salePrice * eurRate).toFixed(2));
+
+        if (
+          prev.usdPrice === newUsdPrice &&
+          prev.eurPrice === newEurPrice &&
+          prev.usdCostPrice === newUsdCostPrice &&
+          prev.eurCostPrice === newEurCostPrice &&
+          prev.usdSalePrice === newUsdSalePrice &&
+          prev.eurSalePrice === newEurSalePrice
+        ) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          usdPrice: newUsdPrice,
+          eurPrice: newEurPrice,
+          usdCostPrice: newUsdCostPrice,
+          eurCostPrice: newEurCostPrice,
+          usdSalePrice: newUsdSalePrice,
+          eurSalePrice: newEurSalePrice,
+        };
+      });
+    }
+  }, [
+    formData.retailPrice,
+    formData.costPrice,
+    formData.salePrice,
+    formData.manualCurrencyOverrides,
+    rates
+  ]);
+
+  // Auto-calculate variant pricing if overrides are disabled
+  const prevVariantPricesRef = useRef<string>("");
+  useEffect(() => {
+    if (!formData.manualCurrencyOverrides && Array.isArray(formData.variants)) {
+      const usdRate = rates.USD || 0.73;
+      const eurRate = rates.EUR || 0.67;
+      
+      const currentPricesHash = formData.variants.map((v: any) => `${v.id}:${v.price}`).join(",");
+      if (currentPricesHash !== prevVariantPricesRef.current) {
+        prevVariantPricesRef.current = currentPricesHash;
+        
+        setFormData((prev: any) => ({
+          ...prev,
+          variants: prev.variants.map((v: any) => ({
+            ...v,
+            usdPrice: Number((v.price * usdRate).toFixed(2)),
+            eurPrice: Number((v.price * eurRate).toFixed(2)),
+          }))
+        }));
+      }
+    }
+  }, [
+    formData.variants,
+    formData.manualCurrencyOverrides,
+    rates
+  ]);
+
   // Aggregate stock calculation
   useEffect(() => {
     if (Array.isArray(formData.variants) && formData.variants.length > 0) {
@@ -257,8 +348,6 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       setAuthors(au);
       
       const siteCats = settings?.design?.categories || settings?.draftDesign?.categories || CATEGORIES;
-      // Filter out 'PUBLICATIONS' as it's a catch-all and usually not a specific tag
-      // Ensure all items are strings to prevent crashes later
       const filteredCats = Array.isArray(siteCats) 
         ? siteCats
             .filter((c: any) => c && typeof c === 'string' && c !== 'PUBLICATIONS')
@@ -282,7 +371,6 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     
     setFormData((prev: any) => {
       const newData = { ...prev, [name]: val };
-      // Auto-generate slug if title changes and slug is empty or currently matches old title
       if (name === "title" && (!prev.slug || prev.slug === prev.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""))) {
         newData.slug = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
       }
@@ -311,6 +399,21 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       return;
     }
 
+    if (formData.manualCurrencyOverrides) {
+      if (formData.usdPrice < 0 || formData.eurPrice < 0) {
+        toast.error("Override prices cannot be negative.");
+        return;
+      }
+      if (formData.costPrice < 0 || formData.usdCostPrice < 0 || formData.eurCostPrice < 0) {
+        toast.error("Cost prices cannot be negative.");
+        return;
+      }
+      if (formData.isOnSale && (formData.usdSalePrice < 0 || formData.eurSalePrice < 0)) {
+        toast.error("Sale prices cannot be negative.");
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       console.log("Saving book data:", formData);
@@ -321,7 +424,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         await adminApi.createBook(formData);
         toast.success("New title added to library");
       }
-      setInitialData(formData); // Update initial data after save so we don't prompt on close
+      setInitialData(formData);
       onSave();
     } catch (err: any) {
       console.error("Save error details:", err);
@@ -406,11 +509,17 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   };
 
   const addVariant = () => {
+    const usdRate = rates.USD || 0.73;
+    const eurRate = rates.EUR || 0.67;
+    const variantPrice = formData.retailPrice || 0;
+
     setFormData((prev: any) => ({
       ...prev,
       variants: [...(prev.variants || []), { 
         name: "", 
-        price: prev.retailPrice || 0, 
+        price: variantPrice, 
+        usdPrice: Number((variantPrice * usdRate).toFixed(2)),
+        eurPrice: Number((variantPrice * eurRate).toFixed(2)),
         stock: 0, 
         sku: `${prev.sku || 'SKU'}-${(prev.variants || []).length + 1}`,
         weight: prev.weight || "",
@@ -446,21 +555,22 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   };
 
   return (
-    <div className="bg-[#0A0A0B] rounded-[3rem] shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/5 overflow-hidden flex flex-col h-full max-h-[95vh] text-white">
-      {/* Background Glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-violet-600/10 blur-[120px] pointer-events-none opacity-50" />
+    <div className="bg-[#F9F8FA] w-full h-full flex flex-col text-slate-800 relative overflow-hidden">
+      {/* Background Soft Glow */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[300px] bg-violet-100 blur-[100px] pointer-events-none opacity-40" />
       
       {/* Header */}
-      <header className="px-10 py-8 border-b border-white/5 flex justify-between items-center bg-[#0A0A0B]/80 backdrop-blur-3xl sticky top-0 z-20">
+      <header className="px-10 py-6 border-b border-slate-800 flex justify-between items-center bg-[#1E1E1F] text-white sticky top-0 z-20 shrink-0">
         <div className="flex items-center gap-6">
           <button 
+            type="button"
             onClick={handleClose} 
-            className="p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group"
+            className="p-3 bg-white text-[#1E1E1F] rounded-full hover:bg-slate-100 transition-all flex items-center justify-center shadow-md cursor-pointer border border-slate-200"
           >
-            <ArrowLeft size={20} className="text-slate-400 group-hover:text-white transition-colors" />
+            <ArrowLeft size={18} />
           </button>
           <div>
-            <h3 className="text-3xl font-black tracking-tighter text-white uppercase">{book ? "Edit Book" : "New Book"}</h3>
+            <h3 className="text-2xl font-black tracking-tighter text-white uppercase">{book ? "Edit Book" : "New Book"}</h3>
             {book && (
               <div className="flex items-center gap-3 mt-1">
                 <span className="text-[9px] font-black text-violet-400 uppercase tracking-[0.3em]">
@@ -477,83 +587,83 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
               target="_blank"
               rel="noreferrer"
               title={book.slug && book.slug !== formData.slug ? "Opens with the last-saved slug. Save to update the live URL." : "Opens the public page in a new tab. Edits broadcast live."}
-              className="px-8 py-4 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black tracking-[0.3em] text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-3"
+              className="px-6 py-3.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black tracking-[0.2em] text-slate-300 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2"
             >
-              <ExternalLink size={16} className="text-violet-400" />
+              <ExternalLink size={14} className="text-violet-400" />
               PREVIEW PAGE
             </a>
           )}
           <button 
             type="button" 
             onClick={handleClose} 
-            className="px-8 py-4 text-[10px] font-black tracking-[0.3em] text-slate-600 hover:text-red-400 transition-all"
+            className="px-6 py-3.5 text-[10px] font-black tracking-[0.2em] text-slate-400 hover:text-red-400 transition-all cursor-pointer"
           >
             CANCEL
           </button>
           <button 
             onClick={handleSave}
             disabled={loading}
-            className="flex items-center gap-4 bg-violet-600 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] hover:bg-violet-500 active:scale-95 transition-all shadow-2xl shadow-violet-600/20 disabled:opacity-50"
+            className="flex items-center gap-3 bg-violet-600 text-white px-8 py-3.5 rounded-xl text-[10px] font-black tracking-[0.2em] hover:bg-violet-500 active:scale-95 transition-all shadow-lg shadow-violet-600/20 disabled:opacity-50 cursor-pointer"
           >
-            {loading ? <><Loader2 size={16} className="animate-spin" /> SAVING...</> : <><Save size={16} /> SAVE BOOK</>}
+            {loading ? <><Loader2 size={14} className="animate-spin" /> SAVING...</> : <><Save size={14} /> SAVE BOOK</>}
           </button>
         </div>
       </header>
 
-      <form className="p-10 overflow-y-auto grid grid-cols-1 lg:grid-cols-3 gap-12 relative z-10 custom-scrollbar">
+      <form className="p-10 overflow-y-auto grid grid-cols-1 lg:grid-cols-3 gap-12 relative z-10 custom-scrollbar flex-1">
         {/* Left Column: Essential Info */}
-        <div className="lg:col-span-2 space-y-16">
-          <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
+        <div className="lg:col-span-2 space-y-12">
+          <section className="bg-white border border-[#EBEAEF] rounded-[2rem] p-8 shadow-sm space-y-8 relative overflow-hidden text-slate-800">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.01] to-transparent pointer-events-none" />
             <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">Book Details</h4>
-              <div className="space-y-10">
-                <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Book Title</label>
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-400 uppercase mb-8 pb-4 border-b border-slate-100">Book Details</h4>
+              <div className="space-y-8">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Book Title</label>
                   <input 
                     name="title" 
                     value={formData.title} 
                     onChange={handleChange}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-sm text-white focus:border-violet-500/50 focus:bg-white/[0.08] outline-none transition-all font-bold"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm text-slate-900 focus:border-violet-500/50 focus:bg-white outline-none transition-all font-bold placeholder:text-slate-400"
                     placeholder="e.g. Find Still Catches Me Shifted"
                     required
                   />
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Author / Contributors</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Author / Contributors</label>
                     <input 
                       name="subtitle" 
                       value={formData.subtitle} 
                       onChange={handleChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-violet-500/50 focus:bg-white/[0.08] outline-none transition-all"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-violet-500/50 focus:bg-white outline-none transition-all font-semibold placeholder:text-slate-400"
                       placeholder="e.g. Zoe Moss, Lucia Bellemare..."
                     />
                   </div>
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Web Link Address (URL Slug)</label>
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Web Link Address (URL Slug)</label>
                     <div className="relative">
-                      <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 text-[10px] font-mono">/books/</div>
+                      <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-mono">/books/</div>
                       <input 
                         name="slug" 
                         value={formData.slug} 
                         onChange={handleChange}
-                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-20 pr-6 text-xs text-violet-400 focus:border-violet-500/50 focus:bg-white/[0.08] outline-none transition-all font-mono"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-20 pr-6 text-xs text-violet-600 focus:border-violet-500/50 focus:bg-white outline-none transition-all font-mono"
                         placeholder="the-book-slug"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Description</label>
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Description</label>
                   <textarea 
                     name="description" 
                     value={formData.description} 
                     onChange={handleChange}
                     rows={8}
-                    className="w-full bg-white/5 border border-white/10 rounded-3xl py-6 px-8 text-xs text-slate-300 focus:border-violet-500/50 focus:bg-white/[0.08] outline-none transition-all leading-relaxed custom-scrollbar"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-3xl py-6 px-8 text-xs text-slate-800 focus:border-violet-500/50 focus:bg-white outline-none transition-all leading-relaxed custom-scrollbar placeholder:text-slate-400"
                     placeholder="Enter book description, blurb, and additional notes..."
                   />
                 </div>
@@ -561,241 +671,272 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             </div>
           </section>
 
-          <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-bl from-cyan-500/[0.03] to-transparent pointer-events-none" />
+          <section className="bg-white border border-[#EBEAEF] rounded-[2rem] p-8 shadow-sm space-y-8 relative overflow-hidden text-slate-800">
+            <div className="absolute inset-0 bg-gradient-to-bl from-cyan-500/[0.01] to-transparent pointer-events-none" />
             <div className="relative z-10">
-               <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">Publishing Details</h4>
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  <div className="space-y-4">
-                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">ISBN</label>
+               <h4 className="text-xs font-black tracking-[0.4em] text-slate-400 uppercase mb-8 pb-4 border-b border-slate-100">Publishing Details</h4>
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-3">
+                     <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">ISBN</label>
                      <input 
                        name="isbn" 
                        value={formData.isbn} 
                        onChange={handleChange} 
-                       className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all font-mono" 
+                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-semibold" 
                        placeholder="978-0-..."
                      />
                   </div>
-                  <div className="space-y-4">
-                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">SKU</label>
+                  <div className="space-y-3">
+                     <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">SKU</label>
                      <input 
                        name="sku" 
                        value={formData.sku} 
                        onChange={handleChange} 
-                       className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all font-mono" 
+                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-semibold" 
                        placeholder="LM-2024-..."
                      />
                   </div>
-                  <div className="space-y-4">
-                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Format</label>
+                  <div className="space-y-3">
+                     <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Format</label>
                      <select
                        name="format"
                        value={formData.format}
                        onChange={handleChange}
-                       className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all appearance-none cursor-pointer"
+                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all appearance-none cursor-pointer font-semibold"
                      >
-                       <option className="bg-[#0A0A0B]">Paperback</option>
-                       <option className="bg-[#0A0A0B]">Hardcover</option>
-                       <option className="bg-[#0A0A0B]">Special Edition</option>
-                       <option className="bg-[#0A0A0B]">Box Set</option>
-                       <option className="bg-[#0A0A0B]">Zine</option>
-                       <option className="bg-[#0A0A0B]">E-book (PDF)</option>
-                       <option className="bg-[#0A0A0B]">E-book (EPUB)</option>
-                       <option className="bg-[#0A0A0B]">Audiobook</option>
+                       <option>Paperback</option>
+                       <option>Hardcover</option>
+                       <option>Special Edition</option>
+                       <option>Box Set</option>
+                       <option>Zine</option>
+                       <option>E-book (PDF)</option>
+                       <option>E-book (EPUB)</option>
+                       <option>Audiobook</option>
                      </select>
                   </div>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Publisher</label>
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Publisher</label>
                     <input
                       name="publisher"
                       value={formData.publisher || ""}
                       onChange={handleChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-semibold"
                       placeholder="Lyrical Myrical Press"
                     />
                   </div>
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Publication Date</label>
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Publication Date</label>
                     <input
                       type="date"
                       name="publishDate"
                       value={formData.publishDate || ""}
                       onChange={handleChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-semibold"
                     />
                   </div>
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Edition</label>
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Edition</label>
                     <input
                       name="edition"
                       value={formData.edition || ""}
                       onChange={handleChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-semibold"
                       placeholder="First Edition"
                     />
                   </div>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mt-8">
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Page Count</label>
+               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Page Count</label>
                     <input
                       type="number"
                       min={0}
                       name="pageCount"
                       value={formData.pageCount ?? 0}
                       onChange={handleChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-semibold"
                     />
                   </div>
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Language</label>
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Language</label>
                     <input
                       name="language"
                       value={formData.language || ""}
                       onChange={handleChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-semibold"
                       placeholder="English"
                     />
                   </div>
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Dimensions</label>
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Dimensions</label>
                     <input
                       name="dimensions"
                       value={formData.dimensions || ""}
                       onChange={handleChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-semibold"
                       placeholder="6 x 9 in"
                     />
                   </div>
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Barcode / UPC</label>
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Barcode / UPC</label>
                     <input
                       name="barcode"
                       value={formData.barcode || ""}
                       onChange={handleChange}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-cyan-500/50 outline-none transition-all font-mono"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-semibold"
                       placeholder="0-00000-00000-0"
                     />
                   </div>
                </div>
 
-               <div className="pt-12 border-t border-white/5 mt-12">
-                 <div className="flex justify-between items-center mb-10">
+               <div className="pt-8 border-t border-slate-100 mt-8">
+                 <div className="flex justify-between items-center mb-6">
                    <div>
-                     <h5 className="text-[10px] font-black tracking-widest text-slate-500 uppercase">Editions & Pricing</h5>
-                     <p className="text-[8px] text-slate-600 mt-1 uppercase tracking-widest">Multi-format management</p>
+                     <h5 className="text-[10px] font-black tracking-widest text-slate-400 uppercase">Editions & Pricing</h5>
+                     <p className="text-[8px] text-slate-500 mt-1 uppercase tracking-widest">Multi-format management</p>
                    </div>
                    <button 
                      type="button" 
                      onClick={addVariant} 
-                     className="bg-white/5 border border-white/10 px-6 py-3 rounded-xl text-[9px] font-black text-white flex items-center gap-3 hover:bg-white/10 transition-all shadow-xl"
+                     className="bg-slate-50 border border-slate-200 px-5 py-2.5 rounded-xl text-[9px] font-black text-slate-700 flex items-center gap-2.5 hover:bg-slate-100 transition-all shadow-sm cursor-pointer"
                    >
-                     <Plus size={14} className="text-cyan-400" /> 
+                     <Plus size={14} className="text-cyan-500" /> 
                      Add Edition
                    </button>
                  </div>
-                 <div className="space-y-4">
-                  <div className="space-y-6">
+                 <div className="space-y-6">
                     {formData.variants.map((v: Variant) => (
-                      <div key={v.id} className="grid grid-cols-1 md:grid-cols-6 gap-6 bg-white/[0.02] border border-white/5 p-8 rounded-[2.5rem] relative group hover:border-cyan-500/30 transition-all shadow-2xl">
-                        <div className="md:col-span-2 space-y-3">
-                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Edition Name</label>
-                          <input 
-                            placeholder="e.g. Signed Collector's Copy" 
-                            value={v.name} 
-                            onChange={(e) => updateVariant(v.id, "name", e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-[11px] text-white focus:border-cyan-500/50 outline-none transition-all font-bold"
-                          />
-                        </div>
-                        <div className="space-y-3">
-                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">SKU</label>
-                          <input 
-                            placeholder="SKU-..." 
-                            value={v.sku || ""} 
-                            onChange={(e) => updateVariant(v.id, "sku", e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-[11px] text-cyan-400 focus:border-cyan-500/50 outline-none transition-all font-mono"
-                          />
-                        </div>
-                        <div className="space-y-3">
-                           <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Price</label>
-                           <div className="relative">
-                              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[11px] text-slate-600">$</span>
+                      <div key={v.id} className="bg-slate-50 border border-slate-200 p-8 rounded-[2rem] relative group hover:border-cyan-500/30 transition-all shadow-sm space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div className="space-y-3">
+                            <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Edition Name</label>
+                            <input 
+                              placeholder="e.g. Signed Collector's Copy" 
+                              value={v.name} 
+                              onChange={(e) => updateVariant(v.id, "name", e.target.value)}
+                              className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-6 text-[11px] text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-bold"
+                            />
+                          </div>
+                          <div className="space-y-3">
+                            <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">SKU</label>
+                            <input 
+                              placeholder="SKU-..." 
+                              value={v.sku || ""} 
+                              onChange={(e) => updateVariant(v.id, "sku", e.target.value)}
+                              className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-6 text-[11px] text-cyan-600 focus:border-cyan-500/50 outline-none transition-all font-mono"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-3">
+                              <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Stock</label>
                               <input 
                                 type="number" 
-                                value={v.price} 
-                                onChange={(e) => updateVariant(v.id, "price", Number(e.target.value))}
-                                className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-10 pr-6 text-[11px] text-white focus:border-cyan-500/50 outline-none transition-all font-mono font-bold"
+                                value={v.stock} 
+                                onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))}
+                                className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-6 text-[11px] text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-bold"
                               />
-                           </div>
+                            </div>
+                            <div className="space-y-3">
+                              <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Weight</label>
+                              <input 
+                                placeholder="0.5kg" 
+                                value={v.weight || ""} 
+                                onChange={(e) => updateVariant(v.id, "weight", e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-6 text-[11px] text-slate-700 focus:border-cyan-500/50 outline-none transition-all"
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div className="space-y-3">
-                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Stock</label>
-                          <input 
-                            type="number" 
-                            value={v.stock} 
-                            onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-[11px] text-white focus:border-cyan-500/50 outline-none transition-all font-mono font-bold"
-                          />
-                        </div>
-                        <div className="space-y-3">
-                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Weight</label>
-                          <input 
-                            placeholder="0.5kg" 
-                            value={v.weight || ""} 
-                            onChange={(e) => updateVariant(v.id, "weight", e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-[11px] text-slate-400 focus:border-cyan-500/50 outline-none transition-all"
-                          />
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-slate-200/60">
+                          <div className="space-y-3">
+                             <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Price (CAD)</label>
+                             <div className="relative">
+                                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">$</span>
+                                <input 
+                                  type="number" 
+                                  value={v.price} 
+                                  onChange={(e) => updateVariant(v.id, "price", Number(e.target.value))}
+                                  className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-10 pr-6 text-[11px] text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-bold"
+                                />
+                             </div>
+                          </div>
+                          <div className="space-y-3">
+                             <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Price (USD)</label>
+                             <div className="relative">
+                                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">$</span>
+                                <input 
+                                  type="number" 
+                                  disabled={!formData.manualCurrencyOverrides}
+                                  value={(v as any).usdPrice ?? 0} 
+                                  onChange={(e) => updateVariant(v.id, "usdPrice", Number(e.target.value))}
+                                  className={`w-full bg-white border border-slate-200 rounded-2xl py-4 pl-10 pr-6 text-[11px] text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`}
+                                />
+                             </div>
+                          </div>
+                          <div className="space-y-3">
+                             <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Price (EUR)</label>
+                             <div className="relative">
+                                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">€</span>
+                                <input 
+                                  type="number" 
+                                  disabled={!formData.manualCurrencyOverrides}
+                                  value={(v as any).eurPrice ?? 0} 
+                                  onChange={(e) => updateVariant(v.id, "eurPrice", Number(e.target.value))}
+                                  className={`w-full bg-white border border-slate-200 rounded-2xl py-4 pl-10 pr-6 text-[11px] text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`}
+                                />
+                             </div>
+                          </div>
                         </div>
                         
                         <button 
                           type="button" 
                           onClick={() => removeVariant(v.id)} 
-                          className="absolute -right-4 -top-4 p-4 bg-red-500/10 text-red-400 rounded-full hover:bg-red-500 hover:text-white transition-all border border-red-500/20 opacity-0 group-hover:opacity-100 shadow-2xl backdrop-blur-xl z-10"
+                          className="absolute -right-3 -top-3 p-2.5 bg-red-50 text-red-500 rounded-full hover:bg-red-500 hover:text-white transition-all border border-red-200 opacity-0 group-hover:opacity-100 shadow-md z-10 cursor-pointer flex items-center justify-center"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     ))}
                     {formData.variants.length === 0 && (
-                      <div className="h-32 flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-[2.5rem] gap-4 group hover:border-cyan-500/20 transition-all">
-                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-slate-700 group-hover:text-cyan-400 transition-colors">
-                          <Plus size={20} />
+                      <div className="h-28 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-[2rem] gap-3 group hover:border-cyan-500/20 transition-all bg-slate-50/50">
+                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:text-cyan-500 transition-colors">
+                          <Plus size={16} />
                         </div>
-                        <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.3em]">No special editions defined. Base pricing and stock will apply.</p>
+                        <p className="text-[9px] text-slate-500 font-black uppercase tracking-[0.2em]">No special editions defined. Base pricing and stock will apply.</p>
                       </div>
                     )}
                   </div>
-                 </div>
                </div>
             </div>
           </section>
 
           {/* Section: Digital Asset Delivery (Conditional) */}
           {["E-book (PDF)", "E-book (EPUB)", "Audiobook"].includes(formData.format) && (
-            <section className="glass-card rounded-[2.5rem] p-10 border border-violet-500/20 space-y-8 relative overflow-hidden bg-violet-600/[0.02]">
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
+            <section className="bg-violet-50/40 rounded-[2rem] p-8 border border-violet-100 space-y-6 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.01] to-transparent pointer-events-none" />
               <div className="relative z-10">
-                <h4 className="text-xs font-black tracking-[0.4em] text-violet-400 uppercase mb-6 pb-4 border-b border-violet-500/10">Secure Digital File (E-book / Audiobook)</h4>
+                <h4 className="text-xs font-black tracking-[0.4em] text-violet-600 uppercase mb-4 pb-4 border-b border-violet-100">Secure Digital File</h4>
                 <div className="space-y-6">
-                  <p className="text-[10px] text-slate-400 leading-relaxed uppercase tracking-wider">
-                    Upload the primary digital book file here. This file is stored in a secure folder and cannot be accessed publicly. It will be delivered via signed temporary links to paying customers.
+                  <p className="text-[9px] text-slate-500 leading-relaxed uppercase tracking-wider">
+                    Upload the primary digital book file here. This file is stored securely and delivered to paying customers.
                   </p>
                   {formData.digitalFileName ? (
-                    <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl p-6">
+                    <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
                       <div className="space-y-1">
-                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Active Digital File</p>
-                        <p className="text-xs font-mono text-violet-400 font-bold truncate max-w-md">{formData.digitalFileName}</p>
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Active Digital File</p>
+                        <p className="text-xs font-mono text-violet-600 font-bold truncate max-w-[200px]">{formData.digitalFileName}</p>
                       </div>
                       <button
                         type="button"
                         onClick={() => setFormData((prev: any) => ({ ...prev, digitalFileName: "", digitalFileUrl: "" }))}
-                        className="p-3 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 rounded-xl transition-all border border-red-500/20"
+                        className="p-2.5 bg-red-50 hover:bg-red-500 hover:text-white text-red-500 rounded-xl transition-all border border-red-100 shadow-sm cursor-pointer"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={12} />
                       </button>
                     </div>
                   ) : (
@@ -811,14 +952,14 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                         type="button"
                         onClick={() => digitalFileInputRef.current?.click()}
                         disabled={uploadingDigital}
-                        className="w-full h-32 flex flex-col items-center justify-center border-2 border-dashed border-violet-500/20 rounded-[2rem] gap-4 bg-violet-500/[0.01] hover:bg-violet-500/[0.03] transition-all group"
+                        className="w-full h-28 flex flex-col items-center justify-center border-2 border-dashed border-violet-200 rounded-2xl gap-3 bg-white hover:bg-violet-50/50 transition-all group cursor-pointer"
                       >
                         {uploadingDigital ? (
-                          <Loader2 size={24} className="animate-spin text-violet-400" />
+                          <Loader2 size={20} className="animate-spin text-violet-500" />
                         ) : (
-                          <Upload size={24} className="text-slate-600 group-hover:text-violet-400 transition-colors" />
+                          <Upload size={20} className="text-slate-400 group-hover:text-violet-500 transition-colors" />
                         )}
-                        <span className="text-[9px] text-slate-500 font-black uppercase tracking-[0.3em] group-hover:text-white transition-colors">
+                        <span className="text-[8px] text-slate-500 font-black uppercase tracking-[0.2em] group-hover:text-violet-600 transition-colors">
                           {uploadingDigital ? "UPLOADING FILE..." : "UPLOAD DIGITAL BOOK FILE"}
                         </span>
                       </button>
@@ -829,10 +970,10 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             </section>
           )}
 
-          <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/[0.03] to-transparent pointer-events-none" />
+          <section className="bg-white border border-[#EBEAEF] rounded-[2rem] p-8 shadow-sm space-y-8 relative overflow-hidden text-slate-800">
+            <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/[0.01] to-transparent pointer-events-none" />
             <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">Categories</h4>
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-400 uppercase mb-8 pb-4 border-b border-slate-100">Categories</h4>
               <div className="flex flex-wrap gap-4">
                 {Array.from(new Set([...categories, "Photography", "Contemporary", "Artist Book", "Zine", "Archive"])).map(cat => {
                   const isSelected = Array.isArray(formData.categories) && formData.categories.includes(cat);
@@ -841,10 +982,10 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                       key={cat}
                       type="button"
                       onClick={() => toggleCategory(cat)}
-                      className={`px-8 py-4 rounded-2xl text-[10px] font-black tracking-widest transition-all border ${
+                      className={`px-6 py-3 rounded-xl text-[10px] font-black tracking-widest transition-all border cursor-pointer ${
                         isSelected
-                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                          : "bg-white/5 text-slate-500 border-white/5 hover:bg-white/10"
+                          ? "bg-emerald-50 text-emerald-600 border-emerald-200 shadow-sm"
+                          : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
                       }`}
                     >
                       {String(cat).toUpperCase()}
@@ -853,22 +994,22 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 })}
               </div>
 
-              <div className="mt-12 pt-10 border-t border-white/5 space-y-6">
+              <div className="mt-8 pt-6 border-t border-slate-100 space-y-4">
                 <div>
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Tags</label>
-                  <p className="text-[8px] text-slate-600 uppercase tracking-widest mt-1 ml-1">Searchable keywords. Comma-separated.</p>
+                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Tags</label>
+                  <p className="text-[8px] text-slate-400 uppercase tracking-widest mt-1 ml-1">Searchable keywords. Comma-separated.</p>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   {(Array.isArray(formData.tags) ? formData.tags : []).map((tag: string) => (
-                    <span key={tag} className="inline-flex items-center gap-2 pl-4 pr-2 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-[10px] font-black text-emerald-400 tracking-widest">
+                    <span key={tag} className="inline-flex items-center gap-2 pl-3 pr-1.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[10px] font-black text-emerald-600 tracking-widest">
                       {tag.toUpperCase()}
                       <button
                         type="button"
                         onClick={() => setFormData((prev: any) => ({ ...prev, tags: (prev.tags || []).filter((t: string) => t !== tag) }))}
-                        className="w-5 h-5 rounded-md flex items-center justify-center hover:bg-red-500/20 hover:text-red-400 transition-all"
+                        className="w-4 h-4 rounded-md flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-all cursor-pointer"
                         aria-label={`Remove tag ${tag}`}
                       >
-                        <X size={12} />
+                        <X size={10} />
                       </button>
                     </span>
                   ))}
@@ -889,48 +1030,48 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                       target.value = "";
                     }
                   }}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-emerald-500/50 outline-none transition-all"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-800 focus:border-emerald-500/50 outline-none transition-all font-semibold"
                 />
               </div>
             </div>
           </section>
 
-          <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-tr from-sky-500/[0.03] to-transparent pointer-events-none" />
+          <section className="bg-white border border-[#EBEAEF] rounded-[2rem] p-8 shadow-sm space-y-8 relative overflow-hidden text-slate-800">
+            <div className="absolute inset-0 bg-gradient-to-tr from-sky-500/[0.01] to-transparent pointer-events-none" />
             <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">Search Engine Listing (SEO)</h4>
-              <div className="space-y-10">
-                <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Meta Title</label>
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-400 uppercase mb-8 pb-4 border-b border-slate-100">Search Engine Listing (SEO)</h4>
+              <div className="space-y-8">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Meta Title</label>
                   <input
                     name="metaTitle"
                     value={formData.metaTitle || ""}
                     onChange={handleChange}
                     maxLength={70}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-sky-500/50 outline-none transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-sky-500/50 outline-none transition-all font-semibold"
                     placeholder={formData.title || "Search engine title"}
                   />
-                  <p className="text-[8px] text-slate-600 uppercase tracking-widest ml-1">{(formData.metaTitle || "").length}/70 characters</p>
+                  <p className="text-[8px] text-slate-400 uppercase tracking-widest ml-1">{(formData.metaTitle || "").length}/70 characters</p>
                 </div>
-                <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Meta Description</label>
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Meta Description</label>
                   <textarea
                     name="metaDescription"
                     value={formData.metaDescription || ""}
                     onChange={handleChange}
                     rows={3}
                     maxLength={160}
-                    className="w-full bg-white/5 border border-white/10 rounded-3xl py-4 px-6 text-xs text-slate-300 focus:border-sky-500/50 outline-none transition-all leading-relaxed"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-3xl py-4 px-6 text-xs text-slate-800 focus:border-sky-500/50 outline-none transition-all leading-relaxed placeholder:text-slate-400 font-semibold"
                     placeholder="Short summary that appears in search results"
                   />
-                  <p className="text-[8px] text-slate-600 uppercase tracking-widest ml-1">{(formData.metaDescription || "").length}/160 characters</p>
+                  <p className="text-[8px] text-slate-400 uppercase tracking-widest ml-1">{(formData.metaDescription || "").length}/160 characters</p>
                 </div>
 
-                <div className="p-8 bg-white/[0.02] border border-white/5 rounded-3xl space-y-2">
-                  <p className="text-[8px] font-black text-slate-600 uppercase tracking-[0.3em]">Search Listing Preview</p>
-                  <p className="text-sky-400 text-sm font-mono truncate">/books/{formData.slug || "your-book"}</p>
-                  <p className="text-white text-base font-bold truncate">{formData.metaTitle || formData.title || "Your book title"}</p>
-                  <p className="text-slate-400 text-xs leading-relaxed line-clamp-2">{formData.metaDescription || formData.description || "Your book description will appear here."}</p>
+                <div className="p-6 bg-slate-50 border border-slate-150 rounded-2xl space-y-2">
+                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.3em]">Search Listing Preview</p>
+                  <p className="text-sky-600 text-xs font-mono truncate">/books/{formData.slug || "your-book"}</p>
+                  <p className="text-slate-900 text-sm font-bold truncate">{formData.metaTitle || formData.title || "Your book title"}</p>
+                  <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">{formData.metaDescription || formData.description || "Your book description will appear here."}</p>
                 </div>
               </div>
             </div>
@@ -938,14 +1079,14 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         </div>
 
         {/* Right Column: Imagery & Commerce */}
-        <div className="space-y-16">
-          <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-b from-violet-500/[0.03] to-transparent pointer-events-none" />
+        <div className="space-y-12">
+          <section className="bg-white border border-[#EBEAEF] rounded-[2rem] p-8 shadow-sm space-y-8 relative overflow-hidden text-slate-800">
+            <div className="absolute inset-0 bg-gradient-to-b from-violet-500/[0.01] to-transparent pointer-events-none" />
             <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">Book Cover Images</h4>
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-400 uppercase mb-8 pb-4 border-b border-slate-100">Book Cover Images</h4>
               
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <div className="grid grid-cols-2 gap-6 mb-10">
+                <div className="grid grid-cols-2 gap-4 mb-8">
                   <SortableContext items={formData.photos.map((p: any) => p.id)} strategy={rectSortingStrategy}>
                     {formData.photos.map((photo: any, i: number) => (
                       <SortablePhoto key={photo.id} photo={photo} index={i} onRemove={removePhoto} />
@@ -957,19 +1098,19 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploading}
-                      className="aspect-[3/4] border-2 border-dashed border-white/10 rounded-[2.5rem] flex flex-col items-center justify-center gap-4 text-slate-700 hover:border-violet-500/30 hover:bg-violet-500/5 hover:text-slate-400 transition-all disabled:opacity-50 group"
+                      className="aspect-[3/4] border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-4 text-slate-400 hover:border-violet-500/30 hover:bg-violet-50/50 hover:text-slate-600 transition-all disabled:opacity-50 group cursor-pointer"
                     >
                       {uploading ? (
-                        <div className="flex flex-col items-center gap-4">
-                           <div className="w-8 h-8 border-2 border-slate-800 border-t-violet-500 rounded-full animate-spin" />
-                           <span className="text-[8px] tracking-[0.3em] font-black uppercase">Ingesting...</span>
+                        <div className="flex flex-col items-center gap-2">
+                           <div className="w-6 h-6 border-2 border-slate-250 border-t-violet-500 rounded-full animate-spin" />
+                           <span className="text-[8px] tracking-[0.2em] font-black uppercase">Ingesting...</span>
                         </div>
                       ) : (
                         <>
-                          <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                            <Upload size={24} className="text-violet-400" />
+                          <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+                            <Upload size={18} className="text-violet-500" />
                           </div>
-                          <span className="text-[8px] tracking-[0.3em] font-black uppercase">Upload Cover / Image</span>
+                          <span className="text-[8px] tracking-[0.2em] font-black uppercase">Upload Cover</span>
                         </>
                       )}
                     </button>
@@ -993,31 +1134,50 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                     value={photoInput} 
                     onChange={(e) => setPhotoInput(e.target.value)}
                     placeholder="https://cloud.assets.com/img.jpg"
-                    className="flex-1 bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-violet-500/50 outline-none transition-all font-mono"
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-800 focus:border-violet-500/50 outline-none transition-all font-mono font-semibold"
                   />
                   <button 
                     type="button" 
                     onClick={addPhoto}
-                    className="p-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 text-violet-400 transition-all"
+                    className="p-4 bg-slate-50 border border-slate-200 rounded-2xl hover:bg-slate-100 text-violet-500 transition-all cursor-pointer shadow-sm flex items-center justify-center"
                   >
-                    <Plus size={20} />
+                    <Plus size={18} />
                   </button>
                 </div>
-                <p className="text-[8px] text-slate-600 uppercase tracking-widest text-center mt-2">Supports web URLs and direct image links</p>
+                <p className="text-[8px] text-slate-400 uppercase tracking-widest text-center mt-2">Supports web URLs and direct image links</p>
               </div>
             </div>
           </section>
 
-          <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/[0.03] to-transparent pointer-events-none" />
+          <section className="bg-white border border-[#EBEAEF] rounded-[2rem] p-8 shadow-sm space-y-8 relative overflow-hidden text-slate-800">
+            <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/[0.01] to-transparent pointer-events-none" />
             <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-500 uppercase mb-10 pb-4 border-b border-white/5">Pricing & Inventory</h4>
-              <div className="space-y-10">
-                <div className="grid grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Price (CAD)</label>
+              <h4 className="text-xs font-black tracking-[0.4em] text-slate-400 uppercase mb-8 pb-4 border-b border-slate-100">Pricing & Inventory</h4>
+              <div className="space-y-8">
+                
+                {/* Manual Pricing Overrides Toggle */}
+                <div className="space-y-4 p-5 bg-slate-50 border border-slate-200 rounded-2xl">
+                   <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em] block">Override Pricing</label>
+                        <p className="text-[8px] text-slate-500 uppercase tracking-widest">Manually enter USD & EUR values</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        name="manualCurrencyOverrides"
+                        checked={formData.manualCurrencyOverrides}
+                        onChange={handleChange}
+                        className="w-6 h-6 rounded-lg bg-white border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
+                      />
+                   </div>
+                </div>
+
+                {/* Base Retail Price Grid */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-3">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Price (CAD)</label>
                     <div className="relative">
-                      <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 text-xs">$</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
                       <input
                         type="number"
                         name="retailPrice"
@@ -1025,14 +1185,50 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                         step="0.01"
                         value={formData.retailPrice ?? 0}
                         onChange={handleChange}
-                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-10 pr-6 text-sm text-white focus:border-amber-500/50 outline-none transition-all font-mono font-bold"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold"
                       />
                     </div>
                   </div>
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Cost Price (CAD)</label>
+                  <div className="space-y-3">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Price (USD)</label>
                     <div className="relative">
-                      <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 text-xs">$</span>
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                      <input
+                        type="number"
+                        name="usdPrice"
+                        min={0}
+                        step="0.01"
+                        disabled={!formData.manualCurrencyOverrides}
+                        value={formData.usdPrice ?? 0}
+                        onChange={handleChange}
+                        className={`w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Price (EUR)</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">€</span>
+                      <input
+                        type="number"
+                        name="eurPrice"
+                        min={0}
+                        step="0.01"
+                        disabled={!formData.manualCurrencyOverrides}
+                        value={formData.eurPrice ?? 0}
+                        onChange={handleChange}
+                        className={`w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Base Cost Price Grid */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-3">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Cost (CAD)</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
                       <input
                         type="number"
                         name="costPrice"
@@ -1040,16 +1236,48 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                         step="0.01"
                         value={formData.costPrice ?? 0}
                         onChange={handleChange}
-                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-10 pr-6 text-sm text-white focus:border-amber-500/50 outline-none transition-all font-mono font-bold"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Cost (USD)</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                      <input
+                        type="number"
+                        name="usdCostPrice"
+                        min={0}
+                        step="0.01"
+                        disabled={!formData.manualCurrencyOverrides}
+                        value={formData.usdCostPrice ?? 0}
+                        onChange={handleChange}
+                        className={`w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Cost (EUR)</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">€</span>
+                      <input
+                        type="number"
+                        name="eurCostPrice"
+                        min={0}
+                        step="0.01"
+                        disabled={!formData.manualCurrencyOverrides}
+                        value={formData.eurCostPrice ?? 0}
+                        onChange={handleChange}
+                        className={`w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`}
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">
-                      Stock Level {formData.variants?.length > 0 && "(Calculated from Editions)"}
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">
+                      Stock Level {formData.variants?.length > 0 && "(Editions)"}
                     </label>
                     <input 
                       type="number" 
@@ -1057,112 +1285,143 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                       value={formData.stockLevel} 
                       onChange={handleChange} 
                       disabled={formData.variants?.length > 0}
-                      className={`w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-sm text-white focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${formData.variants?.length > 0 ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                      className={`w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${formData.variants?.length > 0 ? 'opacity-50 cursor-not-allowed bg-slate-100' : ''}`} 
                     />
                   </div>
                 </div>
 
-                <div className="space-y-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
+                <div className="space-y-4 p-5 bg-slate-50 border border-slate-200 rounded-2xl">
                    <div className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Charge Tax</label>
-                        <p className="text-[8px] text-slate-600 uppercase tracking-widest">Apply sales tax at checkout</p>
+                        <label className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em] block">Charge Tax</label>
+                        <p className="text-[8px] text-slate-500 uppercase tracking-widest">Apply sales tax at checkout</p>
                       </div>
                       <input
                         type="checkbox"
                         name="chargeTax"
                         checked={!!formData.chargeTax}
                         onChange={handleChange}
-                        className="w-6 h-6 rounded-lg bg-white/5 border-white/10 text-amber-500 focus:ring-amber-500/50"
+                        className="w-6 h-6 rounded-lg bg-white border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
                       />
                    </div>
                 </div>
 
-                <div className="space-y-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
+                <div className="space-y-4 p-5 bg-slate-50 border border-slate-200 rounded-2xl">
                    <div className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Track Inventory</label>
-                        <p className="text-[8px] text-slate-600 uppercase tracking-widest">Decrement stock on each sale</p>
+                        <label className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em] block">Track Inventory</label>
+                        <p className="text-[8px] text-slate-500 uppercase tracking-widest">Decrement stock on each sale</p>
                       </div>
                       <input
                         type="checkbox"
                         name="trackInventory"
                         checked={!!formData.trackInventory}
                         onChange={handleChange}
-                        className="w-6 h-6 rounded-lg bg-white/5 border-white/10 text-amber-500 focus:ring-amber-500/50"
+                        className="w-6 h-6 rounded-lg bg-white border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
                       />
                    </div>
                    {formData.trackInventory && (
-                     <div className="flex items-center justify-between mt-6 pt-6 border-t border-white/5">
+                     <div className="flex items-center justify-between mt-5 pt-5 border-t border-slate-200">
                         <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Continue Selling when Out of Stock</label>
-                          <p className="text-[8px] text-slate-600 uppercase tracking-widest">Allow backorders / pre-orders</p>
+                          <label className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em] block">Allow Backorders</label>
+                          <p className="text-[8px] text-slate-500 uppercase tracking-widest">Continue selling when out of stock</p>
                         </div>
                         <input
                           type="checkbox"
                           name="allowBackorder"
                           checked={!!formData.allowBackorder}
                           onChange={handleChange}
-                          className="w-6 h-6 rounded-lg bg-white/5 border-white/10 text-amber-500 focus:ring-amber-500/50"
+                          className="w-6 h-6 rounded-lg bg-white border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
                         />
                      </div>
                    )}
                 </div>
 
-                <div className="space-y-4 p-6 bg-white/[0.02] border border-white/5 rounded-3xl">
+                {/* On Sale Section */}
+                <div className="space-y-4 p-5 bg-slate-50 border border-slate-200 rounded-2xl">
                    <div className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">On Sale</label>
-                        <p className="text-[8px] text-slate-600 uppercase tracking-widest">Toggle promotional pricing</p>
+                        <label className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em] block">On Sale</label>
+                        <p className="text-[8px] text-slate-500 uppercase tracking-widest">Toggle promotional pricing</p>
                       </div>
                       <input
                         type="checkbox"
                         name="isOnSale"
                         checked={formData.isOnSale}
                         onChange={handleChange}
-                        className="w-6 h-6 rounded-lg bg-white/5 border-white/10 text-amber-500 focus:ring-amber-500/50"
+                        className="w-6 h-6 rounded-lg bg-white border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
                       />
                    </div>
                    {formData.isOnSale && (
-                     <div className="space-y-4 mt-6 pt-6 border-t border-white/5 animate-in slide-in-from-top-4 duration-300">
-                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Sale Price (CAD)</label>
-                       <div className="relative">
-                         <span className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 text-xs">$</span>
-                         <input 
-                           type="number" 
-                           name="salePrice" 
-                           value={formData.salePrice} 
-                           onChange={handleChange} 
-                           className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-10 pr-6 text-sm text-white focus:border-amber-500/50 outline-none transition-all font-mono font-bold" 
-                         />
+                     <div className="grid grid-cols-3 gap-4 mt-5 pt-5 border-t border-slate-200 animate-in slide-in-from-top-4 duration-300">
+                       <div className="space-y-3">
+                         <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Sale (CAD)</label>
+                         <div className="relative">
+                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                           <input 
+                             type="number" 
+                             name="salePrice" 
+                             value={formData.salePrice} 
+                             onChange={handleChange} 
+                             className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold" 
+                           />
+                         </div>
+                       </div>
+                       <div className="space-y-3">
+                         <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Sale (USD)</label>
+                         <div className="relative">
+                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                           <input 
+                             type="number" 
+                             name="usdSalePrice" 
+                             disabled={!formData.manualCurrencyOverrides}
+                             value={formData.usdSalePrice} 
+                             onChange={handleChange} 
+                             className={`w-full bg-white border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`} 
+                           />
+                         </div>
+                       </div>
+                       <div className="space-y-3">
+                         <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Sale (EUR)</label>
+                         <div className="relative">
+                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">€</span>
+                           <input 
+                             type="number" 
+                             name="eurSalePrice" 
+                             disabled={!formData.manualCurrencyOverrides}
+                             value={formData.eurSalePrice} 
+                             onChange={handleChange} 
+                             className={`w-full bg-white border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`} 
+                           />
+                         </div>
                        </div>
                      </div>
                    )}
                 </div>
 
-                <div className="grid grid-cols-1 gap-8">
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Shipping Profile</label>
+                <div className="grid grid-cols-1 gap-6">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Shipping Profile</label>
                     <select 
                       name="shippingProfileId" 
                       value={formData.shippingProfileId} 
                       onChange={handleChange} 
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-xs text-white focus:border-amber-500/50 outline-none transition-all appearance-none cursor-pointer"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all appearance-none cursor-pointer font-semibold"
                     >
                       {shippingProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
 
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Status</label>
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Status</label>
                     <select 
                       name="status" 
                       value={formData.status} 
                       onChange={handleChange} 
                       className={`w-full border rounded-2xl py-4 px-6 text-xs font-black tracking-widest outline-none transition-all appearance-none cursor-pointer ${
                         formData.status === 'published' 
-                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                          : 'bg-white/5 border-white/10 text-slate-400'
+                          ? 'bg-emerald-55 text-emerald-600 border-emerald-200' 
+                          : 'bg-slate-50 border-slate-200 text-slate-600'
                       }`}
                     >
                       <option value="draft">Draft</option>

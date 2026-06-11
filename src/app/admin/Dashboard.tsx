@@ -510,13 +510,13 @@ export function Dashboard() {
       {/* Book Editor Takeover */}
       <AnimatePresence>
         {showEditor && (
-          <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 md:p-12">
+          <div className="fixed inset-0 z-[300] bg-[#F9F8FA] w-screen h-screen flex flex-col">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.4, ease: "circOut" }}
-              className="w-full max-w-7xl h-full max-h-[92vh] flex flex-col"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="w-full h-full flex flex-col"
             >
               <BookEditor 
                 book={editingBook} 

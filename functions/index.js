@@ -23,6 +23,7 @@ const db = admin.firestore();
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
+const SHIPPO_API_TOKEN = defineSecret("SHIPPO_API_TOKEN");
 
 const FROM = "Lyricalmyrical Books <orders@lyricalmyricalbooks.com>";
 const ADMIN_TO = "lyricalmyricalbooks@gmail.com";
@@ -49,6 +50,56 @@ function orderRowsHtml(items = []) {
 async function sendEmail({ to, subject, html, secret }) {
   const resend = new Resend(secret);
   return resend.emails.send({ from: FROM, to, subject, html });
+}
+
+// ──────────────────────────────────────────────────────────────
+// Shippo API Normalizers & Helpers
+// ──────────────────────────────────────────────────────────────
+const US_STATES = {
+  "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR", "california": "CA", "colorado": "CO", "connecticut": "CT", "delaware": "DE", "florida": "FL", "georgia": "GA", "hawaii": "HI", "idaho": "ID", "illinois": "IL", "indiana": "IN", "iowa": "IA", "kansas": "KS", "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD", "massachusetts": "MA", "michigan": "MI", "minnesota": "MN", "mississippi": "MS", "missouri": "MO", "montana": "MT", "nebraska": "NE", "nevada": "NV", "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY", "north carolina": "NC", "north dakota": "ND", "ohio": "OH", "oklahoma": "OK", "oregon": "OR", "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC", "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT", "vermont": "VT", "virginia": "VA", "washington": "WA", "west virginia": "WV", "wisconsin": "WI", "wyoming": "WY"
+};
+
+const CA_PROVINCES = {
+  "ontario": "ON", "quebec": "QC", "nova scotia": "NS", "new brunswick": "NB", "manitoba": "MB", "british columbia": "BC", "prince edward island": "PE", "saskatchewan": "SK", "alberta": "AB", "newfoundland and labrador": "NL", "newfoundland": "NL", "labrador": "NL", "northwest territories": "NT", "yukon": "YT", "nunavut": "NU"
+};
+
+function getCountryCode(countryName) {
+  const clean = (countryName || "").trim().toLowerCase();
+  if (clean === "united states" || clean === "us" || clean === "usa" || clean === "united states of america") {
+    return "US";
+  }
+  if (clean === "canada" || clean === "ca") {
+    return "CA";
+  }
+  if (clean.length === 2) {
+    return clean.toUpperCase();
+  }
+  return "US"; // default fallback
+}
+
+function getStateCode(stateName) {
+  const clean = (stateName || "").trim().toLowerCase();
+  if (clean.length === 2) {
+    return clean.toUpperCase();
+  }
+  return US_STATES[clean] || CA_PROVINCES[clean] || stateName.toUpperCase();
+}
+
+async function callShippo(endpoint, method, body, token) {
+  const headers = {
+    "Authorization": `ShippoToken ${token}`,
+    "Content-Type": "application/json"
+  };
+  const res = await fetch(`https://api.goshippo.com/${endpoint}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Shippo API error: ${res.status} - ${errorText}`);
+  }
+  return await res.json();
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -606,4 +657,262 @@ exports.abandonedCartSweep = onSchedule(
       }
     }
   },
+);
+
+// ──────────────────────────────────────────────────────────────
+// 7. HTTP Endpoint: Validate Address via Shippo (Secure)
+// ──────────────────────────────────────────────────────────────
+exports.validateAddress = onRequest(
+  { secrets: [SHIPPO_API_TOKEN] },
+  async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    if (req.method === "OPTIONS") {
+      res.set("Access-Control-Allow-Methods", "POST");
+      res.set("Access-Control-Allow-Headers", "Content-Type");
+      res.set("Access-Control-Max-Age", "3600");
+      res.status(204).send("");
+      return;
+    }
+
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    const { address } = req.body;
+    if (!address || !address.street || !address.city || !address.state || !address.zip) {
+      res.status(400).json({ error: "Missing address fields" });
+      return;
+    }
+
+    try {
+      let shippoToken = null;
+      try {
+        shippoToken = SHIPPO_API_TOKEN.value();
+      } catch (err) {
+        console.warn("SHIPPO_API_TOKEN secret not configured.");
+      }
+
+      if (!shippoToken || shippoToken === "your_shippo_api_token") {
+        console.warn("Using dev address verification fallback.");
+        const isTestInvalid = (address.street || "").toLowerCase().includes("invalid");
+        if (isTestInvalid) {
+          res.status(200).json({
+            isValid: false,
+            messages: [{
+              code: "address_not_found",
+              text: "The street address 'invalid' is not recognized by carrier databases.",
+              source: "USPS"
+            }]
+          });
+        } else {
+          res.status(200).json({ isValid: true, messages: [] });
+        }
+        return;
+      }
+
+      const countryCode = getCountryCode(address.country);
+      const stateCode = getStateCode(address.state);
+
+      const shippoRes = await callShippo("addresses/", "POST", {
+        name: address.name || "Customer",
+        street1: address.street,
+        city: address.city,
+        state: stateCode,
+        zip: address.zip,
+        country: countryCode,
+        validate: true
+      }, shippoToken);
+
+      const validationResults = shippoRes.validation_results || {};
+      const isValid = validationResults.is_valid === true;
+
+      res.status(200).json({
+        isValid,
+        messages: validationResults.messages || []
+      });
+    } catch (err) {
+      console.error("validateAddress failed:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ──────────────────────────────────────────────────────────────
+// 8. HTTP Endpoint: Create Shipping Label via Shippo (Secure)
+// ──────────────────────────────────────────────────────────────
+exports.createShippingLabel = onRequest(
+  { secrets: [SHIPPO_API_TOKEN] },
+  async (req, res) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    if (req.method === "OPTIONS") {
+      res.set("Access-Control-Allow-Methods", "POST");
+      res.set("Access-Control-Allow-Headers", "Content-Type");
+      res.set("Access-Control-Max-Age", "3600");
+      res.status(204).send("");
+      return;
+    }
+
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    const { orderId } = req.body;
+    if (!orderId) {
+      res.status(400).json({ error: "Missing orderId" });
+      return;
+    }
+
+    try {
+      const orderRef = db.collection("orders").doc(orderId);
+      const orderDoc = await orderRef.get();
+      if (!orderDoc.exists) {
+        res.status(404).json({ error: "Order not found" });
+        return;
+      }
+
+      const order = orderDoc.data();
+      if (!order.customer || !order.customer.address) {
+        res.status(400).json({ error: "Order has no customer address data" });
+        return;
+      }
+
+      let shippoToken = null;
+      try {
+        shippoToken = SHIPPO_API_TOKEN.value();
+      } catch (err) {
+        console.warn("SHIPPO_API_TOKEN secret not configured.");
+      }
+
+      if (!shippoToken || shippoToken === "your_shippo_api_token") {
+        console.warn("Using dev label generation fallback (mock PDF and tracking).");
+        const mockTracking = `MOCK-${Math.floor(10000000 + Math.random() * 90000000)}`;
+        const mockLabelUrl = "https://goshippo.com/wp-content/uploads/2016/04/Shippo_Label.pdf";
+        
+        await orderRef.update({
+          labelUrl: mockLabelUrl,
+          trackingNumber: mockTracking,
+          trackingCarrier: "USPS (Sandbox)",
+          updatedAt: new Date().toISOString(),
+          activity: [
+            ...(order.activity || []),
+            { 
+              type: "note", 
+              message: `Shipping Label #${mockTracking} generated via dashboard (Dev Fallback).`, 
+              createdAt: new Date().toISOString() 
+            }
+          ]
+        });
+
+        res.status(200).json({
+          labelUrl: mockLabelUrl,
+          trackingNumber: mockTracking,
+          trackingCarrier: "USPS (Sandbox)"
+        });
+        return;
+      }
+
+      // 1. Resolve Origin Address from Settings
+      const settingsDoc = await db.collection("settings").doc("website").get();
+      const settings = settingsDoc.data() || {};
+      const origin = settings.location || {};
+
+      const addressFrom = {
+        name: settings.info?.name || "Lyricalmyrical Books",
+        street1: origin.street || "456 Montrose Ave",
+        city: origin.city || "Toronto",
+        state: getStateCode(origin.state || "ON"),
+        zip: origin.zip || "M6G3H1",
+        country: getCountryCode(origin.country || "CA"),
+        phone: "6474096863",
+        email: "lyricalmyricalbooks@gmail.com"
+      };
+
+      // 2. Resolve Destination Address
+      const dest = order.customer.address;
+      const addressTo = {
+        name: order.customer.name || "Customer",
+        street1: dest.street,
+        city: dest.city,
+        state: getStateCode(dest.state),
+        zip: dest.zip,
+        country: getCountryCode(dest.country),
+        phone: order.customer.phone || "",
+        email: order.customer.email
+      };
+
+      // 3. Define Parcel (scale weight by quantity)
+      const totalQty = (order.items || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
+      const parcel = {
+        length: "10",
+        width: "8",
+        height: "2",
+        distance_unit: "in",
+        weight: (1.5 * totalQty).toFixed(1),
+        mass_unit: "lb"
+      };
+
+      // 4. Create Shipment on Shippo
+      const shipment = await callShippo("shipments/", "POST", {
+        address_from: addressFrom,
+        address_to: addressTo,
+        parcels: [parcel],
+        async: false
+      }, shippoToken);
+
+      const rates = shipment.rates || [];
+      if (rates.length === 0) {
+        throw new Error("No shipping rates returned by Shippo.");
+      }
+
+      // 5. Select cheapest rate
+      const cheapestRate = rates.reduce((min, rate) => {
+        const rateVal = parseFloat(rate.amount);
+        const minVal = parseFloat(min.amount);
+        return rateVal < minVal ? rate : min;
+      }, rates[0]);
+
+      // 6. Purchase Rate to create Transaction (Label)
+      const transaction = await callShippo("transactions/", "POST", {
+        rate: cheapestRate.object_id,
+        async: false
+      }, shippoToken);
+
+      if (transaction.status !== "SUCCESS") {
+        const messages = (transaction.messages || []).map(m => m.text).join(", ");
+        throw new Error(`Transaction creation failed: ${transaction.status} - ${messages}`);
+      }
+
+      const trackingNumber = transaction.tracking_number;
+      const trackingCarrier = transaction.tracking_provider;
+      const labelUrl = transaction.label_url;
+
+      // 7. Update Firestore Order document
+      await orderRef.update({
+        labelUrl: labelUrl,
+        trackingNumber: trackingNumber,
+        trackingCarrier: trackingCarrier,
+        updatedAt: new Date().toISOString(),
+        activity: [
+          ...(order.activity || []),
+          { 
+            type: "note", 
+            message: `Shipping Label #${trackingNumber} generated via dashboard. Carrier: ${trackingCarrier}.`, 
+            createdAt: new Date().toISOString() 
+          }
+        ]
+      });
+
+      res.status(200).json({
+        labelUrl,
+        trackingNumber,
+        trackingCarrier
+      });
+
+    } catch (err) {
+      console.error("createShippingLabel failed:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
 );
