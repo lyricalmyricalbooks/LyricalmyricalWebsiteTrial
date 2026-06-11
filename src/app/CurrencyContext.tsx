@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { ChevronDown } from "lucide-react";
 
 export type Currency = "CAD" | "USD" | "EUR";
 
@@ -164,18 +165,21 @@ export function CurrencySelector() {
   const { currency, setCurrency } = useCurrency();
 
   return (
-    <div className="flex items-center gap-3 bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-3 hover:border-violet-500/30 transition-all group">
-      <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">CURRENCY</span>
-      <select
-        value={currency}
-        onChange={(e) => setCurrency(e.target.value as Currency)}
-        aria-label="Select currency"
-        className="bg-transparent border-none outline-none text-[10px] font-black tracking-widest text-white cursor-pointer uppercase appearance-none"
-      >
-        <option value="CAD" className="bg-[#0A0A0B] text-white">CAD (CA$)</option>
-        <option value="USD" className="bg-[#0A0A0B] text-white">USD ($)</option>
-        <option value="EUR" className="bg-[#0A0A0B] text-white">EUR (€)</option>
-      </select>
+    <div className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full px-3 py-1.5 transition-all text-white/50 hover:text-white group relative">
+      <span className="text-[8px] font-black tracking-widest uppercase text-slate-500">CURRENCY</span>
+      <div className="flex items-center gap-1">
+        <select
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value as Currency)}
+          aria-label="Select currency"
+          className="bg-transparent border-none outline-none text-[9px] font-black tracking-widest text-white cursor-pointer uppercase appearance-none pr-4"
+        >
+          <option value="CAD" className="bg-[#050508] text-white">CAD</option>
+          <option value="USD" className="bg-[#050508] text-white">USD</option>
+          <option value="EUR" className="bg-[#050508] text-white">EUR</option>
+        </select>
+        <ChevronDown size={10} className="absolute right-3 pointer-events-none text-white/40 group-hover:text-white/80 transition-colors" />
+      </div>
     </div>
   );
 }

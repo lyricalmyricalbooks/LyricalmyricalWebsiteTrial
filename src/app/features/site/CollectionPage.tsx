@@ -7,6 +7,7 @@ import { CatalogControls, applyCatalogControls, type SortKey } from "./CatalogCo
 import { useWishlist } from "../../lib/wishlist";
 import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
+import { useCurrency } from "../../CurrencyContext";
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
@@ -14,6 +15,7 @@ export default function CollectionPage() {
   const { slug } = useParams<{ slug: string }>();
   const { books, settings, loading } = useSiteData();
   const { has, toggle } = useWishlist();
+  const { formatBookPrice } = useCurrency();
 
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("newest");
@@ -125,7 +127,7 @@ export default function CollectionPage() {
                   </div>
                   <h3 className="text-[11px] tracking-widest uppercase text-white/80">{book.title}</h3>
                   {book.retailPrice ? (
-                    <p className="text-[10px] text-white/40 mt-1">${book.retailPrice.toFixed(2)}</p>
+                    <p className="text-[10px] text-white/40 mt-1">{formatBookPrice(book)}</p>
                   ) : null}
                 </Link>
               </article>

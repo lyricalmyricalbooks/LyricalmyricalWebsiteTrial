@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, X } from "lucide-react";
+import { useCurrency } from "../../CurrencyContext";
 
 type Book = any;
 
@@ -40,6 +41,7 @@ export function SearchOverlay({
 }) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const { formatBookPrice } = useCurrency();
 
   useEffect(() => {
     if (!open) return;
@@ -149,7 +151,7 @@ export function SearchOverlay({
                     </div>
                     {price != null && (
                       <span className="text-[11px] tracking-widest text-white/60 font-mono">
-                        ${Number(price).toFixed(2)}
+                        {formatBookPrice(b)}
                       </span>
                     )}
                   </Link>

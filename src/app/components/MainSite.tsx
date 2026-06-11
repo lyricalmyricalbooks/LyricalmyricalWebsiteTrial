@@ -10,6 +10,7 @@ import { useSiteData } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
 import { ThemeToggle } from "./theme/ThemeToggle";
+import { CurrencySelector, useCurrency } from "../CurrencyContext";
 import { addDoc, collection } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import * as Sections from "./SectionComponents";
@@ -755,6 +756,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const navigate = useNavigate();
   const location = useLocation();
   const { cartCount, setIsCartOpen } = useCart();
+  const { formatBookPrice } = useCurrency();
   const { books, settings, pages, loading } = useSiteData();
 
   // Auto-open catalog view when the editor previews the shop tab
@@ -1115,7 +1117,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               >
                 <UserIcon size={14} />
               </Link>
-              <div className="hidden sm:flex items-center justify-center">
+              <div className="hidden sm:flex items-center justify-center gap-2">
+                <CurrencySelector />
                 <ThemeToggle />
               </div>
               <Link
@@ -1275,9 +1278,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         {displayPrice > 0 && (
                           <span className="text-[10px] flex items-center gap-1.5">
                             {onSale && (
-                              <span className="text-white/30 line-through">${item.retailPrice?.toFixed(2)}</span>
+                              <span className="text-white/30 line-through">{formatBookPrice(item, true)}</span>
                             )}
-                            <span className={onSale ? "text-rose-400 font-semibold" : "text-white/50"}>${displayPrice?.toFixed(2)}</span>
+                            <span className={onSale ? "text-rose-400 font-semibold" : "text-white/50"}>{formatBookPrice(item)}</span>
                           </span>
                         )}
                       </div>

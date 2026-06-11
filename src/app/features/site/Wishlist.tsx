@@ -6,11 +6,13 @@ import { useSiteData } from "./useSiteData";
 import { useCart } from "../../CartContext";
 import { DEFAULT_IMAGE } from "./constants";
 import { useSEO } from "../../lib/seo";
+import { useCurrency } from "../../CurrencyContext";
 
 export default function WishlistPage() {
   const { ids, remove } = useWishlist();
   const { books, loading } = useSiteData();
   const { addToCart } = useCart();
+  const { formatBookPrice } = useCurrency();
 
   useSEO({
     title: "Your Wishlist",
@@ -79,7 +81,7 @@ export default function WishlistPage() {
                   </div>
                   <h3 className="text-[11px] tracking-widest uppercase text-white/80">{book.title}</h3>
                   {book.retailPrice ? (
-                    <p className="text-[10px] text-white/40 mt-1">${book.retailPrice.toFixed(2)}</p>
+                    <p className="text-[10px] text-white/40 mt-1">{formatBookPrice(book)}</p>
                   ) : null}
                 </Link>
                 <div className="flex items-center gap-2 mt-3">
