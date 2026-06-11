@@ -18,6 +18,27 @@ import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { orderApi, FULFILLMENT_FLOW, FULFILLMENT_LABELS, type FulfillmentStatus } from "../lib/commerce";
 
+const getTrackingUrl = (carrier: string, trackingNum: string) => {
+  const cleanCarrier = (carrier || "").trim().toLowerCase();
+  const cleanNum = (trackingNum || "").trim();
+  if (cleanCarrier.includes("canada post")) {
+    return `https://www.canadapost-postescanada.ca/track-reperage/en#/resultList?searchKeys=${encodeURIComponent(cleanNum)}`;
+  }
+  if (cleanCarrier.includes("usps")) {
+    return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(cleanNum)}`;
+  }
+  if (cleanCarrier.includes("ups")) {
+    return `https://www.ups.com/track?tracknum=${encodeURIComponent(cleanNum)}`;
+  }
+  if (cleanCarrier.includes("fedex")) {
+    return `https://www.fedex.com/apps/fedextrack/?tracknumbers=${encodeURIComponent(cleanNum)}`;
+  }
+  if (cleanCarrier.includes("dhl")) {
+    return `https://www.dhl.com/en/express/tracking.html?AWB=${encodeURIComponent(cleanNum)}`;
+  }
+  return `https://www.google.com/search?q=${encodeURIComponent(carrier + " " + cleanNum)}`;
+};
+
 export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: () => void }) {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -307,10 +328,10 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                     </div>
                   </div>
                   <a
-                    href={`https://www.google.com/search?q=${encodeURIComponent(order.trackingNumber)}`}
+                    href={getTrackingUrl(order.trackingCarrier, order.trackingNumber)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-white/5 border border-white/10 px-6 py-3 rounded-xl text-[9px] font-black tracking-[0.3em] text-emerald-400 hover:bg-white/10 transition-all"
+                    className="bg-white/5 border border-white/10 px-6 py-3 rounded-xl text-[9px] font-black tracking-[.35em] text-emerald-400 hover:bg-white/10 transition-all"
                   >
                     LIVE TRACKING
                   </a>

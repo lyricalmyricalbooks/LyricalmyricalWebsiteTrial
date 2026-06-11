@@ -78,7 +78,75 @@ export function Checkout() {
     address: { street: "", city: "", state: "", zip: "", country: "United States" }
   });
 
-  const [shippingCost] = useState(15);
+  const [shippingCost, setShippingCost] = useState(0);
+  const [taxCost, setTaxCost] = useState(0);
+  const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
+  const [taxRates, setTaxRates] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadFulfillmentSettings() {
+      try {
+        const [profiles, settings] = await Promise.all([
+          adminApi.getShippingProfiles(),
+          adminApi.getSettings() as Promise<any>
+        ]);
+        setShippingProfiles(profiles);
+        setTaxRates(settings?.taxes?.rates || []);
+      } catch (err) {
+        console.error("Failed to load checkout settings", err);
+      }
+    }
+    loadFulfillmentSettings();
+  }, []);
+
+  useEffect(() => {
+    if (cart.length === 0 || shippingProfiles.length === 0) {
+      setShippingCost(0);
+      return;
+    }
+    const country = (customer.address.country || "United States").trim().toLowerCase();
+    
+    let highestBase = 0;
+    let totalAdditional = 0;
+
+    cart.forEach((item, i) => {
+      let profile = shippingProfiles.find(p => p.id === item.shippingProfileId);
+      if (!profile) {
+        profile = shippingProfiles.find(p => p.region.toLowerCase() === country) ||
+                  shippingProfiles.find(p => p.region.toLowerCase() === "international") ||
+                  shippingProfiles.find(p => p.region.toLowerCase() === "everywhere else") ||
+                  shippingProfiles[0];
+      }
+
+      const base = Number(profile?.base || 15);
+      const additional = Number(profile?.additional || 5);
+
+      if (i === 0) {
+        highestBase = base;
+        totalAdditional += additional * (item.quantity - 1);
+      } else {
+        if (base > highestBase) {
+          totalAdditional += highestBase;
+          highestBase = base;
+          totalAdditional += additional * (item.quantity - 1);
+        } else {
+          totalAdditional += additional * item.quantity;
+        }
+      }
+    });
+
+    setShippingCost(highestBase + totalAdditional);
+  }, [customer.address.country, cart, shippingProfiles]);
+
+  useEffect(() => {
+    const country = (customer.address.country || "United States").trim().toLowerCase();
+    const matchedTaxRate = taxRates.find(r => r.country.toLowerCase() === country);
+    const taxPercent = matchedTaxRate ? Number(matchedTaxRate.rate) : 0;
+    
+    const discountAmount = calculateDiscountAmount();
+    const subtotalAfterDiscount = cartTotal - discountAmount;
+    setTaxCost(subtotalAfterDiscount * (taxPercent / 100));
+  }, [customer.address.country, cartTotal, appliedDiscount, taxRates]);
 
   const applyDiscount = async () => {
     if (!discountCode) return;
@@ -111,7 +179,7 @@ export function Checkout() {
   const isFreeShipping  = appliedDiscount?.type === "freeship";
   const discountAmount  = calculateDiscountAmount();
   const finalShipping   = isFreeShipping ? 0 : shippingCost;
-  const finalTotal      = cartTotal - discountAmount + finalShipping;
+  const finalTotal      = cartTotal - discountAmount + finalShipping + taxCost;
 
   useSEO({ title: "Checkout", description: "Secure checkout for Lyricalmyrical Books." });
 
@@ -142,45 +210,60 @@ export function Checkout() {
       alert("Please fill in all required shipping details.");
       return;
     }
-    const missingStripeIds = cart.filter(item => !item.stripePriceId);
-    if (missingStripeIds.length > 0) {
-      alert(`Error: missing Stripe Price IDs for: ${missingStripeIds.map(i => i.title).join(", ")}`);
-      return;
-    }
     setIsCompleting(true);
     try {
-      const settings   = await adminApi.getSettings("website");
-      const stripePubKey = settings?.payments?.stripe?.publicKey;
-      if (!stripePubKey) throw new Error("Stripe is not configured.");
-      const stripe = await loadStripe(stripePubKey);
-      if (!stripe) throw new Error("Failed to initialise Stripe.");
-
       const orderData = {
         customer,
         items: cart.map(item => ({
-          id: item.id, title: item.title, price: item.price,
-          quantity: item.quantity, photoUrl: item.photoUrl,
-          stripePriceId: item.stripePriceId
+          id: item.id,
+          variantId: item.variantId || null,
+          variantName: item.variantName || null,
+          title: item.title,
+          price: item.price,
+          quantity: item.quantity,
+          photoUrl: item.photoUrl,
+          stripePriceId: item.stripePriceId || null,
+          shippingProfileId: item.shippingProfileId || null,
         })),
-        subtotal: cartTotal, discount: discountAmount,
-        shipping: finalShipping, total: finalTotal,
+        subtotal: cartTotal,
+        discount: discountAmount,
+        shipping: finalShipping,
+        tax: taxCost,
+        total: finalTotal,
         status: "pending_payment",
+        paymentStatus: "unpaid",
         appliedDiscount: appliedDiscount
           ? { id: appliedDiscount.id, code: appliedDiscount.code, type: appliedDiscount.type, value: appliedDiscount.value }
           : null,
         metadata: { userAgent: navigator.userAgent, platform: "web" }
       };
+      
+      // Save customer email in localStorage to recover cart on payment success landing
+      localStorage.setItem("last_customer_email", customer.email);
+      
       const orderId = await adminApi.createOrder(orderData);
 
-      const lineItems = cart.map(item => ({ price: item.stripePriceId, quantity: item.quantity }));
-      const { error } = await stripe.redirectToCheckout({
-        lineItems, mode: "payment",
-        successUrl: `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${orderId}`,
-        cancelUrl:  `${window.location.origin}${import.meta.env.BASE_URL}checkout?canceled=true`,
-        clientReferenceId: orderId,
-        customerEmail: customer.email,
+      const functionsUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+        ? "http://127.0.0.1:5001/lyricalmyrical-web-v2/us-central1/createStripeCheckoutSession"
+        : "https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/createStripeCheckoutSession";
+
+      const sessionResponse = await fetch(functionsUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
       });
-      if (error) throw new Error(error.message);
+
+      if (!sessionResponse.ok) {
+        const errorData = await sessionResponse.json();
+        throw new Error(errorData.error || "Failed to create secure Stripe session.");
+      }
+
+      const sessionData = await sessionResponse.json();
+      if (sessionData.url) {
+        window.location.href = sessionData.url;
+      } else {
+        throw new Error("No checkout URL returned from payment server.");
+      }
     } catch (err: any) {
       alert(`Checkout failed: ${err.message}`);
       setIsCompleting(false);
@@ -193,18 +276,18 @@ export function Checkout() {
       const oid = params.get("order_id") || "";
       if (oid) {
         setOrderNumber(oid);
-        adminApi.updateOrder(oid, { status: "paid", paymentStatus: "paid", fulfillmentStatus: "paid" });
       }
       funnelApi.track("purchase");
       // Mark abandoned cart as recovered if any
-      if (customer.email) {
-        abandonedCartApi.markRecovered(`active_${customer.email.toLowerCase()}`);
+      const email = customer.email || localStorage.getItem("last_customer_email") || "";
+      if (email) {
+        abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
       }
       setIsSuccess(true);
       clearCart();
     }
     if (params.get("canceled")) alert("Order payment was canceled.");
-  }, []);
+  }, [customer.email]);
 
   // ── Success screen ──────────────────────────────────────────────────────────
   if (isSuccess) {
@@ -410,6 +493,13 @@ export function Checkout() {
                       ${shippingCost.toFixed(2)}
                     </span>
                   </div>
+
+                  {taxCost > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black tracking-[0.2em] text-white/40 uppercase">Estimated Tax</span>
+                      <span className="text-sm font-black text-white/70 font-mono">${taxCost.toFixed(2)}</span>
+                    </div>
+                  )}
 
                   <AnimatePresence>
                     {isFreeShipping && (

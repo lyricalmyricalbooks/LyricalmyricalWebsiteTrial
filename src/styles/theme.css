@@ -179,3 +179,82 @@
     line-height: 1.5;
   }
 }
+
+/* Print styles for order receipts and packing slips */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif !important;
+    margin: 0 !important;
+    padding: 20px !important;
+  }
+  
+  header, footer, nav, button, select, input, textarea,
+  .print\:hidden,
+  [role="button"],
+  .lucide,
+  .ml-auto,
+  a[href*="google.com/search"] {
+    display: none !important;
+  }
+  
+  .glass-card, 
+  .bg-white\/\[0\.02\], 
+  .bg-white\/\[0\.03\], 
+  .bg-white\/5,
+  .bg-slate-900,
+  .bg-neutral-950,
+  .border,
+  .border-white\/5,
+  .border-white\/8,
+  .bg-white\/\[0\.01\] {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #000000 !important;
+  }
+  
+  h1, h2, h3, h4, h5, p, span, div, td, th, label, strong {
+    color: #000000 !important;
+    text-shadow: none !important;
+  }
+
+  .grid {
+    display: block !important;
+  }
+  
+  .lg\:col-span-2,
+  .space-y-12,
+  .space-y-10,
+  .space-y-8,
+  .space-y-6 {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin: 20px 0 !important;
+  }
+  
+  th, td {
+    padding: 8px !important;
+    border-bottom: 1px solid #eaeaea !important;
+    text-align: left !important;
+    color: #000000 !important;
+  }
+
+  img {
+    max-height: 80px !important;
+    width: auto !important;
+    filter: grayscale(1) !important;
+  }
+  
+  .flex-shrink-0 {
+    flex-shrink: 1 !important;
+  }
+}
+

@@ -10,6 +10,7 @@ interface CartItem {
   photoUrl: string;
   stripePriceId?: string;
   stockLimit?: number;
+  shippingProfileId?: string;
 }
 
 interface CartContextType {
@@ -72,6 +73,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         photoUrl: product.photos?.[0]?.url || "",
         stripePriceId: variant?.stripePriceId || product.stripePriceId || "",
         stockLimit: typeof stockLimit === "number" ? stockLimit : undefined,
+        shippingProfileId: product.shippingProfileId || "",
       }];
     });
     setIsCartOpen(true);

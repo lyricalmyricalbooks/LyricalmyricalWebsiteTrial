@@ -129,6 +129,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const [photoInput, setPhotoInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [initialData, setInitialData] = useState<any>(null);
+  const [uploadingDigital, setUploadingDigital] = useState(false);
+  const digitalFileInputRef = useRef<HTMLInputElement>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -373,6 +375,29 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     }
   };
 
+  const handleDigitalUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingDigital(true);
+    try {
+      const fileName = `${Date.now()}-${file.name}`;
+      const url = await adminApi.uploadFile(file, `digital-assets/${fileName}`);
+      setFormData((prev: any) => ({
+        ...prev,
+        digitalFileUrl: url,
+        digitalFileName: fileName,
+      }));
+      toast.success("Digital asset uploaded successfully");
+    } catch (err: any) {
+      console.error("Digital upload error:", err);
+      toast.error("Failed to upload digital asset. Please try again.");
+    } finally {
+      setUploadingDigital(false);
+      if (digitalFileInputRef.current) digitalFileInputRef.current.value = "";
+    }
+  };
+
   const removePhoto = (id: string) => {
     setFormData((prev: any) => ({
       ...prev,
@@ -576,6 +601,9 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                        <option className="bg-[#0A0A0B]">Special Edition</option>
                        <option className="bg-[#0A0A0B]">Box Set</option>
                        <option className="bg-[#0A0A0B]">Zine</option>
+                       <option className="bg-[#0A0A0B]">E-book (PDF)</option>
+                       <option className="bg-[#0A0A0B]">E-book (EPUB)</option>
+                       <option className="bg-[#0A0A0B]">Audiobook</option>
                      </select>
                   </div>
                </div>
@@ -747,6 +775,61 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                </div>
             </div>
           </section>
+
+          {/* Section: Digital Asset Delivery (Conditional) */}
+          {["E-book (PDF)", "E-book (EPUB)", "Audiobook"].includes(formData.format) && (
+            <section className="glass-card rounded-[2.5rem] p-10 border border-violet-500/20 space-y-8 relative overflow-hidden bg-violet-600/[0.02]">
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
+              <div className="relative z-10">
+                <h4 className="text-xs font-black tracking-[0.4em] text-violet-400 uppercase mb-6 pb-4 border-b border-violet-500/10">Secure Digital File (E-book / Audiobook)</h4>
+                <div className="space-y-6">
+                  <p className="text-[10px] text-slate-400 leading-relaxed uppercase tracking-wider">
+                    Upload the primary digital book file here. This file is stored in a secure folder and cannot be accessed publicly. It will be delivered via signed temporary links to paying customers.
+                  </p>
+                  {formData.digitalFileName ? (
+                    <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl p-6">
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Active Digital File</p>
+                        <p className="text-xs font-mono text-violet-400 font-bold truncate max-w-md">{formData.digitalFileName}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData((prev: any) => ({ ...prev, digitalFileName: "", digitalFileUrl: "" }))}
+                        className="p-3 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 rounded-xl transition-all border border-red-500/20"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <input
+                        type="file"
+                        ref={digitalFileInputRef}
+                        onChange={handleDigitalUpload}
+                        accept={formData.format.includes("PDF") ? ".pdf" : formData.format.includes("EPUB") ? ".epub" : ".mp3,.m4a,.zip"}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => digitalFileInputRef.current?.click()}
+                        disabled={uploadingDigital}
+                        className="w-full h-32 flex flex-col items-center justify-center border-2 border-dashed border-violet-500/20 rounded-[2rem] gap-4 bg-violet-500/[0.01] hover:bg-violet-500/[0.03] transition-all group"
+                      >
+                        {uploadingDigital ? (
+                          <Loader2 size={24} className="animate-spin text-violet-400" />
+                        ) : (
+                          <Upload size={24} className="text-slate-600 group-hover:text-violet-400 transition-colors" />
+                        )}
+                        <span className="text-[9px] text-slate-500 font-black uppercase tracking-[0.3em] group-hover:text-white transition-colors">
+                          {uploadingDigital ? "UPLOADING FILE..." : "UPLOAD DIGITAL BOOK FILE"}
+                        </span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
 
           <section className="glass-card rounded-[2.5rem] p-10 border border-white/5 space-y-12 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/[0.03] to-transparent pointer-events-none" />
