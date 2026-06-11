@@ -16,7 +16,7 @@ import { getAuth } from "firebase/auth";
 const LEGACY_APP_NAME = "lyricalmyrical-legacy";
 
 const legacyConfig = {
-  apiKey: "AIzaSyB0BTOjfUFZKCVth9eR8iN0mvfkpRIFKSI",
+  apiKey: import.meta.env.VITE_LEGACY_FIREBASE_API_KEY,
   authDomain: "lyricalmyrical-37c46.firebaseapp.com",
   databaseURL: "https://lyricalmyrical-37c46-default-rtdb.firebaseio.com",
   projectId: "lyricalmyrical-37c46",

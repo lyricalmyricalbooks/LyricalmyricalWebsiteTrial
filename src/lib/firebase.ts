@@ -4,7 +4,7 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyB9V866zhYfSoXplpzK1oaK7dTuXV7yDxA",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: "lyricalmyrical-web-v2.firebaseapp.com",
   projectId: "lyricalmyrical-web-v2",
   storageBucket: "lyricalmyrical-web-v2.firebasestorage.app",
