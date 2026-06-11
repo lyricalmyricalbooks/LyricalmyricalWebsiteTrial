@@ -1,4 +1,4 @@
-# Cloud Functions Integration
+# Cloud Functions Integration Pipeline
 
 Cloud Functions:
 
