@@ -28,6 +28,8 @@ import {
   Bell,
   HelpCircle,
   Database,
+  Sun,
+  Moon,
   Layers,
   ShoppingCart,
   CreditCard
@@ -63,6 +65,16 @@ export function Dashboard() {
   const [showLogs, setShowLogs] = useState(false);
   const [logs, setLogs] = useState<any[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+
+  const [adminTheme, setAdminTheme] = useState(() => {
+    return localStorage.getItem("adminTheme") || "dark";
+  });
+
+  const toggleTheme = () => {
+    const newTheme = adminTheme === "dark" ? "light" : "dark";
+    setAdminTheme(newTheme);
+    localStorage.setItem("adminTheme", newTheme);
+  };
 
   async function loadLogs() {
     setLogsLoading(true);
@@ -197,7 +209,7 @@ export function Dashboard() {
 
   return (
     <>
-    <div className="flex h-screen bg-[#050506] text-white overflow-hidden font-manrope antialiased selection:bg-violet-500/30">
+    <div className={`flex h-screen overflow-hidden font-manrope antialiased selection:bg-violet-500/30 ${adminTheme === "light" ? "admin-light bg-[#f8fafc] text-slate-900" : "bg-[#050506] text-white"}`}>
       {/* Sidebar Overlay */}
       <AnimatePresence>
         {sidebarOpen && (
@@ -338,6 +350,13 @@ export function Dashboard() {
               </button>
               <button className="p-3 text-slate-500 hover:text-white transition-all hover:bg-white/5 rounded-xl border border-transparent hover:border-white/10 active:scale-95">
                 <HelpCircle size={20} />
+              </button>
+              <button 
+                onClick={toggleTheme}
+                className="p-3 text-slate-500 hover:text-white transition-all hover:bg-white/5 rounded-xl border border-transparent hover:border-white/10 active:scale-95"
+                title={`Toggle ${adminTheme === "light" ? "Dark" : "Light"} Mode`}
+              >
+                {adminTheme === "light" ? <Moon size={20} /> : <Sun size={20} />}
               </button>
             </div>
             <div className="h-10 w-px bg-white/5 mx-2" />
