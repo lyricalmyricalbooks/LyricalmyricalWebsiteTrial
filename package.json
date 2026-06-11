@@ -4,6 +4,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "test": "vitest run",
     "build": "vite build && node scripts/generate-sitemap.mjs",
     "build:sitemap": "node scripts/generate-sitemap.mjs",
     "dev": "vite",
@@ -83,7 +84,8 @@
     "@vitejs/plugin-react": "4.7.0",
     "tailwindcss": "4.1.12",
     "typescript": "^6.0.3",
-    "vite": "6.3.5"
+    "vite": "6.3.5",
+    "vitest": "^4.1.8"
   },
   "peerDependencies": {
     "react": "18.3.1",
