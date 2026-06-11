@@ -233,35 +233,158 @@ export const adminApi = {
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
 
+  migrateShippingProfiles: async () => {
+    try {
+      const snap = await getDocs(collection(db, "shipping-profiles"));
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+      
+      const legacyDocs = docs.filter(d => !d.zones);
+      if (legacyDocs.length === 0) {
+        return; 
+      }
+
+      console.log("Found legacy shipping profiles, starting migration...");
+
+      const zones = legacyDocs.map(d => {
+        const rates: any[] = [
+          {
+            id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36),
+            name: d.serviceName || "Standard Shipping",
+            base: Number(d.base) || 0,
+            additional: Number(d.additional) || 0,
+            deliveryDays: d.deliveryDays || "3-7",
+            minPrice: null,
+            maxPrice: d.freeThreshold && Number(d.freeThreshold) > 0 ? Number(d.freeThreshold) : null
+          }
+        ];
+
+        if (d.freeThreshold && Number(d.freeThreshold) > 0) {
+          rates.push({
+            id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36),
+            name: "Free Shipping",
+            base: 0,
+            additional: 0,
+            deliveryDays: d.deliveryDays || "3-7",
+            minPrice: Number(d.freeThreshold),
+            maxPrice: null
+          });
+        }
+
+        let countries = [d.region];
+        if (d.region.toLowerCase() === "everywhere else" || d.region.toLowerCase() === "international") {
+          countries = ["Rest of World"];
+        }
+
+        return {
+          id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36),
+          name: d.region,
+          countries,
+          rates
+        };
+      });
+
+      const generalProfile = {
+        name: "General Shipping Profile",
+        zones,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const genRef = doc(db, "shipping-profiles", "general-profile");
+      await setDoc(genRef, generalProfile);
+
+      const booksSnap = await getDocs(collection(db, "books"));
+      const batch = writeBatch(db);
+      booksSnap.docs.forEach(b => {
+        batch.update(b.ref, {
+          shippingProfileId: "general-profile",
+          updatedAt: new Date().toISOString()
+        });
+      });
+      await batch.commit();
+
+      const deleteBatch = writeBatch(db);
+      legacyDocs.forEach(d => {
+        if (d.id !== "general-profile") {
+          deleteBatch.delete(doc(db, "shipping-profiles", d.id));
+        }
+      });
+      await deleteBatch.commit();
+
+      console.log("Migration completed successfully!");
+      await adminApi.recordAuditLog("shipping", "Migrated database to nested shipping profiles and updated books.");
+    } catch (err) {
+      console.error("Migration failed:", err);
+    }
+  },
+
   createShippingProfile: async (profile: any) => {
     const docRef = await addDoc(collection(db, "shipping-profiles"), {
-      ...profile,
+      name: profile.name,
+      zones: profile.zones || [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
-    await adminApi.recordAuditLog("shipping", `Created shipping zone for ${profile.region}`);
+    await adminApi.recordAuditLog("shipping", `Created shipping profile: ${profile.name}`);
     return { id: docRef.id, ...profile };
   },
 
   updateShippingProfile: async (id: string, profile: any) => {
     const docRef = doc(db, "shipping-profiles", id);
-    await updateDoc(docRef, {
-      ...profile,
+    const dataToSave = {
+      name: profile.name,
+      zones: profile.zones || [],
       updatedAt: new Date().toISOString()
-    });
-    await adminApi.recordAuditLog("shipping", `Updated shipping zone for ${profile.region}`);
+    };
+    await updateDoc(docRef, dataToSave);
+    await adminApi.recordAuditLog("shipping", `Updated shipping profile: ${profile.name}`);
     return { id, ...profile };
   },
 
   deleteShippingProfile: async (id: string) => {
-    try {
-      const snap = await getDoc(doc(db, "shipping-profiles", id));
-      const region = snap.exists() ? snap.data().region : id;
-      await deleteDoc(doc(db, "shipping-profiles", id));
-      await adminApi.recordAuditLog("shipping", `Deleted shipping zone: ${region}`);
-    } catch (err) {
-      await deleteDoc(doc(db, "shipping-profiles", id));
+    if (id === "general-profile") {
+      throw new Error("Cannot delete the General Shipping Profile.");
     }
+    
+    const booksSnap = await getDocs(collection(db, "books"));
+    const batch = writeBatch(db);
+    let count = 0;
+    booksSnap.docs.forEach(b => {
+      if (b.data().shippingProfileId === id) {
+        batch.update(b.ref, { shippingProfileId: "general-profile", updatedAt: new Date().toISOString() });
+        count++;
+      }
+    });
+    if (count > 0) {
+      await batch.commit();
+    }
+
+    await deleteDoc(doc(db, "shipping-profiles", id));
+    await adminApi.recordAuditLog("shipping", `Deleted shipping profile and returned ${count} books to General Profile.`);
+  },
+
+  assignProductsToShippingProfile: async (profileId: string, productIds: string[]) => {
+    const batch = writeBatch(db);
+    const booksSnap = await getDocs(collection(db, "books"));
+    
+    booksSnap.docs.forEach(b => {
+      const bookData = b.data();
+      const bookId = b.id;
+      const currentProfileId = bookData.shippingProfileId;
+      
+      if (productIds.includes(bookId)) {
+        if (currentProfileId !== profileId) {
+          batch.update(b.ref, { shippingProfileId: profileId, updatedAt: new Date().toISOString() });
+        }
+      } else {
+        if (currentProfileId === profileId && profileId !== "general-profile") {
+          batch.update(b.ref, { shippingProfileId: "general-profile", updatedAt: new Date().toISOString() });
+        }
+      }
+    });
+
+    await batch.commit();
+    await adminApi.recordAuditLog("shipping", `Assigned ${productIds.length} books to shipping profile: ${profileId}`);
   },
 
   // Settings

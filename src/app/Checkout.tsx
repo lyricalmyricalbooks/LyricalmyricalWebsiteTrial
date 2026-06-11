@@ -218,46 +218,149 @@ export function Checkout() {
     }
   };
 
+  const [availableRates, setAvailableRates] = useState<any[]>([]);
+  const [selectedRateName, setSelectedRateName] = useState<string>("");
+
   useEffect(() => {
     if (cart.length === 0 || shippingProfiles.length === 0) {
+      setAvailableRates([]);
       setShippingCost(0);
       return;
     }
-    // Geography-aware zone: explicit country > continent > legacy region name >
-    // rest-of-world. Per-item shippingProfileId still wins when set.
-    const zoneForCountry = matchShippingZone(customer.address.country, shippingProfiles) || shippingProfiles[0];
+    const country = (customer.address.country || "United States").trim().toLowerCase();
+    
+    const profileItemsMap: Record<string, typeof cart> = {};
+    cart.forEach(item => {
+      const pid = item.shippingProfileId || "general-profile";
+      if (!profileItemsMap[pid]) profileItemsMap[pid] = [];
+      profileItemsMap[pid].push(item);
+    });
 
-    let highestBase = 0;
-    let totalAdditional = 0;
-
-    cart.forEach((item, i) => {
-      const profile = shippingProfiles.find(p => p.id === item.shippingProfileId) || zoneForCountry;
-
-      const freeThreshold = profile?.freeThreshold ? Number(profile.freeThreshold) : 0;
-      let base = Number(profile?.base || 15);
-      let additional = Number(profile?.additional || 5);
-
-      if (freeThreshold > 0 && cartTotal >= freeThreshold) {
-        base = 0;
-        additional = 0;
+    const profileRates: Record<string, any[]> = {};
+    
+    Object.entries(profileItemsMap).forEach(([pid, items]) => {
+      let profile = shippingProfiles.find(p => p.id === pid);
+      if (!profile && pid !== "general-profile") {
+        profile = shippingProfiles.find(p => p.id === "general-profile");
       }
- 
-      if (i === 0) {
-        highestBase = base;
-        totalAdditional += additional * (item.quantity - 1);
+      if (!profile) {
+        profile = shippingProfiles[0];
+      }
+
+      if (!profile || !profile.zones || profile.zones.length === 0) {
+        profileRates[pid] = [{
+          name: profile?.serviceName || "Standard Shipping",
+          base: Number(profile?.base || 15),
+          additional: Number(profile?.additional || 5),
+          deliveryDays: profile?.deliveryDays || "3-7",
+          minPrice: profile?.freeThreshold ? Number(profile.freeThreshold) : null
+        }];
+        return;
+      }
+
+      let matchedZone = profile.zones.find((z: any) => 
+        z.countries?.some((c: string) => c.toLowerCase() === country)
+      );
+
+      if (!matchedZone) {
+        matchedZone = profile.zones.find((z: any) => 
+          z.countries?.some((c: string) => 
+            c.toLowerCase() === "rest of world" || 
+            c.toLowerCase() === "everywhere else" || 
+            c.toLowerCase() === "international"
+          )
+        );
+      }
+
+      if (!matchedZone) {
+        matchedZone = profile.zones[0];
+      }
+
+      if (matchedZone && matchedZone.rates) {
+        const eligibleRates = matchedZone.rates.filter((r: any) => {
+          const minP = r.minPrice !== null && r.minPrice !== undefined ? Number(r.minPrice) : null;
+          const maxP = r.maxPrice !== null && r.maxPrice !== undefined ? Number(r.maxPrice) : null;
+          if (minP !== null && cartTotal < minP) return false;
+          if (maxP !== null && cartTotal > maxP) return false;
+          return true;
+        });
+        profileRates[pid] = eligibleRates;
       } else {
-        if (base > highestBase) {
-          totalAdditional += highestBase;
+        profileRates[pid] = [];
+      }
+    });
+
+    const allRateNamesSet = new Set<string>();
+    Object.values(profileRates).forEach(rates => {
+      rates.forEach(r => allRateNamesSet.add(r.name));
+    });
+    const uniqueRateNames = Array.from(allRateNamesSet);
+
+    if (uniqueRateNames.length === 0) {
+      setAvailableRates([]);
+      setShippingCost(0);
+      return;
+    }
+
+    const combinedRates = uniqueRateNames.map(rateName => {
+      let highestBase = 0;
+      let totalAdditional = 0;
+      let maxDeliveryDays = "3-7";
+      let hasDelDays = false;
+
+      cart.forEach((item, i) => {
+        const pid = item.shippingProfileId || "general-profile";
+        const ratesForProfile = profileRates[pid] || [];
+        let matchedRate = ratesForProfile.find(r => r.name === rateName);
+        if (!matchedRate && ratesForProfile.length > 0) {
+          matchedRate = [...ratesForProfile].sort((a, b) => Number(a.base) - Number(b.base))[0];
+        }
+
+        const base = matchedRate ? Number(matchedRate.base) : 15;
+        const additional = matchedRate ? Number(matchedRate.additional) : 5;
+        if (matchedRate?.deliveryDays) {
+          maxDeliveryDays = matchedRate.deliveryDays;
+          hasDelDays = true;
+        }
+
+        if (i === 0) {
           highestBase = base;
           totalAdditional += additional * (item.quantity - 1);
         } else {
-          totalAdditional += additional * item.quantity;
+          if (base > highestBase) {
+            totalAdditional += highestBase;
+            highestBase = base;
+            totalAdditional += additional * (item.quantity - 1);
+          } else {
+            totalAdditional += additional * item.quantity;
+          }
         }
-      }
+      });
+
+      return {
+        name: rateName,
+        price: highestBase + totalAdditional,
+        deliveryDays: hasDelDays ? maxDeliveryDays : undefined
+      };
     });
- 
-    setShippingCost(highestBase + totalAdditional);
+
+    setAvailableRates(combinedRates);
   }, [customer.address.country, cart, shippingProfiles, cartTotal]);
+
+  useEffect(() => {
+    if (availableRates.length === 0) {
+      setShippingCost(0);
+      return;
+    }
+    const currentValid = availableRates.find(r => r.name === selectedRateName);
+    if (!currentValid) {
+      const cheapest = [...availableRates].sort((a, b) => a.price - b.price)[0];
+      setSelectedRateName(cheapest.name);
+      setShippingCost(cheapest.price);
+    } else {
+      setShippingCost(currentValid.price);
+    }
+  }, [availableRates, selectedRateName]);
 
   // Re-validate discount whenever email or cart changes
   useEffect(() => {
@@ -346,13 +449,13 @@ export function Checkout() {
   const finalTotal      = cartTotal - discountAmount + finalShipping + taxCost;
 
   const getActiveShippingDetails = () => {
-    if (cart.length === 0 || shippingProfiles.length === 0) return null;
-    const firstItem = cart[0];
-    return (
-      shippingProfiles.find(p => p.id === firstItem.shippingProfileId) ||
-      matchShippingZone(customer.address.country, shippingProfiles) ||
-      shippingProfiles[0]
-    );
+    if (!selectedRateName || availableRates.length === 0) return null;
+    const current = availableRates.find(r => r.name === selectedRateName);
+    if (!current) return null;
+    return {
+      serviceName: current.name,
+      deliveryDays: current.deliveryDays
+    };
   };
 
   useSEO({ title: "Checkout", description: "Secure checkout for Lyricalmyrical Books." });
@@ -429,6 +532,7 @@ export function Checkout() {
         subtotal: cartTotal,
         discount: discountAmount,
         shipping: finalShipping,
+        shippingMethod: selectedRateName || null,
         tax: taxCost,
         total: finalTotal,
         status: "pending_payment",
@@ -700,6 +804,47 @@ export function Checkout() {
               })()}
             </div>
           </section>
+
+          {/* 3.5 Shipping Method */}
+          {availableRates.length > 0 && (
+            <section className="animate-in fade-in slide-in-from-top-4 duration-300">
+              <StepBadge n="3.5" label="Shipping Method" />
+              <div className="space-y-4">
+                {availableRates.map((rate) => (
+                  <label
+                    key={rate.name}
+                    className={`flex items-center justify-between p-6 rounded-[2rem] border transition-all cursor-pointer ${
+                      selectedRateName === rate.name
+                        ? "bg-violet-600/10 border-violet-500/50 text-white"
+                        : "bg-white/[0.03] border-white/5 text-white hover:border-white/10"
+                    }`}
+                    onClick={() => setSelectedRateName(rate.name)}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                        selectedRateName === rate.name ? "border-violet-500" : "border-white/20"
+                      }`}>
+                        {selectedRateName === rate.name && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+                        )}
+                      </div>
+                      <div className="text-left">
+                        <p className="text-xs font-black tracking-widest uppercase">{rate.name}</p>
+                        {rate.deliveryDays && (
+                          <p className="text-[9px] text-white/30 tracking-widest mt-1 uppercase font-semibold">
+                            Estimated Delivery: {rate.deliveryDays} Business Days
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-sm font-black font-mono">
+                      {rate.price === 0 ? "FREE" : formatPrice(rate.price)}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
 
         {/* ── RIGHT: Order total + payment ─────────────────────────────────────── */}

@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
 import { 
+  ArrowLeft,
+  Search,
+  Edit,
   ExternalLink, 
   Globe, 
   Mail,
@@ -26,7 +29,8 @@ import {
   History,
   TrendingUp,
   Map,
-  DollarSign
+  DollarSign,
+  ChevronDown
 } from "lucide-react";
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -504,7 +508,24 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
       </section>
     </div>
   );
-}
+}const COUNTRIES_LIST = [
+  "Canada", "United States", "United Kingdom", "Rest of World",
+  "Albania", "Algeria", "Andorra", "Angola", "Argentina", "Armenia", "Australia", "Austria",
+  "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belgium", "Bermuda", "Bolivia", "Bosnia", "Brazil", "Bulgaria",
+  "Cambodia", "Chile", "China", "Colombia", "Costa Rica", "Croatia", "Cyprus", "Czech Republic",
+  "Denmark", "Dominican Republic", "Ecuador", "Egypt", "Estonia", "Finland", "France", "Georgia", "Germany", "Greece",
+  "Hong Kong", "Hungary", "Iceland", "India", "Indonesia", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan",
+  "Kenya", "Kuwait", "Latvia", "Lebanon", "Liechtenstein", "Lithuania", "Luxembourg", "Malaysia", "Malta", "Mexico", "Monaco", "Montenegro", "Morocco",
+  "Netherlands", "New Zealand", "Norway", "Oman", "Pakistan", "Panama", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar",
+  "Romania", "Saudi Arabia", "Serbia", "Singapore", "Slovakia", "Slovenia", "South Africa", "South Korea", "Spain", "Sri Lanka", "Sweden", "Switzerland",
+  "Taiwan", "Thailand", "Trinidad and Tobago", "Tunisia", "Turkey", "Ukraine", "United Arab Emirates", "Uruguay", "Venezuela", "Vietnam"
+];
+
+const REGIONAL_PRESETS: Record<string, string[]> = {
+  "North America": ["Canada", "United States", "Mexico"],
+  "Europe": ["United Kingdom", "Austria", "Belgium", "Bulgaria", "Croatia", "Cyprus", "Czech Republic", "Denmark", "Estonia", "Finland", "France", "Germany", "Greece", "Hungary", "Iceland", "Ireland", "Italy", "Latvia", "Liechtenstein", "Lithuania", "Luxembourg", "Malta", "Monaco", "Netherlands", "Norway", "Poland", "Portugal", "Romania", "Slovakia", "Slovenia", "Spain", "Sweden", "Switzerland", "Turkey", "Ukraine"],
+  "Asia/Pacific": ["Australia", "New Zealand", "China", "Hong Kong", "India", "Indonesia", "Japan", "Malaysia", "Philippines", "Singapore", "South Korea", "Taiwan", "Thailand", "Vietnam"]
+};
 
 function ZoneGeographyPicker({
   countries, continents, restOfWorld, setCountries, setContinents, setRestOfWorld,
@@ -629,287 +650,912 @@ function ZoneGeographyPicker({
 }
 
 function ShippingSettings({ profiles, refreshProfiles }: any) {
-  const [isAdding, setIsAdding] = useState(false);
-  const [newRegion, setNewRegion] = useState("");
-  const [newBase, setNewBase] = useState("");
-  const [newAdd, setNewAdd] = useState("");
-  const [newFreeThreshold, setNewFreeThreshold] = useState("");
-  const [newDeliveryDays, setNewDeliveryDays] = useState("");
-  const [newServiceName, setNewServiceName] = useState("");
-  // Geography targeting
-  const [newCountries, setNewCountries] = useState<string[]>([]);
-  const [newContinents, setNewContinents] = useState<string[]>([]);
-  const [newRestOfWorld, setNewRestOfWorld] = useState(false);
+  const [books, setBooks] = useState<any[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [editingProfile, setEditingProfile] = useState<any | null>(null);
+  
+  // Modals visibility
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+  const [isZoneModalOpen, setIsZoneModalOpen] = useState(false);
+  const [isRateModalOpen, setIsRateModalOpen] = useState(false);
+  
+  // Creating Profile inline state
+  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
+  const [newProfileName, setNewProfileName] = useState("");
 
-  const resetForm = () => {
-    setIsAdding(false);
-    setNewRegion("");
-    setNewBase("");
-    setNewAdd("");
-    setNewFreeThreshold("");
-    setNewDeliveryDays("");
-    setNewServiceName("");
-    setNewCountries([]);
-    setNewContinents([]);
-    setNewRestOfWorld(false);
-  };
+  // Search/Filters
+  const [productSearch, setProductSearch] = useState("");
+  const [countrySearch, setCountrySearch] = useState("");
 
-  const handleCreate = async () => {
-    if (!newRegion) {
-      alert("Give this zone a name (e.g. Domestic, Europe, International).");
-      return;
-    }
-    if (!newRestOfWorld && newCountries.length === 0 && newContinents.length === 0) {
-      alert("Choose a geography: specific countries, whole continents, or Rest of world.");
-      return;
-    }
-    try {
-      await adminApi.createShippingProfile({
-        region: newRegion,
-        base: Number(newBase) || 0,
-        additional: Number(newAdd) || 0,
-        freeThreshold: newFreeThreshold ? Number(newFreeThreshold) : 0,
-        deliveryDays: newDeliveryDays || "3-7",
-        serviceName: newServiceName || "Standard Shipping",
-        countries: newCountries,
-        continents: newContinents,
-        restOfWorld: newRestOfWorld,
-      });
-      resetForm();
+  // Sub-items active editing states
+  const [activeZone, setActiveZone] = useState<any | null>(null);
+  const [activeRate, setActiveRate] = useState<any | null>(null);
+  const [parentZoneIdForRate, setParentZoneIdForRate] = useState<string | null>(null);
+
+  // Checked products local state
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const initialize = async () => {
+      await adminApi.migrateShippingProfiles();
       refreshProfiles();
-    } catch {
-      alert("Error adding shipping profile");
+      loadBooks();
+    };
+    initialize();
+  }, []);
+
+  const loadBooks = async () => {
+    try {
+      const b = await adminApi.getBooks(200);
+      setBooks(b);
+    } catch (err) {
+      console.error(err);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Remove this shipping zone?")) return;
+  const handleSelectProfile = (profile: any) => {
+    setSelectedProfileId(profile.id);
+    setEditingProfile(JSON.parse(JSON.stringify(profile)));
+  };
+
+  const handleCreateProfile = async () => {
+    if (!newProfileName.trim()) return;
+    try {
+      const newProf = await adminApi.createShippingProfile({ name: newProfileName, zones: [] });
+      setNewProfileName("");
+      setIsCreatingProfile(false);
+      refreshProfiles();
+      handleSelectProfile(newProf);
+    } catch {
+      alert("Error creating shipping profile");
+    }
+  };
+
+  const handleDeleteProfile = async (id: string) => {
+    if (id === "general-profile") {
+      alert("Cannot delete the General Shipping Profile.");
+      return;
+    }
+    if (!confirm("Are you sure you want to delete this profile? All assigned products will revert to the General Profile.")) return;
     try {
       await adminApi.deleteShippingProfile(id);
       refreshProfiles();
+      setSelectedProfileId(null);
+      setEditingProfile(null);
     } catch {
       alert("Error deleting shipping profile");
     }
   };
 
-  return (
-    <div className="space-y-12">
-      <header className="flex flex-col gap-2 mb-12">
-        <div className="flex justify-between items-end">
-          <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Shipping Matrix</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Global fulfillment & shipping rates</p>
-          </div>
-          <button
-            onClick={() => (isAdding ? resetForm() : setIsAdding(true))}
-            className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2 cursor-pointer transition-all active:scale-95 shadow-md shadow-violet-500/10"
-          >
-             {isAdding ? <X size={14} /> : <Plus size={14} />}
-             {isAdding ? "CANCEL" : "ADD SHIPPING ZONE"}
-          </button>
-        </div>
-      </header>
+  const handleSaveProfile = async () => {
+    if (!editingProfile) return;
+    try {
+      await adminApi.updateShippingProfile(editingProfile.id, editingProfile);
+      refreshProfiles();
+      setSelectedProfileId(null);
+      setEditingProfile(null);
+    } catch {
+      alert("Error saving shipping profile");
+    }
+  };
 
-      {isAdding && (
-         <section className="bg-[#F6F5F9] dark:bg-zinc-900 border border-[#EBEAEF] dark:border-zinc-800 rounded-[2rem] p-10 space-y-8 relative overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500 shadow-sm text-slate-800 dark:text-zinc-100">
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent pointer-events-none" />
-            
-            <div className="flex items-center gap-4 relative z-10">
-              <div className="w-12 h-12 rounded-2xl bg-[#EBE5FC] text-[#633BE8] flex items-center justify-center shadow-inner">
-                <MapPin size={20} />
+  // Product assignment helper
+  const openProductModal = () => {
+    const assigned = books
+      .filter((b: any) => b.shippingProfileId === editingProfile.id)
+      .map((b: any) => b.id);
+    setSelectedProductIds(assigned);
+    setProductSearch("");
+    setIsProductModalOpen(true);
+  };
+
+  const handleSaveProducts = async () => {
+    try {
+      await adminApi.assignProductsToShippingProfile(editingProfile.id, selectedProductIds);
+      await loadBooks();
+      refreshProfiles();
+      setIsProductModalOpen(false);
+    } catch {
+      alert("Error updating product assignments");
+    }
+  };
+
+  // Zones helper
+  const openZoneModal = (zone: any = null) => {
+    if (zone) {
+      setActiveZone(JSON.parse(JSON.stringify(zone)));
+    } else {
+      setActiveZone({
+        id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36),
+        name: "",
+        countries: [],
+        rates: []
+      });
+    }
+    setCountrySearch("");
+    setIsZoneModalOpen(true);
+  };
+
+  const handleSaveZone = () => {
+    if (!activeZone.name.trim() || activeZone.countries.length === 0) {
+      alert("Please enter a zone name and select at least one country.");
+      return;
+    }
+
+    setEditingProfile((prev: any) => {
+      const zones = [...(prev.zones || [])];
+      const idx = zones.findIndex(z => z.id === activeZone.id);
+      if (idx > -1) {
+        zones[idx] = activeZone;
+      } else {
+        zones.push(activeZone);
+      }
+      return { ...prev, zones };
+    });
+    setIsZoneModalOpen(false);
+  };
+
+  const handleDeleteZone = (zoneId: string) => {
+    if (!confirm("Are you sure you want to delete this zone?")) return;
+    setEditingProfile((prev: any) => {
+      const zones = (prev.zones || []).filter((z: any) => z.id !== zoneId);
+      return { ...prev, zones };
+    });
+  };
+
+  // Rates helper
+  const openRateModal = (zoneId: string, rate: any = null) => {
+    setParentZoneIdForRate(zoneId);
+    if (rate) {
+      setActiveRate(JSON.parse(JSON.stringify(rate)));
+    } else {
+      setActiveRate({
+        id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36),
+        name: "Standard Shipping",
+        base: 15,
+        additional: 5,
+        deliveryDays: "3-7",
+        minPrice: null,
+        maxPrice: null
+      });
+    }
+    setIsRateModalOpen(true);
+  };
+
+  const handleSaveRate = () => {
+    if (!activeRate.name.trim()) {
+      alert("Please enter a shipping rate name.");
+      return;
+    }
+
+    setEditingProfile((prev: any) => {
+      const zones = [...(prev.zones || [])];
+      const zoneIdx = zones.findIndex(z => z.id === parentZoneIdForRate);
+      if (zoneIdx === -1) return prev;
+
+      const zone = { ...zones[zoneIdx] };
+      const rates = [...(zone.rates || [])];
+      const rateIdx = rates.findIndex(r => r.id === activeRate.id);
+
+      if (rateIdx > -1) {
+        rates[rateIdx] = {
+          ...activeRate,
+          base: Number(activeRate.base) || 0,
+          additional: Number(activeRate.additional) || 0,
+          minPrice: activeRate.minPrice !== "" && activeRate.minPrice !== null ? Number(activeRate.minPrice) : null
+        };
+      } else {
+        rates.push({
+          ...activeRate,
+          base: Number(activeRate.base) || 0,
+          additional: Number(activeRate.additional) || 0,
+          minPrice: activeRate.minPrice !== "" && activeRate.minPrice !== null ? Number(activeRate.minPrice) : null
+        });
+      }
+
+      zone.rates = rates;
+      zones[zoneIdx] = zone;
+      return { ...prev, zones };
+    });
+    setIsRateModalOpen(false);
+  };
+
+  const handleDeleteRate = (zoneId: string, rateId: string) => {
+    if (!confirm("Are you sure you want to delete this shipping rate?")) return;
+    setEditingProfile((prev: any) => {
+      const zones = [...(prev.zones || [])];
+      const zoneIdx = zones.findIndex(z => z.id === zoneId);
+      if (zoneIdx === -1) return prev;
+
+      const zone = { ...zones[zoneIdx] };
+      zone.rates = (zone.rates || []).filter((r: any) => r.id !== rateId);
+      zones[zoneIdx] = zone;
+      return { ...prev, zones };
+    });
+  };
+
+  const getAssignedProducts = (profileId: string) => {
+    return books.filter((b: any) => b.shippingProfileId === profileId);
+  };
+
+  // Render Dashboard Profiles List
+  if (selectedProfileId === null || !editingProfile) {
+    return (
+      <div className="space-y-12">
+        <header className="flex flex-col gap-2 mb-12">
+          <div className="flex justify-between items-end">
+            <div>
+              <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Shipping Matrix</h2>
+              <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Manage shipping profiles, zones & rates</p>
+            </div>
+            {!isCreatingProfile && (
+              <button 
+                onClick={() => setIsCreatingProfile(true)}
+                className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2 cursor-pointer transition-all active:scale-95 shadow-md shadow-violet-500/10"
+              >
+                <Plus size={14} /> CREATE PROFILE
+              </button>
+            )}
+          </div>
+        </header>
+
+        {isCreatingProfile && (
+          <section className="bg-white dark:bg-zinc-900 border border-[#EBEAEF] dark:border-zinc-800 rounded-[2.5rem] p-10 space-y-8 animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-violet-50 dark:bg-violet-950/20 text-[#7C3AED] flex items-center justify-center">
+                <Package size={20} />
               </div>
               <div>
-                <h3 className="text-xl font-black tracking-tighter uppercase italic leading-none">Add Shipping Zone</h3>
-                <p className="text-[9px] text-slate-500 uppercase tracking-[0.2em] mt-1.5 font-bold">Define geographic rates and base costs</p>
+                <h3 className="text-xl font-black uppercase italic leading-none text-white">New Shipping Profile</h3>
+                <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-1.5">Define a set of rules for custom items</p>
               </div>
             </div>
-
-            <div className="space-y-6 relative z-10">
-              {/* Row 1 */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                 <div className="space-y-2">
-                   <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] block ml-1">Geographic Target</label>
-                   <input
-                     type="text"
-                     placeholder="e.g. Europe"
-                     className="w-full bg-white dark:bg-zinc-850 border border-[#EBEAEF] dark:border-zinc-850 rounded-full px-6 py-4 text-xs text-slate-800 dark:text-zinc-100 outline-none transition-all shadow-inner focus:border-violet-500 focus:bg-white placeholder:text-slate-350 dark:placeholder:text-zinc-500 font-semibold"
-                     value={newRegion}
-                     onChange={(e) => setNewRegion(e.target.value)}
-                   />
-                 </div>
-                 <div className="space-y-2">
-                   <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] block ml-1">Base Shipping (USD)</label>
-                   <input
-                     type="number"
-                     placeholder="5.00"
-                     className="w-full bg-white dark:bg-zinc-850 border border-[#EBEAEF] dark:border-zinc-850 rounded-full px-6 py-4 text-xs text-slate-800 dark:text-zinc-100 outline-none transition-all shadow-inner focus:border-violet-500 focus:bg-white placeholder:text-slate-350 dark:placeholder:text-zinc-500 font-semibold"
-                     value={newBase}
-                     onChange={(e) => setNewBase(e.target.value)}
-                   />
-                 </div>
-                 <div className="space-y-2">
-                   <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] block ml-1">Additional Item Rate</label>
-                   <input
-                     type="number"
-                     placeholder="2.00"
-                     className="w-full bg-white dark:bg-zinc-850 border border-[#EBEAEF] dark:border-zinc-850 rounded-full px-6 py-4 text-xs text-slate-800 dark:text-zinc-100 outline-none transition-all shadow-inner focus:border-violet-500 focus:bg-white placeholder:text-slate-350 dark:placeholder:text-zinc-500 font-semibold"
-                     value={newAdd}
-                     onChange={(e) => setNewAdd(e.target.value)}
-                   />
-                 </div>
-              </div>
-
-              {/* Row 2 */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                 <div className="space-y-2">
-                   <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] block ml-1">Free Shipping Threshold</label>
-                   <input
-                     type="number"
-                     placeholder="e.g. 50.00 (optional)"
-                     className="w-full bg-white dark:bg-zinc-850 border border-[#EBEAEF] dark:border-zinc-850 rounded-full px-6 py-4 text-xs text-slate-800 dark:text-zinc-100 outline-none transition-all shadow-inner focus:border-violet-500 focus:bg-white placeholder:text-slate-350 dark:placeholder:text-zinc-500 font-semibold"
-                     value={newFreeThreshold}
-                     onChange={(e) => setNewFreeThreshold(e.target.value)}
-                   />
-                 </div>
-                 <div className="space-y-2">
-                   <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] block ml-1">Estimated Delivery (Days)</label>
-                   <input
-                     type="text"
-                     placeholder="e.g. 3-7 (optional)"
-                     className="w-full bg-white dark:bg-zinc-850 border border-[#EBEAEF] dark:border-zinc-850 rounded-full px-6 py-4 text-xs text-slate-800 dark:text-zinc-100 outline-none transition-all shadow-inner focus:border-violet-500 focus:bg-white placeholder:text-slate-350 dark:placeholder:text-zinc-500 font-semibold"
-                     value={newDeliveryDays}
-                     onChange={(e) => setNewDeliveryDays(e.target.value)}
-                   />
-                 </div>
-                 <div className="space-y-2">
-                   <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] block ml-1">Service Name / Carrier</label>
-                   <input
-                     type="text"
-                     placeholder="e.g. Standard Shipping (optional)"
-                     className="w-full bg-white dark:bg-zinc-850 border border-[#EBEAEF] dark:border-zinc-850 rounded-full px-6 py-4 text-xs text-slate-800 dark:text-zinc-100 outline-none transition-all shadow-inner focus:border-violet-500 focus:bg-white placeholder:text-slate-350 dark:placeholder:text-zinc-500 font-semibold"
-                     value={newServiceName}
-                     onChange={(e) => setNewServiceName(e.target.value)}
-                   />
-                 </div>
-              </div>
-
-              {/* Geography targeting */}
-              <div className="pt-2">
-                <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] block ml-1 mb-3">
-                  Which destinations does this zone cover?
-                </label>
-                <ZoneGeographyPicker
-                  countries={newCountries}
-                  continents={newContinents}
-                  restOfWorld={newRestOfWorld}
-                  setCountries={setNewCountries}
-                  setContinents={setNewContinents}
-                  setRestOfWorld={setNewRestOfWorld}
-                />
-              </div>
+            <div className="space-y-4">
+              <InputField 
+                label="PROFILE NAME"
+                value={newProfileName}
+                placeholder="e.g. Heavy Items, Fragile Prints..."
+                onChange={(e: any) => setNewProfileName(e.target.value)}
+              />
             </div>
-
-            <div className="flex gap-4 relative z-10 pt-4">
-              <button
-                onClick={handleCreate}
-                className="bg-white text-slate-900 border border-[#EBEAEF] px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest hover:bg-slate-50 transition-all shadow-sm cursor-pointer"
+            <div className="flex gap-4 pt-2">
+              <button 
+                onClick={handleCreateProfile}
+                disabled={!newProfileName.trim()}
+                className="bg-violet-600 text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest hover:bg-violet-500 transition-all disabled:opacity-50"
               >
-                  SAVE SHIPPING ZONE
+                CREATE PROFILE
               </button>
-              <button
-                onClick={resetForm}
-                className="bg-slate-100 text-slate-700 px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest hover:bg-slate-200 transition-all cursor-pointer"
+              <button 
+                onClick={() => { setIsCreatingProfile(false); setNewProfileName(""); }}
+                className="bg-slate-100 text-slate-700 px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest hover:bg-slate-200 transition-all"
               >
-                 CANCEL
+                CANCEL
               </button>
             </div>
-         </section>
-      )}
+          </section>
+        )}
 
-      <section className="bg-white dark:bg-zinc-900 border border-[#EBEAEF] dark:border-zinc-800 rounded-[2.5rem] p-10 space-y-10 relative overflow-hidden text-slate-800 dark:text-zinc-100 shadow-sm">
-         <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/[0.01] to-transparent pointer-events-none" />
-         
-         <div className="flex items-center gap-4 relative z-10">
-           <div className="w-12 h-12 rounded-2xl bg-cyan-50 dark:bg-cyan-950/20 text-[#0E7490] dark:text-cyan-400 flex items-center justify-center shadow-inner">
-             <Globe size={20} />
-           </div>
-           <div>
-             <h3 className="text-xl font-black tracking-tighter uppercase italic leading-none">Active Shipping Rates</h3>
-             <p className="text-[9px] text-slate-500 uppercase tracking-[0.2em] mt-1.5 font-bold">Automated delivery cost calculations based on location</p>
-           </div>
-         </div>
-
-         <div className="space-y-6 relative z-10">
-            {profiles.length === 0 && (
-               <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-[2rem] gap-4 bg-slate-50/50">
-                  <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-zinc-800 flex items-center justify-center">
-                    <Package size={22} className="text-slate-400" />
+        <div className="space-y-6">
+          {profiles.map((p: any) => {
+            const assignedBooks = getAssignedProducts(p.id);
+            const zonesCount = p.zones?.length || 0;
+            return (
+              <div 
+                key={p.id} 
+                className="glass-card rounded-[3rem] p-10 border border-white/5 relative overflow-hidden group hover:border-violet-500/20 transition-all flex justify-between items-center bg-white/[0.01]"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.02] to-transparent pointer-events-none" />
+                <div className="space-y-4 relative z-10">
+                  <div className="flex items-center gap-4">
+                    <h3 className="text-2xl font-black tracking-tight text-white uppercase italic">{p.name || "Untitled Profile"}</h3>
+                    {p.id === "general-profile" && (
+                      <span className="bg-violet-500/10 border border-violet-500/20 text-violet-400 px-4 py-1.5 rounded-full text-[9px] font-black tracking-widest uppercase">DEFAULT</span>
+                    )}
                   </div>
-                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Zero active shipping lanes detected</p>
-               </div>
-            )}
-            
-            {profiles.map((r: any) => (
-              <div key={r.id} className="bg-slate-50 dark:bg-zinc-800/40 border border-slate-200 dark:border-zinc-800 rounded-[2rem] overflow-hidden hover:border-violet-500/30 transition-all group shadow-sm">
-                 <div className="bg-white dark:bg-zinc-900/50 px-8 py-5 flex justify-between items-center border-b border-slate-200 dark:border-zinc-800">
-                    <div className="flex items-center gap-4">
-                       <div className="w-10 h-10 rounded-xl bg-cyan-50 dark:bg-cyan-950/10 flex items-center justify-center border border-cyan-100 dark:border-cyan-950/20">
-                         <Globe size={16} className="text-[#0E7490] dark:text-cyan-400" />
-                       </div>
-                       <div>
-                          <span className="text-base font-black tracking-tight text-slate-900 dark:text-white uppercase italic">{r.region}</span>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5 max-w-md truncate">{describeZoneGeography(r)}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                             <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">ACTIVE LANE</span>
-                          </div>
-                       </div>
-                    </div>
+                  <div className="flex items-center gap-8 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                    <span className="flex items-center gap-2">
+                      <Globe size={12} className="text-slate-600" /> {zonesCount} Zones
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <Package size={12} className="text-slate-600" /> {assignedBooks.length} Products Assigned
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 relative z-10">
+                  <button 
+                    onClick={() => handleSelectProfile(p)}
+                    className="bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:border-white/20 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
+                  >
+                    MANAGE RATES
+                  </button>
+                  {p.id !== "general-profile" && (
                     <button 
-                      onClick={() => handleDelete(r.id)}
-                      className="p-2.5 bg-red-50 hover:bg-red-500 hover:text-white text-red-500 rounded-xl transition-all border border-red-100 dark:bg-zinc-800 dark:border-zinc-700/60 dark:hover:bg-red-600 dark:hover:text-white cursor-pointer"
+                      onClick={() => handleDeleteProfile(p.id)}
+                      className="p-3.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-full transition-all border border-red-500/20"
                     >
                       <Trash2 size={14} />
                     </button>
-                 </div>
-                 
-                 <div className="p-8 space-y-6">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div>
-                          <h4 className="text-sm font-black text-slate-950 dark:text-white uppercase tracking-wider">{r.serviceName || "Standard Shipping"}</h4>
-                          <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-1">Estimated Delivery: {r.deliveryDays || "3-7"} Business Days</p>
-                      </div>
-                      
-                      <div className="flex gap-4">
-                        {r.freeThreshold > 0 && (
-                          <div className="bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-950/30 rounded-xl px-4 py-2 text-[9px] font-black tracking-widest uppercase">
-                            Free Over ${Number(r.freeThreshold).toFixed(2)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-6 pt-6 border-t border-slate-200 dark:border-zinc-800/60">
-                       <div className="space-y-1">
-                          <p className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Base Shipping Rate</p>
-                          <div className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter flex items-start gap-1">
-                             <span className="text-sm text-slate-400 mt-1">$</span>
-                             {Number(r.base).toFixed(2)}
-                          </div>
-                       </div>
-                       <div className="space-y-1">
-                          <p className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">Additional Book Rate</p>
-                          <div className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter flex items-start gap-1">
-                             <span className="text-sm text-slate-400 mt-1">+$</span>
-                             {Number(r.additional).toFixed(2)}
-                          </div>
-                       </div>
-                    </div>
-                 </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // Render Profile Details Editor
+  const assignedBooks = getAssignedProducts(editingProfile.id);
+  
+  return (
+    <div className="space-y-12">
+      {/* Editor Header */}
+      <header className="flex flex-col gap-2 mb-12">
+        <div className="flex justify-between items-center">
+          <button 
+            onClick={() => { setSelectedProfileId(null); setEditingProfile(null); }}
+            className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-white transition-colors uppercase cursor-pointer"
+          >
+            <ArrowLeft size={16} /> BACK TO MATRIX
+          </button>
+          
+          <div className="flex gap-4">
+            <button 
+              onClick={handleSaveProfile}
+              className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all active:scale-95 shadow-md shadow-violet-500/10"
+            >
+              SAVE PROFILE Changes
+            </button>
+          </div>
+        </div>
+        <div className="flex justify-between items-end mt-4">
+          <div>
+            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">{editingProfile.name}</h2>
+            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Fulfillment Profile Config</p>
+          </div>
+        </div>
+      </header>
+
+      {/* Profile Name (Custom Profiles only) */}
+      {editingProfile.id !== "general-profile" && (
+        <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-6 bg-white/[0.01]">
+          <InputField 
+            label="PROFILE NAME"
+            value={editingProfile.name}
+            onChange={(e: any) => setEditingProfile({ ...editingProfile, name: e.target.value })}
+          />
+        </section>
+      )}
+
+      {/* Product Assignments */}
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-8 bg-white/[0.01]">
+        <div className="flex justify-between items-center pb-4 border-b border-white/5">
+          <SectionHeader 
+            title="Assigned Catalog Products" 
+            subtitle="Books associated with these rates" 
+            icon={Package} 
+            color="violet"
+          />
+          <button 
+            onClick={openProductModal}
+            className="bg-white/5 hover:bg-white/10 text-white border border-white/10 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
+          >
+            MANAGE PRODUCTS ({assignedBooks.length})
+          </button>
+        </div>
+
+        {assignedBooks.length === 0 ? (
+          <div className="h-32 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-[2rem] gap-3 bg-white/[0.01]">
+            <Package size={18} className="text-slate-650" />
+            <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">No books assigned to this profile</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+            {assignedBooks.slice(0, 6).map((b: any) => (
+              <div key={b.id} className="flex items-center gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
+                <div className="w-10 aspect-[3/4] bg-black rounded-lg overflow-hidden border border-white/10 shrink-0">
+                  {b.photos?.[0]?.url && <img src={b.photos[0].url} className="w-full h-full object-cover" />}
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-xs font-black text-white truncate uppercase tracking-wider">{b.title}</p>
+                  <p className="text-[8px] text-slate-500 mt-1 truncate font-mono">{b.subtitle || "Single edition"}</p>
+                </div>
               </div>
             ))}
-         </div>
+            {assignedBooks.length > 6 && (
+              <div className="flex items-center justify-center p-4 bg-white/[0.02] border border-dashed border-white/5 rounded-2xl text-[9px] font-black text-slate-500 tracking-widest uppercase">
+                + {assignedBooks.length - 6} More Books
+              </div>
+            )}
+          </div>
+        )}
       </section>
+
+      {/* Shipping Zones */}
+      <section className="space-y-8">
+        <div className="flex justify-between items-center">
+          <SectionHeader 
+            title="Geographic Shipping Zones" 
+            subtitle="Regional rates & targets" 
+            icon={Globe} 
+            color="cyan"
+          />
+          <button 
+            onClick={() => openZoneModal()}
+            className="bg-cyan-600 hover:bg-cyan-500 text-white px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2 cursor-pointer transition-all shadow-md shadow-cyan-600/10"
+          >
+            <Plus size={14} /> ADD SHIPPING ZONE
+          </button>
+        </div>
+
+        {(!editingProfile.zones || editingProfile.zones.length === 0) ? (
+          <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-[3rem] gap-4 bg-white/[0.01]">
+            <Globe size={32} className="text-slate-650" />
+            <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Zero active shipping zones configured</p>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {editingProfile.zones.map((z: any) => (
+              <div key={z.id} className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-10 space-y-8 relative overflow-hidden shadow-sm">
+                <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/[0.01] to-transparent pointer-events-none" />
+                
+                {/* Zone Header */}
+                <div className="flex justify-between items-start border-b border-white/5 pb-6">
+                  <div>
+                    <h4 className="text-xl font-black text-white uppercase italic tracking-tight">{z.name}</h4>
+                    <div className="flex flex-wrap gap-2 mt-3 max-w-2xl">
+                      {z.countries.map((c: string) => (
+                        <span key={c} className="bg-white/5 border border-white/10 text-slate-400 px-3 py-1 rounded-full text-[9px] font-black tracking-wider uppercase">
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => openZoneModal(z)}
+                      className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-full text-[9px] font-black tracking-widest uppercase transition-all"
+                    >
+                      EDIT ZONE
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteZone(z.id)}
+                      className="p-2.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 rounded-full transition-all"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Zone Rates */}
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Shipping rates for this zone</h5>
+                    <button 
+                      onClick={() => openRateModal(z.id)}
+                      className="bg-white/5 hover:bg-white/10 text-white border border-white/10 px-6 py-2 rounded-full text-[9px] font-black tracking-widest transition-all"
+                    >
+                      + ADD RATE
+                    </button>
+                  </div>
+
+                  {(!z.rates || z.rates.length === 0) ? (
+                    <div className="py-8 text-center border border-dashed border-white/5 rounded-2xl text-[9px] font-black text-slate-600 uppercase tracking-widest">
+                      No rates configured. This zone will not have active shipping.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {z.rates.map((r: any) => (
+                        <div key={r.id} className="bg-white/[0.01] border border-white/5 hover:border-violet-500/20 rounded-[2rem] p-6 flex justify-between items-start transition-all">
+                          <div className="space-y-3">
+                            <div>
+                              <p className="text-sm font-black text-white uppercase tracking-wider">{r.name}</p>
+                              <p className="text-[9px] text-slate-500 font-black tracking-widest uppercase mt-1">Delivery: {r.deliveryDays || "3-7"} Days</p>
+                            </div>
+                            <div className="flex gap-6 pt-3 border-t border-white/5">
+                              <div>
+                                <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">Base Rate</p>
+                                <p className="text-xl font-black text-white font-mono mt-1">${Number(r.base).toFixed(2)}</p>
+                              </div>
+                              <div>
+                                <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">Add. Item</p>
+                                <p className="text-xl font-black text-white font-mono mt-1">+${Number(r.additional).toFixed(2)}</p>
+                              </div>
+                              {r.minPrice !== null && r.minPrice !== undefined && (
+                                <div>
+                                  <p className="text-[8px] text-emerald-400/70 font-bold uppercase tracking-widest">Min Spend</p>
+                                  <p className="text-xl font-black text-emerald-400 font-mono mt-1">${Number(r.minPrice).toFixed(2)}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => openRateModal(z.id, r)}
+                              className="p-2 bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/10 transition-all"
+                            >
+                              <Edit size={12} />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteRate(z.id, r.id)}
+                              className="p-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-all"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* --- MODAL 1: PRODUCT SELECTION --- */}
+      <AnimatePresence>
+        {isProductModalOpen && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-card w-full max-w-2xl rounded-[3rem] p-10 border border-white/10 relative overflow-hidden bg-[#07060E] max-h-[85vh] flex flex-col"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent pointer-events-none" />
+              <div className="flex justify-between items-start pb-6 border-b border-white/5 relative z-10 shrink-0">
+                <div>
+                  <h3 className="text-2xl font-black text-white uppercase italic leading-none">Manage Products</h3>
+                  <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-2 font-bold">Select books to assign to: {editingProfile.name}</p>
+                </div>
+                <button 
+                  onClick={() => setIsProductModalOpen(false)}
+                  className="p-3 bg-white/5 text-slate-400 hover:text-white rounded-full border border-white/10 cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Search */}
+              <div className="py-6 relative z-10 shrink-0">
+                <div className="flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 shadow-inner">
+                  <Search size={16} className="text-slate-650" />
+                  <input 
+                    type="text"
+                    placeholder="Search catalog by title..."
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    className="bg-transparent border-none outline-none text-xs text-white placeholder:text-slate-600 flex-1 font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* Books List (scrollable) */}
+              <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar relative z-10 py-2">
+                {books
+                  .filter(b => b.title.toLowerCase().includes(productSearch.toLowerCase()))
+                  .map(b => {
+                    const isChecked = selectedProductIds.includes(b.id);
+                    const isOtherProfile = b.shippingProfileId && b.shippingProfileId !== editingProfile.id;
+                    const otherProfileName = isOtherProfile 
+                      ? (profiles.find((p: any) => p.id === b.shippingProfileId)?.name || "Other Profile")
+                      : "";
+                    
+                    return (
+                      <div 
+                        key={b.id} 
+                        onClick={() => {
+                          setSelectedProductIds(prev => 
+                            isChecked ? prev.filter(id => id !== b.id) : [...prev, b.id]
+                          );
+                        }}
+                        className={`flex items-center justify-between p-4 bg-white/[0.02] border rounded-2xl cursor-pointer hover:border-violet-500/20 transition-all ${
+                          isChecked ? "border-violet-500 bg-violet-500/[0.02]" : "border-white/5"
+                        }`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                            isChecked ? "border-violet-500 bg-violet-600 text-white" : "border-white/20"
+                          }`}>
+                            {isChecked && <Check size={12} />}
+                          </div>
+                          <div className="w-10 aspect-[3/4] bg-black rounded-lg overflow-hidden border border-white/10 shrink-0">
+                            {b.photos?.[0]?.url && <img src={b.photos[0].url} className="w-full h-full object-cover" />}
+                          </div>
+                          <div className="text-left overflow-hidden">
+                            <p className="text-xs font-black text-white truncate uppercase tracking-wider">{b.title}</p>
+                            {isOtherProfile ? (
+                              <p className="text-[8px] text-amber-500 font-bold uppercase tracking-widest mt-1">
+                                Currently assigned to: {otherProfileName}
+                              </p>
+                            ) : (
+                              <p className="text-[8px] text-slate-500 mt-1 truncate font-mono">{b.subtitle || "Single edition"}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+
+              {/* Actions */}
+              <div className="pt-6 border-t border-white/5 flex gap-4 mt-6 relative z-10 shrink-0">
+                <button 
+                  onClick={handleSaveProducts}
+                  className="bg-violet-600 hover:bg-violet-500 text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest flex-1 transition-all"
+                >
+                  SAVE PRODUCT ASSIGNMENTS
+                </button>
+                <button 
+                  onClick={() => setIsProductModalOpen(false)}
+                  className="bg-slate-100 text-slate-700 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
+                >
+                  CANCEL
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MODAL 2: ZONE CONFIGURATION --- */}
+      <AnimatePresence>
+        {isZoneModalOpen && activeZone && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-card w-full max-w-2xl rounded-[3rem] p-10 border border-white/10 relative overflow-hidden bg-[#07060E] max-h-[85vh] flex flex-col"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-transparent pointer-events-none" />
+              <div className="flex justify-between items-start pb-6 border-b border-white/5 relative z-10 shrink-0">
+                <div>
+                  <h3 className="text-2xl font-black text-white uppercase italic leading-none">Shipping Zone Config</h3>
+                  <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-2 font-bold">Group countries/regions for unified shipping rules</p>
+                </div>
+                <button 
+                  onClick={() => setIsZoneModalOpen(false)}
+                  className="p-3 bg-white/5 text-slate-400 hover:text-white rounded-full border border-white/10 cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Zone Name input */}
+              <div className="py-6 space-y-4 relative z-10 shrink-0">
+                <InputField 
+                  label="ZONE NAME"
+                  value={activeZone.name}
+                  placeholder="e.g. North America, Europe, Domestic..."
+                  onChange={(e: any) => setActiveZone({ ...activeZone, name: e.target.value })}
+                />
+              </div>
+
+              {/* Region Presets */}
+              <div className="pb-4 relative z-10 shrink-0 flex flex-col gap-2">
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1 mb-2">Regional Presets</label>
+                <div className="flex flex-wrap gap-3">
+                  {Object.keys(REGIONAL_PRESETS).map(regionName => (
+                    <button 
+                      key={regionName}
+                      type="button"
+                      onClick={() => {
+                        const countries = REGIONAL_PRESETS[regionName];
+                        setActiveZone((prev: any) => {
+                          const union = Array.from(new Set([...prev.countries, ...countries]));
+                          return { ...prev, countries: union };
+                        });
+                      }}
+                      className="bg-white/5 hover:bg-white/10 text-white border border-white/15 px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase transition-all"
+                    >
+                      + SELECT {regionName}
+                    </button>
+                  ))}
+                  <button 
+                    type="button"
+                    onClick={() => setActiveZone((prev: any) => ({ ...prev, countries: [] }))}
+                    className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/15 px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase transition-all"
+                  >
+                    CLEAR SELECTION
+                  </button>
+                </div>
+              </div>
+
+              {/* Search Countries */}
+              <div className="pb-4 relative z-10 shrink-0">
+                <div className="flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 shadow-inner">
+                  <Search size={16} className="text-slate-650" />
+                  <input 
+                    type="text"
+                    placeholder="Search countries..."
+                    value={countrySearch}
+                    onChange={(e) => setCountrySearch(e.target.value)}
+                    className="bg-transparent border-none outline-none text-xs text-white placeholder:text-slate-600 flex-1 font-semibold"
+                  />
+                </div>
+              </div>
+
+              {/* Countries Checkbox List */}
+              <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-3 pr-2 custom-scrollbar relative z-10 py-2">
+                {COUNTRIES_LIST
+                  .filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()))
+                  .map(c => {
+                    const isChecked = activeZone.countries.includes(c);
+                    return (
+                      <div 
+                        key={c}
+                        onClick={() => {
+                          setActiveZone((prev: any) => {
+                            const countries = isChecked 
+                              ? prev.countries.filter((x: string) => x !== c)
+                              : [...prev.countries, c];
+                            return { ...prev, countries };
+                          });
+                        }}
+                        className={`flex items-center gap-3 p-3 bg-white/[0.01] border rounded-xl cursor-pointer hover:border-cyan-500/20 transition-all ${
+                          isChecked ? "border-cyan-500 bg-cyan-500/[0.02]" : "border-white/5"
+                        }`}
+                      >
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                          isChecked ? "border-cyan-500 bg-cyan-600 text-white" : "border-white/20"
+                        }`}>
+                          {isChecked && <Check size={10} />}
+                        </div>
+                        <span className="text-xs font-semibold text-white/85 uppercase tracking-wide">{c}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+
+              {/* Actions */}
+              <div className="pt-6 border-t border-white/5 flex gap-4 mt-6 relative z-10 shrink-0">
+                <button 
+                  onClick={handleSaveZone}
+                  className="bg-cyan-600 hover:bg-cyan-500 text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest flex-1 transition-all"
+                >
+                  SAVE ZONE CONFIG
+                </button>
+                <button 
+                  onClick={() => setIsZoneModalOpen(false)}
+                  className="bg-slate-100 text-slate-700 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
+                >
+                  CANCEL
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MODAL 3: RATE CONFIGURATION --- */}
+      <AnimatePresence>
+        {isRateModalOpen && activeRate && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="glass-card w-full max-w-2xl rounded-[3rem] p-10 border border-white/10 relative overflow-hidden bg-[#07060E] max-h-[85vh] flex flex-col"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent pointer-events-none" />
+              
+              <div className="flex justify-between items-start pb-6 border-b border-white/5 relative z-10 shrink-0">
+                <div>
+                  <h3 className="text-2xl font-black text-white uppercase italic leading-none">Rate Setting Protocol</h3>
+                  <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-2 font-bold">Configure shipping speed and hybrid item prices</p>
+                </div>
+                <button 
+                  onClick={() => setIsRateModalOpen(false)}
+                  className="p-3 bg-white/5 text-slate-400 hover:text-white rounded-full border border-white/10 cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Rate Editor Form (scrollable) */}
+              <div className="flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar relative z-10 py-6">
+                
+                <InputField 
+                  label="RATE / SERVICE NAME"
+                  value={activeRate.name}
+                  placeholder="e.g. Standard Shipping, Express Delivery, Special Warp..."
+                  onChange={(e: any) => setActiveRate({ ...activeRate, name: e.target.value })}
+                />
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">BASE SHIPPING RATE (CAD)</label>
+                    <div className="flex items-center gap-6 bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 focus-within:border-emerald-500/50 focus-within:bg-white/[0.06] transition-all group shadow-inner">
+                      <span className="text-slate-500 font-mono text-sm">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="bg-transparent border-none outline-none text-sm text-white flex-1 font-bold font-mono"
+                        value={activeRate.base}
+                        placeholder="15.00"
+                        onChange={(e: any) => setActiveRate({ ...activeRate, base: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">ADDITIONAL ITEM RATE (CAD)</label>
+                    <div className="flex items-center gap-6 bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 focus-within:border-emerald-500/50 focus-within:bg-white/[0.06] transition-all group shadow-inner">
+                      <span className="text-slate-500 font-mono text-sm">+$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="bg-transparent border-none outline-none text-sm text-white flex-1 font-bold font-mono"
+                        value={activeRate.additional}
+                        placeholder="5.00"
+                        onChange={(e: any) => setActiveRate({ ...activeRate, additional: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <InputField 
+                  label="ESTIMATED DELIVERY (DAYS)"
+                  value={activeRate.deliveryDays}
+                  placeholder="e.g. 3-7, 1-2, 5-10"
+                  onChange={(e: any) => setActiveRate({ ...activeRate, deliveryDays: e.target.value })}
+                />
+
+                {/* Price condition */}
+                <div className="space-y-4 pt-4 border-t border-white/5">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-xs font-black text-white uppercase tracking-wider italic">Order Price Condition</p>
+                      <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Make rate available only within cart price range (optional)</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">MINIMUM ORDER PRICE threshold (CAD)</label>
+                    <div className="flex items-center gap-6 bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 focus-within:border-emerald-500/50 focus-within:bg-white/[0.06] transition-all group shadow-inner">
+                      <span className="text-slate-500 font-mono text-sm">$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="bg-transparent border-none outline-none text-sm text-white flex-1 font-bold font-mono"
+                        value={activeRate.minPrice !== null && activeRate.minPrice !== undefined ? activeRate.minPrice : ""}
+                        placeholder="e.g. 50.00 for free shipping above $50"
+                        onChange={(e: any) => {
+                          const val = e.target.value;
+                          setActiveRate({ ...activeRate, minPrice: val === "" ? null : val });
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Actions */}
+              <div className="pt-6 border-t border-white/5 flex gap-4 mt-6 relative z-10 shrink-0">
+                <button 
+                  onClick={handleSaveRate}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest flex-1 transition-all"
+                >
+                  SAVE RATE PROTOCOL
+                </button>
+                <button 
+                  onClick={() => setIsRateModalOpen(false)}
+                  className="bg-slate-100 text-slate-700 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
+                >
+                  CANCEL
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

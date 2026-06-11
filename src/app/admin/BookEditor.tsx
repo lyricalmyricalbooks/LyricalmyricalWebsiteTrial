@@ -355,8 +355,13 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       
       setCategories(filteredCats);
 
-      if (!book && sh.length > 0) {
-        setFormData((prev: any) => ({ ...prev, shippingProfileId: sh[0].id }));
+      if (sh.length > 0) {
+        const defaultProfile = sh.find(p => p.id === "general-profile") || sh[0];
+        if (!book) {
+          setFormData((prev: any) => ({ ...prev, shippingProfileId: defaultProfile.id }));
+        } else if (!book.shippingProfileId) {
+          setFormData((prev: any) => ({ ...prev, shippingProfileId: defaultProfile.id }));
+        }
       }
     } catch (err) {
       console.error("Failed to load metadata", err);
