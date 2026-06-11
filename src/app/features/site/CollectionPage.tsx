@@ -6,6 +6,7 @@ import { DEFAULT_IMAGE } from "./constants";
 import { CatalogControls, applyCatalogControls, type SortKey } from "./CatalogControls";
 import { useWishlist } from "../../lib/wishlist";
 import { useSEO } from "../../lib/seo";
+import { funnelApi } from "../../lib/commerce";
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
@@ -40,6 +41,12 @@ export default function CollectionPage() {
     description: `Browse the ${categoryName.toLowerCase()} collection from Lyricalmyrical Books.`,
     type: "website",
   });
+
+  useEffect(() => {
+    if (categoryName) {
+      funnelApi.trackCategory(categoryName);
+    }
+  }, [categoryName]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && window.location.search.includes("preview=true")) {

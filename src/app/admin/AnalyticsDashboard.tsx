@@ -370,16 +370,20 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
                        </div>
                        <div>
                           <p className="text-base font-black text-white uppercase tracking-tight group-hover/item:text-violet-400 transition-colors leading-none flex items-center gap-2">
-                            {item.title}
-                            {fetchingBookId === item.id && <Loader2 size={12} className="animate-spin text-violet-400" />}
+                             {item.title}
+                             {fetchingBookId === item.id && <Loader2 size={12} className="animate-spin text-violet-400" />}
                           </p>
                           <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-3 bg-white/[0.03] w-fit px-3 py-1 rounded-lg border border-white/5">{item.sold} Sold</p>
                        </div>
                     </div>
                     <div className="text-right">
                        <p className="text-lg font-black text-white tracking-tighter italic leading-none">CA${item.revenue.toLocaleString()}</p>
-                       <div className="flex items-center justify-end gap-2 mt-3 text-emerald-400 font-black text-[10px] uppercase tracking-widest bg-emerald-400/5 px-3 py-1 rounded-lg border border-emerald-400/10">
-                         <TrendingUp size={12} /> +12%
+                       <div className={`flex items-center justify-end gap-2 mt-3 font-black text-[10px] uppercase tracking-widest px-3 py-1 rounded-lg border ${
+                         item.trend?.startsWith("-") 
+                           ? "text-rose-400 bg-rose-400/5 border-rose-400/10" 
+                           : "text-emerald-400 bg-emerald-400/5 border-emerald-400/10"
+                       }`}>
+                         {item.trend?.startsWith("-") ? <ArrowDownRight size={12} /> : <TrendingUp size={12} />} {item.trend || "0%"}
                        </div>
                     </div>
                   </div>
@@ -405,26 +409,52 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
               </div>
            </div>
            <div className="space-y-8">
-              {[
-                { name: "Publications", views: "3,496", sold: 65, rev: "1,825.00", color: "violet", icon: BarChart3 },
-                { name: "Ephemera", views: "1,102", sold: 12, rev: "450.00", color: "cyan", icon: Zap }
-              ].map((cat) => (
-                <div key={cat.name} className="flex items-center justify-between group/item hover:bg-white/[0.03] p-4 rounded-3xl transition-all duration-500">
-                  <div className="flex items-center gap-6">
-                     <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border border-white/5 transition-all duration-500 shadow-2xl bg-white/[0.02] group-hover/item:border-${cat.color}-500/50`}>
-                        <cat.icon size={24} strokeWidth={1.5} className={cat.color === 'violet' ? 'text-violet-400' : 'text-cyan-400'} />
-                     </div>
-                     <div>
-                        <p className="text-base font-black text-white uppercase tracking-tight group-hover/item:text-violet-400 transition-colors leading-none">{cat.name}</p>
-                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-3 border border-white/5 w-fit px-3 py-1 rounded-lg">{cat.views} Visits</p>
-                     </div>
+              {data?.categories?.length > 0 ? (
+                data.categories.map((cat: any, index: number) => {
+                  const colors = ["violet", "cyan", "emerald", "amber"];
+                  const color = colors[index % colors.length];
+                  
+                  const icons = [BarChart3, Zap, Activity, Users];
+                  const Icon = icons[index % icons.length];
+                  
+                  const borderClass = 
+                    color === "violet" ? "group-hover/item:border-violet-500/50" :
+                    color === "cyan" ? "group-hover/item:border-cyan-500/50" :
+                    color === "emerald" ? "group-hover/item:border-emerald-500/50" :
+                    "group-hover/item:border-amber-500/50";
+                  
+                  const textClass = 
+                    color === "violet" ? "text-violet-400" :
+                    color === "cyan" ? "text-cyan-400" :
+                    color === "emerald" ? "text-emerald-400" :
+                    "text-amber-400";
+
+                  return (
+                    <div key={cat.name} className="flex items-center justify-between group/item hover:bg-white/[0.03] p-4 rounded-3xl transition-all duration-500">
+                      <div className="flex items-center gap-6">
+                         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border border-white/5 transition-all duration-500 shadow-2xl bg-white/[0.02] ${borderClass}`}>
+                            <Icon size={24} strokeWidth={1.5} className={textClass} />
+                         </div>
+                         <div>
+                            <p className="text-base font-black text-white uppercase tracking-tight group-hover/item:text-violet-400 transition-colors leading-none">{cat.name}</p>
+                            <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-3 border border-white/5 w-fit px-3 py-1 rounded-lg">{cat.views.toLocaleString()} Visits</p>
+                         </div>
+                      </div>
+                      <div className="text-right">
+                         <p className="text-lg font-black text-white tracking-tighter italic leading-none">CA${cat.revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                         <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest mt-3 bg-white/[0.03] px-3 py-1 rounded-lg border border-white/5">{cat.sold} SOLD</p>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="py-24 text-center">
+                  <div className="w-20 h-20 rounded-full bg-white/[0.02] border border-white/5 flex items-center justify-center text-slate-800 mx-auto mb-6 shadow-inner">
+                    <Database size={40} strokeWidth={0.5} />
                   </div>
-                  <div className="text-right">
-                     <p className="text-lg font-black text-white tracking-tighter italic leading-none">CA${cat.rev}</p>
-                     <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest mt-3 bg-white/[0.03] px-3 py-1 rounded-lg border border-white/5">{cat.sold} SOLD</p>
-                  </div>
+                  <p className="text-slate-600 text-[10px] tracking-[0.5em] uppercase font-black italic">No categories found.</p>
                 </div>
-              ))}
+              )}
            </div>
 
            <div className="mt-12 p-8 rounded-[2rem] bg-gradient-to-br from-violet-600/20 to-cyan-600/20 border border-white/10 relative overflow-hidden">

@@ -106,8 +106,12 @@ export default function BookDetail() {
     if (book?.id) {
       trackBookView(book.id);
       funnelApi.track("view");
+      const bookCategories = (book as any)?.categories || (book as any)?.genres || [];
+      bookCategories.forEach((cat: string) => {
+        funnelApi.trackCategory(cat);
+      });
     }
-  }, [book?.id]);
+  }, [book?.id, book]);
 
   useEffect(() => {
     window.scrollTo(0, 0);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   Search, 
   ChevronDown, 
@@ -18,7 +18,9 @@ import {
   MoreVertical,
   ChevronRight,
   Eye,
-  Edit3
+  Edit3,
+  ArrowDownRight,
+  TrendingUp
 } from "lucide-react";
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -36,6 +38,9 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [statusFilter, setStatusFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [activeDropdown, setActiveDropdown] = useState<"status" | "categories" | "sort" | null>(null);
+  const [openMenuBookId, setOpenMenuBookId] = useState<string | null>(null);
   const [selectedBooks, setSelectedBooks] = useState<string[]>([]);
   const [sortField, setSortField] = useState<"title" | "price" | "inventory" | "createdAt">("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -56,15 +61,31 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     }
   }
 
+  const availableCategories = useMemo(() => {
+    const cats = new Set<string>();
+    books.forEach(b => {
+      const list = b.categories || b.genres || [];
+      list.forEach((c: string) => {
+        if (c) cats.add(c.trim());
+      });
+    });
+    return ["All", ...Array.from(cats)];
+  }, [books]);
+
   const filteredBooks = books.filter(b => {
     const matchesSearch = (b.title || "").toLowerCase().includes(search.toLowerCase()) || 
-                          (b.isbn && b.isbn.toLowerCase().includes(search.toLowerCase()));
+                          (b.isbn && b.isbn.toLowerCase().includes(search.toLowerCase())) ||
+                          (b.authorName && b.authorName.toLowerCase().includes(search.toLowerCase()));
     
-    if (statusFilter === "All") return matchesSearch;
-    if (statusFilter === "Published") return matchesSearch && b.status === "published" && b.stockLevel > 0;
-    if (statusFilter === "Sold Out") return matchesSearch && b.stockLevel === 0;
-    if (statusFilter === "Drafts") return matchesSearch && b.status === "draft";
-    return matchesSearch;
+    const bookCats = (b.categories || b.genres || []).map((c: string) => c.toUpperCase().trim());
+    const matchesCategory = categoryFilter === "All" || bookCats.includes(categoryFilter.toUpperCase().trim());
+    
+    let matchesStatus = true;
+    if (statusFilter === "Published") matchesStatus = b.status === "published" && b.stockLevel > 0;
+    else if (statusFilter === "Sold Out") matchesStatus = b.stockLevel === 0;
+    else if (statusFilter === "Drafts") matchesStatus = b.status === "draft";
+    
+    return matchesSearch && matchesCategory && matchesStatus;
   });
 
   const sortedAndFiltered = [...filteredBooks].sort((a, b) => {
@@ -128,18 +149,160 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
                  className="w-full bg-white/[0.03] border border-white/5 rounded-3xl py-5 pl-14 pr-6 text-sm tracking-wide text-white focus:border-violet-500/50 focus:bg-white/[0.07] outline-none transition-all shadow-2xl backdrop-blur-md"
                />
             </div>
-            <div className="flex items-center gap-3 overflow-x-auto pb-2 xl:pb-0 scrollbar-none">
-               {[
-                 { label: "STATUS", icon: Filter },
-                 { label: "CATEGORIES", icon: List },
-                 { label: "SORT", icon: ArrowUpDown }
-               ].map((filter) => (
-                 <button key={filter.label} className="bg-white/[0.03] border border-white/5 px-6 py-4 rounded-3xl text-[10px] font-black tracking-[0.2em] text-slate-400 hover:text-white hover:border-white/10 flex items-center gap-3 transition-all whitespace-nowrap backdrop-blur-md">
-                    <filter.icon size={14} className="text-slate-500" />
-                    {filter.label} 
+            <div className="flex items-center gap-3 overflow-x-auto pb-2 xl:pb-0 scrollbar-none relative">
+               {/* STATUS DROPDOWN */}
+               <div className="relative">
+                 <button 
+                   onClick={() => setActiveDropdown(activeDropdown === "status" ? null : "status")}
+                   className={`bg-white/[0.03] border px-6 py-4 rounded-3xl text-[10px] font-black tracking-[0.2em] hover:text-white flex items-center gap-3 transition-all whitespace-nowrap backdrop-blur-md ${
+                     activeDropdown === "status" || statusFilter !== "All"
+                       ? "text-violet-400 border-violet-500/30"
+                       : "text-slate-400 border-white/5 hover:border-white/10"
+                   }`}
+                 >
+                    <Filter size={14} className={statusFilter !== "All" ? "text-violet-400" : "text-slate-500"} />
+                    {statusFilter === "All" ? "STATUS" : `STATUS: ${statusFilter.toUpperCase()}`}
                     <ChevronDown size={14} className="text-slate-700" />
                  </button>
-               ))}
+                 
+                 <AnimatePresence>
+                   {activeDropdown === "status" && (
+                     <>
+                       <div className="fixed inset-0 z-40" onClick={() => setActiveDropdown(null)} />
+                       <motion.div
+                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                         animate={{ opacity: 1, y: 0, scale: 1 }}
+                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                         className="absolute left-0 mt-3 w-56 rounded-2xl bg-[#0d0d10] border border-white/10 p-2 shadow-2xl backdrop-blur-xl z-50 overflow-hidden"
+                       >
+                         {["All", "Published", "Sold Out", "Drafts"].map((val) => (
+                           <button
+                             key={val}
+                             onClick={() => {
+                               setStatusFilter(val);
+                               setActiveDropdown(null);
+                             }}
+                             className={`w-full text-left px-4 py-3 text-[10px] font-black tracking-widest uppercase rounded-xl transition-all ${
+                               statusFilter === val 
+                                 ? "bg-violet-600 text-white shadow-lg" 
+                                 : "text-slate-400 hover:text-white hover:bg-white/5"
+                             }`}
+                           >
+                             {val}
+                           </button>
+                         ))}
+                       </motion.div>
+                     </>
+                   )}
+                 </AnimatePresence>
+               </div>
+
+               {/* CATEGORIES DROPDOWN */}
+               <div className="relative">
+                 <button 
+                   onClick={() => setActiveDropdown(activeDropdown === "categories" ? null : "categories")}
+                   className={`bg-white/[0.03] border px-6 py-4 rounded-3xl text-[10px] font-black tracking-[0.2em] hover:text-white flex items-center gap-3 transition-all whitespace-nowrap backdrop-blur-md ${
+                     activeDropdown === "categories" || categoryFilter !== "All"
+                       ? "text-violet-400 border-violet-500/30"
+                       : "text-slate-400 border-white/5 hover:border-white/10"
+                   }`}
+                 >
+                    <List size={14} className={categoryFilter !== "All" ? "text-violet-400" : "text-slate-500"} />
+                    {categoryFilter === "All" ? "CATEGORIES" : `CAT: ${categoryFilter.toUpperCase()}`}
+                    <ChevronDown size={14} className="text-slate-700" />
+                 </button>
+                 
+                 <AnimatePresence>
+                   {activeDropdown === "categories" && (
+                     <>
+                       <div className="fixed inset-0 z-40" onClick={() => setActiveDropdown(null)} />
+                       <motion.div
+                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                         animate={{ opacity: 1, y: 0, scale: 1 }}
+                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                         className="absolute left-0 mt-3 w-64 max-h-72 overflow-y-auto rounded-2xl bg-[#0d0d10] border border-white/10 p-2 shadow-2xl backdrop-blur-xl z-50 custom-scrollbar"
+                       >
+                         {availableCategories.map((val) => (
+                           <button
+                             key={val}
+                             onClick={() => {
+                               setCategoryFilter(val);
+                               setActiveDropdown(null);
+                             }}
+                             className={`w-full text-left px-4 py-3 text-[10px] font-black tracking-widest uppercase rounded-xl transition-all ${
+                               categoryFilter === val 
+                                 ? "bg-violet-600 text-white shadow-lg" 
+                                 : "text-slate-400 hover:text-white hover:bg-white/5"
+                             }`}
+                           >
+                             {val}
+                           </button>
+                         ))}
+                       </motion.div>
+                     </>
+                   )}
+                 </AnimatePresence>
+               </div>
+
+               {/* SORT DROPDOWN */}
+               <div className="relative">
+                 <button 
+                   onClick={() => setActiveDropdown(activeDropdown === "sort" ? null : "sort")}
+                   className={`bg-white/[0.03] border px-6 py-4 rounded-3xl text-[10px] font-black tracking-[0.2em] hover:text-white flex items-center gap-3 transition-all whitespace-nowrap backdrop-blur-md ${
+                     activeDropdown === "sort"
+                       ? "text-violet-400 border-violet-500/30"
+                       : "text-slate-400 border-white/5 hover:border-white/10"
+                   }`}
+                 >
+                    <ArrowUpDown size={14} className="text-slate-500" />
+                    SORT: {sortField === "createdAt" ? "DATE" : sortField.toUpperCase()} ({sortOrder.toUpperCase()})
+                    <ChevronDown size={14} className="text-slate-700" />
+                 </button>
+                 
+                 <AnimatePresence>
+                   {activeDropdown === "sort" && (
+                     <>
+                       <div className="fixed inset-0 z-40" onClick={() => setActiveDropdown(null)} />
+                       <motion.div
+                         initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                         animate={{ opacity: 1, y: 0, scale: 1 }}
+                         exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                         className="absolute right-0 mt-3 w-64 rounded-2xl bg-[#0d0d10] border border-white/10 p-2 shadow-2xl backdrop-blur-xl z-50 overflow-hidden"
+                       >
+                         {[
+                           { label: "Title: A-Z", field: "title", order: "asc" },
+                           { label: "Title: Z-A", field: "title", order: "desc" },
+                           { label: "Price: Low to High", field: "price", order: "asc" },
+                           { label: "Price: High to Low", field: "price", order: "desc" },
+                           { label: "Stock: Low to High", field: "inventory", order: "asc" },
+                           { label: "Stock: High to Low", field: "inventory", order: "desc" },
+                           { label: "Created: Newest First", field: "createdAt", order: "desc" },
+                           { label: "Created: Oldest First", field: "createdAt", order: "asc" }
+                         ].map((opt) => {
+                           const isSelected = sortField === opt.field && sortOrder === opt.order;
+                           return (
+                             <button
+                               key={opt.label}
+                               onClick={() => {
+                                 setSortField(opt.field as any);
+                                 setSortOrder(opt.order as any);
+                                 setActiveDropdown(null);
+                               }}
+                               className={`w-full text-left px-4 py-3 text-[10px] font-black tracking-widest uppercase rounded-xl transition-all ${
+                                 isSelected 
+                                   ? "bg-violet-600 text-white shadow-lg" 
+                                   : "text-slate-400 hover:text-white hover:bg-white/5"
+                               }`}
+                             >
+                               {opt.label}
+                             </button>
+                           );
+                         })}
+                       </motion.div>
+                     </>
+                   )}
+                 </AnimatePresence>
+               </div>
             </div>
          </div>
 
@@ -356,12 +519,96 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
                     </td>
                     <td className="px-10 py-8 text-right">
                        <div className="flex items-center justify-end gap-3">
-                         <button onClick={() => onEdit(book)} className="p-4 text-slate-600 hover:text-violet-400 transition-all bg-white/[0.03] rounded-2xl border border-white/5 hover:border-violet-500/30 hover:shadow-xl">
+                         <button onClick={() => onEdit(book)} className="p-4 text-slate-600 hover:text-violet-400 transition-all bg-white/[0.03] rounded-2xl border border-white/5 hover:border-violet-500/30 hover:shadow-xl" title="Edit details">
                             <Edit3 size={20} />
                          </button>
-                         <button className="p-4 text-slate-600 hover:text-white transition-all bg-white/[0.03] rounded-2xl border border-white/5 hover:border-white/20">
-                            <MoreVertical size={20} />
-                         </button>
+                         <div className="relative">
+                           <button 
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               setOpenMenuBookId(openMenuBookId === book.id ? null : book.id);
+                             }}
+                             className={`p-4 transition-all rounded-2xl border ${
+                               openMenuBookId === book.id
+                                 ? "text-white bg-white/10 border-white/20"
+                                 : "text-slate-600 hover:text-white bg-white/[0.03] border-white/5 hover:border-white/20"
+                             }`}
+                             title="Operations"
+                           >
+                              <MoreVertical size={20} />
+                           </button>
+                           
+                           <AnimatePresence>
+                             {openMenuBookId === book.id && (
+                               <>
+                                 <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpenMenuBookId(null); }} />
+                                 <motion.div
+                                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                   animate={{ opacity: 1, y: 0, scale: 1 }}
+                                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                   className="absolute right-0 mt-2 w-48 rounded-2xl bg-[#0d0d10] border border-white/10 p-2 shadow-2xl backdrop-blur-xl z-50 text-left overflow-hidden"
+                                 >
+                                   <button
+                                     onClick={(e) => {
+                                       e.stopPropagation();
+                                       onEdit(book);
+                                       setOpenMenuBookId(null);
+                                     }}
+                                     className="w-full text-left px-4 py-3 text-[10px] font-black tracking-widest uppercase rounded-xl transition-all text-slate-400 hover:text-white hover:bg-white/5"
+                                   >
+                                     Edit Details
+                                   </button>
+                                   <button
+                                     onClick={async (e) => {
+                                       e.stopPropagation();
+                                       setOpenMenuBookId(null);
+                                       try {
+                                         await adminApi.duplicateBook(book.id);
+                                         toast.success("Title duplicated");
+                                         loadBooks();
+                                       } catch (err) {
+                                         toast.error("Failed to duplicate");
+                                       }
+                                     }}
+                                     className="w-full text-left px-4 py-3 text-[10px] font-black tracking-widest uppercase rounded-xl transition-all text-slate-400 hover:text-white hover:bg-white/5"
+                                   >
+                                     Duplicate
+                                   </button>
+                                   <button
+                                     onClick={(e) => {
+                                       e.stopPropagation();
+                                       const bookSlug = book.slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+                                       window.open(`/books/${bookSlug}`, "_blank");
+                                       setOpenMenuBookId(null);
+                                     }}
+                                     className="w-full text-left px-4 py-3 text-[10px] font-black tracking-widest uppercase rounded-xl transition-all text-slate-400 hover:text-white hover:bg-white/5"
+                                   >
+                                     View Listing
+                                   </button>
+                                   <div className="h-px bg-white/5 my-1" />
+                                   <button
+                                     onClick={async (e) => {
+                                       e.stopPropagation();
+                                       setOpenMenuBookId(null);
+                                       if (window.confirm(`Are you sure you want to delete "${book.title}"?`)) {
+                                         try {
+                                           await adminApi.deleteBook(book.id);
+                                           toast.success("Title deleted");
+                                           loadBooks();
+                                         } catch (err) {
+                                           toast.error("Failed to delete");
+                                         }
+                                       }
+                                     }}
+                                     className="w-full text-left px-4 py-3 text-[10px] font-black tracking-widest uppercase rounded-xl transition-all text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                                   >
+                                     Delete
+                                   </button>
+                                 </motion.div>
+                               </>
+                             )}
+                           </AnimatePresence>
+                         </div>
                        </div>
                     </td>
                   </tr>

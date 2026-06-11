@@ -183,4 +183,20 @@ export const funnelApi = {
       // best-effort, never break checkout
     }
   },
+
+  trackCategory: async (categoryName: string) => {
+    if (!categoryName) return;
+    const today = new Date().toISOString().split("T")[0];
+    const ref = doc(db, "analytics", today);
+    try {
+      const snap = await getDoc(ref);
+      const data = snap.exists() ? (snap.data() as any) : { date: today };
+      const categoryViews = data.categoryViews || {};
+      const key = categoryName.toUpperCase().trim();
+      categoryViews[key] = (categoryViews[key] || 0) + 1;
+      await setDoc(ref, { ...data, categoryViews }, { merge: true });
+    } catch {
+      // best-effort
+    }
+  },
 };

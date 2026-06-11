@@ -498,6 +498,27 @@ export const adminApi = {
         { type: "event", message: "Payment completed (Stripe)", createdAt: new Date().toISOString() }
       ]
     });
+
+    // Also update daily analytics counters
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const analyticsRef = doc(db, "analytics", today);
+      const snap = await getDoc(analyticsRef);
+      const data = snap.exists() ? snap.data() : { date: today, visits: 1, orders: 0, revenue: 0 };
+      
+      const newOrders = (data.orders || 0) + 1;
+      const newRevenue = (data.revenue || 0) + (order.total || 0);
+      
+      await setDoc(analyticsRef, {
+        ...data,
+        orders: newOrders,
+        revenue: newRevenue,
+        conversion: (data.visits && data.visits > 0) ? (newOrders / data.visits) * 100 : 0
+      }, { merge: true });
+    } catch (e) {
+      console.warn("Failed to update daily analytics for order:", e);
+    }
+
     return orderId;
   },
 
@@ -634,24 +655,128 @@ export const adminApi = {
   getAnalytics: async () => {
     const q = query(collection(db, "analytics"), orderBy("date", "desc"), limit(60));
     const snap = await getDocs(q);
-    const data = snap.docs.map(d => d.data()).reverse();
+    const dailyData = snap.docs.map(d => d.data()).reverse();
     
     // Also get top sellers from orders
     const ordersSnap = await getDocs(collection(db, "orders"));
     const orders = ordersSnap.docs.map(d => d.data());
+
+    // Get all books to map IDs to categories and photos
+    const booksSnap = await getDocs(collection(db, "books"));
+    const books = booksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Get website settings for categories configuration
+    const settingsRef = doc(db, "settings", "website");
+    const settingsSnap = await getDoc(settingsRef);
+    const settings = settingsSnap.exists() ? settingsSnap.data() : {};
     
+    // Get configured categories
+    const categoriesList = settings.design?.categories || ["PUBLICATIONS", "EPHEMERA", "IMPRINT", "OUT OF PRINT"];
+    
+    // Build book lookup map
+    const bookMap = new Map();
+    books.forEach((b: any) => {
+      bookMap.set(b.id, b);
+    });
+
+    // Time ranges for product trend calculation (e.g. 30 days vs previous 30 days)
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
     const productStats: any = {};
     orders.forEach((o: any) => {
+      const orderDate = new Date(o.createdAt);
+      const isCurrentPeriod = orderDate >= thirtyDaysAgo;
+      const isPreviousPeriod = orderDate >= sixtyDaysAgo && orderDate < thirtyDaysAgo;
+
       o.items?.forEach((item: any) => {
-        if (!productStats[item.id]) productStats[item.id] = { id: item.id, title: item.title, sold: 0, revenue: 0, photoUrl: item.photoUrl };
+        const book = bookMap.get(item.id);
+        const photoUrl = item.photoUrl || book?.photos?.[0]?.url || "";
+        if (!productStats[item.id]) {
+          productStats[item.id] = { 
+            id: item.id, 
+            title: item.title || book?.title || "Unknown Book", 
+            sold: 0, 
+            revenue: 0, 
+            photoUrl,
+            currentPeriodSold: 0,
+            previousPeriodSold: 0
+          };
+        }
         productStats[item.id].sold += item.quantity;
         productStats[item.id].revenue += (item.quantity * item.price);
+
+        if (isCurrentPeriod) {
+          productStats[item.id].currentPeriodSold += item.quantity;
+        } else if (isPreviousPeriod) {
+          productStats[item.id].previousPeriodSold += item.quantity;
+        }
       });
     });
 
+    // Compute sales trend for each product
+    Object.values(productStats).forEach((p: any) => {
+      const current = p.currentPeriodSold;
+      const previous = p.previousPeriodSold;
+      if (previous === 0) {
+        p.trend = current > 0 ? "+100%" : "0%";
+      } else {
+        const pct = ((current - previous) / previous) * 100;
+        p.trend = `${pct >= 0 ? "+" : ""}${pct.toFixed(0)}%`;
+      }
+    });
+
+    // Process category stats
+    // Accumulate total views by category from daily analytics categoryViews
+    const categoryViewsAccum: Record<string, number> = {};
+    dailyData.forEach((d: any) => {
+      if (d.categoryViews) {
+        Object.entries(d.categoryViews).forEach(([cat, count]) => {
+          const formattedCat = cat.toUpperCase().trim();
+          categoryViewsAccum[formattedCat] = (categoryViewsAccum[formattedCat] || 0) + (count as number);
+        });
+      }
+    });
+
+    // Accumulate sales & revenue by category
+    const categorySalesAccum: Record<string, { sold: number; revenue: number }> = {};
+    orders.forEach((o: any) => {
+      o.items?.forEach((item: any) => {
+        const book = bookMap.get(item.id);
+        const itemCategories: string[] = book?.categories || book?.genres || [];
+        const cats = itemCategories.length > 0 ? itemCategories : ["PUBLICATIONS"];
+        
+        cats.forEach((cat: string) => {
+          const formattedCat = cat.toUpperCase().trim();
+          if (!categorySalesAccum[formattedCat]) {
+            categorySalesAccum[formattedCat] = { sold: 0, revenue: 0 };
+          }
+          categorySalesAccum[formattedCat].sold += item.quantity;
+          categorySalesAccum[formattedCat].revenue += (item.quantity * item.price);
+        });
+      });
+    });
+
+    // Compile dynamic categories list
+    const categoriesData = categoriesList.map((catItem: any) => {
+      const catName = typeof catItem === "string" ? catItem : catItem.name;
+      const key = (catName || "").toUpperCase().trim();
+      const views = categoryViewsAccum[key] || 0;
+      const sold = categorySalesAccum[key]?.sold || 0;
+      const revenue = categorySalesAccum[key]?.revenue || 0;
+      return {
+        name: catName,
+        views,
+        sold,
+        revenue
+      };
+    });
+
     return {
-      daily: data,
-      topSellers: Object.values(productStats).sort((a: any, b: any) => b.revenue - a.revenue).slice(0, 5)
+      daily: dailyData,
+      topSellers: Object.values(productStats).sort((a: any, b: any) => b.revenue - a.revenue).slice(0, 5),
+      categories: categoriesData
     };
   },
 
