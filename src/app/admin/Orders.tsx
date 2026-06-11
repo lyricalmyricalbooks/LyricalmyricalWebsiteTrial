@@ -161,14 +161,14 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
                 { name: "Selena PB", email: "selena.pb@example.com", address: "123 Main St, Toronto, ON M5V 1A1", total: 85, items: 1 },
                 { name: "William Boland", email: "w.boland@example.com", address: "456 Oak Ave, Vancouver, BC V6B 1A1", total: 81, items: 1 }
               ];
-              for (const s of samples) {
-                await adminApi.createOrder({
+              await Promise.all(samples.map(s =>
+                adminApi.createOrder({
                   customer: { name: s.name, email: s.email, address: { street: s.address, city: "", state: "", zip: "", country: "Canada" } },
                   items: [{ title: "[PRESALE] - The Hound by Ian Willms", price: s.total, quantity: s.items, photoUrl: "https://images.unsplash.com/photo-1544377193-33dcf4d68fb5?auto=format" }],
                   total: s.total, subtotal: s.total, shipping: 0, discount: 0,
                   paymentStatus: "paid", status: "open"
-                });
-              }
+                })
+              ));
               toast.success("Synthetic data manifested");
               loadOrders();
             }}
