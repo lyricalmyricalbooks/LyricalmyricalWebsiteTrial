@@ -14,6 +14,7 @@ import {
   getCountFromServer,
   startAfter,
   writeBatch,
+  deleteField,
 } from "firebase/firestore";
 import { 
   signInWithPopup, 
@@ -267,6 +268,19 @@ export const adminApi = {
     }
     
     return setDoc(docRef, payload, { merge: true });
+  },
+
+  // Schedule a design to go live at a future time. The storefront applies it
+  // client-side once the time passes (see useSiteData).
+  schedulePublish: (design: any, at: string) => {
+    const docRef = doc(db, "settings", "website");
+    const payload = { scheduledPublish: JSON.parse(JSON.stringify({ at, design })) };
+    return setDoc(docRef, payload, { merge: true });
+  },
+
+  cancelScheduledPublish: () => {
+    const docRef = doc(db, "settings", "website");
+    return setDoc(docRef, { scheduledPublish: deleteField() }, { merge: true });
   },
 
   getDefaultSettings: () => ({

@@ -592,6 +592,14 @@ function SectionFontOverride({ sectionId, settings }: { sectionId: string; setti
 const prefersReducedMotion = () =>
   typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
+/** Per-section publish window: only render between showFrom and showUntil (if set). */
+function sectionInWindow(section: any): boolean {
+  const s = section?.settings || {};
+  if (s.showFrom && Date.now() < new Date(s.showFrom).getTime()) return false;
+  if (s.showUntil && Date.now() > new Date(s.showUntil).getTime()) return false;
+  return true;
+}
+
 /** Entrance animation wrapper driven by section.settings.animation. */
 function SectionReveal({ animation, enableAnimations, children }: any) {
   const mode = animation || (enableAnimations ? "" : "none");
@@ -625,7 +633,7 @@ export function GlobalSections({ design, books, onCtaClick, onProductClick }: an
   return (
     <div className="flex flex-col">
       {sections
-        .filter((section: any) => section.visible !== false)
+        .filter((section: any) => section.visible !== false && sectionInWindow(section))
         .map((section: any) => {
           const SectionComponent = (Sections as any)[section.type];
           if (!SectionComponent) return null;
@@ -1331,7 +1339,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         (heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections).length > 0 ? (
           <div className="flex flex-col">
             {(heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections)
-              .filter((section: any) => section.visible !== false)
+              .filter((section: any) => section.visible !== false && sectionInWindow(section))
               .map((section: any) => {
                 const SectionComponent = (Sections as any)[section.type];
                 if (!SectionComponent) return null;
