@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from "react";
+import { useState, lazy, Suspense, useEffect } from "react";
 import { motion } from "framer-motion";
 import { BrowserRouter, Routes, Route } from "react-router";
 import { CartProvider } from "./CartContext";
@@ -41,6 +41,14 @@ function LoadingFallback() {
 export default function App() {
   const [currentPage, setCurrentPage] = useState(0);
   const [showCatalog, setShowCatalog] = useState(false);
+
+  // Redirect to basename if path is outside basename
+  useEffect(() => {
+    if (ROUTER_BASENAME && !window.location.pathname.startsWith(ROUTER_BASENAME)) {
+      const targetPath = ROUTER_BASENAME + window.location.pathname + window.location.search + window.location.hash;
+      window.location.replace(targetPath);
+    }
+  }, []);
 
   const nextPage = () => {
     setCurrentPage((prev) => prev + 1);

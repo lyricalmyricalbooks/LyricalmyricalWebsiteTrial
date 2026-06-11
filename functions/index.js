@@ -261,11 +261,29 @@ exports.createStripeCheckoutSession = onRequest(
       const taxRatePercent = matchedTaxRate ? Number(matchedTaxRate.rate) : 0;
       const taxCost = (order.subtotal - (order.discount || 0)) * (taxRatePercent / 100);
 
-      // Update Order totals in database
       const finalTotal = order.subtotal - (order.discount || 0) + shippingCost + taxCost;
-      
       const rates = await getExchangeRates();
       const exchangeRate = rates[checkoutCurrency] || FALLBACK_RATES[checkoutCurrency] || 1.0;
+
+      const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "";
+      let ipCountry = req.headers["x-appengine-country"] || "";
+      if (!ipCountry && clientIp && clientIp !== "127.0.0.1" && clientIp !== "::1") {
+        try {
+          const firstIp = clientIp.split(",")[0].trim();
+          const ipRes = await fetch(`http://ip-api.com/json/${firstIp}`);
+          if (ipRes.ok) {
+            const ipData = await ipRes.json();
+            if (ipData.countryCode) {
+              ipCountry = ipData.countryCode;
+            }
+          }
+        } catch (ipErr) {
+          console.warn("Could not geolocate IP on backend:", ipErr);
+        }
+      }
+
+      const shippingCountryCode = getCountryCode(order.customer.address.country);
+      const ipCountryMatchesShipping = !ipCountry || ipCountry.toUpperCase() === shippingCountryCode.toUpperCase();
 
       await orderRef.update({
         shipping: shippingCost,
@@ -273,6 +291,9 @@ exports.createStripeCheckoutSession = onRequest(
         total: finalTotal,
         checkoutCurrency: checkoutCurrency.toUpperCase(),
         exchangeRate: exchangeRate,
+        clientIp: clientIp,
+        ipCountry: ipCountry || null,
+        ipCountryMatchesShipping: ipCountryMatchesShipping,
         updatedAt: new Date().toISOString()
       });
 

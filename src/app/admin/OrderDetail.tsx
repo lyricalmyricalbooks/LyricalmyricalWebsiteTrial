@@ -485,6 +485,17 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                               </div>
                             </div>
                           )}
+                          {order.ipCountryMatchesShipping === false && (
+                            <div className="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-[10px] text-amber-400 uppercase tracking-widest font-black leading-relaxed flex items-start gap-3 animate-in fade-in">
+                              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-extrabold text-amber-300">IP Location Mismatch</p>
+                                <p className="text-[9px] text-amber-400/80 mt-1 normal-case font-medium">
+                                  IP Location Mismatch: Placed from IP in {order.ipCountry || 'Unknown'} but shipping to {order.customer?.address?.country}.
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                    </div>

@@ -104,6 +104,29 @@ export function Checkout() {
     loadFulfillmentSettings();
   }, []);
 
+  useEffect(() => {
+    async function detectCountry() {
+      try {
+        const res = await fetch("https://ipapi.co/json/");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.country_name) {
+            setCustomer(prev => ({
+              ...prev,
+              address: {
+                ...prev.address,
+                country: data.country_name
+              }
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn("Could not geolocate client IP country, defaulting to United States:", err);
+      }
+    }
+    detectCountry();
+  }, []);
+
   const validateDiscountRestrictions = (discount: any, email: string, cartItems: any[], booksCatalog: any[]) => {
     // 1. Min quantity
     const totalQty = cartItems.reduce((sum, item) => sum + item.quantity, 0);
