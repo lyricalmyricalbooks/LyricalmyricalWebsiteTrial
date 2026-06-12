@@ -14,8 +14,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import ReactQuill from "react-quill";
-import "react-quill/dist/quill.snow.css";
+import RichTextEditor from "../components/RichTextEditor";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section type registry — drives the Add Section library + per-type editor
@@ -1490,21 +1489,12 @@ export function SectionFieldEditor({
       return (
         <div>
           {labelEl}
-          <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden [&_.ql-toolbar]:!border-0 [&_.ql-toolbar]:!border-b [&_.ql-toolbar]:!border-neutral-100 [&_.ql-container]:!border-0 [&_.ql-editor]:min-h-[120px] [&_.ql-editor]:text-[12px]">
-            <ReactQuill
-              theme="snow"
-              value={value || ""}
-              onChange={(html) => onChange(html)}
-              modules={{
-                toolbar: [
-                  [{ header: [2, 3, false] }],
-                  ["bold", "italic", "underline"],
-                  [{ list: "ordered" }, { list: "bullet" }],
-                  ["link", "clean"],
-                ],
-              }}
-            />
-          </div>
+          <RichTextEditor
+            value={value || ""}
+            onChange={onChange}
+            uploadFile={uploadFile}
+            placeholder="Write content here..."
+          />
         </div>
       );
     case "color":
