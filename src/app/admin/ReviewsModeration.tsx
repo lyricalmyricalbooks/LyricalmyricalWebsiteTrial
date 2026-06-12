@@ -79,12 +79,12 @@ export default function ReviewsModeration() {
                 </div>
                 <div className="flex items-center gap-2">
                   {r.status !== "approved" && (
-                    <button onClick={() => setStatus(r.id, "approved")} className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"><Check size={14} /></button>
+                    <button aria-label="Approve review" onClick={() => setStatus(r.id, "approved")} className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"><Check size={14} /></button>
                   )}
                   {r.status !== "rejected" && (
-                    <button onClick={() => setStatus(r.id, "rejected")} className="p-2 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20"><X size={14} /></button>
+                    <button aria-label="Reject review" onClick={() => setStatus(r.id, "rejected")} className="p-2 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20"><X size={14} /></button>
                   )}
-                  <button onClick={() => remove(r.id)} className="p-2 rounded-lg bg-white/5 text-slate-500 hover:text-white"><Trash2 size={14} /></button>
+                  <button aria-label="Delete review" onClick={() => remove(r.id)} className="p-2 rounded-lg bg-white/5 text-slate-500 hover:text-white"><Trash2 size={14} /></button>
                 </div>
               </div>
               {r.title && <h4 className="text-sm font-bold text-white mb-1">{r.title}</h4>}
