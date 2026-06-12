@@ -57,6 +57,13 @@ export default function BookDetail() {
   const showRelatedProducts    = storefrontDesign.showRelatedProducts    ?? true;
   const showSocialShare        = storefrontDesign.showSocialShare        ?? true;
 
+  const buttonBg = storefrontDesign?.buttonColor || settings?.design?.primaryColor || "#A855F7";
+  const buttonText = storefrontDesign?.buttonTextColor || "#000000";
+  const buttonRadius = Math.max(0, Math.min(999, storefrontDesign?.buttonRadius ?? 999));
+  const buttonStyle = storefrontDesign?.buttonStyle || "solid";
+  const buttonUppercase = storefrontDesign?.buttonUppercase ?? true;
+  const buttonShadow = storefrontDesign?.buttonShadow ?? true;
+
   const bookCategories = (book as any)?.categories || (book as any)?.genres || [];
   const otherBooks = (() => {
     const published = books.filter(b => b.id !== book?.id && b.status === "published");
@@ -191,7 +198,8 @@ export default function BookDetail() {
         <p className="text-white/50 text-sm tracking-[0.3em] uppercase">Publication not found</p>
         <Link
           to="/"
-          className="text-[10px] font-black tracking-[0.4em] border border-white/20 px-8 py-3 rounded-2xl hover:bg-white/5 transition-all uppercase"
+          className="text-[10px] font-black tracking-[0.4em] border border-white/20 px-8 py-3 hover:bg-white/5 transition-all uppercase"
+          style={{ borderRadius: buttonRadius }}
         >
           Return to Archive
         </Link>
@@ -230,14 +238,27 @@ export default function BookDetail() {
 
           <button
             onClick={() => setIsCartOpen(true)}
-            className="flex items-center gap-2.5 bg-white/[0.06] hover:bg-white/[0.1] px-4 py-2.5 rounded-2xl border border-white/[0.08] transition-all group"
+            className={`flex items-center gap-2.5 px-4 py-2.5 transition-all group hover:scale-[1.02] ${
+              buttonShadow ? "shadow-md" : ""
+            }`}
+            style={{
+              backgroundColor: buttonStyle === "solid" ? buttonBg : "transparent",
+              color: buttonStyle === "solid" ? buttonText : buttonBg,
+              border: buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
+              borderRadius: buttonRadius,
+            }}
           >
-            <ShoppingBag size={14} className="text-white/60 group-hover:text-white transition-colors" />
-            <span className="text-[9px] font-black tracking-[0.25em] uppercase text-white/60 group-hover:text-white transition-colors">Bag</span>
+            <ShoppingBag size={14} className="transition-colors" style={{ color: buttonStyle === "solid" ? buttonText : buttonBg }} />
+            <span className={`text-[9px] font-black tracking-[0.25em] uppercase transition-colors`} style={{ color: buttonStyle === "solid" ? buttonText : buttonBg }}>
+              {getCopy(settings?.design, "cartLabel") || "Bag"}
+            </span>
             {cartCount > 0 && (
               <span
-                className="text-[8px] font-black px-1.5 py-0.5 rounded-full text-black"
-                style={{ backgroundColor: primaryColor }}
+                className="text-[8px] font-black px-1.5 py-0.5 rounded-full transition-colors"
+                style={{
+                  backgroundColor: buttonStyle === "solid" ? buttonText : buttonBg,
+                  color: buttonStyle === "solid" ? buttonBg : buttonText,
+                }}
               >
                 {cartCount}
               </span>
@@ -477,14 +498,24 @@ export default function BookDetail() {
                   onClick={handleAddToCart}
                   disabled={isOutOfStock}
                   whileTap={!isOutOfStock ? { scale: 0.97 } : {}}
-                  className={`flex-1 flex items-center justify-center gap-3 py-5 rounded-2xl text-[10px] font-black tracking-[0.4em] uppercase transition-all duration-300 shadow-2xl ${
+                  className={`flex-1 flex items-center justify-center gap-3 py-5 text-[10px] font-black tracking-[0.4em] transition-all duration-300 ${
                     isOutOfStock
                       ? "bg-white/[0.06] text-white/25 cursor-not-allowed border border-white/[0.06]"
                       : added
                       ? "bg-emerald-500 text-white"
-                      : "text-white hover:brightness-110"
+                      : `${buttonShadow ? "shadow-2xl" : ""} ${buttonUppercase ? "uppercase" : ""}`
                   }`}
-                  style={!isOutOfStock && !added ? { backgroundColor: primaryColor, boxShadow: `0 20px 60px ${primaryColor}50` } : {}}
+                  style={
+                    !isOutOfStock && !added
+                      ? {
+                          backgroundColor: buttonStyle === "solid" ? buttonBg : "transparent",
+                          color: buttonStyle === "solid" ? buttonText : buttonBg,
+                          border: buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
+                          borderRadius: buttonRadius,
+                          boxShadow: buttonStyle === "solid" && buttonShadow ? `0 20px 60px ${buttonBg}50` : "none",
+                        }
+                      : { borderRadius: buttonRadius }
+                  }
                 >
                   {isOutOfStock ? (
                     "Sold Out"
@@ -559,7 +590,15 @@ export default function BookDetail() {
                       <button
                         onClick={handleAddBothToBag}
                         disabled={addingBoth}
-                        className="w-full sm:w-fit bg-violet-600 hover:bg-violet-500 text-white text-[9px] font-black tracking-[0.2em] px-6 py-3.5 rounded-xl transition-all uppercase active:scale-95 shadow-[0_10px_30px_rgba(124,58,237,0.25)] border border-violet-500/20"
+                        className={`w-full sm:w-fit text-[9px] font-black tracking-[0.2em] px-6 py-3.5 transition-all active:scale-95 ${
+                          buttonShadow ? "shadow-[0_10px_30px_rgba(124,58,237,0.25)]" : ""
+                        } ${buttonUppercase ? "uppercase" : ""}`}
+                        style={{
+                          backgroundColor: buttonStyle === "solid" ? buttonBg : "transparent",
+                          color: buttonStyle === "solid" ? buttonText : buttonBg,
+                          border: buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
+                          borderRadius: buttonRadius,
+                        }}
                       >
                         {addingBoth ? "Adding Both..." : "Add Both to Bag"}
                       </button>

@@ -38,6 +38,13 @@ export function CartDrawer() {
   const showFreeShipBar = design.showFreeShipBar ?? true;
   const showTrustBadges = design.showCartTrustBadges ?? true;
 
+  const buttonBg = design?.buttonColor || design?.primaryColor || "#000000";
+  const buttonText = design?.buttonTextColor || "#ffffff";
+  const buttonRadius = Math.max(0, Math.min(999, design?.buttonRadius ?? 999));
+  const buttonStyle = design?.buttonStyle || "solid";
+  const buttonUppercase = design?.buttonUppercase ?? true;
+  const buttonShadow = design?.buttonShadow ?? true;
+
   const FREE_SHIP_THRESHOLD = Math.max(0, design.freeShipThreshold ?? 100);
   const remaining = Math.max(0, FREE_SHIP_THRESHOLD - cartTotal);
   const progress = FREE_SHIP_THRESHOLD > 0 ? Math.min(100, (cartTotal / FREE_SHIP_THRESHOLD) * 100) : 100;
@@ -139,7 +146,15 @@ export function CartDrawer() {
                       </div>
                       <button
                         onClick={() => addToCart(recommendedBook)}
-                        className="mt-3 w-fit bg-black text-white hover:bg-neutral-800 text-[8px] font-black tracking-widest px-4 py-2 rounded-full transition-all uppercase"
+                        className={`mt-3 w-fit text-[8px] font-black tracking-widest px-4 py-2 transition-all ${
+                          buttonShadow ? "shadow-md" : ""
+                        } ${buttonUppercase ? "uppercase" : ""}`}
+                        style={{
+                          backgroundColor: buttonStyle === "solid" ? buttonBg : "transparent",
+                          color: buttonStyle === "solid" ? buttonText : buttonBg,
+                          border: buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
+                          borderRadius: buttonRadius,
+                        }}
                       >
                         + Add to Bag
                       </button>
@@ -173,13 +188,21 @@ export function CartDrawer() {
                </div>
                )}
 
-               <button
+                <button
                   disabled={cart.length === 0}
                   onClick={() => { setIsCartOpen(false); navigate("/checkout"); }}
-                  className="w-full bg-black text-white py-5 rounded-full text-[10px] tracking-[.4em] font-bold hover:bg-neutral-800 transition-all flex items-center justify-center gap-3 disabled:opacity-30 shadow-2xl"
-               >
+                  className={`w-full py-5 text-[10px] tracking-[.4em] font-bold transition-all flex items-center justify-center gap-3 disabled:opacity-30 hover:scale-[1.01] ${
+                    buttonShadow ? "shadow-2xl" : ""
+                  } ${buttonUppercase ? "uppercase" : ""}`}
+                  style={{
+                    backgroundColor: buttonStyle === "solid" ? buttonBg : "transparent",
+                    color: buttonStyle === "solid" ? buttonText : buttonBg,
+                    border: buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
+                    borderRadius: buttonRadius,
+                  }}
+                >
                   {getCopy(design, "cartCheckoutButton")} <ArrowRight size={14} />
-               </button>
+                </button>
                <p className="text-center text-[9px] text-neutral-400 tracking-widest">
                  {getCopy(design, "cartDeliveryNote")}
                </p>
