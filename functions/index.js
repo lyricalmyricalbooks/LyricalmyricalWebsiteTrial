@@ -323,7 +323,10 @@ exports.createStripeCheckoutSession = onRequest(
       return;
     }
 
-    const { orderId, currency: reqCurrency, returnUrl } = req.body;
+    const { orderId, currency: reqCurrency, returnUrl, wallet: requestedWallet } = req.body;
+    const wallet = requestedWallet === "apple_pay" || requestedWallet === "google_pay"
+      ? requestedWallet
+      : null;
     const checkoutCurrency = (reqCurrency || "cad").toLowerCase();
     if (!orderId) {
       res.status(400).json({ error: "Missing orderId" });
@@ -417,6 +420,15 @@ exports.createStripeCheckoutSession = onRequest(
       // 4. Dynamic Tax Calculation (region-aware: state/province before country)
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.data() || {};
+      const configuredStripe = settings.payments?.stripe || {};
+      if (wallet === "apple_pay" && !configuredStripe.applePay) {
+        res.status(400).json({ error: "Apple Pay is not enabled for this store." });
+        return;
+      }
+      if (wallet === "google_pay" && !configuredStripe.googlePay) {
+        res.status(400).json({ error: "Google Pay is not enabled for this store." });
+        return;
+      }
       const taxRates = settings.taxes?.rates || [];
       const matchedTaxRate = matchTaxRate(
         taxRates,
@@ -548,6 +560,13 @@ exports.createStripeCheckoutSession = onRequest(
         mode: "payment",
         client_reference_id: orderId,
         customer_email: order.customer.email,
+        metadata: wallet ? { requested_wallet: wallet } : undefined,
+        payment_intent_data: {
+          metadata: {
+            order_id: orderId,
+            ...(wallet ? { requested_wallet: wallet } : {}),
+          },
+        },
         // Shorten the unpaid-stock-hold window: session dies after 30 minutes.
         expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
         success_url: `${checkoutBase}${joiner}success=true&order_id=${orderId}`,

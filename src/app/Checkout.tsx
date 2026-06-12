@@ -615,7 +615,15 @@ export function Checkout() {
         total: finalTotal,
         status: "pending_payment",
         paymentStatus: isManual ? "pending" : "unpaid",
-        paymentMethod: isManual ? (manualMethod?.name || "Manual") : (selectedPaymentMethod === "paypal" ? "PayPal" : "Stripe"),
+        paymentMethod: isManual
+          ? (manualMethod?.name || "Manual")
+          : selectedPaymentMethod === "paypal"
+          ? "PayPal"
+          : selectedPaymentMethod === "apple_pay"
+          ? "Apple Pay"
+          : selectedPaymentMethod === "google_pay"
+          ? "Google Pay"
+          : "Stripe",
         paymentInstructions: isManual ? (manualMethod?.instructions || "") : "",
         testMode: settings?.payments?.testMode || false,
         appliedDiscount: appliedDiscount
@@ -647,7 +655,14 @@ export function Checkout() {
       const sessionResponse = await fetch(functionUrl("createStripeCheckoutSession"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
+        body: JSON.stringify({
+          orderId,
+          currency: currency.toLowerCase(),
+          returnUrl,
+          wallet: selectedPaymentMethod === "apple_pay" || selectedPaymentMethod === "google_pay"
+            ? selectedPaymentMethod
+            : null,
+        }),
       });
 
       if (!sessionResponse.ok) {
@@ -1042,6 +1057,71 @@ export function Checkout() {
                   </div>
                 )}
 
+                {/* Stripe-hosted wallets appear when the customer's browser and device are eligible. */}
+                {settings.payments.stripe?.connected && settings.payments.stripe?.applePay && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPaymentMethod("apple_pay")}
+                    aria-pressed={selectedPaymentMethod === "apple_pay"}
+                    className={`w-full flex items-center justify-between p-6 rounded-[2rem] border transition-all cursor-pointer ${
+                      selectedPaymentMethod === "apple_pay"
+                        ? "bg-violet-600/10 border-violet-500/50 text-white"
+                        : "bg-white/[0.03] border-white/5 text-white hover:border-white/10"
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                        selectedPaymentMethod === "apple_pay" ? "border-violet-500" : "border-white/20"
+                      }`}>
+                        {selectedPaymentMethod === "apple_pay" && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+                        )}
+                      </div>
+                      <div className="text-left">
+                        <p className="text-xs font-black tracking-widest">Apple Pay</p>
+                        <p className="text-[9px] text-white/30 tracking-widest mt-1 uppercase font-semibold">
+                          Fast checkout on eligible Apple devices
+                        </p>
+                      </div>
+                    </div>
+                    <span aria-hidden="true" className="min-w-14 rounded-lg bg-white px-2.5 py-1.5 text-center text-[11px] font-black tracking-tight text-black">
+                      Pay
+                    </span>
+                  </button>
+                )}
+
+                {settings.payments.stripe?.connected && settings.payments.stripe?.googlePay && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPaymentMethod("google_pay")}
+                    aria-pressed={selectedPaymentMethod === "google_pay"}
+                    className={`w-full flex items-center justify-between p-6 rounded-[2rem] border transition-all cursor-pointer ${
+                      selectedPaymentMethod === "google_pay"
+                        ? "bg-violet-600/10 border-violet-500/50 text-white"
+                        : "bg-white/[0.03] border-white/5 text-white hover:border-white/10"
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                        selectedPaymentMethod === "google_pay" ? "border-violet-500" : "border-white/20"
+                      }`}>
+                        {selectedPaymentMethod === "google_pay" && (
+                          <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
+                        )}
+                      </div>
+                      <div className="text-left">
+                        <p className="text-xs font-black tracking-widest">Google Pay</p>
+                        <p className="text-[9px] text-white/30 tracking-widest mt-1 uppercase font-semibold">
+                          Fast checkout with a saved Google wallet
+                        </p>
+                      </div>
+                    </div>
+                    <span aria-hidden="true" className="min-w-14 rounded-lg bg-white px-2.5 py-1.5 text-center text-[11px] font-black tracking-tight text-slate-900">
+                      <span className="text-blue-500">G</span> Pay
+                    </span>
+                  </button>
+                )}
+
                 {/* PayPal Option */}
                 {settings.payments.paypal?.connected && (
                   <div
@@ -1206,6 +1286,10 @@ export function Checkout() {
                     <p className="text-[9px] text-white/30 tracking-widest">
                       {selectedPaymentMethod === "stripe"
                         ? "Powered by Stripe"
+                        : selectedPaymentMethod === "apple_pay"
+                        ? "Apple Pay via Stripe"
+                        : selectedPaymentMethod === "google_pay"
+                        ? "Google Pay via Stripe"
                         : selectedPaymentMethod === "paypal"
                         ? "Powered by PayPal"
                         : "Direct Settlement"}
@@ -1226,6 +1310,10 @@ export function Checkout() {
                       <><Loader2 size={16} className="animate-spin" /> Processing...</>
                     ) : selectedPaymentMethod === "stripe" ? (
                       <><Lock size={14} /> Pay with Stripe</>
+                    ) : selectedPaymentMethod === "apple_pay" ? (
+                      <><Lock size={14} /> Continue with Apple Pay</>
+                    ) : selectedPaymentMethod === "google_pay" ? (
+                      <><Lock size={14} /> Continue with Google Pay</>
                     ) : selectedPaymentMethod === "paypal" ? (
                       <><Lock size={14} /> Pay with PayPal</>
                     ) : (
