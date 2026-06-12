@@ -2,7 +2,25 @@ import React, { useState, useRef, useMemo } from "react";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { adminApi } from "../admin/api";
-import { Code, Eye } from "lucide-react";
+import {
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
+  List,
+  ListOrdered,
+  Link2,
+  Image as ImageIcon,
+  Video,
+  Quote,
+  Code,
+  Eye,
+  Eraser,
+} from "lucide-react";
 
 interface RichTextEditorProps {
   value: string;
@@ -15,11 +33,12 @@ interface RichTextEditorProps {
 export default function RichTextEditor({
   value,
   onChange,
-  placeholder = "Write your content here...",
+  placeholder = "Write your storefront content here...",
   className = "",
   uploadFile,
 }: RichTextEditorProps) {
   const [showHtml, setShowHtml] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const quillRef = useRef<ReactQuill>(null);
 
   // Generate a unique toolbar ID to prevent collisions when multiple editors render on a single page
@@ -91,15 +110,54 @@ export default function RichTextEditor({
   ];
 
   return (
-    <div className={`flex flex-col border border-neutral-200 dark:border-neutral-800 rounded-xl overflow-hidden bg-white dark:bg-neutral-950 ${className}`}>
+    <div
+      className={`flex flex-col border transition-all duration-300 rounded-2xl overflow-hidden bg-white dark:bg-neutral-950 ${
+        isFocused
+          ? "border-violet-500 ring-2 ring-violet-500/15 shadow-lg shadow-violet-500/5"
+          : "border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700 shadow-sm"
+      } ${className}`}
+    >
+      {/* Dynamic Inject Style Overrides for Snow Theme Dropdowns */}
+      <style>{`
+        #${toolbarId} .ql-color .ql-picker-label,
+        #${toolbarId} .ql-background .ql-picker-label {
+          border: none !important;
+          background: transparent !important;
+          padding: 4px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 28px !important;
+          height: 28px !important;
+          border-radius: 6px !important;
+          transition: all 0.2s;
+        }
+        #${toolbarId} .ql-color .ql-picker-label:hover,
+        #${toolbarId} .ql-background .ql-picker-label:hover {
+          background-color: rgba(0, 0, 0, 0.05) !important;
+        }
+        #${toolbarId} .ql-expanded .ql-picker-options {
+          border-radius: 12px !important;
+          border: 1px solid rgba(0,0,0,0.08) !important;
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important;
+          padding: 8px !important;
+          background: white !important;
+          z-index: 100 !important;
+        }
+        #${toolbarId} .ql-picker-item {
+          border-radius: 4px !important;
+          margin: 2px !important;
+        }
+      `}</style>
+
       {/* Custom Header Toolbar Wrapper */}
       <div
         id={toolbarId}
-        className="flex flex-wrap items-center gap-1.5 p-2 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 [&_.ql-stroke]:!stroke-neutral-600 [&_.ql-stroke]:dark:!stroke-neutral-300 [&_.ql-fill]:!fill-neutral-600 [&_.ql-fill]:dark:!fill-neutral-300 [&_.ql-picker]:!text-neutral-700 [&_.ql-picker]:dark:!text-neutral-300"
+        className="flex flex-wrap items-center gap-1.5 p-3 bg-neutral-50 dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300"
       >
         {/* Headings */}
-        <span className="ql-formats !mr-2">
-          <select className="ql-header bg-transparent border-none text-xs outline-none cursor-pointer hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded px-1.5 py-0.5">
+        <span className="ql-formats !mr-3">
+          <select className="ql-header bg-transparent border border-neutral-200 dark:border-neutral-800 text-[10px] font-black tracking-widest uppercase outline-none cursor-pointer rounded-lg px-2 py-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors">
             <option value="1">Heading 1</option>
             <option value="2">Heading 2</option>
             <option value="3">Heading 3</option>
@@ -108,71 +166,106 @@ export default function RichTextEditor({
         </span>
 
         {/* Text Formats */}
-        <span className="ql-formats !mr-2 flex items-center gap-0.5">
-          <button className="ql-bold hover:!bg-neutral-200 dark:hover:!bg-neutral-800 !rounded transition-colors" />
-          <button className="ql-italic hover:!bg-neutral-200 dark:hover:!bg-neutral-800 !rounded transition-colors" />
-          <button className="ql-underline hover:!bg-neutral-200 dark:hover:!bg-neutral-800 !rounded transition-colors" />
-          <button className="ql-strike hover:!bg-neutral-200 dark:hover:!bg-neutral-800 !rounded transition-colors" />
+        <span className="ql-formats !mr-3 flex items-center gap-1 border-r border-neutral-200 dark:border-neutral-800 pr-3">
+          <button className="ql-bold p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+            <Bold size={14} />
+          </button>
+          <button className="ql-italic p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+            <Italic size={14} />
+          </button>
+          <button className="ql-underline p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+            <Underline size={14} />
+          </button>
+          <button className="ql-strike p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+            <Strikethrough size={14} />
+          </button>
         </span>
 
         {/* Colors */}
-        <span className="ql-formats !mr-2 flex items-center gap-0.5 [&_.ql-picker-label]:!border-0 [&_.ql-picker-options]:!rounded-lg [&_.ql-picker-options]:!shadow-xl">
+        <span className="ql-formats !mr-3 flex items-center gap-1 border-r border-neutral-200 dark:border-neutral-800 pr-3">
           <select className="ql-color" title="Text Color" />
           <select className="ql-background" title="Highlight Color" />
         </span>
 
         {/* Alignments */}
-        <span className="ql-formats !mr-2 flex items-center gap-0.5">
-          <button className="ql-align" value="" title="Align Left" />
-          <button className="ql-align" value="center" title="Align Center" />
-          <button className="ql-align" value="right" title="Align Right" />
-          <button className="ql-align" value="justify" title="Align Justify" />
+        <span className="ql-formats !mr-3 flex items-center gap-1 border-r border-neutral-200 dark:border-neutral-800 pr-3">
+          <button className="ql-align p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="">
+            <AlignLeft size={14} />
+          </button>
+          <button className="ql-align p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="center">
+            <AlignCenter size={14} />
+          </button>
+          <button className="ql-align p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="right">
+            <AlignRight size={14} />
+          </button>
+          <button className="ql-align p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="justify">
+            <AlignJustify size={14} />
+          </button>
         </span>
 
         {/* Lists */}
-        <span className="ql-formats !mr-2 flex items-center gap-0.5">
-          <button className="ql-list" value="ordered" title="Numbered List" />
-          <button className="ql-list" value="bullet" title="Bullet List" />
+        <span className="ql-formats !mr-3 flex items-center gap-1 border-r border-neutral-200 dark:border-neutral-800 pr-3">
+          <button className="ql-list p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="ordered">
+            <ListOrdered size={14} />
+          </button>
+          <button className="ql-list p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="bullet">
+            <List size={14} />
+          </button>
         </span>
 
         {/* Links & Embeds */}
-        <span className="ql-formats !mr-2 flex items-center gap-0.5">
-          <button className="ql-link" title="Insert Link" />
-          <button className="ql-image" title="Upload Image" />
-          <button className="ql-video" title="Insert Video" />
+        <span className="ql-formats !mr-3 flex items-center gap-1 border-r border-neutral-200 dark:border-neutral-800 pr-3">
+          <button className="ql-link p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+            <Link2 size={14} />
+          </button>
+          <button className="ql-image p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+            <ImageIcon size={14} />
+          </button>
+          <button className="ql-video p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+            <Video size={14} />
+          </button>
         </span>
 
         {/* Extra formatting utils */}
-        <span className="ql-formats !mr-2 flex items-center gap-0.5">
-          <button className="ql-blockquote" title="Blockquote" />
-          <button className="ql-code-block" title="Code Block" />
+        <span className="ql-formats !mr-3 flex items-center gap-1">
+          <button className="ql-blockquote p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+            <Quote size={14} />
+          </button>
+          <button className="ql-clean p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+            <Eraser size={14} />
+          </button>
         </span>
 
         {/* Clean / Toggle HTML Mode */}
-        <span className="flex items-center gap-1.5 ml-auto border-l border-neutral-200 dark:border-neutral-800 pl-3">
-          <button className="ql-clean hover:!bg-neutral-200 dark:hover:!bg-neutral-800 !rounded !p-1" title="Clear Formatting" />
+        <span className="flex items-center gap-1.5 ml-auto pl-3">
           <button
             type="button"
             onClick={() => setShowHtml((prev) => !prev)}
-            className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded transition-colors text-neutral-600 dark:text-neutral-300"
-            title={showHtml ? "Switch to Visual Editor" : "Switch to Raw HTML Code View"}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg border transition-all cursor-pointer ${
+              showHtml
+                ? "bg-violet-600 text-white border-violet-500 shadow-md shadow-violet-600/10"
+                : "bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700"
+            }`}
           >
-            {showHtml ? <Eye size={15} /> : <Code size={15} />}
+            {showHtml ? <Eye size={12} /> : <Code size={12} />}
+            {showHtml ? "Visual" : "HTML"}
           </button>
         </span>
       </div>
 
       {/* Editor Content Area */}
-      <div className="relative min-h-[150px] bg-white dark:bg-neutral-950">
+      <div className="relative min-h-[180px] bg-white dark:bg-neutral-950">
         {showHtml ? (
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder="Write raw HTML code here..."
-            className="w-full min-h-[180px] p-4 font-mono text-xs bg-neutral-900 text-emerald-400 border-none outline-none focus:ring-0 resize-y block"
+            className="w-full min-h-[220px] p-4 font-mono text-xs bg-neutral-900 text-emerald-400 border-none outline-none focus:ring-0 resize-y block leading-relaxed"
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
           />
         ) : (
-          <div className="[&_.ql-container]:!border-0 [&_.ql-editor]:min-h-[180px] [&_.ql-editor]:text-xs [&_.ql-editor]:leading-relaxed dark:text-neutral-100">
+          <div className="[&_.ql-container]:!border-0 [&_.ql-editor]:min-h-[220px] [&_.ql-editor]:text-xs [&_.ql-editor]:leading-relaxed dark:text-neutral-100">
             <ReactQuill
               ref={quillRef}
               theme="snow"
@@ -181,6 +274,8 @@ export default function RichTextEditor({
               placeholder={placeholder}
               modules={modules}
               formats={formats}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
             />
           </div>
         )}
