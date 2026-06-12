@@ -548,6 +548,13 @@ exports.createStripeCheckoutSession = onRequest(
         mode: "payment",
         client_reference_id: orderId,
         customer_email: order.customer.email,
+        // Apple Pay and Google Pay are rendered by Stripe Checkout as
+        // card wallets when the customer's device/browser is eligible and
+        // the storefront domain is registered in Stripe. Keeping the method
+        // type as `card` avoids a second, conflicting wallet selector here.
+        payment_intent_data: {
+          metadata: { order_id: orderId },
+        },
         // Shorten the unpaid-stock-hold window: session dies after 30 minutes.
         expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
         success_url: `${checkoutBase}${joiner}success=true&order_id=${orderId}`,
