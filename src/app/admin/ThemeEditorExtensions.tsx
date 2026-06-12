@@ -949,78 +949,10 @@ export function SectionSettingsPanel({
   colorSchemes: any[];
 }) {
   return (
-    <div className="space-y-4 p-4 rounded-2xl border border-neutral-200 bg-neutral-50/50">
-      <p className="text-[10px] font-black tracking-[0.3em] text-neutral-500 uppercase mb-1">Section settings</p>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Top padding</label>
-          <input
-            type="number"
-            min={0}
-            max={400}
-            value={settings.paddingTop ?? ""}
-            onChange={(e) => onUpdate({ paddingTop: e.target.value === "" ? undefined : Number(e.target.value) })}
-            placeholder="auto"
-            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
-          />
-        </div>
-        <div>
-          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Bottom padding</label>
-          <input
-            type="number"
-            min={0}
-            max={400}
-            value={settings.paddingBottom ?? ""}
-            onChange={(e) => onUpdate({ paddingBottom: e.target.value === "" ? undefined : Number(e.target.value) })}
-            placeholder="auto"
-            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Left padding</label>
-          <input
-            type="number" min={0} max={400}
-            value={settings.paddingLeft ?? ""}
-            onChange={(e) => onUpdate({ paddingLeft: e.target.value === "" ? undefined : Number(e.target.value) })}
-            placeholder="auto"
-            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
-          />
-        </div>
-        <div>
-          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Right padding</label>
-          <input
-            type="number" min={0} max={400}
-            value={settings.paddingRight ?? ""}
-            onChange={(e) => onUpdate({ paddingRight: e.target.value === "" ? undefined : Number(e.target.value) })}
-            placeholder="auto"
-            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Container width</label>
-        <select
-          value={settings.containerWidth || ""}
-          onChange={(e) => onUpdate({ containerWidth: e.target.value || undefined })}
-          className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
-        >
-          <option value="">— Inherit —</option>
-          <option value="xs">XS · Narrow (2xl)</option>
-          <option value="sm">SM · Small (4xl)</option>
-          <option value="md">MD · Medium (5xl)</option>
-          <option value="lg">LG · Wide (6xl)</option>
-          <option value="xl">XL · Extra wide (7xl)</option>
-          <option value="full">Full · No limit</option>
-        </select>
-      </div>
+    <div className="space-y-5">
 
       {/* ── Background ── */}
-      <div className="space-y-3 pt-1">
+      <div className="space-y-3">
         <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Background</p>
 
         <div>
@@ -1117,53 +1049,78 @@ export function SectionSettingsPanel({
         </div>
       </div>
 
-      <div>
-        <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Color scheme</label>
-        <select
-          value={settings.colorSchemeId || ""}
-          onChange={(e) => onUpdate({ colorSchemeId: e.target.value || undefined })}
-          className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
-        >
-          <option value="">— Inherit —</option>
-          {colorSchemes.map((cs) => (
-            <option key={cs.id} value={cs.id}>
-              {cs.name}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* ── Button overrides ── */}
+      <div className="space-y-3">
+        <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Buttons</p>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Heading font</label>
-          <select
-            value={settings.headingFontOverride || ""}
-            onChange={(e) => onUpdate({ headingFontOverride: e.target.value || undefined })}
-            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
-          >
-            <option value="">— Inherit —</option>
-            {SECTION_FONT_OPTIONS.map((f) => (
-              <option key={f} value={f}>{f}</option>
-            ))}
-          </select>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Button bg</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.btnBg || "#a855f7" }}>
+                <input type="color" value={settings.btnBg || "#a855f7"} onChange={(e) => onUpdate({ btnBg: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.btnBg || ""} onChange={(e) => onUpdate({ btnBg: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Button text</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.btnText || "#ffffff" }}>
+                <input type="color" value={settings.btnText || "#ffffff"} onChange={(e) => onUpdate({ btnText: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.btnText || ""} onChange={(e) => onUpdate({ btnText: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+            </div>
+          </div>
         </div>
-        <div>
-          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Body font</label>
-          <select
-            value={settings.bodyFontOverride || ""}
-            onChange={(e) => onUpdate({ bodyFontOverride: e.target.value || undefined })}
-            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Style</label>
+            <select
+              value={settings.btnStyle || ""}
+              onChange={(e) => onUpdate({ btnStyle: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              <option value="">— Inherit —</option>
+              <option value="solid">Solid (filled)</option>
+              <option value="outline">Outline</option>
+              <option value="ghost">Ghost</option>
+            </select>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase">Radius</label>
+              {settings.btnRadius != null && (
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-1.5 py-0.5 rounded-lg">{settings.btnRadius}px</span>
+                  <button type="button" onClick={() => onUpdate({ btnRadius: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">↺</button>
+                </div>
+              )}
+            </div>
+            <input
+              type="range" min={0} max={40} step={1}
+              value={settings.btnRadius ?? 4}
+              onChange={(e) => onUpdate({ btnRadius: Number(e.target.value) })}
+              className="w-full accent-blue-600 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer mt-2"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between bg-white border border-neutral-200 rounded-xl px-3 py-2">
+          <span className="text-[11px] font-bold text-neutral-700">Uppercase text</span>
+          <button
+            type="button"
+            onClick={() => onUpdate({ btnUppercase: !settings.btnUppercase })}
+            className={`w-10 h-5 rounded-full relative transition-all ${settings.btnUppercase ? "bg-blue-600" : "bg-neutral-200"}`}
           >
-            <option value="">— Inherit —</option>
-            {SECTION_FONT_OPTIONS.map((f) => (
-              <option key={f} value={f}>{f}</option>
-            ))}
-          </select>
+            <span className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.btnUppercase ? "left-6" : "left-1"}`} />
+          </button>
         </div>
       </div>
 
       {/* ── Text styling overrides ── */}
-      <div className="space-y-3 pt-1">
+      <div className="space-y-3">
         <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Text styling</p>
 
         <div className="grid grid-cols-2 gap-3">
@@ -1291,112 +1248,179 @@ export function SectionSettingsPanel({
         </div>
       </div>
 
-      {/* ── Button overrides ── */}
-      <div className="space-y-3 pt-1">
-        <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Button overrides</p>
+      {/* ── Spacing ── */}
+      <div className="space-y-3">
+        <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Spacing</p>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Button bg</label>
-            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
-              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.btnBg || "#a855f7" }}>
-                <input type="color" value={settings.btnBg || "#a855f7"} onChange={(e) => onUpdate({ btnBg: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
-              </div>
-              <input value={settings.btnBg || ""} onChange={(e) => onUpdate({ btnBg: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
-            </div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Top padding</label>
+            <input
+              type="number" min={0} max={400}
+              value={settings.paddingTop ?? ""}
+              onChange={(e) => onUpdate({ paddingTop: e.target.value === "" ? undefined : Number(e.target.value) })}
+              placeholder="auto"
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            />
           </div>
           <div>
-            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Button text</label>
-            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
-              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.btnText || "#ffffff" }}>
-                <input type="color" value={settings.btnText || "#ffffff"} onChange={(e) => onUpdate({ btnText: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
-              </div>
-              <input value={settings.btnText || ""} onChange={(e) => onUpdate({ btnText: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
-            </div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Bottom padding</label>
+            <input
+              type="number" min={0} max={400}
+              value={settings.paddingBottom ?? ""}
+              onChange={(e) => onUpdate({ paddingBottom: e.target.value === "" ? undefined : Number(e.target.value) })}
+              placeholder="auto"
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Left padding</label>
+            <input
+              type="number" min={0} max={400}
+              value={settings.paddingLeft ?? ""}
+              onChange={(e) => onUpdate({ paddingLeft: e.target.value === "" ? undefined : Number(e.target.value) })}
+              placeholder="auto"
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Right padding</label>
+            <input
+              type="number" min={0} max={400}
+              value={settings.paddingRight ?? ""}
+              onChange={(e) => onUpdate({ paddingRight: e.target.value === "" ? undefined : Number(e.target.value) })}
+              placeholder="auto"
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            />
           </div>
         </div>
 
         <div>
-          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Button style</label>
+          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Container width</label>
           <select
-            value={settings.btnStyle || ""}
-            onChange={(e) => onUpdate({ btnStyle: e.target.value || undefined })}
+            value={settings.containerWidth || ""}
+            onChange={(e) => onUpdate({ containerWidth: e.target.value || undefined })}
             className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
           >
             <option value="">— Inherit —</option>
-            <option value="solid">Solid (filled)</option>
-            <option value="outline">Outline</option>
-            <option value="ghost">Ghost (text only)</option>
+            <option value="xs">XS · Narrow (2xl)</option>
+            <option value="sm">SM · Small (4xl)</option>
+            <option value="md">MD · Medium (5xl)</option>
+            <option value="lg">LG · Wide (6xl)</option>
+            <option value="xl">XL · Extra wide (7xl)</option>
+            <option value="full">Full · No limit</option>
+          </select>
+        </div>
+      </div>
+
+      {/* ── Color scheme & fonts ── */}
+      <div className="space-y-3">
+        <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Colors & fonts</p>
+
+        <div>
+          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Color scheme</label>
+          <select
+            value={settings.colorSchemeId || ""}
+            onChange={(e) => onUpdate({ colorSchemeId: e.target.value || undefined })}
+            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+          >
+            <option value="">— Inherit —</option>
+            {colorSchemes.map((cs) => (
+              <option key={cs.id} value={cs.id}>{cs.name}</option>
+            ))}
           </select>
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase">Border radius</label>
-            {settings.btnRadius != null && (
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-lg">{settings.btnRadius}px</span>
-                <button type="button" onClick={() => onUpdate({ btnRadius: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400 px-1">↺</button>
-              </div>
-            )}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Heading font</label>
+            <select
+              value={settings.headingFontOverride || ""}
+              onChange={(e) => onUpdate({ headingFontOverride: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              <option value="">— Inherit —</option>
+              {SECTION_FONT_OPTIONS.map((f) => (<option key={f} value={f}>{f}</option>))}
+            </select>
           </div>
-          <input
-            type="range" min={0} max={40} step={1}
-            value={settings.btnRadius ?? 4}
-            onChange={(e) => onUpdate({ btnRadius: Number(e.target.value) })}
-            className="w-full accent-blue-600 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer"
-          />
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Body font</label>
+            <select
+              value={settings.bodyFontOverride || ""}
+              onChange={(e) => onUpdate({ bodyFontOverride: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              <option value="">— Inherit —</option>
+              {SECTION_FONT_OPTIONS.map((f) => (<option key={f} value={f}>{f}</option>))}
+            </select>
+          </div>
         </div>
+      </div>
 
-        <div className="flex items-center justify-between bg-white border border-neutral-200 rounded-xl px-3 py-2">
-          <span className="text-[11px] font-bold text-neutral-700">Uppercase text</span>
-          <button
-            type="button"
-            onClick={() => onUpdate({ btnUppercase: !settings.btnUppercase })}
-            className={`w-10 h-5 rounded-full relative transition-all ${settings.btnUppercase ? "bg-blue-600" : "bg-neutral-200"}`}
+      {/* ── Animation & visibility ── */}
+      <div className="space-y-3">
+        <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Animation & visibility</p>
+
+        <div>
+          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Entrance animation</label>
+          <select
+            value={settings.animation || ""}
+            onChange={(e) => onUpdate({ animation: e.target.value || undefined })}
+            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
           >
-            <span className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.btnUppercase ? "left-6" : "left-1"}`} />
-          </button>
+            {SECTION_ANIMATIONS.map((a) => (
+              <option key={a.value} value={a.value}>{a.label}</option>
+            ))}
+          </select>
         </div>
-      </div>
 
-      <div>
-        <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Entrance animation</label>
-        <select
-          value={settings.animation || ""}
-          onChange={(e) => onUpdate({ animation: e.target.value || undefined })}
-          className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
-        >
-          {SECTION_ANIMATIONS.map((a) => (
-            <option key={a.value} value={a.value}>{a.label}</option>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Show from</label>
+            <input
+              type="datetime-local"
+              value={settings.showFrom || ""}
+              onChange={(e) => onUpdate({ showFrom: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[10px] outline-none focus:border-blue-400"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Show until</label>
+            <input
+              type="datetime-local"
+              value={settings.showUntil || ""}
+              onChange={(e) => onUpdate({ showUntil: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[10px] outline-none focus:border-blue-400"
+            />
+          </div>
+          <p className="col-span-2 text-[8px] text-neutral-400 font-medium -mt-1">
+            Optional publish window (e.g. a sale banner).
+          </p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-center">
+          {[
+            { key: "fullWidth", label: "Full width" },
+            { key: "hideOnMobile", label: "Hide mobile" },
+            { key: "hideOnDesktop", label: "Hide desktop" },
+          ].map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => onUpdate({ [t.key]: !settings[t.key] })}
+              className={`py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${
+                settings[t.key]
+                  ? "bg-blue-600 text-white border-blue-600 shadow"
+                  : "bg-white text-neutral-500 border-neutral-200"
+              }`}
+            >
+              {t.label}
+            </button>
           ))}
-        </select>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Show from</label>
-          <input
-            type="datetime-local"
-            value={settings.showFrom || ""}
-            onChange={(e) => onUpdate({ showFrom: e.target.value || undefined })}
-            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[10px] outline-none focus:border-blue-400"
-          />
-        </div>
-        <div>
-          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Show until</label>
-          <input
-            type="datetime-local"
-            value={settings.showUntil || ""}
-            onChange={(e) => onUpdate({ showUntil: e.target.value || undefined })}
-            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[10px] outline-none focus:border-blue-400"
-          />
-        </div>
-        <p className="col-span-2 text-[8px] text-neutral-400 font-medium -mt-1">
-          Optional publish window — the section only renders between these times (e.g. a sale banner).
-        </p>
-      </div>
-
+      {/* ── Custom class ── */}
       <div>
         <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Custom CSS class</label>
         <input
@@ -1405,27 +1429,6 @@ export function SectionSettingsPanel({
           placeholder="e.g. my-promo-band"
           className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400 font-mono"
         />
-      </div>
-
-      <div className="grid grid-cols-3 gap-2 text-center">
-        {[
-          { key: "fullWidth", label: "Full width" },
-          { key: "hideOnMobile", label: "Hide mobile" },
-          { key: "hideOnDesktop", label: "Hide desktop" },
-        ].map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => onUpdate({ [t.key]: !settings[t.key] })}
-            className={`py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${
-              settings[t.key]
-                ? "bg-blue-600 text-white border-blue-600 shadow"
-                : "bg-white text-neutral-500 border-neutral-200"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
       </div>
     </div>
   );

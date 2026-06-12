@@ -1065,6 +1065,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
 
 function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, onConsumeRequest, sectionPresets = [], onSavePreset, onDeletePreset }: any) {
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  const [editTab, setEditTab] = useState<"content" | "design">("content");
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
   const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null);
@@ -1171,57 +1172,81 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
 
     return (
       <div className="flex flex-col h-full">
-        <div className="p-4 border-b border-neutral-100 flex items-center gap-3 bg-white sticky top-0 z-20">
-          <button onClick={() => setActiveSectionId(null)} className="p-1.5 hover:bg-neutral-100 rounded-lg transition-colors text-neutral-400 hover:text-neutral-900">
-            <ChevronLeft size={16} />
-          </button>
-          <div>
-            <p className="text-[9px] font-bold tracking-[0.2em] text-blue-600 uppercase mb-0.5">Edit Section</p>
-            <h3 className="text-[12px] font-bold text-neutral-800">{section.type.replace("Section", "")}</h3>
+        {/* Header + Content/Design tabs */}
+        <div className="border-b border-neutral-100 bg-white sticky top-0 z-20">
+          <div className="px-4 pt-4 pb-2 flex items-center gap-3">
+            <button
+              onClick={() => { setActiveSectionId(null); setEditTab("content"); }}
+              className="p-1.5 hover:bg-neutral-100 rounded-lg transition-colors text-neutral-400 hover:text-neutral-900"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] font-bold tracking-[0.2em] text-blue-600 uppercase mb-0.5">Editing section</p>
+              <h3 className="text-[12px] font-black text-neutral-800 uppercase tracking-tight truncate">{section.settings?.title || section.type.replace("Section", "")}</h3>
+            </div>
+          </div>
+          <div className="flex border-t border-neutral-100">
+            {(["content", "design"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setEditTab(tab)}
+                className={`flex-1 py-2.5 text-[10px] font-black tracking-[0.15em] uppercase transition-all ${
+                  editTab === tab
+                    ? "text-blue-600 border-b-2 border-blue-600"
+                    : "text-neutral-400 hover:text-neutral-700"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
           </div>
         </div>
 
         <div className="p-4 space-y-5 overflow-y-auto flex-1">
-          {/* Field-driven editor */}
-          {(() => {
-            const fields = getSectionFields(section.type);
-            const uploadFile = (file: File) =>
-              adminApi.uploadFile(file, `sections/${section.id}_${Date.now()}`);
-            return (
-              <div className="space-y-3">
-                {fields.map((field) => (
-                  <SectionFieldEditor
-                    key={field.key}
-                    field={field}
-                    value={section.settings[field.key]}
-                    onChange={(v) => updateSectionSettings(section.id, { [field.key]: v })}
-                    uploadFile={uploadFile}
-                  />
-                ))}
-              </div>
-            );
-          })()}
+          {editTab === "content" && (
+            <>
+              {/* Field-driven editor */}
+              {(() => {
+                const fields = getSectionFields(section.type);
+                const uploadFile = (file: File) =>
+                  adminApi.uploadFile(file, `sections/${section.id}_${Date.now()}`);
+                return (
+                  <div className="space-y-3">
+                    {fields.map((field) => (
+                      <SectionFieldEditor
+                        key={field.key}
+                        field={field}
+                        value={section.settings[field.key]}
+                        onChange={(v) => updateSectionSettings(section.id, { [field.key]: v })}
+                        uploadFile={uploadFile}
+                      />
+                    ))}
+                  </div>
+                );
+              })()}
 
-          {/* Blocks editor (only sections with blocks) */}
-          {getBlockFields(section.type).length > 0 && (
-            <div className="pt-4 border-t border-neutral-100">
-              <BlocksEditor
-                sectionType={section.type}
-                settings={section.settings}
-                onUpdate={(patch) => updateSectionSettings(section.id, patch)}
-                uploadFile={(file: File) => adminApi.uploadFile(file, `sections/${section.id}_${Date.now()}`)}
-              />
-            </div>
+              {/* Blocks editor (only sections with blocks) */}
+              {getBlockFields(section.type).length > 0 && (
+                <div className="pt-4 border-t border-neutral-100">
+                  <BlocksEditor
+                    sectionType={section.type}
+                    settings={section.settings}
+                    onUpdate={(patch) => updateSectionSettings(section.id, patch)}
+                    uploadFile={(file: File) => adminApi.uploadFile(file, `sections/${section.id}_${Date.now()}`)}
+                  />
+                </div>
+              )}
+            </>
           )}
 
-          {/* Per-section settings (padding, color scheme, full-width, custom class, hide) */}
-          <div className="pt-4 border-t border-neutral-100">
+          {editTab === "design" && (
             <SectionSettingsPanel
               settings={section.settings}
               onUpdate={(patch) => updateSectionSettings(section.id, patch)}
               colorSchemes={colorSchemes}
             />
-          </div>
+          )}
 
           {onSavePreset && (
             <button
@@ -4327,13 +4352,14 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     },
   ];
 
-  // Visual grouping for the settings list — keeps 17 panels scannable.
+  // Visual grouping — Shopify-style categories.
   const SECTION_GROUPS: { label: string; ids: string[] }[] = [
-    { label: "Design", ids: ["style", "colorSchemes", "colorLab", "a11y", "textsize"] },
-    { label: "Layout & Navigation", ids: ["navigation", "menus", "layout", "buttons"] },
-    { label: "Content", ids: ["homepage", "globalSections", "announcements", "social", "translations"] },
-    { label: "Commerce", ids: ["products"] },
-    { label: "Advanced", ids: ["tokens", "additional"] },
+    { label: "Sections", ids: ["homepage", "globalSections", "products"] },
+    { label: "Colors & Fonts", ids: ["style", "colorSchemes", "colorLab", "textsize"] },
+    { label: "Header & Navigation", ids: ["navigation", "menus"] },
+    { label: "Layout & Buttons", ids: ["layout", "buttons"] },
+    { label: "Content", ids: ["announcements", "social", "translations"] },
+    { label: "Advanced", ids: ["a11y", "tokens", "additional"] },
   ];
 
   const filteredSections = useMemo(() => {
@@ -4761,7 +4787,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           <div className="grid grid-cols-4 gap-1.5 p-3 border-b border-white/5 bg-black/20 backdrop-blur-xl relative z-10">
             {(
               [
-                { id: "settings",   icon: <Settings size={13} />,       label: "Config" },
+                { id: "settings",   icon: <Settings size={13} />,       label: "Design" },
                 { id: "pages",      icon: <FileText size={13} />,        label: "Pages" },
                 { id: "code",       icon: <Code2 size={13} />,           label: "Code" },
                 { id: "templates",  icon: <LayoutTemplate size={13} />,  label: "Themes" },
@@ -4808,8 +4834,8 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
                       {/* Options header */}
                       <div className="p-8 pb-4">
-                        <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase italic mb-2 block">System Configuration</span>
-                        <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Core Settings</h2>
+                        <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase italic mb-2 block">Theme Editor</span>
+                        <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Theme Settings</h2>
 
                         {/* Page template pills — Shopify-style template selector */}
                         {!settingsSearch && (
