@@ -83,12 +83,13 @@ async function getShippoToken() {
   const configDoc = await SHIPPO_CONFIG_DOC.get();
   const savedToken = configDoc.exists ? configDoc.data()?.apiToken : null;
   if (typeof savedToken === "string" && savedToken.trim()) {
-    return savedToken.trim();
+    const trimmed = savedToken.trim();
+    return trimmed !== "dummy_value" && trimmed !== "your_shippo_api_token" ? trimmed : null;
   }
 
   try {
     const secretToken = SHIPPO_API_TOKEN.value();
-    return secretToken && secretToken !== "your_shippo_api_token" ? secretToken : null;
+    return secretToken && secretToken !== "your_shippo_api_token" && secretToken !== "dummy_value" ? secretToken : null;
   } catch (err) {
     console.warn("SHIPPO_API_TOKEN secret not configured.");
     return null;
@@ -1400,6 +1401,11 @@ exports.createShippingLabel = onRequest(
         return;
       }
 
+      // 1. Resolve Settings (API keys and Origin address)
+      const settingsDoc = await db.collection("settings").doc("website").get();
+      const settings = settingsDoc.data() || {};
+      const origin = settings.location || {};
+
       const shippoToken = await getShippoToken();
 
       if (!shippoToken) {
@@ -1434,11 +1440,6 @@ exports.createShippingLabel = onRequest(
         });
         return;
       }
-
-      // 1. Resolve Origin Address from Settings
-      const settingsDoc = await db.collection("settings").doc("website").get();
-      const settings = settingsDoc.data() || {};
-      const origin = settings.location || {};
 
       const addressFrom = {
         name: settings.info?.name || "Lyricalmyrical Books",

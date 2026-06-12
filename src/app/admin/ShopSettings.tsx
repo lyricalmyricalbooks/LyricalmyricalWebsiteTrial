@@ -1693,6 +1693,41 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
   const manualMethods = settings.payments?.manualMethods || [];
   const footerBadges = settings.payments?.footerBadges || [];
 
+  const [shippoConfig, setShippoConfig] = useState<any>(null);
+  const [newShippoToken, setNewShippoToken] = useState("");
+  const [savingShippo, setSavingShippo] = useState(false);
+  const [loadingShippo, setLoadingShippo] = useState(false);
+
+  useEffect(() => {
+    async function loadShippoConfig() {
+      setLoadingShippo(true);
+      try {
+        const conf = await adminApi.getShippoConfig();
+        setShippoConfig(conf);
+      } catch (err) {
+        console.error("Failed to load Shippo config:", err);
+      } finally {
+        setLoadingShippo(false);
+      }
+    }
+    loadShippoConfig();
+  }, []);
+
+  const handleSaveShippo = async () => {
+    if (!newShippoToken.trim()) return;
+    setSavingShippo(true);
+    try {
+      const res = await adminApi.saveShippoConfig(newShippoToken);
+      setShippoConfig(res);
+      setNewShippoToken("");
+      alert("Shippo API Token saved and synced successfully!");
+    } catch (err: any) {
+      alert(err.message || "Failed to save Shippo API Token.");
+    } finally {
+      setSavingShippo(false);
+    }
+  };
+
   // Manual payment modal state
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [editingMethod, setEditingMethod] = useState<any | null>(null);
@@ -2069,6 +2104,79 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                   </motion.div>
                )}
             </AnimatePresence>
+         </div>
+      </section>
+
+      {/* Shippo Card */}
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
+         <div className="absolute top-0 right-0 p-16 opacity-5 pointer-events-none">
+            <Truck size={200} className="text-violet-500" />
+         </div>
+         <div className="relative z-10">
+            <div className="flex justify-between items-start mb-12">
+               <SectionHeader 
+                  title="Shippo Integration" 
+                  subtitle="Configure API Token for Address Verification and Shipping Labels" 
+                  icon={Truck} 
+                  color="violet"
+               />
+               <button 
+                  onClick={() => window.open("https://goshippo.com", "_blank")}
+                  className="bg-white/5 border border-white/10 px-8 py-3 rounded-2xl text-[9px] font-black tracking-[0.2em] text-slate-300 hover:bg-white/10 transition-all flex items-center gap-3 uppercase shadow-lg cursor-pointer"
+                >
+                   SHIPPO DASHBOARD <ExternalLink size={14} className="text-violet-400" />
+                </button>
+            </div>
+            
+            <div className="space-y-8">
+               <div className="p-6 bg-white/[0.02] border border-white/5 rounded-2xl flex justify-between items-center">
+                  <div>
+                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Status</span>
+                     <p className="text-xs font-bold text-white mt-1">
+                        {loadingShippo ? (
+                           <span className="text-slate-500 uppercase tracking-widest text-[10px]">Loading status...</span>
+                        ) : shippoConfig?.configured ? (
+                           <span>
+                              Configured via <span className="text-violet-400 uppercase">{shippoConfig.source || "Secret"}</span> (Ends in <span className="font-mono text-cyan-400">****{shippoConfig.lastFour}</span>)
+                           </span>
+                        ) : (
+                           <span className="text-red-400 uppercase">Not Configured (Fallback Active)</span>
+                        )}
+                     </p>
+                  </div>
+                  {shippoConfig?.updatedAt && (
+                     <div className="text-right">
+                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Last Updated</span>
+                        <p className="text-[10px] text-slate-400 font-mono mt-1">{new Date(shippoConfig.updatedAt).toLocaleDateString()}</p>
+                     </div>
+                  )}
+               </div>
+
+               <div className="flex gap-4 items-end">
+                  <div className="flex-1">
+                     <InputField 
+                        label="NEW SHIPPO API TOKEN" 
+                        placeholder="shippo_live_... or shippo_test_..."
+                        icon={ShieldCheck}
+                        type="password"
+                        value={newShippoToken}
+                        onChange={(e: any) => setNewShippoToken(e.target.value)}
+                     />
+                  </div>
+                  <button
+                     type="button"
+                     onClick={handleSaveShippo}
+                     disabled={savingShippo || !newShippoToken.trim()}
+                     className="bg-violet-600 hover:bg-violet-500 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.25em] uppercase transition-all disabled:opacity-30 active:scale-95 border border-violet-400/20 shadow-lg shrink-0 cursor-pointer"
+                  >
+                     {savingShippo ? "SYNCING..." : "SAVE KEY"}
+                  </button>
+               </div>
+               
+               <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em] leading-relaxed">
+                  Keys are synced securely to Firestore with limited access permissions. The storefront never exposes your API token.
+               </p>
+            </div>
          </div>
       </section>
 

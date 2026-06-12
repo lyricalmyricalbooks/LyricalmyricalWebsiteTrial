@@ -60,6 +60,9 @@ export type SiteSettings = {
     newOrderNotifications: boolean;
   };
   payments?: {
+    shippo?: {
+      apiToken?: string;
+    };
     stripe: {
       connected: boolean;
       email: string;
