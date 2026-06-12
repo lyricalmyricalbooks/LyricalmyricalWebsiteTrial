@@ -664,6 +664,39 @@ export const adminApi = {
     });
   },
 
+  getShippoConfig: async () => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin to view Shippo settings.");
+
+    const response = await fetch(functionUrl("getShippoConfig"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`,
+      },
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Failed to load Shippo settings.");
+    return result;
+  },
+
+  saveShippoConfig: async (apiToken: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin to save Shippo settings.");
+
+    const response = await fetch(functionUrl("saveShippoConfig"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ apiToken }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Failed to save Shippo settings.");
+    return result;
+  },
+
   createShippingLabel: async (orderId: string, parcel?: any) => {
     // Endpoint is admin-only on the backend; it verifies this ID token.
     const idToken = await auth.currentUser?.getIdToken();
