@@ -192,6 +192,13 @@ function Newsletter({ design }: { design?: any }) {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
+  const buttonBg = design?.buttonColor || design?.primaryColor || "#ffffff";
+  const buttonText = design?.buttonTextColor || "#000000";
+  const buttonRadius = Math.max(0, Math.min(999, design?.buttonRadius ?? 999));
+  const buttonStyle = design?.buttonStyle || "solid";
+  const buttonUppercase = design?.buttonUppercase ?? true;
+  const buttonShadow = design?.buttonShadow ?? true;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !email.includes("@")) return;
@@ -238,7 +245,15 @@ function Newsletter({ design }: { design?: any }) {
           <button
             type="submit"
             disabled={status === "loading"}
-            className="bg-white text-black rounded-full px-5 py-3 text-[10px] font-bold tracking-widest hover:bg-white/90 transition-all disabled:opacity-50 flex items-center gap-2"
+            className={`px-5 py-3 text-[10px] font-bold tracking-widest transition-all disabled:opacity-50 flex items-center gap-2 hover:scale-[1.02] ${
+              buttonShadow ? "shadow-xl" : ""
+            } ${buttonUppercase ? "uppercase" : ""}`}
+            style={{
+              backgroundColor: buttonStyle === "solid" ? buttonBg : "transparent",
+              color: buttonStyle === "solid" ? buttonText : buttonBg,
+              border: buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
+              borderRadius: buttonRadius,
+            }}
           >
             <Send size={12} />
             {status === "loading" ? "..." : getCopy(design, "newsletterButton")}
@@ -431,6 +446,13 @@ function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive:
   const autoRotate = hero.autoRotate ?? true;
   const rotateMs = hero.rotateMs || 5000;
 
+  const carouselButtonBg = design?.buttonColor || design?.primaryColor || "#ffffff";
+  const carouselButtonText = design?.buttonTextColor || "#000000";
+  const carouselButtonRadius = Math.max(0, Math.min(999, design?.buttonRadius ?? 999));
+  const carouselButtonStyle = design?.buttonStyle || "solid";
+  const carouselButtonUppercase = design?.buttonUppercase ?? true;
+  const carouselButtonShadow = design?.buttonShadow ?? true;
+
   useEffect(() => {
     if (activeSlideIndex > slides.length - 1) {
       setActiveSlideIndex(0);
@@ -493,10 +515,14 @@ function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive:
           }`}>
             <button
               onClick={handleSlideCta}
-              className="px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase transition-transform hover:scale-[1.02]"
+              className={`px-8 py-3 text-[10px] tracking-[0.3em] font-bold transition-transform hover:scale-[1.02] ${
+                carouselButtonShadow ? "shadow-xl" : ""
+              } ${carouselButtonUppercase ? "uppercase" : ""}`}
               style={{
-                backgroundColor: design?.buttonColor || design?.primaryColor || "#A855F7",
-                color: design?.buttonTextColor || "#000000",
+                backgroundColor: carouselButtonStyle === "solid" ? carouselButtonBg : "transparent",
+                color: carouselButtonStyle === "solid" ? carouselButtonText : carouselButtonBg,
+                border: carouselButtonStyle !== "solid" ? `1px solid ${carouselButtonBg}` : "none",
+                borderRadius: carouselButtonRadius,
               }}
             >
               {activeSlide?.ctaText || "ENTER ARCHIVE"}
@@ -898,6 +924,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontButtonStyle = storefrontDesign?.buttonStyle || "solid";
   const storefrontButtonUppercase = storefrontDesign?.buttonUppercase ?? true;
   const storefrontButtonShadow = storefrontDesign?.buttonShadow ?? true;
+
+  const heroAccent = heroDesign?.primaryColor || "#ffffff";
+  const heroButtonBg = heroDesign?.buttonColor || heroAccent;
+  const heroButtonText = heroDesign?.buttonTextColor || "#000000";
+  const heroButtonRadius = Math.max(0, Math.min(999, heroDesign?.buttonRadius ?? 999));
+  const heroButtonStyle = heroDesign?.buttonStyle || "solid";
+  const heroButtonUppercase = heroDesign?.buttonUppercase ?? true;
+  const heroButtonShadow = heroDesign?.buttonShadow ?? true;
   const storefrontCtaText = storefrontDesign?.productCTA || "VIEW";
   const soldOutLabel = storefrontDesign?.soldOutLabel || "SOLD OUT";
   const showCollectionMeta = storefrontDesign?.showCollectionMeta ?? true;
@@ -1128,9 +1162,32 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 Admin
               </Link>
               {showBag && (
-                <button onClick={() => setIsCartOpen(true)} className="group flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-full border border-white/5 transition-colors shadow-lg">
-                  <span className="text-[10px] tracking-[0.2em] font-semibold">{bagLabel}</span>
-                  {cartCount > 0 && <span className="bg-white text-black text-[9px] font-bold px-1.5 py-0.5 rounded-full">{cartCount}</span>}
+                <button
+                  onClick={() => setIsCartOpen(true)}
+                  className={`group flex items-center gap-2 px-4 py-2 transition-all hover:scale-[1.02] ${
+                    storefrontButtonShadow ? "shadow-lg" : ""
+                  }`}
+                  style={{
+                    backgroundColor: storefrontButtonStyle === "solid" ? storefrontButtonBg : "transparent",
+                    color: storefrontButtonStyle === "solid" ? storefrontButtonText : storefrontButtonBg,
+                    border: storefrontButtonStyle !== "solid" ? `1px solid ${storefrontButtonBg}` : "none",
+                    borderRadius: storefrontButtonRadius,
+                  }}
+                >
+                  <span className={`text-[10px] tracking-[0.2em] font-semibold ${storefrontButtonUppercase ? "uppercase" : ""}`}>
+                    {bagLabel}
+                  </span>
+                  {cartCount > 0 && (
+                    <span
+                      style={{
+                        backgroundColor: storefrontButtonStyle === "solid" ? storefrontButtonText : storefrontButtonBg,
+                        color: storefrontButtonStyle === "solid" ? storefrontButtonBg : storefrontButtonText,
+                      }}
+                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-full transition-colors"
+                    >
+                      {cartCount}
+                    </span>
+                  )}
                 </button>
               )}
             </div>
@@ -1254,9 +1311,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
                         <span
                           style={{
-                            backgroundColor: storefrontButtonStyle === "ghost" ? "transparent" : storefrontButtonBg,
+                            backgroundColor: storefrontButtonStyle === "solid" ? storefrontButtonBg : "transparent",
                             color: storefrontButtonStyle === "solid" ? storefrontButtonText : storefrontButtonBg,
-                            border: storefrontButtonStyle === "outline" || storefrontButtonStyle === "ghost" ? `1px solid ${storefrontButtonBg}` : "none",
+                            border: storefrontButtonStyle !== "solid" ? `1px solid ${storefrontButtonBg}` : "none",
                             borderRadius: storefrontButtonRadius,
                           }}
                           className={`w-full py-3 text-[10px] tracking-[0.2em] font-bold text-center transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 ${storefrontButtonShadow ? "shadow-xl" : ""} ${storefrontButtonUppercase ? "uppercase" : ""}`}
@@ -1415,10 +1472,30 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           {showBag && (
             <button
               onClick={() => setIsCartOpen(true)}
-              className="group flex items-center gap-2 bg-white/10 backdrop-blur-md px-5 py-2.5 rounded-full border border-white/10 hover:bg-white/20 transition-all shadow-lg"
+              className={`group flex items-center gap-2 px-5 py-2.5 transition-all hover:scale-[1.02] ${
+                heroButtonShadow ? "shadow-lg" : ""
+              }`}
+              style={{
+                backgroundColor: heroButtonStyle === "solid" ? heroButtonBg : "transparent",
+                color: heroButtonStyle === "solid" ? heroButtonText : heroButtonBg,
+                border: heroButtonStyle !== "solid" ? `1px solid ${heroButtonBg}` : "none",
+                borderRadius: heroButtonRadius,
+              }}
             >
-              <span className="text-[10px] tracking-[0.2em] font-bold">BAG</span>
-              {cartCount > 0 && <span className="bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-full">{cartCount}</span>}
+              <span className={`text-[10px] tracking-[0.2em] font-bold ${heroButtonUppercase ? "uppercase" : ""}`}>
+                {bagLabel}
+              </span>
+              {cartCount > 0 && (
+                <span
+                  style={{
+                    backgroundColor: heroButtonStyle === "solid" ? heroButtonText : heroButtonBg,
+                    color: heroButtonStyle === "solid" ? heroButtonBg : heroButtonText,
+                  }}
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors"
+                >
+                  {cartCount}
+                </span>
+              )}
             </button>
           )}
           {showSys && (
@@ -1495,10 +1572,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 </p>
                 <button
                   onClick={() => setShowCatalog(true)}
-                  className="px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
+                  className={`px-8 py-3 text-[10px] tracking-[0.3em] font-bold transition-transform hover:scale-[1.02] ${
+                    heroButtonShadow ? "shadow-xl" : ""
+                  } ${heroButtonUppercase ? "uppercase" : ""}`}
                   style={{
-                    backgroundColor: heroDesign?.buttonColor || heroDesign?.primaryColor || "#A855F7",
-                    color: heroDesign?.buttonTextColor || "#000000",
+                    backgroundColor: heroButtonStyle === "solid" ? heroButtonBg : "transparent",
+                    color: heroButtonStyle === "solid" ? heroButtonText : heroButtonBg,
+                    border: heroButtonStyle !== "solid" ? `1px solid ${heroButtonBg}` : "none",
+                    borderRadius: heroButtonRadius,
                   }}
                 >
                   {heroDesign?.heroCTA || "ENTER ARCHIVE"}
