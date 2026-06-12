@@ -979,6 +979,144 @@ export function SectionSettingsPanel({
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Left padding</label>
+          <input
+            type="number" min={0} max={400}
+            value={settings.paddingLeft ?? ""}
+            onChange={(e) => onUpdate({ paddingLeft: e.target.value === "" ? undefined : Number(e.target.value) })}
+            placeholder="auto"
+            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+          />
+        </div>
+        <div>
+          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Right padding</label>
+          <input
+            type="number" min={0} max={400}
+            value={settings.paddingRight ?? ""}
+            onChange={(e) => onUpdate({ paddingRight: e.target.value === "" ? undefined : Number(e.target.value) })}
+            placeholder="auto"
+            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Container width</label>
+        <select
+          value={settings.containerWidth || ""}
+          onChange={(e) => onUpdate({ containerWidth: e.target.value || undefined })}
+          className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+        >
+          <option value="">— Inherit —</option>
+          <option value="xs">XS · Narrow (2xl)</option>
+          <option value="sm">SM · Small (4xl)</option>
+          <option value="md">MD · Medium (5xl)</option>
+          <option value="lg">LG · Wide (6xl)</option>
+          <option value="xl">XL · Extra wide (7xl)</option>
+          <option value="full">Full · No limit</option>
+        </select>
+      </div>
+
+      {/* ── Background ── */}
+      <div className="space-y-3 pt-1">
+        <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Background</p>
+
+        <div>
+          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Solid color</label>
+          <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+            <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.bgColor || "transparent" }}>
+              <input type="color" value={settings.bgColor || "#ffffff"} onChange={(e) => onUpdate({ bgColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+            </div>
+            <input value={settings.bgColor || ""} onChange={(e) => onUpdate({ bgColor: e.target.value || undefined })} placeholder="none" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+            {settings.bgColor && <button type="button" onClick={() => onUpdate({ bgColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Gradient from</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.bgGradientFrom || "transparent" }}>
+                <input type="color" value={settings.bgGradientFrom || "#ffffff"} onChange={(e) => onUpdate({ bgGradientFrom: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.bgGradientFrom || ""} onChange={(e) => onUpdate({ bgGradientFrom: e.target.value || undefined })} placeholder="none" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Gradient to</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.bgGradientTo || "transparent" }}>
+                <input type="color" value={settings.bgGradientTo || "#000000"} onChange={(e) => onUpdate({ bgGradientTo: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.bgGradientTo || ""} onChange={(e) => onUpdate({ bgGradientTo: e.target.value || undefined })} placeholder="none" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Gradient direction</label>
+          <select
+            value={settings.bgGradientDir || ""}
+            onChange={(e) => onUpdate({ bgGradientDir: e.target.value || undefined })}
+            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+          >
+            <option value="">— Default (to bottom) —</option>
+            <option value="to bottom">↓ Top to bottom</option>
+            <option value="to top">↑ Bottom to top</option>
+            <option value="to right">→ Left to right</option>
+            <option value="to left">← Right to left</option>
+            <option value="to bottom right">↘ Diagonal</option>
+            <option value="to bottom left">↙ Diagonal</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Background image URL</label>
+          <input
+            value={settings.bgImageUrl || ""}
+            onChange={(e) => onUpdate({ bgImageUrl: e.target.value || undefined })}
+            placeholder="https://…"
+            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Image size</label>
+            <select
+              value={settings.bgImageSize || ""}
+              onChange={(e) => onUpdate({ bgImageSize: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              <option value="">Cover (default)</option>
+              <option value="contain">Contain</option>
+              <option value="auto">Auto</option>
+              <option value="100% 100%">Stretch</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Image position</label>
+            <select
+              value={settings.bgImagePosition || ""}
+              onChange={(e) => onUpdate({ bgImagePosition: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              <option value="">Center (default)</option>
+              <option value="top">Top</option>
+              <option value="bottom">Bottom</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+              <option value="top left">Top left</option>
+              <option value="top right">Top right</option>
+              <option value="bottom left">Bottom left</option>
+              <option value="bottom right">Bottom right</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       <div>
         <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Color scheme</label>
         <select
@@ -1021,6 +1159,204 @@ export function SectionSettingsPanel({
               <option key={f} value={f}>{f}</option>
             ))}
           </select>
+        </div>
+      </div>
+
+      {/* ── Text styling overrides ── */}
+      <div className="space-y-3 pt-1">
+        <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Text styling</p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Heading color</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.headingColor || "#111" }}>
+                <input type="color" value={settings.headingColor || "#111111"} onChange={(e) => onUpdate({ headingColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.headingColor || ""} onChange={(e) => onUpdate({ headingColor: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Body color</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.bodyColor || "#555" }}>
+                <input type="color" value={settings.bodyColor || "#555555"} onChange={(e) => onUpdate({ bodyColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.bodyColor || ""} onChange={(e) => onUpdate({ bodyColor: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase">Heading size</label>
+            <div className="flex items-center gap-1">
+              {settings.headingSize != null && (
+                <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-lg">{settings.headingSize}px</span>
+              )}
+              {settings.headingSize != null && (
+                <button onClick={() => onUpdate({ headingSize: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400 px-1">↺</button>
+              )}
+            </div>
+          </div>
+          <input
+            type="range"
+            min={14}
+            max={120}
+            step={1}
+            value={settings.headingSize ?? 36}
+            onChange={(e) => onUpdate({ headingSize: Number(e.target.value) })}
+            className="w-full accent-blue-600 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Heading weight</label>
+            <select
+              value={settings.headingWeight || ""}
+              onChange={(e) => onUpdate({ headingWeight: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              <option value="">— Inherit —</option>
+              <option value="300">300 · Light</option>
+              <option value="400">400 · Regular</option>
+              <option value="500">500 · Medium</option>
+              <option value="600">600 · Semibold</option>
+              <option value="700">700 · Bold</option>
+              <option value="800">800 · Extrabold</option>
+              <option value="900">900 · Black</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Text transform</label>
+            <select
+              value={settings.textTransform || ""}
+              onChange={(e) => onUpdate({ textTransform: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              <option value="">— Inherit —</option>
+              <option value="none">None (as typed)</option>
+              <option value="uppercase">UPPERCASE</option>
+              <option value="lowercase">lowercase</option>
+              <option value="capitalize">Capitalize</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase">Letter spacing</label>
+            <div className="flex items-center gap-1">
+              {settings.letterSpacingOverride != null && (
+                <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-lg">{settings.letterSpacingOverride}em</span>
+              )}
+              {settings.letterSpacingOverride != null && (
+                <button onClick={() => onUpdate({ letterSpacingOverride: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400 px-1">↺</button>
+              )}
+            </div>
+          </div>
+          <input
+            type="range"
+            min={-0.05}
+            max={0.5}
+            step={0.01}
+            value={settings.letterSpacingOverride ?? 0}
+            onChange={(e) => onUpdate({ letterSpacingOverride: Number(e.target.value) })}
+            className="w-full accent-blue-600 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer"
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase">Line height</label>
+            <div className="flex items-center gap-1">
+              {settings.lineHeightOverride != null && (
+                <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-lg">{settings.lineHeightOverride}</span>
+              )}
+              {settings.lineHeightOverride != null && (
+                <button onClick={() => onUpdate({ lineHeightOverride: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400 px-1">↺</button>
+              )}
+            </div>
+          </div>
+          <input
+            type="range"
+            min={1.0}
+            max={2.5}
+            step={0.05}
+            value={settings.lineHeightOverride ?? 1.2}
+            onChange={(e) => onUpdate({ lineHeightOverride: Number(e.target.value) })}
+            className="w-full accent-blue-600 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer"
+          />
+        </div>
+      </div>
+
+      {/* ── Button overrides ── */}
+      <div className="space-y-3 pt-1">
+        <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Button overrides</p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Button bg</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.btnBg || "#a855f7" }}>
+                <input type="color" value={settings.btnBg || "#a855f7"} onChange={(e) => onUpdate({ btnBg: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.btnBg || ""} onChange={(e) => onUpdate({ btnBg: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Button text</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.btnText || "#ffffff" }}>
+                <input type="color" value={settings.btnText || "#ffffff"} onChange={(e) => onUpdate({ btnText: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.btnText || ""} onChange={(e) => onUpdate({ btnText: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Button style</label>
+          <select
+            value={settings.btnStyle || ""}
+            onChange={(e) => onUpdate({ btnStyle: e.target.value || undefined })}
+            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+          >
+            <option value="">— Inherit —</option>
+            <option value="solid">Solid (filled)</option>
+            <option value="outline">Outline</option>
+            <option value="ghost">Ghost (text only)</option>
+          </select>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase">Border radius</label>
+            {settings.btnRadius != null && (
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-lg">{settings.btnRadius}px</span>
+                <button type="button" onClick={() => onUpdate({ btnRadius: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400 px-1">↺</button>
+              </div>
+            )}
+          </div>
+          <input
+            type="range" min={0} max={40} step={1}
+            value={settings.btnRadius ?? 4}
+            onChange={(e) => onUpdate({ btnRadius: Number(e.target.value) })}
+            className="w-full accent-blue-600 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer"
+          />
+        </div>
+
+        <div className="flex items-center justify-between bg-white border border-neutral-200 rounded-xl px-3 py-2">
+          <span className="text-[11px] font-bold text-neutral-700">Uppercase text</span>
+          <button
+            type="button"
+            onClick={() => onUpdate({ btnUppercase: !settings.btnUppercase })}
+            className={`w-10 h-5 rounded-full relative transition-all ${settings.btnUppercase ? "bg-blue-600" : "bg-neutral-200"}`}
+          >
+            <span className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.btnUppercase ? "left-6" : "left-1"}`} />
+          </button>
         </div>
       </div>
 
@@ -1276,6 +1612,12 @@ type SectionFieldSchema =
   | { key: string; label: string; kind: "toggle" }
   | { key: string; label: string; kind: "date" };
 
+const ALIGN_OPTIONS = [
+  { value: "left", label: "Left" },
+  { value: "center", label: "Center" },
+  { value: "right", label: "Right" },
+];
+
 const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   HeroSection: [
     { key: "title", label: "Headline", kind: "text" },
@@ -1285,35 +1627,54 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "accentColor", label: "Accent color", kind: "color" },
     { key: "ctaText", label: "CTA label", kind: "text" },
     { key: "secondaryCtaText", label: "Secondary CTA", kind: "text" },
-    {
-      key: "align",
-      label: "Alignment",
-      kind: "select",
-      options: [
-        { value: "left", label: "Left" },
-        { value: "center", label: "Center" },
-        { value: "right", label: "Right" },
-      ],
-    },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   FeatureGridSection: [
     { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
     { key: "columns", label: "Columns", kind: "range", min: 2, max: 4 },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
+    { key: "accentColor", label: "Accent color", kind: "color" },
   ],
-  TestimonialsSection: [{ key: "title", label: "Title", kind: "text" }],
-  FAQSection: [{ key: "title", label: "Title", kind: "text" }],
+  TestimonialsSection: [
+    { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
+    { key: "accentColor", label: "Accent color", kind: "color" },
+  ],
+  FAQSection: [
+    { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
+    { key: "accentColor", label: "Accent color", kind: "color" },
+  ],
   NewsletterSection: [
     { key: "title", label: "Title", kind: "text" },
     { key: "description", label: "Description", kind: "textarea", rows: 3 },
-    { key: "placeholder", label: "Placeholder", kind: "text" },
+    { key: "placeholder", label: "Input placeholder", kind: "text" },
     { key: "buttonLabel", label: "Button label", kind: "text" },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   TextContentSection: [
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Title", kind: "text" },
-    { key: "content", label: "Content", kind: "textarea", rows: 5 },
+    { key: "subtitle", label: "Subtitle", kind: "text" },
+    { key: "content", label: "Content", kind: "richtext" },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
+    {
+      key: "maxWidth",
+      label: "Max width",
+      kind: "select",
+      options: [
+        { value: "narrow", label: "Narrow" },
+        { value: "normal", label: "Normal" },
+        { value: "wide", label: "Wide" },
+        { value: "full", label: "Full" },
+      ],
+    },
+    { key: "accentColor", label: "Accent color", kind: "color" },
   ],
   ImageWithTextSection: [
-    { key: "eyebrow", label: "Eyebrow", kind: "text" },
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Title", kind: "text" },
     { key: "body", label: "Body", kind: "textarea", rows: 4 },
     { key: "imageUrl", label: "Image", kind: "image" },
@@ -1331,16 +1692,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "accentColor", label: "Accent", kind: "color" },
   ],
   RichTextSection: [
-    {
-      key: "align",
-      label: "Alignment",
-      kind: "select",
-      options: [
-        { value: "left", label: "Left" },
-        { value: "center", label: "Center" },
-        { value: "right", label: "Right" },
-      ],
-    },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
     { key: "html", label: "Content", kind: "richtext" },
   ],
   MarqueeSection: [
@@ -1355,39 +1707,54 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   ],
   MulticolumnSection: [
     { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
     { key: "columns", label: "Columns", kind: "range", min: 2, max: 6 },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   SlideshowSection: [
     { key: "autoplay", label: "Autoplay", kind: "toggle" },
     { key: "autoplaySpeed", label: "Autoplay speed (ms)", kind: "number", min: 1500, max: 15000, step: 250 },
   ],
   VideoSection: [
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
     { key: "videoUrl", label: "Video URL (YouTube, Vimeo, MP4)", kind: "text" },
     { key: "posterUrl", label: "Poster image", kind: "image" },
+    { key: "accentColor", label: "Accent color", kind: "color" },
   ],
-  LogoListSection: [{ key: "title", label: "Title", kind: "text" }],
-  CollapsibleSection: [{ key: "title", label: "Title", kind: "text" }],
+  LogoListSection: [
+    { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle", kind: "text" },
+  ],
+  CollapsibleSection: [
+    { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
+  ],
   CollectionListSection: [
     { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
     { key: "columns", label: "Columns", kind: "range", min: 2, max: 5 },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   FeaturedProductSection: [
-    { key: "eyebrow", label: "Eyebrow", kind: "text" },
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "productSlug", label: "Product slug", kind: "text" },
     { key: "ctaText", label: "CTA label", kind: "text" },
     { key: "accentColor", label: "Accent", kind: "color" },
   ],
   CountdownSection: [
-    { key: "eyebrow", label: "Eyebrow", kind: "text" },
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Title", kind: "text" },
     { key: "subtitle", label: "Subtitle", kind: "text" },
     { key: "targetDate", label: "Target date", kind: "date" },
     { key: "ctaText", label: "CTA label", kind: "text" },
     { key: "ctaUrl", label: "CTA URL", kind: "text" },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
     { key: "accentColor", label: "Accent", kind: "color" },
   ],
   ContactFormSection: [
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Title", kind: "text" },
     { key: "subtitle", label: "Subtitle", kind: "text" },
     { key: "buttonLabel", label: "Button label", kind: "text" },
@@ -1396,11 +1763,14 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   ],
   MapSection: [
     { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
     { key: "address", label: "Address", kind: "text" },
   ],
   GallerySection: [
     { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
     { key: "columns", label: "Columns", kind: "range", min: 2, max: 6 },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   CustomHTMLSection: [
     { key: "html", label: "HTML", kind: "html" },

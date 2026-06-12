@@ -1107,7 +1107,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       <Link
                         key={page.id}
                         to={`/page/${page.slug}`}
-                        className="text-[10px] tracking-[0.2em] opacity-40 hover:opacity-100 transition-opacity uppercase whitespace-nowrap"
+                        className="opacity-40 hover:opacity-100 transition-opacity whitespace-nowrap"
+                        style={{
+                          fontSize: storefrontDesign?.navLinkSize ? `${storefrontDesign.navLinkSize}px` : "10px",
+                          letterSpacing: storefrontDesign?.navLinkSpacing != null ? `${storefrontDesign.navLinkSpacing}em` : "0.2em",
+                          fontWeight: storefrontDesign?.navLinkWeight || undefined,
+                          textTransform: (storefrontDesign?.navLinkTransform as any) || "uppercase",
+                          ...(storefrontDesign?.navLinkColor && { color: storefrontDesign.navLinkColor }),
+                        }}
                       >
                         {page.title}
                       </Link>
@@ -1453,7 +1460,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   <Link
                     key={page.id}
                     to={`/page/${page.slug}`}
-                    className="text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-60 hover:opacity-100 transition-opacity uppercase"
+                    className="opacity-60 hover:opacity-100 transition-opacity"
+                    style={{
+                      fontSize: heroDesign?.navLinkSize ? `${heroDesign.navLinkSize}px` : "10px",
+                      letterSpacing: heroDesign?.navLinkSpacing != null ? `${heroDesign.navLinkSpacing}em` : "0.2em",
+                      fontWeight: heroDesign?.navLinkWeight || "500",
+                      textTransform: (heroDesign?.navLinkTransform as any) || "uppercase",
+                      ...(heroDesign?.navLinkColor && { color: heroDesign.navLinkColor }),
+                    }}
                   >
                     {page.title}
                   </Link>
