@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useDeferredValue } from "react";
 import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router";
 import { useCart } from "../CartContext";
@@ -859,6 +859,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   // Catalog controls: search + sort + in-stock filter
   const [searchQuery, setSearchQuery] = useState("");
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
@@ -875,8 +876,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const [inStockOnly, setInStockOnly] = useState(false);
 
   const filteredItems = useMemo(
-    () => applyCatalogControls(baseFilteredItems, searchQuery, sort, inStockOnly, [0, Infinity]),
-    [baseFilteredItems, searchQuery, sort, inStockOnly],
+    () => applyCatalogControls(baseFilteredItems, deferredSearchQuery, sort, inStockOnly, [0, Infinity]),
+    [baseFilteredItems, deferredSearchQuery, sort, inStockOnly],
   );
 
   const { has: isWished, toggle: toggleWish, count: wishlistCount } = useWishlist();

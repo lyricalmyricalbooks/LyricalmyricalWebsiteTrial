@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useDeferredValue } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowLeft, Heart } from "lucide-react";
 import { useSiteData } from "./useSiteData";
@@ -18,6 +18,7 @@ export default function CollectionPage() {
   const { formatBookPrice } = useCurrency();
 
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const [sort, setSort] = useState<SortKey>("newest");
   const [inStockOnly, setInStockOnly] = useState(false);
 
@@ -35,8 +36,8 @@ export default function CollectionPage() {
           (b as any).genres?.includes(categoryName) ||
           categoryName === "PUBLICATIONS"),
     );
-    return applyCatalogControls(base, query, sort, inStockOnly, [0, Infinity]);
-  }, [books, categoryName, query, sort, inStockOnly]);
+    return applyCatalogControls(base, deferredQuery, sort, inStockOnly, [0, Infinity]);
+  }, [books, categoryName, deferredQuery, sort, inStockOnly]);
 
   useSEO({
     title: `${categoryName} Collection`,

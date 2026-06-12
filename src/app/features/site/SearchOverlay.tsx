@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useDeferredValue } from "react";
 import { Link } from "react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, X } from "lucide-react";
@@ -40,6 +40,7 @@ export function SearchOverlay({
   books: Book[];
 }) {
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const inputRef = useRef<HTMLInputElement>(null);
   const { formatBookPrice } = useCurrency();
 
@@ -61,7 +62,7 @@ export function SearchOverlay({
   }, [open]);
 
   const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = deferredQuery.trim().toLowerCase();
     if (!q) return [];
     return books
       .map(b => ({ book: b, s: score(b, q) }))
@@ -69,7 +70,7 @@ export function SearchOverlay({
       .sort((a, b) => b.s - a.s)
       .slice(0, 8)
       .map(x => x.book);
-  }, [query, books]);
+  }, [deferredQuery, books]);
 
   return (
     <AnimatePresence>
