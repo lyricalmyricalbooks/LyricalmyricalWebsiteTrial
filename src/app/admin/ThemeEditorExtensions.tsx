@@ -1024,6 +1024,135 @@ export function SectionSettingsPanel({
         </div>
       </div>
 
+      {/* ── Text styling overrides ── */}
+      <div className="space-y-3 pt-1">
+        <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Text styling</p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Heading color</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.headingColor || "#111" }}>
+                <input type="color" value={settings.headingColor || "#111111"} onChange={(e) => onUpdate({ headingColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.headingColor || ""} onChange={(e) => onUpdate({ headingColor: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Body color</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.bodyColor || "#555" }}>
+                <input type="color" value={settings.bodyColor || "#555555"} onChange={(e) => onUpdate({ bodyColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.bodyColor || ""} onChange={(e) => onUpdate({ bodyColor: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase">Heading size</label>
+            <div className="flex items-center gap-1">
+              {settings.headingSize != null && (
+                <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-lg">{settings.headingSize}px</span>
+              )}
+              {settings.headingSize != null && (
+                <button onClick={() => onUpdate({ headingSize: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400 px-1">↺</button>
+              )}
+            </div>
+          </div>
+          <input
+            type="range"
+            min={14}
+            max={120}
+            step={1}
+            value={settings.headingSize ?? 36}
+            onChange={(e) => onUpdate({ headingSize: Number(e.target.value) })}
+            className="w-full accent-blue-600 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Heading weight</label>
+            <select
+              value={settings.headingWeight || ""}
+              onChange={(e) => onUpdate({ headingWeight: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              <option value="">— Inherit —</option>
+              <option value="300">300 · Light</option>
+              <option value="400">400 · Regular</option>
+              <option value="500">500 · Medium</option>
+              <option value="600">600 · Semibold</option>
+              <option value="700">700 · Bold</option>
+              <option value="800">800 · Extrabold</option>
+              <option value="900">900 · Black</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Text transform</label>
+            <select
+              value={settings.textTransform || ""}
+              onChange={(e) => onUpdate({ textTransform: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              <option value="">— Inherit —</option>
+              <option value="none">None (as typed)</option>
+              <option value="uppercase">UPPERCASE</option>
+              <option value="lowercase">lowercase</option>
+              <option value="capitalize">Capitalize</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase">Letter spacing</label>
+            <div className="flex items-center gap-1">
+              {settings.letterSpacingOverride != null && (
+                <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-lg">{settings.letterSpacingOverride}em</span>
+              )}
+              {settings.letterSpacingOverride != null && (
+                <button onClick={() => onUpdate({ letterSpacingOverride: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400 px-1">↺</button>
+              )}
+            </div>
+          </div>
+          <input
+            type="range"
+            min={-0.05}
+            max={0.5}
+            step={0.01}
+            value={settings.letterSpacingOverride ?? 0}
+            onChange={(e) => onUpdate({ letterSpacingOverride: Number(e.target.value) })}
+            className="w-full accent-blue-600 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer"
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase">Line height</label>
+            <div className="flex items-center gap-1">
+              {settings.lineHeightOverride != null && (
+                <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-lg">{settings.lineHeightOverride}</span>
+              )}
+              {settings.lineHeightOverride != null && (
+                <button onClick={() => onUpdate({ lineHeightOverride: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400 px-1">↺</button>
+              )}
+            </div>
+          </div>
+          <input
+            type="range"
+            min={1.0}
+            max={2.5}
+            step={0.05}
+            value={settings.lineHeightOverride ?? 1.2}
+            onChange={(e) => onUpdate({ lineHeightOverride: Number(e.target.value) })}
+            className="w-full accent-blue-600 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer"
+          />
+        </div>
+      </div>
+
       <div>
         <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Entrance animation</label>
         <select
@@ -1276,6 +1405,12 @@ type SectionFieldSchema =
   | { key: string; label: string; kind: "toggle" }
   | { key: string; label: string; kind: "date" };
 
+const ALIGN_OPTIONS = [
+  { value: "left", label: "Left" },
+  { value: "center", label: "Center" },
+  { value: "right", label: "Right" },
+];
+
 const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   HeroSection: [
     { key: "title", label: "Headline", kind: "text" },
@@ -1285,35 +1420,54 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "accentColor", label: "Accent color", kind: "color" },
     { key: "ctaText", label: "CTA label", kind: "text" },
     { key: "secondaryCtaText", label: "Secondary CTA", kind: "text" },
-    {
-      key: "align",
-      label: "Alignment",
-      kind: "select",
-      options: [
-        { value: "left", label: "Left" },
-        { value: "center", label: "Center" },
-        { value: "right", label: "Right" },
-      ],
-    },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   FeatureGridSection: [
     { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
     { key: "columns", label: "Columns", kind: "range", min: 2, max: 4 },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
+    { key: "accentColor", label: "Accent color", kind: "color" },
   ],
-  TestimonialsSection: [{ key: "title", label: "Title", kind: "text" }],
-  FAQSection: [{ key: "title", label: "Title", kind: "text" }],
+  TestimonialsSection: [
+    { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
+    { key: "accentColor", label: "Accent color", kind: "color" },
+  ],
+  FAQSection: [
+    { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
+    { key: "accentColor", label: "Accent color", kind: "color" },
+  ],
   NewsletterSection: [
     { key: "title", label: "Title", kind: "text" },
     { key: "description", label: "Description", kind: "textarea", rows: 3 },
-    { key: "placeholder", label: "Placeholder", kind: "text" },
+    { key: "placeholder", label: "Input placeholder", kind: "text" },
     { key: "buttonLabel", label: "Button label", kind: "text" },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   TextContentSection: [
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Title", kind: "text" },
-    { key: "content", label: "Content", kind: "textarea", rows: 5 },
+    { key: "subtitle", label: "Subtitle", kind: "text" },
+    { key: "content", label: "Content", kind: "richtext" },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
+    {
+      key: "maxWidth",
+      label: "Max width",
+      kind: "select",
+      options: [
+        { value: "narrow", label: "Narrow" },
+        { value: "normal", label: "Normal" },
+        { value: "wide", label: "Wide" },
+        { value: "full", label: "Full" },
+      ],
+    },
+    { key: "accentColor", label: "Accent color", kind: "color" },
   ],
   ImageWithTextSection: [
-    { key: "eyebrow", label: "Eyebrow", kind: "text" },
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Title", kind: "text" },
     { key: "body", label: "Body", kind: "textarea", rows: 4 },
     { key: "imageUrl", label: "Image", kind: "image" },
@@ -1331,16 +1485,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "accentColor", label: "Accent", kind: "color" },
   ],
   RichTextSection: [
-    {
-      key: "align",
-      label: "Alignment",
-      kind: "select",
-      options: [
-        { value: "left", label: "Left" },
-        { value: "center", label: "Center" },
-        { value: "right", label: "Right" },
-      ],
-    },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
     { key: "html", label: "Content", kind: "richtext" },
   ],
   MarqueeSection: [
@@ -1355,39 +1500,54 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   ],
   MulticolumnSection: [
     { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
     { key: "columns", label: "Columns", kind: "range", min: 2, max: 6 },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   SlideshowSection: [
     { key: "autoplay", label: "Autoplay", kind: "toggle" },
     { key: "autoplaySpeed", label: "Autoplay speed (ms)", kind: "number", min: 1500, max: 15000, step: 250 },
   ],
   VideoSection: [
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
     { key: "videoUrl", label: "Video URL (YouTube, Vimeo, MP4)", kind: "text" },
     { key: "posterUrl", label: "Poster image", kind: "image" },
+    { key: "accentColor", label: "Accent color", kind: "color" },
   ],
-  LogoListSection: [{ key: "title", label: "Title", kind: "text" }],
-  CollapsibleSection: [{ key: "title", label: "Title", kind: "text" }],
+  LogoListSection: [
+    { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle", kind: "text" },
+  ],
+  CollapsibleSection: [
+    { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
+  ],
   CollectionListSection: [
     { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
     { key: "columns", label: "Columns", kind: "range", min: 2, max: 5 },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   FeaturedProductSection: [
-    { key: "eyebrow", label: "Eyebrow", kind: "text" },
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "productSlug", label: "Product slug", kind: "text" },
     { key: "ctaText", label: "CTA label", kind: "text" },
     { key: "accentColor", label: "Accent", kind: "color" },
   ],
   CountdownSection: [
-    { key: "eyebrow", label: "Eyebrow", kind: "text" },
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Title", kind: "text" },
     { key: "subtitle", label: "Subtitle", kind: "text" },
     { key: "targetDate", label: "Target date", kind: "date" },
     { key: "ctaText", label: "CTA label", kind: "text" },
     { key: "ctaUrl", label: "CTA URL", kind: "text" },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
     { key: "accentColor", label: "Accent", kind: "color" },
   ],
   ContactFormSection: [
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Title", kind: "text" },
     { key: "subtitle", label: "Subtitle", kind: "text" },
     { key: "buttonLabel", label: "Button label", kind: "text" },
@@ -1396,11 +1556,14 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   ],
   MapSection: [
     { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
     { key: "address", label: "Address", kind: "text" },
   ],
   GallerySection: [
     { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
     { key: "columns", label: "Columns", kind: "range", min: 2, max: 6 },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   CustomHTMLSection: [
     { key: "html", label: "HTML", kind: "html" },

@@ -26,6 +26,42 @@ function visibleBlocks(list: any[]): any[] {
 }
 
 // ──────────────────────────────
+// Per-section text style helpers
+// ──────────────────────────────
+
+function hStyle(s: any) {
+  return {
+    ...(s.headingColor && { color: s.headingColor }),
+    ...(s.headingSize && { fontSize: `${s.headingSize}px` }),
+    ...(s.headingWeight && { fontWeight: s.headingWeight }),
+    ...(s.textTransform && { textTransform: s.textTransform }),
+    ...(s.letterSpacingOverride != null && s.letterSpacingOverride !== 0 && { letterSpacing: `${s.letterSpacingOverride}em` }),
+    ...(s.lineHeightOverride != null && { lineHeight: s.lineHeightOverride }),
+  };
+}
+
+function bStyle(s: any) {
+  return {
+    ...(s.bodyColor && { color: s.bodyColor }),
+    ...(s.lineHeightOverride != null && { lineHeight: s.lineHeightOverride }),
+  };
+}
+
+function aClass(s: any) {
+  return s.align === "left" ? "text-left" : s.align === "right" ? "text-right" : "text-center";
+}
+
+function mwClass(s: any) {
+  return s.maxWidth === "narrow"
+    ? "max-w-2xl"
+    : s.maxWidth === "wide"
+    ? "max-w-6xl"
+    : s.maxWidth === "full"
+    ? "max-w-none"
+    : "max-w-4xl";
+}
+
+// ──────────────────────────────
 // HERO
 // ──────────────────────────────
 
@@ -37,7 +73,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
       ? "h-[70vh] min-h-[480px]"
       : settings.height === "small"
       ? "h-[50vh] min-h-[320px]"
-      : "h-screen min-h-[600px]"; // default: full viewport
+      : "h-screen min-h-[600px]";
 
   return (
     <section
@@ -56,11 +92,19 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
         }`}
       >
         <AnimationContainer enabled={enableAnimations}>
-          <h1 className="text-4xl md:text-6xl font-black tracking-tight uppercase mb-6 leading-none text-white">
-            <span data-theme-field="title">{settings.title || "Lyricalmyrical"}</span>
+          <h1
+            className="text-4xl md:text-6xl font-black tracking-tight uppercase mb-6 leading-none text-white"
+            style={hStyle(settings)}
+            data-theme-field="title"
+          >
+            {settings.title || "Lyricalmyrical"}
           </h1>
-          <p className="text-sm md:text-md tracking-[0.3em] font-medium text-white/70 uppercase mb-10">
-            <span data-theme-field="subtitle">{settings.subtitle || "Photography & Art Books"}</span>
+          <p
+            className="text-sm md:text-md tracking-[0.3em] font-medium text-white/70 uppercase mb-10"
+            style={bStyle(settings)}
+            data-theme-field="subtitle"
+          >
+            {settings.subtitle || "Photography & Art Books"}
           </p>
           <div className={`flex flex-wrap items-center gap-4 ${
             settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center"
@@ -91,20 +135,32 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
 export function FeatureGridSection({ settings, enableAnimations }: any) {
   const items = visibleBlocks(settings.items || settings.blocks || []);
   const cols = settings.columns ?? 3;
+  const textAlign = aClass(settings);
   return (
     <section className="py-24 px-6 max-w-7xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
-        <h2 className="text-3xl font-bold tracking-tight uppercase text-white mb-10" data-theme-field="title">
-          {settings.title || "Highlights"}
-        </h2>
+        <div className={`mb-10 ${textAlign}`}>
+          <h2
+            className="text-3xl font-bold tracking-tight uppercase text-white"
+            style={hStyle(settings)}
+            data-theme-field="title"
+          >
+            {settings.title || "Highlights"}
+          </h2>
+          {settings.subtitle && (
+            <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
+              {settings.subtitle}
+            </p>
+          )}
+        </div>
       </AnimationContainer>
       <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
         {(items.length ? items : [{ title: "Feature One", description: "Describe your value." }]).map((item: any, idx: number) => (
           <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.1}>
             <div className="p-6 bg-white/[0.03] border border-white/10 rounded-2xl">
               {item.icon && <div className="text-3xl mb-3">{item.icon}</div>}
-              <h3 className="text-sm font-bold uppercase text-white">{item.title}</h3>
-              <p className="text-xs text-white/50 mt-2">{item.description}</p>
+              <h3 className="text-sm font-bold uppercase text-white" style={bStyle(settings)}>{item.title}</h3>
+              <p className="text-xs text-white/50 mt-2" style={bStyle(settings)}>{item.description}</p>
             </div>
           </AnimationContainer>
         ))}
@@ -118,15 +174,20 @@ export function FeatureGridSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function NewsletterSection({ settings, enableAnimations }: any) {
+  const textAlign = aClass(settings);
   return (
     <section className="py-24 border-t border-white/5 bg-white/[0.02]">
       <AnimationContainer enabled={enableAnimations}>
-        <div className="max-w-xl mx-auto px-6 text-center space-y-8">
+        <div className={`max-w-xl mx-auto px-6 space-y-8 ${textAlign}`}>
           <div className="space-y-3">
-            <h2 className="text-2xl font-bold tracking-tight uppercase text-white" data-theme-field="title">
+            <h2
+              className="text-2xl font-bold tracking-tight uppercase text-white"
+              style={hStyle(settings)}
+              data-theme-field="title"
+            >
               {settings.title || "Join the Archive"}
             </h2>
-            <p className="text-xs text-white/40 tracking-widest leading-relaxed">
+            <p className="text-xs text-white/40 tracking-widest leading-relaxed" style={bStyle(settings)}>
               <span data-theme-field="description">
                 {settings.description || "Occasional dispatches about new publications and limited editions."}
               </span>
@@ -158,18 +219,30 @@ export function NewsletterSection({ settings, enableAnimations }: any) {
 
 export function TestimonialsSection({ settings, enableAnimations }: any) {
   const items = visibleBlocks(settings.items || settings.blocks || []);
+  const textAlign = aClass(settings);
   return (
     <section className="py-24 px-6 max-w-6xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
-        <h2 className="text-3xl font-bold tracking-tight uppercase leading-tight text-white mb-8" data-theme-field="title">
-          {settings.title || "Testimonials"}
-        </h2>
+        <div className={`mb-8 ${textAlign}`}>
+          <h2
+            className="text-3xl font-bold tracking-tight uppercase leading-tight text-white"
+            style={hStyle(settings)}
+            data-theme-field="title"
+          >
+            {settings.title || "Testimonials"}
+          </h2>
+          {settings.subtitle && (
+            <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
+              {settings.subtitle}
+            </p>
+          )}
+        </div>
         <div className="grid md:grid-cols-2 gap-6">
           {(items.length ? items : [{ quote: "An incredible independent shop.", author: "Customer" }]).map((item: any, idx: number) => (
             <div key={idx} className="p-6 bg-white/[0.03] rounded-2xl border border-white/10">
-              <p className="text-white/70 text-lg leading-relaxed font-light">"{item.quote}"</p>
-              <p className="text-white/40 text-xs mt-4 uppercase tracking-widest">{item.author}</p>
-              {item.role && <p className="text-white/30 text-[10px] mt-1">{item.role}</p>}
+              <p className="text-white/70 text-lg leading-relaxed font-light" style={bStyle(settings)}>"{item.quote}"</p>
+              <p className="text-white/40 text-xs mt-4 uppercase tracking-widest" style={bStyle(settings)}>{item.author}</p>
+              {item.role && <p className="text-white/30 text-[10px] mt-1" style={bStyle(settings)}>{item.role}</p>}
             </div>
           ))}
         </div>
@@ -187,14 +260,25 @@ export function FAQSection({ settings, enableAnimations }: any) {
   return (
     <section className="py-24 px-6 max-w-4xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
-        <h2 className="text-3xl font-bold tracking-tight uppercase leading-tight text-white mb-8" data-theme-field="title">
-          {settings.title || "FAQ"}
-        </h2>
+        <div className="mb-8">
+          <h2
+            className="text-3xl font-bold tracking-tight uppercase leading-tight text-white"
+            style={hStyle(settings)}
+            data-theme-field="title"
+          >
+            {settings.title || "FAQ"}
+          </h2>
+          {settings.subtitle && (
+            <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
+              {settings.subtitle}
+            </p>
+          )}
+        </div>
         <div className="space-y-3">
           {(items.length ? items : [{ question: "Sample question?", answer: "Sample answer." }]).map((item: any, idx: number) => (
             <details key={idx} className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
-              <summary className="text-sm font-bold text-white cursor-pointer">{item.question}</summary>
-              <p className="text-white/60 text-sm mt-3">{item.answer}</p>
+              <summary className="text-sm font-bold text-white cursor-pointer" style={bStyle(settings)}>{item.question}</summary>
+              <p className="text-white/60 text-sm mt-3" style={bStyle(settings)}>{item.answer}</p>
             </details>
           ))}
         </div>
@@ -204,22 +288,53 @@ export function FAQSection({ settings, enableAnimations }: any) {
 }
 
 // ──────────────────────────────
-// TEXT CONTENT (already existed)
+// TEXT CONTENT
 // ──────────────────────────────
 
 export function TextContentSection({ settings, enableAnimations }: any) {
+  const textAlign = aClass(settings);
+  const maxW = mwClass(settings);
+  const hasHtml = settings.content && /<[a-z][\s\S]*>/i.test(settings.content);
   return (
-    <section className="py-24 px-6 max-w-4xl mx-auto text-center">
+    <section className={`py-24 px-6 mx-auto ${maxW} ${textAlign}`}>
       <AnimationContainer enabled={enableAnimations}>
-        <div className="space-y-6">
-          {settings.title && (
-            <h2 className="text-3xl font-bold tracking-tight uppercase leading-tight text-white">{settings.title}</h2>
-          )}
-          <div className="prose prose-invert max-w-none">
-            <p className="text-white/60 text-lg leading-relaxed font-light">
-              {settings.content || "Add your mission statement or store introduction here."}
+        <div className="space-y-5">
+          {settings.eyebrow && (
+            <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>
+              {settings.eyebrow}
             </p>
-          </div>
+          )}
+          {settings.title && (
+            <h2
+              className="text-3xl font-bold tracking-tight uppercase leading-tight text-white"
+              style={hStyle(settings)}
+            >
+              {settings.title}
+            </h2>
+          )}
+          {settings.subtitle && (
+            <p className="text-lg text-white/70 leading-relaxed" style={bStyle(settings)}>
+              {settings.subtitle}
+            </p>
+          )}
+          {settings.content && (
+            hasHtml ? (
+              <div
+                className="prose prose-invert max-w-none"
+                style={bStyle(settings)}
+                dangerouslySetInnerHTML={{ __html: settings.content }}
+              />
+            ) : (
+              <p className="text-white/60 text-lg leading-relaxed font-light" style={bStyle(settings)}>
+                {settings.content}
+              </p>
+            )
+          )}
+          {!settings.title && !settings.content && (
+            <p className="text-white/60 text-lg leading-relaxed font-light" style={bStyle(settings)}>
+              Add your mission statement or store introduction here.
+            </p>
+          )}
         </div>
       </AnimationContainer>
     </section>
@@ -245,12 +360,16 @@ export function ImageWithTextSection({ settings, enableAnimations }: any) {
           </div>
           <div className="space-y-5">
             {settings.eyebrow && (
-              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50">{settings.eyebrow}</p>
+              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow}</p>
             )}
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white" data-theme-field="title">
+            <h2
+              className="text-3xl md:text-4xl font-bold tracking-tight text-white"
+              style={hStyle(settings)}
+              data-theme-field="title"
+            >
               {settings.title || "About the collection"}
             </h2>
-            <p className="text-white/60 leading-relaxed" data-theme-field="body">
+            <p className="text-white/60 leading-relaxed" style={bStyle(settings)} data-theme-field="body">
               {settings.body || "Pair text with an image to give focus to your chosen product or collection."}
             </p>
             {settings.ctaText && (
@@ -280,6 +399,7 @@ export function RichTextSection({ settings, enableAnimations }: any) {
       <AnimationContainer enabled={enableAnimations}>
         <div
           className={`max-w-3xl mx-auto prose prose-invert ${align === "left" ? "text-left" : align === "right" ? "text-right" : "text-center mx-auto"}`}
+          style={bStyle(settings)}
           dangerouslySetInnerHTML={{ __html: settings.html || "<p>Use this rich text section to share information with your customers.</p>" }}
         />
       </AnimationContainer>
@@ -301,8 +421,7 @@ export function MarqueeSection({ settings }: any) {
   const background = settings.background || "transparent";
   const color = settings.color || undefined;
 
-  // Repeat the phrase so the strip stays full, then render two copies for a seamless -50% loop.
-  const phrase = Array.from({ length: 4 }).map(() => text).join(`  ${separator}  `);
+  const phrase = Array.from({ length: 4 }).map(() => text).join(`  ${separator}  `);
 
   return (
     <section className="overflow-hidden py-8" style={{ background }}>
@@ -318,7 +437,7 @@ export function MarqueeSection({ settings }: any) {
             style={{ fontSize, color }}
           >
             {phrase}
-            {`  ${separator}  `}
+            {`  ${separator}  `}
           </span>
         ))}
       </div>
@@ -333,26 +452,40 @@ export function MarqueeSection({ settings }: any) {
 export function MulticolumnSection({ settings, enableAnimations }: any) {
   const items = visibleBlocks(settings.items || settings.blocks || []);
   const cols = Math.max(2, Math.min(6, settings.columns ?? 3));
+  const textAlign = aClass(settings);
   return (
     <section className="py-24 px-6 max-w-7xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
-        {settings.title && (
-          <h2 className="text-3xl font-bold tracking-tight uppercase text-white mb-12 text-center" data-theme-field="title">
-            {settings.title}
-          </h2>
+        {(settings.title || settings.subtitle) && (
+          <div className={`mb-12 ${textAlign}`}>
+            {settings.title && (
+              <h2
+                className="text-3xl font-bold tracking-tight uppercase text-white"
+                style={hStyle(settings)}
+                data-theme-field="title"
+              >
+                {settings.title}
+              </h2>
+            )}
+            {settings.subtitle && (
+              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
+                {settings.subtitle}
+              </p>
+            )}
+          </div>
         )}
       </AnimationContainer>
       <div className="grid gap-8" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
         {items.map((item: any, idx: number) => (
           <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.1}>
-            <div className="text-center space-y-4">
+            <div className={`space-y-4 ${textAlign}`}>
               {item.imageUrl && (
                 <div className="aspect-square w-32 mx-auto rounded-full overflow-hidden border border-white/10">
                   <img src={item.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={item.title || ""} />
                 </div>
               )}
-              <h3 className="text-lg font-bold text-white">{item.title || "Column"}</h3>
-              <p className="text-white/60 text-sm">{item.body || ""}</p>
+              <h3 className="text-lg font-bold text-white" style={bStyle(settings)}>{item.title || "Column"}</h3>
+              <p className="text-white/60 text-sm" style={bStyle(settings)}>{item.body || ""}</p>
               {item.linkText && (
                 <a href={item.linkUrl || "#"} className="text-xs font-bold tracking-widest uppercase text-white/80 underline">
                   {item.linkText}
@@ -464,8 +597,27 @@ export function VideoSection({ settings, enableAnimations }: any) {
   return (
     <section className="py-24 px-6 max-w-6xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
-        {settings.title && (
-          <h2 className="text-3xl font-bold tracking-tight uppercase text-white mb-8 text-center">{settings.title}</h2>
+        {(settings.eyebrow || settings.title || settings.subtitle) && (
+          <div className="text-center mb-8">
+            {settings.eyebrow && (
+              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50 mb-3" style={bStyle(settings)}>
+                {settings.eyebrow}
+              </p>
+            )}
+            {settings.title && (
+              <h2
+                className="text-3xl font-bold tracking-tight uppercase text-white"
+                style={hStyle(settings)}
+              >
+                {settings.title}
+              </h2>
+            )}
+            {settings.subtitle && (
+              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
+                {settings.subtitle}
+              </p>
+            )}
+          </div>
         )}
         <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black border border-white/10">
           {embed ? (
@@ -498,10 +650,22 @@ export function LogoListSection({ settings, enableAnimations }: any) {
   return (
     <section className="py-16 px-6 max-w-7xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
-        {settings.title && (
-          <p className="text-center text-[10px] font-bold tracking-[0.3em] uppercase text-white/40 mb-8">
-            {settings.title}
-          </p>
+        {(settings.title || settings.subtitle) && (
+          <div className="text-center mb-8">
+            {settings.title && (
+              <p
+                className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/40"
+                style={hStyle(settings)}
+              >
+                {settings.title}
+              </p>
+            )}
+            {settings.subtitle && (
+              <p className="mt-2 text-white/40 text-xs" style={bStyle(settings)}>
+                {settings.subtitle}
+              </p>
+            )}
+          </div>
         )}
         <div className="flex flex-wrap items-center justify-center gap-8 md:gap-16">
           {items.map((item: any, idx: number) => (
@@ -528,18 +692,33 @@ export function CollapsibleSection({ settings, enableAnimations }: any) {
   return (
     <section className="py-20 px-6 max-w-3xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
-        {settings.title && (
-          <h2 className="text-3xl font-bold tracking-tight uppercase text-white mb-8 text-center">{settings.title}</h2>
+        {(settings.title || settings.subtitle) && (
+          <div className="text-center mb-8">
+            {settings.title && (
+              <h2
+                className="text-3xl font-bold tracking-tight uppercase text-white"
+                style={hStyle(settings)}
+              >
+                {settings.title}
+              </h2>
+            )}
+            {settings.subtitle && (
+              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
+                {settings.subtitle}
+              </p>
+            )}
+          </div>
         )}
         <div className="border-t border-white/10">
           {items.map((item: any, idx: number) => (
             <details key={idx} className="border-b border-white/10 group">
-              <summary className="flex items-center justify-between cursor-pointer py-5 text-white text-sm font-bold tracking-wide uppercase">
+              <summary className="flex items-center justify-between cursor-pointer py-5 text-white text-sm font-bold tracking-wide uppercase" style={bStyle(settings)}>
                 {item.heading || "Heading"}
                 <span className="text-white/40 group-open:rotate-45 transition-transform">+</span>
               </summary>
               <div
                 className="text-white/60 text-sm pb-6 prose prose-invert max-w-none"
+                style={bStyle(settings)}
                 dangerouslySetInnerHTML={{ __html: item.content || "" }}
               />
             </details>
@@ -557,11 +736,26 @@ export function CollapsibleSection({ settings, enableAnimations }: any) {
 export function CollectionListSection({ settings, enableAnimations }: any) {
   const items = visibleBlocks(settings.items || settings.blocks || []);
   const cols = Math.max(2, Math.min(5, settings.columns ?? 3));
+  const textAlign = aClass(settings);
   return (
     <section className="py-24 px-6 max-w-7xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
-        {settings.title && (
-          <h2 className="text-3xl font-bold tracking-tight uppercase text-white mb-10 text-center">{settings.title}</h2>
+        {(settings.title || settings.subtitle) && (
+          <div className={`mb-10 ${textAlign}`}>
+            {settings.title && (
+              <h2
+                className="text-3xl font-bold tracking-tight uppercase text-white"
+                style={hStyle(settings)}
+              >
+                {settings.title}
+              </h2>
+            )}
+            {settings.subtitle && (
+              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
+                {settings.subtitle}
+              </p>
+            )}
+          </div>
         )}
       </AnimationContainer>
       <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
@@ -616,11 +810,11 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
             {photo ? <img src={photo} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
           </div>
           <div className="space-y-5">
-            <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50">{settings.eyebrow || "Featured"}</p>
-            <h2 className="text-3xl md:text-4xl font-bold text-white">{target.title}</h2>
-            {target.subtitle && <p className="text-white/60">{target.subtitle}</p>}
-            <p className="text-2xl font-bold text-white">${typeof price === "number" ? price.toFixed(2) : price}</p>
-            <p className="text-white/60 text-sm leading-relaxed line-clamp-4">{target.description || ""}</p>
+            <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow || "Featured"}</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-white" style={hStyle(settings)}>{target.title}</h2>
+            {target.subtitle && <p className="text-white/60" style={bStyle(settings)}>{target.subtitle}</p>}
+            <p className="text-2xl font-bold text-white" style={bStyle(settings)}>${typeof price === "number" ? price.toFixed(2) : price}</p>
+            <p className="text-white/60 text-sm leading-relaxed line-clamp-4" style={bStyle(settings)}>{target.description || ""}</p>
             <button
               onClick={() => onProductClick?.(target)}
               className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
@@ -665,19 +859,25 @@ export function CountdownSection({ settings, enableAnimations }: any) {
   const hours = Math.floor((remaining % 86400000) / 3600000);
   const minutes = Math.floor((remaining % 3600000) / 60000);
   const seconds = Math.floor((remaining % 60000) / 1000);
+  const textAlign = aClass(settings);
 
   return (
-    <section className="py-20 px-6 text-center" style={{ background: settings.backgroundColor || "transparent" }}>
+    <section className={`py-20 px-6 ${textAlign}`} style={{ background: settings.backgroundColor || "transparent" }}>
       <AnimationContainer enabled={enableAnimations}>
         {settings.eyebrow && (
-          <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/60 mb-4 flex items-center justify-center gap-2">
+          <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/60 mb-4 flex items-center justify-center gap-2" style={bStyle(settings)}>
             <Clock size={12} />
             {settings.eyebrow}
           </p>
         )}
-        <h2 className="text-3xl md:text-4xl font-bold uppercase text-white mb-2">{settings.title || "Limited time offer"}</h2>
-        {settings.subtitle && <p className="text-white/60 mb-8">{settings.subtitle}</p>}
-        <div className="flex justify-center gap-4 md:gap-8 mt-8">
+        <h2
+          className="text-3xl md:text-4xl font-bold uppercase text-white mb-2"
+          style={hStyle(settings)}
+        >
+          {settings.title || "Limited time offer"}
+        </h2>
+        {settings.subtitle && <p className="text-white/60 mb-8" style={bStyle(settings)}>{settings.subtitle}</p>}
+        <div className={`flex gap-4 md:gap-8 mt-8 ${settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center"}`}>
           {[
             { label: "Days", v: days },
             { label: "Hours", v: hours },
@@ -685,8 +885,8 @@ export function CountdownSection({ settings, enableAnimations }: any) {
             { label: "Sec", v: seconds },
           ].map((u) => (
             <div key={u.label} className="text-center">
-              <div className="text-4xl md:text-6xl font-black text-white tabular-nums">{String(u.v).padStart(2, "0")}</div>
-              <div className="text-[10px] tracking-[0.3em] uppercase text-white/50 mt-1">{u.label}</div>
+              <div className="text-4xl md:text-6xl font-black text-white tabular-nums" style={hStyle(settings)}>{String(u.v).padStart(2, "0")}</div>
+              <div className="text-[10px] tracking-[0.3em] uppercase text-white/50 mt-1" style={bStyle(settings)}>{u.label}</div>
             </div>
           ))}
         </div>
@@ -714,8 +914,20 @@ export function ContactFormSection({ settings, enableAnimations }: any) {
     <section className="py-24 px-6 max-w-2xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold tracking-tight uppercase text-white">{settings.title || "Get in touch"}</h2>
-          {settings.subtitle && <p className="text-white/60 mt-3">{settings.subtitle}</p>}
+          {settings.eyebrow && (
+            <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50 mb-3" style={bStyle(settings)}>
+              {settings.eyebrow}
+            </p>
+          )}
+          <h2
+            className="text-3xl font-bold tracking-tight uppercase text-white"
+            style={hStyle(settings)}
+          >
+            {settings.title || "Get in touch"}
+          </h2>
+          {settings.subtitle && (
+            <p className="text-white/60 mt-3" style={bStyle(settings)}>{settings.subtitle}</p>
+          )}
         </div>
         {submitted ? (
           <div className="text-center text-white/80 py-12">Thanks — we'll be in touch.</div>
@@ -776,15 +988,35 @@ export function MapSection({ settings, enableAnimations }: any) {
   return (
     <section className="py-12 px-6 max-w-7xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
-        {settings.title && (
+        {(settings.title || settings.subtitle) && (
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold tracking-tight uppercase text-white">{settings.title}</h2>
+            {settings.title && (
+              <h2
+                className="text-3xl font-bold tracking-tight uppercase text-white"
+                style={hStyle(settings)}
+              >
+                {settings.title}
+              </h2>
+            )}
+            {settings.subtitle && (
+              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
+                {settings.subtitle}
+              </p>
+            )}
             {settings.address && (
-              <p className="text-white/60 mt-2 flex items-center justify-center gap-2 text-sm">
+              <p className="text-white/60 mt-2 flex items-center justify-center gap-2 text-sm" style={bStyle(settings)}>
                 <MapPin size={14} />
                 {settings.address}
               </p>
             )}
+          </div>
+        )}
+        {!settings.title && settings.address && (
+          <div className="text-center mb-8">
+            <p className="text-white/60 flex items-center justify-center gap-2 text-sm">
+              <MapPin size={14} />
+              {settings.address}
+            </p>
           </div>
         )}
         <div className="aspect-[16/9] rounded-2xl overflow-hidden border border-white/10 bg-white/5">
@@ -805,7 +1037,7 @@ export function MapSection({ settings, enableAnimations }: any) {
 // ROW (multi-column layout where each column holds any block kind)
 // ──────────────────────────────
 
-function RowBlock({ block, accentFallback }: any) {
+function RowBlock({ block, accentFallback, settings }: any) {
   const kind = block.kind || "text";
 
   if (kind === "image") {
@@ -859,8 +1091,8 @@ function RowBlock({ block, accentFallback }: any) {
   // text (default)
   return (
     <div className="space-y-4">
-      {block.title && <h3 className="text-2xl font-bold tracking-tight text-white">{block.title}</h3>}
-      {block.body && <p className="text-white/60 leading-relaxed text-sm">{block.body}</p>}
+      {block.title && <h3 className="text-2xl font-bold tracking-tight text-white" style={settings ? hStyle(settings) : {}}>{block.title}</h3>}
+      {block.body && <p className="text-white/60 leading-relaxed text-sm" style={settings ? bStyle(settings) : {}}>{block.body}</p>}
       {block.buttonText && (
         <a
           href={block.buttonUrl || "#"}
@@ -891,7 +1123,11 @@ export function RowSection({ settings, enableAnimations }: any) {
     <section className="py-20 px-6 max-w-7xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
         {settings.title && (
-          <h2 className="text-3xl font-bold tracking-tight uppercase text-white mb-12 text-center" data-theme-field="title">
+          <h2
+            className="text-3xl font-bold tracking-tight uppercase text-white mb-12 text-center"
+            style={hStyle(settings)}
+            data-theme-field="title"
+          >
             {settings.title}
           </h2>
         )}
@@ -901,7 +1137,7 @@ export function RowSection({ settings, enableAnimations }: any) {
         >
           {(blocks.length ? blocks : [{ kind: "text", title: "Add columns", body: "Use the Row section to combine text, images, buttons and video side by side." }]).map(
             (block: any, idx: number) => (
-              <RowBlock key={idx} block={block} accentFallback={settings.accentColor} />
+              <RowBlock key={idx} block={block} accentFallback={settings.accentColor} settings={settings} />
             ),
           )}
         </div>
@@ -917,11 +1153,26 @@ export function RowSection({ settings, enableAnimations }: any) {
 export function GallerySection({ settings, enableAnimations }: any) {
   const items = visibleBlocks(settings.items || settings.blocks || []);
   const cols = Math.max(2, Math.min(6, settings.columns ?? 3));
+  const textAlign = aClass(settings);
   return (
     <section className="py-20 px-6 max-w-7xl mx-auto">
       <AnimationContainer enabled={enableAnimations}>
-        {settings.title && (
-          <h2 className="text-3xl font-bold tracking-tight uppercase text-white mb-8 text-center">{settings.title}</h2>
+        {(settings.title || settings.subtitle) && (
+          <div className={`mb-8 ${textAlign}`}>
+            {settings.title && (
+              <h2
+                className="text-3xl font-bold tracking-tight uppercase text-white"
+                style={hStyle(settings)}
+              >
+                {settings.title}
+              </h2>
+            )}
+            {settings.subtitle && (
+              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
+                {settings.subtitle}
+              </p>
+            )}
+          </div>
         )}
       </AnimationContainer>
       <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
