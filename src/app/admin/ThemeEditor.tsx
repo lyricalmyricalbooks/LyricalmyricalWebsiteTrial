@@ -993,6 +993,72 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
           )}
         </div>
       </Accordion>
+
+      <Accordion title="Nav Typography">
+        <div className="space-y-6">
+          <div>
+            <SidebarLabel>Heading / logo label</SidebarLabel>
+            <input
+              value={design.navHeading || ""}
+              onChange={(e) => update("navHeading", e.target.value || undefined)}
+              placeholder="Store name or leave blank"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-violet-500/50"
+            />
+          </div>
+          <ColorPicker
+            label="Nav link color"
+            value={design.navLinkColor || "#ffffff"}
+            onChange={(v) => update("navLinkColor", v)}
+          />
+          <SidebarRange
+            label="Link size"
+            value={design.navLinkSize ?? 13}
+            min={8}
+            max={22}
+            suffix="px"
+            onChange={(v: number) => update("navLinkSize", v)}
+          />
+          <div>
+            <SidebarLabel>Link weight</SidebarLabel>
+            <select
+              value={design.navLinkWeight || ""}
+              onChange={(e) => update("navLinkWeight", e.target.value || undefined)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-violet-500/50"
+            >
+              <option value="">— Inherit —</option>
+              <option value="300">300 · Light</option>
+              <option value="400">400 · Regular</option>
+              <option value="500">500 · Medium</option>
+              <option value="600">600 · Semibold</option>
+              <option value="700">700 · Bold</option>
+              <option value="800">800 · Extrabold</option>
+              <option value="900">900 · Black</option>
+            </select>
+          </div>
+          <div>
+            <SidebarLabel>Text transform</SidebarLabel>
+            <select
+              value={design.navLinkTransform || ""}
+              onChange={(e) => update("navLinkTransform", e.target.value || undefined)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-violet-500/50"
+            >
+              <option value="">— Inherit —</option>
+              <option value="none">None</option>
+              <option value="uppercase">UPPERCASE</option>
+              <option value="lowercase">lowercase</option>
+              <option value="capitalize">Capitalize</option>
+            </select>
+          </div>
+          <SidebarRange
+            label="Letter spacing"
+            value={Math.round((design.navLinkSpacing ?? 0) * 100)}
+            min={-5}
+            max={50}
+            suffix=" (×0.01em)"
+            onChange={(v: number) => update("navLinkSpacing", v / 100)}
+          />
+        </div>
+      </Accordion>
     </div>
   );
 }

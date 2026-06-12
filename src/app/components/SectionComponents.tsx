@@ -26,7 +26,7 @@ function visibleBlocks(list: any[]): any[] {
 }
 
 // ──────────────────────────────
-// Per-section text style helpers
+// Per-section style helpers
 // ──────────────────────────────
 
 function hStyle(s: any) {
@@ -51,14 +51,66 @@ function aClass(s: any) {
   return s.align === "left" ? "text-left" : s.align === "right" ? "text-right" : "text-center";
 }
 
-function mwClass(s: any) {
-  return s.maxWidth === "narrow"
-    ? "max-w-2xl"
-    : s.maxWidth === "wide"
-    ? "max-w-6xl"
-    : s.maxWidth === "full"
-    ? "max-w-none"
-    : "max-w-4xl";
+// Background: gradient > solid color > image > nothing
+function bgStyle(s: any): Record<string, any> {
+  if (s.bgGradientFrom && s.bgGradientTo) {
+    return { background: `linear-gradient(${s.bgGradientDir || "to bottom"}, ${s.bgGradientFrom}, ${s.bgGradientTo})` };
+  }
+  if (s.bgColor) return { backgroundColor: s.bgColor };
+  if (s.bgImageUrl) {
+    return {
+      backgroundImage: `url(${s.bgImageUrl})`,
+      backgroundSize: s.bgImageSize || "cover",
+      backgroundPosition: s.bgImagePosition || "center",
+      backgroundRepeat: "no-repeat",
+    };
+  }
+  return {};
+}
+
+// Spacing overrides (applied to the inner content container)
+function spacingStyle(s: any) {
+  return {
+    ...(s.paddingTop != null && { paddingTop: `${s.paddingTop}px` }),
+    ...(s.paddingBottom != null && { paddingBottom: `${s.paddingBottom}px` }),
+    ...(s.paddingLeft != null && { paddingLeft: `${s.paddingLeft}px` }),
+    ...(s.paddingRight != null && { paddingRight: `${s.paddingRight}px` }),
+  };
+}
+
+// Container max-width: section setting (containerWidth) > content field (maxWidth) > default
+const MW_MAP: Record<string, string> = {
+  xs: "max-w-2xl",  narrow: "max-w-2xl",
+  sm: "max-w-4xl",  normal: "max-w-4xl",
+  md: "max-w-5xl",
+  lg: "max-w-6xl",  wide: "max-w-6xl",
+  xl: "max-w-7xl",
+  full: "max-w-none",
+};
+
+function mw(s: any, fallback = "max-w-7xl"): string {
+  return MW_MAP[s.containerWidth] || MW_MAP[s.maxWidth] || fallback;
+}
+
+// Button overrides (spread on top of default button style)
+function btnS(s: any): Record<string, any> {
+  const r: Record<string, any> = {};
+  const st = s.btnStyle;
+  if (st === "outline") {
+    r.backgroundColor = "transparent";
+    r.border = `1.5px solid ${s.btnBg || "currentColor"}`;
+    r.color = s.btnText || s.btnBg || undefined;
+  } else if (st === "ghost") {
+    r.backgroundColor = "transparent";
+    r.border = "none";
+    r.color = s.btnText || s.btnBg || undefined;
+  } else {
+    if (s.btnBg) r.backgroundColor = s.btnBg;
+    if (s.btnText) r.color = s.btnText;
+  }
+  if (s.btnRadius != null) r.borderRadius = `${s.btnRadius}px`;
+  if (s.btnUppercase != null) r.textTransform = s.btnUppercase ? "uppercase" : "none";
+  return r;
 }
 
 // ──────────────────────────────
@@ -80,7 +132,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
       className={`relative w-full ${heightCls} flex items-center overflow-hidden ${
         settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center"
       }`}
-      style={{ backgroundColor: settings.backgroundColor || "#000" }}
+      style={{ backgroundColor: settings.backgroundColor || "#000", ...bgStyle(settings) }}
     >
       {settings.imageUrl && (
         <img src={settings.imageUrl} alt="" loading="eager" decoding="async" fetchPriority="high" className="absolute inset-0 w-full h-full object-cover" />
@@ -112,7 +164,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
             <button
               onClick={onCtaClick}
               className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase hover:scale-105 transition-transform"
-              style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)" }}
+              style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
             >
               <span data-theme-field="ctaText">{settings.ctaText || "Explore"}</span>
             </button>
@@ -137,33 +189,29 @@ export function FeatureGridSection({ settings, enableAnimations }: any) {
   const cols = settings.columns ?? 3;
   const textAlign = aClass(settings);
   return (
-    <section className="py-24 px-6 max-w-7xl mx-auto">
-      <AnimationContainer enabled={enableAnimations}>
-        <div className={`mb-10 ${textAlign}`}>
-          <h2
-            className="text-3xl font-bold tracking-tight uppercase text-white"
-            style={hStyle(settings)}
-            data-theme-field="title"
-          >
-            {settings.title || "Highlights"}
-          </h2>
-          {settings.subtitle && (
-            <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
-              {settings.subtitle}
-            </p>
-          )}
+    <section style={bgStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className={`mb-10 ${textAlign}`}>
+            <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">
+              {settings.title || "Highlights"}
+            </h2>
+            {settings.subtitle && (
+              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+            )}
+          </div>
+        </AnimationContainer>
+        <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+          {(items.length ? items : [{ title: "Feature One", description: "Describe your value." }]).map((item: any, idx: number) => (
+            <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.1}>
+              <div className="p-6 bg-white/[0.03] border border-white/10 rounded-2xl">
+                {item.icon && <div className="text-3xl mb-3">{item.icon}</div>}
+                <h3 className="text-sm font-bold uppercase text-white" style={bStyle(settings)}>{item.title}</h3>
+                <p className="text-xs text-white/50 mt-2" style={bStyle(settings)}>{item.description}</p>
+              </div>
+            </AnimationContainer>
+          ))}
         </div>
-      </AnimationContainer>
-      <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-        {(items.length ? items : [{ title: "Feature One", description: "Describe your value." }]).map((item: any, idx: number) => (
-          <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.1}>
-            <div className="p-6 bg-white/[0.03] border border-white/10 rounded-2xl">
-              {item.icon && <div className="text-3xl mb-3">{item.icon}</div>}
-              <h3 className="text-sm font-bold uppercase text-white" style={bStyle(settings)}>{item.title}</h3>
-              <p className="text-xs text-white/50 mt-2" style={bStyle(settings)}>{item.description}</p>
-            </div>
-          </AnimationContainer>
-        ))}
       </div>
     </section>
   );
@@ -176,39 +224,38 @@ export function FeatureGridSection({ settings, enableAnimations }: any) {
 export function NewsletterSection({ settings, enableAnimations }: any) {
   const textAlign = aClass(settings);
   return (
-    <section className="py-24 border-t border-white/5 bg-white/[0.02]">
-      <AnimationContainer enabled={enableAnimations}>
-        <div className={`max-w-xl mx-auto px-6 space-y-8 ${textAlign}`}>
-          <div className="space-y-3">
-            <h2
-              className="text-2xl font-bold tracking-tight uppercase text-white"
-              style={hStyle(settings)}
-              data-theme-field="title"
-            >
-              {settings.title || "Join the Archive"}
-            </h2>
-            <p className="text-xs text-white/40 tracking-widest leading-relaxed" style={bStyle(settings)}>
-              <span data-theme-field="description">
-                {settings.description || "Occasional dispatches about new publications and limited editions."}
-              </span>
-            </p>
+    <section className="border-t border-white/5 bg-white/[0.02]" style={bgStyle(settings)}>
+      <div className="py-24 px-6 mx-auto" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className={`max-w-xl mx-auto space-y-8 ${textAlign}`}>
+            <div className="space-y-3">
+              <h2 className="text-2xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">
+                {settings.title || "Join the Archive"}
+              </h2>
+              <p className="text-xs text-white/40 tracking-widest leading-relaxed" style={bStyle(settings)}>
+                <span data-theme-field="description">
+                  {settings.description || "Occasional dispatches about new publications and limited editions."}
+                </span>
+              </p>
+            </div>
+            <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
+              <input
+                type="email"
+                placeholder={settings.placeholder || "email@example.com"}
+                className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-3 text-xs text-white focus:border-white/30 transition-all outline-none"
+              />
+              <button
+                type="button"
+                className="bg-white text-black rounded-full px-8 py-3 text-[10px] font-bold tracking-widest hover:bg-neutral-200 transition-all flex items-center gap-2"
+                style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #fff)", color: "var(--btn-text, #000)", ...btnS(settings) }}
+              >
+                <Send size={12} />
+                {settings.buttonLabel || "JOIN"}
+              </button>
+            </form>
           </div>
-          <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
-            <input
-              type="email"
-              placeholder={settings.placeholder || "email@example.com"}
-              className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-3 text-xs text-white focus:border-white/30 transition-all outline-none"
-            />
-            <button
-              type="button"
-              className="bg-white text-black rounded-full px-8 py-3 text-[10px] font-bold tracking-widest hover:bg-neutral-200 transition-all flex items-center gap-2"
-            >
-              <Send size={12} />
-              {settings.buttonLabel || "JOIN"}
-            </button>
-          </form>
-        </div>
-      </AnimationContainer>
+        </AnimationContainer>
+      </div>
     </section>
   );
 }
@@ -221,32 +268,28 @@ export function TestimonialsSection({ settings, enableAnimations }: any) {
   const items = visibleBlocks(settings.items || settings.blocks || []);
   const textAlign = aClass(settings);
   return (
-    <section className="py-24 px-6 max-w-6xl mx-auto">
-      <AnimationContainer enabled={enableAnimations}>
-        <div className={`mb-8 ${textAlign}`}>
-          <h2
-            className="text-3xl font-bold tracking-tight uppercase leading-tight text-white"
-            style={hStyle(settings)}
-            data-theme-field="title"
-          >
-            {settings.title || "Testimonials"}
-          </h2>
-          {settings.subtitle && (
-            <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
-              {settings.subtitle}
-            </p>
-          )}
-        </div>
-        <div className="grid md:grid-cols-2 gap-6">
-          {(items.length ? items : [{ quote: "An incredible independent shop.", author: "Customer" }]).map((item: any, idx: number) => (
-            <div key={idx} className="p-6 bg-white/[0.03] rounded-2xl border border-white/10">
-              <p className="text-white/70 text-lg leading-relaxed font-light" style={bStyle(settings)}>"{item.quote}"</p>
-              <p className="text-white/40 text-xs mt-4 uppercase tracking-widest" style={bStyle(settings)}>{item.author}</p>
-              {item.role && <p className="text-white/30 text-[10px] mt-1" style={bStyle(settings)}>{item.role}</p>}
-            </div>
-          ))}
-        </div>
-      </AnimationContainer>
+    <section style={bgStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className={`mb-8 ${textAlign}`}>
+            <h2 className="text-3xl font-bold tracking-tight uppercase leading-tight text-white" style={hStyle(settings)} data-theme-field="title">
+              {settings.title || "Testimonials"}
+            </h2>
+            {settings.subtitle && (
+              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+            )}
+          </div>
+          <div className="grid md:grid-cols-2 gap-6">
+            {(items.length ? items : [{ quote: "An incredible independent shop.", author: "Customer" }]).map((item: any, idx: number) => (
+              <div key={idx} className="p-6 bg-white/[0.03] rounded-2xl border border-white/10">
+                <p className="text-white/70 text-lg leading-relaxed font-light" style={bStyle(settings)}>"{item.quote}"</p>
+                <p className="text-white/40 text-xs mt-4 uppercase tracking-widest" style={bStyle(settings)}>{item.author}</p>
+                {item.role && <p className="text-white/30 text-[10px] mt-1" style={bStyle(settings)}>{item.role}</p>}
+              </div>
+            ))}
+          </div>
+        </AnimationContainer>
+      </div>
     </section>
   );
 }
@@ -258,31 +301,27 @@ export function TestimonialsSection({ settings, enableAnimations }: any) {
 export function FAQSection({ settings, enableAnimations }: any) {
   const items = visibleBlocks(settings.items || settings.blocks || []);
   return (
-    <section className="py-24 px-6 max-w-4xl mx-auto">
-      <AnimationContainer enabled={enableAnimations}>
-        <div className="mb-8">
-          <h2
-            className="text-3xl font-bold tracking-tight uppercase leading-tight text-white"
-            style={hStyle(settings)}
-            data-theme-field="title"
-          >
-            {settings.title || "FAQ"}
-          </h2>
-          {settings.subtitle && (
-            <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
-              {settings.subtitle}
-            </p>
-          )}
-        </div>
-        <div className="space-y-3">
-          {(items.length ? items : [{ question: "Sample question?", answer: "Sample answer." }]).map((item: any, idx: number) => (
-            <details key={idx} className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
-              <summary className="text-sm font-bold text-white cursor-pointer" style={bStyle(settings)}>{item.question}</summary>
-              <p className="text-white/60 text-sm mt-3" style={bStyle(settings)}>{item.answer}</p>
-            </details>
-          ))}
-        </div>
-      </AnimationContainer>
+    <section style={bgStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-4xl")}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold tracking-tight uppercase leading-tight text-white" style={hStyle(settings)} data-theme-field="title">
+              {settings.title || "FAQ"}
+            </h2>
+            {settings.subtitle && (
+              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+            )}
+          </div>
+          <div className="space-y-3">
+            {(items.length ? items : [{ question: "Sample question?", answer: "Sample answer." }]).map((item: any, idx: number) => (
+              <details key={idx} className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
+                <summary className="text-sm font-bold text-white cursor-pointer" style={bStyle(settings)}>{item.question}</summary>
+                <p className="text-white/60 text-sm mt-3" style={bStyle(settings)}>{item.answer}</p>
+              </details>
+            ))}
+          </div>
+        </AnimationContainer>
+      </div>
     </section>
   );
 }
@@ -293,50 +332,38 @@ export function FAQSection({ settings, enableAnimations }: any) {
 
 export function TextContentSection({ settings, enableAnimations }: any) {
   const textAlign = aClass(settings);
-  const maxW = mwClass(settings);
   const hasHtml = settings.content && /<[a-z][\s\S]*>/i.test(settings.content);
   return (
-    <section className={`py-24 px-6 mx-auto ${maxW} ${textAlign}`}>
-      <AnimationContainer enabled={enableAnimations}>
-        <div className="space-y-5">
-          {settings.eyebrow && (
-            <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>
-              {settings.eyebrow}
-            </p>
-          )}
-          {settings.title && (
-            <h2
-              className="text-3xl font-bold tracking-tight uppercase leading-tight text-white"
-              style={hStyle(settings)}
-            >
-              {settings.title}
-            </h2>
-          )}
-          {settings.subtitle && (
-            <p className="text-lg text-white/70 leading-relaxed" style={bStyle(settings)}>
-              {settings.subtitle}
-            </p>
-          )}
-          {settings.content && (
-            hasHtml ? (
-              <div
-                className="prose prose-invert max-w-none"
-                style={bStyle(settings)}
-                dangerouslySetInnerHTML={{ __html: settings.content }}
-              />
-            ) : (
-              <p className="text-white/60 text-lg leading-relaxed font-light" style={bStyle(settings)}>
-                {settings.content}
+    <section style={bgStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-4xl")} ${textAlign}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className="space-y-5">
+            {settings.eyebrow && (
+              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>
+                {settings.eyebrow}
               </p>
-            )
-          )}
-          {!settings.title && !settings.content && (
-            <p className="text-white/60 text-lg leading-relaxed font-light" style={bStyle(settings)}>
-              Add your mission statement or store introduction here.
-            </p>
-          )}
-        </div>
-      </AnimationContainer>
+            )}
+            {settings.title && (
+              <h2 className="text-3xl font-bold tracking-tight uppercase leading-tight text-white" style={hStyle(settings)}>
+                {settings.title}
+              </h2>
+            )}
+            {settings.subtitle && (
+              <p className="text-lg text-white/70 leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+            )}
+            {settings.content && (
+              hasHtml ? (
+                <div className="prose prose-invert max-w-none" style={bStyle(settings)} dangerouslySetInnerHTML={{ __html: settings.content }} />
+              ) : (
+                <p className="text-white/60 text-lg leading-relaxed font-light" style={bStyle(settings)}>{settings.content}</p>
+              )
+            )}
+            {!settings.title && !settings.content && (
+              <p className="text-white/60 text-lg leading-relaxed font-light">Add your mission statement or store introduction here.</p>
+            )}
+          </div>
+        </AnimationContainer>
+      </div>
     </section>
   );
 }
@@ -348,42 +375,40 @@ export function TextContentSection({ settings, enableAnimations }: any) {
 export function ImageWithTextSection({ settings, enableAnimations }: any) {
   const reverse = settings.layout === "text-left";
   return (
-    <section className="py-24 px-6 max-w-7xl mx-auto">
-      <AnimationContainer enabled={enableAnimations}>
-        <div className={`grid md:grid-cols-2 gap-12 items-center ${reverse ? "md:[&>*:first-child]:order-2" : ""}`}>
-          <div className="aspect-[4/3] overflow-hidden rounded-2xl bg-white/5 border border-white/10">
-            {settings.imageUrl ? (
-              <img src={settings.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={settings.imageAlt || ""} />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-white/20 text-xs uppercase tracking-widest">No Image</div>
-            )}
+    <section style={bgStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className={`grid md:grid-cols-2 gap-12 items-center ${reverse ? "md:[&>*:first-child]:order-2" : ""}`}>
+            <div className="aspect-[4/3] overflow-hidden rounded-2xl bg-white/5 border border-white/10">
+              {settings.imageUrl ? (
+                <img src={settings.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={settings.imageAlt || ""} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-white/20 text-xs uppercase tracking-widest">No Image</div>
+              )}
+            </div>
+            <div className="space-y-5">
+              {settings.eyebrow && (
+                <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow}</p>
+              )}
+              <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white" style={hStyle(settings)} data-theme-field="title">
+                {settings.title || "About the collection"}
+              </h2>
+              <p className="text-white/60 leading-relaxed" style={bStyle(settings)} data-theme-field="body">
+                {settings.body || "Pair text with an image to give focus to your chosen product or collection."}
+              </p>
+              {settings.ctaText && (
+                <a
+                  href={settings.ctaUrl || "#"}
+                  className="inline-block px-7 py-3 rounded-full text-[10px] font-bold tracking-[0.3em] uppercase"
+                  style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
+                >
+                  {settings.ctaText}
+                </a>
+              )}
+            </div>
           </div>
-          <div className="space-y-5">
-            {settings.eyebrow && (
-              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow}</p>
-            )}
-            <h2
-              className="text-3xl md:text-4xl font-bold tracking-tight text-white"
-              style={hStyle(settings)}
-              data-theme-field="title"
-            >
-              {settings.title || "About the collection"}
-            </h2>
-            <p className="text-white/60 leading-relaxed" style={bStyle(settings)} data-theme-field="body">
-              {settings.body || "Pair text with an image to give focus to your chosen product or collection."}
-            </p>
-            {settings.ctaText && (
-              <a
-                href={settings.ctaUrl || "#"}
-                className="inline-block px-7 py-3 rounded-full text-[10px] font-bold tracking-[0.3em] uppercase"
-                style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)" }}
-              >
-                {settings.ctaText}
-              </a>
-            )}
-          </div>
-        </div>
-      </AnimationContainer>
+        </AnimationContainer>
+      </div>
     </section>
   );
 }
@@ -395,14 +420,16 @@ export function ImageWithTextSection({ settings, enableAnimations }: any) {
 export function RichTextSection({ settings, enableAnimations }: any) {
   const align = settings.align || "center";
   return (
-    <section className="py-20 px-6">
-      <AnimationContainer enabled={enableAnimations}>
-        <div
-          className={`max-w-3xl mx-auto prose prose-invert ${align === "left" ? "text-left" : align === "right" ? "text-right" : "text-center mx-auto"}`}
-          style={bStyle(settings)}
-          dangerouslySetInnerHTML={{ __html: settings.html || "<p>Use this rich text section to share information with your customers.</p>" }}
-        />
-      </AnimationContainer>
+    <section style={bgStyle(settings)}>
+      <div className="py-20 px-6" style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div
+            className={`${mw(settings, "max-w-3xl")} mx-auto prose prose-invert ${align === "left" ? "text-left" : align === "right" ? "text-right" : "text-center"}`}
+            style={bStyle(settings)}
+            dangerouslySetInnerHTML={{ __html: settings.html || "<p>Use this rich text section to share information with your customers.</p>" }}
+          />
+        </AnimationContainer>
+      </div>
     </section>
   );
 }
@@ -424,11 +451,8 @@ export function MarqueeSection({ settings }: any) {
   const phrase = Array.from({ length: 4 }).map(() => text).join(`  ${separator}  `);
 
   return (
-    <section className="overflow-hidden py-8" style={{ background }}>
-      <div
-        className="flex w-max animate-marquee"
-        style={{ ["--marquee-duration" as any]: `${speed}s` }}
-      >
+    <section className="overflow-hidden py-8" style={{ background, ...bgStyle(settings) }}>
+      <div className="flex w-max animate-marquee" style={{ ["--marquee-duration" as any]: `${speed}s` }}>
         {[0, 1].map((copy) => (
           <span
             key={copy}
@@ -454,46 +478,42 @@ export function MulticolumnSection({ settings, enableAnimations }: any) {
   const cols = Math.max(2, Math.min(6, settings.columns ?? 3));
   const textAlign = aClass(settings);
   return (
-    <section className="py-24 px-6 max-w-7xl mx-auto">
-      <AnimationContainer enabled={enableAnimations}>
-        {(settings.title || settings.subtitle) && (
-          <div className={`mb-12 ${textAlign}`}>
-            {settings.title && (
-              <h2
-                className="text-3xl font-bold tracking-tight uppercase text-white"
-                style={hStyle(settings)}
-                data-theme-field="title"
-              >
-                {settings.title}
-              </h2>
-            )}
-            {settings.subtitle && (
-              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
-                {settings.subtitle}
-              </p>
-            )}
-          </div>
-        )}
-      </AnimationContainer>
-      <div className="grid gap-8" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-        {items.map((item: any, idx: number) => (
-          <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.1}>
-            <div className={`space-y-4 ${textAlign}`}>
-              {item.imageUrl && (
-                <div className="aspect-square w-32 mx-auto rounded-full overflow-hidden border border-white/10">
-                  <img src={item.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={item.title || ""} />
-                </div>
+    <section style={bgStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {(settings.title || settings.subtitle) && (
+            <div className={`mb-12 ${textAlign}`}>
+              {settings.title && (
+                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">
+                  {settings.title}
+                </h2>
               )}
-              <h3 className="text-lg font-bold text-white" style={bStyle(settings)}>{item.title || "Column"}</h3>
-              <p className="text-white/60 text-sm" style={bStyle(settings)}>{item.body || ""}</p>
-              {item.linkText && (
-                <a href={item.linkUrl || "#"} className="text-xs font-bold tracking-widest uppercase text-white/80 underline">
-                  {item.linkText}
-                </a>
+              {settings.subtitle && (
+                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
               )}
             </div>
-          </AnimationContainer>
-        ))}
+          )}
+        </AnimationContainer>
+        <div className="grid gap-8" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+          {items.map((item: any, idx: number) => (
+            <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.1}>
+              <div className={`space-y-4 ${textAlign}`}>
+                {item.imageUrl && (
+                  <div className="aspect-square w-32 mx-auto rounded-full overflow-hidden border border-white/10">
+                    <img src={item.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={item.title || ""} />
+                  </div>
+                )}
+                <h3 className="text-lg font-bold text-white" style={bStyle(settings)}>{item.title || "Column"}</h3>
+                <p className="text-white/60 text-sm" style={bStyle(settings)}>{item.body || ""}</p>
+                {item.linkText && (
+                  <a href={item.linkUrl || "#"} className="text-xs font-bold tracking-widest uppercase text-white/80 underline">
+                    {item.linkText}
+                  </a>
+                )}
+              </div>
+            </AnimationContainer>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -563,11 +583,7 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
           </button>
           <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2">
             {slides.map((_: any, i: number) => (
-              <button
-                key={i}
-                onClick={() => setActive(i)}
-                className={`w-2 h-2 rounded-full transition-all ${i === active ? "bg-white w-6" : "bg-white/40"}`}
-              />
+              <button key={i} onClick={() => setActive(i)} className={`w-2 h-2 rounded-full transition-all ${i === active ? "bg-white w-6" : "bg-white/40"}`} />
             ))}
           </div>
         </>
@@ -595,48 +611,35 @@ export function VideoSection({ settings, enableAnimations }: any) {
   }
 
   return (
-    <section className="py-24 px-6 max-w-6xl mx-auto">
-      <AnimationContainer enabled={enableAnimations}>
-        {(settings.eyebrow || settings.title || settings.subtitle) && (
-          <div className="text-center mb-8">
-            {settings.eyebrow && (
-              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50 mb-3" style={bStyle(settings)}>
-                {settings.eyebrow}
-              </p>
-            )}
-            {settings.title && (
-              <h2
-                className="text-3xl font-bold tracking-tight uppercase text-white"
-                style={hStyle(settings)}
-              >
-                {settings.title}
-              </h2>
-            )}
-            {settings.subtitle && (
-              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
-                {settings.subtitle}
-              </p>
-            )}
-          </div>
-        )}
-        <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black border border-white/10">
-          {embed ? (
-            <iframe
-              src={embed}
-              title={settings.title || "Video"}
-              allow="autoplay; fullscreen; picture-in-picture"
-              allowFullScreen
-              className="w-full h-full"
-            />
-          ) : url ? (
-            <video src={url} controls poster={settings.posterUrl} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-white/30 text-xs uppercase tracking-widest">
-              Paste a YouTube, Vimeo or MP4 URL
+    <section style={bgStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {(settings.eyebrow || settings.title || settings.subtitle) && (
+            <div className="text-center mb-8">
+              {settings.eyebrow && (
+                <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50 mb-3" style={bStyle(settings)}>{settings.eyebrow}</p>
+              )}
+              {settings.title && (
+                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>{settings.title}</h2>
+              )}
+              {settings.subtitle && (
+                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+              )}
             </div>
           )}
-        </div>
-      </AnimationContainer>
+          <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black border border-white/10">
+            {embed ? (
+              <iframe src={embed} title={settings.title || "Video"} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen className="w-full h-full" />
+            ) : url ? (
+              <video src={url} controls poster={settings.posterUrl} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-white/30 text-xs uppercase tracking-widest">
+                Paste a YouTube, Vimeo or MP4 URL
+              </div>
+            )}
+          </div>
+        </AnimationContainer>
+      </div>
     </section>
   );
 }
@@ -648,37 +651,32 @@ export function VideoSection({ settings, enableAnimations }: any) {
 export function LogoListSection({ settings, enableAnimations }: any) {
   const items = visibleBlocks(settings.items || settings.blocks || []);
   return (
-    <section className="py-16 px-6 max-w-7xl mx-auto">
-      <AnimationContainer enabled={enableAnimations}>
-        {(settings.title || settings.subtitle) && (
-          <div className="text-center mb-8">
-            {settings.title && (
-              <p
-                className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/40"
-                style={hStyle(settings)}
-              >
-                {settings.title}
-              </p>
-            )}
-            {settings.subtitle && (
-              <p className="mt-2 text-white/40 text-xs" style={bStyle(settings)}>
-                {settings.subtitle}
-              </p>
-            )}
-          </div>
-        )}
-        <div className="flex flex-wrap items-center justify-center gap-8 md:gap-16">
-          {items.map((item: any, idx: number) => (
-            <div key={idx} className="opacity-60 hover:opacity-100 transition-opacity">
-              {item.logoUrl ? (
-                <img src={item.logoUrl} alt={item.alt || ""} loading="lazy" decoding="async" className="h-10 w-auto object-contain" />
-              ) : (
-                <span className="text-white/40 text-sm font-bold uppercase tracking-widest">{item.alt || "Logo"}</span>
+    <section style={bgStyle(settings)}>
+      <div className={`py-16 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {(settings.title || settings.subtitle) && (
+            <div className="text-center mb-8">
+              {settings.title && (
+                <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/40" style={hStyle(settings)}>{settings.title}</p>
+              )}
+              {settings.subtitle && (
+                <p className="mt-2 text-white/40 text-xs" style={bStyle(settings)}>{settings.subtitle}</p>
               )}
             </div>
-          ))}
-        </div>
-      </AnimationContainer>
+          )}
+          <div className="flex flex-wrap items-center justify-center gap-8 md:gap-16">
+            {items.map((item: any, idx: number) => (
+              <div key={idx} className="opacity-60 hover:opacity-100 transition-opacity">
+                {item.logoUrl ? (
+                  <img src={item.logoUrl} alt={item.alt || ""} loading="lazy" decoding="async" className="h-10 w-auto object-contain" />
+                ) : (
+                  <span className="text-white/40 text-sm font-bold uppercase tracking-widest">{item.alt || "Logo"}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </AnimationContainer>
+      </div>
     </section>
   );
 }
@@ -690,41 +688,36 @@ export function LogoListSection({ settings, enableAnimations }: any) {
 export function CollapsibleSection({ settings, enableAnimations }: any) {
   const items = visibleBlocks(settings.items || settings.blocks || []);
   return (
-    <section className="py-20 px-6 max-w-3xl mx-auto">
-      <AnimationContainer enabled={enableAnimations}>
-        {(settings.title || settings.subtitle) && (
-          <div className="text-center mb-8">
-            {settings.title && (
-              <h2
-                className="text-3xl font-bold tracking-tight uppercase text-white"
-                style={hStyle(settings)}
-              >
-                {settings.title}
-              </h2>
-            )}
-            {settings.subtitle && (
-              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
-                {settings.subtitle}
-              </p>
-            )}
+    <section style={bgStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings, "max-w-3xl")}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {(settings.title || settings.subtitle) && (
+            <div className="text-center mb-8">
+              {settings.title && (
+                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>{settings.title}</h2>
+              )}
+              {settings.subtitle && (
+                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+              )}
+            </div>
+          )}
+          <div className="border-t border-white/10">
+            {items.map((item: any, idx: number) => (
+              <details key={idx} className="border-b border-white/10 group">
+                <summary className="flex items-center justify-between cursor-pointer py-5 text-white text-sm font-bold tracking-wide uppercase" style={bStyle(settings)}>
+                  {item.heading || "Heading"}
+                  <span className="text-white/40 group-open:rotate-45 transition-transform">+</span>
+                </summary>
+                <div
+                  className="text-white/60 text-sm pb-6 prose prose-invert max-w-none"
+                  style={bStyle(settings)}
+                  dangerouslySetInnerHTML={{ __html: item.content || "" }}
+                />
+              </details>
+            ))}
           </div>
-        )}
-        <div className="border-t border-white/10">
-          {items.map((item: any, idx: number) => (
-            <details key={idx} className="border-b border-white/10 group">
-              <summary className="flex items-center justify-between cursor-pointer py-5 text-white text-sm font-bold tracking-wide uppercase" style={bStyle(settings)}>
-                {item.heading || "Heading"}
-                <span className="text-white/40 group-open:rotate-45 transition-transform">+</span>
-              </summary>
-              <div
-                className="text-white/60 text-sm pb-6 prose prose-invert max-w-none"
-                style={bStyle(settings)}
-                dangerouslySetInnerHTML={{ __html: item.content || "" }}
-              />
-            </details>
-          ))}
-        </div>
-      </AnimationContainer>
+        </AnimationContainer>
+      </div>
     </section>
   );
 }
@@ -738,50 +731,36 @@ export function CollectionListSection({ settings, enableAnimations }: any) {
   const cols = Math.max(2, Math.min(5, settings.columns ?? 3));
   const textAlign = aClass(settings);
   return (
-    <section className="py-24 px-6 max-w-7xl mx-auto">
-      <AnimationContainer enabled={enableAnimations}>
-        {(settings.title || settings.subtitle) && (
-          <div className={`mb-10 ${textAlign}`}>
-            {settings.title && (
-              <h2
-                className="text-3xl font-bold tracking-tight uppercase text-white"
-                style={hStyle(settings)}
-              >
-                {settings.title}
-              </h2>
-            )}
-            {settings.subtitle && (
-              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
-                {settings.subtitle}
-              </p>
-            )}
-          </div>
-        )}
-      </AnimationContainer>
-      <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-        {items.map((item: any, idx: number) => (
-          <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.05}>
-            <a
-              href={item.linkUrl || "#"}
-              className="group relative block aspect-[3/4] overflow-hidden rounded-2xl bg-white/5"
-            >
-              {item.imageUrl && (
-                <img
-                  src={item.imageUrl}
-                  alt={item.title || ""}
-                  loading="lazy"
-                  decoding="async"
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                />
+    <section style={bgStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {(settings.title || settings.subtitle) && (
+            <div className={`mb-10 ${textAlign}`}>
+              {settings.title && (
+                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>{settings.title}</h2>
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-5">
-                <h3 className="text-white text-lg font-bold uppercase tracking-tight">{item.title || "Collection"}</h3>
-                {item.subtitle && <p className="text-white/70 text-xs">{item.subtitle}</p>}
-              </div>
-            </a>
-          </AnimationContainer>
-        ))}
+              {settings.subtitle && (
+                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+              )}
+            </div>
+          )}
+        </AnimationContainer>
+        <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+          {items.map((item: any, idx: number) => (
+            <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.05}>
+              <a href={item.linkUrl || "#"} className="group relative block aspect-[3/4] overflow-hidden rounded-2xl bg-white/5">
+                {item.imageUrl && (
+                  <img src={item.imageUrl} alt={item.title || ""} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-5">
+                  <h3 className="text-white text-lg font-bold uppercase tracking-tight">{item.title || "Collection"}</h3>
+                  {item.subtitle && <p className="text-white/70 text-xs">{item.subtitle}</p>}
+                </div>
+              </a>
+            </AnimationContainer>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -803,28 +782,30 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
   const price = target.isOnSale && target.salePrice ? target.salePrice : target.retailPrice;
 
   return (
-    <section className="py-24 px-6 max-w-6xl mx-auto">
-      <AnimationContainer enabled={enableAnimations}>
-        <div className="grid md:grid-cols-2 gap-10 items-center">
-          <div className="aspect-[3/4] overflow-hidden rounded-2xl bg-white/5">
-            {photo ? <img src={photo} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
+    <section style={bgStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className="grid md:grid-cols-2 gap-10 items-center">
+            <div className="aspect-[3/4] overflow-hidden rounded-2xl bg-white/5">
+              {photo ? <img src={photo} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
+            </div>
+            <div className="space-y-5">
+              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow || "Featured"}</p>
+              <h2 className="text-3xl md:text-4xl font-bold text-white" style={hStyle(settings)}>{target.title}</h2>
+              {target.subtitle && <p className="text-white/60" style={bStyle(settings)}>{target.subtitle}</p>}
+              <p className="text-2xl font-bold text-white" style={bStyle(settings)}>${typeof price === "number" ? price.toFixed(2) : price}</p>
+              <p className="text-white/60 text-sm leading-relaxed line-clamp-4" style={bStyle(settings)}>{target.description || ""}</p>
+              <button
+                onClick={() => onProductClick?.(target)}
+                className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
+                style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
+              >
+                {settings.ctaText || "View product"}
+              </button>
+            </div>
           </div>
-          <div className="space-y-5">
-            <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow || "Featured"}</p>
-            <h2 className="text-3xl md:text-4xl font-bold text-white" style={hStyle(settings)}>{target.title}</h2>
-            {target.subtitle && <p className="text-white/60" style={bStyle(settings)}>{target.subtitle}</p>}
-            <p className="text-2xl font-bold text-white" style={bStyle(settings)}>${typeof price === "number" ? price.toFixed(2) : price}</p>
-            <p className="text-white/60 text-sm leading-relaxed line-clamp-4" style={bStyle(settings)}>{target.description || ""}</p>
-            <button
-              onClick={() => onProductClick?.(target)}
-              className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
-              style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)" }}
-            >
-              {settings.ctaText || "View product"}
-            </button>
-          </div>
-        </div>
-      </AnimationContainer>
+        </AnimationContainer>
+      </div>
     </section>
   );
 }
@@ -835,7 +816,7 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
 
 export function CustomHTMLSection({ settings }: any) {
   return (
-    <section className={settings.fullBleed ? "" : "py-12 px-6 max-w-7xl mx-auto"}>
+    <section className={settings.fullBleed ? "" : "py-12 px-6 max-w-7xl mx-auto"} style={bgStyle(settings)}>
       <div dangerouslySetInnerHTML={{ __html: settings.html || "<!-- Add custom HTML in the editor -->" }} />
     </section>
   );
@@ -860,46 +841,46 @@ export function CountdownSection({ settings, enableAnimations }: any) {
   const minutes = Math.floor((remaining % 3600000) / 60000);
   const seconds = Math.floor((remaining % 60000) / 1000);
   const textAlign = aClass(settings);
+  const flexAlign = settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center";
 
   return (
-    <section className={`py-20 px-6 ${textAlign}`} style={{ background: settings.backgroundColor || "transparent" }}>
-      <AnimationContainer enabled={enableAnimations}>
-        {settings.eyebrow && (
-          <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/60 mb-4 flex items-center justify-center gap-2" style={bStyle(settings)}>
-            <Clock size={12} />
-            {settings.eyebrow}
-          </p>
-        )}
-        <h2
-          className="text-3xl md:text-4xl font-bold uppercase text-white mb-2"
-          style={hStyle(settings)}
-        >
-          {settings.title || "Limited time offer"}
-        </h2>
-        {settings.subtitle && <p className="text-white/60 mb-8" style={bStyle(settings)}>{settings.subtitle}</p>}
-        <div className={`flex gap-4 md:gap-8 mt-8 ${settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center"}`}>
-          {[
-            { label: "Days", v: days },
-            { label: "Hours", v: hours },
-            { label: "Min", v: minutes },
-            { label: "Sec", v: seconds },
-          ].map((u) => (
-            <div key={u.label} className="text-center">
-              <div className="text-4xl md:text-6xl font-black text-white tabular-nums" style={hStyle(settings)}>{String(u.v).padStart(2, "0")}</div>
-              <div className="text-[10px] tracking-[0.3em] uppercase text-white/50 mt-1" style={bStyle(settings)}>{u.label}</div>
-            </div>
-          ))}
-        </div>
-        {settings.ctaText && (
-          <a
-            href={settings.ctaUrl || "#"}
-            className="inline-block mt-10 px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
-            style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)" }}
-          >
-            {settings.ctaText}
-          </a>
-        )}
-      </AnimationContainer>
+    <section style={{ background: settings.backgroundColor || "transparent", ...bgStyle(settings) }}>
+      <div className={`py-20 px-6 ${textAlign}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {settings.eyebrow && (
+            <p className={`text-[10px] font-bold tracking-[0.3em] uppercase text-white/60 mb-4 flex items-center gap-2 ${flexAlign}`} style={bStyle(settings)}>
+              <Clock size={12} />
+              {settings.eyebrow}
+            </p>
+          )}
+          <h2 className="text-3xl md:text-4xl font-bold uppercase text-white mb-2" style={hStyle(settings)}>
+            {settings.title || "Limited time offer"}
+          </h2>
+          {settings.subtitle && <p className="text-white/60 mb-8" style={bStyle(settings)}>{settings.subtitle}</p>}
+          <div className={`flex gap-4 md:gap-8 mt-8 ${flexAlign}`}>
+            {[
+              { label: "Days", v: days },
+              { label: "Hours", v: hours },
+              { label: "Min", v: minutes },
+              { label: "Sec", v: seconds },
+            ].map((u) => (
+              <div key={u.label} className="text-center">
+                <div className="text-4xl md:text-6xl font-black text-white tabular-nums" style={hStyle(settings)}>{String(u.v).padStart(2, "0")}</div>
+                <div className="text-[10px] tracking-[0.3em] uppercase text-white/50 mt-1" style={bStyle(settings)}>{u.label}</div>
+              </div>
+            ))}
+          </div>
+          {settings.ctaText && (
+            <a
+              href={settings.ctaUrl || "#"}
+              className="inline-block mt-10 px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
+              style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
+            >
+              {settings.ctaText}
+            </a>
+          )}
+        </AnimationContainer>
+      </div>
     </section>
   );
 }
@@ -911,69 +892,41 @@ export function CountdownSection({ settings, enableAnimations }: any) {
 export function ContactFormSection({ settings, enableAnimations }: any) {
   const [submitted, setSubmitted] = useState(false);
   return (
-    <section className="py-24 px-6 max-w-2xl mx-auto">
-      <AnimationContainer enabled={enableAnimations}>
-        <div className="text-center mb-10">
-          {settings.eyebrow && (
-            <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50 mb-3" style={bStyle(settings)}>
-              {settings.eyebrow}
-            </p>
-          )}
-          <h2
-            className="text-3xl font-bold tracking-tight uppercase text-white"
-            style={hStyle(settings)}
-          >
-            {settings.title || "Get in touch"}
-          </h2>
-          {settings.subtitle && (
-            <p className="text-white/60 mt-3" style={bStyle(settings)}>{settings.subtitle}</p>
-          )}
-        </div>
-        {submitted ? (
-          <div className="text-center text-white/80 py-12">Thanks — we'll be in touch.</div>
-        ) : (
-          <form
-            className="space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setSubmitted(true);
-            }}
-          >
-            <input
-              type="text"
-              required
-              placeholder="Name"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30"
-            />
-            <input
-              type="email"
-              required
-              placeholder="Email"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30"
-            />
-            {settings.showPhone && (
-              <input
-                type="tel"
-                placeholder="Phone"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30"
-              />
+    <section style={bgStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-2xl")}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className="text-center mb-10">
+            {settings.eyebrow && (
+              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50 mb-3" style={bStyle(settings)}>{settings.eyebrow}</p>
             )}
-            <textarea
-              required
-              placeholder="Message"
-              rows={5}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30 resize-none"
-            />
-            <button
-              type="submit"
-              className="w-full py-4 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
-              style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)" }}
-            >
-              {settings.buttonLabel || "Send message"}
-            </button>
-          </form>
-        )}
-      </AnimationContainer>
+            <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>
+              {settings.title || "Get in touch"}
+            </h2>
+            {settings.subtitle && (
+              <p className="text-white/60 mt-3" style={bStyle(settings)}>{settings.subtitle}</p>
+            )}
+          </div>
+          {submitted ? (
+            <div className="text-center text-white/80 py-12">Thanks — we'll be in touch.</div>
+          ) : (
+            <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }}>
+              <input type="text" required placeholder="Name" className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
+              <input type="email" required placeholder="Email" className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
+              {settings.showPhone && (
+                <input type="tel" placeholder="Phone" className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
+              )}
+              <textarea required placeholder="Message" rows={5} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30 resize-none" />
+              <button
+                type="submit"
+                className="w-full py-4 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
+                style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
+              >
+                {settings.buttonLabel || "Send message"}
+              </button>
+            </form>
+          )}
+        </AnimationContainer>
+      </div>
     </section>
   );
 }
@@ -986,49 +939,38 @@ export function MapSection({ settings, enableAnimations }: any) {
   const query = settings.address || "New York, NY";
   const src = `https://www.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;
   return (
-    <section className="py-12 px-6 max-w-7xl mx-auto">
-      <AnimationContainer enabled={enableAnimations}>
-        {(settings.title || settings.subtitle) && (
-          <div className="text-center mb-8">
-            {settings.title && (
-              <h2
-                className="text-3xl font-bold tracking-tight uppercase text-white"
-                style={hStyle(settings)}
-              >
-                {settings.title}
-              </h2>
-            )}
-            {settings.subtitle && (
-              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
-                {settings.subtitle}
-              </p>
-            )}
-            {settings.address && (
-              <p className="text-white/60 mt-2 flex items-center justify-center gap-2 text-sm" style={bStyle(settings)}>
+    <section style={bgStyle(settings)}>
+      <div className={`py-12 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {(settings.title || settings.subtitle) && (
+            <div className="text-center mb-8">
+              {settings.title && (
+                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>{settings.title}</h2>
+              )}
+              {settings.subtitle && (
+                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+              )}
+              {settings.address && (
+                <p className="text-white/60 mt-2 flex items-center justify-center gap-2 text-sm" style={bStyle(settings)}>
+                  <MapPin size={14} />
+                  {settings.address}
+                </p>
+              )}
+            </div>
+          )}
+          {!settings.title && settings.address && (
+            <div className="text-center mb-8">
+              <p className="text-white/60 flex items-center justify-center gap-2 text-sm">
                 <MapPin size={14} />
                 {settings.address}
               </p>
-            )}
+            </div>
+          )}
+          <div className="aspect-[16/9] rounded-2xl overflow-hidden border border-white/10 bg-white/5">
+            <iframe src={src} title={settings.title || "Map"} loading="lazy" className="w-full h-full border-0" referrerPolicy="no-referrer-when-downgrade" />
           </div>
-        )}
-        {!settings.title && settings.address && (
-          <div className="text-center mb-8">
-            <p className="text-white/60 flex items-center justify-center gap-2 text-sm">
-              <MapPin size={14} />
-              {settings.address}
-            </p>
-          </div>
-        )}
-        <div className="aspect-[16/9] rounded-2xl overflow-hidden border border-white/10 bg-white/5">
-          <iframe
-            src={src}
-            title={settings.title || "Map"}
-            loading="lazy"
-            className="w-full h-full border-0"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-        </div>
-      </AnimationContainer>
+        </AnimationContainer>
+      </div>
     </section>
   );
 }
@@ -1058,7 +1000,7 @@ function RowBlock({ block, accentFallback, settings }: any) {
         <a
           href={block.buttonUrl || "#"}
           className="inline-block px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
-          style={{ backgroundColor: block.accentColor || accentFallback || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)" }}
+          style={{ backgroundColor: block.accentColor || accentFallback || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...(settings ? btnS(settings) : {}) }}
         >
           {block.buttonText || "Shop now"}
         </a>
@@ -1070,11 +1012,7 @@ function RowBlock({ block, accentFallback, settings }: any) {
     const url = block.videoUrl || "";
     const ytId = url.match(/(?:v=|youtu\.be\/)([\w-]{6,})/)?.[1];
     const vimeoId = url.match(/vimeo\.com\/(\d+)/)?.[1];
-    const embed = ytId
-      ? `https://www.youtube.com/embed/${ytId}?rel=0`
-      : vimeoId
-      ? `https://player.vimeo.com/video/${vimeoId}`
-      : "";
+    const embed = ytId ? `https://www.youtube.com/embed/${ytId}?rel=0` : vimeoId ? `https://player.vimeo.com/video/${vimeoId}` : "";
     return (
       <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black border border-white/10">
         {embed ? (
@@ -1120,28 +1058,26 @@ export function RowSection({ settings, enableAnimations }: any) {
   const gap = Math.max(8, Math.min(120, settings.gap ?? 48));
 
   return (
-    <section className="py-20 px-6 max-w-7xl mx-auto">
-      <AnimationContainer enabled={enableAnimations}>
-        {settings.title && (
-          <h2
-            className="text-3xl font-bold tracking-tight uppercase text-white mb-12 text-center"
-            style={hStyle(settings)}
-            data-theme-field="title"
-          >
-            {settings.title}
-          </h2>
-        )}
-        <div
-          className="grid grid-cols-1 md:[grid-template-columns:var(--row-template)]"
-          style={{ ["--row-template" as any]: template, gap, alignItems }}
-        >
-          {(blocks.length ? blocks : [{ kind: "text", title: "Add columns", body: "Use the Row section to combine text, images, buttons and video side by side." }]).map(
-            (block: any, idx: number) => (
-              <RowBlock key={idx} block={block} accentFallback={settings.accentColor} settings={settings} />
-            ),
+    <section style={bgStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {settings.title && (
+            <h2 className="text-3xl font-bold tracking-tight uppercase text-white mb-12 text-center" style={hStyle(settings)} data-theme-field="title">
+              {settings.title}
+            </h2>
           )}
-        </div>
-      </AnimationContainer>
+          <div
+            className="grid grid-cols-1 md:[grid-template-columns:var(--row-template)]"
+            style={{ ["--row-template" as any]: template, gap, alignItems }}
+          >
+            {(blocks.length ? blocks : [{ kind: "text", title: "Add columns", body: "Use the Row section to combine text, images, buttons and video side by side." }]).map(
+              (block: any, idx: number) => (
+                <RowBlock key={idx} block={block} accentFallback={settings.accentColor} settings={settings} />
+              ),
+            )}
+          </div>
+        </AnimationContainer>
+      </div>
     </section>
   );
 }
@@ -1155,46 +1091,35 @@ export function GallerySection({ settings, enableAnimations }: any) {
   const cols = Math.max(2, Math.min(6, settings.columns ?? 3));
   const textAlign = aClass(settings);
   return (
-    <section className="py-20 px-6 max-w-7xl mx-auto">
-      <AnimationContainer enabled={enableAnimations}>
-        {(settings.title || settings.subtitle) && (
-          <div className={`mb-8 ${textAlign}`}>
-            {settings.title && (
-              <h2
-                className="text-3xl font-bold tracking-tight uppercase text-white"
-                style={hStyle(settings)}
-              >
-                {settings.title}
-              </h2>
-            )}
-            {settings.subtitle && (
-              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>
-                {settings.subtitle}
-              </p>
-            )}
-          </div>
-        )}
-      </AnimationContainer>
-      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-        {items.map((item: any, idx: number) => (
-          <a
-            key={idx}
-            href={item.linkUrl || item.imageUrl || "#"}
-            target={item.linkUrl ? "_blank" : undefined}
-            rel="noreferrer"
-            className="block aspect-square overflow-hidden rounded-xl bg-white/5"
-          >
-            {item.imageUrl && (
-              <img
-                src={item.imageUrl}
-                alt={item.alt || ""}
-                loading="lazy"
-                decoding="async"
-                className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
-              />
-            )}
-          </a>
-        ))}
+    <section style={bgStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {(settings.title || settings.subtitle) && (
+            <div className={`mb-8 ${textAlign}`}>
+              {settings.title && (
+                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>{settings.title}</h2>
+              )}
+              {settings.subtitle && (
+                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+              )}
+            </div>
+          )}
+        </AnimationContainer>
+        <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+          {items.map((item: any, idx: number) => (
+            <a
+              key={idx}
+              href={item.linkUrl || item.imageUrl || "#"}
+              target={item.linkUrl ? "_blank" : undefined}
+              rel="noreferrer"
+              className="block aspect-square overflow-hidden rounded-xl bg-white/5"
+            >
+              {item.imageUrl && (
+                <img src={item.imageUrl} alt={item.alt || ""} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
+              )}
+            </a>
+          ))}
+        </div>
       </div>
     </section>
   );
