@@ -77,6 +77,23 @@ const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
 const SHIPPO_API_TOKEN = defineSecret("SHIPPO_API_TOKEN");
+const SHIPPO_CONFIG_DOC = db.collection("private-integrations").doc("shippo");
+
+async function getShippoToken() {
+  const configDoc = await SHIPPO_CONFIG_DOC.get();
+  const savedToken = configDoc.exists ? configDoc.data()?.apiToken : null;
+  if (typeof savedToken === "string" && savedToken.trim()) {
+    return savedToken.trim();
+  }
+
+  try {
+    const secretToken = SHIPPO_API_TOKEN.value();
+    return secretToken && secretToken !== "your_shippo_api_token" ? secretToken : null;
+  } catch (err) {
+    console.warn("SHIPPO_API_TOKEN secret not configured.");
+    return null;
+  }
+}
 
 const FROM = "Lyricalmyrical Books <orders@lyricalmyricalbooks.com>";
 const ADMIN_TO = "lyricalmyricalbooks@gmail.com";
@@ -1207,6 +1224,63 @@ exports.abandonedCartSweep = onSchedule(
 // ──────────────────────────────────────────────────────────────
 // 7. HTTP Endpoint: Validate Address via Shippo (Secure)
 // ──────────────────────────────────────────────────────────────
+exports.getShippoConfig = onRequest({ secrets: [SHIPPO_API_TOKEN] }, async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+
+  try {
+    const configDoc = await SHIPPO_CONFIG_DOC.get();
+    const config = configDoc.exists ? configDoc.data() : {};
+    const fallbackToken = await getShippoToken();
+    res.status(200).json({
+      configured: Boolean(fallbackToken),
+      source: configDoc.exists && config?.apiToken ? "firebase" : fallbackToken ? "environment" : null,
+      lastFour: config?.lastFour || (fallbackToken ? fallbackToken.slice(-4) : null),
+      updatedAt: config?.updatedAt || null,
+    });
+  } catch (err) {
+    console.error("getShippoConfig failed:", err);
+    res.status(500).json({ error: "Unable to load Shippo configuration." });
+  }
+});
+
+exports.saveShippoConfig = onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+
+  const apiToken = typeof req.body?.apiToken === "string" ? req.body.apiToken.trim() : "";
+  if (apiToken.length < 20 || apiToken.length > 250 || /\s/.test(apiToken)) {
+    res.status(400).json({ error: "Enter a valid Shippo API key without spaces." });
+    return;
+  }
+
+  try {
+    const updatedAt = new Date().toISOString();
+    await SHIPPO_CONFIG_DOC.set({
+      apiToken,
+      lastFour: apiToken.slice(-4),
+      updatedAt,
+      updatedBy: adminUser.email,
+    });
+    res.status(200).json({ configured: true, source: "firebase", lastFour: apiToken.slice(-4), updatedAt });
+  } catch (err) {
+    console.error("saveShippoConfig failed:", err);
+    res.status(500).json({ error: "Unable to save the Shippo API key." });
+  }
+});
+
 exports.validateAddress = onRequest(
   { secrets: [SHIPPO_API_TOKEN] },
   async (req, res) => {
@@ -1224,14 +1298,9 @@ exports.validateAddress = onRequest(
     }
 
     try {
-      let shippoToken = null;
-      try {
-        shippoToken = SHIPPO_API_TOKEN.value();
-      } catch (err) {
-        console.warn("SHIPPO_API_TOKEN secret not configured.");
-      }
+      const shippoToken = await getShippoToken();
 
-      if (!shippoToken || shippoToken === "your_shippo_api_token") {
+      if (!shippoToken) {
         if (IS_EMULATOR) {
           console.warn("Using dev address verification fallback (emulator only).");
           const isTestInvalid = (address.street || "").toLowerCase().includes("invalid");
@@ -1324,14 +1393,9 @@ exports.createShippingLabel = onRequest(
         return;
       }
 
-      let shippoToken = null;
-      try {
-        shippoToken = SHIPPO_API_TOKEN.value();
-      } catch (err) {
-        console.warn("SHIPPO_API_TOKEN secret not configured.");
-      }
+      const shippoToken = await getShippoToken();
 
-      if (!shippoToken || shippoToken === "your_shippo_api_token") {
+      if (!shippoToken) {
         if (!IS_EMULATOR) {
           // Never hand out fake tracking numbers on real orders.
           res.status(500).json({ error: "SHIPPO_API_TOKEN is not configured — cannot generate a real shipping label." });

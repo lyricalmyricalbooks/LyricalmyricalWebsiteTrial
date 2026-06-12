@@ -24,6 +24,11 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    // Integration credentials are only available to Cloud Functions through
+    // the Admin SDK. Even authenticated admins cannot read the raw keys in a browser.
+    match /private-integrations/{integrationId} {
+      allow read, write: if false;
+    }
     match /pages/{pageId} {
       allow read: if true;
       allow write: if isAdmin();

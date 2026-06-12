@@ -30,7 +30,11 @@ import {
   TrendingUp,
   Map,
   DollarSign,
-  ChevronDown
+  ChevronDown,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Save
 } from "lucide-react";
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -664,6 +668,12 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   // Creating Profile inline state
   const [isCreatingProfile, setIsCreatingProfile] = useState(false);
   const [newProfileName, setNewProfileName] = useState("");
+  const [shippoApiKey, setShippoApiKey] = useState("");
+  const [showShippoApiKey, setShowShippoApiKey] = useState(false);
+  const [shippoConfig, setShippoConfig] = useState<any | null>(null);
+  const [shippoLoading, setShippoLoading] = useState(true);
+  const [shippoSaving, setShippoSaving] = useState(false);
+  const [shippoMessage, setShippoMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Search/Filters
   const [productSearch, setProductSearch] = useState("");
@@ -682,9 +692,43 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
       await adminApi.migrateShippingProfiles();
       refreshProfiles();
       loadBooks();
+      loadShippoConfig();
     };
     initialize();
   }, []);
+
+  const loadShippoConfig = async () => {
+    setShippoLoading(true);
+    try {
+      setShippoConfig(await adminApi.getShippoConfig());
+    } catch (err: any) {
+      setShippoMessage({ type: "error", text: err.message || "Could not load Shippo settings." });
+    } finally {
+      setShippoLoading(false);
+    }
+  };
+
+  const handleSaveShippoApiKey = async () => {
+    const apiKey = shippoApiKey.trim();
+    if (!apiKey) {
+      setShippoMessage({ type: "error", text: "Enter your Shippo API key before saving." });
+      return;
+    }
+
+    setShippoSaving(true);
+    setShippoMessage(null);
+    try {
+      const config = await adminApi.saveShippoConfig(apiKey);
+      setShippoConfig(config);
+      setShippoApiKey("");
+      setShowShippoApiKey(false);
+      setShippoMessage({ type: "success", text: "Shippo API key saved and synced to Firebase." });
+    } catch (err: any) {
+      setShippoMessage({ type: "error", text: err.message || "Could not save the Shippo API key." });
+    } finally {
+      setShippoSaving(false);
+    }
+  };
 
   const loadBooks = async () => {
     try {
@@ -900,6 +944,86 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
             )}
           </div>
         </header>
+
+        <section className="glass-card rounded-[3rem] p-8 md:p-10 border border-white/5 bg-white/[0.01] relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.05] to-transparent pointer-events-none" />
+          <div className="relative z-10 grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center">
+                <KeyRound size={20} />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <h3 className="text-xl font-black uppercase italic text-white">Shippo Connection</h3>
+                  {!shippoLoading && (
+                    <span className={`px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border ${shippoConfig?.configured ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-amber-500/10 border-amber-500/20 text-amber-400"}`}>
+                      {shippoConfig?.configured ? "Connected" : "Not configured"}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] leading-5 text-slate-500 uppercase tracking-widest mt-2 max-w-md">
+                  Save your key to the protected Firebase backend. The full key is never loaded back into this dashboard.
+                </p>
+              </div>
+              {shippoConfig?.configured && (
+                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                  <ShieldCheck size={14} className="text-emerald-400" />
+                  Active key ending in ••••{shippoConfig.lastFour}
+                  {shippoConfig.source === "environment" && " (Firebase secret)"}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <label htmlFor="shippo-api-key" className="text-[9px] font-black tracking-[0.25em] text-slate-500 uppercase px-2">
+                Shippo API Key
+              </label>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <input
+                    id="shippo-api-key"
+                    type={showShippoApiKey ? "text" : "password"}
+                    value={shippoApiKey}
+                    onChange={(event) => {
+                      setShippoApiKey(event.target.value);
+                      if (shippoMessage) setShippoMessage(null);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") handleSaveShippoApiKey();
+                    }}
+                    autoComplete="new-password"
+                    spellCheck={false}
+                    placeholder={shippoConfig?.configured ? "Paste a new key to replace the current one" : "Paste your Shippo API key"}
+                    className="w-full h-12 rounded-full border border-white/10 bg-black/20 pl-5 pr-12 text-sm text-white outline-none transition-colors placeholder:text-slate-600 focus:border-violet-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowShippoApiKey(value => !value)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
+                    aria-label={showShippoApiKey ? "Hide API key" : "Show API key"}
+                  >
+                    {showShippoApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveShippoApiKey}
+                  disabled={shippoSaving || !shippoApiKey.trim()}
+                  className="h-12 px-7 rounded-full bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] font-black tracking-widest flex items-center justify-center gap-2 transition-all"
+                >
+                  {shippoSaving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
+                  {shippoSaving ? "SYNCING" : "SAVE & SYNC"}
+                </button>
+              </div>
+              {shippoMessage && (
+                <p className={`flex items-center gap-2 px-2 text-[10px] font-bold ${shippoMessage.type === "success" ? "text-emerald-400" : "text-red-400"}`} role="status">
+                  {shippoMessage.type === "success" ? <CheckCircle size={14} /> : <AlertCircleIcon size={14} />}
+                  {shippoMessage.text}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
 
         {isCreatingProfile && (
           <section className="bg-white dark:bg-zinc-900 border border-[#EBEAEF] dark:border-zinc-800 rounded-[2.5rem] p-10 space-y-8 animate-in fade-in slide-in-from-top-4 duration-300">
