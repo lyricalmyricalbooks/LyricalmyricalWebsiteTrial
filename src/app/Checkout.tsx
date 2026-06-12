@@ -5,7 +5,7 @@ import {
   ChevronLeft, Tag, ShieldCheck, X, AlertCircle,
   Package, Truck, CreditCard, CheckCircle2, Loader2, Lock, Building
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { adminApi } from "./admin/api";
 import { abandonedCartApi, funnelApi } from "./lib/commerce";
 import { functionUrl } from "./lib/functionsBase";
@@ -24,14 +24,14 @@ function CountryField({ value, onChange }: { value: string; onChange: (v: string
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-label="Country"
-        className="peer w-full bg-white/[0.04] border border-white/10 rounded-2xl pt-6 pb-3 px-5 text-sm text-white outline-none transition-all duration-300 focus:border-violet-500/60 focus:bg-white/[0.07] appearance-none cursor-pointer"
+        className="peer w-full rounded-lg border border-slate-300 bg-white px-3.5 pb-2 pt-6 text-sm text-slate-900 outline-none transition focus:border-[#1773b0] focus:ring-1 focus:ring-[#1773b0] appearance-none cursor-pointer"
       >
         {COUNTRIES.map((c) => (
-          <option key={c.code} value={c.name} className="bg-[#0a0a0c] text-white">{c.name}</option>
+          <option key={c.code} value={c.name} className="bg-white text-slate-900">{c.name}</option>
         ))}
       </select>
-      <label className="absolute left-5 top-2 text-[8px] font-black tracking-[0.15em] uppercase text-violet-400 pointer-events-none">Country</label>
-      <span className="absolute right-5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none text-xs">▾</span>
+      <label className="absolute left-3.5 top-2 text-xs text-slate-500 pointer-events-none">Country</label>
+      <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-xs">▾</span>
     </div>
   );
 }
@@ -59,12 +59,12 @@ function Field({
         inputMode={inputMode}
         required={required}
         aria-label={label}
-        className="peer w-full bg-white/[0.04] border border-white/10 rounded-2xl pt-6 pb-3 px-5 text-sm text-white outline-none transition-all duration-300 focus:border-violet-500/60 focus:bg-white/[0.07] placeholder-transparent"
+        className="peer w-full rounded-lg border border-slate-300 bg-white px-3.5 pb-2 pt-6 text-sm text-slate-900 outline-none transition focus:border-[#1773b0] focus:ring-1 focus:ring-[#1773b0] placeholder-transparent"
       />
-      <label className={`absolute left-5 transition-all duration-200 pointer-events-none font-black tracking-[0.15em] uppercase
+      <label className={`absolute left-3.5 pointer-events-none transition-all duration-150
         ${focused || filled
-          ? "top-2 text-[8px] text-violet-400"
-          : "top-1/2 -translate-y-1/2 text-[10px] text-white/30"
+          ? "top-2 text-xs text-slate-500"
+          : "top-1/2 -translate-y-1/2 text-sm text-slate-500"
         }`}>
         {label}
       </label>
@@ -75,12 +75,9 @@ function Field({
 // ─── Step badge ───────────────────────────────────────────────────────────────
 function StepBadge({ n, label }: { n: string; label: string }) {
   return (
-    <div className="flex items-center gap-4 mb-8">
-      <div className="w-8 h-8 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-[10px] font-black text-violet-400 tracking-widest shrink-0">
-        {n}
-      </div>
-      <span className="text-[10px] font-black tracking-[0.35em] text-white/30 uppercase">{label}</span>
-      <div className="flex-1 h-px bg-white/5" />
+    <div className="mb-5 flex items-center justify-between gap-4">
+      <h2 className="text-xl font-semibold tracking-tight text-slate-900">{label}</h2>
+      <span className="text-xs font-medium text-slate-400">{n}</span>
     </div>
   );
 }
@@ -803,448 +800,278 @@ export function Checkout() {
   }
 
   // ── Main checkout ───────────────────────────────────────────────────────────
-  return (
-    <div className="min-h-screen bg-[#050506] text-white font-sans selection:bg-violet-500/30">
+  const hasStripe = Boolean(settings?.payments?.stripe?.connected);
+  const hasPaypal = Boolean(settings?.payments?.paypal?.connected);
+  const enabledManualMethods = (settings?.payments?.manualMethods || []).filter((method: any) => method.enabled);
+  const paymentLabel = selectedPaymentMethod === "stripe"
+    ? "Pay securely"
+    : selectedPaymentMethod === "paypal"
+      ? "Continue to PayPal"
+      : "Place order";
 
-      {/* Test Mode Warning Banner */}
+  return (
+    <div className="min-h-screen bg-white font-sans text-slate-900 selection:bg-sky-100">
       {settings?.payments?.testMode && (
-        <div className="bg-amber-500/10 border-b border-amber-500/20 py-3.5 px-6 flex items-center justify-center gap-3 relative z-20 shadow-md">
-          <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-          <p className="text-[10px] text-amber-400 font-black tracking-[0.2em] uppercase text-center">
-            Test Mode Active &bull; Checkout is running in sandbox mode &bull; Real charges will not occur
-          </p>
+        <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-sm font-medium text-amber-900">
+          Test mode is active. No real charges will be made.
         </div>
       )}
 
-      {/* Ambient glow */}
-      <div className="fixed top-0 right-0 w-[600px] h-[600px] bg-violet-600/8 blur-[140px] rounded-full pointer-events-none -mr-72 -mt-72" />
-      <div className="fixed bottom-0 left-0 w-[400px] h-[400px] bg-cyan-600/5 blur-[120px] rounded-full pointer-events-none" />
-
-      {/* Header */}
-      <nav className="relative z-10 px-8 py-6 flex items-center justify-between border-b border-white/5 backdrop-blur-xl bg-black/20">
-        <Link to="/" className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-white transition-colors uppercase group">
-          <ChevronLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-          Back to Site
-        </Link>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[9px] font-black tracking-[0.3em] text-white/30 uppercase">Secure Checkout</span>
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
+          <Link to="/" className="group flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900">
+            <ChevronLeft size={17} className="transition-transform group-hover:-translate-x-0.5" />
+            Return to store
+          </Link>
+          <Link to="/" className="text-center text-lg font-semibold tracking-tight text-slate-950 sm:text-xl">
+            Lyricalmyrical Books
+          </Link>
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <Lock size={15} aria-hidden="true" />
+            <span className="hidden sm:inline">Secure checkout</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-white/20">
-          <Lock size={12} />
-          <span className="text-[9px] font-black tracking-widest uppercase">SSL Encrypted</span>
-        </div>
-      </nav>
+      </header>
 
-      {/* Body */}
-      <div className="relative z-10 max-w-7xl mx-auto px-6 py-14 grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-12 xl:gap-20">
-
-        {/* ── LEFT: Form ──────────────────────────────────────────────────────── */}
-        <div className="space-y-12">
-
-          {/* 01 Order Summary */}
-          <section>
-            <StepBadge n="01" label="Order Summary" />
-            <div className="space-y-4">
-              {cart.map((item, i) => (
-                <motion.div
-                  key={item.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.06 }}
-                  className="flex gap-6 bg-white/[0.03] border border-white/5 rounded-2xl p-5 hover:border-violet-500/20 transition-all group"
-                >
-                  <div className="w-16 aspect-[3/4] bg-black rounded-xl overflow-hidden shrink-0 shadow-lg border border-white/5">
-                    <img src={item.photoUrl} alt={item.title || ""} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-                  </div>
-                  <div className="flex-1 flex flex-col justify-center gap-2">
-                    <h3 className="text-xs font-black tracking-[0.2em] uppercase text-white">{item.title}</h3>
-                    <p className="text-[10px] text-white/30 font-mono">QTY: {item.quantity} × {formatPrice(item.price)}</p>
-                    <p className="text-sm font-black text-white/80 tracking-tight">{formatPrice(item.quantity * item.price)}</p>
-                  </div>
-                  <div className="self-center">
-                    <span className="text-[8px] font-black tracking-widest text-violet-400 bg-violet-500/10 border border-violet-500/20 px-3 py-1.5 rounded-lg uppercase">
-                      {item.quantity > 1 ? `×${item.quantity}` : "1 COPY"}
-                    </span>
-                  </div>
-                </motion.div>
-              ))}
+      <div className="mx-auto grid min-h-[calc(100vh-77px)] max-w-6xl grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
+        <main className="px-5 py-8 sm:px-8 sm:py-12 lg:border-r lg:border-slate-200 lg:pr-14">
+          <div className="mx-auto max-w-2xl space-y-10">
+            <div className="flex items-center gap-2 text-sm text-slate-500" aria-label="Checkout progress">
+              <span className="font-medium text-[#1773b0]">Information</span>
+              <span aria-hidden="true">›</span>
+              <span>Shipping</span>
+              <span aria-hidden="true">›</span>
+              <span>Payment</span>
             </div>
-          </section>
 
-          {/* 02 Promotion */}
-          <section>
-            <StepBadge n="02" label="Promotion Code" />
-            <div>
-              <div className="flex gap-3">
-                <div className="flex-1 relative">
-                  <Tag size={14} className="absolute left-5 top-1/2 -translate-y-1/2 text-white/20" />
-                  <input
-                    type="text"
-                    value={discountCode}
-                    onChange={e => setDiscountCode(e.target.value.toUpperCase())}
-                    onKeyDown={e => e.key === "Enter" && applyDiscount()}
-                    placeholder="PROMO CODE"
-                    disabled={!!appliedDiscount}
-                    className="w-full bg-white/[0.04] border border-white/10 rounded-2xl py-4 pl-12 pr-5 text-sm text-white tracking-[0.2em] placeholder:text-white/20 outline-none focus:border-violet-500/50 focus:bg-white/[0.07] transition-all disabled:opacity-50 font-mono"
-                  />
-                  {appliedDiscount && (
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                      <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg uppercase tracking-widest">Applied</span>
-                      <button onClick={removeDiscount} className="text-white/20 hover:text-white transition-colors p-1">
-                        <X size={12} />
-                      </button>
-                    </div>
-                  )}
+            <section>
+              <StepBadge n="1 of 3" label="Contact" />
+              {currentUser ? (
+                <div className="mb-4 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                  <div>
+                    <p className="font-medium text-slate-900">Signed in</p>
+                    <p className="text-slate-500">{currentUser.email}</p>
+                  </div>
+                  <CheckCircle2 size={20} className="text-emerald-600" />
                 </div>
-                {!appliedDiscount && (
-                  <button
-                    onClick={applyDiscount}
-                    disabled={isApplying || !discountCode}
-                    className="bg-white/5 border border-white/10 text-white px-8 py-4 rounded-2xl text-[10px] font-black tracking-[0.25em] uppercase hover:bg-white/10 hover:border-white/20 transition-all disabled:opacity-30 active:scale-95"
-                  >
-                    {isApplying ? <Loader2 size={14} className="animate-spin mx-auto" /> : "Apply"}
-                  </button>
-                )}
-              </div>
-              <AnimatePresence>
-                {discountError && (
-                  <motion.p
-                    initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                    className="mt-3 text-[9px] font-black tracking-widest text-red-400 flex items-center gap-2 uppercase"
-                  >
-                    <AlertCircle size={10} /> {discountError}
-                  </motion.p>
-                )}
-              </AnimatePresence>
-            </div>
-          </section>
-
-          {/* 03 Shipping Details */}
-          <section>
-            <StepBadge n="03" label="Shipping Details" />
-            {!currentUser && (
-              <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex justify-between items-center mb-6">
-                <div>
-                  <p className="text-[9px] font-black tracking-widest text-slate-500 uppercase">Save Time</p>
-                  <p className="text-[10px] font-bold text-white mt-1">Log in to prefill shipping details.</p>
-                </div>
+              ) : (
                 <button
                   type="button"
                   onClick={handleGoogleLogin}
-                  className="bg-white text-black text-[9px] font-black tracking-widest uppercase px-6 py-3 rounded-xl hover:bg-slate-200 transition-all cursor-pointer"
+                  className="mb-4 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
-                  Login with Google
+                  Sign in with Google
                 </button>
-              </div>
-            )}
-            <div className="space-y-4">
-              <Field label="Full Name" value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Email Address" type="email" value={customer.email} onChange={v => setCustomer({ ...customer, email: v })} autoComplete="email" inputMode="email" required />
-                <Field label="Phone (optional)" type="tel" value={customer.phone} onChange={v => setCustomer({ ...customer, phone: v })} />
-              </div>
-              <Field label="Street Address" value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
-              <div className="grid grid-cols-3 gap-4">
-                <Field label="City" value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" />
-                <Field label="State" value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" />
-                <Field label="Postal Code" value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" />
-              </div>
-              <CountryField
-                value={customer.address.country}
-                onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v } })}
-              />
-              {(() => {
-                const z = getActiveShippingDetails();
-                return z ? (
-                  <p className="text-[9px] font-black tracking-[0.2em] text-white/30 uppercase px-1">
-                    Ships via <span className="text-violet-400">{z.region}</span> zone
-                    {Number(z.freeThreshold) > 0 && (
-                      <span className="text-emerald-400"> · free over {formatPrice(Number(z.freeThreshold))}</span>
-                    )}
-                  </p>
-                ) : null;
-              })()}
-            </div>
-          </section>
+              )}
+              <Field label="Email address" type="email" value={customer.email} onChange={v => setCustomer({ ...customer, email: v })} autoComplete="email" inputMode="email" required />
+              <p className="mt-2 text-xs leading-5 text-slate-500">We’ll send your receipt and delivery updates to this email.</p>
+            </section>
 
-          {/* 3.5 Shipping Method */}
-          {availableRates.length > 0 && (
-            <section className="animate-in fade-in slide-in-from-top-4 duration-300">
-              <StepBadge n="3.5" label="Shipping Method" />
-              <div className="space-y-4">
-                {availableRates.map((rate) => (
-                  <label
-                    key={rate.name}
-                    className={`flex items-center justify-between p-6 rounded-[2rem] border transition-all cursor-pointer ${
-                      selectedRateName === rate.name
-                        ? "bg-violet-600/10 border-violet-500/50 text-white"
-                        : "bg-white/[0.03] border-white/5 text-white hover:border-white/10"
-                    }`}
-                    onClick={() => setSelectedRateName(rate.name)}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                        selectedRateName === rate.name ? "border-violet-500" : "border-white/20"
-                      }`}>
-                        {selectedRateName === rate.name && (
-                          <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
-                        )}
+            <section>
+              <StepBadge n="2 of 3" label="Delivery" />
+              <div className="space-y-3">
+                <CountryField value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v } })} />
+                <Field label="Full name" value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
+                <Field label="Address" value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <Field label="City" value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required />
+                  <Field label="State / province" value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" required />
+                  <Field label="ZIP / postal code" value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" required />
+                </div>
+                <Field label="Phone (optional)" type="tel" value={customer.phone} onChange={v => setCustomer({ ...customer, phone: v })} autoComplete="tel" inputMode="tel" />
+              </div>
+            </section>
+
+            <section>
+              <div className="mb-5">
+                <h2 className="text-xl font-semibold tracking-tight text-slate-900">Shipping method</h2>
+                <p className="mt-1 text-sm text-slate-500">Choose the delivery speed that works for you.</p>
+              </div>
+              {availableRates.length > 0 ? (
+                <div className="overflow-hidden rounded-lg border border-slate-300 bg-white">
+                  {availableRates.map((rate, index) => (
+                    <label key={rate.name} className={`flex cursor-pointer items-center justify-between gap-4 px-4 py-4 ${index ? "border-t border-slate-200" : ""}`}>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="radio"
+                          name="shipping-method"
+                          value={rate.name}
+                          checked={selectedRateName === rate.name}
+                          onChange={() => setSelectedRateName(rate.name)}
+                          className="h-4 w-4 accent-[#1773b0]"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">{rate.name}</p>
+                          {rate.deliveryDays && <p className="mt-0.5 text-xs text-slate-500">Estimated {rate.deliveryDays} business days</p>}
+                        </div>
                       </div>
-                      <div className="text-left">
-                        <p className="text-xs font-black tracking-widest uppercase">{rate.name}</p>
-                        {rate.deliveryDays && (
-                          <p className="text-[9px] text-white/30 tracking-widest mt-1 uppercase font-semibold">
-                            Estimated Delivery: {rate.deliveryDays} Business Days
-                          </p>
-                        )}
+                      <span className="text-sm font-semibold text-slate-900">{rate.price === 0 ? "Free" : formatPrice(rate.price)}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                  <Truck size={18} className="mt-0.5 shrink-0 text-slate-400" />
+                  Enter your delivery address to see available shipping methods.
+                </div>
+              )}
+            </section>
+
+            <section>
+              <StepBadge n="3 of 3" label="Payment" />
+              <p className="-mt-3 mb-4 text-sm leading-6 text-slate-500">All transactions are handled by the payment provider you select.</p>
+              <div className="overflow-hidden rounded-lg border border-slate-300 bg-white">
+                {hasStripe && (
+                  <label className="block cursor-pointer">
+                    <div className="flex items-center justify-between gap-4 bg-slate-50 px-4 py-4">
+                      <div className="flex items-center gap-3">
+                        <input type="radio" name="payment-method" checked={selectedPaymentMethod === "stripe"} onChange={() => setSelectedPaymentMethod("stripe")} className="h-4 w-4 accent-[#1773b0]" />
+                        <span className="text-sm font-medium">Credit or debit card</span>
+                      </div>
+                      <div className="flex items-center gap-1.5" aria-label="Accepted cards">
+                        {['VISA', 'MC', 'AMEX'].map(card => <span key={card} className="rounded border border-slate-300 bg-white px-1.5 py-1 text-[9px] font-bold text-slate-600">{card}</span>)}
                       </div>
                     </div>
-                    <span className="text-sm font-black font-mono">
-                      {rate.price === 0 ? "FREE" : formatPrice(rate.price)}
-                    </span>
+                    {selectedPaymentMethod === "stripe" && (
+                      <div className="border-t border-slate-200 px-6 py-7 text-center">
+                        <CreditCard size={34} strokeWidth={1.4} className="mx-auto mb-3 text-slate-400" />
+                        <p className="text-sm text-slate-600">After you click “Pay securely,” you’ll complete your card payment on Stripe’s secure checkout.</p>
+                      </div>
+                    )}
+                  </label>
+                )}
+                {hasPaypal && (
+                  <label className={`flex cursor-pointer items-center justify-between gap-4 px-4 py-4 ${hasStripe ? "border-t border-slate-200" : ""}`}>
+                    <div className="flex items-center gap-3">
+                      <input type="radio" name="payment-method" checked={selectedPaymentMethod === "paypal"} onChange={() => setSelectedPaymentMethod("paypal")} className="h-4 w-4 accent-[#1773b0]" />
+                      <span className="text-sm font-medium">PayPal</span>
+                    </div>
+                    <span className="text-sm font-bold italic text-[#003087]">PayPal</span>
+                  </label>
+                )}
+                {enabledManualMethods.map((method: any, index: number) => (
+                  <label key={method.id} className={`flex cursor-pointer items-center justify-between gap-4 border-t border-slate-200 px-4 py-4 ${!hasStripe && !hasPaypal && index === 0 ? "border-t-0" : ""}`}>
+                    <div className="flex items-center gap-3">
+                      <input type="radio" name="payment-method" checked={selectedPaymentMethod === `manual_${method.id}`} onChange={() => setSelectedPaymentMethod(`manual_${method.id}`)} className="h-4 w-4 accent-[#1773b0]" />
+                      <span className="text-sm font-medium">{method.name}</span>
+                    </div>
+                    <Building size={18} className="text-slate-400" />
                   </label>
                 ))}
-              </div>
-            </section>
-          )}
-          {/* 3.8 Payment Method */}
-          {settings?.payments && (
-            <section className="animate-in fade-in slide-in-from-top-4 duration-300 mt-12">
-              <StepBadge n="3.8" label="Payment Method" />
-              <div className="space-y-4">
-                {/* Stripe Card Option */}
-                {settings.payments.stripe?.connected && (
-                  <div
-                    onClick={() => setSelectedPaymentMethod("stripe")}
-                    className={`flex items-center justify-between p-6 rounded-[2rem] border transition-all cursor-pointer ${
-                      selectedPaymentMethod === "stripe"
-                        ? "bg-violet-600/10 border-violet-500/50 text-white"
-                        : "bg-white/[0.03] border-white/5 text-white hover:border-white/10"
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                        selectedPaymentMethod === "stripe" ? "border-violet-500" : "border-white/20"
-                      }`}>
-                        {selectedPaymentMethod === "stripe" && (
-                          <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
-                        )}
-                      </div>
-                      <div className="text-left">
-                        <p className="text-xs font-black tracking-widest uppercase">Credit / Debit Card</p>
-                        <p className="text-[9px] text-white/30 tracking-widest mt-1 uppercase font-semibold">
-                          Pay securely with Stripe
-                        </p>
-                      </div>
-                    </div>
-                    <CreditCard size={18} className="text-white/40" />
+                {!hasStripe && !hasPaypal && enabledManualMethods.length === 0 && (
+                  <div className="flex items-start gap-3 px-4 py-5 text-sm text-slate-600">
+                    <AlertCircle size={18} className="mt-0.5 shrink-0 text-amber-600" />
+                    No payment method is currently available. Please contact the store before placing your order.
                   </div>
                 )}
-
-                {/* PayPal Option */}
-                {settings.payments.paypal?.connected && (
-                  <div
-                    onClick={() => setSelectedPaymentMethod("paypal")}
-                    className={`flex items-center justify-between p-6 rounded-[2rem] border transition-all cursor-pointer ${
-                      selectedPaymentMethod === "paypal"
-                        ? "bg-violet-600/10 border-violet-500/50 text-white"
-                        : "bg-white/[0.03] border-white/5 text-white hover:border-white/10"
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                        selectedPaymentMethod === "paypal" ? "border-violet-500" : "border-white/20"
-                      }`}>
-                        {selectedPaymentMethod === "paypal" && (
-                          <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
-                        )}
-                      </div>
-                      <div className="text-left">
-                        <p className="text-xs font-black tracking-widest uppercase">PayPal</p>
-                        <p className="text-[9px] text-white/30 tracking-widest mt-1 uppercase font-semibold">
-                          Pay with your PayPal account
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-black italic text-white/40">PayPal</span>
-                  </div>
-                )}
-
-                {/* Manual Methods Options */}
-                {(settings.payments.manualMethods || [])
-                  .filter((m: any) => m.enabled)
-                  .map((method: any) => (
-                    <div
-                      key={method.id}
-                      onClick={() => setSelectedPaymentMethod(`manual_${method.id}`)}
-                      className={`flex items-center justify-between p-6 rounded-[2rem] border transition-all cursor-pointer ${
-                        selectedPaymentMethod === `manual_${method.id}`
-                          ? "bg-violet-600/10 border-violet-500/50 text-white"
-                          : "bg-white/[0.03] border-white/5 text-white hover:border-white/10"
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                          selectedPaymentMethod === `manual_${method.id}` ? "border-violet-500" : "border-white/20"
-                        }`}>
-                          {selectedPaymentMethod === `manual_${method.id}` && (
-                            <div className="w-2.5 h-2.5 rounded-full bg-violet-500" />
-                          )}
-                        </div>
-                        <div className="text-left">
-                          <p className="text-xs font-black tracking-widest uppercase">{method.name}</p>
-                          <p className="text-[9px] text-white/30 tracking-widest mt-1 uppercase font-semibold">
-                            Manual Payment Instructions provided on success
-                          </p>
-                        </div>
-                      </div>
-                      <Building size={16} className="text-white/40" />
-                    </div>
-                  ))}
               </div>
             </section>
-          )}
-        </div>
 
-        {/* ── RIGHT: Order total + payment ─────────────────────────────────────── */}
-        <div className="space-y-6">
-          <div className="sticky top-8 space-y-4">
-
-            {/* Totals card */}
-            <div className="bg-white/[0.03] border border-white/8 rounded-[2rem] p-8 backdrop-blur-xl relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.06] to-transparent pointer-events-none" />
-              <div className="relative z-10">
-                <StepBadge n="04" label="Final Settlement" />
-
-                <div className="space-y-4 mb-8">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-black tracking-[0.2em] text-white/40 uppercase">Subtotal</span>
-                    <span className="text-sm font-black text-white/70 font-mono">{formatPrice(cartTotal)}</span>
-                  </div>
-
-                  <AnimatePresence>
-                    {appliedDiscount && (
-                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                        className="flex justify-between items-center">
-                        <span className="text-[10px] font-black tracking-[0.2em] text-emerald-400 uppercase">Discount ({appliedDiscount.code})</span>
-                        <span className="text-sm font-black text-emerald-400 font-mono">−{formatPrice(discountAmount)}</span>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <span className="flex items-center gap-2 text-[10px] font-black tracking-[0.2em] text-white/40 uppercase">
-                        <Truck size={12} className="text-white/20" /> Shipping
-                      </span>
-                      {getActiveShippingDetails() && (
-                        <p className="text-[8px] text-white/30 uppercase tracking-widest pl-5 font-semibold">
-                          {getActiveShippingDetails()?.serviceName || "Standard Shipping"}
-                          {getActiveShippingDetails()?.deliveryDays && ` (${getActiveShippingDetails()?.deliveryDays} Days)`}
-                        </p>
-                      )}
-                    </div>
-                    <span className={`text-sm font-black font-mono ${isFreeShipping || shippingCost === 0 ? "text-emerald-400 font-bold" : "text-white/70"}`}>
-                      {isFreeShipping || shippingCost === 0 ? "FREE" : formatPrice(shippingCost)}
-                    </span>
-                  </div>
-
-                  {taxCost > 0 && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-black tracking-[0.2em] text-white/40 uppercase">Estimated Tax</span>
-                      <span className="text-sm font-black text-white/70 font-mono">{formatPrice(taxCost)}</span>
-                    </div>
-                  )}
-
-                  <AnimatePresence>
-                    {isFreeShipping && (
-                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                        className="flex justify-between items-center">
-                        <span className="text-[10px] font-black tracking-[0.2em] text-emerald-400 uppercase">Promo Shipping</span>
-                        <span className="text-sm font-black text-emerald-400">FREE</span>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                <div className="pt-6 border-t border-white/8">
-                  <div className="flex justify-between items-end">
-                    <div>
-                      <p className="text-[9px] font-black tracking-[0.35em] text-white/30 uppercase mb-1">Total Payable</p>
-                      <p className="text-[9px] font-black tracking-widest text-white/20 uppercase">{currency}</p>
-                    </div>
-                    <motion.span
-                      key={finalTotal}
-                      initial={{ y: -10, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      className="text-5xl font-black tracking-tighter text-white animate-fade-in"
-                    >
-                      {formatPrice(finalTotal)}
-                    </motion.span>
-                  </div>
-                </div>
+            <div className="border-t border-slate-200 pt-6">
+              <button
+                type="button"
+                onClick={handleCompletePurchase}
+                disabled={isCompleting || (!hasStripe && !hasPaypal && enabledManualMethods.length === 0)}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#1773b0] px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-[#12649b] focus:outline-none focus:ring-2 focus:ring-[#1773b0] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isCompleting ? <><Loader2 size={18} className="animate-spin" /> Processing order…</> : <><Lock size={16} /> {paymentLabel}</>}
+              </button>
+              <div className="mt-4 flex items-start justify-center gap-2 text-center text-xs leading-5 text-slate-500">
+                <ShieldCheck size={16} className="mt-0.5 shrink-0 text-emerald-600" />
+                <p>Your payment details are submitted directly to the selected payment provider and are not stored by this shop.</p>
               </div>
             </div>
 
-            {/* Payment card */}
-            <div className="bg-white/[0.03] border border-white/8 rounded-[2rem] p-8 backdrop-blur-xl relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-b from-violet-600/[0.05] to-transparent pointer-events-none" />
-              <div className="relative z-10 space-y-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center">
-                    {selectedPaymentMethod.startsWith("manual_") ? (
-                      <Building size={18} className="text-violet-400" />
-                    ) : (
-                      <CreditCard size={18} className="text-violet-400" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black tracking-[0.25em] text-white uppercase">
-                      {selectedPaymentMethod.startsWith("manual_") ? "Manual Order" : "Secure Payment"}
-                    </p>
-                    <p className="text-[9px] text-white/30 tracking-widest">
-                      {selectedPaymentMethod === "stripe"
-                        ? "Powered by Stripe"
-                        : selectedPaymentMethod === "paypal"
-                        ? "Powered by PayPal"
-                        : "Direct Settlement"}
-                    </p>
-                  </div>
-                  <div className="ml-auto">
-                    <ShieldCheck size={20} className="text-white/10" />
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleCompletePurchase}
-                  disabled={isCompleting}
-                  className="w-full relative overflow-hidden bg-violet-600 hover:bg-violet-500 text-white py-5 rounded-2xl text-[11px] font-black tracking-[0.4em] uppercase transition-all active:scale-[0.98] disabled:opacity-60 shadow-[0_20px_50px_rgba(124,58,237,0.35)] group"
-                >
-                  <span className="relative z-10 flex items-center justify-center gap-3">
-                    {isCompleting ? (
-                      <><Loader2 size={16} className="animate-spin" /> Processing...</>
-                    ) : selectedPaymentMethod === "stripe" ? (
-                      <><Lock size={14} /> Pay with Stripe</>
-                    ) : selectedPaymentMethod === "paypal" ? (
-                      <><Lock size={14} /> Pay with PayPal</>
-                    ) : (
-                      <><Lock size={14} /> Place Order</>
-                    )}
-                  </span>
-                  <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-
-                <div className="flex items-center justify-center gap-3 opacity-30">
-                  <div className="w-1 h-1 rounded-full bg-white" />
-                  <p className="text-[8px] font-black tracking-[0.2em] text-white uppercase">256-bit SSL · PCI DSS Compliant</p>
-                  <div className="w-1 h-1 rounded-full bg-white" />
-                </div>
-              </div>
-            </div>
-
+            <footer className="flex flex-wrap justify-center gap-x-5 gap-y-2 border-t border-slate-200 pt-6 text-xs text-slate-500">
+              <span>Secure payment</span>
+              <span>Order support</span>
+              <span>Privacy protected</span>
+            </footer>
           </div>
-        </div>
+        </main>
+
+        <aside className="order-first border-b border-slate-200 bg-slate-50 px-5 py-7 sm:px-8 lg:order-none lg:border-b-0 lg:px-10 lg:py-12">
+          <div className="mx-auto max-w-2xl lg:sticky lg:top-8">
+            <div className="mb-6 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-900">Order summary</h2>
+              <span className="text-sm text-slate-500">{cart.reduce((sum, item) => sum + item.quantity, 0)} item{cart.reduce((sum, item) => sum + item.quantity, 0) === 1 ? "" : "s"}</span>
+            </div>
+
+            <div className="space-y-5">
+              {cart.map(item => (
+                <div key={`${item.id}-${item.variantId || "default"}`} className="flex items-center gap-4">
+                  <div className="relative h-16 w-14 shrink-0 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+                    <img src={item.photoUrl} alt="" className="h-full w-full rounded object-cover" />
+                    <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-600 px-1 text-xs font-semibold text-white">{item.quantity}</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-900">{item.title}</p>
+                    {item.variantName && <p className="mt-0.5 text-xs text-slate-500">{item.variantName}</p>}
+                  </div>
+                  <span className="text-sm font-medium text-slate-900">{formatPrice(item.price * item.quantity)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="my-7 border-t border-slate-200" />
+
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Tag size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={discountCode}
+                  onChange={e => setDiscountCode(e.target.value.toUpperCase())}
+                  onKeyDown={e => e.key === "Enter" && applyDiscount()}
+                  placeholder="Discount code"
+                  disabled={Boolean(appliedDiscount)}
+                  className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1773b0] focus:ring-1 focus:ring-[#1773b0] disabled:bg-slate-100"
+                />
+              </div>
+              {appliedDiscount ? (
+                <button type="button" onClick={removeDiscount} className="rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" aria-label="Remove discount"><X size={17} /></button>
+              ) : (
+                <button type="button" onClick={applyDiscount} disabled={isApplying || !discountCode} className="rounded-lg bg-slate-700 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
+                  {isApplying ? <Loader2 size={17} className="animate-spin" /> : "Apply"}
+                </button>
+              )}
+            </div>
+            {discountError && <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} />{discountError}</p>}
+            {appliedDiscount && <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-700"><CheckCircle2 size={13} />{appliedDiscount.code} applied</p>}
+
+            <div className="my-7 border-t border-slate-200" />
+
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between text-slate-600"><span>Subtotal</span><span className="font-medium text-slate-900">{formatPrice(cartTotal)}</span></div>
+              {discountAmount > 0 && <div className="flex justify-between text-emerald-700"><span>Discount</span><span>-{formatPrice(discountAmount)}</span></div>}
+              <div className="flex justify-between text-slate-600">
+                <span>Shipping{getActiveShippingDetails()?.serviceName ? ` · ${getActiveShippingDetails()?.serviceName}` : ""}</span>
+                <span className="font-medium text-slate-900">{isFreeShipping || shippingCost === 0 ? "Free" : formatPrice(finalShipping)}</span>
+              </div>
+              <div className="flex justify-between text-slate-600"><span>Estimated tax</span><span className="font-medium text-slate-900">{taxCost > 0 ? formatPrice(taxCost) : "Calculated at checkout"}</span></div>
+            </div>
+
+            <div className="my-6 border-t border-slate-200" />
+
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-base font-semibold text-slate-900">Total</p>
+                <p className="mt-0.5 text-xs uppercase tracking-wide text-slate-500">{currency}</p>
+              </div>
+              <motion.p key={finalTotal} initial={{ opacity: 0.5 }} animate={{ opacity: 1 }} className="text-2xl font-semibold tracking-tight text-slate-950">{formatPrice(finalTotal)}</motion.p>
+            </div>
+
+            <div className="mt-7 rounded-lg border border-slate-200 bg-white p-4">
+              <div className="flex items-start gap-3">
+                <Package size={18} className="mt-0.5 shrink-0 text-slate-500" />
+                <div>
+                  <p className="text-sm font-medium text-slate-900">Carefully packed and tracked</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">You’ll receive an order confirmation and shipping updates by email.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   );
