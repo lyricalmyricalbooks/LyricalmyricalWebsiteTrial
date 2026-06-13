@@ -733,17 +733,19 @@ export const adminApi = {
 
   // Pushes the order to the Shippo dashboard (pre-filled) and returns the
   // Shippo site URL to open so the admin can buy the label directly on Shippo.
+  // Handled by the createShippingLabel endpoint via mode: "shippoOrder" so no
+  // new Cloud Function deployment (and its extra IAM permission) is required.
   createShippoOrder: async (orderId: string) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to push orders to Shippo.");
 
-    const response = await fetch(functionUrl("createShippoOrder"), {
+    const response = await fetch(functionUrl("createShippingLabel"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${idToken}`,
       },
-      body: JSON.stringify({ orderId }),
+      body: JSON.stringify({ orderId, mode: "shippoOrder" }),
     });
 
     if (!response.ok) {
