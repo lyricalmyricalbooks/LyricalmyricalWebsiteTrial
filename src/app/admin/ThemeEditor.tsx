@@ -1051,6 +1051,53 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
             suffix="px"
             onChange={(v: number) => update("logoHeight", v)}
           />
+
+          <div className="pt-2 space-y-4 border-t border-white/5">
+            <SidebarLabel>Logo Image</SidebarLabel>
+            <SidebarAssetUpload
+              value={design.logoUrl}
+              onChange={(url: string) => update("logoUrl", url)}
+              type="logo"
+              label="Upload Logo"
+            />
+            <p className="text-[9px] text-slate-500 leading-relaxed">
+              Upload your logo image. Leave empty to use the wordmark text below instead.
+            </p>
+          </div>
+
+          <SidebarInput
+            label="Wordmark Text"
+            value={design.logoText ?? "F✶M"}
+            onChange={(v: string) => update("logoText", v)}
+            placeholder="F✶M"
+          />
+
+          <ColorPicker
+            label="Logo Color"
+            value={design.logoColor || ""}
+            onChange={(val: string) => update("logoColor", val)}
+          />
+
+          <SidebarToggle
+            label="Recolor Logo Image"
+            description="Tint your uploaded logo with the Logo Color above. Best for single-color / transparent logos."
+            checked={design.logoTint ?? false}
+            onChange={(v: boolean) => update("logoTint", v)}
+          />
+
+          {(design.logoColor || design.logoText || design.logoTint) && (
+            <button
+              onClick={() => {
+                update("logoColor", undefined);
+                update("logoText", undefined);
+                update("logoTint", undefined);
+              }}
+              className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-2 text-[10px] font-bold text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all uppercase tracking-wider"
+            >
+              Reset logo styling
+            </button>
+          )}
+
           <div className="pt-2">
              <SidebarToggle
                label="Transparent Header"

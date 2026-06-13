@@ -9,6 +9,7 @@ import type { Book } from "../features/site/types";
 import { useSiteData } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
+import { LogoMark } from "./LogoMark";
 import { ThemeToggle } from "./theme/ThemeToggle";
 import { CurrencySelector, useCurrency } from "../CurrencyContext";
 import { addDoc, collection } from "firebase/firestore";
@@ -1086,9 +1087,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   style={{ color: headerTextColor }}
                   className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
-                  {storefrontDesign?.logoUrl ? (
-                    <img src={storefrontDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, storefrontDesign?.logoHeight ?? 24)) }} />
-                  ) : "F✶M"}
+                  <LogoMark design={storefrontDesign} />
                 </button>
               )}
               
@@ -1120,9 +1119,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   style={{ color: headerTextColor }}
                   className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
-                  {storefrontDesign?.logoUrl ? (
-                    <img src={storefrontDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, storefrontDesign?.logoHeight ?? 24)) }} />
-                  ) : "F✶M"}
+                  <LogoMark design={storefrontDesign} />
                 </button>
               </div>
             )}
@@ -1135,9 +1132,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   style={{ color: headerTextColor }}
                   className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
-                  {storefrontDesign?.logoUrl ? (
-                    <img src={storefrontDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, storefrontDesign?.logoHeight ?? 24)) }} />
-                  ) : "F✶M"}
+                  <LogoMark design={storefrontDesign} />
                 </button>
               )}
 
@@ -1478,9 +1473,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         <div className={`flex items-center gap-8 flex-1 ${logoPosition === "center" ? "" : "flex-initial"}`}>
           {logoPosition === "left" && (
             <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
-              {heroDesign?.logoUrl ? (
-                <img src={heroDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, heroDesign?.logoHeight ?? 24)) }} />
-              ) : "F✶M"}
+              <LogoMark design={heroDesign} />
             </button>
           )}
 
@@ -1499,9 +1492,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         {logoPosition === "center" && (
           <div className="flex-1 flex justify-center">
             <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
-              {heroDesign?.logoUrl ? (
-                <img src={heroDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, heroDesign?.logoHeight ?? 24)) }} />
-              ) : "F✶M"}
+              <LogoMark design={heroDesign} />
             </button>
           </div>
         )}
@@ -1510,9 +1501,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         <div className={`flex gap-8 items-center flex-1 justify-end ${logoPosition === "right" ? "flex-initial" : ""}`}>
           {logoPosition === "right" && (
             <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
-              {heroDesign?.logoUrl ? (
-                <img src={heroDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, heroDesign?.logoHeight ?? 24)) }} />
-              ) : "F✶M"}
+              <LogoMark design={heroDesign} />
             </button>
           )}
 

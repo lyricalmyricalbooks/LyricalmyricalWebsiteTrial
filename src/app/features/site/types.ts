@@ -89,6 +89,11 @@ export type SiteSettings = {
       primaryColor?: string;
       font?: string;
       logoUrl?: string;
+      logoText?: string;
+      logoColor?: string;
+      logoTint?: boolean;
+      logoHeight?: number;
+      logoPosition?: "left" | "center" | "right";
       faviconUrl?: string;
       categories?: string[];
       headerLinks?: {
