@@ -20,10 +20,38 @@ import type { ColorScheme } from "./ThemeEditorExtensions";
 // ─────────────────────────────────────────────────────────────────────────────
 // Color math utilities
 // ─────────────────────────────────────────────────────────────────────────────
+export function normalizeHexForColorInput(hex: string): string {
+  let clean = (hex || "").trim().toLowerCase();
+  if (clean.startsWith("#")) clean = clean.slice(1);
+  clean = clean.replace(/[^0-9a-f]/g, "");
+
+  if (clean.length === 3) {
+    clean = clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
+  } else if (clean.length === 4) {
+    clean = clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
+  } else if (clean.length === 8) {
+    clean = clean.slice(0, 6);
+  }
+
+  if (clean.length !== 6) return "#000000";
+  return "#" + clean;
+}
+
 export function hexToRgbPro(hex: string): [number, number, number] | null {
-  const m = /^#?([0-9a-f]{6})$/i.exec((hex || "").trim());
-  if (!m) return null;
-  const int = parseInt(m[1], 16);
+  let clean = (hex || "").trim().toLowerCase();
+  if (clean.startsWith("#")) clean = clean.slice(1);
+  clean = clean.replace(/[^0-9a-f]/g, "");
+
+  if (clean.length === 3) {
+    clean = clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
+  } else if (clean.length === 4) {
+    clean = clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
+  } else if (clean.length === 8) {
+    clean = clean.slice(0, 6);
+  }
+
+  if (clean.length !== 6) return null;
+  const int = parseInt(clean, 16);
   return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
 }
 
@@ -130,11 +158,11 @@ export function buildHarmonies(brand: string): GeneratedPalette[] {
   const accent = hslToHex(h, s, 0.55);
 
   const harmonies: { id: string; label: string; bgHue: number }[] = [
-    { id: "mono", label: "Monochrome", bgHue: h },
-    { id: "analogous", label: "Analogous", bgHue: h + 30 },
-    { id: "complement", label: "Complementary", bgHue: h + 180 },
+    { id: "mono", label: "Mono", bgHue: h },
+    { id: "analogous", label: "Analog", bgHue: h + 30 },
+    { id: "complement", label: "Complement", bgHue: h + 180 },
     { id: "triadic", label: "Triadic", bgHue: h + 120 },
-    { id: "split", label: "Split Complement", bgHue: h + 150 },
+    { id: "split", label: "Split", bgHue: h + 150 },
   ];
 
   const palettes: GeneratedPalette[] = [];
@@ -385,7 +413,7 @@ function PaletteCard({ palette, isActive, onApply }: { palette: GeneratedPalette
         <div className="w-10" style={{ background: palette.accent }} />
       </div>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[9px] font-black uppercase tracking-widest text-slate-300 italic truncate">{palette.label}</p>
+        <p className="text-[9px] font-black uppercase tracking-wider text-slate-300 italic truncate">{palette.label}</p>
         <span className={`flex-shrink-0 text-[7px] font-black tracking-[0.2em] uppercase px-2 py-0.5 rounded-full border ${
           palette.variant === "dark" ? "bg-black/40 text-slate-400 border-white/10" : "bg-white/80 text-slate-700 border-black/10"
         }`}>
@@ -437,7 +465,7 @@ export function PaletteLabPanel({ design, update }: { design: any; update: (k: s
             <div className="w-10 h-10 rounded-lg border border-white/10 relative cursor-pointer overflow-hidden flex-shrink-0" style={{ background: brandColor }}>
               <input
                 type="color"
-                value={/^#[0-9A-F]{6}$/i.test(brandColor) ? brandColor : "#A855F7"}
+                value={normalizeHexForColorInput(brandColor)}
                 onChange={(e) => setBrandColor(e.target.value)}
                 className="absolute inset-0 opacity-0 cursor-pointer scale-150"
               />
@@ -446,6 +474,7 @@ export function PaletteLabPanel({ design, update }: { design: any; update: (k: s
               type="text"
               value={brandColor}
               onChange={(e) => setBrandColor(e.target.value)}
+              onBlur={(e) => setBrandColor(normalizeHexForColorInput(e.target.value))}
               className="flex-1 bg-transparent border-none outline-none text-[11px] font-black text-slate-200 uppercase tracking-widest italic"
               placeholder="#A855F7"
             />

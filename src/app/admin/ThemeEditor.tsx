@@ -81,6 +81,7 @@ import {
   FontPairingsGrid,
   CommandPalette,
   surpriseMe,
+  normalizeHexForColorInput,
   type CommandAction,
 } from "./ThemeEditorPro";
 import { Tablet } from "lucide-react";
@@ -286,9 +287,20 @@ function SidebarRange({
 // WCAG contrast helpers
 // ──────────────────────────────
 function hexToRgb(hex: string): [number, number, number] | null {
-  const m = /^#?([0-9a-f]{6})$/i.exec((hex || "").trim());
-  if (!m) return null;
-  const int = parseInt(m[1], 16);
+  let clean = (hex || "").trim().toLowerCase();
+  if (clean.startsWith("#")) clean = clean.slice(1);
+  clean = clean.replace(/[^0-9a-f]/g, "");
+
+  if (clean.length === 3) {
+    clean = clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
+  } else if (clean.length === 4) {
+    clean = clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
+  } else if (clean.length === 8) {
+    clean = clean.slice(0, 6);
+  }
+
+  if (clean.length !== 6) return null;
+  const int = parseInt(clean, 16);
   return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
 }
 
@@ -368,9 +380,16 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
 
   const handleTextChange = (val: string) => {
     setLocalValue(val);
-    if (/^#[0-9A-F]{6}$/i.test(val)) {
-      onChange(val);
+    const clean = val.trim();
+    if (/^#[0-9A-F]{3}$/i.test(clean) || /^#[0-9A-F]{4}$/i.test(clean) || /^#[0-9A-F]{6}$/i.test(clean) || /^#[0-9A-F]{8}$/i.test(clean)) {
+      onChange(clean);
     }
+  };
+
+  const handleBlur = () => {
+    const normalized = normalizeHexForColorInput(localValue);
+    setLocalValue(normalized);
+    onChange(normalized);
   };
 
   return (
@@ -383,7 +402,7 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
         >
           <input
             type="color"
-            value={value || "#000000"}
+            value={normalizeHexForColorInput(value)}
             onChange={(e) => onChange(e.target.value)}
             className="absolute inset-0 opacity-0 cursor-pointer scale-150"
           />
@@ -393,6 +412,7 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
             type="text"
             value={localValue}
             onChange={(e) => handleTextChange(e.target.value)}
+            onBlur={handleBlur}
             className="w-full bg-transparent border-none outline-none text-[11px] font-black text-slate-200 uppercase tracking-widest italic"
             placeholder="#000000"
           />

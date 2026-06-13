@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import RichTextEditor from "../components/RichTextEditor";
+import { normalizeHexForColorInput } from "./ThemeEditorPro";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section type registry — drives the Add Section library + per-type editor
@@ -1499,7 +1500,7 @@ export function ColorSchemesPanel({
                   >
                     <input
                       type="color"
-                      value={scheme[k]}
+                      value={normalizeHexForColorInput(scheme[k])}
                       onChange={(e) => updateScheme(scheme.id, { [k]: e.target.value })}
                       className="absolute inset-0 opacity-0 cursor-pointer scale-150"
                     />
@@ -1507,6 +1508,7 @@ export function ColorSchemesPanel({
                   <input
                     value={scheme[k]}
                     onChange={(e) => updateScheme(scheme.id, { [k]: e.target.value })}
+                    onBlur={(e) => updateScheme(scheme.id, { [k]: normalizeHexForColorInput(e.target.value) })}
                     className="flex-1 min-w-0 bg-transparent text-[10px] font-bold text-white uppercase tracking-widest outline-none"
                   />
                 </div>
@@ -1881,7 +1883,7 @@ export function SectionFieldEditor({
             >
               <input
                 type="color"
-                value={value || "#000000"}
+                value={normalizeHexForColorInput(value || "#000000")}
                 onChange={(e) => onChange(e.target.value)}
                 className="absolute inset-0 opacity-0 cursor-pointer scale-150"
               />
@@ -1889,6 +1891,7 @@ export function SectionFieldEditor({
             <input
               value={value || ""}
               onChange={(e) => onChange(e.target.value)}
+              onBlur={(e) => onChange(normalizeHexForColorInput(e.target.value))}
               className="flex-1 bg-transparent outline-none text-[11px] font-bold uppercase"
             />
           </div>

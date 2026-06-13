@@ -19,6 +19,7 @@ import { useSEO } from "../lib/seo";
 import { CatalogControls, applyCatalogControls, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { SearchOverlay } from "../features/site/SearchOverlay";
+import { DEFAULT_COLOR_SCHEMES } from "../admin/ThemeEditorExtensions";
 
 // ──────────────────────────────
 // Image with skeleton loader
@@ -776,7 +777,7 @@ function SectionReveal({ animation, enableAnimations, children }: any) {
 export function GlobalSections({ design, books, onCtaClick, onProductClick }: any) {
   const sections: any[] = design?.globalSections || [];
   if (sections.length === 0) return null;
-  const schemes: any[] = design?.colorSchemes || [];
+  const schemes: any[] = (design?.colorSchemes && design?.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES;
   return (
     <div className="flex flex-col">
       {sections
@@ -1612,7 +1613,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 if (!SectionComponent) return null;
 
                 const s = section.settings || {};
-                const schemes: any[] = heroDesign.colorSchemes || activeDesign.colorSchemes || [];
+                const schemes: any[] = (heroDesign.colorSchemes && heroDesign.colorSchemes.length > 0)
+                  ? heroDesign.colorSchemes
+                  : (activeDesign.colorSchemes && activeDesign.colorSchemes.length > 0)
+                  ? activeDesign.colorSchemes
+                  : DEFAULT_COLOR_SCHEMES;
                 const scheme = s.colorSchemeId
                   ? schemes.find((sc: any) => sc.id === s.colorSchemeId)
                   : null;
