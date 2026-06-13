@@ -862,7 +862,7 @@ function ThemeLibraryPanel({ design, update }: any) {
   );
 }
 
-function ColorsPanel({ design, update }: { design: any; update: any }) {
+function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; update: any; colorSchemes?: ColorScheme[] }) {
   const currentPalette = PALETTES.find(p => p.id === design.palettePreset) || PALETTES[0];
   const backgroundColor = design.backgroundColor || currentPalette.bg;
   const textColor = design.textColor || currentPalette.text;
@@ -994,7 +994,7 @@ function ColorsPanel({ design, update }: { design: any; update: any }) {
       <Accordion title="Color Schemes" defaultOpen={false}>
         <div className="pt-2">
           <ColorSchemesPanel
-            schemes={(design.colorSchemes && design.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES}
+            schemes={(colorSchemes && colorSchemes.length > 0) ? colorSchemes : DEFAULT_COLOR_SCHEMES}
             onChange={(next: ColorScheme[]) => update("colorSchemes", next, true)}
           />
         </div>
@@ -4553,7 +4553,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       case "textsize":      return <TextSizingPanel design={activeDesign} update={update} />;
       case "translations":  return <TranslationsPanel design={activeDesign} update={update} />;
       case "additional":    return <AdditionalPanel design={activeDesign} update={update} />;
-      case "colors":        return <ColorsPanel design={activeDesign} update={update} />;
+      case "colors":        return <ColorsPanel design={activeDesign} update={update} colorSchemes={(design.colorSchemes && design.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES} />;
       case "a11y":          return (
         <AccessibilityAuditPanel
           design={activeDesign}
