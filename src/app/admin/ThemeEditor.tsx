@@ -752,37 +752,7 @@ function StylePanel({ design, update }: any) {
         </div>
       </Accordion>
 
-      <Accordion title="Brand Color Protocol">
-        <div className="space-y-8">
-          <ColorPicker 
-            label="Primary accent" 
-            value={design.primaryColor || "#A855F7"} 
-            onChange={(val) => update("primaryColor", val)} 
-          />
-          <div className="grid grid-cols-1 gap-6">
-            <ColorPicker 
-              label="Environment Background" 
-              value={backgroundColor} 
-              onChange={(val) => update("backgroundColor", val)} 
-            />
-            <ColorPicker
-              label="Primary Typography"
-              value={textColor}
-              onChange={(val) => update("textColor", val)}
-            />
-          </div>
-          <ContrastBadge background={backgroundColor} text={textColor} />
-          <button
-            onClick={() => {
-              update("backgroundColor", currentPalette.bg);
-              update("textColor", currentPalette.text);
-            }}
-            className="w-full bg-white/5 border border-white/5 rounded-[2rem] py-5 text-[10px] font-black text-slate-500 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all uppercase tracking-[0.2em] italic"
-          >
-            Restore Palette Defaults
-          </button>
-        </div>
-      </Accordion>
+      <div className="border-b border-white/5 my-4" />
 
       <Accordion title="Typography">
         <div className="space-y-8">
@@ -872,7 +842,11 @@ function ThemeLibraryPanel({ design, update }: any) {
   );
 }
 
-function ColorPalettePanel({ design, update }: any) {
+function ColorsPanel({ design, update }: { design: any; update: any }) {
+  const currentPalette = PALETTES.find(p => p.id === design.palettePreset) || PALETTES[0];
+  const backgroundColor = design.backgroundColor || currentPalette.bg;
+  const textColor = design.textColor || currentPalette.text;
+
   return (
     <div className="p-4 space-y-6 overflow-y-auto flex-1">
       <Accordion title="Color Palette Configuration" defaultOpen={true}>
@@ -880,6 +854,11 @@ function ColorPalettePanel({ design, update }: any) {
           <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic mb-2">
             Global theme color configuration.
           </p>
+          <ColorPicker 
+            label="Primary accent" 
+            value={design.primaryColor || "#A855F7"} 
+            onChange={(val) => update("primaryColor", val)} 
+          />
           <ColorPicker
             label="Header Background"
             value={design.headerBg || ""}
@@ -896,7 +875,7 @@ function ColorPalettePanel({ design, update }: any) {
                 update("headerBg", undefined);
                 update("headerColor", undefined);
               }}
-              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2 text-[10px] font-bold text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all uppercase tracking-wider"
+              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2 text-[10px] font-bold text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all uppercase tracking-wider mb-4"
             >
               Reset header to page defaults
             </button>
@@ -977,6 +956,33 @@ function ColorPalettePanel({ design, update }: any) {
             value={design.announcementBg || "#63BDEF"}
             onChange={(val) => update("announcementBg", val)}
           />
+          <div className="pt-4" />
+          <ContrastBadge background={backgroundColor} text={textColor} />
+          <button
+            onClick={() => {
+              const currentPalette = PALETTES.find(p => p.id === design.palettePreset) || PALETTES[0];
+              update("backgroundColor", currentPalette.bg);
+              update("textColor", currentPalette.text);
+            }}
+            className="w-full bg-white/5 border border-white/5 rounded-[2rem] py-5 text-[10px] font-black text-slate-500 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all uppercase tracking-[0.2em] italic mt-4"
+          >
+            Restore Palette Defaults
+          </button>
+        </div>
+      </Accordion>
+
+      <Accordion title="Color Schemes" defaultOpen={false}>
+        <div className="pt-2">
+          <ColorSchemesPanel
+            schemes={(design.colorSchemes && design.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES}
+            onChange={(next: ColorScheme[]) => update("colorSchemes", next, true)}
+          />
+        </div>
+      </Accordion>
+
+      <Accordion title="Color Palette Generator (Lab)" defaultOpen={false}>
+        <div className="pt-2">
+          <PaletteLabPanel design={design} update={update} />
         </div>
       </Accordion>
     </div>
@@ -4448,24 +4454,10 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       pages: ["both"],
     },
     {
-      id: "colorPalette",
+      id: "colors",
       icon: <div className="w-4 h-4 rounded bg-gradient-to-br from-red-500 to-blue-500" />,
-      title: "Color palette",
-      description: "Customize global colors, hover states, buttons, badges and alerts",
-      pages: ["both"],
-    },
-    {
-      id: "colorSchemes",
-      icon: <div className="w-4 h-4 rounded-full bg-gradient-to-br from-violet-400 via-pink-400 to-amber-400" />,
-      title: "Color schemes",
-      description: "Define palettes that any section can apply",
-      pages: ["both"],
-    },
-    {
-      id: "colorLab",
-      icon: <Wand2 size={14} />,
-      title: "Color lab",
-      description: "Generate palettes from a brand color, image or pure luck",
+      title: "Colors",
+      description: "Unified theme color settings, color palette configurations, schemes, and generator lab",
       pages: ["both"],
     },
     {
@@ -4487,7 +4479,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   // Visual grouping — Shopify-style categories.
   const SECTION_GROUPS: { label: string; ids: string[] }[] = [
     { label: "Sections", ids: ["homepage", "globalSections", "products"] },
-    { label: "Colors & Fonts", ids: ["style", "colorPalette", "colorSchemes", "colorLab", "textsize"] },
+    { label: "Colors & Fonts", ids: ["style", "colors", "textsize"] },
     { label: "Header & Navigation", ids: ["navigation", "menus"] },
     { label: "Layout & Buttons", ids: ["layout", "buttons"] },
     { label: "Content", ids: ["announcements", "social", "translations"] },
@@ -4541,14 +4533,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       case "textsize":      return <TextSizingPanel design={activeDesign} update={update} />;
       case "translations":  return <TranslationsPanel design={activeDesign} update={update} />;
       case "additional":    return <AdditionalPanel design={activeDesign} update={update} />;
-      case "colorPalette":  return <ColorPalettePanel design={activeDesign} update={update} />;
-      case "colorSchemes":  return (
-        <ColorSchemesPanel
-          schemes={(design.colorSchemes && design.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES}
-          onChange={(next: ColorScheme[]) => update("colorSchemes", next, true)}
-        />
-      );
-      case "colorLab":      return <PaletteLabPanel design={activeDesign} update={update} />;
+      case "colors":        return <ColorsPanel design={activeDesign} update={update} />;
       case "a11y":          return (
         <AccessibilityAuditPanel
           design={activeDesign}
