@@ -11,6 +11,7 @@
     "deploy:github": "git push origin main",
     "dev:backend": "node backend/server.js",
     "dev:all": "sh -c \"npm run dev & npm run dev:backend\"",
+    "check:readability": "node scripts/check-readability.mjs",
     "test": "vitest run"
   },
   "dependencies": {
