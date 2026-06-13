@@ -881,6 +881,28 @@ function ColorPalettePanel({ design, update }: any) {
             Global theme color configuration.
           </p>
           <ColorPicker
+            label="Header Background"
+            value={design.headerBg || ""}
+            onChange={(val) => update("headerBg", val)}
+          />
+          <ColorPicker
+            label="Header Text & Links"
+            value={design.headerColor || ""}
+            onChange={(val) => update("headerColor", val)}
+          />
+          {(design.headerBg || design.headerColor) && (
+            <button
+              onClick={() => {
+                update("headerBg", undefined);
+                update("headerColor", undefined);
+              }}
+              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2 text-[10px] font-bold text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all uppercase tracking-wider"
+            >
+              Reset header to page defaults
+            </button>
+          )}
+          <div className="border-t border-neutral-100 pt-4" />
+          <ColorPicker
             label="Background"
             value={design.backgroundColor || "#000000"}
             onChange={(val) => update("backgroundColor", val)}
@@ -1010,29 +1032,6 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
                checked={design.transparentHeader ?? false}
                onChange={(v: boolean) => update("transparentHeader", v)}
              />
-          </div>
-          <div className="pt-4 border-t border-neutral-100 space-y-4">
-            <ColorPicker
-              label="Header Background"
-              value={design.headerBg || ""}
-              onChange={(val) => update("headerBg", val)}
-            />
-            <ColorPicker
-              label="Header Text & Links"
-              value={design.headerColor || ""}
-              onChange={(val) => update("headerColor", val)}
-            />
-            {(design.headerBg || design.headerColor) && (
-              <button
-                onClick={() => {
-                  update("headerBg", undefined);
-                  update("headerColor", undefined);
-                }}
-                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2 text-[10px] font-bold text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all uppercase tracking-wider"
-              >
-                Reset to page defaults
-              </button>
-            )}
           </div>
         </div>
       </Accordion>
