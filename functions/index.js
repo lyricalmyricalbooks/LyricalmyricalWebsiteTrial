@@ -1043,7 +1043,7 @@ exports.onOrderCreated = onDocumentCreated(
         ${order.customer.phone ? `<p><strong>Phone:</strong> ${order.customer.phone}</p>` : ""}
         <p><strong>Payment:</strong> ${paymentLabel}</p>
         ${itemsTable}
-        ${order.customer.address ? `<p><strong>Ship to:</strong> ${[order.customer.address.line1, order.customer.address.line2, order.customer.address.city, order.customer.address.state, order.customer.address.zip, order.customer.address.country].filter(Boolean).join(", ")}</p>` : ""}
+        ${order.customer.address ? `<p><strong>Ship to:</strong> ${[order.customer.address.street, order.customer.address.city, order.customer.address.state, order.customer.address.zip, order.customer.address.country].filter(Boolean).join(", ")}</p>` : ""}
         ${order.paymentInstructions ? `<p><strong>Payment instructions sent:</strong> ${order.paymentInstructions}</p>` : ""}
       </div>
     `;
@@ -1126,10 +1126,23 @@ exports.onOrderUpdated = onDocumentUpdated(
         total_price: moneyFmt(order.total)
       }, downloadSection);
 
-      const adminHtml = `
-        <p>Payment completed for order <strong>${order.orderId || orderId}</strong> · ${moneyFmt(order.total)}</p>
-        <p>${order.customer.name} &lt;${order.customer.email}&gt;</p>
-        <p>${(order.items || []).length} item(s)</p>`;
+      const adminOrderUrl = `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/admin#orders/${orderId}`;
+      const adminAddr = order.customer?.address
+        ? [order.customer.address.street, order.customer.address.city, order.customer.address.state, order.customer.address.zip, order.customer.address.country].filter(Boolean).join(", ")
+        : "—";
+      const adminPaidHtml = `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+          <h2 style="margin-top:0;color:#16a34a;">&#10003; Payment Received</h2>
+          <p><strong>Order:</strong> ${order.orderId || orderId} &nbsp;·&nbsp; <strong>${moneyFmt(order.total)}</strong></p>
+          <p><strong>Customer:</strong> ${order.customer.name} &lt;${order.customer.email}&gt;${order.customer.phone ? ` · ${order.customer.phone}` : ""}</p>
+          <p><strong>Ship to:</strong> ${adminAddr}</p>
+          <p><strong>Payment:</strong> ${order.paymentMethod || "Stripe"}</p>
+          ${itemsTable}
+          <p style="margin-top:24px;">
+            <a href="${adminOrderUrl}" style="background:#7c3aed;color:#fff;padding:10px 22px;text-decoration:none;border-radius:8px;font-size:13px;font-weight:bold;">View Order in Admin</a>
+          </p>
+        </div>
+      `;
 
       try {
         await sendEmail({
@@ -1140,8 +1153,8 @@ exports.onOrderUpdated = onDocumentUpdated(
         });
         await sendEmail({
           to: ADMIN_TO,
-          subject: `[PAYMENT SUCCESS] ${order.orderId || orderId}`,
-          html: adminHtml,
+          subject: `[PAYMENT SUCCESS] ${order.orderId || orderId} · ${moneyFmt(order.total)} · ${order.customer.name}`,
+          html: adminPaidHtml,
           secret: RESEND_API_KEY.value(),
         });
       } catch (err) {
@@ -1162,6 +1175,52 @@ exports.onOrderUpdated = onDocumentUpdated(
         tracking_url: trackingUrl
       });
 
+      const shippedAdminHtml = `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+          <h2 style="margin-top:0;">&#128666; Order Shipped</h2>
+          <p><strong>Order:</strong> ${after.orderId || orderId}</p>
+          <p><strong>Customer:</strong> ${after.customer?.name} &lt;${after.customer?.email}&gt;</p>
+          <p><strong>Carrier:</strong> ${after.trackingCarrier || "—"} &nbsp;·&nbsp; <strong>Tracking:</strong> ${after.trackingNumber || "—"}</p>
+          ${after.trackingNumber ? `<p><a href="${trackingUrl}">Track shipment &rarr;</a></p>` : ""}
+        </div>
+      `;
+
+      try {
+        await sendEmail({
+          to: after.customer.email,
+          subject: compiled.subject,
+          html: compiled.html,
+          secret: RESEND_API_KEY.value(),
+        });
+        await sendEmail({
+          to: ADMIN_TO,
+          subject: `[SHIPPED] ${after.orderId || orderId} · ${after.customer?.name}`,
+          html: shippedAdminHtml,
+          secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Shipping confirmation email failed", err);
+      }
+    }
+
+    // 2b. Delivered (manual status change by admin — Shippo webhook handles the carrier push)
+    // Skip if Shippo already sent the email via its own webhook (shippoDeliveryNotified was just set)
+    const becameDelivered = before.fulfillmentStatus !== "delivered" && after.fulfillmentStatus === "delivered";
+    const shippoAlreadyNotified = after.shippoDeliveryNotified && after.shippoDeliveryNotified !== before.shippoDeliveryNotified;
+    if (becameDelivered && !shippoAlreadyNotified && notificationSettings.delivery_update?.enabled !== false) {
+      const trackingUrl = after.trackingNumber
+        ? getTrackingUrl(after.trackingCarrier || "", after.trackingNumber)
+        : `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`;
+      const compiled = compileEmailTemplate("delivery_update", notificationSettings, {
+        customer_name: after.customer?.name || "there",
+        order_id: after.orderId || orderId,
+        status: "delivered",
+        tracking_carrier: after.trackingCarrier || "",
+        tracking_number: after.trackingNumber || "",
+        tracking_url: trackingUrl,
+        button_url: trackingUrl
+      });
+
       try {
         await sendEmail({
           to: after.customer.email,
@@ -1170,7 +1229,7 @@ exports.onOrderUpdated = onDocumentUpdated(
           secret: RESEND_API_KEY.value(),
         });
       } catch (err) {
-        console.error("Shipping confirmation email failed", err);
+        console.error("Delivery confirmation email failed", err);
       }
     }
 
@@ -1242,12 +1301,14 @@ exports.abandonedCartSweep = onSchedule(
       const itemsTable = `
         <div style="margin: 20px 0; border-top: 1px solid #eee; padding-top: 15px;">
           <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-            ${(c.items || []).map(item => `
+            ${(c.items || []).map(item => {
+              const qty = item.qty || item.quantity || 1;
+              return `
               <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 8px 0;">${item.title} (x${item.quantity || 1})</td>
-                <td style="padding: 8px 0; text-align: right; font-family: monospace;">${moneyFmt(item.price * (item.quantity || 1))}</td>
-              </tr>
-            `).join("")}
+                <td style="padding: 8px 0;">${item.title} (x${qty})</td>
+                <td style="padding: 8px 0; text-align: right; font-family: monospace;">${moneyFmt(item.price * qty)}</td>
+              </tr>`;
+            }).join("")}
             <tr style="font-weight: bold;">
               <td style="padding: 12px 0;">Total</td>
               <td style="padding: 12px 0; text-align: right; font-family: monospace;">${moneyFmt(c.subtotal)}</td>
@@ -1258,7 +1319,7 @@ exports.abandonedCartSweep = onSchedule(
 
       const cartUrl = `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/checkout?cartId=${doc.id}`;
       const compiled = compileEmailTemplate("abandoned_cart", notificationSettings, {
-        customer_name: c.name || "there",
+        customer_name: c.customer?.name || c.name || "there",
         cart_url: cartUrl,
         button_url: cartUrl,
         items_table: itemsTable
@@ -1894,7 +1955,9 @@ exports.shippoWebhook = onRequest(
           fulfillmentStatus: nextFulfillmentStatus,
           status: orderStatus,
           activity: [...activity, newNote],
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
+          // Flag so onOrderUpdated knows Shippo already sent the delivery email
+          shippoDeliveryNotified: new Date().toISOString()
         });
 
         // Send delivery_update CRM email automatically

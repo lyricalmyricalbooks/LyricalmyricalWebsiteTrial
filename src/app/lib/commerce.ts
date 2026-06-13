@@ -18,6 +18,7 @@ export type FulfillmentStatus =
   | "paid"
   | "processing"
   | "shipped"
+  | "out_for_delivery"
   | "delivered"
   | "cancelled"
   | "refunded";
@@ -27,6 +28,7 @@ export const FULFILLMENT_FLOW: FulfillmentStatus[] = [
   "paid",
   "processing",
   "shipped",
+  "out_for_delivery",
   "delivered",
 ];
 
@@ -35,6 +37,7 @@ export const FULFILLMENT_LABELS: Record<FulfillmentStatus, string> = {
   paid: "Paid",
   processing: "Processing",
   shipped: "Shipped",
+  out_for_delivery: "Out for Delivery",
   delivered: "Delivered",
   cancelled: "Cancelled",
   refunded: "Refunded",
