@@ -1010,7 +1010,59 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
 }
 
 // ──────────────────────────────────────────────────────────────
-// 5. Order Paid: Trigger notifications only AFTER successful payment
+// 5a. New Order: Notify admin immediately when any order is placed
+// ──────────────────────────────────────────────────────────────
+exports.onOrderCreated = onDocumentCreated(
+  { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
+  async event => {
+    const order = event.data?.data() || {};
+    const orderId = event.params.orderId;
+
+    if (!order.customer?.email) return;
+
+    const itemsTable = `
+      <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;">
+        ${orderRowsHtml(order.items)}
+        <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${moneyFmt(order.subtotal)}</td></tr>
+        <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${moneyFmt(order.shipping)}</td></tr>
+        ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${moneyFmt(order.tax)}</td></tr>` : ""}
+        ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">Discount</td><td style="text-align:right;color:#0a7;">−${moneyFmt(order.discount)}</td></tr>` : ""}
+        <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${moneyFmt(order.total)}</td></tr>
+      </table>
+    `;
+
+    const paymentLabel = order.paymentStatus === "pending"
+      ? `${order.paymentMethod || "Manual"} — awaiting payment`
+      : order.paymentMethod || "Unknown";
+
+    const adminHtml = `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+        <h2 style="margin-top:0;">New Order Received</h2>
+        <p><strong>Order:</strong> ${order.orderId || orderId}</p>
+        <p><strong>Customer:</strong> ${order.customer.name} &lt;${order.customer.email}&gt;</p>
+        ${order.customer.phone ? `<p><strong>Phone:</strong> ${order.customer.phone}</p>` : ""}
+        <p><strong>Payment:</strong> ${paymentLabel}</p>
+        ${itemsTable}
+        ${order.customer.address ? `<p><strong>Ship to:</strong> ${[order.customer.address.line1, order.customer.address.line2, order.customer.address.city, order.customer.address.state, order.customer.address.zip, order.customer.address.country].filter(Boolean).join(", ")}</p>` : ""}
+        ${order.paymentInstructions ? `<p><strong>Payment instructions sent:</strong> ${order.paymentInstructions}</p>` : ""}
+      </div>
+    `;
+
+    try {
+      await sendEmail({
+        to: ADMIN_TO,
+        subject: `[NEW ORDER] ${order.orderId || orderId} · ${moneyFmt(order.total)} · ${order.customer.name}`,
+        html: adminHtml,
+        secret: RESEND_API_KEY.value(),
+      });
+    } catch (err) {
+      console.error("New order admin notification failed", err);
+    }
+  }
+);
+
+// ──────────────────────────────────────────────────────────────
+// 5b. Order Paid: Trigger notifications only AFTER successful payment
 // ──────────────────────────────────────────────────────────────
 exports.onOrderUpdated = onDocumentUpdated(
   { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
