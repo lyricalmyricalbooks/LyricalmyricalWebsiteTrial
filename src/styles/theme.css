@@ -291,6 +291,34 @@
   color: #475569 !important;
 }
 
+/*
+ * Opacity-modified white text (e.g. `text-white/30`) is invisible on the
+ * light-mode background because it resolves to faint white-on-white. Remap
+ * each opacity step to a graduated slate so the original "muted/disabled"
+ * intent is preserved while staying readable. Keep this list in sync with
+ * `npm run check:readability`, which flags any faint-white text utility that
+ * is used in the admin but missing an override here.
+ */
+.admin-light .text-white\/90,
+.admin-light .text-white\/85,
+.admin-light .text-white\/80,
+.admin-light .text-white\/70 {
+  color: #1e293b !important;
+}
+
+.admin-light .text-white\/60,
+.admin-light .text-white\/50,
+.admin-light .text-white\/40 {
+  color: #475569 !important;
+}
+
+.admin-light .text-white\/30,
+.admin-light .text-white\/20,
+.admin-light .text-white\/15,
+.admin-light .text-white\/10 {
+  color: #94a3b8 !important;
+}
+
 .admin-light .border-white\/5,
 .admin-light .border-white\/10,
 .admin-light .border-white\/20,
