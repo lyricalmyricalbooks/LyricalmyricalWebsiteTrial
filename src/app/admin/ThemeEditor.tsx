@@ -4487,7 +4487,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   // Visual grouping — Shopify-style categories.
   const SECTION_GROUPS: { label: string; ids: string[] }[] = [
     { label: "Sections", ids: ["homepage", "globalSections", "products"] },
-    { label: "Colors & Fonts", ids: ["style", "colorSchemes", "colorLab", "textsize"] },
+    { label: "Colors & Fonts", ids: ["style", "colorPalette", "colorSchemes", "colorLab", "textsize"] },
     { label: "Header & Navigation", ids: ["navigation", "menus"] },
     { label: "Layout & Buttons", ids: ["layout", "buttons"] },
     { label: "Content", ids: ["announcements", "social", "translations"] },
