@@ -100,22 +100,25 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     window.print();
   };
 
+  const SHIPPO_SITE_URL = "https://app.goshippo.com/orders";
+
   const handlePushToShippo = async () => {
     setIsGeneratingLabel(true);
     // Open the tab synchronously so the browser doesn't block the popup after the await.
     const shippoTab = window.open("", "_blank");
+    const goTo = (url: string) => {
+      if (shippoTab) shippoTab.location.href = url;
+      else window.open(url, "_blank", "noopener,noreferrer");
+    };
     try {
       const result = await adminApi.createShippoOrder(orderId);
-      if (shippoTab) {
-        shippoTab.location.href = result.dashboardUrl;
-      } else {
-        window.open(result.dashboardUrl, "_blank", "noopener,noreferrer");
-      }
+      goTo(result?.dashboardUrl || SHIPPO_SITE_URL);
       loadOrder();
       toast.success("Order sent to Shippo — finish the label on Shippo.");
     } catch (err: any) {
-      if (shippoTab) shippoTab.close();
-      toast.error(err.message || "Failed to connect to Shippo.");
+      // Even if pre-filling fails, still take the admin to Shippo's site.
+      goTo(SHIPPO_SITE_URL);
+      toast.error(`Opened Shippo, but couldn't pre-fill the order: ${err.message || "request failed"}`);
     } finally {
       setIsGeneratingLabel(false);
     }
