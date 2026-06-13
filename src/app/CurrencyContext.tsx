@@ -165,20 +165,20 @@ export function CurrencySelector() {
   const { currency, setCurrency } = useCurrency();
 
   return (
-    <div className="flex items-center gap-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-full px-3 py-1.5 transition-all text-white/50 hover:text-white group relative">
-      <span className="text-[8px] font-black tracking-widest uppercase text-slate-500">CURRENCY</span>
+    <div className="flex items-center gap-1.5 bg-current/[0.05] hover:bg-current/[0.1] border border-current/[0.05] rounded-full px-3 py-1.5 transition-all text-current opacity-70 hover:opacity-100 group relative">
+      <span className="text-[8px] font-black tracking-widest uppercase opacity-60">CURRENCY</span>
       <div className="flex items-center gap-1">
         <select
           value={currency}
           onChange={(e) => setCurrency(e.target.value as Currency)}
           aria-label="Select currency"
-          className="bg-transparent border-none outline-none text-[9px] font-black tracking-widest text-white cursor-pointer uppercase appearance-none pr-4"
+          className="bg-transparent border-none outline-none text-[9px] font-black tracking-widest text-current cursor-pointer uppercase appearance-none pr-4"
         >
           <option value="CAD" className="bg-[#050508] text-white">CAD</option>
           <option value="USD" className="bg-[#050508] text-white">USD</option>
           <option value="EUR" className="bg-[#050508] text-white">EUR</option>
         </select>
-        <ChevronDown size={10} className="absolute right-3 pointer-events-none text-white/40 group-hover:text-white/80 transition-colors" />
+        <ChevronDown size={10} className="absolute right-3 pointer-events-none opacity-40 group-hover:opacity-80 transition-opacity" />
       </div>
     </div>
   );

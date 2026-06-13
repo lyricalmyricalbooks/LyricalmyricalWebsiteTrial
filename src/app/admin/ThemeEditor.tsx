@@ -872,6 +872,95 @@ function ThemeLibraryPanel({ design, update }: any) {
   );
 }
 
+function ColorPalettePanel({ design, update }: any) {
+  return (
+    <div className="p-4 space-y-6 overflow-y-auto flex-1">
+      <Accordion title="Color Palette Configuration" defaultOpen={true}>
+        <div className="space-y-6">
+          <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic mb-2">
+            Global theme color configuration.
+          </p>
+          <ColorPicker
+            label="Background"
+            value={design.backgroundColor || "#000000"}
+            onChange={(val) => update("backgroundColor", val)}
+          />
+          <ColorPicker
+            label="Text"
+            value={design.textColor || "#F9F9F9"}
+            onChange={(val) => update("textColor", val)}
+          />
+          <ColorPicker
+            label="Link hover"
+            value={design.linkColorHover || "#F61515"}
+            onChange={(val) => update("linkColorHover", val)}
+          />
+          <ColorPicker
+            label="Border"
+            value={design.borderColor || "#B1B1AA"}
+            onChange={(val) => update("borderColor", val)}
+          />
+          <ColorPicker
+            label="Button text"
+            value={design.buttonTextColor || "#020202"}
+            onChange={(val) => update("buttonTextColor", val)}
+          />
+          <ColorPicker
+            label="Button background"
+            value={design.buttonColor || "#FBFBFB"}
+            onChange={(val) => update("buttonColor", val)}
+          />
+          <ColorPicker
+            label="Button hover text"
+            value={design.buttonHoverTextColor || "#FFFFFF"}
+            onChange={(val) => update("buttonHoverTextColor", val)}
+          />
+          <ColorPicker
+            label="Button hover background"
+            value={design.buttonHoverBgColor || "#C1BBBB"}
+            onChange={(val) => update("buttonHoverBgColor", val)}
+          />
+          <ColorPicker
+            label="Badge text (primary)"
+            value={design.badgeTextPrimary || "#000000"}
+            onChange={(val) => update("badgeTextPrimary", val)}
+          />
+          <ColorPicker
+            label="Badge background (primary)"
+            value={design.badgeBgPrimary || "#F63737"}
+            onChange={(val) => update("badgeBgPrimary", val)}
+          />
+          <ColorPicker
+            label="Badge text (secondary)"
+            value={design.badgeTextSecondary || "#000000"}
+            onChange={(val) => update("badgeTextSecondary", val)}
+          />
+          <ColorPicker
+            label="Badge background (secondary)"
+            value={design.badgeBgSecondary || "#E0E0E0"}
+            onChange={(val) => update("badgeBgSecondary", val)}
+          />
+          <ColorPicker
+            label="Low Inventory messages"
+            value={design.lowInventoryColor || "#056FFA"}
+            onChange={(val) => update("lowInventoryColor", val)}
+          />
+          <ColorPicker
+            label="Announcement banner text"
+            value={design.announcementColor || "#221717"}
+            onChange={(val) => update("announcementColor", val)}
+          />
+          <ColorPicker
+            label="Announcement banner background"
+            value={design.announcementBg || "#63BDEF"}
+            onChange={(val) => update("announcementBg", val)}
+          />
+        </div>
+      </Accordion>
+    </div>
+  );
+}
+
 function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any) {
   const headerLinks = design.headerLinks || {};
   const updateHeaderLink = (key: string, value: boolean) => {
@@ -921,6 +1010,29 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
                checked={design.transparentHeader ?? false}
                onChange={(v: boolean) => update("transparentHeader", v)}
              />
+          </div>
+          <div className="pt-4 border-t border-neutral-100 space-y-4">
+            <ColorPicker
+              label="Header Background"
+              value={design.headerBg || ""}
+              onChange={(val) => update("headerBg", val)}
+            />
+            <ColorPicker
+              label="Header Text & Links"
+              value={design.headerColor || ""}
+              onChange={(val) => update("headerColor", val)}
+            />
+            {(design.headerBg || design.headerColor) && (
+              <button
+                onClick={() => {
+                  update("headerBg", undefined);
+                  update("headerColor", undefined);
+                }}
+                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2 text-[10px] font-bold text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all uppercase tracking-wider"
+              >
+                Reset to page defaults
+              </button>
+            )}
           </div>
         </div>
       </Accordion>
@@ -3659,7 +3771,14 @@ function HomepagePreview({ design, bg, text, accent, font, pages }: any) {
       )}
 
       {/* Nav */}
-      <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0 backdrop-blur-md" style={{ borderColor: `${text}15`, background: `${bg}80` }}>
+      <div 
+        className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0 backdrop-blur-md" 
+        style={{ 
+          borderColor: `${design.headerColor || text}15`, 
+          background: design.headerBg || `${bg}80`,
+          color: design.headerColor || text
+        }}
+      >
         {(headerLinks.showEnterArchive ?? true) ? (
           <span className="text-[10px] font-bold tracking-[0.2em] opacity-90">ENTER ARCHIVE</span>
         ) : (
@@ -3678,7 +3797,7 @@ function HomepagePreview({ design, bg, text, accent, font, pages }: any) {
             </>
           )}
           {(headerLinks.showBag ?? true) && (
-            <div className="flex items-center gap-1 px-3 py-1 rounded-full border text-[8px] font-bold tracking-widest" style={{ borderColor: `${text}20`, background: `${text}10` }}>
+            <div className="flex items-center gap-1 px-3 py-1 rounded-full border text-[8px] font-bold tracking-widest" style={{ borderColor: `${design.headerColor || text}20`, background: `${design.headerColor || text}10` }}>
               {design.cartLabel || "BAG"}
             </div>
           )}
@@ -3773,7 +3892,14 @@ function ShopPreview({ design, bg, text, accent, font, pages }: any) {
       )}
 
       {/* Nav */}
-      <div className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0 backdrop-blur-sm sticky top-0 z-10" style={{ borderColor: `${text}15`, background: `${bg}cc` }}>
+      <div 
+        className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0 backdrop-blur-sm sticky top-0 z-10" 
+        style={{ 
+          borderColor: `${design.headerColor || text}15`, 
+          background: design.headerBg || `${bg}cc`,
+          color: design.headerColor || text
+        }}
+      >
         <span className="text-[9px] font-black tracking-tight">F✶M</span>
         <div className="flex items-center gap-3">
           {["PUBLICATIONS", "PRINTS"].map((c) => (
@@ -3781,7 +3907,7 @@ function ShopPreview({ design, bg, text, accent, font, pages }: any) {
           ))}
           {(headerLinks.showCustomPages ?? true) && (
             <>
-              <span className="text-[7px] font-bold tracking-widest opacity-60 ml-1 border-l pl-2" style={{ borderColor: `${text}20` }}>
+              <span className="text-[7px] font-bold tracking-widest opacity-60 ml-1 border-l pl-2" style={{ borderColor: `${design.headerColor || text}20` }}>
                 {design.navHeading || "INFO"}
               </span>
               {navPages.slice(0, 1).map((p: any) => (
@@ -3794,7 +3920,7 @@ function ShopPreview({ design, bg, text, accent, font, pages }: any) {
           )}
         </div>
         {(headerLinks.showBag ?? true) && (
-          <div className="text-[7px] font-bold tracking-widest opacity-50 px-2 py-0.5 border rounded-full" style={{ borderColor: `${text}20` }}>
+          <div className="text-[7px] font-bold tracking-widest opacity-50 px-2 py-0.5 border rounded-full" style={{ borderColor: `${design.headerColor || text}20` }}>
             {design.cartLabel || "BAG"}
           </div>
         )}
@@ -4323,6 +4449,13 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       pages: ["both"],
     },
     {
+      id: "colorPalette",
+      icon: <div className="w-4 h-4 rounded bg-gradient-to-br from-red-500 to-blue-500" />,
+      title: "Color palette",
+      description: "Customize global colors, hover states, buttons, badges and alerts",
+      pages: ["both"],
+    },
+    {
       id: "colorSchemes",
       icon: <div className="w-4 h-4 rounded-full bg-gradient-to-br from-violet-400 via-pink-400 to-amber-400" />,
       title: "Color schemes",
@@ -4409,6 +4542,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       case "textsize":      return <TextSizingPanel design={activeDesign} update={update} />;
       case "translations":  return <TranslationsPanel design={activeDesign} update={update} />;
       case "additional":    return <AdditionalPanel design={activeDesign} update={update} />;
+      case "colorPalette":  return <ColorPalettePanel design={activeDesign} update={update} />;
       case "colorSchemes":  return (
         <ColorSchemesPanel
           schemes={(design.colorSchemes && design.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES}

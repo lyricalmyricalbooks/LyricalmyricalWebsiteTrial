@@ -650,8 +650,42 @@ function TypographyTokens({ design }: { design: any }) {
   const btnBg = design?.buttonColor || design?.primaryColor || "#A855F7";
   const btnText = design?.buttonTextColor || "#000000";
   let css = `
-[data-fm-store]{font-family:'${t.body}',sans-serif;font-size:${t.base}px;line-height:${t.lineHeight};font-weight:${t.bodyWeight};--btn-bg:${btnBg};--btn-text:${btnText};}
-[data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3,[data-fm-store] h4,[data-fm-store] h5,[data-fm-store] h6{font-family:'${t.heading}',sans-serif;font-weight:${t.headingWeight};letter-spacing:${t.tracking};}
+[data-fm-store]{
+  font-family:'${t.body}',sans-serif;
+  font-size:${t.base}px;
+  line-height:${t.lineHeight};
+  font-weight:${t.bodyWeight};
+  --btn-bg:${btnBg};
+  --btn-text:${btnText};
+  --bg-color:${design?.backgroundColor || "#030213"};
+  --text-color:${design?.textColor || "#ffffff"};
+  --link-hover-color:${design?.linkColorHover || "#F61515"};
+  --border-color:${design?.borderColor || "rgba(255,255,255,0.05)"};
+  --btn-hover-bg:${design?.buttonHoverBgColor || "#C1BBBB"};
+  --btn-hover-text:${design?.buttonHoverTextColor || "#FFFFFF"};
+  --badge-text-primary:${design?.badgeTextPrimary || "#000000"};
+  --badge-bg-primary:${design?.badgeBgPrimary || "#F63737"};
+  --badge-text-secondary:${design?.badgeTextSecondary || "#000000"};
+  --badge-bg-secondary:${design?.badgeBgSecondary || "#E0E0E0"};
+  --low-inventory-color:${design?.lowInventoryColor || "#056FFA"};
+}
+[data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3,[data-fm-store] h4,[data-fm-store] h5,[data-fm-store] h6{
+  font-family:'${t.heading}',sans-serif;
+  font-weight:${t.headingWeight};
+  letter-spacing:${t.tracking};
+}
+[data-fm-store] a:hover, [data-fm-store] button.hover-text-accent:hover {
+  color: var(--link-hover-color) !important;
+}
+/* Apply custom border color to standard borders on the site */
+[data-fm-store] .border-white\/5, [data-fm-store] .border-white\/10, [data-fm-store] .border-white\/\[0\.06\], [data-fm-store] .border-b {
+  border-color: var(--border-color) !important;
+}
+/* Style hover transitions for buttons */
+[data-fm-store] button.store-btn-primary:hover, [data-fm-store] a.store-btn-primary:hover {
+  background-color: var(--btn-hover-bg) !important;
+  color: var(--btn-hover-text) !important;
+}
 `;
   if (t.typeScale) {
     const size = (steps: number) => Math.round(t.base * Math.pow(t.typeScale, steps) * 10) / 10;
@@ -944,6 +978,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const bagLabel = storefrontDesign?.cartLabel || "BAG";
   const showAnnouncement = storefrontDesign?.showAnnouncement ?? true;
   const announcementMsg = storefrontDesign?.announcementText || settings?.announcements?.[0]?.message;
+  
+  const headerTextColor = isHeaderTransparent ? storefrontText : (storefrontDesign?.headerColor || storefrontText);
+  const headerBgColor = isHeaderTransparent ? "transparent" : (storefrontDesign?.headerBg || `${storefrontBg}${(storefrontDesign?.headerStyle || "minimal") === "full" ? "f5" : "b3"}`);
+  const headerBorderColor = isHeaderTransparent ? "transparent" : (storefrontDesign?.headerColor ? `${storefrontDesign.headerColor}1a` : `${storefrontText}1a`);
+
   const shopSectionSpacing = Math.max(24, Math.min(120, storefrontDesign?.sectionSpacing ?? 64));
   const imageAspectClass = storefrontDesign?.imageAspectRatio === "1:1"
     ? "aspect-square"
@@ -1033,17 +1072,19 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         <header
           className={`${storefrontDesign?.stickyHeader ?? true ? "sticky" : "relative"} ${showAnnouncement && announcementMsg ? "top-10" : "top-0"} z-50 transition-all duration-500 ${isHeaderTransparent ? "border-transparent" : "backdrop-blur-xl border-b"}`}
           style={{
-            backgroundColor: isHeaderTransparent 
-              ? "transparent" 
-              : `${storefrontBg}${(storefrontDesign?.headerStyle || "minimal") === "full" ? "f5" : "b3"}`,
-            borderColor: isHeaderTransparent ? "transparent" : `${storefrontText}1a`,
+            backgroundColor: headerBgColor,
+            borderColor: headerBorderColor,
           }}
         >
           <div className="mx-auto px-6 py-4 flex items-center justify-between gap-4" style={{ maxWidth: storefrontMaxWidth }}>
             {/* Left Section */}
             <div className={`flex items-center gap-8 md:gap-12 flex-1 ${logoPosition === "center" ? "" : "flex-initial"}`}>
               {logoPosition === "left" && (
-                <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
+                <button 
+                  onClick={() => setShowCatalog(false)} 
+                  style={{ color: headerTextColor }}
+                  className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                >
                   {storefrontDesign?.logoUrl ? (
                     <img src={storefrontDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, storefrontDesign?.logoHeight ?? 24)) }} />
                   ) : "F✶M"}
@@ -1058,9 +1099,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     <button
                       key={catName}
                       onClick={() => setActiveCategory(cat)}
-                      style={{ color: storefrontText }}
+                      style={{ color: headerTextColor }}
                       className={`text-[10px] tracking-[0.2em] font-medium transition-all ${
-                        isActive ? "opacity-100" : "opacity-40 hover:opacity-80"
+                        isActive ? "opacity-100" : "opacity-40 hover:opacity-80 hover-text-accent"
                       }`}
                     >
                       {catName}
@@ -1073,7 +1114,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             {/* Center Section (Logo) */}
             {logoPosition === "center" && (
               <div className="flex-1 flex justify-center">
-                <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
+                <button 
+                  onClick={() => setShowCatalog(false)} 
+                  style={{ color: headerTextColor }}
+                  className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                >
                   {storefrontDesign?.logoUrl ? (
                     <img src={storefrontDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, storefrontDesign?.logoHeight ?? 24)) }} />
                   ) : "F✶M"}
@@ -1084,7 +1129,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             {/* Right Section */}
             <div className={`flex gap-6 md:gap-8 items-center flex-1 justify-end ${logoPosition === "right" ? "flex-initial" : ""}`}>
               {logoPosition === "right" && (
-                <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
+                <button 
+                  onClick={() => setShowCatalog(false)} 
+                  style={{ color: headerTextColor }}
+                  className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                >
                   {storefrontDesign?.logoUrl ? (
                     <img src={storefrontDesign.logoUrl} alt="Logo" className="object-contain" style={{ height: Math.max(20, Math.min(64, storefrontDesign?.logoHeight ?? 24)) }} />
                   ) : "F✶M"}
@@ -1093,9 +1142,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
               {showCustomPages && (
                 storefrontDesign?.menus?.header?.length > 0 ? (
-                  <div className="mr-2" style={{ color: storefrontText }}><StoreMenu items={storefrontDesign.menus.header} /></div>
+                  <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={storefrontDesign.menus.header} /></div>
                 ) : (
-                <nav className="hidden lg:flex items-center gap-6 mr-2" style={{ color: storefrontText }}>
+                <nav className="hidden lg:flex items-center gap-6 mr-2" style={{ color: headerTextColor }}>
                   {pages.some((p:any) => p.showInNav && p.status === "published") && (
                     <span className="text-[10px] tracking-[0.3em] font-bold opacity-25 uppercase select-none mr-2">
                       {storefrontDesign?.navHeading || "INFO"}
@@ -1126,7 +1175,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               {showInformation && (
                 <button
                   onClick={() => setShowAbout(true)}
-                  style={{ color: storefrontText }}
+                  style={{ color: headerTextColor }}
                   className="text-[10px] tracking-[0.2em] opacity-50 hover:opacity-100 transition-opacity hidden md:block"
                 >
                   INFORMATION
@@ -1135,14 +1184,16 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               <button
                 onClick={() => setSearchOpen(true)}
                 aria-label="Search"
-                className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-colors text-white/50 hover:text-white"
+                style={{ color: headerTextColor }}
+                className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-all opacity-50 hover:opacity-100"
               >
                 <SearchIcon size={14} />
               </button>
               <Link
                 to="/wishlist"
                 aria-label="Wishlist"
-                className="relative hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-colors text-white/50 hover:text-white"
+                style={{ color: headerTextColor }}
+                className="relative hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-all opacity-50 hover:opacity-100"
               >
                 <Heart size={14} />
                 {wishlistCount > 0 && (
@@ -1154,7 +1205,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               <Link
                 to="/account"
                 aria-label="Account"
-                className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-colors text-white/50 hover:text-white"
+                style={{ color: headerTextColor }}
+                className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-all opacity-50 hover:opacity-100"
               >
                 <UserIcon size={14} />
               </Link>
@@ -1164,14 +1216,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               </div>
               <Link
                 to="/admin"
-                className="hidden sm:flex items-center gap-1.5 text-[9px] tracking-[0.2em] font-bold text-white/30 hover:text-white transition-colors uppercase mr-2"
+                style={{ color: headerTextColor }}
+                className="hidden sm:flex items-center gap-1.5 text-[9px] tracking-[0.2em] font-bold transition-all uppercase mr-2 opacity-30 hover:opacity-100"
               >
                 Admin
               </Link>
               {showBag && (
                 <button
                   onClick={() => setIsCartOpen(true)}
-                  className={`group flex items-center gap-2 px-4 py-2 transition-all hover:scale-[1.02] ${
+                  className={`group flex items-center gap-2 px-4 py-2 transition-all hover:scale-[1.02] store-btn-primary ${
                     storefrontButtonShadow ? "shadow-lg" : ""
                   }`}
                   style={{
@@ -1294,22 +1347,38 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       {/* Status ribbons */}
                       <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5">
                         {isOutOfStock && showSoldOutBadge && (
-                          <span className="bg-black/80 text-white/70 text-[8px] tracking-widest px-2 py-1 uppercase border border-white/20">
+                          <span 
+                            style={{ backgroundColor: storefrontDesign?.badgeBgSecondary || "rgba(0,0,0,0.8)", color: storefrontDesign?.badgeTextSecondary || "rgba(255,255,255,0.7)" }}
+                            className="text-[8px] tracking-widest px-2 py-1 uppercase border border-white/20"
+                          >
                             {soldOutLabel}
                           </span>
                         )}
                         {!isOutOfStock && onSale && showSaleBadge && (
-                          <span className="bg-rose-500/90 text-white text-[8px] font-bold tracking-widest px-2 py-1 uppercase border border-rose-300/40 rounded-sm">
+                          <span 
+                            style={{ backgroundColor: storefrontDesign?.badgeBgPrimary || "rgb(244 63 94 / 0.9)", color: storefrontDesign?.badgeTextPrimary || "#ffffff" }}
+                            className="text-[8px] font-bold tracking-widest px-2 py-1 uppercase border border-white/10 rounded-sm"
+                          >
                             {saleBadgeLabel}
                           </span>
                         )}
                         {!isOutOfStock && isNewArrival && showNewBadge && (
-                          <span className="bg-emerald-500/90 text-black text-[8px] font-bold tracking-widest px-2 py-1 uppercase border border-emerald-300/40 rounded-sm">
+                          <span 
+                            style={{ backgroundColor: storefrontDesign?.badgeBgPrimary || "rgb(16 185 129 / 0.9)", color: storefrontDesign?.badgeTextPrimary || "#000000" }}
+                            className="text-[8px] font-bold tracking-widest px-2 py-1 uppercase border border-white/10 rounded-sm"
+                          >
                             {newBadgeLabel}
                           </span>
                         )}
                         {!isOutOfStock && isLowStock && (
-                          <span className="flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 backdrop-blur-md text-amber-300 text-[8px] tracking-widest px-2 py-1 uppercase rounded-full">
+                          <span 
+                            style={{ 
+                              color: storefrontDesign?.lowInventoryColor || "#f59e0b",
+                              borderColor: `${storefrontDesign?.lowInventoryColor || "#f59e0b"}40`,
+                              backgroundColor: `${storefrontDesign?.lowInventoryColor || "#f59e0b"}15`
+                            }}
+                            className="flex items-center gap-1 border backdrop-blur-md text-[8px] tracking-widest px-2 py-1 uppercase rounded-full"
+                          >
                             <Zap size={9} /> Only {stock} left
                           </span>
                         )}
@@ -1323,7 +1392,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                             border: storefrontButtonStyle !== "solid" ? `1px solid ${storefrontButtonBg}` : "none",
                             borderRadius: storefrontButtonRadius,
                           }}
-                          className={`w-full py-3 text-[10px] tracking-[0.2em] font-bold text-center transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 ${storefrontButtonShadow ? "shadow-xl" : ""} ${storefrontButtonUppercase ? "uppercase" : ""}`}
+                          className={`w-full py-3 text-[10px] tracking-[0.2em] font-bold text-center transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 store-btn-primary ${storefrontButtonShadow ? "shadow-xl" : ""} ${storefrontButtonUppercase ? "uppercase" : ""}`}
                         >
                           {isOutOfStock ? soldOutLabel : storefrontCtaText}
                         </span>
@@ -1381,17 +1450,28 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     );
   }
 
-  // ── Homepage (hero) ──
+  // Homepage (hero) ──
+  const homeHeaderTextColor = scrolled ? (heroDesign?.headerColor || "#ffffff") : "#ffffff";
+
   return (
     <div
       data-fm-store
-      className="min-h-screen w-full bg-[#030213] text-white overflow-x-hidden relative selection:bg-white selection:text-black font-sans"
-      style={{ fontFamily: `'${resolveTypography(heroDesign).body}', sans-serif` }}
+      className="min-h-screen w-full overflow-x-hidden relative selection:bg-white selection:text-black font-sans"
+      style={{ 
+        fontFamily: `'${resolveTypography(heroDesign).body}', sans-serif`,
+        backgroundColor: heroDesign?.backgroundColor || "#030213",
+        color: heroDesign?.textColor || "#ffffff"
+      }}
     >
       <TypographyTokens design={heroDesign} />
       {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
       <header 
-        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-6 transition-all duration-500 ${scrolled ? "bg-black/80 backdrop-blur-xl border-b border-white/5 py-4" : "bg-gradient-to-b from-black/70 to-transparent"}`}
+        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-6 transition-all duration-500 border-b ${scrolled ? "backdrop-blur-xl py-4" : "border-transparent bg-gradient-to-b from-black/70 to-transparent"}`}
+        style={{
+          backgroundColor: scrolled ? (heroDesign?.headerBg || "rgba(0,0,0,0.8)") : "transparent",
+          borderColor: scrolled ? (heroDesign?.headerColor ? `${heroDesign.headerColor}1a` : "rgba(255,255,255,0.05)") : "transparent",
+          color: homeHeaderTextColor
+        }}
       >
         {/* Left Section */}
         <div className={`flex items-center gap-8 flex-1 ${logoPosition === "center" ? "" : "flex-initial"}`}>
@@ -1406,7 +1486,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           {showEnterArchive && (
             <button
               onClick={() => setShowCatalog(true)}
-              className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white hover:text-white/70 transition-colors"
+              style={{ color: homeHeaderTextColor }}
+              className="text-[10px] md:text-xs tracking-[0.3em] font-bold hover:opacity-75 transition-opacity"
             >
               ENTER ARCHIVE
             </button>
@@ -1437,6 +1518,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           {showInformation && (
             <button
               onClick={() => setShowAbout(true)}
+              style={{ color: homeHeaderTextColor }}
               className="text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-80 hover:opacity-100 transition-opacity hidden md:block"
             >
               INFORMATION
@@ -1446,9 +1528,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           {/* Custom Pages in Home Header */}
           {showCustomPages && (
             heroDesign?.menus?.header?.length > 0 ? (
-              <StoreMenu items={heroDesign.menus.header} />
+              <div style={{ color: homeHeaderTextColor }}><StoreMenu items={heroDesign.menus.header} /></div>
             ) : (
-            <nav className="hidden lg:flex items-center gap-6">
+            <nav className="hidden lg:flex items-center gap-6" style={{ color: homeHeaderTextColor }}>
               {pages.some((p: any) => p.showInNav && p.status === "published") && (
                 <span className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white/20 uppercase select-none mr-2">
                   {heroDesign?.navHeading || "INFO"}
@@ -1479,14 +1561,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           <button
             onClick={() => setSearchOpen(true)}
             aria-label="Search"
-            className="hidden sm:flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-colors text-white/70 hover:text-white"
+            style={{ color: homeHeaderTextColor }}
+            className="hidden sm:flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-all opacity-70 hover:opacity-100"
           >
             <SearchIcon size={15} />
           </button>
           {showBag && (
             <button
               onClick={() => setIsCartOpen(true)}
-              className={`group flex items-center gap-2 px-5 py-2.5 transition-all hover:scale-[1.02] ${
+              className={`group flex items-center gap-2 px-5 py-2.5 transition-all hover:scale-[1.02] store-btn-primary ${
                 heroButtonShadow ? "shadow-lg" : ""
               }`}
               style={{
@@ -1513,7 +1596,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             </button>
           )}
           {showSys && (
-            <Link to="/admin" className="text-[10px] tracking-widest opacity-30 hover:opacity-100 transition-opacity">SYS</Link>
+            <Link to="/admin" style={{ color: homeHeaderTextColor }} className="text-[10px] tracking-widest opacity-30 hover:opacity-100 transition-opacity">SYS</Link>
           )}
         </div>
       </header>

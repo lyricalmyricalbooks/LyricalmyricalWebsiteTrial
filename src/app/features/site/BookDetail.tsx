@@ -57,12 +57,58 @@ export default function BookDetail() {
   const showRelatedProducts    = storefrontDesign.showRelatedProducts    ?? true;
   const showSocialShare        = storefrontDesign.showSocialShare        ?? true;
 
-  const buttonBg = storefrontDesign?.buttonColor || settings?.design?.primaryColor || "#A855F7";
-  const buttonText = storefrontDesign?.buttonTextColor || "#000000";
+  const buttonBg = storefrontDesign?.buttonColor || settings?.design?.buttonColor || settings?.design?.primaryColor || "#A855F7";
+  const buttonText = storefrontDesign?.buttonTextColor || settings?.design?.buttonTextColor || "#000000";
   const buttonRadius = Math.max(0, Math.min(999, storefrontDesign?.buttonRadius ?? 999));
   const buttonStyle = storefrontDesign?.buttonStyle || "solid";
   const buttonUppercase = storefrontDesign?.buttonUppercase ?? true;
   const buttonShadow = storefrontDesign?.buttonShadow ?? true;
+
+  const storefrontBg       = settings?.design?.backgroundColor || "#050508";
+  const storefrontText     = settings?.design?.textColor || "#ffffff";
+  const headerBgColor      = settings?.design?.headerBg || `${storefrontBg}cc`;
+  const headerTextColor    = settings?.design?.headerColor || storefrontText;
+  const headerBorderColor  = settings?.design?.headerColor ? `${settings.design.headerColor}1a` : `${storefrontText}1a`;
+
+  const btnHoverBg = settings?.design?.buttonHoverBgColor || "#C1BBBB";
+  const btnHoverText = settings?.design?.buttonHoverTextColor || "#FFFFFF";
+  const badgeTextPrimary = settings?.design?.badgeTextPrimary || "#000000";
+  const badgeBgPrimary = settings?.design?.badgeBgPrimary || "#F63737";
+  const badgeTextSecondary = settings?.design?.badgeTextSecondary || "#000000";
+  const badgeBgSecondary = settings?.design?.badgeBgSecondary || "#E0E0E0";
+  const lowInventoryColor = settings?.design?.lowInventoryColor || "#056FFA";
+  const borderColor = settings?.design?.borderColor || "rgba(255,255,255,0.05)";
+  const linkHoverColor = settings?.design?.linkColorHover || "#F61515";
+
+  const css = `
+    [data-fm-store] {
+      --bg-color: ${storefrontBg};
+      --text-color: ${storefrontText};
+      --link-hover-color: ${linkHoverColor};
+      --border-color: ${borderColor};
+      --btn-hover-bg: ${btnHoverBg};
+      --btn-hover-text: ${btnHoverText};
+      --badge-text-primary: ${badgeTextPrimary};
+      --badge-bg-primary: ${badgeBgPrimary};
+      --badge-text-secondary: ${badgeTextSecondary};
+      --badge-bg-secondary: ${badgeBgSecondary};
+      --low-inventory-color: ${lowInventoryColor};
+    }
+    [data-fm-store] .custom-btn:hover {
+      background-color: var(--btn-hover-bg) !important;
+      color: var(--btn-hover-text) !important;
+      box-shadow: none !important;
+    }
+    /* Apply custom border color to standard borders on the page */
+    [data-fm-store] .border-white\\/5, 
+    [data-fm-store] .border-white\\/10, 
+    [data-fm-store] .border-white\\/\\[0\\.06\\], 
+    [data-fm-store] .border-white\\/\\[0\\.07\\], 
+    [data-fm-store] .border-white\\/\\[0\\.08\\], 
+    [data-fm-store] .border-b {
+      border-color: var(--border-color) !important;
+    }
+  `;
 
   const bookCategories = (book as any)?.categories || (book as any)?.genres || [];
   const otherBooks = (() => {
@@ -193,13 +239,25 @@ export default function BookDetail() {
   // ── not found ──────────────────────────────────────────────────────────────
   if (!book) {
     return (
-      <div className="min-h-screen bg-[#050508] text-white flex flex-col items-center justify-center gap-6">
-        <Package size={48} strokeWidth={1} className="text-white/20" />
-        <p className="text-white/50 text-sm tracking-[0.3em] uppercase">Publication not found</p>
+      <div
+        data-fm-store
+        className="min-h-screen flex flex-col items-center justify-center gap-6"
+        style={{
+          backgroundColor: storefrontBg,
+          color: storefrontText,
+        }}
+      >
+        <Package size={48} strokeWidth={1} style={{ color: `${storefrontText}33` }} />
+        <p className="text-sm tracking-[0.3em] uppercase" style={{ color: `${storefrontText}80` }}>Publication not found</p>
         <Link
           to="/"
-          className="text-[10px] font-black tracking-[0.4em] border border-white/20 px-8 py-3 hover:bg-white/5 transition-all uppercase"
-          style={{ borderRadius: buttonRadius }}
+          className="text-[10px] font-black tracking-[0.4em] px-8 py-3 transition-all uppercase custom-btn"
+          style={{
+            "--btn-bg": buttonStyle === "solid" ? buttonBg : "transparent",
+            "--btn-text": buttonStyle === "solid" ? buttonText : buttonBg,
+            "--btn-border": buttonStyle !== "solid" ? `1px solid ${buttonBg}` : `1px solid ${borderColor}`,
+            borderRadius: buttonRadius,
+          } as React.CSSProperties}
         >
           Return to Archive
         </Link>
@@ -209,7 +267,16 @@ export default function BookDetail() {
 
   // ── page ───────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#050508] text-white selection:bg-white/20" style={{ fontFamily: font }}>
+    <div
+      data-fm-store
+      className="min-h-screen selection:bg-white/20"
+      style={{
+        fontFamily: font,
+        backgroundColor: storefrontBg,
+        color: storefrontText,
+      }}
+    >
+      <style>{css}</style>
 
       {/* ── ambient glow that follows the book cover ── */}
       <div
@@ -220,17 +287,28 @@ export default function BookDetail() {
       />
 
       {/* ── sticky header ── */}
-      <header className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#050508]/80 backdrop-blur-2xl">
+      <header
+        className="sticky top-0 z-50 border-b backdrop-blur-2xl transition-all duration-300"
+        style={{
+          backgroundColor: headerBgColor,
+          borderColor: headerBorderColor,
+        }}
+      >
         <div className="max-w-8xl mx-auto px-6 py-4 flex items-center justify-between">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2.5 text-white/40 hover:text-white transition-colors group"
+            style={{ color: headerTextColor }}
+            className="flex items-center gap-2.5 opacity-60 hover:opacity-100 transition-opacity group"
           >
             <ArrowLeft size={15} className="group-hover:-translate-x-1 transition-transform" />
             <span className="text-[9px] font-black tracking-[0.35em] uppercase">{getCopy(settings?.design, "backToCatalog")}</span>
           </button>
 
-          <Link to="/" className="text-[11px] font-black tracking-[0.3em] text-white/80 hover:text-white transition-colors">
+          <Link
+            to="/"
+            style={{ color: headerTextColor }}
+            className="text-[11px] font-black tracking-[0.3em] opacity-80 hover:opacity-100 transition-opacity"
+          >
             {settings?.design?.logoUrl
               ? <img src={settings.design.logoUrl} alt="Logo" className="h-6 object-contain" />
               : "F✶M"}
@@ -238,26 +316,26 @@ export default function BookDetail() {
 
           <button
             onClick={() => setIsCartOpen(true)}
-            className={`flex items-center gap-2.5 px-4 py-2.5 transition-all group hover:scale-[1.02] ${
+            className={`flex items-center gap-2.5 px-4 py-2.5 transition-all group hover:scale-[1.02] custom-btn ${
               buttonShadow ? "shadow-md" : ""
             }`}
             style={{
-              backgroundColor: buttonStyle === "solid" ? buttonBg : "transparent",
-              color: buttonStyle === "solid" ? buttonText : buttonBg,
-              border: buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
+              "--btn-bg": buttonStyle === "solid" ? buttonBg : "transparent",
+              "--btn-text": buttonStyle === "solid" ? buttonText : buttonBg,
+              "--btn-border": buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
               borderRadius: buttonRadius,
-            }}
+            } as React.CSSProperties}
           >
-            <ShoppingBag size={14} className="transition-colors" style={{ color: buttonStyle === "solid" ? buttonText : buttonBg }} />
-            <span className={`text-[9px] font-black tracking-[0.25em] uppercase transition-colors`} style={{ color: buttonStyle === "solid" ? buttonText : buttonBg }}>
+            <ShoppingBag size={14} className="transition-colors text-current" />
+            <span className="text-[9px] font-black tracking-[0.25em] uppercase transition-colors text-current">
               {getCopy(settings?.design, "cartLabel") || "Bag"}
             </span>
             {cartCount > 0 && (
               <span
                 className="text-[8px] font-black px-1.5 py-0.5 rounded-full transition-colors"
                 style={{
-                  backgroundColor: buttonStyle === "solid" ? buttonText : buttonBg,
-                  color: buttonStyle === "solid" ? buttonBg : buttonText,
+                  backgroundColor: buttonStyle === "solid" ? "var(--btn-text)" : "var(--btn-bg)",
+                  color: buttonStyle === "solid" ? "var(--btn-bg)" : "var(--btn-text)",
                 }}
               >
                 {cartCount}
@@ -303,7 +381,14 @@ export default function BookDetail() {
                     {/* Sold out overlay */}
                     {isOutOfStock && (
                       <div className="absolute inset-0 bg-black/75 flex items-center justify-center">
-                        <span className="border border-white/30 text-white text-[10px] font-black tracking-[0.5em] px-8 py-3 rounded-full uppercase backdrop-blur-sm">
+                        <span
+                          className="border text-[10px] font-black tracking-[0.5em] px-8 py-3 rounded-full uppercase backdrop-blur-sm"
+                          style={{
+                            backgroundColor: badgeBgSecondary,
+                            color: badgeTextSecondary,
+                            borderColor: `${badgeTextSecondary}33`,
+                          }}
+                        >
                           Sold Out
                         </span>
                       </div>
@@ -312,8 +397,13 @@ export default function BookDetail() {
                     {/* Sale badge */}
                     {isOnSale && !isOutOfStock && (
                       <div className="absolute top-5 left-5">
-                        <span className="text-[9px] font-black tracking-[0.3em] uppercase px-4 py-2 rounded-full text-black"
-                          style={{ backgroundColor: primaryColor }}>
+                        <span
+                          className="text-[9px] font-black tracking-[0.3em] uppercase px-4 py-2 rounded-full"
+                          style={{
+                            backgroundColor: badgeBgPrimary,
+                            color: badgeTextPrimary,
+                          }}
+                        >
                           Sale
                         </span>
                       </div>
@@ -322,9 +412,12 @@ export default function BookDetail() {
                     {/* Low stock */}
                     {stockLevel > 0 && stockLevel !== 999 && stockLevel <= 5 && (
                       <div className="absolute bottom-5 left-5 right-5">
-                        <div className="bg-black/70 backdrop-blur-md border border-amber-500/30 rounded-2xl px-4 py-3 flex items-center gap-2">
-                          <Zap size={12} className="text-amber-400 shrink-0" />
-                          <span className="text-[9px] font-black tracking-widest text-amber-400 uppercase">
+                        <div
+                          className="bg-black/70 backdrop-blur-md border rounded-2xl px-4 py-3 flex items-center gap-2"
+                          style={{ borderColor: `${lowInventoryColor}40` }}
+                        >
+                          <Zap size={12} className="shrink-0" style={{ color: lowInventoryColor }} />
+                          <span className="text-[9px] font-black tracking-widest uppercase" style={{ color: lowInventoryColor }}>
                             Only {stockLevel} left
                           </span>
                         </div>
@@ -393,7 +486,16 @@ export default function BookDetail() {
                       <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                          <span className="border border-white/30 text-white text-[10px] font-black tracking-[0.5em] px-8 py-3 rounded-full uppercase">Sold Out</span>
+                          <span
+                            className="border text-[10px] font-black tracking-[0.5em] px-8 py-3 rounded-full uppercase"
+                            style={{
+                              backgroundColor: badgeBgSecondary,
+                              color: badgeTextSecondary,
+                              borderColor: `${badgeTextSecondary}33`,
+                            }}
+                          >
+                            Sold Out
+                          </span>
                         </div>
                       )}
                     </div>
@@ -406,7 +508,16 @@ export default function BookDetail() {
                       <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                          <span className="border border-white/30 text-white text-[10px] font-black tracking-[0.5em] px-8 py-3 rounded-full uppercase">Sold Out</span>
+                          <span
+                            className="border text-[10px] font-black tracking-[0.5em] px-8 py-3 rounded-full uppercase"
+                            style={{
+                              backgroundColor: badgeBgSecondary,
+                              color: badgeTextSecondary,
+                              borderColor: `${badgeTextSecondary}33`,
+                            }}
+                          >
+                            Sold Out
+                          </span>
                         </div>
                       )}
                     </div>
@@ -487,7 +598,7 @@ export default function BookDetail() {
                     <SpecItem icon={<Weight size={11} />} label="Weight" value={(book as any).weight} />
                   )}
                   {stockLevel > 0 && stockLevel !== 999 && stockLevel <= 10 && (
-                    <SpecItem icon={<Zap size={11} />} label="Availability" value={`${stockLevel} remaining`} />
+                    <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label="Availability" value={`${stockLevel} remaining`} />
                   )}
                 </div>
               )}
@@ -503,17 +614,17 @@ export default function BookDetail() {
                       ? "bg-white/[0.06] text-white/25 cursor-not-allowed border border-white/[0.06]"
                       : added
                       ? "bg-emerald-500 text-white"
-                      : `${buttonShadow ? "shadow-2xl" : ""} ${buttonUppercase ? "uppercase" : ""}`
+                      : `custom-btn ${buttonShadow ? "shadow-2xl" : ""} ${buttonUppercase ? "uppercase" : ""}`
                   }`}
                   style={
                     !isOutOfStock && !added
                       ? {
-                          backgroundColor: buttonStyle === "solid" ? buttonBg : "transparent",
-                          color: buttonStyle === "solid" ? buttonText : buttonBg,
-                          border: buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
+                          "--btn-bg": buttonStyle === "solid" ? buttonBg : "transparent",
+                          "--btn-text": buttonStyle === "solid" ? buttonText : buttonBg,
+                          "--btn-border": buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
+                          "--btn-shadow": buttonStyle === "solid" && buttonShadow ? `0 20px 60px ${buttonBg}50` : "none",
                           borderRadius: buttonRadius,
-                          boxShadow: buttonStyle === "solid" && buttonShadow ? `0 20px 60px ${buttonBg}50` : "none",
-                        }
+                        } as React.CSSProperties
                       : { borderRadius: buttonRadius }
                   }
                 >
@@ -590,15 +701,15 @@ export default function BookDetail() {
                       <button
                         onClick={handleAddBothToBag}
                         disabled={addingBoth}
-                        className={`w-full sm:w-fit text-[9px] font-black tracking-[0.2em] px-6 py-3.5 transition-all active:scale-95 ${
+                        className={`w-full sm:w-fit text-[9px] font-black tracking-[0.2em] px-6 py-3.5 transition-all active:scale-95 custom-btn ${
                           buttonShadow ? "shadow-[0_10px_30px_rgba(124,58,237,0.25)]" : ""
                         } ${buttonUppercase ? "uppercase" : ""}`}
                         style={{
-                          backgroundColor: buttonStyle === "solid" ? buttonBg : "transparent",
-                          color: buttonStyle === "solid" ? buttonText : buttonBg,
-                          border: buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
+                          "--btn-bg": buttonStyle === "solid" ? buttonBg : "transparent",
+                          "--btn-text": buttonStyle === "solid" ? buttonText : buttonBg,
+                          "--btn-border": buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
                           borderRadius: buttonRadius,
-                        }}
+                        } as React.CSSProperties}
                       >
                         {addingBoth ? "Adding Both..." : "Add Both to Bag"}
                       </button>
@@ -645,7 +756,16 @@ export default function BookDetail() {
                           />
                           {relStock === 0 && (
                             <div className="absolute inset-0 bg-black/65 flex items-center justify-center">
-                              <span className="text-white/50 text-[8px] font-black tracking-widest uppercase border border-white/20 px-4 py-2 rounded-full">Sold Out</span>
+                              <span
+                                className="text-[8px] font-black tracking-widest uppercase border px-4 py-2 rounded-full"
+                                style={{
+                                  backgroundColor: badgeBgSecondary,
+                                  color: badgeTextSecondary,
+                                  borderColor: `${badgeTextSecondary}33`,
+                                }}
+                              >
+                                Sold Out
+                              </span>
                             </div>
                           )}
                           {/* hover shine */}
