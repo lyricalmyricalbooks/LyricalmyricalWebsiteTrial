@@ -68,7 +68,7 @@ export function CartDrawer() {
                 <h3 className="text-2xl font-light tracking-tight">{getCopy(design, "cartTitle")}</h3>
                 <p className="text-[10px] tracking-widest text-neutral-400 uppercase mt-1">{cart.length} unique entries</p>
               </div>
-              <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-neutral-50 rounded-full transition-colors">
+              <button onClick={() => setIsCartOpen(false)} aria-label="Close cart" className="p-2 hover:bg-neutral-50 rounded-full transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -109,11 +109,11 @@ export function CartDrawer() {
                     </div>
                     <div className="flex items-center justify-between mt-4">
                       <div className="flex items-center gap-4 bg-neutral-50 px-3 py-1.5 rounded-full">
-                        <button onClick={() => updateQuantity(item.id, item.variantId, -1)} className="hover:text-neutral-400 transition-colors"><Minus size={12} /></button>
+                        <button onClick={() => updateQuantity(item.id, item.variantId, -1)} aria-label="Decrease quantity" className="hover:text-neutral-400 transition-colors"><Minus size={12} /></button>
                         <span className="text-[10px] font-bold w-4 text-center">{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.id, item.variantId, 1)} className="hover:text-neutral-400 transition-colors"><PlusIcon size={12} /></button>
+                        <button onClick={() => updateQuantity(item.id, item.variantId, 1)} aria-label="Increase quantity" className="hover:text-neutral-400 transition-colors"><PlusIcon size={12} /></button>
                       </div>
-                      <button onClick={() => removeFromCart(item.id, item.variantId)} className="text-neutral-300 hover:text-black transition-colors"><Trash2 size={12} /></button>
+                      <button onClick={() => removeFromCart(item.id, item.variantId)} aria-label="Remove item from cart" className="text-neutral-300 hover:text-black transition-colors"><Trash2 size={12} /></button>
                     </div>
                   </div>
                 </div>
