@@ -17,6 +17,7 @@ import { useWishlist } from "../../lib/wishlist";
 import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
 import ReviewsSection from "./ReviewsSection";
+import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 
 // ── small helper ────────────────────────────────────────────────────────────
@@ -309,9 +310,7 @@ export default function BookDetail() {
             style={{ color: headerTextColor }}
             className="text-[11px] font-black tracking-[0.3em] opacity-80 hover:opacity-100 transition-opacity"
           >
-            {settings?.design?.logoUrl
-              ? <img src={settings.design.logoUrl} alt="Logo" className="h-6 object-contain" />
-              : "F✶M"}
+            <LogoMark design={settings?.design} />
           </Link>
 
           <button
