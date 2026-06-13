@@ -1542,6 +1542,152 @@ exports.createShippingLabel = onRequest(
 );
 
 // ──────────────────────────────────────────────────────────────
+// 8b. HTTP Endpoint: Push Order to Shippo & Open Dashboard (Secure)
+//     Creates a Shippo Order object pre-filled with the customer's
+//     address, line items and weight, so the admin can buy the label
+//     directly on the Shippo site. Unlike createShippingLabel this does
+//     NOT spend money — it only stages the order in the Shippo dashboard.
+// ──────────────────────────────────────────────────────────────
+exports.createShippoOrder = onRequest(
+  { secrets: [SHIPPO_API_TOKEN] },
+  async (req, res) => {
+    if (applyCors(req, res)) return;
+
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+
+    const { orderId } = req.body;
+    if (!orderId) {
+      res.status(400).json({ error: "Missing orderId" });
+      return;
+    }
+
+    // Shippo's web app opens on the Orders page; a freshly pushed order
+    // appears at the top, pre-filled and ready for label purchase.
+    const SHIPPO_DASHBOARD_URL = "https://app.goshippo.com/orders";
+
+    try {
+      const orderRef = db.collection("orders").doc(orderId);
+      const orderDoc = await orderRef.get();
+      if (!orderDoc.exists) {
+        res.status(404).json({ error: "Order not found" });
+        return;
+      }
+
+      const order = orderDoc.data();
+      if (!order.customer || !order.customer.address) {
+        res.status(400).json({ error: "Order has no customer address data" });
+        return;
+      }
+
+      const settingsDoc = await db.collection("settings").doc("website").get();
+      const settings = settingsDoc.data() || {};
+      const origin = settings.location || {};
+
+      const shippoToken = await getShippoToken();
+
+      if (!shippoToken) {
+        if (!IS_EMULATOR) {
+          res.status(500).json({ error: "SHIPPO_API_TOKEN is not configured — cannot push the order to Shippo." });
+          return;
+        }
+        // Dev fallback: skip the API call, just hand back the dashboard URL.
+        console.warn("Shippo token missing — skipping order push (Dev Fallback).");
+        res.status(200).json({ dashboardUrl: SHIPPO_DASHBOARD_URL, shippoOrderId: null });
+        return;
+      }
+
+      const dest = order.customer.address;
+      const toAddress = {
+        name: order.customer.name || "Customer",
+        street1: dest.street,
+        city: dest.city,
+        state: getStateCode(dest.state),
+        zip: dest.zip,
+        country: getCountryCode(dest.country),
+        phone: order.customer.phone || "",
+        email: order.customer.email || ""
+      };
+
+      const fromAddress = {
+        name: settings.info?.name || "Lyricalmyrical Books",
+        street1: origin.street || "456 Montrose Ave",
+        city: origin.city || "Toronto",
+        state: getStateCode(origin.state || "ON"),
+        zip: origin.zip || "M6G3H1",
+        country: getCountryCode(origin.country || "CA"),
+        phone: "6474096863",
+        email: "lyricalmyricalbooks@gmail.com"
+      };
+
+      const currency = (order.checkoutCurrency || order.currency || "CAD").toUpperCase();
+      const items = order.items || [];
+      const totalQty = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+      const totalWeight = (1.5 * totalQty).toFixed(2);
+
+      const lineItems = items.map(item => {
+        const qty = item.quantity || 1;
+        return {
+          title: item.title || "Item",
+          quantity: qty,
+          total_price: ((item.price || 0) * qty).toFixed(2),
+          currency,
+          weight: (1.5 * qty).toFixed(2),
+          weight_unit: "lb",
+          sku: item.id || item.sku || ""
+        };
+      });
+
+      // Stage the order in the Shippo dashboard (no money spent).
+      const shippoOrder = await callShippo("orders/", "POST", {
+        to_address: toAddress,
+        from_address: fromAddress,
+        line_items: lineItems,
+        placed_at: order.createdAt || new Date().toISOString(),
+        order_number: order.orderId || orderId,
+        order_status: "PAID",
+        shipping_cost: (order.shipping || 0).toFixed(2),
+        shipping_cost_currency: currency,
+        subtotal_price: (order.subtotal || 0).toFixed(2),
+        total_price: (order.total || 0).toFixed(2),
+        total_tax: (order.tax || 0).toFixed(2),
+        currency,
+        weight: totalWeight,
+        weight_unit: "lb"
+      }, shippoToken);
+
+      await orderRef.update({
+        shippoOrderId: shippoOrder.object_id || null,
+        updatedAt: new Date().toISOString(),
+        activity: [
+          ...(order.activity || []),
+          {
+            type: "note",
+            message: "Order pushed to Shippo dashboard for label creation.",
+            createdAt: new Date().toISOString()
+          }
+        ]
+      });
+
+      res.status(200).json({
+        dashboardUrl: SHIPPO_DASHBOARD_URL,
+        shippoOrderId: shippoOrder.object_id || null,
+        orderNumber: order.orderId || orderId
+      });
+
+    } catch (err) {
+      console.error("createShippoOrder failed:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ──────────────────────────────────────────────────────────────
 // 9. HTTP Endpoint: Validate Discount Code (public checkout)
 //    The discounts collection is admin-only in Firestore rules, so the
 //    storefront validates codes through this endpoint instead.

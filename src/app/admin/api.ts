@@ -731,6 +731,28 @@ export const adminApi = {
     return await response.json();
   },
 
+  // Pushes the order to the Shippo dashboard (pre-filled) and returns the
+  // Shippo site URL to open so the admin can buy the label directly on Shippo.
+  createShippoOrder: async (orderId: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin to push orders to Shippo.");
+
+    const response = await fetch(functionUrl("createShippoOrder"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ orderId }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error || "Failed to push order to Shippo.");
+    }
+    return await response.json();
+  },
+
   // DISCOUNTS ─────────────────────────────────────────────────────────────────
   getDiscounts: async () => {
     const snap = await getDocs(collection(db, "discounts"));
