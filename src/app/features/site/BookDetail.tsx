@@ -69,11 +69,11 @@ export default function BookDetail() {
   const showSocialShare        = storefrontDesign.showSocialShare        ?? true;
 
   // Autonomy controls for book detail page
-  const showAmbientGlow        = settings?.design?.showAmbientGlow        ?? true;
-  const glowOpacity            = (settings?.design?.glowIntensity ?? 18) / 100;
-  const showSpecs              = settings?.design?.showSpecs              ?? true;
-  const showBundleWidget       = settings?.design?.showBundleWidget       ?? true;
-  const showTrustSignals       = settings?.design?.showTrustSignals       ?? true;
+  const showAmbientGlow        = storefrontDesign.showAmbientGlow        ?? settings?.design?.showAmbientGlow        ?? true;
+  const glowOpacity            = (storefrontDesign.glowIntensity ?? settings?.design?.glowIntensity ?? 18) / 100;
+  const showSpecs              = storefrontDesign.showSpecs              ?? settings?.design?.showSpecs              ?? true;
+  const showBundleWidget       = storefrontDesign.showBundleWidget       ?? settings?.design?.showBundleWidget       ?? true;
+  const showTrustSignals       = storefrontDesign.showTrustSignals       ?? settings?.design?.showTrustSignals       ?? true;
 
   const buttonBg = storefrontDesign?.buttonColor || settings?.design?.buttonColor || settings?.design?.primaryColor || "#A855F7";
   const buttonText = storefrontDesign?.buttonTextColor || settings?.design?.buttonTextColor || "#000000";
@@ -683,7 +683,7 @@ export default function BookDetail() {
                   ) : added ? (
                     <><Check size={14} strokeWidth={3} /> Added to Bag</>
                   ) : (
-                    <><ShoppingBag size={14} /> {settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel") || "Add to Bag"}</>
+                    <><ShoppingBag size={14} /> {storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel") || "Add to Bag"}</>
                   )}
                 </motion.button>
 
@@ -715,13 +715,13 @@ export default function BookDetail() {
               {showTrustSignals !== false && (
                 <div className="grid grid-cols-3 gap-3 pt-4">
                   <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
-                    <Truck size={12} className="text-white/30" /> {settings?.design?.productTrust1 || getCopy(settings?.design, "productTrust1") || "Tracked Shipping"}
+                    <Truck size={12} className="text-white/30" /> {storefrontDesign.productTrust1 || settings?.design?.productTrust1 || getCopy(settings?.design, "productTrust1") || "Tracked Shipping"}
                   </div>
                   <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
-                    <ShieldCheck size={12} className="text-white/30" /> {settings?.design?.productTrust2 || getCopy(settings?.design, "productTrust2") || "14-Day Returns"}
+                    <ShieldCheck size={12} className="text-white/30" /> {storefrontDesign.productTrust2 || settings?.design?.productTrust2 || getCopy(settings?.design, "productTrust2") || "14-Day Returns"}
                   </div>
                   <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
-                    <Package size={12} className="text-white/30" /> {settings?.design?.productTrust3 || getCopy(settings?.design, "productTrust3") || "Ships in 1-2 Days"}
+                    <Package size={12} className="text-white/30" /> {storefrontDesign.productTrust3 || settings?.design?.productTrust3 || getCopy(settings?.design, "productTrust3") || "Ships in 1-2 Days"}
                   </div>
                 </div>
               )}
