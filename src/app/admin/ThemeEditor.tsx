@@ -996,6 +996,71 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
         </div>
       </Accordion>
 
+      <Accordion title="Surfaces & status colors" defaultOpen={false}>
+        <div className="space-y-6">
+          <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic mb-2">
+            Surfaces, overlays and status colors used across the product page and
+            storefront (cards, image wells, sale &amp; "added" states, wishlist, active tabs).
+          </p>
+          <ColorPicker
+            label="Card / image surface"
+            value={design.surfaceColor || "#0a0a0a"}
+            onChange={(val) => update("surfaceColor", val)}
+          />
+          <ColorPicker
+            label="Raised surface"
+            value={design.surfaceRaisedColor || "#171717"}
+            onChange={(val) => update("surfaceRaisedColor", val)}
+          />
+          <ColorPicker
+            label="Overlay / scrim (sold-out, image darken)"
+            value={design.overlayColor || "#000000"}
+            onChange={(val) => update("overlayColor", val)}
+          />
+          <div className="border-t border-neutral-100 pt-4" />
+          <ColorPicker
+            label="Success / savings"
+            value={design.successColor || "#34d399"}
+            onChange={(val) => update("successColor", val)}
+          />
+          <ColorPicker
+            label="Success text"
+            value={design.successTextColor || "#ffffff"}
+            onChange={(val) => update("successTextColor", val)}
+          />
+          <ColorPicker
+            label="Favorite / wishlist"
+            value={design.favoriteColor || "#fb7185"}
+            onChange={(val) => update("favoriteColor", val)}
+          />
+          <div className="border-t border-neutral-100 pt-4" />
+          <ColorPicker
+            label="Active control background"
+            value={design.activeControlBg || design.textColor || "#ffffff"}
+            onChange={(val) => update("activeControlBg", val)}
+          />
+          <ColorPicker
+            label="Active control text"
+            value={design.activeControlText || design.backgroundColor || "#000000"}
+            onChange={(val) => update("activeControlText", val)}
+          />
+          {(design.surfaceColor || design.surfaceRaisedColor || design.overlayColor ||
+            design.successColor || design.successTextColor || design.favoriteColor ||
+            design.activeControlBg || design.activeControlText) && (
+            <button
+              onClick={() => {
+                ["surfaceColor", "surfaceRaisedColor", "overlayColor", "successColor",
+                 "successTextColor", "favoriteColor", "activeControlBg", "activeControlText"]
+                  .forEach((k) => update(k, undefined));
+              }}
+              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2 text-[10px] font-bold text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all uppercase tracking-wider"
+            >
+              Reset surfaces &amp; status to defaults
+            </button>
+          )}
+        </div>
+      </Accordion>
+
       <Accordion title="Color Schemes" defaultOpen={false}>
         <div className="pt-2">
           <ColorSchemesPanel
