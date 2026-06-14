@@ -636,9 +636,9 @@ export const adminApi = {
     const extra = Math.random().toString(36).substring(2, 6).toUpperCase();
     const orderId = `${prefix}-${suffix}-${extra}`;
 
-    // Orders default to UNPAID; only the Stripe webhook flips them to paid
-    // (and records revenue analytics at that point). Firestore rules reject
-    // non-admin attempts to create an order in any other state.
+    // Orders default to UNPAID; only a verified payment-provider capture
+    // handled by Cloud Functions flips them to paid and records revenue.
+    // Firestore rules reject non-admin attempts to create any other state.
     await setDoc(doc(db, "orders", orderId), {
       ...order,
       orderId, // Display ID
