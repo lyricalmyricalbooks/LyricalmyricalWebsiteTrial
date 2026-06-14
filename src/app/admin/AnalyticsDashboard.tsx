@@ -200,6 +200,34 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
 
   return (
     <div className="space-y-12 pb-32">
+      {/* App Update Summary Notice */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="relative overflow-hidden bg-gradient-to-r from-violet-600/10 via-indigo-600/5 to-cyan-500/10 border border-violet-500/20 rounded-[2rem] p-8 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
+      >
+        <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/10 blur-[80px] rounded-full pointer-events-none" />
+        <div className="space-y-2 relative z-10">
+          <div className="flex items-center gap-2 text-[9px] font-black tracking-[0.4em] text-violet-400 uppercase">
+            <Zap size={12} className="text-violet-400" /> System Status & Recent Release
+          </div>
+          <h3 className="text-xl font-black uppercase tracking-tight text-white italic">
+            Lyricalmyrical E-Commerce Platform Updated
+          </h3>
+          <p className="text-slate-400 text-xs font-medium max-w-2xl leading-relaxed">
+            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 13, 2026 at 10:09 PM</strong>.
+            This update released optional dynamic shipping rates via Shippo, advanced promotional discounts (like Buy One Get One and Minimum Spend Tiers), custom order timeline logging, and variant-level format/cover photo matching.
+          </p>
+        </div>
+        <div className="shrink-0 relative z-10 bg-white/5 border border-white/10 rounded-2xl p-4 text-center min-w-[150px]">
+          <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Build Status</p>
+          <p className="text-xs font-bold text-emerald-400 mt-1 uppercase tracking-wider">Deploy Success</p>
+          <div className="h-px bg-white/5 my-3" />
+          <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Last Code Push</p>
+          <p className="text-[10px] font-mono text-slate-300 mt-1">June 13, 22:09</p>
+        </div>
+      </motion.div>
+
       {/* KPI GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
         {kpis.map((kpi, i) => (
