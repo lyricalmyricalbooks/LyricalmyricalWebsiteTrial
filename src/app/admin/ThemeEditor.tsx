@@ -18,6 +18,7 @@ import {
   Plus,
   Eye,
   EyeOff,
+  HelpCircle,
   ShoppingBag,
   Home,
   Mail,
@@ -4038,6 +4039,285 @@ function ShopPreview({ design, bg, text, accent, font, pages }: any) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Guide Panel Components
+// ─────────────────────────────────────────────────────────────────────────────
+interface GuidePanelProps {
+  design: any;
+  setActiveTab: (tab: string) => void;
+  setActiveSection: (section: string | null) => void;
+  setDevice: (device: "desktop" | "tablet" | "mobile") => void;
+  setShowCommandPalette: (show: boolean) => void;
+  startInteractiveTour: () => void;
+  hasCheckedMobile: boolean;
+}
+
+function ChecklistItem({ label, checked, onAction }: { label: string; checked: boolean; onAction: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5 border-b border-white/5 last:border-none">
+      <div className="flex items-center gap-3">
+        <span className={`w-4 h-4 rounded-md border flex items-center justify-center transition-all ${
+          checked 
+            ? "bg-emerald-500 border-emerald-400 text-white shadow-[0_0_8px_rgba(16,185,129,0.3)]" 
+            : "border-white/10 bg-white/5"
+        }`}>
+          {checked && <Check size={10} strokeWidth={4} />}
+        </span>
+        <span className={`text-[10px] font-bold ${checked ? "text-slate-500 line-through" : "text-slate-300"}`}>
+          {label}
+        </span>
+      </div>
+      {!checked && (
+        <button 
+          onClick={onAction} 
+          className="text-[9px] font-black text-violet-400 hover:text-white uppercase tracking-widest italic"
+        >
+          Go ➜
+        </button>
+      )}
+    </div>
+  );
+}
+
+function FeatureLinkCard({ icon, title, desc, onAction }: { icon: React.ReactNode; title: string; desc: string; onAction: () => void }) {
+  return (
+    <button
+      onClick={onAction}
+      className="w-full flex items-start gap-4 p-5 rounded-3xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] hover:border-violet-500/20 text-left transition-all group"
+    >
+      <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 group-hover:text-violet-400 group-hover:bg-white/10 transition-all">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] font-black text-slate-200 uppercase tracking-tight italic group-hover:text-white transition-colors mb-1">
+          {title}
+        </p>
+        <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+          {desc}
+        </p>
+      </div>
+    </button>
+  );
+}
+
+function GuidePanel({
+  design,
+  setActiveTab,
+  setActiveSection,
+  setDevice,
+  setShowCommandPalette,
+  startInteractiveTour,
+  hasCheckedMobile,
+}: GuidePanelProps) {
+  const [subTab, setSubTab] = useState<"tour" | "features" | "advanced" | "faq">("tour");
+  const [faqSearch, setFaqSearch] = useState("");
+
+  const checks = {
+    templates: !!design.themeLibraryPreset && design.themeLibraryPreset !== "editorial-luxe",
+    colors: design.primaryColor !== "#A855F7" || design.backgroundColor !== "#030213",
+    typography: design.font !== "Inter" || design.headingFont !== "Inter",
+    sections: (design.heroPage?.sections?.length || 0) > 0 || (design.storefront?.sections?.length || 0) > 0,
+    seo: !!design.homeSeoTitle || !!design.shopSeoTitle,
+    mobile: hasCheckedMobile,
+  };
+
+  const completedCount = Object.values(checks).filter(Boolean).length;
+  const progressPercent = Math.round((completedCount / Object.keys(checks).length) * 100);
+
+  const deepLink = (tab: string, section: string | null = null) => {
+    setActiveTab(tab);
+    setActiveSection(section);
+  };
+
+  const faqs = [
+    {
+      q: "How do I save my changes?",
+      a: "The editor auto-saves draft changes every 30 seconds. To push them to the public storefront immediately, click 'Publish to Live' in the top right. To schedule, enter a datetime and click 'Schedule'."
+    },
+    {
+      q: "Can I undo mistakes?",
+      a: "Yes! Use the undo/redo arrow buttons in the top header or press Ctrl + Z to undo and Ctrl + Y to redo. History snapshots can be restored under the 'History' tab."
+    },
+    {
+      q: "What is WCAG accessibility checking?",
+      a: "Under Design -> Accessibility Audit, we scan background/text color pairings. If contrast is below 4.5:1, text becomes unreadable for some users. We offer auto-fixes to tweak colors to compliant shades."
+    },
+    {
+      q: "What is the Command Palette?",
+      a: "Press Ctrl + K or click 'K' in the top header. You can search, change devices, swap styles, and trigger operations instantly by typing."
+    },
+    {
+      q: "How do I edit sections on the storefront?",
+      a: "Click any block in the live preview. The editor will automatically navigate to the clicked element's configuration panel in the left sidebar."
+    }
+  ];
+
+  const filteredFaqs = faqs.filter(
+    (f) =>
+      f.q.toLowerCase().includes(faqSearch.toLowerCase()) ||
+      f.a.toLowerCase().includes(faqSearch.toLowerCase())
+  );
+
+  return (
+    <div className="flex-1 flex flex-col space-y-6">
+      {/* Header card */}
+      <div className="p-6 bg-gradient-to-br from-violet-600/10 via-violet-600/5 to-transparent border border-violet-500/10 rounded-[2rem] relative overflow-hidden group">
+        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+          <HelpCircle size={40} className="rotate-12" />
+        </div>
+        <h4 className="text-[11px] font-black text-violet-400 uppercase tracking-widest italic mb-2">Editor Guide</h4>
+        <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
+          Welcome to the Lyrical Theme Editor. Tweak styles, customize layouts, and publish premium storefronts in seconds.
+        </p>
+      </div>
+
+      {/* Sub tabs nav */}
+      <div className="flex bg-white/[0.03] border border-white/5 rounded-2xl p-1 relative">
+        {(["tour", "features", "advanced", "faq"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setSubTab(t)}
+            className={`flex-1 py-2 text-[9px] font-black tracking-widest uppercase transition-all rounded-xl border ${
+              subTab === t
+                ? "bg-violet-600/20 text-violet-300 border-violet-500/30"
+                : "text-slate-500 border-transparent hover:text-slate-400"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* Sub tab content */}
+      <div className="space-y-6">
+        {subTab === "tour" && (
+          <div className="space-y-6">
+            <button
+              onClick={startInteractiveTour}
+              className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-2xl py-4 text-[10px] font-black hover:shadow-[0_0_30px_rgba(124,58,237,0.3)] transition-all uppercase tracking-[0.25em] italic"
+            >
+              <Zap size={14} className="fill-white" />
+              Launch Quick Tour
+            </button>
+
+            {/* Progress Bar */}
+            <div className="bg-white/[0.02] border border-white/5 rounded-3xl p-5 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Setup Checklist</span>
+                <span className="text-[9px] font-black text-violet-400 italic bg-violet-500/10 px-2 py-0.5 rounded-lg border border-violet-500/20">
+                  {progressPercent}% Complete
+                </span>
+              </div>
+              <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                <div className="h-full bg-violet-500 transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+              </div>
+
+              {/* Checklist items */}
+              <div className="space-y-2 pt-2">
+                <ChecklistItem label="1. Select a theme template" checked={checks.templates} onAction={() => deepLink("templates")} />
+                <ChecklistItem label="2. Customize brand colors" checked={checks.colors} onAction={() => deepLink("settings", "colors")} />
+                <ChecklistItem label="3. Pick typography & fonts" checked={checks.typography} onAction={() => deepLink("settings", "style")} />
+                <ChecklistItem label="4. Customize homepage sections" checked={checks.sections} onAction={() => deepLink("settings", "homepage")} />
+                <ChecklistItem label="5. Define SEO titles & tags" checked={checks.seo} onAction={() => deepLink("seo")} />
+                <ChecklistItem label="6. Preview mobile layout" checked={checks.mobile} onAction={() => setDevice("mobile")} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {subTab === "features" && (
+          <div className="space-y-4">
+            <FeatureLinkCard
+              icon={<Wand2 size={16} />}
+              title="Global Theme Library"
+              desc="Apply preset templates to instantly overhaul color palettes, corner radiuses, and font pairings."
+              onAction={() => deepLink("templates")}
+            />
+            <FeatureLinkCard
+              icon={<Settings size={16} />}
+              title="Visual Settings"
+              desc="Manage typography, color schemes, product card styles, visual borders, buttons, and animations."
+              onAction={() => deepLink("settings")}
+            />
+            <FeatureLinkCard
+              icon={<Layers size={16} />}
+              title="Homepage Grid Builder"
+              desc="Add, delete, or reorder visual sections on your homepage (banners, feature grids, FAQs, newsletter signups)."
+              onAction={() => deepLink("settings", "homepage")}
+            />
+            <FeatureLinkCard
+              icon={<FileText size={16} />}
+              title="Pages Manager"
+              desc="Create or edit storefront subpages, and customize their copy, layouts, or visual content."
+              onAction={() => deepLink("pages")}
+            />
+            <FeatureLinkCard
+              icon={<Globe size={16} />}
+              title="SEO & Metadata"
+              desc="Provide search engine details like titles, metadata descriptions, and share images for better rankings."
+              onAction={() => deepLink("seo")}
+            />
+          </div>
+        )}
+
+        {subTab === "advanced" && (
+          <div className="space-y-4">
+            <FeatureLinkCard
+              icon={<CommandIcon size={16} />}
+              title="Command Palette (Ctrl + K)"
+              desc="Type commands to change viewport devices, apply theme styles, search settings, or publish drafts."
+              onAction={() => setShowCommandPalette(true)}
+            />
+            <FeatureLinkCard
+              icon={<Code2 size={16} />}
+              title="Developer Custom Code"
+              desc="Inject custom styling rules (CSS) or header scripts (JS) directly into the storefront execution context."
+              onAction={() => deepLink("code")}
+            />
+            <FeatureLinkCard
+              icon={<Clock size={16} />}
+              title="Version Snapshots"
+              desc="Browse auto-saved versions, preview past themes, and restore files to an earlier snapshot instantly."
+              onAction={() => deepLink("history")}
+            />
+          </div>
+        )}
+
+        {subTab === "faq" && (
+          <div className="space-y-5">
+            {/* FAQ Search */}
+            <input
+              value={faqSearch}
+              onChange={(e) => setFaqSearch(e.target.value)}
+              placeholder="Search help topics..."
+              className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-3.5 text-[10px] text-white outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-800 tracking-widest italic"
+            />
+
+            {filteredFaqs.length > 0 ? (
+              <div className="space-y-4">
+                {filteredFaqs.map((faq, i) => (
+                  <div key={i} className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl space-y-2">
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-wide italic">
+                      Q: {faq.q}
+                    </p>
+                    <p className="text-[9px] text-slate-500 leading-relaxed font-bold">
+                      {faq.a}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[9px] text-center text-slate-600 font-bold uppercase tracking-widest py-8">
+                No matching topics found
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main ThemeEditor component
 // ─────────────────────────────────────────────────────────────────────────────
 export interface ThemeEditorProps {
@@ -4071,6 +4351,9 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   // Local copy of just the design settings — changes here won't affect Firebase until "Publish"
   const [design, setDesign] = useState<any>(getInitialDesign);
   const [savedDesign, setSavedDesign] = useState<any>(getInitialDesign);
+  const [tourStep, setTourStep] = useState<number | null>(null);
+  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const [hasCheckedMobile, setHasCheckedMobile] = useState(false);
   const [pastDesigns, setPastDesigns] = useState<any[]>([]);
   const [futureDesigns, setFutureDesigns] = useState<any[]>([]);
 
@@ -4105,6 +4388,104 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [comparing, setComparing] = useState(false);
   // ── Command palette (Ctrl+K) ──
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+
+  useEffect(() => {
+    if (device === "mobile") {
+      setHasCheckedMobile(true);
+    }
+  }, [device]);
+
+  const TOUR_STEPS = useMemo(() => [
+    {
+      title: "Welcome to Theme Editor! 🎨",
+      content: "This editor allows you to build a premium, custom storefront in real-time. Let's take a 1-minute quick tour of the features!",
+      placement: "center",
+      action: () => {}
+    },
+    {
+      title: "Navigation Tabs 🗺️",
+      content: "Switch scopes instantly: 'Design' for styles, 'Pages' for custom routing, 'Code' for style/script injection, 'Themes' for presets, 'History' for restoring changes, 'Devices' for custom sizes, and 'SEO' for search engine tags.",
+      placement: "tabs",
+      action: () => {
+        setActiveTab("settings");
+        setActiveSection(null);
+      }
+    },
+    {
+      title: "Settings & Options 🧩",
+      content: "Under the Design tab, configure your typography, global page colors, spacing, and specific sections like the Homepage grid, product card style, and buttons.",
+      placement: "design-settings",
+      action: () => {
+        setActiveTab("settings");
+        setActiveSection(null);
+      }
+    },
+    {
+      title: "Device View Switcher 📱",
+      content: "Toggle between Desktop, Tablet, and Mobile viewports. Ensure your layout and text read beautifully on any screen size.",
+      placement: "device-switcher",
+      action: () => {}
+    },
+    {
+      title: "Command Search ⌨️",
+      content: "Press Ctrl + K (or click the 'K' button) to open the Command Palette. Instantly search settings, swap themes, and switch viewports by typing.",
+      placement: "command-palette",
+      action: () => {}
+    },
+    {
+      title: "Save Draft & Publish ⚡",
+      content: "Your modifications auto-save every 30 seconds as drafts. When ready, click 'Publish To Live' to sync with the public storefront, or schedule the launch.",
+      placement: "top-actions",
+      action: () => {}
+    },
+    {
+      title: "Live Interactive Preview 🚀",
+      content: "Double-click text directly inside the canvas to edit, or click sections in the viewport to jump to their settings in the sidebar.",
+      placement: "live-preview",
+      action: () => {}
+    }
+  ], [setActiveTab, setActiveSection]);
+
+  useEffect(() => {
+    if (tourStep === null) {
+      setTargetRect(null);
+      return;
+    }
+
+    const getTarget = () => {
+      const selectors = [
+        null, // Welcome Step (center)
+        '[data-tour="tabs"]',
+        '[data-tour="design-settings"]',
+        '[data-tour="device-switcher"]',
+        '[data-tour="command-palette"]',
+        '[data-tour="top-actions"]',
+        '[data-tour="live-preview"]',
+      ];
+      const sel = selectors[tourStep];
+      if (!sel) return null;
+      return document.querySelector(sel);
+    };
+
+    const updateRect = () => {
+      const el = getTarget();
+      if (el) {
+        setTargetRect(el.getBoundingClientRect());
+      } else {
+        setTargetRect(null);
+      }
+    };
+
+    updateRect();
+    
+    window.addEventListener("resize", updateRect);
+    const timer = setTimeout(updateRect, 150);
+
+    return () => {
+      window.removeEventListener("resize", updateRect);
+      clearTimeout(timer);
+    };
+  }, [tourStep]);
   // When comparing or previewing a past version, send THAT to the iframe instead
   const previewDesign = comparing
     ? savedDesign
@@ -4793,6 +5174,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
 
           {/* Command palette launcher */}
           <button
+            data-tour="command-palette"
             onClick={() => setShowCommandPalette(true)}
             title="Open command palette (Ctrl+K)"
             className="px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase border border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2 italic"
@@ -4815,7 +5197,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         </div>
 
         {/* Device switcher */}
-        <div className="flex items-center gap-1 bg-white/[0.03] border border-white/5 rounded-2xl p-1.5 backdrop-blur-xl shadow-2xl">
+        <div data-tour="device-switcher" className="flex items-center gap-1 bg-white/[0.03] border border-white/5 rounded-2xl p-1.5 backdrop-blur-xl shadow-2xl">
           {(["desktop", "tablet", "mobile"] as const).map((d) => (
             <button
               key={d}
@@ -4833,7 +5215,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-4">
+        <div data-tour="top-actions" className="flex items-center gap-4">
           <a
             href={(() => {
               const basePath = window.location.pathname.replace(/\/admin\/?.*$/, "").replace(/\/$/, "");
@@ -4890,6 +5272,132 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         onClose={() => setShowCommandPalette(false)}
         actions={commandActions}
       />
+
+      {/* ── Interactive Tour Portal ── */}
+      {tourStep !== null && (
+        <div className="fixed inset-0 z-[1000] overflow-hidden pointer-events-none">
+          {/* Highlight SVG Mask */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-auto">
+            <defs>
+              <mask id="tour-mask-cutout">
+                <rect x="0" y="0" width="100%" height="100%" fill="white" />
+                {targetRect && (
+                  <rect
+                    x={targetRect.left - 8}
+                    y={targetRect.top - 8}
+                    width={targetRect.width + 16}
+                    height={targetRect.height + 16}
+                    rx="16"
+                    fill="black"
+                  />
+                )}
+              </mask>
+            </defs>
+            <rect
+              x="0"
+              y="0"
+              width="100%"
+              height="100%"
+              fill="rgba(5, 5, 6, 0.75)"
+              mask="url(#tour-mask-cutout)"
+              onClick={() => setTourStep(null)}
+            />
+          </svg>
+
+          {/* Tour Dialog Card */}
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            style={(() => {
+              if (targetRect) {
+                let left = targetRect.left + (targetRect.width / 2) - 175;
+                let top = targetRect.bottom + 20;
+
+                if (targetRect.left < 400) {
+                  left = targetRect.right + 20;
+                  top = targetRect.top + (targetRect.height / 2) - 100;
+                } else if (targetRect.right > window.innerWidth - 400) {
+                  left = targetRect.left - 370;
+                  top = targetRect.top + (targetRect.height / 2) - 100;
+                }
+
+                // Bound checks
+                left = Math.max(20, Math.min(window.innerWidth - 370, left));
+                top = Math.max(20, Math.min(window.innerHeight - 250, top));
+
+                return {
+                  position: "fixed",
+                  left: `${left}px`,
+                  top: `${top}px`,
+                  width: "350px",
+                };
+              }
+              return {
+                position: "fixed",
+                left: "50%",
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+                width: "420px",
+              };
+            })()}
+            className="pointer-events-auto bg-[#0c0c0e] border border-white/10 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col z-[1001]"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-600/10 via-transparent to-cyan-600/10 pointer-events-none" />
+            <div className="p-8 relative z-10 space-y-5">
+              <div className="flex justify-between items-start gap-4">
+                <h3 className="text-lg font-black text-white tracking-tight uppercase italic leading-tight">
+                  {TOUR_STEPS[tourStep].title}
+                </h3>
+                <button
+                  onClick={() => setTourStep(null)}
+                  className="text-slate-500 hover:text-white transition-colors"
+                >
+                  <X size={16} strokeWidth={3} />
+                </button>
+              </div>
+
+              <p className="text-[11px] text-slate-400 font-bold leading-relaxed">
+                {TOUR_STEPS[tourStep].content}
+              </p>
+
+              <div className="flex items-center justify-between pt-3">
+                <span className="text-[9px] font-black text-slate-600 tracking-wider">
+                  STEP {tourStep + 1} OF {TOUR_STEPS.length}
+                </span>
+
+                <div className="flex gap-2">
+                  {tourStep > 0 && (
+                    <button
+                      onClick={() => {
+                        const prevStep = tourStep - 1;
+                        TOUR_STEPS[prevStep].action?.();
+                        setTourStep(prevStep);
+                      }}
+                      className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-[9px] font-black uppercase tracking-widest italic transition-all"
+                    >
+                      Back
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      const nextStep = tourStep + 1;
+                      if (nextStep < TOUR_STEPS.length) {
+                        TOUR_STEPS[nextStep].action?.();
+                        setTourStep(nextStep);
+                      } else {
+                        setTourStep(null);
+                      }
+                    }}
+                    className="px-5 py-2 bg-white text-black hover:bg-slate-200 rounded-xl text-[9px] font-black uppercase tracking-widest italic transition-all shadow-xl"
+                  >
+                    {tourStep === TOUR_STEPS.length - 1 ? "Finish" : "Next"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Publish Confirmation Modal */}
       <AnimatePresence>
@@ -4969,7 +5477,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
           
           {/* Tab nav — compact pill grid so every label stays readable */}
-          <div className="grid grid-cols-4 gap-1.5 p-3 border-b border-white/5 bg-black/20 backdrop-blur-xl relative z-10">
+          <div data-tour="tabs" className="grid grid-cols-4 gap-1.5 p-3 border-b border-white/5 bg-black/20 backdrop-blur-xl relative z-10">
             {(
               [
                 { id: "settings",   icon: <Settings size={13} />,       label: "Design" },
@@ -4979,6 +5487,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                 { id: "history",    icon: <Clock size={13} />,           label: "History" },
                 { id: "responsive", icon: <Smartphone size={13} />,      label: "Devices" },
                 { id: "seo",        icon: <Globe size={13} />,           label: "SEO" },
+                { id: "guide",      icon: <HelpCircle size={13} />,      label: "Guide" },
               ] as const
             ).map((tab) => (
               <button
@@ -5016,7 +5525,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                       </div>
                     </>
                   ) : (
-                    <div className="flex-1 overflow-y-auto custom-scrollbar">
+                    <div data-tour="design-settings" className="flex-1 overflow-y-auto custom-scrollbar">
                       {/* Options header */}
                       <div className="p-8 pb-4">
                         <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase italic mb-2 block">Theme Editor</span>
@@ -5232,6 +5741,30 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                     <ThemeLibraryPanel design={activeDesign} update={update} />
                   </div>
                 </motion.div>
+              ) : activeTab === "guide" ? (
+                <motion.div
+                  key="guide"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="flex-1 flex flex-col overflow-hidden"
+                >
+                  <div className="p-8 pb-4">
+                    <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase italic mb-2 block">Onboarding & Help</span>
+                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Editor Guide</h2>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                    <GuidePanel
+                      design={activeDesign}
+                      setActiveTab={setActiveTab}
+                      setActiveSection={setActiveSection}
+                      setDevice={setDevice}
+                      setShowCommandPalette={setShowCommandPalette}
+                      startInteractiveTour={() => setTourStep(0)}
+                      hasCheckedMobile={hasCheckedMobile}
+                    />
+                  </div>
+                </motion.div>
               ) : (
                 <motion.div
                   key={activeTab}
@@ -5257,7 +5790,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         </div>
 
         {/* ── Right preview pane ── */}
-        <div className="flex-1 bg-[#0a0a0c] relative overflow-hidden flex flex-col">
+        <div data-tour="live-preview" className="flex-1 bg-[#0a0a0c] relative overflow-hidden flex flex-col">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.05),transparent_60%)] pointer-events-none" />
           <LivePreview
             design={previewDesign}
