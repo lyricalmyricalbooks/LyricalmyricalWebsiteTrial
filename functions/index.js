@@ -123,6 +123,107 @@ async function sendEmail({ to, subject, html, secret }) {
   return resend.emails.send({ from: FROM, to, subject, html });
 }
 
+const ADMIN_NOTIFICATION_COLLECTION = "admin-notifications";
+const ADMIN_SITE_URL = "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/admin";
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error || "Unknown error");
+}
+
+async function postWithRetry(url, body, headers = {}, attempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
+      return { status: "sent", attempts: attempt, sentAt: new Date().toISOString() };
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, attempt * 500));
+    }
+  }
+  return { status: "failed", attempts, failedAt: new Date().toISOString(), error: errorMessage(lastError).slice(0, 500) };
+}
+
+async function deliverAdminNotification(notificationId, notification) {
+  const configSnap = await db.collection("private-integrations").doc("admin-notifications").get();
+  const config = configSnap.exists ? configSnap.data() || {} : {};
+  const deliveries = {};
+  const text = `[${notification.severity.toUpperCase()}] ${notification.title}\n${notification.message}${notification.resourceUrl ? `\n${notification.resourceUrl}` : ""}`;
+
+  if (config.slack?.enabled && config.slack.webhookUrl) {
+    deliveries.slack = await postWithRetry(config.slack.webhookUrl, { text });
+  }
+  if (config.discord?.enabled && config.discord.webhookUrl) {
+    deliveries.discord = await postWithRetry(config.discord.webhookUrl, { content: text });
+  }
+  if (config.webhook?.enabled && config.webhook.url) {
+    const headers = config.webhook.bearerToken ? { Authorization: `Bearer ${config.webhook.bearerToken}` } : {};
+    deliveries.webhook = await postWithRetry(config.webhook.url, {
+      id: notificationId,
+      event: notification.type,
+      notification,
+    }, headers);
+  }
+
+  if (Object.keys(deliveries).length) {
+    await db.collection(ADMIN_NOTIFICATION_COLLECTION).doc(notificationId).update({
+      delivery: deliveries,
+      deliveryUpdatedAt: new Date().toISOString(),
+    });
+  }
+}
+
+async function createAdminNotification({ type, severity = "info", title, message, orderId, orderNumber, resourceUrl, metadata = {}, dedupeKey }) {
+  const now = new Date().toISOString();
+  const payload = {
+    type,
+    severity,
+    title,
+    message,
+    read: false,
+    createdAt: now,
+    orderId: orderId || null,
+    orderNumber: orderNumber || null,
+    resourceUrl: resourceUrl || (orderId ? `${ADMIN_SITE_URL}#orders/${orderId}` : ADMIN_SITE_URL),
+    metadata,
+    source: "cloud-functions",
+  };
+  const ref = dedupeKey
+    ? db.collection(ADMIN_NOTIFICATION_COLLECTION).doc(crypto.createHash("sha256").update(dedupeKey).digest("hex"))
+    : db.collection(ADMIN_NOTIFICATION_COLLECTION).doc();
+  if (dedupeKey) {
+    const existing = await ref.get();
+    if (existing.exists) return existing.id;
+  }
+  await ref.set(payload);
+  try {
+    await deliverAdminNotification(ref.id, payload);
+  } catch (error) {
+    await ref.update({
+      deliverySystem: { status: "failed", error: errorMessage(error).slice(0, 500), failedAt: new Date().toISOString() },
+    });
+  }
+  return ref.id;
+}
+
+async function recordEmailFailure(context, error) {
+  await createAdminNotification({
+    type: "email_delivery_failure",
+    severity: "critical",
+    title: "Email delivery failed",
+    message: `${context.label}: ${errorMessage(error)}`,
+    orderId: context.orderId,
+    orderNumber: context.orderNumber,
+    metadata: { recipient: context.recipient || null },
+    dedupeKey: `email:${context.label}:${context.orderId || "none"}:${Date.now()}`,
+  });
+}
+
 // ──────────────────────────────────────────────────────────────
 // Shippo API Normalizers & Helpers
 // ──────────────────────────────────────────────────────────────
@@ -611,6 +712,13 @@ exports.stripeWebhook = onRequest(
       );
     } catch (err) {
       console.error("Signature verification failed:", err.message);
+      await createAdminNotification({
+        type: "webhook_failure",
+        severity: "critical",
+        title: "Stripe webhook verification failed",
+        message: errorMessage(err),
+        metadata: { provider: "stripe" },
+      });
       res.status(400).send(`Webhook Error: ${err.message}`);
       return;
     }
@@ -714,6 +822,15 @@ exports.stripeWebhook = onRequest(
           console.log(`Order ${orderId} successfully processed via webhook.`);
         } catch (err) {
           console.error("Failed to process order update in transaction:", err);
+          await createAdminNotification({
+            type: "payment_failure",
+            severity: "critical",
+            title: "Payment webhook processing failed",
+            message: `Order ${orderId}: ${errorMessage(err)}`,
+            orderId,
+            orderNumber: orderId,
+            dedupeKey: `stripe-processing:${event.id}`,
+          });
           res.status(500).send(`Transaction failure: ${err.message}`);
           return;
         }
@@ -1019,6 +1136,31 @@ exports.onOrderCreated = onDocumentCreated(
     const orderId = event.params.orderId;
 
     if (!order.customer?.email) return;
+    const orderNumber = order.orderId || orderId;
+    const isManualPayment = order.paymentStatus === "pending" || order.paymentStatus === "unpaid"
+      || ["manual", "e-transfer", "etransfer", "bank transfer"].some(method =>
+        String(order.paymentMethod || "").toLowerCase().includes(method));
+    await createAdminNotification({
+      type: isManualPayment ? "manual_payment_review" : "new_order",
+      severity: isManualPayment ? "warning" : "info",
+      title: isManualPayment ? "Manual payment awaiting review" : "New order received",
+      message: `${orderNumber} · ${moneyFmt(order.total)} · ${order.customer.name || order.customer.email}`,
+      orderId,
+      orderNumber,
+      metadata: { paymentMethod: order.paymentMethod || null },
+      dedupeKey: `order-created:${orderId}`,
+    });
+    if (order.addressVerified === false || order.addressUnverified === true) {
+      await createAdminNotification({
+        type: "address_verification_warning",
+        severity: "warning",
+        title: "Address verification warning",
+        message: `${orderNumber} has an unverified or rejected shipping address.`,
+        orderId,
+        orderNumber,
+        dedupeKey: `address-warning:${orderId}`,
+      });
+    }
 
     const itemsTable = `
       <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;">
@@ -1057,6 +1199,7 @@ exports.onOrderCreated = onDocumentCreated(
       });
     } catch (err) {
       console.error("New order admin notification failed", err);
+      await recordEmailFailure({ label: "New order admin email", orderId, orderNumber, recipient: ADMIN_TO }, err);
     }
   }
 );
@@ -1077,6 +1220,17 @@ exports.onOrderUpdated = onDocumentUpdated(
 
     // 1. Order Confirmation (Order Paid)
     const becamePaid = before.paymentStatus !== "paid" && after.paymentStatus === "paid";
+    if (becamePaid) {
+      await createAdminNotification({
+        type: "new_paid_order",
+        severity: "info",
+        title: "New paid order",
+        message: `${after.orderId || orderId} · ${moneyFmt(after.total)} · payment confirmed`,
+        orderId,
+        orderNumber: after.orderId || orderId,
+        dedupeKey: `order-paid:${orderId}`,
+      });
+    }
     if (becamePaid && notificationSettings.order_confirmation?.enabled !== false) {
       const order = after;
 
@@ -1159,6 +1313,7 @@ exports.onOrderUpdated = onDocumentUpdated(
         });
       } catch (err) {
         console.error("Payment confirmation email failed", err);
+        await recordEmailFailure({ label: "Payment confirmation email", orderId, orderNumber: order.orderId || orderId, recipient: order.customer.email }, err);
       }
     }
 
@@ -1200,6 +1355,7 @@ exports.onOrderUpdated = onDocumentUpdated(
         });
       } catch (err) {
         console.error("Shipping confirmation email failed", err);
+        await recordEmailFailure({ label: "Shipping confirmation email", orderId, orderNumber: after.orderId || orderId, recipient: after.customer.email }, err);
       }
     }
 
@@ -1230,6 +1386,7 @@ exports.onOrderUpdated = onDocumentUpdated(
         });
       } catch (err) {
         console.error("Delivery confirmation email failed", err);
+        await recordEmailFailure({ label: "Delivery confirmation email", orderId, orderNumber: after.orderId || orderId, recipient: after.customer.email }, err);
       }
     }
 
@@ -1273,7 +1430,21 @@ exports.onOrderUpdated = onDocumentUpdated(
         });
       } catch (err) {
         console.error("Order refunded email failed", err);
+        await recordEmailFailure({ label: "Refund confirmation email", orderId, orderNumber: after.orderId || orderId, recipient: after.customer.email }, err);
       }
+    }
+
+    const refundFailed = before.refundStatus !== "failed" && after.refundStatus === "failed";
+    if (refundFailed) {
+      await createAdminNotification({
+        type: "refund_failure",
+        severity: "critical",
+        title: "Refund failed",
+        message: `${after.orderId || orderId}: ${after.refundError || "The payment provider rejected the refund."}`,
+        orderId,
+        orderNumber: after.orderId || orderId,
+        dedupeKey: `refund-failed:${orderId}:${after.updatedAt || Date.now()}`,
+      });
     }
   }
 );
@@ -1941,6 +2112,17 @@ exports.shippoWebhook = onRequest(
         orderStatus = "completed";
       } else if (trackingStatus === "OUT_FOR_DELIVERY") {
         nextFulfillmentStatus = "out_for_delivery";
+      } else if (["FAILURE", "RETURNED", "UNKNOWN"].includes(trackingStatus)) {
+        await createAdminNotification({
+          type: "delivery_exception",
+          severity: "critical",
+          title: "Delivery exception",
+          message: `${order.orderId || orderId} · ${trackingStatus.replace(/_/g, " ")} · ${trackingNum}`,
+          orderId,
+          orderNumber: order.orderId || orderId,
+          metadata: { carrier: carrier || order.trackingCarrier || null, trackingNumber: trackingNum },
+          dedupeKey: `delivery-exception:${orderId}:${trackingStatus}`,
+        });
       }
 
       if (nextFulfillmentStatus && nextFulfillmentStatus !== prevFulfillmentStatus) {
@@ -1987,6 +2169,7 @@ exports.shippoWebhook = onRequest(
             console.log(`Delivery update email sent for order ${orderId} (${humanStatus})`);
           } catch (emailErr) {
             console.error("Failed to send delivery update email:", emailErr);
+            await recordEmailFailure({ label: "Shippo delivery update email", orderId, orderNumber: order.orderId || orderId, recipient: order.customer.email }, emailErr);
           }
         }
       }
@@ -1994,8 +2177,63 @@ exports.shippoWebhook = onRequest(
       res.status(200).json({ success: true });
     } catch (err) {
       console.error("shippoWebhook error:", err);
+      await createAdminNotification({
+        type: "delivery_exception",
+        severity: "critical",
+        title: "Delivery webhook exception",
+        message: `${trackingNum}: ${errorMessage(err)}`,
+        metadata: { provider: "shippo", trackingNumber: trackingNum },
+      });
       res.status(500).json({ error: err.message });
     }
   }
 );
 
+// Inventory alerts are generated server-side whenever tracked stock crosses
+// the configured low-stock threshold (default: 5) or reaches zero.
+exports.onBookInventoryUpdated = onDocumentUpdated("books/{bookId}", async event => {
+  const before = event.data?.before?.data() || {};
+  const after = event.data?.after?.data() || {};
+  if (!after.trackInventory) return;
+  const previous = Number(before.stockLevel || 0);
+  const current = Number(after.stockLevel || 0);
+  const threshold = Number(after.lowStockThreshold ?? 5);
+  if (current > threshold || (previous <= threshold && current === previous)) return;
+
+  await createAdminNotification({
+    type: current <= 0 ? "out_of_stock" : "low_stock",
+    severity: current <= 0 ? "critical" : "warning",
+    title: current <= 0 ? "Product out of stock" : "Product stock is low",
+    message: `${after.title || event.params.bookId} has ${current} unit${current === 1 ? "" : "s"} remaining.`,
+    resourceUrl: ADMIN_SITE_URL,
+    metadata: { bookId: event.params.bookId, stockLevel: current, threshold },
+    dedupeKey: `inventory:${event.params.bookId}:${current <= 0 ? "out" : "low"}:${after.updatedAt || current}`,
+  });
+});
+
+// Detect paid orders that have not entered fulfillment within the promised
+// window. The deterministic daily key prevents duplicate inbox entries.
+exports.fulfillmentOverdueSweep = onSchedule("every 24 hours", async () => {
+  const settingsDoc = await db.collection("settings").doc("website").get();
+  const overdueHours = Number(settingsDoc.data()?.notifications?.fulfillmentOverdueHours || 72);
+  const cutoff = new Date(Date.now() - overdueHours * 60 * 60 * 1000).toISOString();
+  const snapshot = await db.collection("orders")
+    .where("paymentStatus", "==", "paid")
+    .where("paidAt", "<=", cutoff)
+    .limit(200)
+    .get();
+  const day = new Date().toISOString().slice(0, 10);
+  await Promise.all(snapshot.docs.map(async orderDoc => {
+    const order = orderDoc.data();
+    if (["shipped", "delivered", "out_for_delivery"].includes(order.fulfillmentStatus)) return;
+    await createAdminNotification({
+      type: "fulfillment_overdue",
+      severity: "warning",
+      title: "Fulfillment overdue",
+      message: `${order.orderId || orderDoc.id} has been paid for more than ${overdueHours} hours and is not shipped.`,
+      orderId: orderDoc.id,
+      orderNumber: order.orderId || orderDoc.id,
+      dedupeKey: `fulfillment-overdue:${orderDoc.id}:${day}`,
+    });
+  }));
+});

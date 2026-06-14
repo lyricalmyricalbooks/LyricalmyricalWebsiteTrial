@@ -48,6 +48,7 @@ import { ShopSettings } from "./ShopSettings";
 import { ThemeEditor } from "./ThemeEditor";
 import ReviewsModeration from "./ReviewsModeration";
 import { adminApi } from "./api";
+import { AdminNotifications, NotificationBell, type AdminNotification } from "./AdminNotifications";
 
 export function Dashboard() {
   console.log("Dashboard rendering...");
@@ -67,6 +68,7 @@ export function Dashboard() {
   const [showLogs, setShowLogs] = useState(false);
   const [logs, setLogs] = useState<any[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
 
   const [adminTheme, setAdminTheme] = useState(() => {
     return localStorage.getItem("adminTheme") || "dark";
@@ -123,6 +125,11 @@ export function Dashboard() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    return adminApi.subscribeToAdminNotifications(setNotifications);
+  }, [user]);
 
   async function loadSettings() {
     console.log("Loading settings...");
@@ -196,6 +203,7 @@ export function Dashboard() {
   const navItems = [
     { id: "overview", label: "Overview", icon: LayoutDashboard, color: "text-cyan-400" },
     { id: "orders", label: "Orders", icon: ShoppingCart, color: "text-violet-400" },
+    { id: "notifications-inbox", label: "Notifications", icon: Bell, color: "text-rose-400" },
     { id: "catalog", label: "Books", icon: BookOpen, color: "text-emerald-400" },
     { id: "discounts", label: "Discounts", icon: Tag, color: "text-amber-400" },
     { id: "reviews", label: "Reviews", icon: BadgePercent, color: "text-pink-400" },
@@ -370,6 +378,10 @@ export function Dashboard() {
                 <Globe size={16} className="text-cyan-400 group-hover:text-cyan-300" />
                 <span className="font-black tracking-[0.2em] uppercase text-[10px]">View Site</span>
               </button>
+              <NotificationBell notifications={notifications} onOpen={() => {
+                setActiveTab("notifications-inbox");
+                setSelectedOrder(null);
+              }} />
               <button 
                 onClick={handleAddBook}
                 className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-all active:scale-95 group relative"
@@ -467,6 +479,11 @@ export function Dashboard() {
                             ) : (
                               <Orders onSelectOrder={(order) => setSelectedOrder(order)} />
                             );
+                          case "notifications-inbox":
+                            return <AdminNotifications notifications={notifications} onOpenOrder={(orderId) => {
+                              setSelectedOrder({ id: orderId });
+                              setActiveTab("orders");
+                            }} />;
                           case "pages":
                           case "shipping":
                           case "payments":

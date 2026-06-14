@@ -15,6 +15,7 @@ import {
   startAfter,
   writeBatch,
   deleteField,
+  onSnapshot,
 } from "firebase/firestore";
 import { 
   signInWithPopup, 
@@ -1214,6 +1215,34 @@ export const adminApi = {
     } catch (err) {
       await deleteDoc(doc(db, "pages", id));
     }
+  },
+
+  // Admin notifications are created exclusively by Cloud Functions. The client
+  // can only subscribe and update read state.
+  subscribeToAdminNotifications: (callback: (notifications: any[]) => void, limitCount = 100) => {
+    const q = query(collection(db, "admin-notifications"), orderBy("createdAt", "desc"), limit(limitCount));
+    return onSnapshot(q, (snap) => {
+      callback(snap.docs.map((item) => ({ id: item.id, ...item.data() })));
+    }, (err) => {
+      console.error("Admin notifications subscription failed:", err);
+      callback([]);
+    });
+  },
+
+  markNotificationRead: async (id: string, read = true) => {
+    await updateDoc(doc(db, "admin-notifications", id), {
+      read,
+      readAt: read ? new Date().toISOString() : null,
+    });
+  },
+
+  markAllNotificationsRead: async (ids: string[]) => {
+    const unreadIds = ids.slice(0, 450);
+    if (unreadIds.length === 0) return;
+    const batch = writeBatch(db);
+    const readAt = new Date().toISOString();
+    unreadIds.forEach((id) => batch.update(doc(db, "admin-notifications", id), { read: true, readAt }));
+    await batch.commit();
   },
 
   recordAuditLog: async (type: string, message: string) => {

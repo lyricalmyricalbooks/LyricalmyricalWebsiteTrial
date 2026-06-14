@@ -29,6 +29,13 @@ service cloud.firestore {
     match /private-integrations/{integrationId} {
       allow read, write: if false;
     }
+    match /admin-notifications/{notificationId} {
+      allow read: if isAdmin();
+      allow create, delete: if false;
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['read', 'readAt']);
+    }
     match /pages/{pageId} {
       allow read: if true;
       allow write: if isAdmin();

@@ -1,6 +1,20 @@
 {
   "indexes": [
     {
+      "collectionGroup": "admin-notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "read",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "reviews",
       "queryScope": "COLLECTION",
       "fields": [
@@ -57,6 +71,20 @@
         {
           "fieldPath": "createdAt",
           "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "paymentStatus",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "paidAt",
+          "order": "ASCENDING"
         }
       ]
     }
