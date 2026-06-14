@@ -2190,7 +2190,75 @@ function ProductsPanel({ design, update }: any) {
               checked={design.showSocialShare ?? true}
               onChange={(v: boolean) => update("showSocialShare", v)}
             />
+            <SidebarToggle
+              label="Ambient Glow"
+              description="Enable subtle backdrop glow effect"
+              checked={design.showAmbientGlow ?? true}
+              onChange={(v: boolean) => update("showAmbientGlow", v)}
+            />
+            <SidebarToggle
+              label="Specifications"
+              description="Show format, language, dimensions specs"
+              checked={design.showSpecs ?? true}
+              onChange={(v: boolean) => update("showSpecs", v)}
+            />
+            <SidebarToggle
+              label="FBT Bundle"
+              description="Show Frequently Bought Together section"
+              checked={design.showBundleWidget ?? true}
+              onChange={(v: boolean) => update("showBundleWidget", v)}
+            />
+            <SidebarToggle
+              label="Trust Signals"
+              description="Show standard shipping & return guarantees"
+              checked={design.showTrustSignals ?? true}
+              onChange={(v: boolean) => update("showTrustSignals", v)}
+            />
           </div>
+
+          {design.showAmbientGlow !== false && (
+            <SidebarRange
+              label="Glow Intensity"
+              value={design.glowIntensity ?? 18}
+              min={0}
+              max={50}
+              suffix="%"
+              onChange={(v: number) => update("glowIntensity", v)}
+            />
+          )}
+
+          <div>
+            <SidebarLabel>Add to Bag Text</SidebarLabel>
+            <SidebarInput
+              value={design.addToBagLabel ?? "Add to Bag"}
+              onChange={(v: string) => update("addToBagLabel", v)}
+              placeholder="Add to Bag"
+            />
+          </div>
+
+          {design.showTrustSignals !== false && (
+            <div className="space-y-4 pt-4 border-t border-white/5">
+              <SidebarLabel>Custom Trust Signals</SidebarLabel>
+              <SidebarInput
+                label="Signal 1"
+                value={design.productTrust1 ?? "Tracked Shipping"}
+                onChange={(v: string) => update("productTrust1", v)}
+                placeholder="Tracked Shipping"
+              />
+              <SidebarInput
+                label="Signal 2"
+                value={design.productTrust2 ?? "14-Day Returns"}
+                onChange={(v: string) => update("productTrust2", v)}
+                placeholder="14-Day Returns"
+              />
+              <SidebarInput
+                label="Signal 3"
+                value={design.productTrust3 ?? "Ships in 1-2 Days"}
+                onChange={(v: string) => update("productTrust3", v)}
+                placeholder="Ships in 1-2 Days"
+              />
+            </div>
+          )}
         </div>
       </Accordion>
 

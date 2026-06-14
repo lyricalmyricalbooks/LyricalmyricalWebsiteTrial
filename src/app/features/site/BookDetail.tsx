@@ -19,6 +19,7 @@ import { funnelApi } from "../../lib/commerce";
 import ReviewsSection from "./ReviewsSection";
 import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
+import { resolveLogoDesign } from "./selectors";
 
 // ── small helper ────────────────────────────────────────────────────────────
 function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
@@ -66,6 +67,13 @@ export default function BookDetail() {
   const productContentPosition = storefrontDesign.productContentPosition || "right";
   const showRelatedProducts    = storefrontDesign.showRelatedProducts    ?? true;
   const showSocialShare        = storefrontDesign.showSocialShare        ?? true;
+
+  // Autonomy controls for book detail page
+  const showAmbientGlow        = settings?.design?.showAmbientGlow        ?? true;
+  const glowOpacity            = (settings?.design?.glowIntensity ?? 18) / 100;
+  const showSpecs              = settings?.design?.showSpecs              ?? true;
+  const showBundleWidget       = settings?.design?.showBundleWidget       ?? true;
+  const showTrustSignals       = settings?.design?.showTrustSignals       ?? true;
 
   const buttonBg = storefrontDesign?.buttonColor || settings?.design?.buttonColor || settings?.design?.primaryColor || "#A855F7";
   const buttonText = storefrontDesign?.buttonTextColor || settings?.design?.buttonTextColor || "#000000";
@@ -227,6 +235,7 @@ export default function BookDetail() {
   const salePrice     = selectedVariant ? 0 : ((book as any)?.salePrice   ?? 0);
   const isOnSale      = selectedVariant ? false : ((book as any)?.isOnSale && salePrice > 0);
   const activeUrl     = (selectedVariant && selectedVariant.photoUrl) ? selectedVariant.photoUrl : (photos[activePhoto]?.url || DEFAULT_IMAGE);
+  const logoDesign    = resolveLogoDesign(settings?.design?.storefront, [settings?.design?.heroPage, settings?.design]);
 
   // ── loading ────────────────────────────────────────────────────────────────
   if (loading) {
@@ -289,12 +298,15 @@ export default function BookDetail() {
       <style>{css}</style>
 
       {/* ── ambient glow that follows the book cover ── */}
-      <div
-        className="fixed inset-0 pointer-events-none z-0 transition-all duration-1000"
-        style={{
-          background: `radial-gradient(ellipse 70% 55% at 65% 35%, ${primaryColor}18 0%, transparent 70%)`
-        }}
-      />
+      {showAmbientGlow !== false && (
+        <div
+          className="fixed inset-0 pointer-events-none z-0 transition-all duration-1000"
+          style={{
+            background: `radial-gradient(ellipse 70% 55% at 65% 35%, ${primaryColor} 0%, transparent 70%)`,
+            opacity: glowOpacity,
+          }}
+        />
+      )}
 
       {/* ── sticky header ── */}
       <header
@@ -319,7 +331,7 @@ export default function BookDetail() {
             style={{ color: headerTextColor }}
             className="text-[11px] font-black tracking-[0.3em] opacity-80 hover:opacity-100 transition-opacity"
           >
-            <LogoMark design={settings?.design} />
+            <LogoMark design={logoDesign} />
           </Link>
 
           <button
@@ -588,7 +600,7 @@ export default function BookDetail() {
               )}
 
               {/* Specs grid */}
-              {((book as any).format || (book as any).language || (book as any).dimensions || (book as any).isbn || (book as any).weight) && (
+              {showSpecs !== false && ((book as any).format || (book as any).language || (book as any).dimensions || (book as any).isbn || (book as any).weight) && (
                 <div className="grid grid-cols-2 gap-3">
                   {(book as any).format && (
                     <SpecItem icon={<BookOpen size={11} />} label="Format" value={(book as any).format} />
@@ -671,7 +683,7 @@ export default function BookDetail() {
                   ) : added ? (
                     <><Check size={14} strokeWidth={3} /> Added to Bag</>
                   ) : (
-                    <><ShoppingBag size={14} /> Add to Bag</>
+                    <><ShoppingBag size={14} /> {settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel") || "Add to Bag"}</>
                   )}
                 </motion.button>
 
@@ -700,20 +712,22 @@ export default function BookDetail() {
               </div>
 
               {/* Trust signals */}
-              <div className="grid grid-cols-3 gap-3 pt-4">
-                <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
-                  <Truck size={12} className="text-white/30" /> {getCopy(settings?.design, "productTrust1")}
+              {showTrustSignals !== false && (
+                <div className="grid grid-cols-3 gap-3 pt-4">
+                  <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
+                    <Truck size={12} className="text-white/30" /> {settings?.design?.productTrust1 || getCopy(settings?.design, "productTrust1") || "Tracked Shipping"}
+                  </div>
+                  <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
+                    <ShieldCheck size={12} className="text-white/30" /> {settings?.design?.productTrust2 || getCopy(settings?.design, "productTrust2") || "14-Day Returns"}
+                  </div>
+                  <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
+                    <Package size={12} className="text-white/30" /> {settings?.design?.productTrust3 || getCopy(settings?.design, "productTrust3") || "Ships in 1-2 Days"}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
-                  <ShieldCheck size={12} className="text-white/30" /> {getCopy(settings?.design, "productTrust2")}
-                </div>
-                <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
-                  <Package size={12} className="text-white/30" /> {getCopy(settings?.design, "productTrust3")}
-                </div>
-              </div>
+              )}
 
               {/* Frequently Bought Together Widget */}
-              {bundleBook && (
+              {showBundleWidget !== false && bundleBook && (
                 <div className="mt-8 pt-8 border-t border-white/5 space-y-6">
                   <h4 className="text-[10px] font-black tracking-[0.3em] uppercase text-white/40">Frequently Bought Together</h4>
                   <div className="flex flex-col sm:flex-row items-center gap-6 bg-white/[0.02] border border-white/5 rounded-3xl p-6 relative overflow-hidden group/bundle hover:border-violet-500/20 transition-all">
