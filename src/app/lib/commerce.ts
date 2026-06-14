@@ -89,7 +89,7 @@ export const orderApi = {
       "TrackingNumber",
       "ItemCount",
     ];
-    const rows = orders.map(o => [
+    const rows = orders.filter(o => o.isTest !== true).map(o => [
       o.orderId || o.id,
       o.createdAt || "",
       (o.customer?.name || "").replace(/[",\n]/g, " "),

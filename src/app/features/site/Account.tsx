@@ -159,7 +159,9 @@ export default function AccountPage() {
           limit(50),
         );
         const snap = await getDocs(q);
-        const loadedOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const loadedOrders = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter((order: any) => order.isTest !== true);
         setOrders(loadedOrders);
         checkDigitalAssets(loadedOrders);
       } catch {
@@ -170,6 +172,7 @@ export default function AccountPage() {
         const snap = await getDocs(fallbackQuery);
         const loadedOrders = snap.docs
           .map(d => ({ id: d.id, ...(d.data() as any) }))
+          .filter((order: any) => order.isTest !== true)
           .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
           .slice(0, 50);
         setOrders(loadedOrders);
