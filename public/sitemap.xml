@@ -17,6 +17,12 @@
     <priority>0.3</priority>
   </url>
   <url>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/sss</loc>
+    <lastmod>2026-06-14</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/test</loc>
     <lastmod>2026-06-11</lastmod>
     <changefreq>weekly</changefreq>

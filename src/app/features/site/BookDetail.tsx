@@ -42,6 +42,10 @@ export default function BookDetail() {
   const { addToCart, setIsCartOpen, cartCount } = useCart();
   const { formatPrice, formatBookPrice, getBookPrice } = useCurrency();
 
+  const primaryColor  = settings?.design?.primaryColor || "#A855F7";
+  const font          = settings?.design?.font || "Inter";
+  const logoDesign    = resolveLogoDesign(settings?.design?.storefront, [settings?.design?.heroPage, settings?.design]);
+
   const [activePhoto, setActivePhoto] = useState(0);
   const [added, setAdded]             = useState(false);
   const [addingBoth, setAddingBoth]   = useState(false);
@@ -252,8 +256,6 @@ export default function BookDetail() {
     }
   };
 
-  const primaryColor  = settings?.design?.primaryColor || "#A855F7";
-  const font          = settings?.design?.font || "Inter";
   const photos        = (book as any)?.photos || [{ url: DEFAULT_IMAGE }];
   const stockLevel    = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any)?.stockLevel ?? 999);
   const isOutOfStock  = stockLevel === 0;
@@ -261,7 +263,6 @@ export default function BookDetail() {
   const salePrice     = selectedVariant ? 0 : ((book as any)?.salePrice   ?? 0);
   const isOnSale      = selectedVariant ? false : ((book as any)?.isOnSale && salePrice > 0);
   const activeUrl     = (selectedVariant && selectedVariant.photoUrl) ? selectedVariant.photoUrl : (photos[activePhoto]?.url || DEFAULT_IMAGE);
-  const logoDesign    = resolveLogoDesign(settings?.design?.storefront, [settings?.design?.heroPage, settings?.design]);
 
   // ── loading ────────────────────────────────────────────────────────────────
   if (loading) {
