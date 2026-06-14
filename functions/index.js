@@ -52,6 +52,156 @@ function applyCors(req, res) {
   return false;
 }
 
+function recoveryTokenHash(token) {
+  return crypto.createHash("sha256").update(String(token)).digest("hex");
+}
+
+function validRecoveryToken(storedHash, token) {
+  const supplied = recoveryTokenHash(token);
+  return typeof storedHash === "string" &&
+    storedHash.length === supplied.length &&
+    crypto.timingSafeEqual(Buffer.from(storedHash), Buffer.from(supplied));
+}
+
+function clampQuantity(value) {
+  return Math.max(1, Math.min(99, Math.floor(Number(value) || 1)));
+}
+
+async function loadCurrentCartItems(savedItems = []) {
+  const items = [];
+  const changes = [];
+  for (const saved of savedItems.slice(0, 50)) {
+    const bookDoc = await db.collection("books").doc(String(saved.id)).get();
+    if (!bookDoc.exists) {
+      changes.push({ type: "removed", title: saved.title || "A product" });
+      continue;
+    }
+    const book = bookDoc.data();
+    const variant = saved.variantId
+      ? (book.variants || []).find(v => v.id === saved.variantId)
+      : null;
+    if (saved.variantId && !variant) {
+      changes.push({ type: "removed", title: saved.title || book.title, reason: "variant_unavailable" });
+      continue;
+    }
+    const stock = variant ? Number(variant.stock) : Number(book.stockLevel);
+    const tracksInventory = book.trackInventory === true;
+    if (tracksInventory && stock <= 0) {
+      changes.push({ type: "out_of_stock", title: book.title, variantName: variant?.name || null });
+      continue;
+    }
+    const requested = clampQuantity(saved.qty || saved.quantity);
+    const quantity = tracksInventory ? Math.min(requested, stock) : requested;
+    if (quantity < requested) {
+      changes.push({ type: "quantity_reduced", title: book.title, from: requested, to: quantity });
+    }
+    const price = variant
+      ? Number(variant.price)
+      : Number(book.isOnSale && book.salePrice ? book.salePrice : book.retailPrice);
+    if (Number(saved.price) !== price) {
+      changes.push({ type: "repriced", title: book.title, from: Number(saved.price), to: price });
+    }
+    items.push({
+      id: bookDoc.id,
+      variantId: variant?.id || null,
+      variantName: variant?.name || null,
+      title: book.title,
+      price,
+      quantity,
+      photoUrl: book.photos?.[0]?.url || "",
+      stripePriceId: variant?.stripePriceId || book.stripePriceId || "",
+      stockLimit: tracksInventory ? stock : null,
+      shippingProfileId: book.shippingProfileId || "",
+    });
+  }
+  return { items, changes };
+}
+
+exports.upsertAbandonedCart = onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+  const { cartKey, email, items, subtotal, customer } = req.body || {};
+  if (!cartKey || typeof email !== "string" || !email.includes("@") || !Array.isArray(items) || !items.length) {
+    return res.status(400).json({ error: "Invalid cart" });
+  }
+  const recoveryToken = crypto.randomBytes(32).toString("base64url");
+  const now = new Date().toISOString();
+  await db.collection("abandoned-carts").doc(String(cartKey).slice(0, 300)).set({
+    cartKey: String(cartKey).slice(0, 300),
+    email: email.slice(0, 254),
+    items: items.slice(0, 50).map(item => ({
+      id: String(item.id || ""),
+      variantId: item.variantId ? String(item.variantId) : null,
+      title: String(item.title || "").slice(0, 300),
+      qty: clampQuantity(item.qty || item.quantity),
+      price: Number(item.price) || 0,
+    })),
+    subtotal: Number(subtotal) || 0,
+    customer: customer ? { name: String(customer.name || "").slice(0, 200) } : null,
+    recoveryTokenHash: recoveryTokenHash(recoveryToken),
+    recoveryExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    recoveryStatus: "abandoned",
+    recovered: false,
+    notified: false,
+    updatedAt: now,
+    createdAt: now,
+  }, { merge: true });
+  return res.status(200).json({ cartId: cartKey, recoveryToken });
+});
+
+exports.recoverAbandonedCart = onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+  const token = req.body?.recoveryToken;
+  if (typeof token !== "string" || token.length < 32) return res.status(400).json({ error: "Invalid recovery token." });
+  const tokenHash = recoveryTokenHash(token);
+  const snap = await db.collection("abandoned-carts").where("recoveryTokenHash", "==", tokenHash).limit(1).get();
+  if (snap.empty) return res.status(404).json({ error: "This recovery link is invalid." });
+  const cartDoc = snap.docs[0];
+  const cart = cartDoc.data();
+  if (!validRecoveryToken(cart.recoveryTokenHash, token)) return res.status(403).json({ error: "This recovery link is invalid." });
+  if (!cart.recoveryExpiresAt || Date.parse(cart.recoveryExpiresAt) <= Date.now()) {
+    return res.status(410).json({ error: "This recovery link has expired." });
+  }
+  if (cart.recoveryStatus === "paid" || cart.recovered === true) {
+    return res.status(409).json({ error: "This cart has already been recovered and paid." });
+  }
+  const current = await loadCurrentCartItems(cart.items);
+  return res.status(200).json({
+    cartId: cartDoc.id,
+    items: current.items,
+    changes: current.changes,
+    customer: { email: cart.email, name: cart.customer?.name || "" },
+  });
+});
+
+exports.convertAbandonedCart = onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+  const { recoveryToken, orderId, paymentMethod } = req.body || {};
+  if (!recoveryToken || !orderId) return res.status(400).json({ error: "Missing conversion details" });
+  const snap = await db.collection("abandoned-carts")
+    .where("recoveryTokenHash", "==", recoveryTokenHash(recoveryToken)).limit(1).get();
+  if (snap.empty) return res.status(404).json({ error: "Cart not found" });
+  const cartDoc = snap.docs[0];
+  const cart = cartDoc.data();
+  if (!validRecoveryToken(cart.recoveryTokenHash, recoveryToken)) return res.status(403).json({ error: "Invalid token" });
+  const orderDoc = await db.collection("orders").doc(String(orderId)).get();
+  if (!orderDoc.exists || orderDoc.data().customer?.email?.toLowerCase() !== cart.email.toLowerCase()) {
+    return res.status(403).json({ error: "Order does not match cart" });
+  }
+  await Promise.all([
+    cartDoc.ref.update({
+      recoveryStatus: "converted_to_pending_order",
+      pendingOrderId: orderId,
+      pendingPaymentMethod: String(paymentMethod || ""),
+      convertedAt: new Date().toISOString(),
+    }),
+    orderDoc.ref.update({ abandonedCartId: cartDoc.id }),
+  ]);
+  return res.status(200).json({ converted: true });
+});
+
 // Verifies the Firebase ID token in the Authorization header and that it
 // belongs to an admin. Sends the error response itself; returns null on failure.
 async function requireAdmin(req, res) {
@@ -700,6 +850,21 @@ exports.stripeWebhook = onRequest(
             paidTotal = Number(order.total) || 0;
           });
 
+          const paidOrder = await orderRef.get();
+          const abandonedCartId = paidOrder.data()?.abandonedCartId;
+          if (paidTotal !== null && abandonedCartId) {
+            const cartRef = db.collection("abandoned-carts").doc(abandonedCartId);
+            const cartDoc = await cartRef.get();
+            if (cartDoc.exists && cartDoc.data().pendingOrderId === orderId) {
+              await cartRef.update({
+                recovered: true,
+                recoveryStatus: "paid",
+                recoveredAt: new Date().toISOString(),
+                recoveredBy: "stripe_webhook",
+              });
+            }
+          }
+
           // Revenue/order analytics are recorded here — at payment time —
           // never client-side at order creation.
           if (paidTotal !== null) {
@@ -1317,7 +1482,12 @@ exports.abandonedCartSweep = onSchedule(
         </div>
       `;
 
-      const cartUrl = `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/checkout?cartId=${doc.id}`;
+      const recoveryToken = crypto.randomBytes(32).toString("base64url");
+      await doc.ref.update({
+        recoveryTokenHash: recoveryTokenHash(recoveryToken),
+        recoveryExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+      const cartUrl = `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/checkout?recovery_token=${encodeURIComponent(recoveryToken)}`;
       const compiled = compileEmailTemplate("abandoned_cart", notificationSettings, {
         customer_name: c.customer?.name || c.name || "there",
         cart_url: cartUrl,
@@ -1998,4 +2168,3 @@ exports.shippoWebhook = onRequest(
     }
   }
 );
-

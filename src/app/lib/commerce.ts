@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { adminApi } from "../admin/api";
+import { functionUrl } from "./functionsBase";
 
 export type FulfillmentStatus =
   | "pending_payment"
@@ -134,27 +135,36 @@ export const abandonedCartApi = {
     },
   ) => {
     if (!payload.email) return;
-    const ref = doc(db, "abandoned-carts", cartKey);
-    await setDoc(
-      ref,
-      {
-        ...payload,
-        cartKey,
-        recovered: false,
-        updatedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      },
-      { merge: true },
-    );
+    const response = await fetch(functionUrl("upsertAbandonedCart"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cartKey, ...payload }),
+    });
+    if (!response.ok) throw new Error("Unable to save abandoned cart");
+    const result = await response.json();
+    sessionStorage.setItem(`recovery_token:${cartKey}`, result.recoveryToken);
+    return result as { cartId: string; recoveryToken: string };
   },
 
-  markRecovered: async (cartKey: string) => {
-    try {
-      await updateDoc(doc(db, "abandoned-carts", cartKey), {
-        recovered: true,
-        recoveredAt: new Date().toISOString(),
-      });
-    } catch {}
+  markConvertedToPendingOrder: async (cartKey: string, orderId: string, paymentMethod: string) => {
+    const recoveryToken = sessionStorage.getItem(`recovery_token:${cartKey}`);
+    if (!recoveryToken) return;
+    await fetch(functionUrl("convertAbandonedCart"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recoveryToken, orderId, paymentMethod }),
+    });
+  },
+
+  recover: async (recoveryToken: string) => {
+    const response = await fetch(functionUrl("recoverAbandonedCart"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recoveryToken }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "This recovery link is invalid.");
+    return result;
   },
 
   list: async () => {

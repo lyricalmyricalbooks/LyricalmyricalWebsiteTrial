@@ -84,7 +84,7 @@ function StepBadge({ n, label }: { n: string; label: string }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function Checkout() {
-  const { cart, cartTotal, clearCart } = useCart();
+  const { cart, cartTotal, clearCart, replaceCart } = useCart();
   const { currency, formatPrice } = useCurrency();
 
   const [isApplying, setIsApplying]     = useState(false);
@@ -110,8 +110,42 @@ export function Checkout() {
   const [settings, setSettings] = useState<any>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
   const [successOrder, setSuccessOrder] = useState<any>(null);
+  const [recoveryNotice, setRecoveryNotice] = useState("");
+  const [recoveryCartId, setRecoveryCartId] = useState("");
 
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("recovery_token");
+    if (!token) return;
+    let cancelled = false;
+    abandonedCartApi.recover(token).then(result => {
+      if (cancelled) return;
+      replaceCart(result.items);
+      setRecoveryCartId(result.cartId);
+      sessionStorage.setItem(`recovery_token:${result.cartId}`, token);
+      if (result.customer?.email) {
+        setCustomer(previous => ({
+          ...previous,
+          name: result.customer.name || previous.name,
+          email: result.customer.email,
+        }));
+      }
+      const labels = result.changes.map((change: any) => {
+        if (change.type === "repriced") return `${change.title} was repriced.`;
+        if (change.type === "out_of_stock") return `${change.title} is out of stock and was removed.`;
+        if (change.type === "quantity_reduced") return `${change.title} was reduced to ${change.to} available.`;
+        return `${change.title} is no longer available and was removed.`;
+      });
+      setRecoveryNotice(labels.length
+        ? `We restored your cart with current availability. ${labels.join(" ")}`
+        : "Your cart was restored with current prices and availability.");
+      window.history.replaceState({}, "", `${window.location.pathname}?recovered=true`);
+    }).catch(error => {
+      if (!cancelled) setRecoveryNotice(error.message);
+    });
+    return () => { cancelled = true; };
+  }, [replaceCart]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -537,7 +571,10 @@ export function Checkout() {
     const t = setTimeout(() => {
       abandonedCartApi.upsert(`active_${customer.email.toLowerCase()}`, {
         email: customer.email,
-        items: cart.map(i => ({ id: i.id, title: i.title, qty: i.quantity, price: i.price })),
+        items: cart.map(i => ({
+          id: i.id, variantId: i.variantId || null, title: i.title,
+          qty: i.quantity, price: i.price
+        })),
         subtotal: cartTotal,
         customer,
       });
@@ -625,6 +662,12 @@ export function Checkout() {
       localStorage.setItem("last_customer_email", customer.email);
       
       const orderId = await adminApi.createOrder(orderData);
+      const cartKey = recoveryCartId || `active_${customer.email.toLowerCase()}`;
+      await abandonedCartApi.markConvertedToPendingOrder(
+        cartKey,
+        orderId,
+        isManual ? "manual" : selectedPaymentMethod,
+      );
 
       if (isManual) {
         window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${orderId}&manual=true`;
@@ -679,9 +722,7 @@ export function Checkout() {
           const order: any = await adminApi.getOrderById(oid);
           if (order) {
             setSuccessOrder(order);
-            if (params.get("paypal")) {
-              setPaymentConfirmed(true);
-            } else if (order.paymentStatus === "paid") {
+            if (order.paymentStatus === "paid") {
               setPaymentConfirmed(true);
             } else if (order.paymentStatus === "pending") {
               setPaymentConfirmed(false);
@@ -700,10 +741,6 @@ export function Checkout() {
                 if (cancelled) return;
                 setPaymentConfirmed(true);
                 funnelApi.track("purchase");
-                const email = customer.email || localStorage.getItem("last_customer_email") || "";
-                if (email) {
-                  abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
-                }
                 return;
               }
             } catch {
@@ -711,13 +748,11 @@ export function Checkout() {
             }
             await new Promise(r => setTimeout(r, 2500));
           }
-        } else {
-          // Manual/PayPal tracking
-          funnelApi.track("purchase");
-          const email = customer.email || localStorage.getItem("last_customer_email") || "";
-          if (email) {
-            abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
-          }
+        } else if (params.get("paypal")) {
+          // PayPal purchases are counted only after a backend integration has
+          // persisted a verified paid status on the order.
+          const order: any = await adminApi.getOrderById(oid);
+          if (order?.paymentStatus === "paid") funnelApi.track("purchase");
         }
       })();
 
@@ -779,12 +814,23 @@ export function Checkout() {
     );
   }
 
+  const recoveryBanner = recoveryNotice ? (
+    <div className="mx-auto mb-6 max-w-6xl rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="status">
+      <strong>Cart recovery:</strong> {recoveryNotice}
+    </div>
+  ) : null;
+
   // ── Empty cart ──────────────────────────────────────────────────────────────
   if (cart.length === 0) {
     return (
       <div className="h-screen bg-[#050506] text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.08)_0%,transparent_70%)] pointer-events-none" />
         <div className="relative z-10 flex flex-col items-center">
+          {recoveryNotice && (
+            <div className="mb-8 max-w-lg rounded-xl border border-amber-400/30 bg-amber-400/10 px-5 py-4 text-sm text-amber-100" role="status">
+              <strong>Cart recovery:</strong> {recoveryNotice}
+            </div>
+          )}
           <div className="w-20 h-20 rounded-[1.5rem] bg-white/5 border border-white/10 flex items-center justify-center mb-8">
             <Package size={36} className="text-white/20" strokeWidth={1} />
           </div>
@@ -832,6 +878,8 @@ export function Checkout() {
           </div>
         </div>
       </header>
+
+      {recoveryBanner}
 
       <div className="mx-auto grid min-h-[calc(100vh-77px)] max-w-6xl grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
         <main className="px-5 py-8 sm:px-8 sm:py-12 lg:border-r lg:border-slate-200 lg:pr-14">
