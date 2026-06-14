@@ -34,10 +34,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     match /orders/{orderId} {
-      // Single-document fetch with a known order ID acts as token-like access
-      // for guest order tracking. Listing/querying is restricted: admins see
-      // everything, signed-in customers only their own orders.
-      allow get: if true;
+      // Guest tracking is served by lookupGuestOrder, which returns a
+      // deliberately restricted DTO. Browser SDK reads require an owner.
+      allow get: if isAdmin()
+        || (request.auth != null
+        && resource.data.customer.email == request.auth.token.email);
       allow list: if isAdmin()
         || (request.auth != null && resource.data.customer.email == request.auth.token.email);
       // Orders are always created unpaid; only the Stripe webhook (Admin SDK)

@@ -4,9 +4,10 @@
  *   1. createStripeCheckoutSession (HTTP) -> Secure session creation
  *   2. stripeWebhook (HTTP)               -> Secure payment webhook
  *   3. downloadDigitalAsset (HTTP)        -> Secure digital ebook downloads
- *   4. onOrderPaid (Firestore update)     -> Email customer + admin on payment success
- *   5. onOrderShipped (Firestore update)  -> Email customer with tracking
- *   6. abandonedCartSweep (scheduled)     -> Send recovery email after 1h
+ *   4. lookupGuestOrder (HTTP)             -> Restricted guest tracking lookup
+ *   5. onOrderPaid (Firestore update)      -> Email customer + admin on payment success
+ *   6. onOrderShipped (Firestore update)   -> Email customer with tracking
+ *   7. abandonedCartSweep (scheduled)      -> Send recovery email after 1h
  */
 
 const { onDocumentUpdated, onDocumentCreated } = require("firebase-functions/v2/firestore");
@@ -98,6 +99,10 @@ async function getShippoToken() {
 
 const FROM = "Lyricalmyrical Books <orders@lyricalmyricalbooks.com>";
 const ADMIN_TO = "lyricalmyricalbooks@gmail.com";
+const ORDER_TRACKING_URL = "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track";
+const GUEST_LOOKUP_ERROR = "Unable to verify those order details.";
+const LOOKUP_WINDOW_MS = 15 * 60 * 1000;
+const LOOKUP_LIMIT = 10;
 
 function moneyFmt(n) {
   return `$${Number(n || 0).toFixed(2)}`;
@@ -121,6 +126,71 @@ function orderRowsHtml(items = []) {
 async function sendEmail({ to, subject, html, secret }) {
   const resend = new Resend(secret);
   return resend.emails.send({ from: FROM, to, subject, html });
+}
+
+function safeString(value, maxLength = 500) {
+  return typeof value === "string" ? value.slice(0, maxLength) : "";
+}
+
+function orderStatusUrl(orderId, token) {
+  const params = new URLSearchParams({ orderId });
+  if (token) params.set("token", token);
+  return `${ORDER_TRACKING_URL}?${params.toString()}`;
+}
+
+function guestTrackingDto(order, documentId) {
+  return {
+    orderId: safeString(order.orderId || documentId, 100),
+    items: (Array.isArray(order.items) ? order.items : []).slice(0, 50).map(item => ({
+      id: safeString(item.id, 200),
+      title: safeString(item.title, 300),
+      variantName: safeString(item.variantName, 200),
+      quantity: Math.max(0, Number(item.quantity) || 0),
+      price: Number(item.price) || 0,
+      photoUrl: safeString(item.photoUrl, 2000),
+    })),
+    status: safeString(order.status, 100),
+    fulfillmentStatus: safeString(order.fulfillmentStatus, 100),
+    paymentStatus: safeString(order.paymentStatus, 100),
+    subtotal: Number(order.subtotal) || 0,
+    discount: Number(order.discount) || 0,
+    shipping: Number(order.shipping) || 0,
+    tax: Number(order.tax) || 0,
+    total: Number(order.total) || 0,
+    checkoutCurrency: safeString(order.checkoutCurrency, 10),
+    exchangeRate: Number(order.exchangeRate) || 0,
+    carrier: safeString(order.trackingCarrier || order.carrier, 200),
+    trackingUrl: order.trackingNumber
+      ? getTrackingUrl(order.trackingCarrier || order.carrier || "", order.trackingNumber)
+      : safeString(order.trackingUrl, 2000),
+    createdAt: safeString(order.createdAt, 100),
+    paidAt: safeString(order.paidAt, 100),
+    shippedAt: safeString(order.shippedAt, 100),
+    deliveredAt: safeString(order.deliveredAt, 100),
+    updatedAt: safeString(order.updatedAt, 100),
+  };
+}
+
+async function consumeGuestLookupAttempt(req) {
+  const forwarded = safeString(req.headers["x-forwarded-for"], 500).split(",")[0].trim();
+  const source = forwarded || req.ip || req.socket?.remoteAddress || "unknown";
+  const key = crypto.createHash("sha256").update(source).digest("hex");
+  const ref = db.collection("rate-limits").doc(`guest-order-${key}`);
+  const now = Date.now();
+
+  return db.runTransaction(async transaction => {
+    const snapshot = await transaction.get(ref);
+    const data = snapshot.exists ? snapshot.data() : {};
+    const windowStartedAt = Number(data.windowStartedAt) || 0;
+    const inCurrentWindow = now - windowStartedAt < LOOKUP_WINDOW_MS;
+    const count = inCurrentWindow ? (Number(data.count) || 0) + 1 : 1;
+    transaction.set(ref, {
+      count,
+      windowStartedAt: inCurrentWindow ? windowStartedAt : now,
+      expiresAt: admin.firestore.Timestamp.fromMillis(now + LOOKUP_WINDOW_MS * 2),
+    });
+    return count <= LOOKUP_LIMIT;
+  });
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -647,12 +717,15 @@ exports.stripeWebhook = onRequest(
 
             // Single-use token securing digital download links in emails.
             const downloadToken = crypto.randomBytes(32).toString("hex");
+            // Independent token for the restricted order-status endpoint.
+            const orderStatusToken = crypto.randomBytes(32).toString("hex");
 
             transaction.update(orderRef, {
               paymentStatus: "paid",
               fulfillmentStatus: "paid",
               status: "open",
               downloadToken,
+              orderStatusToken,
               paidAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
               activity: [
@@ -1062,6 +1135,59 @@ exports.onOrderCreated = onDocumentCreated(
 );
 
 // ──────────────────────────────────────────────────────────────
+// 4. Restricted guest order lookup
+// ──────────────────────────────────────────────────────────────
+exports.lookupGuestOrder = onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") {
+    res.status(405).json({ error: GUEST_LOOKUP_ERROR });
+    return;
+  }
+
+  const startedAt = Date.now();
+  const failUniformly = async () => {
+    const remaining = 350 - (Date.now() - startedAt);
+    if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
+    res.status(404).json({ error: GUEST_LOOKUP_ERROR });
+  };
+
+  try {
+    if (!(await consumeGuestLookupAttempt(req))) {
+      await failUniformly();
+      return;
+    }
+
+    const orderId = safeString(req.body?.orderId, 200).trim();
+    const email = safeString(req.body?.email, 320).trim().toLowerCase();
+    const token = safeString(req.body?.token, 200).trim();
+    if (!orderId || (!email && !token)) {
+      await failUniformly();
+      return;
+    }
+
+    const snapshot = await db.collection("orders").doc(orderId).get();
+    const order = snapshot.exists ? snapshot.data() : null;
+    const emailMatches = order && email &&
+      safeString(order.customer?.email, 320).trim().toLowerCase() === email;
+    const expectedToken = order ? safeString(order.orderStatusToken, 200) : "";
+    const tokenMatches = token && expectedToken &&
+      token.length === expectedToken.length &&
+      crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken));
+
+    if (!order || (!emailMatches && !tokenMatches)) {
+      await failUniformly();
+      return;
+    }
+
+    res.set("Cache-Control", "no-store");
+    res.status(200).json({ order: guestTrackingDto(order, snapshot.id) });
+  } catch (err) {
+    console.error("Guest order lookup failed:", err);
+    await failUniformly();
+  }
+});
+
+// ──────────────────────────────────────────────────────────────
 // 5b. Order Paid: Trigger notifications only AFTER successful payment
 // ──────────────────────────────────────────────────────────────
 exports.onOrderUpdated = onDocumentUpdated(
@@ -1079,6 +1205,10 @@ exports.onOrderUpdated = onDocumentUpdated(
     const becamePaid = before.paymentStatus !== "paid" && after.paymentStatus === "paid";
     if (becamePaid && notificationSettings.order_confirmation?.enabled !== false) {
       const order = after;
+      const orderStatusToken = order.orderStatusToken || crypto.randomBytes(32).toString("hex");
+      if (!order.orderStatusToken) {
+        await event.data.after.ref.update({ orderStatusToken });
+      }
 
       // Compile digital items download section if any digital formats exist
       const digitalItems = (order.items || []).filter(item => {
@@ -1121,7 +1251,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
         customer_name: order.customer.name || "there",
         order_id: order.orderId || orderId,
-        button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`,
+        button_url: orderStatusUrl(orderId, orderStatusToken),
         items_table: itemsTable,
         total_price: moneyFmt(order.total)
       }, downloadSection);
@@ -1210,7 +1340,7 @@ exports.onOrderUpdated = onDocumentUpdated(
     if (becameDelivered && !shippoAlreadyNotified && notificationSettings.delivery_update?.enabled !== false) {
       const trackingUrl = after.trackingNumber
         ? getTrackingUrl(after.trackingCarrier || "", after.trackingNumber)
-        : `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`;
+        : orderStatusUrl(orderId, after.orderStatusToken);
       const compiled = compileEmailTemplate("delivery_update", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
@@ -1239,7 +1369,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       const compiled = compileEmailTemplate("order_cancelled", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
-        button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`
+        button_url: orderStatusUrl(orderId, after.orderStatusToken)
       });
 
       try {
@@ -1261,7 +1391,7 @@ exports.onOrderUpdated = onDocumentUpdated(
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
         total_price: Number(after.total || 0).toFixed(2),
-        button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`
+        button_url: orderStatusUrl(orderId, after.orderStatusToken)
       });
 
       try {
@@ -1998,4 +2128,3 @@ exports.shippoWebhook = onRequest(
     }
   }
 );
-

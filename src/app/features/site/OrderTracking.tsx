@@ -2,10 +2,9 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { 
   ArrowLeft, Lock, Package, Truck, CheckCircle2, 
-  MapPin, Calendar, AlertCircle, Loader2, Download, ExternalLink 
+  MapPin, Calendar, AlertCircle, Loader2, ExternalLink
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { adminApi } from "../../admin/api";
 import { functionUrl } from "../../lib/functionsBase";
 import { useCurrency } from "../../CurrencyContext";
 
@@ -15,67 +14,52 @@ export default function OrderTracking() {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [digitalItems, setDigitalItems] = useState<Record<string, boolean>>({});
+  const [statusToken, setStatusToken] = useState("");
   
   const { formatPrice, currency: defaultCurrency } = useCurrency();
 
-  // If order is already found, check if items have digital formats
   useEffect(() => {
-    if (!order) return;
-    async function checkDigitalAssets() {
-      const digitalMap: Record<string, boolean> = {};
-      for (const item of order.items || []) {
-        try {
-          const book = await adminApi.getBook(item.id);
-          if (book && book.digitalFileName) {
-            digitalMap[item.id] = true;
-          }
-        } catch (err) {
-          console.warn("Could not retrieve book metadata for digital check", err);
-        }
-      }
-      setDigitalItems(digitalMap);
+    const params = new URLSearchParams(window.location.search);
+    const linkedOrderId = params.get("orderId") || "";
+    const linkedToken = params.get("token") || "";
+    if (!linkedOrderId) return;
+    setOrderIdInput(linkedOrderId);
+    if (linkedToken) {
+      setStatusToken(linkedToken);
+      void lookupOrder(linkedOrderId, "", linkedToken);
     }
-    checkDigitalAssets();
-  }, [order]);
+  }, []);
 
-  const handleTrack = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!orderIdInput.trim() || !emailInput.trim()) {
-      setError("Please fill in both order ID and email.");
-      return;
-    }
-
+  const lookupOrder = async (orderId: string, email: string, token: string) => {
     setLoading(true);
     setError("");
     setOrder(null);
-
     try {
-      const foundOrder = await adminApi.getOrderById(orderIdInput.trim());
-      if (!foundOrder) {
-        throw new Error("Order not found. Check the ID and try again.");
+      const response = await fetch(functionUrl("lookupGuestOrder"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: orderId.trim(), email: email.trim(), token }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.order) {
+        throw new Error("Unable to verify those order details.");
       }
-
-      if (foundOrder.customer?.email?.toLowerCase().trim() !== emailInput.toLowerCase().trim()) {
-        throw new Error("Invalid credentials. Please verify your email.");
-      }
-
-      setOrder(foundOrder);
-    } catch (err: any) {
-      setError(err.message || "Failed to retrieve order tracking information.");
+      setOrder(data.order);
+    } catch {
+      setError("Unable to verify those order details.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDownload = (itemId: string) => {
-    if (!order || !order.downloadToken) return;
-    // The download endpoint authorizes via the secret token issued at
-    // payment time, not the (guessable) customer email.
-    window.open(
-      `${functionUrl("downloadDigitalAsset")}?orderId=${encodeURIComponent(order.id || order.orderId)}&itemId=${encodeURIComponent(itemId)}&token=${encodeURIComponent(order.downloadToken)}`,
-      "_blank"
-    );
+  const handleTrack = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orderIdInput.trim() || (!emailInput.trim() && !statusToken)) {
+      setError("Please fill in both order ID and email.");
+      return;
+    }
+
+    await lookupOrder(orderIdInput, emailInput, statusToken);
   };
 
   // Resolve tracking status step index
@@ -87,7 +71,7 @@ export default function OrderTracking() {
     return 0; // Paid / Pending
   };
 
-  const currentStep = order ? getStepIndex(order.status) : 0;
+  const currentStep = order ? getStepIndex(order.fulfillmentStatus || order.status) : 0;
   
   const steps = [
     { label: "Paid", desc: "Order confirmed", icon: CheckCircle2 },
@@ -255,14 +239,14 @@ export default function OrderTracking() {
               </div>
 
               {/* Shipping carrier information */}
-              {order.trackingNumber && (
+              {order.trackingUrl && (
                 <div className="bg-gradient-to-r from-violet-950/20 to-cyan-950/20 border border-violet-500/15 rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
                   <div className="space-y-2">
                     <p className="text-[10px] font-black tracking-[0.3em] text-violet-400 uppercase">Fulfillment Logistics</p>
                     <h4 className="text-2xl font-black tracking-tighter uppercase italic leading-none">Carrier Assigned</h4>
                     <p className="text-xs font-medium text-slate-400 leading-relaxed max-w-md mt-2">
-                      Your parcel is in transit. Tracking number: <code className="text-white bg-white/10 px-2 py-0.5 rounded font-mono">{order.trackingNumber}</code> 
-                      {order.carrier ? ` (${order.carrier.toUpperCase()})` : ""}
+                      Your parcel is in transit
+                      {order.carrier ? ` with ${order.carrier.toUpperCase()}` : ""}.
                     </p>
                   </div>
                   {order.trackingUrl && (
@@ -275,37 +259,6 @@ export default function OrderTracking() {
                       Track Shipment <ExternalLink size={12} />
                     </a>
                   )}
-                </div>
-              )}
-
-              {/* Digital Ebook Downloads Section */}
-              {Object.keys(digitalItems).length > 0 && order.paymentStatus === "paid" && (
-                <div className="bg-violet-900/[0.05] border border-violet-500/20 rounded-[2.5rem] p-10 space-y-6">
-                  <div className="space-y-1">
-                    <h4 className="text-xl font-black tracking-tighter text-white uppercase italic">Digital Archive Delivery</h4>
-                    <p className="text-xs font-medium text-slate-400 leading-relaxed">Download your secure digital purchases below. Generated download tokens expire in 24 hours.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                    {order.items.map((item: any) => {
-                      if (!digitalItems[item.id]) return null;
-                      return (
-                        <div key={item.id} className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 flex justify-between items-center group/download">
-                          <div className="truncate pr-4">
-                            <p className="text-[10px] font-bold text-white uppercase leading-tight truncate group-hover/download:text-violet-400 transition-colors">{item.title}</p>
-                            <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-2">Format: Digital Book</p>
-                          </div>
-                          <button
-                            onClick={() => handleDownload(item.id)}
-                            className="bg-violet-600 hover:bg-violet-500 text-white p-3 rounded-xl transition-all shadow-lg shadow-violet-600/20 flex items-center justify-center shrink-0 active:scale-95 border border-violet-400/20"
-                            title="Download File"
-                          >
-                            <Download size={14} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
                 </div>
               )}
 
