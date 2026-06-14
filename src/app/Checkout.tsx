@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useCart } from "./CartContext";
 import {
@@ -89,8 +89,10 @@ export function Checkout() {
 
   const [isApplying, setIsApplying]     = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
-  const [isSuccess, setIsSuccess]       = useState(false);
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  type CheckoutState = "checkout" | "verifying" | "paid" | "pending_manual" | "failed" | "expired";
+  const [checkoutState, setCheckoutState] = useState<CheckoutState>("checkout");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [isRetrying, setIsRetrying] = useState(false);
   const [orderNumber, setOrderNumber]   = useState("");
 
   const [discountCode, setDiscountCode]       = useState("");
@@ -110,6 +112,7 @@ export function Checkout() {
   const [settings, setSettings] = useState<any>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
   const [successOrder, setSuccessOrder] = useState<any>(null);
+  const verificationRun = useRef(0);
 
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -579,6 +582,10 @@ export function Checkout() {
       const addressError = addressVerified ? "" : (valData.messages || []).map((m: any) => m.text).join(", ");
 
       const isManual = selectedPaymentMethod.startsWith("manual_");
+      const statusTokenBytes = crypto.getRandomValues(new Uint8Array(32));
+      const statusToken = Array.from(statusTokenBytes, byte => byte.toString(16).padStart(2, "0")).join("");
+      const statusTokenHashBytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(statusToken));
+      const statusTokenHash = Array.from(new Uint8Array(statusTokenHashBytes), byte => byte.toString(16).padStart(2, "0")).join("");
       let manualMethod = null;
       if (isManual) {
         const manualId = selectedPaymentMethod.replace("manual_", "");
@@ -612,6 +619,8 @@ export function Checkout() {
         total: finalTotal,
         status: "pending_payment",
         paymentStatus: isManual ? "pending" : "unpaid",
+        paymentKind: isManual ? "manual" : selectedPaymentMethod,
+        checkoutStatusTokenHash: statusTokenHash,
         paymentMethod: isManual ? (manualMethod?.name || "Manual") : (selectedPaymentMethod === "paypal" ? "PayPal" : "Stripe"),
         paymentInstructions: isManual ? (manualMethod?.instructions || "") : "",
         testMode: settings?.payments?.testMode || false,
@@ -625,8 +634,10 @@ export function Checkout() {
       localStorage.setItem("last_customer_email", customer.email);
       
       const orderId = await adminApi.createOrder(orderData);
+      localStorage.setItem(`checkout_status_token:${orderId}`, statusToken);
 
       if (isManual) {
+        localStorage.setItem("last_manual_order_id", orderId);
         window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${orderId}&manual=true`;
         return;
       }
@@ -644,7 +655,7 @@ export function Checkout() {
       const sessionResponse = await fetch(functionUrl("createStripeCheckoutSession"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
+        body: JSON.stringify({ orderId, token: statusToken, currency: currency.toLowerCase(), returnUrl }),
       });
 
       if (!sessionResponse.ok) {
@@ -664,87 +675,133 @@ export function Checkout() {
     }
   };
 
+  const finalizePaidOrder = useCallback(async (oid: string) => {
+    clearCart();
+    const trackedKey = `purchase_tracked:${oid}`;
+    if (!localStorage.getItem(trackedKey)) {
+      localStorage.setItem(trackedKey, "true");
+      await funnelApi.track("purchase");
+    }
+    const email = localStorage.getItem("last_customer_email") || "";
+    if (email) await abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
+  }, [clearCart]);
+
+  const checkPaymentStatus = useCallback(async (oid: string, options: { poll?: boolean } = {}) => {
+    const token = localStorage.getItem(`checkout_status_token:${oid}`);
+    if (!token) {
+      setCheckoutState("failed");
+      setStatusMessage("We cannot securely verify this order in this browser. Your cart has been preserved.");
+      return;
+    }
+
+    const run = ++verificationRun.current;
+    setCheckoutState("verifying");
+    setStatusMessage("");
+    const delays = options.poll === false ? [0] : [0, 1000, 2000, 4000, 8000];
+
+    for (const delay of delays) {
+      if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+      if (run !== verificationRun.current) return;
+      try {
+        const response = await fetch(functionUrl("getCheckoutPaymentStatus"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: oid, token }),
+        });
+        if (!response.ok) throw new Error("Payment status could not be verified.");
+        const result = await response.json();
+        setSuccessOrder(result);
+        if (result.state === "paid") {
+          setCheckoutState("paid");
+          await finalizePaidOrder(oid);
+          return;
+        }
+        if (result.state === "pending_manual") {
+          localStorage.setItem("last_manual_order_id", oid);
+          setCheckoutState("pending_manual");
+          return;
+        }
+        if (result.state === "failed" || result.state === "expired") {
+          setCheckoutState(result.state);
+          return;
+        }
+      } catch (error: any) {
+        if (delay === delays[delays.length - 1]) {
+          setCheckoutState("failed");
+          setStatusMessage(error.message || "Payment status could not be verified. Your cart has been preserved.");
+          return;
+        }
+      }
+    }
+    setStatusMessage("Confirmation is taking longer than expected. You can check again without placing a new order.");
+  }, [finalizePaidOrder]);
+
+  const retryPayment = useCallback(async () => {
+    if (!orderNumber || isRetrying) return;
+    setIsRetrying(true);
+    try {
+      if (successOrder?.paymentMethod?.toLowerCase().includes("paypal")) {
+        setStatusMessage("PayPal retry is not available yet. Your order and cart are preserved; please contact support.");
+        return;
+      }
+      const returnUrl = `${window.location.origin}${import.meta.env.BASE_URL}checkout`;
+      const token = localStorage.getItem(`checkout_status_token:${orderNumber}`);
+      if (!token) throw new Error("The secure payment retry key is unavailable in this browser.");
+      const response = await fetch(functionUrl("createStripeCheckoutSession"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: orderNumber, token, currency: currency.toLowerCase(), returnUrl }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.url) throw new Error(result.error || "Could not restart payment.");
+      window.location.href = result.url;
+    } catch (error: any) {
+      setStatusMessage(error.message || "Could not restart payment. Your cart is unchanged.");
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [currency, isRetrying, orderNumber, successOrder]);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("success")) {
       const oid = params.get("order_id") || "";
       if (!oid) return;
       setOrderNumber(oid);
-
-      // Don't trust the URL parameter alone: confirm the webhook actually
-      // marked the order paid (poll briefly to absorb webhook latency).
-      let cancelled = false;
-      (async () => {
-        try {
-          const order: any = await adminApi.getOrderById(oid);
-          if (order) {
-            setSuccessOrder(order);
-            if (params.get("paypal")) {
-              setPaymentConfirmed(true);
-            } else if (order.paymentStatus === "paid") {
-              setPaymentConfirmed(true);
-            } else if (order.paymentStatus === "pending") {
-              setPaymentConfirmed(false);
-            }
-          }
-        } catch (err) {
-          console.error("Failed to load order on success landing", err);
-        }
-
-        // If it's not a manual or paypal order, poll to confirm payment
-        if (!params.get("manual") && !params.get("paypal")) {
-          for (let attempt = 0; attempt < 4 && !cancelled; attempt++) {
-            try {
-              const order: any = await adminApi.getOrderById(oid);
-              if (order && order.paymentStatus === "paid") {
-                if (cancelled) return;
-                setPaymentConfirmed(true);
-                funnelApi.track("purchase");
-                const email = customer.email || localStorage.getItem("last_customer_email") || "";
-                if (email) {
-                  abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
-                }
-                return;
-              }
-            } catch {
-              // retry
-            }
-            await new Promise(r => setTimeout(r, 2500));
-          }
-        } else {
-          // Manual/PayPal tracking
-          funnelApi.track("purchase");
-          const email = customer.email || localStorage.getItem("last_customer_email") || "";
-          if (email) {
-            abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
-          }
-        }
-      })();
-
-      setIsSuccess(true);
-      clearCart();
-      return () => { cancelled = true; };
+      checkPaymentStatus(oid);
+      return () => { verificationRun.current += 1; };
     }
-    if (params.get("canceled")) alert("Order payment was canceled.");
-  }, [customer.email]);
+    if (params.get("canceled")) {
+      const oid = params.get("order_id") || "";
+      setOrderNumber(oid);
+      setSuccessOrder({ canRetry: Boolean(oid), paymentMethod: "Stripe" });
+      setCheckoutState("failed");
+      setStatusMessage("Payment was cancelled. Your cart is still here, and you can safely retry the same order.");
+    }
+  }, [checkPaymentStatus]);
 
   // ── Success screen ──────────────────────────────────────────────────────────
-  if (isSuccess) {
-    const isManual = successOrder?.paymentStatus === "pending";
+  if (checkoutState !== "checkout") {
+    const isManual = checkoutState === "pending_manual";
+    const isPaid = checkoutState === "paid";
+    const isVerifying = checkoutState === "verifying";
+    const canRetry = Boolean(orderNumber && successOrder?.canRetry && !isManual);
     return (
       <div className="h-screen bg-[#050506] text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.15)_0%,transparent_70%)] pointer-events-none" />
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", duration: 0.8 }}
           className="relative z-10 flex flex-col items-center max-w-md w-full">
           <div className="w-24 h-24 rounded-[2rem] bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mb-10 shadow-[0_0_60px_rgba(124,58,237,0.3)]">
-            <CheckCircle2 size={44} className="text-violet-400" />
+            {isVerifying ? <Loader2 size={44} className="animate-spin text-violet-400" /> : <CheckCircle2 size={44} className="text-violet-400" />}
           </div>
           <p className="text-[9px] font-black tracking-[0.5em] text-violet-400 uppercase mb-4">
             {isManual 
-              ? "Order Placed" 
-              : (paymentConfirmed ? "Order Confirmed" : "Finalizing Payment")}
+              ? "Order Received"
+              : isPaid ? "Payment Confirmed" : isVerifying ? "Verifying Payment" : checkoutState === "expired" ? "Payment Expired" : "Payment Not Confirmed"}
           </p>
-          <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white mb-4">Thank You</h2>
+          <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white mb-4">
+            {isPaid || isManual ? "Thank You" : "Order Saved"}
+          </h2>
           <p className="text-white/30 text-xs font-mono mb-2 tracking-widest">ORDER #{orderNumber}</p>
           
           {isManual ? (
@@ -764,10 +821,21 @@ export function Checkout() {
             </div>
           ) : (
             <p className="text-white/20 text-[10px] tracking-widest mb-14">
-              {paymentConfirmed
+              {isPaid
                 ? "A confirmation will be sent to your email."
-                : "Your payment is being confirmed — the receipt email will follow shortly."}
+                : statusMessage || (isVerifying ? "We are securely checking with the payment provider." : "Your cart has been preserved because payment was not confirmed.")}
             </p>
+          )}
+
+          {isVerifying && statusMessage && (
+            <button type="button" onClick={() => checkPaymentStatus(orderNumber)} className="mb-4 rounded-2xl border border-white/15 px-8 py-3 text-[10px] font-black uppercase tracking-[0.2em]">
+              Check payment status
+            </button>
+          )}
+          {canRetry && !isVerifying && (
+            <button type="button" onClick={retryPayment} disabled={isRetrying} className="mb-4 rounded-2xl bg-white px-8 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-black disabled:opacity-50">
+              {isRetrying ? "Starting payment…" : "Retry payment"}
+            </button>
           )}
           
           <Link to="/"

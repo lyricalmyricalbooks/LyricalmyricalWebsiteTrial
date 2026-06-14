@@ -52,6 +52,13 @@ function applyCors(req, res) {
   return false;
 }
 
+function tokensMatch(expectedHash, token) {
+  if (!expectedHash || !token) return false;
+  const providedHash = crypto.createHash("sha256").update(String(token)).digest("hex");
+  return expectedHash.length === providedHash.length &&
+    crypto.timingSafeEqual(Buffer.from(expectedHash), Buffer.from(providedHash));
+}
+
 // Verifies the Firebase ID token in the Authorization header and that it
 // belongs to an admin. Sends the error response itself; returns null on failure.
 async function requireAdmin(req, res) {
@@ -324,7 +331,7 @@ exports.createStripeCheckoutSession = onRequest(
       return;
     }
 
-    const { orderId, currency: reqCurrency, returnUrl } = req.body;
+    const { orderId, token, currency: reqCurrency, returnUrl } = req.body;
     const checkoutCurrency = (reqCurrency || "cad").toLowerCase();
     if (!orderId) {
       res.status(400).json({ error: "Missing orderId" });
@@ -340,6 +347,10 @@ exports.createStripeCheckoutSession = onRequest(
       }
 
       const order = orderDoc.data();
+      if (!tokensMatch(order.checkoutStatusTokenHash, token)) {
+        res.status(404).json({ error: "Order not found" });
+        return;
+      }
       if (order.paymentStatus === "paid" || order.status === "completed") {
         res.status(400).json({ error: "Order has already been paid" });
         return;
@@ -559,7 +570,13 @@ exports.createStripeCheckoutSession = onRequest(
         // Shorten the unpaid-stock-hold window: session dies after 30 minutes.
         expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
         success_url: `${checkoutBase}${joiner}success=true&order_id=${orderId}`,
-        cancel_url: `${checkoutBase}${joiner}canceled=true`,
+        cancel_url: `${checkoutBase}${joiner}canceled=true&order_id=${orderId}`,
+      });
+
+      await orderRef.update({
+        paymentSessionId: session.id,
+        paymentExpiresAt: new Date(session.expires_at * 1000).toISOString(),
+        updatedAt: new Date().toISOString(),
       });
 
       res.status(200).json({ sessionId: session.id, url: session.url });
@@ -569,6 +586,51 @@ exports.createStripeCheckoutSession = onRequest(
     }
   }
 );
+
+// Returns only the minimum checkout state needed by the buyer. Access is
+// protected by a random token whose SHA-256 hash is stored on the order.
+exports.getCheckoutPaymentStatus = onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+
+  const { orderId, token } = req.body || {};
+  if (!orderId || !token) {
+    res.status(400).json({ error: "Missing order credentials" });
+    return;
+  }
+
+  const orderDoc = await db.collection("orders").doc(String(orderId)).get();
+  if (!orderDoc.exists || !tokensMatch(orderDoc.data()?.checkoutStatusTokenHash, token)) {
+    res.status(404).json({ error: "Order not found" });
+    return;
+  }
+
+  const order = orderDoc.data();
+  const manual = order.paymentKind === "manual";
+  const expired = !manual &&
+    order.paymentStatus !== "paid" &&
+    order.paymentExpiresAt &&
+    Date.parse(order.paymentExpiresAt) <= Date.now();
+
+  res.json({
+    orderId: orderDoc.id,
+    state: manual
+      ? "pending_manual"
+      : order.paymentStatus === "paid"
+        ? "paid"
+        : expired
+          ? "expired"
+          : order.status === "cancelled" || order.paymentStatus === "failed"
+            ? "failed"
+            : "verifying",
+    paymentMethod: order.paymentMethod || "",
+    paymentInstructions: manual ? order.paymentInstructions || "" : "",
+    canRetry: !manual && order.paymentStatus !== "paid",
+  });
+});
 
 // ──────────────────────────────────────────────────────────────
 // 2. HTTP Endpoint: Stripe Payment Webhook (Secure)
@@ -1998,4 +2060,3 @@ exports.shippoWebhook = onRequest(
     }
   }
 );
-
