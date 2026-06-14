@@ -73,6 +73,34 @@ async function requireAdmin(req, res) {
   }
 }
 
+exports.deleteTestOrders = onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+  if (!await requireAdmin(req, res)) return;
+
+  const orderIds = Array.isArray(req.body?.orderIds) ? req.body.orderIds : [];
+  if (!orderIds.length || orderIds.length > 100 || orderIds.some(id => typeof id !== "string" || !id)) {
+    res.status(400).json({ error: "Provide between 1 and 100 valid order IDs." });
+    return;
+  }
+
+  const refs = orderIds.map(id => db.collection("orders").doc(id));
+  const snapshots = await db.getAll(...refs);
+  if (snapshots.some(snapshot => snapshot.exists && snapshot.data()?.isTest !== true)) {
+    res.status(400).json({ error: "Only records carrying isTest: true may be bulk deleted." });
+    return;
+  }
+
+  const existing = snapshots.filter(snapshot => snapshot.exists);
+  const batch = db.batch();
+  existing.forEach(snapshot => batch.delete(snapshot.ref));
+  await batch.commit();
+  res.json({ deleted: existing.length });
+});
+
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
@@ -637,6 +665,10 @@ exports.createStripeCheckoutSession = onRequest(
       }
 
       const order = orderDoc.data();
+      if (order.isTest === true) {
+        res.status(400).json({ error: "Test orders cannot enter checkout." });
+        return;
+      }
       if (order.paymentStatus === "paid" || order.status === "completed") {
         res.status(400).json({ error: "Order has already been paid" });
         return;
@@ -1516,6 +1548,7 @@ exports.onOrderCreated = onDocumentCreated(
     const order = event.data?.data() || {};
     const orderId = event.params.orderId;
 
+    if (order.isTest === true) return;
     if (!order.customer?.email) return;
 
     const itemsTable = `
@@ -1569,6 +1602,7 @@ exports.onOrderUpdated = onDocumentUpdated(
     const after = event.data?.after?.data() || {};
     const orderId = event.params.orderId;
 
+    if (after.isTest === true) return;
     if (!after.customer?.email) return;
 
     const notificationSettings = await loadNotificationSettings();
@@ -2012,6 +2046,10 @@ exports.createShippingLabel = onRequest(
       }
 
       const order = orderDoc.data();
+      if (order.isTest === true) {
+        res.status(400).json({ error: "Test orders are excluded from fulfillment." });
+        return;
+      }
       if (!order.customer || !order.customer.address) {
         res.status(400).json({ error: "Order has no customer address data" });
         return;

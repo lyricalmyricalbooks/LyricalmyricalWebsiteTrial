@@ -75,11 +75,11 @@ export const adminApi = {
       const profilesColl = collection(db, "shipping-profiles");
       const ordersColl = collection(db, "orders");
 
-      const [booksCount, authorsCount, profilesCount, ordersCount] = await Promise.all([
+      const [booksCount, authorsCount, profilesCount, ordersSnapshot] = await Promise.all([
         getCountFromServer(booksColl),
         getCountFromServer(authorsColl),
         getCountFromServer(profilesColl),
-        getCountFromServer(ordersColl)
+        getDocs(ordersColl)
       ]);
       
       // For more granular stats like drafts, we still need a query count
@@ -97,7 +97,7 @@ export const adminApi = {
         publishedCount: publishedSnap.data().count,
         shippingProfiles: profilesCount.data().count,
         authors: authorsCount.data().count,
-        totalOrders: ordersCount.data().count
+        totalOrders: ordersSnapshot.docs.filter(order => order.data().isTest !== true).length
       };
     } catch (err) {
       console.error("Stats Error:", err);
@@ -621,6 +621,22 @@ export const adminApi = {
     return snap.docs.map(d => ({ id: d.id, ...d.data(), _lastDoc: d }));
   },
 
+  deleteTestOrders: async (orderIds: string[]) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin to delete test orders.");
+    const response = await fetch(functionUrl("deleteTestOrders"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ orderIds }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Failed to delete test orders.");
+    return result;
+  },
+
   getOrderById: async (id: string) => {
     const docRef = doc(db, "orders", id);
     const snap = await getDoc(docRef);
@@ -870,7 +886,7 @@ export const adminApi = {
     
     // Also get top sellers from orders
     const ordersSnap = await getDocs(collection(db, "orders"));
-    const orders = ordersSnap.docs.map(d => d.data());
+    const orders = ordersSnap.docs.map(d => d.data()).filter((order: any) => order.isTest !== true);
 
     // Get all books to map IDs to categories and photos
     const booksSnap = await getDocs(collection(db, "books"));

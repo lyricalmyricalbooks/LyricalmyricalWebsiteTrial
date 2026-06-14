@@ -12,8 +12,8 @@ import {
   AlertCircle,
   MoreVertical,
   ExternalLink,
-  ArrowUpRight,
-  Users
+  Users,
+  Trash2
 } from "lucide-react";
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -28,6 +28,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
   const [searchQuery, setSearchQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<FulfillmentStatus>("processing");
+  const [orderType, setOrderType] = useState<"production" | "test" | "all">("production");
 
   const toggleSelect = (id: string) => {
     setSelected(prev => {
@@ -49,7 +50,8 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
   };
 
   const handleExportCsv = () => {
-    const list = selected.size > 0 ? orders.filter(o => selected.has(o.id)) : orders;
+    const list = (selected.size > 0 ? orders.filter(o => selected.has(o.id)) : filteredOrders)
+      .filter(o => o.isTest !== true);
     if (!list.length) {
       toast.error("Nothing to export");
       return;
@@ -57,6 +59,23 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
     const csv = orderApi.exportToCsv(list);
     orderApi.downloadCsv(`orders-${new Date().toISOString().split("T")[0]}.csv`, csv);
     toast.success(`Exported ${list.length} order${list.length === 1 ? "" : "s"}`);
+  };
+
+  const handleBulkDeleteTests = async () => {
+    const ids = Array.from(selected);
+    if (!ids.length || !ids.every(id => orders.find(o => o.id === id)?.isTest === true)) {
+      toast.error("Bulk deletion is limited to marked test orders");
+      return;
+    }
+    if (!window.confirm(`Permanently delete ${ids.length} marked test order${ids.length === 1 ? "" : "s"}?`)) return;
+    try {
+      const result = await adminApi.deleteTestOrders(ids);
+      toast.success(`Deleted ${result.deleted} test order${result.deleted === 1 ? "" : "s"}`);
+      setSelected(new Set());
+      loadOrders();
+    } catch (err: any) {
+      toast.error(err.message || "Test-order deletion failed");
+    }
   };
 
   const handleBulkUpdate = async () => {
@@ -97,7 +116,12 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
       (o.orderId || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (o.customer?.name || "").toLowerCase().includes(searchQuery.toLowerCase());
 
-    return matchesTab && matchesSearch;
+    const matchesOrderType =
+      orderType === "all" ||
+      (orderType === "test" && o.isTest === true) ||
+      (orderType === "production" && o.isTest !== true);
+
+    return matchesTab && matchesSearch && matchesOrderType;
   });
 
   return (
@@ -121,6 +145,19 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
           >
             <Download size={14} /> Export CSV
           </button>
+          <select
+            aria-label="Filter test orders"
+            value={orderType}
+            onChange={e => {
+              setOrderType(e.target.value as "production" | "test" | "all");
+              setSelected(new Set());
+            }}
+            className="bg-white/[0.04] border border-white/10 rounded-2xl px-5 py-3 text-[10px] tracking-[0.2em] font-black uppercase text-slate-300 outline-none"
+          >
+            <option value="production" className="bg-[#0A0A0B]">Production orders</option>
+            <option value="test" className="bg-[#0A0A0B]">Test orders</option>
+            <option value="all" className="bg-[#0A0A0B]">All orders</option>
+          </select>
         </div>
 
         <div className="flex bg-white/[0.03] rounded-[2.5rem] p-2 border border-white/5 backdrop-blur-md">
@@ -154,28 +191,6 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
           </div>
           <h3 className="text-3xl font-black text-white mb-3 uppercase tracking-tighter italic">Void Detected</h3>
           <p className="text-[10px] tracking-[0.4em] text-slate-500 uppercase mb-12 font-black">No transactions identified in this spectral range</p>
-          <button 
-            onClick={async () => {
-              const samples = [
-                { name: "Patrick Kane", email: "patkanephoto@gmail.com", address: "5207 55 St, Yellowknife, NT X1A 1X4", total: 85, items: 1 },
-                { name: "Selena PB", email: "selena.pb@example.com", address: "123 Main St, Toronto, ON M5V 1A1", total: 85, items: 1 },
-                { name: "William Boland", email: "w.boland@example.com", address: "456 Oak Ave, Vancouver, BC V6B 1A1", total: 81, items: 1 }
-              ];
-              await Promise.all(samples.map(s =>
-                adminApi.createOrder({
-                  customer: { name: s.name, email: s.email, address: { street: s.address, city: "", state: "", zip: "", country: "Canada" } },
-                  items: [{ title: "[PRESALE] - The Hound by Ian Willms", price: s.total, quantity: s.items, photoUrl: "https://images.unsplash.com/photo-1544377193-33dcf4d68fb5?auto=format" }],
-                  total: s.total, subtotal: s.total, shipping: 0, discount: 0,
-                  paymentStatus: "paid", status: "open"
-                })
-              ));
-              toast.success("Synthetic data manifested");
-              loadOrders();
-            }}
-            className="bg-violet-600 text-white px-12 py-5 rounded-3xl text-[10px] tracking-[0.4em] font-black hover:bg-violet-500 transition-all shadow-[0_20px_40px_rgba(124,58,237,0.3)] active:scale-95 flex items-center gap-4"
-          >
-            GENERATE SYNTHETIC DATA <ArrowUpRight size={16} />
-          </button>
         </div>
       ) : (
         <>
@@ -190,6 +205,16 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
             </button>
             {selected.size > 0 && (
               <div className="flex items-center gap-3">
+                {Array.from(selected).every(id => orders.find(o => o.id === id)?.isTest === true) && (
+                  <button
+                    onClick={handleBulkDeleteTests}
+                    className="flex items-center gap-2 bg-rose-600 hover:bg-rose-500 text-white px-5 py-2 rounded-xl text-[10px] tracking-widest font-black uppercase transition-colors"
+                  >
+                    <Trash2 size={13} /> Delete tests
+                  </button>
+                )}
+                {!Array.from(selected).some(id => orders.find(o => o.id === id)?.isTest === true) && (
+                  <>
                 <select
                   value={bulkStatus}
                   onChange={e => setBulkStatus(e.target.value as FulfillmentStatus)}
@@ -205,6 +230,8 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
                 >
                   Apply to {selected.size}
                 </button>
+                  </>
+                )}
                 <button
                   onClick={() => setSelected(new Set())}
                   className="text-[10px] font-black tracking-widest text-slate-500 hover:text-white uppercase"
@@ -244,6 +271,11 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
                 
                 {/* Status Overlay */}
                 <div className="absolute top-6 left-6 z-10 flex gap-2">
+                   {order.isTest === true && (
+                     <span className="text-[8px] font-black tracking-[0.2em] px-4 py-2 rounded-xl bg-rose-600 text-white border border-rose-300 shadow-2xl">
+                       TEST ORDER
+                     </span>
+                   )}
                    <span className={`text-[8px] font-black tracking-[0.2em] px-4 py-2 rounded-xl backdrop-blur-3xl border shadow-2xl flex items-center gap-2 ${
                      order.status === 'open' 
                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' 
@@ -318,4 +350,3 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
     </div>
   );
 }
-
