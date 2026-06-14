@@ -1650,13 +1650,24 @@ exports.onOrderUpdated = onDocumentUpdated(
         </table>
       `;
 
+      let paymentConfirmedSection = "";
+      if (order.paymentMethod && order.paymentMethod !== "Stripe" && order.paymentMethod !== "PayPal") {
+        paymentConfirmedSection = `
+          <div style="margin-top:28px;padding:24px;background:#ecfdf5;border-radius:16px;border:1px solid #10b98120;">
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#10b981;">Payment Verified</h3>
+            <p style="font-size:12px;color:#065f46;margin-bottom:0;line-height:1.6;">We have verified your payment via <strong>${order.paymentMethod}</strong>. Your order is now confirmed and being prepared for shipment.</p>
+          </div>
+        `;
+      }
+      const combinedSection = [paymentConfirmedSection, downloadSection].filter(Boolean).join("\n");
+
       const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
         customer_name: order.customer.name || "there",
         order_id: order.orderId || orderId,
         button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`,
         items_table: itemsTable,
         total_price: moneyFmt(order.total)
-      }, downloadSection);
+      }, combinedSection);
 
       const adminOrderUrl = `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/admin#orders/${orderId}`;
       const adminAddr = order.customer?.address
@@ -2305,7 +2316,98 @@ exports.validateDiscountCode = onRequest(async (req, res) => {
 });
 
 // ──────────────────────────────────────────────────────────────
-// 10. Customer Welcome Trigger
+// 10. Order Created Trigger (New Order Admin Alert / Customer Manual Order Confirmation)
+// ──────────────────────────────────────────────────────────────
+exports.onOrderCreated = onDocumentCreated(
+  { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
+  async event => {
+    const order = event.data?.data() || {};
+    const orderId = event.params.orderId;
+
+    if (!order.customer?.email) return;
+
+    const notificationSettings = await loadNotificationSettings();
+
+    // 1. Admin Alert: Send email to ADMIN_TO about new order
+    if (notificationSettings.new_order_admin?.enabled !== false) {
+      const itemsTable = `
+        <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:13px;">
+          ${orderRowsHtml(order.items)}
+          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${moneyFmt(order.subtotal)}</td></tr>
+          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${moneyFmt(order.shipping)}</td></tr>
+          ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${moneyFmt(order.tax)}</td></tr>` : ""}
+          ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">Discount</td><td style="text-align:right;color:#0a7;">−${moneyFmt(order.discount)}</td></tr>` : ""}
+          <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${moneyFmt(order.total)}</td></tr>
+        </table>
+      `;
+
+      const adminHtml = `
+        <p>A new order has been placed: <strong>${order.orderId || orderId}</strong> · ${moneyFmt(order.total)}</p>
+        <p><strong>Customer:</strong> ${order.customer.name} &lt;${order.customer.email}&gt;</p>
+        <p><strong>Payment Method:</strong> ${order.paymentMethod || "Stripe"}</p>
+        <p><strong>Shipping Method:</strong> ${order.shippingMethod || "Standard"}</p>
+        ${itemsTable}
+      `;
+
+      try {
+        await sendEmail({
+          to: ADMIN_TO,
+          subject: `[NEW ORDER] ${order.orderId || orderId}`,
+          html: adminHtml,
+          secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("New order admin email notification failed", err);
+      }
+    }
+
+    // 2. Customer Email: Send "Order Received (Pending Payment)" confirmation email if order was placed via manual payment method (i.e. starts as "pending")
+    if (order.paymentStatus === "pending") {
+      const itemsTable = `
+        <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:13px;">
+          ${orderRowsHtml(order.items)}
+          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${moneyFmt(order.subtotal)}</td></tr>
+          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${moneyFmt(order.shipping)}</td></tr>
+          ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${moneyFmt(order.tax)}</td></tr>` : ""}
+          ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">Discount</td><td style="text-align:right;color:#0a7;">−${moneyFmt(order.discount)}</td></tr>` : ""}
+          <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${moneyFmt(order.total)}</td></tr>
+        </table>
+      `;
+
+      let additionalSection = "";
+      if (order.paymentInstructions) {
+        additionalSection = `
+          <div style="margin-top:28px;padding:24px;background:#fffbeb;border-radius:16px;border:1px solid #d9770620;">
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#d97706;">Payment Instructions</h3>
+            <p style="font-size:12px;color:#451a03;margin-bottom:0;line-height:1.6;white-space:pre-wrap;">${order.paymentInstructions}</p>
+          </div>
+        `;
+      }
+
+      const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
+        customer_name: order.customer.name || "there",
+        order_id: order.orderId || orderId,
+        button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`,
+        items_table: itemsTable,
+        total_price: moneyFmt(order.total)
+      }, additionalSection);
+
+      try {
+        await sendEmail({
+          to: order.customer.email,
+          subject: `Order Received (Pending Payment) - #${order.orderId || orderId}`,
+          html: compiled.html,
+          secret: RESEND_API_KEY.value(),
+        });
+      } catch (err) {
+        console.error("Order pending payment customer email failed", err);
+      }
+    }
+  }
+);
+
+// ──────────────────────────────────────────────────────────────
+// 11. Customer Welcome Trigger
 // ──────────────────────────────────────────────────────────────
 exports.onCustomerCreated = onDocumentCreated(
   { document: "customers/{customerId}", secrets: [RESEND_API_KEY] },

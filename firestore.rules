@@ -44,7 +44,7 @@ service cloud.firestore {
       // the Admin SDK flip them to paid. Admins may create orders in any state
       // (for example, manual/sample orders).
       allow create: if isAdmin()
-        || (request.resource.data.paymentStatus == "unpaid"
+        || ((request.resource.data.paymentStatus == "unpaid" || request.resource.data.paymentStatus == "pending")
         && request.resource.data.status == "pending_payment"
         && request.resource.data.customer.email is string
         && request.resource.data.items is list

@@ -47,6 +47,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
   const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
   const [isVoiding, setIsVoiding] = useState(false);
   const [restockOnRefund, setRestockOnRefund] = useState(true);
+  const [isMarkingPaid, setIsMarkingPaid] = useState(false);
 
   useEffect(() => {
     loadOrder();
@@ -172,6 +173,31 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
       toast.error(err.message || "Failed to cancel unpaid order.");
     } finally {
       setIsVoiding(false);
+    }
+  };
+
+  const handleMarkAsPaid = async () => {
+    const confirmText = "Mark this order as paid? This will update payment status to PAID, log a timeline activity, and trigger any paid notification emails.";
+    if (!window.confirm(confirmText)) {
+      return;
+    }
+    setIsMarkingPaid(true);
+    try {
+      await adminApi.updateOrder(orderId, {
+        paymentStatus: "paid"
+      });
+      await adminApi.addOrderNote(
+        orderId,
+        "Payment verified and marked as paid by administrator."
+      );
+      await adminApi.recordAuditLog("orders", `Marked order ${order.orderId || orderId} as paid.`);
+      toast.success("Order marked as paid");
+      loadOrder();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to mark order as paid.");
+    } finally {
+      setIsMarkingPaid(false);
     }
   };
 
@@ -583,6 +609,18 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
 
                    <div className="p-8 bg-white/[0.02] border border-white/5 rounded-[2.5rem] space-y-4">
                       <p className="text-[9px] tracking-[0.3em] text-slate-700 font-black uppercase mb-4 text-center">Administrative Overrides</p>
+                      {order.paymentStatus !== "paid" && order.status !== "cancelled" && (
+                        <>
+                          <button 
+                            onClick={handleMarkAsPaid}
+                            disabled={isMarkingPaid}
+                            className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-emerald-400 transition-all group disabled:opacity-30 disabled:hover:text-slate-400 disabled:cursor-not-allowed"
+                          >
+                            {isMarkingPaid ? "MARKING AS PAID..." : "MARK AS PAID"} <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
+                          </button>
+                          <div className="h-px bg-white/5" />
+                        </>
+                      )}
                       {order.paymentStatus === "paid" ? (
                         <>
                           <button
@@ -604,8 +642,8 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                         </>
                       ) : order.paymentStatus === "refunded" || order.paymentStatus === "refund_pending" ? (
                         <p className="text-[10px] tracking-[0.2em] font-black text-emerald-400 uppercase">
-                          {order.paymentStatus === "refund_pending" ? "Refund pending" : "Refunded"}
-                          {order.inventoryRestockedAt ? " · Items restocked" : ""}
+                           {order.paymentStatus === "refund_pending" ? "Refund pending" : "Refunded"}
+                           {order.inventoryRestockedAt ? " · Items restocked" : ""}
                         </p>
                       ) : (
                         <button
