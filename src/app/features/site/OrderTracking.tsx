@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { adminApi } from "../../admin/api";
 import { functionUrl } from "../../lib/functionsBase";
 import { useCurrency } from "../../CurrencyContext";
+import { totalRefunded, type OrderFulfillment } from "../../lib/orderSchema";
 
 export default function OrderTracking() {
   const [orderIdInput, setOrderIdInput] = useState("");
@@ -87,7 +88,21 @@ export default function OrderTracking() {
     return 0; // Paid / Pending
   };
 
-  const currentStep = order ? getStepIndex(order.status) : 0;
+  const currentStep = order ? getStepIndex(order.fulfillmentStatus || order.status) : 0;
+  const shipments: OrderFulfillment[] = order?.fulfillments?.length
+    ? order.fulfillments
+    : order?.trackingNumber
+      ? [{
+          id: "legacy",
+          lines: [],
+          carrier: order.trackingCarrier || order.carrier || "Carrier",
+          trackingNumber: order.trackingNumber,
+          trackingUrl: order.trackingUrl || "",
+          status: order.fulfillmentStatus || "shipped",
+          notificationState: "sent",
+          createdAt: order.shippedAt || order.updatedAt,
+        }]
+      : [];
   
   const steps = [
     { label: "Paid", desc: "Order confirmed", icon: CheckCircle2 },
@@ -218,6 +233,11 @@ export default function OrderTracking() {
                 <div className="flex flex-col items-end gap-1.5 self-stretch md:self-auto border-t md:border-t-0 border-white/5 pt-6 md:pt-0">
                   <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Total Payable</span>
                   <span className="text-3xl font-black text-white">{orderFormatPrice(order.total)}</span>
+                  {totalRefunded(order) > 0 && (
+                    <span className="text-[10px] font-bold text-rose-300">
+                      Refunded {orderFormatPrice(totalRefunded(order))} · Net {orderFormatPrice(Math.max(0, order.total - totalRefunded(order)))}
+                    </span>
+                  )}
                   <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg uppercase tracking-widest mt-1">
                     {order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
                   </span>
@@ -255,26 +275,21 @@ export default function OrderTracking() {
               </div>
 
               {/* Shipping carrier information */}
-              {order.trackingNumber && (
-                <div className="bg-gradient-to-r from-violet-950/20 to-cyan-950/20 border border-violet-500/15 rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+              {shipments.length > 0 && (
+                <div className="bg-gradient-to-r from-violet-950/20 to-cyan-950/20 border border-violet-500/15 rounded-[2.5rem] p-10 space-y-6">
                   <div className="space-y-2">
                     <p className="text-[10px] font-black tracking-[0.3em] text-violet-400 uppercase">Fulfillment Logistics</p>
-                    <h4 className="text-2xl font-black tracking-tighter uppercase italic leading-none">Carrier Assigned</h4>
-                    <p className="text-xs font-medium text-slate-400 leading-relaxed max-w-md mt-2">
-                      Your parcel is in transit. Tracking number: <code className="text-white bg-white/10 px-2 py-0.5 rounded font-mono">{order.trackingNumber}</code> 
-                      {order.carrier ? ` (${order.carrier.toUpperCase()})` : ""}
-                    </p>
+                    <h4 className="text-2xl font-black tracking-tighter uppercase italic leading-none">{shipments.length} {shipments.length === 1 ? "Shipment" : "Shipments"}</h4>
                   </div>
-                  {order.trackingUrl && (
-                    <a 
-                      href={order.trackingUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="bg-white text-black hover:bg-slate-200 px-8 py-4 rounded-2xl text-[9px] font-black tracking-[0.25em] uppercase transition-all active:scale-95 flex items-center gap-3 shrink-0 shadow-xl"
-                    >
-                      Track Shipment <ExternalLink size={12} />
-                    </a>
-                  )}
+                  {shipments.map((shipment, index) => (
+                    <div key={shipment.id} className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-black/20 p-5 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="text-xs font-black uppercase">Shipment {index + 1} · {shipment.status.replaceAll("_", " ")}</p>
+                        <p className="mt-1 text-xs text-slate-400">{shipment.carrier} · <code>{shipment.trackingNumber}</code></p>
+                      </div>
+                      {shipment.trackingUrl && <a href={shipment.trackingUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-violet-300">Track shipment <ExternalLink size={12} /></a>}
+                    </div>
+                  ))}
                 </div>
               )}
 

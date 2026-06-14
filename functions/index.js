@@ -654,6 +654,19 @@ exports.stripeWebhook = onRequest(
               status: "open",
               downloadToken,
               paidAt: new Date().toISOString(),
+              transactions: [
+                ...(order.transactions || []),
+                {
+                  id: `capture_${session.payment_intent || session.id}`,
+                  kind: "capture",
+                  status: "succeeded",
+                  provider: "stripe",
+                  providerId: session.payment_intent || session.id,
+                  amount: Number(order.total) || 0,
+                  currency: String(session.currency || "cad").toUpperCase(),
+                  createdAt: new Date().toISOString()
+                }
+              ],
               updatedAt: new Date().toISOString(),
               activity: [
                 ...(order.activity || []),
@@ -839,8 +852,8 @@ const DEFAULT_NOTIFICATIONS = {
     enabled: true
   },
   order_refunded: {
-    subject: "Order refunded: {{order_id}}",
-    body: "Hi {{customer_name}},\n\nWe have successfully refunded CA${{total_price}} for your order. The funds should return to your original payment method in 5-10 business days.",
+    subject: "Refund issued: {{order_id}}",
+    body: "Hi {{customer_name}},\n\nWe refunded CA${{total_price}} for your order. Your refunds now total CA${{refunded_total}}, leaving a net paid total of CA${{net_total}}. The funds should return to your original payment method in 5-10 business days.",
     buttonText: "",
     signoff: "Best,\nThe Lyricalmyrical Team",
     enabled: true
@@ -902,6 +915,16 @@ function getTrackingUrl(carrier, trackingNum) {
     return `https://www.dhl.com/en/express/tracking.html?AWB=${encodeURIComponent(cleanNum)}`;
   }
   return `https://www.google.com/search?q=${encodeURIComponent(carrier + " " + cleanNum)}`;
+}
+
+function shipmentSummaryHtml(fulfillments = []) {
+  return fulfillments.map((shipment, index) => `
+    <div style="margin:12px 0;padding:14px;border:1px solid #eee;border-radius:10px;">
+      <strong>Shipment ${index + 1}</strong> · ${shipment.status || "shipped"}<br>
+      ${shipment.carrier || "Carrier"} · ${shipment.trackingNumber || "No tracking number"}
+      ${shipment.trackingUrl ? `<br><a href="${shipment.trackingUrl}">Track this shipment &rarr;</a>` : ""}
+    </div>
+  `).join("");
 }
 
 function compileEmailTemplate(templateId, settings, vars, additionalSection) {
@@ -1163,17 +1186,22 @@ exports.onOrderUpdated = onDocumentUpdated(
     }
 
     // 2. Shipping Confirmation (Order Shipped)
+    const beforeFulfillments = before.fulfillments || [];
+    const afterFulfillments = after.fulfillments || [];
+    const newNotifiableShipments = afterFulfillments.slice(beforeFulfillments.length)
+      .filter(shipment => shipment.notificationState === "pending");
     const becameShipped = before.fulfillmentStatus !== "shipped" && after.fulfillmentStatus === "shipped";
-    if (becameShipped && notificationSettings.shipping_confirmation?.enabled !== false) {
-      const trackingUrl = getTrackingUrl(after.trackingCarrier, after.trackingNumber);
+    if ((newNotifiableShipments.length || becameShipped) && notificationSettings.shipping_confirmation?.enabled !== false) {
+      const shipment = newNotifiableShipments[0] || afterFulfillments.at(-1) || {};
+      const trackingUrl = shipment.trackingUrl || getTrackingUrl(shipment.carrier || after.trackingCarrier, shipment.trackingNumber || after.trackingNumber);
       const compiled = compileEmailTemplate("shipping_confirmation", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
-        tracking_carrier: after.trackingCarrier || "carrier",
-        tracking_number: after.trackingNumber || "",
+        tracking_carrier: shipment.carrier || after.trackingCarrier || "carrier",
+        tracking_number: shipment.trackingNumber || after.trackingNumber || "",
         button_url: trackingUrl,
         tracking_url: trackingUrl
-      });
+      }, shipmentSummaryHtml(afterFulfillments));
 
       const shippedAdminHtml = `
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
@@ -1192,6 +1220,12 @@ exports.onOrderUpdated = onDocumentUpdated(
           html: compiled.html,
           secret: RESEND_API_KEY.value(),
         });
+        if (newNotifiableShipments.length) {
+          const notifiedIds = new Set(newNotifiableShipments.map(item => item.id));
+          await event.data.after.ref.update({
+            fulfillments: afterFulfillments.map(item => notifiedIds.has(item.id) ? { ...item, notificationState: "sent", notifiedAt: new Date().toISOString() } : item)
+          });
+        }
         await sendEmail({
           to: ADMIN_TO,
           subject: `[SHIPPED] ${after.orderId || orderId} · ${after.customer?.name}`,
@@ -1255,12 +1289,16 @@ exports.onOrderUpdated = onDocumentUpdated(
     }
 
     // 4. Order Refunded
-    const becameRefunded = before.paymentStatus !== "refunded" && after.paymentStatus === "refunded";
-    if (becameRefunded && notificationSettings.order_refunded?.enabled !== false) {
+    const beforeRefunded = (before.transactions || []).filter(item => item.kind === "refund" && item.status === "succeeded").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const afterRefunded = (after.transactions || []).filter(item => item.kind === "refund" && item.status === "succeeded").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const refundAdded = afterRefunded > beforeRefunded;
+    if (refundAdded && notificationSettings.order_refunded?.enabled !== false) {
       const compiled = compileEmailTemplate("order_refunded", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
-        total_price: Number(after.total || 0).toFixed(2),
+        total_price: (afterRefunded - beforeRefunded).toFixed(2),
+        refunded_total: afterRefunded.toFixed(2),
+        net_total: Math.max(0, Number(after.total || 0) - afterRefunded).toFixed(2),
         button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`
       });
 
@@ -1998,4 +2036,3 @@ exports.shippoWebhook = onRequest(
     }
   }
 );
-

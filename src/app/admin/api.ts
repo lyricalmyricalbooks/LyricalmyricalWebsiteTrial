@@ -30,6 +30,7 @@ import { ref as dbRef, get as dbGet } from "firebase/database";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { CATEGORIES } from "../features/site/constants";
 import type { Book, Page, SiteSettings } from "../features/site/types";
+import { normalizeOrderLines } from "../lib/orderSchema";
 
 export const adminApi = {
   // Authentication
@@ -641,6 +642,9 @@ export const adminApi = {
     // non-admin attempts to create an order in any other state.
     await setDoc(doc(db, "orders", orderId), {
       ...order,
+      items: normalizeOrderLines(order.items),
+      transactions: order.transactions || [],
+      fulfillments: order.fulfillments || [],
       orderId, // Display ID
       status: order.status || "pending_payment",
       paymentStatus: order.paymentStatus || "unpaid",
