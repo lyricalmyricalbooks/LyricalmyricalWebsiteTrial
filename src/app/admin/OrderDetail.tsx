@@ -48,6 +48,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
   const [isVoiding, setIsVoiding] = useState(false);
   const [restockOnRefund, setRestockOnRefund] = useState(true);
   const [isMarkingPaid, setIsMarkingPaid] = useState(false);
+  const [timelineFilter, setTimelineFilter] = useState<"all" | "event" | "note">("all");
 
   useEffect(() => {
     loadOrder();
@@ -83,7 +84,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
         trackingNumber: trackingNumber.trim(),
         shippedAt: new Date().toISOString(),
       });
-      await adminApi.addOrderNote(
+      await adminApi.addOrderEvent(
         orderId,
         `Order shipped via ${trackingCarrier}. Tracking: ${trackingNumber.trim()}`
       );
@@ -152,7 +153,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
           paymentStatus: "refunded",
           restockOnRefund: restockOnRefund
         });
-        await adminApi.addOrderNote(
+        await adminApi.addOrderEvent(
           orderId,
           `Order payment manually refunded/voided by administrator. Reason: ${reason.trim() || "Admin refund"}`
         );
@@ -184,7 +185,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     setIsVoiding(true);
     try {
       await adminApi.updateOrder(orderId, { status: "cancelled" });
-      await adminApi.addOrderNote(orderId, "Unpaid order cancelled by administrator.");
+      await adminApi.addOrderEvent(orderId, "Unpaid order cancelled by administrator.");
       await loadOrder();
       toast.success("Unpaid order cancelled");
     } catch (err: any) {
@@ -204,7 +205,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
       await adminApi.updateOrder(orderId, {
         paymentStatus: "paid"
       });
-      await adminApi.addOrderNote(
+      await adminApi.addOrderEvent(
         orderId,
         "Payment verified and marked as paid by administrator."
       );
@@ -526,28 +527,48 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                       <Plus size={18} />
                    </button>
                  </div>
+                  {/* Filter tabs */}
+                  <div className="flex border-b border-white/5 pb-2 gap-4">
+                    {(["all", "event", "note"] as const).map(tab => (
+                      <button
+                        key={tab}
+                        type="button"
+                        onClick={() => setTimelineFilter(tab)}
+                        className={`text-[9px] font-black tracking-widest uppercase transition-all pb-1.5 border-b-2 ${
+                          timelineFilter === tab
+                            ? "border-amber-500 text-white"
+                            : "border-transparent text-slate-500 hover:text-slate-350"
+                        }`}
+                      >
+                        {tab === "all" ? "All" : tab === "event" ? "System Events" : "Notes Only"}
+                      </button>
+                    ))}
+                  </div>
 
-                 <div className="space-y-10 pl-6 border-l-2 border-white/5">
-                    {order.activity?.map((event: any, i: number) => (
-                      <div key={i} className="relative group">
-                        <div className="absolute -left-[2.1rem] top-1 w-3 h-3 bg-slate-900 border-2 border-white/10 rounded-full group-hover:border-amber-500 transition-colors"></div>
-                        <div className={`p-5 rounded-2xl border transition-all ${
-                          event.type === 'note' 
-                            ? 'bg-amber-500/5 border-amber-500/20 text-slate-200' 
-                            : 'bg-white/[0.01] border-white/5 text-slate-400'
-                        }`}>
-                          <p className="text-xs leading-relaxed">{event.message}</p>
-                        </div>
-                        <p className="text-[8px] text-slate-600 uppercase tracking-[0.3em] mt-3 font-black">{new Date(event.createdAt).toLocaleString()}</p>
-                      </div>
-                    )).reverse()}
-                    {(!order.activity || order.activity.length === 0) && (
-                      <div className="text-center py-10 opacity-30">
-                        <Clock size={32} className="mx-auto mb-4" />
-                        <p className="text-[8px] tracking-[0.4em] uppercase font-black">No Registry Entries</p>
-                      </div>
-                    )}
-                 </div>
+                  <div className="space-y-10 pl-6 border-l-2 border-white/5">
+                     {(order.activity || [])
+                       .filter((e: any) => timelineFilter === "all" || e.type === timelineFilter)
+                       .map((event: any, i: number) => (
+                       <div key={i} className="relative group">
+                         <div className="absolute -left-[2.1rem] top-1 w-3 h-3 bg-slate-900 border-2 border-white/10 rounded-full group-hover:border-amber-500 transition-colors"></div>
+                         <div className={`p-5 rounded-2xl border transition-all ${
+                           event.type === 'note' 
+                             ? 'bg-amber-500/5 border-amber-500/20 text-slate-200' 
+                             : 'bg-white/[0.01] border-white/5 text-slate-400'
+                         }`}>
+                           <p className="text-xs leading-relaxed">{event.message}</p>
+                         </div>
+                         <p className="text-[8px] text-slate-600 uppercase tracking-[0.3em] mt-3 font-black">{new Date(event.createdAt).toLocaleString()}</p>
+                       </div>
+                     )).reverse()}
+                     {((order.activity || [])
+                       .filter((e: any) => timelineFilter === "all" || e.type === timelineFilter).length === 0) && (
+                       <div className="text-center py-10 opacity-30">
+                         <Clock size={32} className="mx-auto mb-4" />
+                         <p className="text-[8px] tracking-[0.4em] uppercase font-black">No Registry Entries</p>
+                       </div>
+                     )}
+                  </div>
                </div>
             </section>
           </div>

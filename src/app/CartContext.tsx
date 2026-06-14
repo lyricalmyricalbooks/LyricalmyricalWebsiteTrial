@@ -50,7 +50,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [cart]);
 
   const addToCart = (product: any, variant?: any) => {
-    const stockLimit = variant ? variant.stock : product.stockLevel;
+    const stockLimit = variant ? (variant.stockLevel ?? variant.stock) : product.stockLevel;
     if (stockLimit === 0) return;
 
     setCart(prev => {
@@ -71,7 +71,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         title: product.title,
         price: variant ? variant.price : (product.isOnSale ? product.salePrice : product.retailPrice),
         quantity: 1,
-        photoUrl: product.photos?.[0]?.url || "",
+        photoUrl: (variant && variant.photoUrl) ? variant.photoUrl : (product.photos?.[0]?.url || ""),
         stripePriceId: variant?.stripePriceId || product.stripePriceId || "",
         stockLimit: typeof stockLimit === "number" ? stockLimit : undefined,
         shippingProfileId: product.shippingProfileId || "",

@@ -96,6 +96,8 @@ export function Checkout() {
   const [discountCode, setDiscountCode]       = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
   const [discountError, setDiscountError]     = useState("");
+  const [shippoRatesLoading, setShippoRatesLoading] = useState(false);
+
 
   const [customer, setCustomer] = useState({
     name: "", email: "", phone: "",
@@ -381,12 +383,64 @@ export function Checkout() {
         throw new Error("This code only applies to specific products not currently in your cart.");
       }
     }
+
+    // 4. BOGO & Tiered specific checks
+    if (discount.type === "bogo") {
+      const buyQty = Number(discount.buyQuantity) || 1;
+      const getQty = Number(discount.getQuantity) || 1;
+      const requiredUnits = buyQty + getQty;
+
+      // Filter qualifying items
+      const qualItems = cartItems.filter(item => {
+        if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return true;
+        if (discount.appliesTo === "categories") {
+          const catalogBook = booksCatalog.find(b => b.id === item.id);
+          const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
+          return bookCats.some(cat => discount.selectedCategories?.includes(cat));
+        }
+        if (discount.appliesTo === "products") {
+          return discount.selectedProducts?.includes(item.id);
+        }
+        return false;
+      });
+
+      const totalQualUnits = qualItems.reduce((sum, item) => sum + item.quantity, 0);
+      if (totalQualUnits < requiredUnits) {
+        throw new Error(`This BOGO code requires buying at least ${requiredUnits} qualifying items.`);
+      }
+    }
+
+    if (discount.type === "tiered") {
+      const tiers = discount.tiers || [];
+      if (!Array.isArray(tiers) || tiers.length === 0) {
+        throw new Error("This tiered code is not configured correctly.");
+      }
+
+      // Calculate qualifying subtotal
+      const qualifyingSubtotal = cartItems.reduce((sum, item) => {
+        if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return sum + item.quantity * item.price;
+        let qualifies = false;
+        if (discount.appliesTo === "categories") {
+          const catalogBook = booksCatalog.find(b => b.id === item.id);
+          const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
+          qualifies = bookCats.some(cat => discount.selectedCategories?.includes(cat));
+        } else if (discount.appliesTo === "products") {
+          qualifies = discount.selectedProducts?.includes(item.id);
+        }
+        return qualifies ? sum + item.quantity * item.price : sum;
+      }, 0);
+
+      const lowestMinSpend = Math.min(...tiers.map(t => Number(t.minSpend)));
+      if (qualifyingSubtotal < lowestMinSpend) {
+        throw new Error(`This code requires a minimum spend of $${lowestMinSpend.toFixed(2)} on qualifying items.`);
+      }
+    }
   };
 
   const [availableRates, setAvailableRates] = useState<any[]>([]);
   const [selectedRateName, setSelectedRateName] = useState<string>("");
 
-  useEffect(() => {
+  const calculateStaticProfileRates = () => {
     if (cart.length === 0 || shippingProfiles.length === 0) {
       setAvailableRates([]);
       setShippingCost(0);
@@ -510,7 +564,55 @@ export function Checkout() {
     });
 
     setAvailableRates(combinedRates);
-  }, [customer.address.country, cart, shippingProfiles, cartTotal]);
+  };
+
+  useEffect(() => {
+    const addr = customer.address;
+    if (!addr.street?.trim() || !addr.city?.trim() || !addr.state?.trim() || !addr.zip?.trim() || cart.length === 0) {
+      calculateStaticProfileRates();
+      return;
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      setShippoRatesLoading(true);
+      try {
+        const res = await fetch(functionUrl("getShippoRates"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            address: {
+              street: addr.street.trim(),
+              city: addr.city.trim(),
+              state: addr.state.trim(),
+              zip: addr.zip.trim(),
+              country: addr.country || "Canada",
+              name: customer.name || "Customer"
+            },
+            items: cart.map(i => ({ id: i.id, quantity: i.quantity, variantId: i.variantId }))
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.rates) && data.rates.length > 0) {
+            setAvailableRates(data.rates);
+            setShippoRatesLoading(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch Shippo rates:", err);
+      } finally {
+        setShippoRatesLoading(false);
+      }
+
+      // Fallback
+      calculateStaticProfileRates();
+    }, 1500);
+
+    return () => clearTimeout(delayDebounce);
+  }, [customer.address.street, customer.address.city, customer.address.state, customer.address.zip, customer.address.country, cart, shippingProfiles, cartTotal]);
+
 
   useEffect(() => {
     if (availableRates.length === 0) {
@@ -581,12 +683,12 @@ export function Checkout() {
   const calculateDiscountAmount = () => {
     if (!appliedDiscount) return 0;
     
-    // Calculate qualifying subtotal
-    const qualifyingSubtotal = (() => {
+    // Calculate qualifying subtotal and qualifying items list
+    const { qualifyingSubtotal, qualifyingItems } = (() => {
       if (appliedDiscount.appliesTo === "all" || appliedDiscount.appliesTo === "catalog") {
-        return cartTotal;
+        return { qualifyingSubtotal: cartTotal, qualifyingItems: cart };
       }
-      return cart.reduce((sum, item) => {
+      const itemsList = cart.filter(item => {
         let qualifies = false;
         if (appliedDiscount.appliesTo === "categories") {
           const catalogBook = books.find(b => b.id === item.id);
@@ -595,15 +697,61 @@ export function Checkout() {
         } else if (appliedDiscount.appliesTo === "products") {
           qualifies = appliedDiscount.selectedProducts?.includes(item.id);
         }
-        return qualifies ? sum + item.quantity * item.price : sum;
-      }, 0);
+        return qualifies;
+      });
+      const sub = itemsList.reduce((sum, item) => sum + item.quantity * item.price, 0);
+      return { qualifyingSubtotal: sub, qualifyingItems: itemsList };
     })();
 
     if (appliedDiscount.type === "percentage") {
-      return qualifyingSubtotal * (appliedDiscount.value / 100);
+      return qualifyingSubtotal * (Number(appliedDiscount.value) / 100);
     }
     if (appliedDiscount.type === "fixed") {
-      return Math.min(appliedDiscount.value, qualifyingSubtotal);
+      return Math.min(Number(appliedDiscount.value), qualifyingSubtotal);
+    }
+    if (appliedDiscount.type === "bogo") {
+      const buyQty = Number(appliedDiscount.buyQuantity) || 1;
+      const getQty = Number(appliedDiscount.getQuantity) || 1;
+      const getVal = Number(appliedDiscount.getDiscountValue) ?? 100;
+
+      const unitPrices: number[] = [];
+      qualifyingItems.forEach(i => {
+        for (let k = 0; k < i.quantity; k++) {
+          unitPrices.push(i.price);
+        }
+      });
+
+      const totalQualUnits = unitPrices.length;
+      const requiredUnits = buyQty + getQty;
+      if (totalQualUnits < requiredUnits) return 0;
+
+      unitPrices.sort((a, b) => b - a);
+
+      const sets = Math.floor(totalQualUnits / requiredUnits);
+      const discountQty = sets * getQty;
+
+      let discountAmount = 0;
+      const cheapestUnits = unitPrices.slice(-discountQty);
+      cheapestUnits.forEach(price => {
+        discountAmount += price * (getVal / 100);
+      });
+
+      return discountAmount;
+    }
+    if (appliedDiscount.type === "tiered") {
+      const tiers = appliedDiscount.tiers || [];
+      if (!Array.isArray(tiers) || tiers.length === 0) return 0;
+
+      const sortedTiers = [...tiers].sort((a, b) => Number(b.minSpend) - Number(a.minSpend));
+      const matchingTier = sortedTiers.find(t => qualifyingSubtotal >= Number(t.minSpend));
+      if (!matchingTier) return 0;
+
+      const val = Number(matchingTier.value);
+      if (matchingTier.type === "percentage") {
+        return qualifyingSubtotal * (val / 100);
+      } else if (matchingTier.type === "fixed") {
+        return Math.min(val, qualifyingSubtotal);
+      }
     }
     return 0;
   };
@@ -1014,7 +1162,12 @@ export function Checkout() {
                 <h2 className="text-xl font-semibold tracking-tight text-slate-900">Shipping method</h2>
                 <p className="mt-1 text-sm text-slate-500">Choose the delivery speed that works for you.</p>
               </div>
-              {availableRates.length > 0 ? (
+              {shippoRatesLoading ? (
+                <div className="flex items-center justify-center gap-3 py-8 rounded-lg border border-slate-200 bg-white">
+                  <Loader2 className="h-5 w-5 animate-spin text-[#1773b0]" />
+                  <span className="text-sm text-slate-500 font-medium">Calculating live shipping rates...</span>
+                </div>
+              ) : availableRates.length > 0 ? (
                 <div className="overflow-hidden rounded-lg border border-slate-300 bg-white">
                   {availableRates.map((rate, index) => (
                     <label key={rate.name} className={`flex cursor-pointer items-center justify-between gap-4 px-4 py-4 ${index ? "border-t border-slate-200" : ""}`}>

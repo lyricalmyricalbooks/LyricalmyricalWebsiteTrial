@@ -20,6 +20,8 @@ const TYPE_OPTIONS = [
   { id: "percentage", icon: Percent,    label: "Percentage",     desc: "e.g. 20% off" },
   { id: "fixed",      icon: DollarSign, label: "Fixed amount",   desc: "e.g. $10 off" },
   { id: "freeship",   icon: Truck,      label: "Free shipping",  desc: "Waive shipping cost" },
+  { id: "bogo",       icon: ShoppingCart, label: "BOGO",        desc: "Buy X Get Y" },
+  { id: "tiered",     icon: BarChart2,  label: "Tiered",         desc: "Tiered spend" },
 ];
 
 const APPLIES_OPTIONS = [
@@ -43,6 +45,10 @@ const EMPTY: any = {
   allowedEmailDomains: "",
   allowedCustomerEmails: "",
   description: "",
+  buyQuantity: 1,
+  getQuantity: 1,
+  getDiscountValue: 100,
+  tiers: [{ minSpend: 0, value: 0, type: "percentage" }],
 };
 
 // ─── Stat chip ──────────────────────────────────────────────────────────────
@@ -109,17 +115,42 @@ function DiscountCard({ d, onDelete, onToggle, onEdit }: {
       <div>
         <h4 className="text-3xl font-black tracking-tighter text-white uppercase italic leading-none mb-1">{d.code}</h4>
         {d.description && <p className="text-[10px] text-slate-500 tracking-wide mt-1 line-clamp-2">{d.description}</p>}
+        {d.type === "tiered" && d.tiers && (
+          <div className="text-[9px] text-slate-500 uppercase tracking-widest mt-2 space-y-1 bg-black/25 p-3 rounded-xl border border-white/5">
+            {d.tiers.map((t: any, idx: number) => (
+              <div key={idx} className="flex justify-between">
+                <span>Spend {fmt(t.minSpend)}:</span>
+                <span className="font-bold text-violet-400">get {t.type === "percentage" ? `${t.value}%` : fmt(t.value)} off</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* value badge */}
       <div className="flex flex-wrap gap-2">
-        {d.type !== "freeship" && (
+        {d.type === "percentage" && (
           <span className="px-3 py-1 rounded-full bg-white/5 text-white text-[10px] font-black tracking-widest uppercase">
-            {d.type === "percentage" ? `${d.value}% off` : `${fmt(d.value)} off`}
+            {d.value}% off
+          </span>
+        )}
+        {d.type === "fixed" && (
+          <span className="px-3 py-1 rounded-full bg-white/5 text-white text-[10px] font-black tracking-widest uppercase">
+            {fmt(d.value)} off
           </span>
         )}
         {d.type === "freeship" && (
           <span className="px-3 py-1 rounded-full bg-white/5 text-white text-[10px] font-black tracking-widest uppercase">Free shipping</span>
+        )}
+        {d.type === "bogo" && (
+          <span className="px-3 py-1 rounded-full bg-violet-600/20 border border-violet-500/20 text-violet-400 text-[10px] font-black tracking-widest uppercase">
+            BOGO: Buy {d.buyQuantity || 1} Get {d.getQuantity || 1} ({d.getDiscountValue || 100}% off)
+          </span>
+        )}
+        {d.type === "tiered" && (
+          <span className="px-3 py-1 rounded-full bg-violet-600/20 border border-violet-500/20 text-violet-400 text-[10px] font-black tracking-widest uppercase">
+            Tiered ({d.tiers?.length || 0} Tiers)
+          </span>
         )}
         {d.minOrderAmount && (
           <span className="px-3 py-1 rounded-full bg-white/[0.03] border border-white/5 text-slate-500 text-[9px] font-black tracking-widest uppercase">
@@ -231,6 +262,10 @@ function DiscountModal({ initial, onClose, onSave }: {
         selectedProducts: form.appliesTo === "products" ? (form.selectedProducts || []) : [],
         allowedEmailDomains: form.allowedEmailDomains || "",
         allowedCustomerEmails: form.allowedCustomerEmails || "",
+        buyQuantity: form.type === "bogo" ? (Number(form.buyQuantity) || 1) : null,
+        getQuantity: form.type === "bogo" ? (Number(form.getQuantity) || 1) : null,
+        getDiscountValue: form.type === "bogo" ? (Number(form.getDiscountValue) ?? 100) : null,
+        tiers: form.type === "tiered" ? (form.tiers || []) : null,
       });
     } finally {
       setSaving(false);
@@ -394,30 +429,150 @@ function DiscountModal({ initial, onClose, onSave }: {
           {/* Type */}
           <div className="space-y-3">
             <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">Discount type</label>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               {TYPE_OPTIONS.map(t => (
                 <button
                   key={t.id}
                   onClick={() => set("type", t.id)}
-                  className={`p-5 rounded-2xl border flex flex-col items-center gap-3 transition-all duration-300 text-center ${
+                  className={`p-4 rounded-2xl border flex flex-col items-center justify-center gap-2 transition-all duration-300 text-center ${
                     form.type === t.id
                       ? "bg-violet-600 text-white border-violet-400 shadow-[0_10px_30px_rgba(124,58,237,0.3)]"
                       : "bg-white/[0.02] border-white/5 text-slate-500 hover:bg-white/5 hover:border-white/10"
                   }`}
                 >
-                  <t.icon size={22} strokeWidth={form.type === t.id ? 2.5 : 1.5} />
+                  <t.icon size={18} strokeWidth={form.type === t.id ? 2.5 : 1.5} />
                   <div>
-                    <p className="text-[9px] font-black tracking-[0.3em] uppercase">{t.label}</p>
-                    <p className="text-[8px] opacity-70 mt-0.5">{t.desc}</p>
+                    <p className="text-[8px] font-black tracking-[0.2em] uppercase">{t.label}</p>
+                    <p className="text-[7px] opacity-70 mt-0.5 leading-none">{t.desc}</p>
                   </div>
                 </button>
               ))}
             </div>
           </div>
 
+          {/* BOGO Inputs */}
+          {form.type === "bogo" && (
+            <div className="grid grid-cols-3 gap-4 p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
+              <div className="space-y-2">
+                <label className="text-[9px] tracking-wider text-slate-500 uppercase font-black">Buy Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.buyQuantity ?? 1}
+                  onChange={e => set("buyQuantity", parseInt(e.target.value) || 1)}
+                  className="w-full bg-white/[0.03] border border-white/5 rounded-xl py-3 px-4 text-sm font-bold text-white focus:border-violet-500/50 outline-none transition-all"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[9px] tracking-wider text-slate-500 uppercase font-black">Get Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={form.getQuantity ?? 1}
+                  onChange={e => set("getQuantity", parseInt(e.target.value) || 1)}
+                  className="w-full bg-white/[0.03] border border-white/5 rounded-xl py-3 px-4 text-sm font-bold text-white focus:border-violet-500/50 outline-none transition-all"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[9px] tracking-wider text-slate-500 uppercase font-black">Discount Value (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={form.getDiscountValue ?? 100}
+                  onChange={e => set("getDiscountValue", parseInt(e.target.value) || 0)}
+                  className="w-full bg-white/[0.03] border border-white/5 rounded-xl py-3 px-4 text-sm font-bold text-white focus:border-violet-500/50 outline-none transition-all"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Tiered Inputs */}
+          {form.type === "tiered" && (
+            <div className="p-5 bg-white/[0.02] border border-white/5 rounded-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="text-[9px] tracking-wider text-slate-500 uppercase font-black">Tiers Configuration</label>
+                {((form.tiers || []).length < 3) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const current = form.tiers || [];
+                      set("tiers", [...current, { minSpend: 0, value: 0, type: "percentage" }]);
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 rounded bg-white/5 border border-white/10 hover:bg-white/10 text-[8px] font-black tracking-wider uppercase text-white transition-all"
+                  >
+                    <Plus size={10} /> Add Tier
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                {(form.tiers || []).map((tier: any, idx: number) => (
+                  <div key={idx} className="flex gap-3 items-end bg-black/20 p-3.5 rounded-xl border border-white/5 relative">
+                    <div className="flex-1 space-y-1">
+                      <label className="text-[8px] tracking-wider text-slate-500 uppercase font-black">Min Spend (CA$)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={tier.minSpend}
+                        onChange={e => {
+                          const newTiers = [...form.tiers];
+                          newTiers[idx].minSpend = parseFloat(e.target.value) || 0;
+                          set("tiers", newTiers);
+                        }}
+                        className="w-full bg-[#1A1A1B] border border-white/5 rounded-lg py-2 px-3 text-xs font-bold text-white focus:border-violet-500/50 outline-none transition-all"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <label className="text-[8px] tracking-wider text-slate-500 uppercase font-black">Discount Value</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={tier.value}
+                        onChange={e => {
+                          const newTiers = [...form.tiers];
+                          newTiers[idx].value = parseFloat(e.target.value) || 0;
+                          set("tiers", newTiers);
+                        }}
+                        className="w-full bg-[#1A1A1B] border border-white/5 rounded-lg py-2 px-3 text-xs font-bold text-white focus:border-violet-500/50 outline-none transition-all"
+                      />
+                    </div>
+                    <div className="w-24 space-y-1">
+                      <label className="text-[8px] tracking-wider text-slate-500 uppercase font-black">Type</label>
+                      <select
+                        value={tier.type}
+                        onChange={e => {
+                          const newTiers = [...form.tiers];
+                          newTiers[idx].type = e.target.value;
+                          set("tiers", newTiers);
+                        }}
+                        className="w-full bg-[#1A1A1B] border border-white/5 rounded-lg py-2 px-2 text-xs font-bold text-white focus:border-violet-500/50 outline-none transition-all"
+                      >
+                        <option value="percentage">Percentage (%)</option>
+                        <option value="fixed">Fixed ($)</option>
+                      </select>
+                    </div>
+                    {(form.tiers.length > 1) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          set("tiers", form.tiers.filter((_: any, i: number) => i !== idx));
+                        }}
+                        className="p-2 rounded-lg bg-white/5 border border-white/5 text-slate-400 hover:text-rose-500 hover:border-rose-500/20 transition-all"
+                        title="Remove Tier"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Value + Expiry */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {form.type !== "freeship" && (
+            {form.type !== "freeship" && form.type !== "bogo" && form.type !== "tiered" && (
               <div className="space-y-3">
                 <label className="text-[10px] tracking-[0.5em] text-slate-500 uppercase font-black">
                   {form.type === "percentage" ? "Percentage off" : "Amount off (CA$)"}

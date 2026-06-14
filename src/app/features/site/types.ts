@@ -8,6 +8,8 @@ export type Variant = {
   name: string;
   price: number;
   stock: number;
+  stockLevel?: number;
+  photoUrl?: string;
   sku?: string;
   weight?: string;
 };

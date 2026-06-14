@@ -526,6 +526,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         usdPrice: Number((variantPrice * usdRate).toFixed(2)),
         eurPrice: Number((variantPrice * eurRate).toFixed(2)),
         stock: 0, 
+        stockLevel: 0,
+        photoUrl: "",
         sku: `${prev.sku || 'SKU'}-${(prev.variants || []).length + 1}`,
         weight: prev.weight || "",
         id: crypto.randomUUID() 
@@ -536,7 +538,18 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const updateVariant = (id: string, field: string, value: any) => {
     setFormData((prev: any) => ({
       ...prev,
-      variants: prev.variants.map((v: any) => v.id === id ? { ...v, [field]: value } : v)
+      variants: (prev.variants || []).map((v: any) => {
+        if (v.id === id) {
+          const updated = { ...v, [field]: value };
+          if (field === "stock") {
+            updated.stockLevel = Number(value) || 0;
+          } else if (field === "stockLevel") {
+            updated.stock = Number(value) || 0;
+          }
+          return updated;
+        }
+        return v;
+      })
     }));
   };
 
@@ -898,6 +911,41 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                           </div>
                         </div>
                         
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200/60 items-center">
+                          <div className="space-y-3">
+                            <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Edition Image Selection</label>
+                            <div className="flex gap-4 items-center">
+                              {v.photoUrl && (
+                                <img
+                                  src={v.photoUrl}
+                                  alt="Variant Preview"
+                                  className="w-10 h-12 object-cover rounded-lg border border-slate-200 bg-white"
+                                />
+                              )}
+                              <div className="flex-1 space-y-2">
+                                <select
+                                  value={v.photoUrl || ""}
+                                  onChange={(e) => updateVariant(v.id, "photoUrl", e.target.value)}
+                                  className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-[11px] text-slate-700 focus:border-cyan-500/50 outline-none transition-all font-bold"
+                                >
+                                  <option value="">-- No variant image --</option>
+                                  {(formData.photos || []).map((p: any, idx: number) => (
+                                    <option key={p.id || idx} value={p.url}>
+                                      Photo {idx + 1} ({p.altText || "No Alt"})
+                                    </option>
+                                  ))}
+                                </select>
+                                <input
+                                  placeholder="Manual URL Override..."
+                                  value={v.photoUrl || ""}
+                                  onChange={(e) => updateVariant(v.id, "photoUrl", e.target.value)}
+                                  className="w-full bg-white border border-slate-200 rounded-xl py-2 px-3 text-[10px] text-slate-700 focus:border-cyan-500/50 outline-none transition-all"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
                         <button 
                           type="button" 
                           onClick={() => removeVariant(v.id)} 

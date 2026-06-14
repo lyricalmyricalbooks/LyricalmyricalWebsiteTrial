@@ -966,10 +966,33 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
                 </p>
               </div>
               {shippoConfig?.configured && (
-                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                  <ShieldCheck size={14} className="text-emerald-400" />
-                  Active key ending in ••••{shippoConfig.lastFour}
-                  {shippoConfig.source === "environment" && " (Firebase secret)"}
+                <div className="flex flex-col gap-4 pt-4 border-t border-white/5">
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+                    <ShieldCheck size={14} className="text-emerald-400" />
+                    Active key ending in ••••{shippoConfig.lastFour}
+                    {shippoConfig.source === "environment" && " (Firebase secret)"}
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Enable Dynamic Shippo Rates</p>
+                      <p className="text-[8px] text-slate-500 uppercase tracking-widest">Fetch live carrier rates during checkout</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={shippoConfig?.dynamicRatesEnabled ?? false}
+                      onChange={async (e) => {
+                        const enabled = e.target.checked;
+                        try {
+                          await adminApi.setShippoDynamicRates(enabled);
+                          setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
+                          toast.success(enabled ? "Dynamic shipping rates enabled" : "Dynamic shipping rates disabled");
+                        } catch (err: any) {
+                          toast.error(err.message || "Failed to update Shippo settings");
+                        }
+                      }}
+                      className="w-6 h-6 rounded-lg bg-white border-slate-300 dark:border-zinc-800 text-violet-600 focus:ring-violet-500 cursor-pointer"
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -2151,6 +2174,31 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                      </div>
                   )}
                </div>
+
+               {shippoConfig?.configured && (
+                  <div className="p-6 bg-white/[0.02] border border-white/5 rounded-2xl flex justify-between items-center">
+                     <div>
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Dynamic Rates via Shippo</span>
+                        <p className="text-xs text-slate-450 mt-1">Fetch live carrier shipping rates dynamically at checkout based on address & parcel weight</p>
+                     </div>
+                     <input
+                        type="checkbox"
+                        checked={shippoConfig?.dynamicRatesEnabled ?? false}
+                        onChange={async (e) => {
+                           const enabled = e.target.checked;
+                           try {
+                              await adminApi.setShippoDynamicRates(enabled);
+                              setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
+                              alert(enabled ? "Dynamic shipping rates enabled!" : "Dynamic shipping rates disabled!");
+                           } catch (err: any) {
+                              alert(err.message || "Failed to update Shippo settings.");
+                           }
+                        }}
+                        className="w-6 h-6 rounded-lg bg-[#1E1E1F] border-white/10 text-violet-600 focus:ring-violet-500 cursor-pointer"
+                     />
+                  </div>
+               )}
+
 
                <div className="flex gap-4 items-end">
                   <div className="flex-1">

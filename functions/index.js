@@ -315,6 +315,104 @@ function computeDiscountAmount(discount, items, booksById) {
     throw new Error(`This code requires a minimum of ${discount.minQuantity} items.`);
   }
 
+  // 1. BOGO Calculation
+  if (discount.type === "bogo") {
+    const buyQty = Number(discount.buyQuantity) || 1;
+    const getQty = Number(discount.getQuantity) || 1;
+    const getVal = Number(discount.getDiscountValue) ?? 100;
+
+    let qualItems = [];
+    if (discount.appliesTo === "categories") {
+      const selected = discount.selectedCategories || [];
+      qualItems = items.filter(i => {
+        const cats = (booksById[i.id] && booksById[i.id].categories) || [];
+        return cats.some(c => selected.includes(c));
+      });
+      if (qualItems.length === 0) {
+        throw new Error("This BOGO code only applies to specific categories not in your cart.");
+      }
+    } else if (discount.appliesTo === "products") {
+      const selected = discount.selectedProducts || [];
+      qualItems = items.filter(i => selected.includes(i.id));
+      if (qualItems.length === 0) {
+        throw new Error("This BOGO code only applies to specific products not in your cart.");
+      }
+    } else {
+      qualItems = items;
+    }
+
+    const unitPrices = [];
+    qualItems.forEach(i => {
+      for (let k = 0; k < i.quantity; k++) {
+        unitPrices.push(i.price);
+      }
+    });
+
+    const totalQualUnits = unitPrices.length;
+    const requiredUnits = buyQty + getQty;
+    if (totalQualUnits < requiredUnits) {
+      throw new Error(`This code requires buying at least ${requiredUnits} qualifying items.`);
+    }
+
+    unitPrices.sort((a, b) => b - a);
+
+    const sets = Math.floor(totalQualUnits / requiredUnits);
+    const discountQty = sets * getQty;
+
+    let discountAmount = 0;
+    const cheapestUnits = unitPrices.slice(-discountQty);
+    cheapestUnits.forEach(price => {
+      discountAmount += price * (getVal / 100);
+    });
+
+    return discountAmount;
+  }
+
+  // 2. Tiered Calculation
+  if (discount.type === "tiered") {
+    const tiers = discount.tiers || [];
+    if (!Array.isArray(tiers) || tiers.length === 0) {
+      return 0;
+    }
+
+    let qualSubtotal = subtotal;
+    if (discount.appliesTo === "categories") {
+      const selected = discount.selectedCategories || [];
+      qualSubtotal = items.reduce((s, i) => {
+        const cats = (booksById[i.id] && booksById[i.id].categories) || [];
+        return cats.some(c => selected.includes(c)) ? s + i.price * i.quantity : s;
+      }, 0);
+      if (qualSubtotal === 0) {
+        throw new Error("This tiered code only applies to specific categories not in your cart.");
+      }
+    } else if (discount.appliesTo === "products") {
+      const selected = discount.selectedProducts || [];
+      qualSubtotal = items.reduce(
+        (s, i) => (selected.includes(i.id) ? s + i.price * i.quantity : s), 0
+      );
+      if (qualSubtotal === 0) {
+        throw new Error("This tiered code only applies to specific products not in your cart.");
+      }
+    }
+
+    const sortedTiers = [...tiers].sort((a, b) => Number(b.minSpend) - Number(a.minSpend));
+    const matchingTier = sortedTiers.find(t => qualSubtotal >= Number(t.minSpend));
+
+    if (!matchingTier) {
+      const lowestMinSpend = Math.min(...tiers.map(t => Number(t.minSpend)));
+      throw new Error(`This code requires a minimum spend of ${moneyFmt(lowestMinSpend)} on qualifying items.`);
+    }
+
+    const val = Number(matchingTier.value);
+    if (matchingTier.type === "percentage") {
+      return qualSubtotal * (val / 100);
+    } else if (matchingTier.type === "fixed") {
+      return Math.min(val, qualSubtotal);
+    }
+    return 0;
+  }
+
+  // 3. Legacy Percentage & Fixed Calculation
   let qualifying = subtotal;
   if (discount.appliesTo === "categories") {
     const selected = discount.selectedCategories || [];
@@ -333,7 +431,7 @@ function computeDiscountAmount(discount, items, booksById) {
 
   if (discount.type === "percentage") return qualifying * (Number(discount.value) / 100);
   if (discount.type === "fixed") return Math.min(Number(discount.value), qualifying);
-  return 0; // "freeship" is applied to the shipping line instead
+  return 0;
 }
 
 const FALLBACK_RATES = {
@@ -499,8 +597,14 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
       if (!bookDoc.exists || !bookDoc.data().trackInventory) return;
       const book = bookDoc.data();
       if (item.variantId) {
-        const variants = (book.variants || []).map(v => v.id === item.variantId
-          ? { ...v, stock: Math.max(0, Number(v.stock || 0) - item.quantity) } : v);
+        const variants = (book.variants || []).map(v => {
+          if (v.id === item.variantId) {
+            const currentStock = v.stockLevel !== undefined ? v.stockLevel : v.stock;
+            const newStock = Math.max(0, Number(currentStock || 0) - item.quantity);
+            return { ...v, stockLevel: newStock, stock: newStock };
+          }
+          return v;
+        });
         transaction.update(bookRefs[index], { variants, stockLevel: Math.max(0, Number(book.stockLevel || 0) - item.quantity), updatedAt: now });
       } else {
         transaction.update(bookRefs[index], { stockLevel: Math.max(0, Number(book.stockLevel || 0) - item.quantity), updatedAt: now });
@@ -1016,7 +1120,9 @@ exports.stripeWebhook = onRequest(
                 const variants = book.variants || [];
                 const updatedVariants = variants.map(v => {
                   if (v.id === item.variantId) {
-                    return { ...v, stock: Math.max(0, v.stock - item.quantity) };
+                    const currentStock = v.stockLevel !== undefined ? v.stockLevel : v.stock;
+                    const newStock = Math.max(0, (currentStock || 0) - item.quantity);
+                    return { ...v, stockLevel: newStock, stock: newStock };
                   }
                   return v;
                 });
@@ -1175,11 +1281,14 @@ exports.refundOrder = onRequest(
 
             if (item.variantId) {
               transaction.update(bookRefs[index], {
-                variants: (book.variants || []).map(variant => (
-                  variant.id === item.variantId
-                    ? { ...variant, stock: (Number(variant.stock) || 0) + quantity }
-                    : variant
-                )),
+                variants: (book.variants || []).map(variant => {
+                  if (variant.id === item.variantId) {
+                    const currentStock = variant.stockLevel !== undefined ? variant.stockLevel : variant.stock;
+                    const newStock = (Number(currentStock) || 0) + quantity;
+                    return { ...variant, stockLevel: newStock, stock: newStock };
+                  }
+                  return variant;
+                }),
                 stockLevel: (Number(book.stockLevel) || 0) + quantity,
                 updatedAt: now,
               });
@@ -1581,7 +1690,9 @@ exports.onOrderUpdated = onDocumentUpdated(
                 const variants = book.variants || [];
                 const updatedVariants = variants.map(v => {
                   if (v.id === item.variantId) {
-                    return { ...v, stock: Math.max(0, (Number(v.stock) || 0) - quantity) };
+                    const currentStock = v.stockLevel !== undefined ? v.stockLevel : v.stock;
+                    const newStock = Math.max(0, (Number(currentStock) || 0) - quantity);
+                    return { ...v, stockLevel: newStock, stock: newStock };
                   }
                   return v;
                 });
@@ -1819,11 +1930,14 @@ exports.onOrderUpdated = onDocumentUpdated(
 
               if (item.variantId) {
                 transaction.update(bookRefs[index], {
-                  variants: (book.variants || []).map(variant => (
-                    variant.id === item.variantId
-                      ? { ...variant, stock: (Number(variant.stock) || 0) + quantity }
-                      : variant
-                  )),
+                  variants: (book.variants || []).map(variant => {
+                    if (variant.id === item.variantId) {
+                      const currentStock = variant.stockLevel !== undefined ? variant.stockLevel : variant.stock;
+                      const newStock = (Number(currentStock) || 0) + quantity;
+                      return { ...variant, stockLevel: newStock, stock: newStock };
+                    }
+                    return variant;
+                  }),
                   stockLevel: (Number(book.stockLevel) || 0) + quantity,
                   updatedAt: new Date().toISOString(),
                 });
@@ -1954,12 +2068,159 @@ exports.getShippoConfig = onRequest({ secrets: [SHIPPO_API_TOKEN] }, async (req,
       source: configDoc.exists && config?.apiToken ? "firebase" : fallbackToken ? "environment" : null,
       lastFour: config?.lastFour || (fallbackToken ? fallbackToken.slice(-4) : null),
       updatedAt: config?.updatedAt || null,
+      dynamicRatesEnabled: config?.dynamicRatesEnabled ?? false,
     });
   } catch (err) {
     console.error("getShippoConfig failed:", err);
     res.status(500).json({ error: "Unable to load Shippo configuration." });
   }
 });
+
+exports.setShippoDynamicRates = onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") {
+    res.status(405).send("Method Not Allowed");
+    return;
+  }
+
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+
+  const enabled = Boolean(req.body?.enabled);
+
+  try {
+    const configDoc = await SHIPPO_CONFIG_DOC.get();
+    const current = configDoc.exists ? configDoc.data() : {};
+    await SHIPPO_CONFIG_DOC.set({
+      ...current,
+      dynamicRatesEnabled: enabled,
+      updatedAt: new Date().toISOString(),
+      updatedBy: adminUser.email,
+    });
+    res.status(200).json({ success: true, dynamicRatesEnabled: enabled });
+  } catch (err) {
+    console.error("setShippoDynamicRates failed:", err);
+    res.status(500).json({ error: "Unable to update Shippo dynamic rates setting." });
+  }
+});
+
+exports.getShippoRates = onRequest(
+  { secrets: [SHIPPO_API_TOKEN] },
+  async (req, res) => {
+    if (applyCors(req, res)) return;
+
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    const { address, items } = req.body;
+    if (!address || !items || !Array.isArray(items)) {
+      res.status(400).json({ error: "Missing address or items" });
+      return;
+    }
+
+    try {
+      const configDoc = await SHIPPO_CONFIG_DOC.get();
+      const config = configDoc.exists ? configDoc.data() : {};
+      if (config.dynamicRatesEnabled !== true) {
+        res.status(400).json({ error: "Dynamic rates are disabled" });
+        return;
+      }
+
+      const shippoToken = await getShippoToken();
+      if (!shippoToken) {
+        res.status(400).json({ error: "Shippo is not configured" });
+        return;
+      }
+
+      const settingsDoc = await db.collection("settings").doc("website").get();
+      const settings = settingsDoc.data() || {};
+      const origin = settings.location || {};
+
+      const addressFrom = {
+        name: settings.info?.name || "Lyricalmyrical Books",
+        street1: origin.street || "456 Montrose Ave",
+        city: origin.city || "Toronto",
+        state: getStateCode(origin.state || "ON"),
+        zip: origin.zip || "M6G3H1",
+        country: getCountryCode(origin.country || "CA"),
+        phone: "6474096863",
+        email: "lyricalmyricalbooks@gmail.com"
+      };
+
+      const addressTo = {
+        name: address.name || "Customer",
+        street1: address.street,
+        city: address.city,
+        state: getStateCode(address.state),
+        zip: address.zip,
+        country: getCountryCode(address.country),
+      };
+
+      const totalQty = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+      if (totalQty === 0) {
+        res.status(200).json({ rates: [] });
+        return;
+      }
+
+      const bookRefs = items.map(item => db.collection("books").doc(item.id));
+      const bookDocs = await Promise.all(bookRefs.map(ref => ref.get()));
+
+      let totalWeightLb = 0;
+      items.forEach((item, index) => {
+        const bookDoc = bookDocs[index];
+        const book = bookDoc.exists ? bookDoc.data() : {};
+        const qty = item.quantity || 1;
+
+        let itemWeightLb = 1.5;
+        if (item.variantId && book.variants) {
+          const variant = book.variants.find(v => v.id === item.variantId);
+          if (variant && variant.weight) {
+            itemWeightLb = parseFloat(variant.weight) || 1.5;
+          }
+        } else if (book.weight) {
+          itemWeightLb = parseFloat(book.weight) || 1.5;
+        }
+        totalWeightLb += itemWeightLb * qty;
+      });
+
+      const parcel = {
+        length: "10",
+        width: "8",
+        height: "2",
+        distance_unit: "in",
+        weight: Math.max(0.1, totalWeightLb).toFixed(1),
+        mass_unit: "lb"
+      };
+
+      const shipment = await callShippo("shipments/", "POST", {
+        address_from: addressFrom,
+        address_to: addressTo,
+        parcels: [parcel],
+        async: false
+      }, shippoToken);
+
+      const rates = shipment.rates || [];
+      const formattedRates = rates.map(r => {
+        const providerName = r.provider || "";
+        const serviceName = r.servicelevel?.name || r.servicelevel?.token || "Shipping";
+        return {
+          name: `${providerName} ${serviceName}`.trim(),
+          base: parseFloat(r.amount),
+          additional: 0,
+          deliveryDays: r.days ? String(r.days) : (r.duration_terms ? r.duration_terms : "3-7"),
+        };
+      });
+
+      res.status(200).json({ rates: formattedRates });
+    } catch (err) {
+      console.error("getShippoRates failed:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 
 exports.saveShippoConfig = onRequest(async (req, res) => {
   if (applyCors(req, res)) return;
@@ -2355,6 +2616,10 @@ exports.validateDiscountCode = onRequest(async (req, res) => {
         selectedProducts: d.selectedProducts ?? [],
         allowedEmailDomains: d.allowedEmailDomains ?? "",
         allowedCustomerEmails: d.allowedCustomerEmails ?? "",
+        buyQuantity: d.buyQuantity ?? null,
+        getQuantity: d.getQuantity ?? null,
+        getDiscountValue: d.getDiscountValue ?? null,
+        tiers: d.tiers ?? null,
       },
     });
   } catch (err) {
@@ -2720,8 +2985,8 @@ exports.onBookUpdated = onDocumentUpdated(
       const beforeVariants = before.variants || [];
       after.variants.forEach(vAfter => {
         const vBefore = beforeVariants.find(v => v.id === vAfter.id);
-        const vStockBefore = vBefore && vBefore.stock !== undefined ? Number(vBefore.stock) : 999;
-        const vStockAfter = vAfter.stock !== undefined ? Number(vAfter.stock) : 0;
+        const vStockBefore = vBefore ? (vBefore.stockLevel !== undefined ? Number(vBefore.stockLevel) : (vBefore.stock !== undefined ? Number(vBefore.stock) : 999)) : 999;
+        const vStockAfter = vAfter.stockLevel !== undefined ? Number(vAfter.stockLevel) : (vAfter.stock !== undefined ? Number(vAfter.stock) : 0);
 
         const vBecameLowStock = (vStockBefore > 3 && vStockAfter <= 3 && vStockAfter > 0);
         const vBecameSoldOut = (vStockBefore > 0 && vStockAfter === 0);

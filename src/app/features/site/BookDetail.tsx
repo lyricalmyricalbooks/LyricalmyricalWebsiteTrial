@@ -46,11 +46,20 @@ export default function BookDetail() {
   const [addingBoth, setAddingBoth]   = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imgBg, setImgBg]             = useState("transparent");
+  const [selectedVariant, setSelectedVariant] = useState<any>(null);
 
   const book: Book | undefined = books.find(
     (b) => b.id === slug || b.slug === slug ||
       b.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug
   );
+
+  useEffect(() => {
+    if (book?.variants && book.variants.length > 0) {
+      setSelectedVariant(book.variants[0]);
+    } else {
+      setSelectedVariant(null);
+    }
+  }, [book]);
 
   const storefrontDesign       = settings?.design?.storefront || {};
   const productImageLayout     = storefrontDesign.productImageLayout     || "slider";
@@ -178,9 +187,9 @@ export default function BookDetail() {
 
   const handleAddToCart = () => {
     if (!book) return;
-    const stock = (book as any).stockLevel ?? 999;
+    const stock = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any).stockLevel ?? 999);
     if (stock === 0) return;
-    addToCart(book);
+    addToCart(book, selectedVariant || undefined);
     funnelApi.track("add_to_cart");
     setAdded(true);
     setTimeout(() => setAdded(false), 2500);
@@ -212,12 +221,12 @@ export default function BookDetail() {
   const primaryColor  = settings?.design?.primaryColor || "#A855F7";
   const font          = settings?.design?.font || "Inter";
   const photos        = (book as any)?.photos || [{ url: DEFAULT_IMAGE }];
-  const stockLevel    = (book as any)?.stockLevel ?? 999;
+  const stockLevel    = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any)?.stockLevel ?? 999);
   const isOutOfStock  = stockLevel === 0;
-  const retailPrice   = (book as any)?.retailPrice ?? 0;
-  const salePrice     = (book as any)?.salePrice   ?? 0;
-  const isOnSale      = (book as any)?.isOnSale && salePrice > 0;
-  const activeUrl     = photos[activePhoto]?.url || DEFAULT_IMAGE;
+  const retailPrice   = selectedVariant ? selectedVariant.price : ((book as any)?.retailPrice ?? 0);
+  const salePrice     = selectedVariant ? 0 : ((book as any)?.salePrice   ?? 0);
+  const isOnSale      = selectedVariant ? false : ((book as any)?.isOnSale && salePrice > 0);
+  const activeUrl     = (selectedVariant && selectedVariant.photoUrl) ? selectedVariant.photoUrl : (photos[activePhoto]?.url || DEFAULT_IMAGE);
 
   // ── loading ────────────────────────────────────────────────────────────────
   if (loading) {
@@ -566,7 +575,7 @@ export default function BookDetail() {
                   </>
                 ) : (
                   <span className="text-4xl font-black tracking-tight text-white">
-                    {retailPrice > 0 ? formatBookPrice(book) : "Price on request"}
+                    {retailPrice > 0 ? (selectedVariant ? formatPrice(selectedVariant.price) : formatBookPrice(book)) : "Price on request"}
                   </span>
                 )}
               </div>
@@ -599,6 +608,36 @@ export default function BookDetail() {
                   {stockLevel > 0 && stockLevel !== 999 && stockLevel <= 10 && (
                     <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label="Availability" value={`${stockLevel} remaining`} />
                   )}
+                </div>
+              )}
+
+              {/* Variant Selector */}
+              {book.variants && book.variants.length > 0 && (
+                <div className="space-y-3">
+                  <label className="text-[9px] tracking-[0.35em] text-white/40 uppercase font-black">Format / Edition</label>
+                  <div className="flex flex-wrap gap-2.5">
+                    {book.variants.map((v: any) => {
+                      const isSelected = selectedVariant?.id === v.id;
+                      const vStock = v.stockLevel ?? v.stock ?? 0;
+                      const isVOutOfStock = vStock === 0;
+                      return (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => setSelectedVariant(v)}
+                          className={`px-5 py-3 rounded-2xl border text-[9px] font-black tracking-widest uppercase transition-all duration-300 ${
+                            isSelected
+                              ? "bg-white text-black border-white shadow-xl shadow-white/5"
+                              : isVOutOfStock
+                              ? "bg-white/5 border-white/5 text-white/20 cursor-not-allowed line-through"
+                              : "bg-white/[0.02] border-white/10 text-white/60 hover:text-white hover:border-white/20"
+                          }`}
+                        >
+                          {v.name} · {formatPrice(v.price)}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

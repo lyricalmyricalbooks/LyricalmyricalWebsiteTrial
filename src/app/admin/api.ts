@@ -693,6 +693,17 @@ export const adminApi = {
     });
   },
 
+  addOrderEvent: async (id: string, message: string) => {
+    const docRef = doc(db, "orders", id);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return;
+    const activity = snap.data().activity || [];
+    await updateDoc(docRef, {
+      activity: [...activity, { type: "event", message, createdAt: new Date().toISOString() }],
+      updatedAt: new Date().toISOString()
+    });
+  },
+
   refundOrder: async (orderId: string, options?: { reason?: string; restock?: boolean }) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to refund an order.");
@@ -746,6 +757,24 @@ export const adminApi = {
     if (!response.ok) throw new Error(result.error || "Failed to save Shippo settings.");
     return result;
   },
+
+  setShippoDynamicRates: async (enabled: boolean) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin to save Shippo settings.");
+
+    const response = await fetch(functionUrl("setShippoDynamicRates"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ enabled }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Failed to update Shippo dynamic rates setting.");
+    return result;
+  },
+
 
   createShippingLabel: async (orderId: string, parcel?: any) => {
     // Endpoint is admin-only on the backend; it verifies this ID token.
@@ -819,6 +848,10 @@ export const adminApi = {
       allowedEmailDomains: discount.allowedEmailDomains ?? "",
       allowedCustomerEmails: discount.allowedCustomerEmails ?? "",
       description: discount.description || "",
+      buyQuantity: discount.buyQuantity ?? null,
+      getQuantity: discount.getQuantity ?? null,
+      getDiscountValue: discount.getDiscountValue ?? null,
+      tiers: discount.tiers ?? null,
       createdAt: now,
       updatedAt: now,
     };
