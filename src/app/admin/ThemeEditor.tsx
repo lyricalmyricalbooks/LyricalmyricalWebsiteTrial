@@ -613,7 +613,7 @@ function SectionLibraryModal({ onAdd, onClose }: { onAdd: (type: string) => void
               <p className="text-[9px] font-black tracking-[0.4em] text-violet-400 uppercase italic mb-1">Section Library</p>
               <h3 className="text-xl font-black text-white uppercase italic tracking-tighter">Add a Section</h3>
             </div>
-            <button onClick={onClose} className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all">
+            <button onClick={onClose} aria-label="Close" className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all">
               <X size={16} strokeWidth={3} />
             </button>
           </div>
@@ -1640,8 +1640,8 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
 
                  {/* Reorder arrows */}
                  <div className="flex flex-col gap-1 flex-shrink-0">
-                    <button onClick={(e) => moveSection(index, 'up', e)} disabled={index === 0} className="p-0.5 hover:bg-neutral-100 rounded text-neutral-300 hover:text-neutral-900 disabled:opacity-0 transition-all"><ChevronLeft size={12} className="rotate-90" /></button>
-                    <button onClick={(e) => moveSection(index, 'down', e)} disabled={index === sections.length - 1} className="p-0.5 hover:bg-neutral-100 rounded text-neutral-300 hover:text-neutral-900 disabled:opacity-0 transition-all"><ChevronLeft size={12} className="-rotate-90" /></button>
+                    <button onClick={(e) => moveSection(index, 'up', e)} disabled={index === 0} aria-label="Move section up" className="p-0.5 hover:bg-neutral-100 rounded text-neutral-300 hover:text-neutral-900 disabled:opacity-0 transition-all"><ChevronLeft size={12} className="rotate-90" /></button>
+                    <button onClick={(e) => moveSection(index, 'down', e)} disabled={index === sections.length - 1} aria-label="Move section down" className="p-0.5 hover:bg-neutral-100 rounded text-neutral-300 hover:text-neutral-900 disabled:opacity-0 transition-all"><ChevronLeft size={12} className="-rotate-90" /></button>
                  </div>
 
                  {/* Type icon */}
@@ -1678,7 +1678,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                       <Layers size={13} />
                     </button>
                     {/* Delete */}
-                    <button onClick={(e) => removeSection(section.id, e)} className="p-2 text-neutral-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"><X size={13} /></button>
+                    <button onClick={(e) => removeSection(section.id, e)} aria-label="Remove section" className="p-2 text-neutral-200 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"><X size={13} /></button>
                     {!isHidden && <ChevronRight size={13} className="text-neutral-200 group-hover:text-neutral-400 transition-colors" />}
                  </div>
                 </div>
@@ -2834,9 +2834,9 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
                 <span className="text-[9px] font-black uppercase tracking-widest italic text-slate-500">Link {i + 1}</span>
               </div>
               <div className="flex items-center gap-1">
-                <button onClick={() => setItems(move(items, i, -1))} disabled={i === 0} className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 disabled:opacity-20 transition-all"><ChevronUp size={14} /></button>
-                <button onClick={() => setItems(move(items, i, 1))} disabled={i === items.length - 1} className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 disabled:opacity-20 transition-all"><ChevronDown size={14} /></button>
-                <button onClick={() => removeTop(i)} className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"><Trash2 size={13} /></button>
+                <button onClick={() => setItems(move(items, i, -1))} disabled={i === 0} aria-label="Move link up" className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 disabled:opacity-20 transition-all"><ChevronUp size={14} /></button>
+                <button onClick={() => setItems(move(items, i, 1))} disabled={i === items.length - 1} aria-label="Move link down" className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 disabled:opacity-20 transition-all"><ChevronDown size={14} /></button>
+                <button onClick={() => removeTop(i)} aria-label="Remove link" className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"><Trash2 size={13} /></button>
               </div>
             </div>
 
@@ -2894,9 +2894,9 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
                     <div className="flex items-center justify-between">
                       <span className="text-[8px] font-black uppercase tracking-widest italic text-slate-600">Sub-link {j + 1}</span>
                       <div className="flex items-center gap-1">
-                        <button onClick={() => moveChild(i, j, -1)} disabled={j === 0} className="p-1 rounded text-slate-500 hover:text-white disabled:opacity-20"><ChevronUp size={12} /></button>
-                        <button onClick={() => moveChild(i, j, 1)} disabled={j === (item.children || []).length - 1} className="p-1 rounded text-slate-500 hover:text-white disabled:opacity-20"><ChevronDown size={12} /></button>
-                        <button onClick={() => removeChild(i, j)} className="p-1 rounded text-slate-500 hover:text-red-400"><Trash2 size={12} /></button>
+                        <button onClick={() => moveChild(i, j, -1)} disabled={j === 0} aria-label="Move sub-link up" className="p-1 rounded text-slate-500 hover:text-white disabled:opacity-20"><ChevronUp size={12} /></button>
+                        <button onClick={() => moveChild(i, j, 1)} disabled={j === (item.children || []).length - 1} aria-label="Move sub-link down" className="p-1 rounded text-slate-500 hover:text-white disabled:opacity-20"><ChevronDown size={12} /></button>
+                        <button onClick={() => removeChild(i, j)} aria-label="Remove sub-link" className="p-1 rounded text-slate-500 hover:text-red-400"><Trash2 size={12} /></button>
                       </div>
                     </div>
                     <MenuLinkFields item={child} onPatch={(p) => patchChild(i, j, p)} pageOpts={pageOpts} collOpts={collOpts} />
@@ -2908,7 +2908,7 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
                           <div key={grand.id} className="bg-white/[0.02] border border-white/5 rounded-lg p-2.5 space-y-2">
                             <div className="flex items-center justify-between">
                               <span className="text-[8px] font-black uppercase tracking-widest italic text-slate-600">Column link {k + 1}</span>
-                              <button onClick={() => removeGrand(i, j, k)} className="p-1 rounded text-slate-500 hover:text-red-400"><Trash2 size={11} /></button>
+                              <button onClick={() => removeGrand(i, j, k)} aria-label="Remove column link" className="p-1 rounded text-slate-500 hover:text-red-400"><Trash2 size={11} /></button>
                             </div>
                             <MenuLinkFields item={grand} onPatch={(p) => patchGrand(i, j, k, p)} pageOpts={pageOpts} collOpts={collOpts} />
                           </div>
