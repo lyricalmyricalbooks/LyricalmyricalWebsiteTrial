@@ -28,6 +28,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
   const [searchQuery, setSearchQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<FulfillmentStatus>("processing");
+  const [addressReviewOnly, setAddressReviewOnly] = useState(false);
 
   const toggleSelect = (id: string) => {
     setSelected(prev => {
@@ -97,7 +98,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
       (o.orderId || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (o.customer?.name || "").toLowerCase().includes(searchQuery.toLowerCase());
 
-    return matchesTab && matchesSearch;
+    return matchesTab && matchesSearch && (!addressReviewOnly || o.addressReviewRequired === true);
   });
 
   return (
@@ -115,6 +116,15 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setAddressReviewOnly(value => !value)}
+            aria-pressed={addressReviewOnly}
+            className={`flex items-center gap-2 border px-5 py-3 rounded-2xl text-[10px] tracking-[0.2em] font-black uppercase transition-all ${
+              addressReviewOnly ? "bg-amber-500/20 border-amber-400/40 text-amber-300" : "bg-white/[0.04] border-white/10 text-slate-300 hover:bg-white/[0.08]"
+            }`}
+          >
+            <AlertCircle size={14} /> Address review
+          </button>
           <button
             onClick={handleExportCsv}
             className="flex items-center gap-2 bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] text-slate-300 px-5 py-3 rounded-2xl text-[10px] tracking-[0.3em] font-black uppercase transition-all"
@@ -252,6 +262,11 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
                      <div className={`w-1 h-1 rounded-full animate-pulse ${order.status === 'open' ? 'bg-amber-400' : 'bg-emerald-400'}`} />
                      {order.status.toUpperCase()}
                    </span>
+                   {order.addressReviewRequired === true && (
+                     <span className="text-[8px] font-black tracking-[0.12em] px-3 py-2 rounded-xl backdrop-blur-3xl border bg-rose-500/20 border-rose-400/40 text-rose-200 flex items-center gap-2">
+                       <AlertCircle size={10} /> ADDRESS REVIEW REQUIRED
+                     </span>
+                   )}
                 </div>
 
                 <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent">
@@ -318,4 +333,3 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
     </div>
   );
 }
-

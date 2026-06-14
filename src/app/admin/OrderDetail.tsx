@@ -192,6 +192,11 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
               }`}>
                 {order.status.toUpperCase()}
               </span>
+              {order.addressReviewRequired === true && (
+                <span className="flex items-center gap-2 rounded-xl border border-rose-400/40 bg-rose-500/20 px-4 py-2 text-[10px] font-black tracking-[.15em] text-rose-200">
+                  <AlertCircle size={14} /> ADDRESS REVIEW REQUIRED
+                </span>
+              )}
             </div>
             <p className="text-[10px] tracking-[0.2em] text-slate-500 font-black uppercase mt-2">
               {new Date(order.createdAt).toLocaleString()} <span className="mx-3 opacity-30">|</span> {order.paymentStatus.toUpperCase()}
@@ -513,11 +518,11 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                             {order.customer?.address?.city}, {order.customer?.address?.state} {order.customer?.address?.zip}<br/>
                             {order.customer?.address?.country}
                           </p>
-                          {order.addressVerified === false && (
+                          {(order.addressVerified === false || order.addressReviewRequired === true) && (
                             <div className="mt-4 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-[10px] text-rose-400 uppercase tracking-widest font-black leading-relaxed flex items-start gap-3 animate-in fade-in">
                               <AlertCircle size={14} className="shrink-0 mt-0.5" />
                               <div>
-                                <p className="font-extrabold text-rose-300">Unverified Address</p>
+                                <p className="font-extrabold text-rose-300">{order.addressReviewRequired ? "Address review required" : "Customer used an unverified address"}</p>
                                 <p className="text-[9px] text-rose-400/80 mt-1 normal-case font-mono font-medium">{order.addressError || "Could not verify address with postal systems."}</p>
                               </div>
                             </div>

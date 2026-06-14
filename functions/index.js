@@ -1468,7 +1468,14 @@ exports.validateAddress = onRequest(
 
       res.status(200).json({
         isValid,
-        messages: validationResults.messages || []
+        messages: validationResults.messages || [],
+        normalizedAddress: {
+          street: shippoRes.street1 || address.street,
+          city: shippoRes.city || address.city,
+          state: shippoRes.state || address.state,
+          zip: shippoRes.zip || address.zip,
+          country: shippoRes.country || address.country
+        }
       });
     } catch (err) {
       console.error("validateAddress failed:", err);
@@ -1998,4 +2005,3 @@ exports.shippoWebhook = onRequest(
     }
   }
 );
-

@@ -16,6 +16,20 @@ import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebas
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 
+type ShippingAddress = {
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+};
+
+type AddressReview = {
+  messages: string[];
+  originalAddress: ShippingAddress;
+  normalizedAddress?: ShippingAddress;
+};
+
 // ─── Country selector (matches Field styling) ─────────────────────────────────
 function CountryField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
@@ -112,6 +126,8 @@ export function Checkout() {
   const [successOrder, setSuccessOrder] = useState<any>(null);
 
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [addressReview, setAddressReview] = useState<AddressReview | null>(null);
+  const [verificationNotice, setVerificationNotice] = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -545,12 +561,101 @@ export function Checkout() {
     return () => clearTimeout(t);
   }, [customer.email, cart, cartTotal]);
 
+  const submitOrder = async (verification?: {
+    status: "verified" | "customer_accepted_suggestion" | "customer_overrode_invalid" | "unavailable";
+    messages?: string[];
+    originalAddress?: ShippingAddress;
+    normalizedAddress?: ShippingAddress;
+  }) => {
+    const addressVerified = verification?.status === "verified" || verification?.status === "customer_accepted_suggestion";
+    const addressReviewRequired = verification?.status === "unavailable";
+    const addressError = (verification?.messages || []).join(", ");
+    const orderCustomer = verification?.status === "customer_accepted_suggestion" && verification.normalizedAddress
+      ? { ...customer, address: verification.normalizedAddress }
+      : customer;
+
+    const isManual = selectedPaymentMethod.startsWith("manual_");
+    let manualMethod = null;
+    if (isManual) {
+      const manualId = selectedPaymentMethod.replace("manual_", "");
+      manualMethod = (settings?.payments?.manualMethods || []).find((m: any) => m.id === manualId);
+    }
+
+    const referralSource = typeof window !== "undefined" ? window.sessionStorage.getItem("referral_source") : null;
+    const orderData = {
+      customer: orderCustomer,
+      customerId: currentUser?.uid || null,
+      referralSource: referralSource || "direct",
+      addressVerified,
+      addressReviewRequired,
+      addressVerificationStatus: verification?.status || "verified",
+      addressVerificationMessages: verification?.messages || [],
+      addressOriginal: verification?.originalAddress || null,
+      addressNormalized: verification?.normalizedAddress || null,
+      addressError,
+      items: cart.map(item => ({
+        id: item.id,
+        variantId: item.variantId || null,
+        variantName: item.variantName || null,
+        title: item.title,
+        price: item.price,
+        quantity: item.quantity,
+        photoUrl: item.photoUrl,
+        stripePriceId: item.stripePriceId || null,
+        shippingProfileId: item.shippingProfileId || null,
+      })),
+      subtotal: cartTotal,
+      discount: discountAmount,
+      shipping: finalShipping,
+      shippingMethod: selectedRateName || null,
+      tax: taxCost,
+      total: finalTotal,
+      status: "pending_payment",
+      paymentStatus: isManual ? "pending" : "unpaid",
+      paymentMethod: isManual ? (manualMethod?.name || "Manual") : (selectedPaymentMethod === "paypal" ? "PayPal" : "Stripe"),
+      paymentInstructions: isManual ? (manualMethod?.instructions || "") : "",
+      testMode: settings?.payments?.testMode || false,
+      appliedDiscount: appliedDiscount
+        ? { id: appliedDiscount.id, code: appliedDiscount.code, type: appliedDiscount.type, value: appliedDiscount.value }
+        : null,
+      metadata: { userAgent: navigator.userAgent, platform: "web" }
+    };
+
+    localStorage.setItem("last_customer_email", customer.email);
+    const orderId = await adminApi.createOrder(orderData);
+
+    if (isManual) {
+      window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${orderId}&manual=true`;
+      return;
+    }
+    if (selectedPaymentMethod === "paypal") {
+      window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${orderId}&paypal=true`;
+      return;
+    }
+
+    const returnUrl = `${window.location.origin}${import.meta.env.BASE_URL}checkout`;
+    const sessionResponse = await fetch(functionUrl("createStripeCheckoutSession"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
+    });
+    if (!sessionResponse.ok) {
+      const errorData = await sessionResponse.json();
+      throw new Error(errorData.error || "Failed to create secure Stripe session.");
+    }
+    const sessionData = await sessionResponse.json();
+    if (sessionData.url) window.location.href = sessionData.url;
+    else throw new Error("No checkout URL returned from payment server.");
+  };
+
   const handleCompletePurchase = async () => {
     if (!customer.name || !customer.email || !customer.address.street || !customer.address.city || !customer.address.state || !customer.address.zip) {
       alert("Please fill in all required shipping details including city, state/province, and postal/zip code.");
       return;
     }
+    setVerificationNotice("");
     setIsCompleting(true);
+    let orderSubmissionStarted = false;
     try {
       // 1. Verify and Validate address using Shippo API Cloud Function
       const valResponse = await fetch(functionUrl("validateAddress"), {
@@ -568,98 +673,40 @@ export function Checkout() {
         })
       });
 
+      const originalAddress = { ...customer.address };
       if (!valResponse.ok) {
-        throw new Error("Could not connect to address verification service.");
+        setVerificationNotice("Address verification is temporarily unavailable. You can still check out; this order will be reviewed before shipping.");
+        orderSubmissionStarted = true;
+        await submitOrder({ status: "unavailable", messages: ["Address verification service was unavailable."], originalAddress });
+        return;
       }
-
       const valData = await valResponse.json();
-      // `unverified` means the verification service itself was unavailable —
-      // the checkout proceeds, but the order is flagged for manual review.
-      const addressVerified = valData.isValid === true && valData.unverified !== true;
-      const addressError = addressVerified ? "" : (valData.messages || []).map((m: any) => m.text).join(", ");
-
-      const isManual = selectedPaymentMethod.startsWith("manual_");
-      let manualMethod = null;
-      if (isManual) {
-        const manualId = selectedPaymentMethod.replace("manual_", "");
-        manualMethod = (settings?.payments?.manualMethods || []).find((m: any) => m.id === manualId);
-      }
-
-      const referralSource = typeof window !== "undefined" ? window.sessionStorage.getItem("referral_source") : null;
-
-      const orderData = {
-        customer,
-        customerId: currentUser?.uid || null,
-        referralSource: referralSource || "direct",
-        addressVerified,
-        addressError,
-        items: cart.map(item => ({
-          id: item.id,
-          variantId: item.variantId || null,
-          variantName: item.variantName || null,
-          title: item.title,
-          price: item.price,
-          quantity: item.quantity,
-          photoUrl: item.photoUrl,
-          stripePriceId: item.stripePriceId || null,
-          shippingProfileId: item.shippingProfileId || null,
-        })),
-        subtotal: cartTotal,
-        discount: discountAmount,
-        shipping: finalShipping,
-        shippingMethod: selectedRateName || null,
-        tax: taxCost,
-        total: finalTotal,
-        status: "pending_payment",
-        paymentStatus: isManual ? "pending" : "unpaid",
-        paymentMethod: isManual ? (manualMethod?.name || "Manual") : (selectedPaymentMethod === "paypal" ? "PayPal" : "Stripe"),
-        paymentInstructions: isManual ? (manualMethod?.instructions || "") : "",
-        testMode: settings?.payments?.testMode || false,
-        appliedDiscount: appliedDiscount
-          ? { id: appliedDiscount.id, code: appliedDiscount.code, type: appliedDiscount.type, value: appliedDiscount.value }
-          : null,
-        metadata: { userAgent: navigator.userAgent, platform: "web" }
-      };
-      
-      // Save customer email in localStorage to recover cart on payment success landing
-      localStorage.setItem("last_customer_email", customer.email);
-      
-      const orderId = await adminApi.createOrder(orderData);
-
-      if (isManual) {
-        window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${orderId}&manual=true`;
+      const messages = (valData.messages || []).map((message: any) => message.text || message.code).filter(Boolean);
+      if (valData.unverified === true) {
+        setVerificationNotice(messages.join(" ") || "Address verification is temporarily unavailable. Your order will be reviewed before shipping.");
+        orderSubmissionStarted = true;
+        await submitOrder({ status: "unavailable", messages, originalAddress });
         return;
       }
-
-      if (selectedPaymentMethod === "paypal") {
-        window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${orderId}&paypal=true`;
+      if (valData.isValid !== true) {
+        setAddressReview({ messages, originalAddress, normalizedAddress: valData.normalizedAddress });
+        setIsCompleting(false);
         return;
       }
-
-      // Tell the backend exactly where this checkout page lives. On GitHub
-      // Pages the site sits under a sub-path, so origin alone is not enough
-      // for Stripe's success/cancel redirects.
-      const returnUrl = `${window.location.origin}${import.meta.env.BASE_URL}checkout`;
-
-      const sessionResponse = await fetch(functionUrl("createStripeCheckoutSession"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
-      });
-
-      if (!sessionResponse.ok) {
-        const errorData = await sessionResponse.json();
-        throw new Error(errorData.error || "Failed to create secure Stripe session.");
-      }
-
-      const sessionData = await sessionResponse.json();
-      if (sessionData.url) {
-        window.location.href = sessionData.url;
-      } else {
-        throw new Error("No checkout URL returned from payment server.");
-      }
+      orderSubmissionStarted = true;
+      await submitOrder({ status: "verified", messages, originalAddress, normalizedAddress: valData.normalizedAddress });
     } catch (err: any) {
-      alert(`Checkout failed: ${err.message}`);
+      if (orderSubmissionStarted) {
+        alert(`Checkout failed: ${err.message}`);
+        setIsCompleting(false);
+        return;
+      }
+      setVerificationNotice("Address verification is temporarily unavailable. You can still check out; this order will be reviewed before shipping.");
+      try {
+        await submitOrder({ status: "unavailable", messages: [err.message || "Address verification service was unavailable."], originalAddress: { ...customer.address } });
+      } catch (submitError: any) {
+        alert(`Checkout failed: ${submitError.message}`);
+      }
       setIsCompleting(false);
     }
   };
@@ -869,6 +916,12 @@ export function Checkout() {
 
             <section>
               <StepBadge n="2 of 3" label="Delivery" />
+              {verificationNotice && (
+                <div role="status" className="mb-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  <AlertCircle size={18} className="mt-0.5 shrink-0" />
+                  <div><p className="font-semibold">Verification unavailable</p><p className="mt-1">{verificationNotice}</p></div>
+                </div>
+              )}
               <div className="space-y-3">
                 <CountryField value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v } })} />
                 <Field label="Full name" value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
@@ -1073,6 +1126,62 @@ export function Checkout() {
           </div>
         </aside>
       </div>
+      {addressReview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="address-review-title">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl sm:p-8">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 shrink-0 text-amber-600" size={24} />
+              <div>
+                <h2 id="address-review-title" className="text-xl font-semibold text-slate-950">Review your delivery address</h2>
+                <p className="mt-1 text-sm text-slate-600">Shippo could not verify the address as entered.</p>
+              </div>
+            </div>
+            {addressReview.messages.length > 0 && (
+              <ul className="mt-5 list-disc space-y-1 rounded-lg bg-amber-50 px-8 py-4 text-sm text-amber-900">
+                {addressReview.messages.map((message, index) => <li key={`${message}-${index}`}>{message}</li>)}
+              </ul>
+            )}
+            {addressReview.normalizedAddress && (
+              <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Suggested address</p>
+                <p className="mt-2 text-sm leading-6 text-slate-800">
+                  {addressReview.normalizedAddress.street}<br />
+                  {addressReview.normalizedAddress.city}, {addressReview.normalizedAddress.state} {addressReview.normalizedAddress.zip}<br />
+                  {addressReview.normalizedAddress.country}
+                </p>
+              </div>
+            )}
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {addressReview.normalizedAddress && (
+                <button type="button" className="rounded-lg bg-[#1773b0] px-4 py-3 text-sm font-semibold text-white hover:bg-[#12649b]" onClick={async () => {
+                  const review = addressReview;
+                  setCustomer(prev => ({ ...prev, address: review.normalizedAddress! }));
+                  setAddressReview(null);
+                  setIsCompleting(true);
+                  try {
+                    await submitOrder({ status: "customer_accepted_suggestion", messages: review.messages, originalAddress: review.originalAddress, normalizedAddress: review.normalizedAddress });
+                  } catch (err: any) {
+                    alert(`Checkout failed: ${err.message}`);
+                    setIsCompleting(false);
+                  }
+                }}>Use suggested address</button>
+              )}
+              <button type="button" className="rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setAddressReview(null)}>Edit address</button>
+              <button type="button" className="rounded-lg border border-amber-300 px-4 py-3 text-sm font-semibold text-amber-900 hover:bg-amber-50 sm:col-span-2" onClick={async () => {
+                const review = addressReview;
+                setAddressReview(null);
+                setIsCompleting(true);
+                try {
+                  await submitOrder({ status: "customer_overrode_invalid", messages: review.messages, originalAddress: review.originalAddress, normalizedAddress: review.normalizedAddress });
+                } catch (err: any) {
+                  alert(`Checkout failed: ${err.message}`);
+                  setIsCompleting(false);
+                }
+              }}>I understand the warning — use my original address</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
