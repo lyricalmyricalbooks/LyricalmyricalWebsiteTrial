@@ -107,10 +107,10 @@ export default function BookDetail() {
 
   const buttonBg = storefrontDesign?.buttonColor || settings?.design?.buttonColor || settings?.design?.primaryColor || "#A855F7";
   const buttonText = storefrontDesign?.buttonTextColor || settings?.design?.buttonTextColor || "#000000";
-  const buttonRadius = Math.max(0, Math.min(999, storefrontDesign?.buttonRadius ?? 999));
-  const buttonStyle = storefrontDesign?.buttonStyle || "solid";
-  const buttonUppercase = storefrontDesign?.buttonUppercase ?? true;
-  const buttonShadow = storefrontDesign?.buttonShadow ?? true;
+  const buttonRadius = Math.max(0, Math.min(999, storefrontDesign?.buttonRadius ?? settings?.design?.buttonRadius ?? 999));
+  const buttonStyle = storefrontDesign?.buttonStyle || settings?.design?.buttonStyle || "solid";
+  const buttonUppercase = storefrontDesign?.buttonUppercase ?? settings?.design?.buttonUppercase ?? true;
+  const buttonShadow = storefrontDesign?.buttonShadow ?? settings?.design?.buttonShadow ?? true;
 
   const storefrontBg       = settings?.design?.backgroundColor || "#050508";
   const storefrontText     = settings?.design?.textColor || "#ffffff";
@@ -141,6 +141,12 @@ export default function BookDetail() {
       --badge-text-secondary: ${badgeTextSecondary};
       --badge-bg-secondary: ${badgeBgSecondary};
       --low-inventory-color: ${lowInventoryColor};
+    }
+    [data-fm-store] .custom-btn {
+      background-color: var(--btn-bg) !important;
+      color: var(--btn-text) !important;
+      border: var(--btn-border) !important;
+      box-shadow: var(--btn-shadow) !important;
     }
     [data-fm-store] .custom-btn:hover {
       background-color: var(--btn-hover-bg) !important;
