@@ -801,6 +801,32 @@ export const adminApi = {
   // Shippo site URL to open so the admin can buy the label directly on Shippo.
   // Handled by the createShippingLabel endpoint via mode: "shippoOrder" so no
   // new Cloud Function deployment (and its extra IAM permission) is required.
+  refundOrder: async (orderId: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin to issue refunds.");
+    const response = await fetch(functionUrl("refundOrder"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ orderId }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Refund failed.");
+    return result;
+  },
+
+  markOrderPaid: async (orderId: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await fetch(functionUrl("markOrderPaid"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ orderId }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Failed to mark order as paid.");
+    return result;
+  },
+
   createShippoOrder: async (orderId: string) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to push orders to Shippo.");

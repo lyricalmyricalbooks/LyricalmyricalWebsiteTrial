@@ -1220,17 +1220,8 @@ export function Checkout() {
                     )}
                   </label>
                 )}
-                {hasPaypal && (
-                  <label className={`flex cursor-pointer items-center justify-between gap-4 px-4 py-4 ${hasStripe ? "border-t border-slate-200" : ""}`}>
-                    <div className="flex items-center gap-3">
-                      <input type="radio" name="payment-method" checked={selectedPaymentMethod === "paypal"} onChange={() => setSelectedPaymentMethod("paypal")} className="h-4 w-4 accent-[#1773b0]" />
-                      <span className="text-sm font-medium">PayPal</span>
-                    </div>
-                    <span className="text-sm font-bold italic text-[#003087]">PayPal</span>
-                  </label>
-                )}
                 {enabledManualMethods.map((method: any, index: number) => (
-                  <label key={method.id} className={`flex cursor-pointer items-center justify-between gap-4 border-t border-slate-200 px-4 py-4 ${!hasStripe && !hasPaypal && index === 0 ? "border-t-0" : ""}`}>
+                  <label key={method.id} className={`flex cursor-pointer items-center justify-between gap-4 border-t border-slate-200 px-4 py-4 ${!hasStripe && index === 0 ? "border-t-0" : ""}`}>
                     <div className="flex items-center gap-3">
                       <input type="radio" name="payment-method" checked={selectedPaymentMethod === `manual_${method.id}`} onChange={() => setSelectedPaymentMethod(`manual_${method.id}`)} className="h-4 w-4 accent-[#1773b0]" />
                       <span className="text-sm font-medium">{method.name}</span>
