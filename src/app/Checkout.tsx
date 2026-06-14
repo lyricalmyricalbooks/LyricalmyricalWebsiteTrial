@@ -632,7 +632,16 @@ export function Checkout() {
       }
 
       if (selectedPaymentMethod === "paypal") {
-        window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${orderId}&paypal=true`;
+        const returnUrl = `${window.location.origin}${import.meta.env.BASE_URL}checkout`;
+        const paypalResponse = await fetch(functionUrl("createPayPalOrder"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
+        });
+        const paypalData = await paypalResponse.json();
+        if (!paypalResponse.ok) throw new Error(paypalData.error || "Failed to create PayPal order.");
+        if (!paypalData.approvalUrl) throw new Error("PayPal did not return an approval URL.");
+        window.location.href = paypalData.approvalUrl;
         return;
       }
 
@@ -666,67 +675,56 @@ export function Checkout() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("success")) {
-      const oid = params.get("order_id") || "";
-      if (!oid) return;
-      setOrderNumber(oid);
-
-      // Don't trust the URL parameter alone: confirm the webhook actually
-      // marked the order paid (poll briefly to absorb webhook latency).
-      let cancelled = false;
-      (async () => {
-        try {
-          const order: any = await adminApi.getOrderById(oid);
-          if (order) {
-            setSuccessOrder(order);
-            if (params.get("paypal")) {
-              setPaymentConfirmed(true);
-            } else if (order.paymentStatus === "paid") {
-              setPaymentConfirmed(true);
-            } else if (order.paymentStatus === "pending") {
-              setPaymentConfirmed(false);
-            }
-          }
-        } catch (err) {
-          console.error("Failed to load order on success landing", err);
-        }
-
-        // If it's not a manual or paypal order, poll to confirm payment
-        if (!params.get("manual") && !params.get("paypal")) {
-          for (let attempt = 0; attempt < 4 && !cancelled; attempt++) {
-            try {
-              const order: any = await adminApi.getOrderById(oid);
-              if (order && order.paymentStatus === "paid") {
-                if (cancelled) return;
-                setPaymentConfirmed(true);
-                funnelApi.track("purchase");
-                const email = customer.email || localStorage.getItem("last_customer_email") || "";
-                if (email) {
-                  abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
-                }
-                return;
-              }
-            } catch {
-              // retry
-            }
-            await new Promise(r => setTimeout(r, 2500));
-          }
-        } else {
-          // Manual/PayPal tracking
-          funnelApi.track("purchase");
-          const email = customer.email || localStorage.getItem("last_customer_email") || "";
-          if (email) {
-            abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
-          }
-        }
-      })();
-
-      setIsSuccess(true);
-      clearCart();
-      return () => { cancelled = true; };
+    const oid = params.get("order_id") || "";
+    const isPayPalReturn = params.get("paypal_return") === "true";
+    const isSuccessReturn = params.get("success") === "true";
+    if (!oid || (!isPayPalReturn && !isSuccessReturn)) {
+      if (params.get("canceled")) alert("Order payment was canceled.");
+      return;
     }
-    if (params.get("canceled")) alert("Order payment was canceled.");
-  }, [customer.email]);
+
+    let cancelled = false;
+    setOrderNumber(oid);
+    setIsSuccess(true);
+
+    (async () => {
+      try {
+        if (isPayPalReturn) {
+          const paypalOrderId = params.get("token");
+          if (!paypalOrderId) throw new Error("PayPal did not return an order token.");
+          const captureResponse = await fetch(functionUrl("capturePayPalOrder"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: oid, paypalOrderId }),
+          });
+          const captureData = await captureResponse.json();
+          if (!captureResponse.ok) throw new Error(captureData.error || "PayPal capture failed.");
+        }
+
+        // Firestore is authoritative. URL flags and the capture HTTP response
+        // never confirm payment on their own; wait for the paid order update.
+        for (let attempt = 0; attempt < 12 && !cancelled; attempt++) {
+          const order: any = await adminApi.getOrderById(oid);
+          if (cancelled) return;
+          if (order) setSuccessOrder(order);
+          if (order?.paymentStatus === "paid") {
+            setPaymentConfirmed(true);
+            clearCart();
+            funnelApi.track("purchase");
+            const email = order.customer?.email || localStorage.getItem("last_customer_email") || "";
+            if (email) abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
+            return;
+          }
+          if (order?.paymentStatus === "pending") return;
+          await new Promise(resolve => setTimeout(resolve, 2500));
+        }
+      } catch (err) {
+        console.error("Failed to confirm payment on success landing", err);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
 
   // ── Success screen ──────────────────────────────────────────────────────────
   if (isSuccess) {

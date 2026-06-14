@@ -76,6 +76,9 @@ async function requireAdmin(req, res) {
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
+const PAYPAL_CLIENT_ID = defineSecret("PAYPAL_CLIENT_ID");
+const PAYPAL_CLIENT_SECRET = defineSecret("PAYPAL_CLIENT_SECRET");
+const PAYPAL_WEBHOOK_ID = defineSecret("PAYPAL_WEBHOOK_ID");
 const SHIPPO_API_TOKEN = defineSecret("SHIPPO_API_TOKEN");
 const SHIPPO_CONFIG_DOC = db.collection("private-integrations").doc("shippo");
 
@@ -329,6 +332,282 @@ async function getExchangeRates() {
   }
   return FALLBACK_RATES;
 }
+
+// ──────────────────────────────────────────────────────────────
+// PayPal Orders API helpers
+// ──────────────────────────────────────────────────────────────
+function paypalBaseUrl(testMode) {
+  return testMode ? "https://api-m.sandbox.paypal.com" : "https://api-m.paypal.com";
+}
+
+async function getPayPalConfig() {
+  const settingsDoc = await db.collection("settings").doc("website").get();
+  const settings = settingsDoc.data() || {};
+  return {
+    settings,
+    testMode: Boolean(settings.payments?.testMode),
+    clientId: PAYPAL_CLIENT_ID.value(),
+    clientSecret: PAYPAL_CLIENT_SECRET.value(),
+  };
+}
+
+async function getPayPalAccessToken(config) {
+  if (!config.clientId || !config.clientSecret) throw new Error("PayPal credentials are not configured.");
+  const response = await fetch(`${paypalBaseUrl(config.testMode)}/v1/oauth2/token`, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64")}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: "grant_type=client_credentials",
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error_description || "PayPal authentication failed.");
+  return data.access_token;
+}
+
+async function paypalRequest(config, path, options = {}) {
+  const accessToken = await getPayPalAccessToken(config);
+  const response = await fetch(`${paypalBaseUrl(config.testMode)}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = data.details?.[0]?.description || data.message || "PayPal request failed.";
+    throw new Error(detail);
+  }
+  return data;
+}
+
+async function recalculateOrder(orderRef, order, checkoutCurrency) {
+  const booksById = {};
+  const items = [];
+  for (const requested of order.items || []) {
+    const bookDoc = await db.collection("books").doc(requested.id).get();
+    if (!bookDoc.exists) throw new Error(`Book ${requested.title || requested.id} not found in library catalog.`);
+    const book = bookDoc.data();
+    booksById[requested.id] = book;
+    const quantity = Math.max(1, Math.min(99, Math.floor(Number(requested.quantity) || 1)));
+    const variant = requested.variantId
+      ? (book.variants || []).find(v => v.id === requested.variantId) || null
+      : null;
+    if (book.trackInventory) {
+      const available = variant ? Number(variant.stock || 0) : Number(book.stockLevel || 0);
+      if (available < quantity) throw new Error(`Insufficient stock for ${requested.title}. Only ${available} left.`);
+    }
+    const price = variant
+      ? Number(variant.price)
+      : (book.isOnSale && book.salePrice ? Number(book.salePrice) : Number(book.retailPrice));
+    items.push({ ...requested, quantity, price, shippingProfileId: book.shippingProfileId || null });
+  }
+  if (!items.length) throw new Error("Order has no items.");
+
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  let discount = 0;
+  let appliedDiscount = null;
+  if (order.appliedDiscount?.code) {
+    const verified = await fetchValidDiscount(order.appliedDiscount.code);
+    discount = computeDiscountAmount(verified, items, booksById);
+    appliedDiscount = { id: verified.id, code: verified.code, type: verified.type, value: verified.value };
+  }
+  const profilesSnap = await db.collection("shipping-profiles").get();
+  const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  let shipping = calculateShipping(items, order.customer.address, profiles);
+  if (appliedDiscount?.type === "freeship") shipping = 0;
+
+  const settingsDoc = await db.collection("settings").doc("website").get();
+  const settings = settingsDoc.data() || {};
+  const taxRate = matchTaxRate(settings.taxes?.rates || [], order.customer.address.country, order.customer.address.state);
+  const tax = (subtotal - discount) * (Number(taxRate?.rate || 0) / 100);
+  const total = subtotal - discount + shipping + tax;
+  const rates = await getExchangeRates();
+  const exchangeRate = rates[checkoutCurrency] || FALLBACK_RATES[checkoutCurrency] || 1;
+  const convertedTotal = Math.round(total * exchangeRate * 100) / 100;
+  const update = {
+    items: items.map(({ shippingProfileId, ...item }) => item), subtotal, discount, appliedDiscount,
+    shipping, tax, total, checkoutCurrency: checkoutCurrency.toUpperCase(), exchangeRate,
+    updatedAt: new Date().toISOString(),
+  };
+  await orderRef.update(update);
+  return { ...update, convertedTotal, settings };
+}
+
+async function markOrderPaidFromPayPal(orderId, paypalData) {
+  const orderRef = db.collection("orders").doc(orderId);
+  let paidTotal = null;
+  await db.runTransaction(async transaction => {
+    const orderDoc = await transaction.get(orderRef);
+    if (!orderDoc.exists) throw new Error("Order not found.");
+    const order = orderDoc.data();
+    if (order.paymentStatus === "paid") return;
+    if (order.paypalOrderId !== paypalData.paypalOrderId) throw new Error("PayPal order does not match checkout order.");
+
+    const bookRefs = (order.items || []).map(item => db.collection("books").doc(item.id));
+    const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
+    let discountRef = null;
+    let discountDoc = null;
+    if (order.appliedDiscount?.id) {
+      discountRef = db.collection("discounts").doc(order.appliedDiscount.id);
+      discountDoc = await transaction.get(discountRef);
+    }
+    const now = new Date().toISOString();
+    transaction.update(orderRef, {
+      paymentStatus: "paid", fulfillmentStatus: "paid", status: "open",
+      paidAt: now, updatedAt: now, downloadToken: crypto.randomBytes(32).toString("hex"),
+      paypalCaptureId: paypalData.captureId || null,
+      paypalPayerId: paypalData.payerId || null,
+      paypalTransactionId: paypalData.transactionId || paypalData.captureId || null,
+      paypalCaptureStatus: paypalData.captureStatus || "COMPLETED",
+      paypalCapture: paypalData.capture || null,
+      activity: [...(order.activity || []), { type: "event", message: "Payment completed (verified PayPal capture)", createdAt: now }],
+    });
+    (order.items || []).forEach((item, index) => {
+      const bookDoc = bookDocs[index];
+      if (!bookDoc.exists || !bookDoc.data().trackInventory) return;
+      const book = bookDoc.data();
+      if (item.variantId) {
+        const variants = (book.variants || []).map(v => v.id === item.variantId
+          ? { ...v, stock: Math.max(0, Number(v.stock || 0) - item.quantity) } : v);
+        transaction.update(bookRefs[index], { variants, stockLevel: Math.max(0, Number(book.stockLevel || 0) - item.quantity), updatedAt: now });
+      } else {
+        transaction.update(bookRefs[index], { stockLevel: Math.max(0, Number(book.stockLevel || 0) - item.quantity), updatedAt: now });
+      }
+    });
+    if (discountRef && discountDoc?.exists) {
+      transaction.update(discountRef, { usageCount: (discountDoc.data().usageCount || 0) + 1, updatedAt: now });
+    }
+    paidTotal = Number(order.total) || 0;
+  });
+  if (paidTotal !== null) {
+    const today = new Date().toISOString().split("T")[0];
+    await db.collection("analytics").doc(today).set({
+      date: today,
+      orders: admin.firestore.FieldValue.increment(1),
+      revenue: admin.firestore.FieldValue.increment(paidTotal),
+    }, { merge: true });
+  }
+}
+
+exports.createPayPalOrder = onRequest(
+  { secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET] },
+  async (req, res) => {
+    if (applyCors(req, res)) return;
+    if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+    try {
+      const { orderId, currency: requestedCurrency, returnUrl } = req.body || {};
+      if (!orderId) return res.status(400).json({ error: "Missing orderId" });
+      const currency = String(requestedCurrency || "cad").toLowerCase();
+      const orderRef = db.collection("orders").doc(orderId);
+      const orderDoc = await orderRef.get();
+      if (!orderDoc.exists) return res.status(404).json({ error: "Order not found" });
+      const order = orderDoc.data();
+      if (order.paymentStatus === "paid") return res.status(409).json({ error: "Order is already paid" });
+      const priced = await recalculateOrder(orderRef, order, currency);
+      const config = await getPayPalConfig();
+      let checkoutBase = `${req.headers.origin || "http://localhost:5173"}/checkout`;
+      if (typeof returnUrl === "string" && ALLOWED_ORIGINS.some(origin => returnUrl === origin || returnUrl.startsWith(`${origin}/`))) checkoutBase = returnUrl;
+      const joiner = checkoutBase.includes("?") ? "&" : "?";
+      const paypalOrder = await paypalRequest(config, "/v2/checkout/orders", {
+        method: "POST",
+        headers: { "PayPal-Request-Id": `create-${orderId}` },
+        body: JSON.stringify({
+          intent: "CAPTURE",
+          purchase_units: [{
+            reference_id: orderId,
+            custom_id: orderId,
+            invoice_id: orderId,
+            amount: { currency_code: currency.toUpperCase(), value: priced.convertedTotal.toFixed(2) },
+          }],
+          payment_source: { paypal: { experience_context: {
+            user_action: "PAY_NOW",
+            return_url: `${checkoutBase}${joiner}paypal_return=true&order_id=${encodeURIComponent(orderId)}`,
+            cancel_url: `${checkoutBase}${joiner}canceled=true&order_id=${encodeURIComponent(orderId)}`,
+          } } },
+        }),
+      });
+      const approvalUrl = paypalOrder.links?.find(link => link.rel === "payer-action" || link.rel === "approve")?.href;
+      await orderRef.update({
+        paymentMethod: "PayPal", paypalOrderId: paypalOrder.id, paypalOrderStatus: paypalOrder.status,
+        paypalCurrency: currency.toUpperCase(), updatedAt: new Date().toISOString(),
+      });
+      res.json({ orderToken: paypalOrder.id, approvalUrl });
+    } catch (err) {
+      console.error("PayPal order creation failed:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+exports.capturePayPalOrder = onRequest(
+  { secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET] },
+  async (req, res) => {
+    if (applyCors(req, res)) return;
+    if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+    try {
+      const { orderId, paypalOrderId } = req.body || {};
+      if (!orderId || !paypalOrderId) return res.status(400).json({ error: "Missing order identifiers" });
+      const orderDoc = await db.collection("orders").doc(orderId).get();
+      if (!orderDoc.exists || orderDoc.data().paypalOrderId !== paypalOrderId) return res.status(400).json({ error: "PayPal order mismatch" });
+      if (orderDoc.data().paymentStatus === "paid") return res.json({ paid: true });
+      const config = await getPayPalConfig();
+      const captured = await paypalRequest(config, `/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
+        method: "POST", headers: { "PayPal-Request-Id": `capture-${orderId}` }, body: "{}",
+      });
+      const capture = captured.purchase_units?.[0]?.payments?.captures?.[0];
+      if (captured.status !== "COMPLETED" || capture?.status !== "COMPLETED") throw new Error("PayPal capture has not completed.");
+      await markOrderPaidFromPayPal(orderId, {
+        paypalOrderId, captureId: capture.id, transactionId: capture.id,
+        payerId: captured.payer?.payer_id || null, captureStatus: capture.status, capture,
+      });
+      res.json({ paid: true });
+    } catch (err) {
+      console.error("PayPal capture failed:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+exports.paypalWebhook = onRequest(
+  { secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_WEBHOOK_ID] },
+  async (req, res) => {
+    if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+    try {
+      const config = await getPayPalConfig();
+      const verification = await paypalRequest(config, "/v1/notifications/verify-webhook-signature", {
+        method: "POST",
+        body: JSON.stringify({
+          auth_algo: req.headers["paypal-auth-algo"], cert_url: req.headers["paypal-cert-url"],
+          transmission_id: req.headers["paypal-transmission-id"], transmission_sig: req.headers["paypal-transmission-sig"],
+          transmission_time: req.headers["paypal-transmission-time"], webhook_id: PAYPAL_WEBHOOK_ID.value(),
+          webhook_event: req.body,
+        }),
+      });
+      if (verification.verification_status !== "SUCCESS") return res.status(400).send("Invalid PayPal webhook signature");
+      const eventRef = db.collection("payment-webhook-events").doc(`paypal-${req.body.id}`);
+      if ((await eventRef.get()).exists) return res.json({ received: true, duplicate: true });
+      if (req.body.event_type === "PAYMENT.CAPTURE.COMPLETED") {
+        const capture = req.body.resource;
+        const orderId = capture.custom_id || capture.invoice_id;
+        const paypalOrderId = capture.supplementary_data?.related_ids?.order_id;
+        if (orderId && paypalOrderId) await markOrderPaidFromPayPal(orderId, {
+          paypalOrderId, captureId: capture.id, transactionId: capture.id,
+          payerId: capture.supplementary_data?.related_ids?.payer_id || null,
+          captureStatus: capture.status, capture,
+        });
+      }
+      await eventRef.set({ eventType: req.body.event_type, paypalEventId: req.body.id, processedAt: new Date().toISOString() });
+      res.json({ received: true });
+    } catch (err) {
+      console.error("PayPal webhook failed:", err);
+      res.status(500).send(err.message);
+    }
+  }
+);
 
 // ──────────────────────────────────────────────────────────────
 // 1. HTTP Endpoint: Create Stripe Checkout Session (Secure)

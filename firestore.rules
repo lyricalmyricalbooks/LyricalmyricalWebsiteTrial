@@ -40,9 +40,9 @@ service cloud.firestore {
       allow get: if true;
       allow list: if isAdmin()
         || (request.auth != null && resource.data.customer.email == request.auth.token.email);
-      // Orders are always created unpaid; only the Stripe webhook (Admin SDK)
-      // flips them to paid. Admins may create orders in any state (e.g.
-      // manual/sample orders).
+      // Orders are always created unpaid; only verified payment handlers using
+      // the Admin SDK flip them to paid. Admins may create orders in any state
+      // (for example, manual/sample orders).
       allow create: if isAdmin()
         || (request.resource.data.paymentStatus == "unpaid"
         && request.resource.data.status == "pending_payment"
