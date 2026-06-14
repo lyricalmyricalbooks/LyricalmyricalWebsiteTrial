@@ -17,7 +17,7 @@ import {
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
-import { orderApi, FULFILLMENT_FLOW, FULFILLMENT_LABELS, type FulfillmentStatus } from "../lib/commerce";
+import { orderApi, FULFILLMENT_FLOW, FULFILLMENT_LABELS, getCanonicalOrderStatuses, type FulfillmentStatus } from "../lib/commerce";
 
 const getTrackingUrl = (carrier: string, trackingNum: string) => {
   const cleanCarrier = (carrier || "").trim().toLowerCase();
@@ -74,17 +74,11 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     }
     setIsShipping(true);
     try {
-      await adminApi.updateOrder(orderId, {
-        status: "completed",
-        fulfillmentStatus: "shipped",
+      await orderApi.setFulfillmentStatus(orderId, "shipped", {
         trackingCarrier,
         trackingNumber: trackingNumber.trim(),
-        shippedAt: new Date().toISOString(),
+        note: `Order shipped via ${trackingCarrier}. Tracking: ${trackingNumber.trim()}`,
       });
-      await adminApi.addOrderNote(
-        orderId,
-        `Order shipped via ${trackingCarrier}. Tracking: ${trackingNumber.trim()}`
-      );
       setShowShipForm(false);
       setTrackingNumber("");
       loadOrder();
@@ -139,14 +133,10 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     }
     setIsVoiding(true);
     try {
-      await adminApi.updateOrder(orderId, {
-        status: "cancelled",
-        paymentStatus: "refunded"
-      });
-      await adminApi.addOrderNote(
-        orderId,
-        "Order voided and refunded by administrator."
-      );
+      if (getCanonicalOrderStatuses(order).paymentStatus === "paid") {
+        await orderApi.setPaymentStatus(orderId, "refunded", "Order refunded by administrator.");
+      }
+      await orderApi.setLifecycleStatus(orderId, "cancelled", "Order voided by administrator.");
       toast.success("Order cancelled and refunded");
       loadOrder();
     } catch (err: any) {
@@ -172,6 +162,8 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     </div>
   );
 
+  const canonical = getCanonicalOrderStatuses(order);
+
   return (
     <div className="space-y-12 pb-20 print:p-0 animate-in fade-in duration-700">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 print:hidden">
@@ -186,15 +178,15 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
             <div className="flex items-center gap-4">
               <h2 className="text-4xl font-black tracking-tighter text-white">{order.orderId}</h2>
               <span className={`text-[10px] font-black tracking-[.3em] px-4 py-2 rounded-xl shadow-lg ${
-                order.status === 'open' 
+                canonical.status === 'open'
                   ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
                   : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
               }`}>
-                {order.status.toUpperCase()}
+                {canonical.status.toUpperCase()}
               </span>
             </div>
             <p className="text-[10px] tracking-[0.2em] text-slate-500 font-black uppercase mt-2">
-              {new Date(order.createdAt).toLocaleString()} <span className="mx-3 opacity-30">|</span> {order.paymentStatus.toUpperCase()}
+              {new Date(order.createdAt).toLocaleString()} <span className="mx-3 opacity-30">|</span> {canonical.paymentStatus.toUpperCase()}
             </p>
           </div>
         </div>
@@ -205,7 +197,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-[10px] tracking-[0.4em] text-slate-400 uppercase font-black">Fulfillment Pipeline</h3>
           <select
-            value={order.fulfillmentStatus || (order.status === "completed" ? "delivered" : "paid")}
+            value={canonical.fulfillmentStatus}
             onChange={async (e) => {
               const next = e.target.value as FulfillmentStatus;
               await orderApi.setFulfillmentStatus(orderId, next);
@@ -221,7 +213,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
         </div>
         <ol className="grid grid-cols-5 gap-2">
           {FULFILLMENT_FLOW.map((step, idx) => {
-            const current = order.fulfillmentStatus || (order.status === "completed" ? "delivered" : "paid");
+            const current = canonical.fulfillmentStatus;
             const currentIdx = FULFILLMENT_FLOW.indexOf(current as FulfillmentStatus);
             const reached = idx <= currentIdx;
             return (
@@ -249,7 +241,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                   <Package size={18} className="text-violet-400" /> Line Items
                 </h3>
                 <span className="text-[10px] font-black tracking-[0.3em] text-slate-600 uppercase border border-white/5 px-4 py-1.5 rounded-full">
-                  {order.status === 'completed' ? 'DISPATCHED' : 'AWAITING FULFILLMENT'}
+                  {canonical.fulfillmentStatus === 'delivered' ? 'DELIVERED' : canonical.fulfillmentStatus === 'shipped' || canonical.fulfillmentStatus === 'out_for_delivery' ? 'DISPATCHED' : 'AWAITING FULFILLMENT'}
                 </span>
               </div>
               
@@ -291,7 +283,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                      {isGeneratingLabel ? "CONNECTING TO SHIPPO..." : "GENERATE SHIPPING LABEL"}
                    </button>
                  )}
-                 {order.status !== 'completed' && !showShipForm && (
+                 {!["shipped", "out_for_delivery", "delivered", "cancelled"].includes(canonical.fulfillmentStatus) && !showShipForm && (
                    <button 
                      onClick={() => setShowShipForm(true)}
                      className="px-10 py-3.5 bg-violet-600 text-white text-[10px] tracking-[.3em] font-black rounded-2xl hover:bg-violet-500 transition-all shadow-xl shadow-violet-600/20 flex items-center gap-3"
@@ -311,7 +303,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
 
               {/* Shipping form */}
               <AnimatePresence>
-                {showShipForm && order.status !== 'completed' && (
+                {showShipForm && !["shipped", "out_for_delivery", "delivered", "cancelled"].includes(canonical.fulfillmentStatus) && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -369,7 +361,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
               </AnimatePresence>
 
               {/* Show tracking info if already shipped */}
-              {order.status === 'completed' && order.trackingNumber && (
+              {["shipped", "out_for_delivery", "delivered"].includes(canonical.fulfillmentStatus) && order.trackingNumber && (
                 <div className="mt-10 p-8 bg-emerald-500/5 border border-emerald-500/20 rounded-[2rem] flex items-center justify-between">
                   <div className="flex items-center gap-6">
                     <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
@@ -571,6 +563,22 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                         className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-rose-400 transition-all group disabled:opacity-30 disabled:hover:text-slate-400 disabled:cursor-not-allowed"
                       >
                          {isVoiding ? "VOID & REFUNDING..." : order.status === "cancelled" ? "ORDER CANCELLED" : "VOID & REFUND"} <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
+                      </button>
+                      <div className="h-px bg-white/5" />
+                      <button
+                        onClick={async () => {
+                          try {
+                            await orderApi.setLifecycleStatus(orderId, "archived", "Order explicitly archived by administrator.");
+                            toast.success("Order archived");
+                            loadOrder();
+                          } catch (err: any) {
+                            toast.error(err.message || "Could not archive order.");
+                          }
+                        }}
+                        disabled={canonical.status === "archived"}
+                        className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-amber-400 transition-all group disabled:opacity-30"
+                      >
+                         {canonical.status === "archived" ? "ORDER ARCHIVED" : "ARCHIVE ORDER"} <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
                       </button>
                       <div className="h-px bg-white/5" />
                       <button className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-blue-400 transition-all group">

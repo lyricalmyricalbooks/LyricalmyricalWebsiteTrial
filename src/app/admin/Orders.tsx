@@ -18,13 +18,13 @@ import {
 import { adminApi } from "./api";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
-import { orderApi, FULFILLMENT_LABELS, type FulfillmentStatus } from "../lib/commerce";
+import { orderApi, FULFILLMENT_LABELS, getCanonicalOrderStatuses, type FulfillmentStatus } from "../lib/commerce";
 import { Download, CheckSquare, Square } from "lucide-react";
 
 export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("Open");
+  const [activeTab, setActiveTab] = useState("In progress");
   const [searchQuery, setSearchQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<FulfillmentStatus>("processing");
@@ -88,10 +88,16 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
   }
 
   const filteredOrders = orders.filter(o => {
-    const matchesTab = 
-      activeTab === "All orders" || 
-      (activeTab === "Open" && o.status === "open") ||
-      (activeTab === "Completed" && o.status === "completed");
+    const statuses = getCanonicalOrderStatuses(o);
+    const matchesTab =
+      activeTab === "All orders" ||
+      (activeTab === "Unpaid" && ["unpaid", "pending"].includes(statuses.paymentStatus)) ||
+      (activeTab === "Unfulfilled" && statuses.paymentStatus === "paid" && statuses.fulfillmentStatus === "unfulfilled" && statuses.status === "open") ||
+      (activeTab === "In progress" && statuses.status === "open" && ["processing", "out_for_delivery"].includes(statuses.fulfillmentStatus)) ||
+      (activeTab === "Shipped" && statuses.fulfillmentStatus === "shipped") ||
+      (activeTab === "Delivered" && statuses.fulfillmentStatus === "delivered") ||
+      (activeTab === "Cancelled" && statuses.status === "cancelled") ||
+      (activeTab === "Refunded" && statuses.paymentStatus === "refunded");
     
     const matchesSearch = 
       (o.orderId || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -123,12 +129,12 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
           </button>
         </div>
 
-        <div className="flex bg-white/[0.03] rounded-[2.5rem] p-2 border border-white/5 backdrop-blur-md">
-           {["Open", "Completed", "All orders"].map(tab => (
+        <div className="flex flex-wrap justify-end bg-white/[0.03] rounded-[2.5rem] p-2 border border-white/5 backdrop-blur-md">
+           {["Unpaid", "Unfulfilled", "In progress", "Shipped", "Delivered", "Cancelled", "Refunded", "All orders"].map(tab => (
              <button
                key={tab}
                onClick={() => setActiveTab(tab)}
-               className={`px-10 py-3.5 rounded-3xl text-[10px] tracking-[0.3em] font-black transition-all ${
+               className={`px-5 py-3 rounded-3xl text-[9px] tracking-[0.2em] font-black transition-all ${
                  activeTab === tab ? 'bg-violet-600 text-white shadow-[0_10px_20px_rgba(124,58,237,0.3)]' : 'text-slate-500 hover:text-slate-300'
                }`}
              >
@@ -166,7 +172,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
                   customer: { name: s.name, email: s.email, address: { street: s.address, city: "", state: "", zip: "", country: "Canada" } },
                   items: [{ title: "[PRESALE] - The Hound by Ian Willms", price: s.total, quantity: s.items, photoUrl: "https://images.unsplash.com/photo-1544377193-33dcf4d68fb5?auto=format" }],
                   total: s.total, subtotal: s.total, shipping: 0, discount: 0,
-                  paymentStatus: "paid", status: "open"
+                  paymentStatus: "paid", fulfillmentStatus: "unfulfilled", status: "open"
                 })
               ));
               toast.success("Synthetic data manifested");
@@ -217,6 +223,9 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-10">
           {filteredOrders.map((order, i) => (
+            (() => {
+              const statuses = getCanonicalOrderStatuses(order);
+              return (
             <motion.div
               key={order.id}
               initial={{ opacity: 0, y: 30 }}
@@ -245,12 +254,12 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
                 {/* Status Overlay */}
                 <div className="absolute top-6 left-6 z-10 flex gap-2">
                    <span className={`text-[8px] font-black tracking-[0.2em] px-4 py-2 rounded-xl backdrop-blur-3xl border shadow-2xl flex items-center gap-2 ${
-                     order.status === 'open' 
+                     statuses.status === 'open'
                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' 
                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
                    }`}>
-                     <div className={`w-1 h-1 rounded-full animate-pulse ${order.status === 'open' ? 'bg-amber-400' : 'bg-emerald-400'}`} />
-                     {order.status.toUpperCase()}
+                     <div className={`w-1 h-1 rounded-full animate-pulse ${statuses.status === 'open' ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+                     {statuses.status.toUpperCase()} · {FULFILLMENT_LABELS[statuses.fulfillmentStatus]}
                    </span>
                 </div>
 
@@ -299,18 +308,20 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
                       <span className="text-[10px] font-black tracking-[0.2em] uppercase">{new Date(order.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
                    </div>
                    <div className="flex items-center gap-3">
-                      {order.paymentStatus === 'paid' ? (
+                      {statuses.paymentStatus === 'paid' ? (
                         <CheckCircle2 size={16} className="text-emerald-500" />
                       ) : (
                         <AlertCircle size={16} className="text-rose-500" />
                       )}
-                      <span className={`text-[10px] font-black tracking-widest uppercase ${order.paymentStatus === 'paid' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {order.paymentStatus === 'paid' ? 'Authenticated' : 'Pending'}
+                      <span className={`text-[10px] font-black tracking-widest uppercase ${statuses.paymentStatus === 'paid' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {statuses.paymentStatus}
                       </span>
                    </div>
                 </div>
               </div>
             </motion.div>
+              );
+            })()
           ))}
         </div>
         </>
@@ -318,4 +329,3 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
     </div>
   );
 }
-

@@ -35,6 +35,77 @@ const ALLOWED_ORIGINS = [
   "https://www.lyricalmyricalbooks.com",
 ];
 
+const STATUS_TRANSITIONS = {
+  paymentStatus: {
+    unpaid: ["pending", "paid"],
+    pending: ["unpaid", "paid"],
+    paid: ["refunded"],
+    refunded: [],
+  },
+  fulfillmentStatus: {
+    unfulfilled: ["processing", "shipped", "cancelled"],
+    processing: ["unfulfilled", "shipped", "cancelled"],
+    shipped: ["out_for_delivery", "delivered"],
+    out_for_delivery: ["delivered"],
+    delivered: [],
+    cancelled: [],
+  },
+  status: {
+    open: ["completed", "cancelled", "archived"],
+    completed: ["archived"],
+    cancelled: ["archived"],
+    archived: [],
+  },
+};
+
+const STATUS_LABELS = {
+  unpaid: "Unpaid",
+  pending: "Payment pending",
+  paid: "Paid",
+  refunded: "Refunded",
+  unfulfilled: "Unfulfilled",
+  processing: "Processing",
+  shipped: "Shipped",
+  out_for_delivery: "Out for delivery",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+  open: "Open",
+  completed: "Completed",
+  archived: "Archived",
+};
+
+function canonicalOrderStatuses(order) {
+  return {
+    paymentStatus: order.paymentStatus || "unpaid",
+    fulfillmentStatus:
+      order.fulfillmentStatus === "paid" || order.fulfillmentStatus === "pending_payment"
+        ? "unfulfilled"
+        : order.fulfillmentStatus || (order.status === "completed" ? "delivered" : "unfulfilled"),
+    status: order.status === "pending_payment" ? "open" : order.status || "open",
+  };
+}
+
+function validateOrderTransition(order, field, nextStatus, transition) {
+  const current = canonicalOrderStatuses(order);
+  if (!STATUS_TRANSITIONS[field] || !STATUS_TRANSITIONS[field][current[field]]) {
+    throw new Error(`Unsupported current ${field}: ${current[field]}`);
+  }
+  if (current[field] === nextStatus) return current;
+  if (!STATUS_TRANSITIONS[field][current[field]].includes(nextStatus)) {
+    throw new Error(`Cannot change ${field} from ${current[field]} to ${nextStatus}`);
+  }
+  if (field === "fulfillmentStatus" && ["processing", "shipped", "out_for_delivery", "delivered"].includes(nextStatus) && current.paymentStatus !== "paid") {
+    throw new Error("The order must be paid before fulfillment can advance.");
+  }
+  if (field === "fulfillmentStatus" && nextStatus === "shipped" && !(transition.trackingNumber || order.trackingNumber)) {
+    throw new Error("A tracking number is required before shipping.");
+  }
+  if (field === "status" && nextStatus === "completed" && current.fulfillmentStatus !== "delivered") {
+    throw new Error("Only delivered orders can be completed.");
+  }
+  return current;
+}
+
 // Returns true when the request was an OPTIONS preflight (already answered).
 function applyCors(req, res) {
   const origin = req.headers.origin || "";
@@ -72,6 +143,68 @@ async function requireAdmin(req, res) {
     return null;
   }
 }
+
+exports.transitionOrderStatus = onRequest(async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method Not Allowed" });
+    return;
+  }
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+
+  const orderIds = [...new Set(Array.isArray(req.body?.orderIds) ? req.body.orderIds : [])];
+  const transition = req.body?.transition || {};
+  const { field, status: nextStatus } = transition;
+  if (!orderIds.length || orderIds.length > 100 || !STATUS_TRANSITIONS[field]) {
+    res.status(400).json({ error: "Provide 1–100 order IDs and a canonical status field." });
+    return;
+  }
+
+  try {
+    const results = [];
+    for (const orderId of orderIds) {
+      const orderRef = db.collection("orders").doc(String(orderId));
+      const result = await db.runTransaction(async transaction => {
+        const snapshot = await transaction.get(orderRef);
+        if (!snapshot.exists) throw new Error(`Order ${orderId} was not found.`);
+        const order = snapshot.data();
+        const current = validateOrderTransition(order, field, nextStatus, transition);
+        if (current[field] === nextStatus) return { orderId, unchanged: true };
+
+        const now = new Date().toISOString();
+        const update = {
+          paymentStatus: current.paymentStatus,
+          fulfillmentStatus: current.fulfillmentStatus,
+          status: current.status,
+          [field]: nextStatus,
+          updatedAt: now,
+        };
+        if (transition.trackingCarrier) update.trackingCarrier = String(transition.trackingCarrier).trim();
+        if (transition.trackingNumber) update.trackingNumber = String(transition.trackingNumber).trim();
+        if (field === "fulfillmentStatus" && nextStatus === "shipped") update.shippedAt = now;
+        if (field === "fulfillmentStatus" && nextStatus === "delivered") {
+          update.deliveredAt = now;
+          update.status = "completed";
+        }
+        if (field === "status" && nextStatus === "archived") update.archivedAt = now;
+
+        const message = transition.note ||
+          `${field === "status" ? "Order lifecycle" : field === "paymentStatus" ? "Payment status" : "Fulfillment status"} changed from ${STATUS_LABELS[current[field]]} to ${STATUS_LABELS[nextStatus]}.`;
+        update.activity = [
+          ...(order.activity || []),
+          { type: "event", message, createdAt: now, actor: adminUser.email },
+        ];
+        transaction.update(orderRef, update);
+        return { orderId, unchanged: false };
+      });
+      results.push(result);
+    }
+    res.status(200).json({ success: true, results });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
 
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
@@ -650,7 +783,7 @@ exports.stripeWebhook = onRequest(
 
             transaction.update(orderRef, {
               paymentStatus: "paid",
-              fulfillmentStatus: "paid",
+              fulfillmentStatus: "unfulfilled",
               status: "open",
               downloadToken,
               paidAt: new Date().toISOString(),
@@ -1998,4 +2131,3 @@ exports.shippoWebhook = onRequest(
     }
   }
 );
-

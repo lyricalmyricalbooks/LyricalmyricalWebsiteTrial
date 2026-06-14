@@ -11,21 +11,22 @@ import {
   limit,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { adminApi } from "../admin/api";
+import { auth } from "../../lib/firebase";
+import { functionUrl } from "./functionsBase";
 
+export type PaymentStatus = "unpaid" | "pending" | "paid" | "refunded";
 export type FulfillmentStatus =
-  | "pending_payment"
-  | "paid"
+  | "unfulfilled"
   | "processing"
   | "shipped"
   | "out_for_delivery"
   | "delivered"
-  | "cancelled"
-  | "refunded";
+  | "cancelled";
+export type OrderLifecycleStatus = "open" | "completed" | "cancelled" | "archived";
+export type OrderStatusField = "paymentStatus" | "fulfillmentStatus" | "status";
 
 export const FULFILLMENT_FLOW: FulfillmentStatus[] = [
-  "pending_payment",
-  "paid",
+  "unfulfilled",
   "processing",
   "shipped",
   "out_for_delivery",
@@ -33,15 +34,76 @@ export const FULFILLMENT_FLOW: FulfillmentStatus[] = [
 ];
 
 export const FULFILLMENT_LABELS: Record<FulfillmentStatus, string> = {
-  pending_payment: "Awaiting Payment",
-  paid: "Paid",
+  unfulfilled: "Unfulfilled",
   processing: "Processing",
   shipped: "Shipped",
   out_for_delivery: "Out for Delivery",
   delivered: "Delivered",
   cancelled: "Cancelled",
-  refunded: "Refunded",
 };
+
+export const PAYMENT_TRANSITIONS: Record<PaymentStatus, PaymentStatus[]> = {
+  unpaid: ["pending", "paid"],
+  pending: ["unpaid", "paid"],
+  paid: ["refunded"],
+  refunded: [],
+};
+
+export const FULFILLMENT_TRANSITIONS: Record<FulfillmentStatus, FulfillmentStatus[]> = {
+  unfulfilled: ["processing", "shipped", "cancelled"],
+  processing: ["unfulfilled", "shipped", "cancelled"],
+  shipped: ["out_for_delivery", "delivered"],
+  out_for_delivery: ["delivered"],
+  delivered: [],
+  cancelled: [],
+};
+
+export const ORDER_LIFECYCLE_TRANSITIONS: Record<OrderLifecycleStatus, OrderLifecycleStatus[]> = {
+  open: ["completed", "cancelled", "archived"],
+  completed: ["archived"],
+  cancelled: ["archived"],
+  archived: [],
+};
+
+export interface OrderTransition {
+  field: OrderStatusField;
+  status: PaymentStatus | FulfillmentStatus | OrderLifecycleStatus;
+  note?: string;
+  trackingCarrier?: string;
+  trackingNumber?: string;
+}
+
+export function getCanonicalOrderStatuses(order: any): {
+  paymentStatus: PaymentStatus;
+  fulfillmentStatus: FulfillmentStatus;
+  status: OrderLifecycleStatus;
+} {
+  const legacyFulfillment = order.fulfillmentStatus;
+  return {
+    paymentStatus: order.paymentStatus || "unpaid",
+    fulfillmentStatus:
+      legacyFulfillment === "paid" || legacyFulfillment === "pending_payment"
+        ? "unfulfilled"
+        : legacyFulfillment || (order.status === "completed" ? "delivered" : "unfulfilled"),
+    status: order.status === "pending_payment" ? "open" : order.status || "open",
+  };
+}
+
+async function transitionOrders(orderIds: string[], transition: OrderTransition) {
+  const idToken = await auth.currentUser?.getIdToken();
+  if (!idToken) throw new Error("You must be signed in as an administrator.");
+  const response = await fetch(functionUrl("transitionOrderStatus"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ orderIds, transition }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || "Order transition failed.");
+  return payload;
+}
 
 // ──────────────────────────────────────────────────────────────
 // Order helpers
@@ -50,28 +112,20 @@ export const orderApi = {
   setFulfillmentStatus: async (
     orderId: string,
     status: FulfillmentStatus,
-    note?: string,
+    options: Omit<OrderTransition, "field" | "status"> = {},
   ) => {
-    await updateDoc(doc(db, "orders", orderId), {
-      fulfillmentStatus: status,
-      updatedAt: new Date().toISOString(),
-    });
-    await adminApi.addOrderNote(
-      orderId,
-      note || `Fulfillment status changed to ${FULFILLMENT_LABELS[status]}.`,
-    );
+    return transitionOrders([orderId], { field: "fulfillmentStatus", status, ...options });
   },
 
   bulkSetStatus: async (orderIds: string[], status: FulfillmentStatus) => {
-    await Promise.all(
-      orderIds.map(id =>
-        updateDoc(doc(db, "orders", id), {
-          fulfillmentStatus: status,
-          updatedAt: new Date().toISOString(),
-        }),
-      ),
-    );
+    return transitionOrders(orderIds, { field: "fulfillmentStatus", status });
   },
+
+  setLifecycleStatus: async (orderId: string, status: OrderLifecycleStatus, note?: string) =>
+    transitionOrders([orderId], { field: "status", status, note }),
+
+  setPaymentStatus: async (orderId: string, status: PaymentStatus, note?: string) =>
+    transitionOrders([orderId], { field: "paymentStatus", status, note }),
 
   exportToCsv: (orders: any[]): string => {
     const header = [

@@ -642,8 +642,9 @@ export const adminApi = {
     await setDoc(doc(db, "orders", orderId), {
       ...order,
       orderId, // Display ID
-      status: order.status || "pending_payment",
+      status: order.status || "open",
       paymentStatus: order.paymentStatus || "unpaid",
+      fulfillmentStatus: order.fulfillmentStatus || "unfulfilled",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       activity: [
