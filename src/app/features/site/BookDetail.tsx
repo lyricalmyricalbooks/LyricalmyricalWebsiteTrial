@@ -4,7 +4,7 @@ import { useParams, Link, useNavigate } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
   Package, Share2, Check, BookOpen, Globe, Ruler,
-  Weight, Tag, Truck, ShieldCheck, Zap, Heart
+  Weight, Tag, Truck, ShieldCheck, Zap, Heart, ChevronDown
 } from "lucide-react";
 import { useCart } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
@@ -74,6 +74,32 @@ export default function BookDetail() {
   const showSpecs              = storefrontDesign.showSpecs              ?? settings?.design?.showSpecs              ?? true;
   const showBundleWidget       = storefrontDesign.showBundleWidget       ?? settings?.design?.showBundleWidget       ?? true;
   const showTrustSignals       = storefrontDesign.showTrustSignals       ?? settings?.design?.showTrustSignals       ?? true;
+
+  // Redesign autonomy settings
+  const productTitleSize       = storefrontDesign.productTitleSize       || "large";
+  const productAlignment       = storefrontDesign.productAlignment       || "left";
+  const productSubtitleWeight  = storefrontDesign.productSubtitleWeight  || "light";
+  const productBorderRadius    = storefrontDesign.productBorderRadius    ?? 32;
+  const productImageGlowColor  = storefrontDesign.productImageGlowColor  || primaryColor;
+  const productImageShadow     = storefrontDesign.productImageShadow     || "lg";
+  const productImageHoverScale  = storefrontDesign.productImageHoverScale  ?? 1.05;
+  const productDetailsLayout   = storefrontDesign.productDetailsLayout   || "sections";
+  const productCtaAnimation    = storefrontDesign.productCtaAnimation    || "none";
+  const productCtaWidth        = storefrontDesign.productCtaWidth        || "full";
+  const productCtaSize         = storefrontDesign.productCtaSize         || "large";
+  const productTrustLayout     = storefrontDesign.productTrustLayout     || "row";
+  const productBundleLayout    = storefrontDesign.productBundleLayout    || "bordered";
+
+  // Tab & Accordion states
+  const [detailsTab, setDetailsTab] = useState<"description" | "specs" | "reviews">("description");
+  const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({
+    description: true,
+    specs: false,
+    reviews: false
+  });
+  const toggleAccordion = (section: string) => {
+    setOpenAccordions(prev => ({ ...prev, [section]: !prev[section] }));
+  };
 
   const buttonBg = storefrontDesign?.buttonColor || settings?.design?.buttonColor || settings?.design?.primaryColor || "#A855F7";
   const buttonText = storefrontDesign?.buttonTextColor || settings?.design?.buttonTextColor || "#000000";
@@ -302,7 +328,7 @@ export default function BookDetail() {
         <div
           className="fixed inset-0 pointer-events-none z-0 transition-all duration-1000"
           style={{
-            background: `radial-gradient(ellipse 70% 55% at 65% 35%, ${primaryColor} 0%, transparent 70%)`,
+            background: `radial-gradient(ellipse 70% 55% at 65% 35%, ${productImageGlowColor} 0%, transparent 70%)`,
             opacity: glowOpacity,
           }}
         />
@@ -377,7 +403,15 @@ export default function BookDetail() {
               {productImageLayout === "slider" ? (
                 <>
                   {/* Main image */}
-                  <div className="relative aspect-[3/4] rounded-[2rem] overflow-hidden bg-neutral-950 shadow-[0_40px_120px_rgba(0,0,0,0.7)]">
+                  <div 
+                    className={`relative aspect-[3/4] overflow-hidden bg-neutral-950 transition-all duration-300 ${
+                      productImageShadow === "none" ? "shadow-none" :
+                      productImageShadow === "sm" ? "shadow-sm" :
+                      productImageShadow === "md" ? "shadow-md" :
+                      productImageShadow === "xl" ? "shadow-[0_50px_150px_rgba(0,0,0,0.85)]" : "shadow-[0_40px_120px_rgba(0,0,0,0.7)]"
+                    }`}
+                    style={{ borderRadius: `${productBorderRadius}px` }}
+                  >
 
                     {/* shimmer */}
                     {!imageLoaded && (
@@ -393,6 +427,7 @@ export default function BookDetail() {
                         initial={{ opacity: 0, scale: 1.04 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0 }}
+                        whileHover={{ scale: productImageHoverScale }}
                         transition={{ duration: 0.45 }}
                         onLoad={() => setImageLoaded(true)}
                       />
@@ -547,7 +582,7 @@ export default function BookDetail() {
             </div>
 
             {/* ── INFO COLUMN ── */}
-            <div className="flex flex-col gap-8 lg:sticky lg:top-24">
+            <div className={`flex flex-col gap-8 lg:sticky lg:top-24 w-full ${productAlignment === "center" ? "items-center text-center" : "items-start text-left"}`}>
 
               {/* Genre tag */}
               <div>
@@ -561,12 +596,18 @@ export default function BookDetail() {
               </div>
 
               {/* Title block */}
-              <div className="space-y-3">
-                <h1 className="text-4xl md:text-5xl font-black tracking-tight leading-[1.05]">
+              <div className="space-y-3 w-full">
+                <h1 className={`font-black tracking-tight leading-[1.05] ${
+                  productTitleSize === "medium" ? "text-2xl md:text-3xl" :
+                  productTitleSize === "xlarge" ? "text-5xl md:text-6xl" : "text-4xl md:text-5xl"
+                }`}>
                   {book.title}
                 </h1>
                 {(book as any).subtitle && (
-                  <p className="text-white/40 text-xl font-light leading-snug">{(book as any).subtitle}</p>
+                  <p className={`text-white/40 text-xl leading-snug ${
+                    productSubtitleWeight === "bold" ? "font-bold" :
+                    productSubtitleWeight === "medium" ? "font-normal" : "font-light"
+                  }`}>{(book as any).subtitle}</p>
                 )}
                 {(book as any).authorName && (
                   <p className="text-white/30 text-[11px] font-black tracking-[0.35em] uppercase">
@@ -576,7 +617,7 @@ export default function BookDetail() {
               </div>
 
               {/* Price */}
-              <div className="flex items-baseline gap-4">
+              <div className={`flex items-baseline gap-4 ${productAlignment === "center" ? "justify-center" : ""}`}>
                 {isOnSale ? (
                   <>
                     <span className="text-4xl font-black tracking-tight text-white">{formatBookPrice(book)}</span>
@@ -593,15 +634,17 @@ export default function BookDetail() {
               </div>
 
               {/* Description */}
-              {(book as any).description && (
-                <p className="text-white/50 text-[14px] leading-[1.8] border-l-2 border-white/10 pl-5">
+              {productDetailsLayout === "sections" && (book as any).description && (
+                <p className={`text-white/50 text-[14px] leading-[1.8] pl-5 ${
+                  productAlignment === "center" ? "border-none text-center px-4" : "border-l-2 border-white/10 text-left"
+                }`}>
                   {(book as any).description}
                 </p>
               )}
 
               {/* Specs grid */}
-              {showSpecs !== false && ((book as any).format || (book as any).language || (book as any).dimensions || (book as any).isbn || (book as any).weight) && (
-                <div className="grid grid-cols-2 gap-3">
+              {productDetailsLayout === "sections" && showSpecs !== false && ((book as any).format || (book as any).language || (book as any).dimensions || (book as any).isbn || (book as any).weight) && (
+                <div className="grid grid-cols-2 gap-3 w-full">
                   {(book as any).format && (
                     <SpecItem icon={<BookOpen size={11} />} label="Format" value={(book as any).format} />
                   )}
@@ -625,9 +668,9 @@ export default function BookDetail() {
 
               {/* Variant Selector */}
               {book.variants && book.variants.length > 0 && (
-                <div className="space-y-3">
+                <div className={`space-y-3 w-full flex flex-col ${productAlignment === "center" ? "items-center" : "items-start"}`}>
                   <label className="text-[9px] tracking-[0.35em] text-white/40 uppercase font-black">Format / Edition</label>
-                  <div className="flex flex-wrap gap-2.5">
+                  <div className={`flex flex-wrap gap-2.5 ${productAlignment === "center" ? "justify-center" : "justify-start"}`}>
                     {book.variants.map((v: any) => {
                       const isSelected = selectedVariant?.id === v.id;
                       const vStock = v.stockLevel ?? v.stock ?? 0;
@@ -654,12 +697,35 @@ export default function BookDetail() {
               )}
 
               {/* CTA */}
-              <div className="flex gap-3">
+              <div className={`flex gap-3 w-full ${
+                productCtaWidth === "auto" 
+                  ? (productAlignment === "center" ? "justify-center" : "justify-start")
+                  : "w-full"
+              }`}>
                 <motion.button
                   onClick={handleAddToCart}
                   disabled={isOutOfStock}
                   whileTap={!isOutOfStock ? { scale: 0.97 } : {}}
-                  className={`flex-1 flex items-center justify-center gap-3 py-5 text-[10px] font-black tracking-[0.4em] transition-all duration-300 ${
+                  animate={
+                    !isOutOfStock && !added && productCtaAnimation === "pulse"
+                      ? { scale: [1, 1.02, 1] }
+                      : !isOutOfStock && !added && productCtaAnimation === "glow"
+                      ? { boxShadow: [`0 0 0px ${buttonBg}00`, `0 0 20px ${buttonBg}50`, `0 0 0px ${buttonBg}00`] }
+                      : {}
+                  }
+                  transition={
+                    !isOutOfStock && !added && (productCtaAnimation === "pulse" || productCtaAnimation === "glow")
+                      ? { duration: 2, repeat: Infinity, ease: "easeInOut" }
+                      : {}
+                  }
+                  whileHover={
+                    !isOutOfStock && !added && productCtaAnimation === "scale"
+                      ? { scale: 1.04, y: -2 }
+                      : {}
+                  }
+                  className={`${productCtaWidth === "full" ? "flex-1" : "px-8"} flex items-center justify-center gap-3 ${
+                    productCtaSize === "medium" ? "py-3.5" : "py-5"
+                  } text-[10px] font-black tracking-[0.4em] transition-all duration-300 ${
                     isOutOfStock
                       ? "bg-white/[0.06] text-white/25 cursor-not-allowed border border-white/[0.06]"
                       : added
@@ -713,15 +779,208 @@ export default function BookDetail() {
 
               {/* Trust signals */}
               {showTrustSignals !== false && (
-                <div className="grid grid-cols-3 gap-3 pt-4">
-                  <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
-                    <Truck size={12} className="text-white/30" /> {storefrontDesign.productTrust1 || settings?.design?.productTrust1 || getCopy(settings?.design, "productTrust1") || "Tracked Shipping"}
+                <div className={`w-full pt-4 ${
+                  productTrustLayout === "row"
+                    ? `flex flex-wrap gap-6 ${productAlignment === "center" ? "justify-center" : "justify-start"}`
+                    : productTrustLayout === "stack"
+                    ? "flex flex-col gap-3"
+                    : "grid grid-cols-3 gap-3"
+                }`}>
+                  <div className={`flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase ${
+                    productTrustLayout === "stack" && productAlignment === "center" ? "justify-center" : ""
+                  } ${productTrustLayout === "grid" ? "flex-col text-center p-3 border border-white/5 bg-white/[0.01] rounded-2xl" : ""}`}>
+                    <Truck size={12} className="text-white/30 shrink-0" /> {storefrontDesign.productTrust1 || settings?.design?.productTrust1 || getCopy(settings?.design, "productTrust1") || "Tracked Shipping"}
                   </div>
-                  <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
-                    <ShieldCheck size={12} className="text-white/30" /> {storefrontDesign.productTrust2 || settings?.design?.productTrust2 || getCopy(settings?.design, "productTrust2") || "14-Day Returns"}
+                  <div className={`flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase ${
+                    productTrustLayout === "stack" && productAlignment === "center" ? "justify-center" : ""
+                  } ${productTrustLayout === "grid" ? "flex-col text-center p-3 border border-white/5 bg-white/[0.01] rounded-2xl" : ""}`}>
+                    <ShieldCheck size={12} className="text-white/30 shrink-0" /> {storefrontDesign.productTrust2 || settings?.design?.productTrust2 || getCopy(settings?.design, "productTrust2") || "14-Day Returns"}
                   </div>
-                  <div className="flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase">
-                    <Package size={12} className="text-white/30" /> {storefrontDesign.productTrust3 || settings?.design?.productTrust3 || getCopy(settings?.design, "productTrust3") || "Ships in 1-2 Days"}
+                  <div className={`flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase ${
+                    productTrustLayout === "stack" && productAlignment === "center" ? "justify-center" : ""
+                  } ${productTrustLayout === "grid" ? "flex-col text-center p-3 border border-white/5 bg-white/[0.01] rounded-2xl" : ""}`}>
+                    <Package size={12} className="text-white/30 shrink-0" /> {storefrontDesign.productTrust3 || settings?.design?.productTrust3 || getCopy(settings?.design, "productTrust3") || "Ships in 1-2 Days"}
+                  </div>
+                </div>
+              )}
+
+              {/* Tabs Control */}
+              {productDetailsLayout === "tabs" && (
+                <div className="bg-white/[0.02] border border-white/5 rounded-3xl p-6 space-y-6 w-full mt-4">
+                  <div className="flex border-b border-white/5 p-1 bg-black/20 rounded-2xl relative">
+                    <button
+                      type="button"
+                      onClick={() => setDetailsTab("description")}
+                      className={`flex-1 py-2.5 text-[9px] font-black tracking-widest uppercase transition-all rounded-xl ${
+                        detailsTab === "description"
+                          ? "bg-white text-black font-black"
+                          : "text-white/50 hover:text-white"
+                      }`}
+                    >
+                      Description
+                    </button>
+                    {showSpecs !== false && (
+                      <button
+                        type="button"
+                        onClick={() => setDetailsTab("specs")}
+                        className={`flex-1 py-2.5 text-[9px] font-black tracking-widest uppercase transition-all rounded-xl ${
+                          detailsTab === "specs"
+                            ? "bg-white text-black font-black"
+                            : "text-white/50 hover:text-white"
+                        }`}
+                      >
+                        Details
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setDetailsTab("reviews")}
+                      className={`flex-1 py-2.5 text-[9px] font-black tracking-widest uppercase transition-all rounded-xl ${
+                        detailsTab === "reviews"
+                          ? "bg-white text-black font-black"
+                          : "text-white/50 hover:text-white"
+                      }`}
+                    >
+                      Reviews
+                    </button>
+                  </div>
+                  <div className="pt-2 min-h-[120px]">
+                    <AnimatePresence mode="wait">
+                      {detailsTab === "description" && (
+                        <motion.div
+                          key="desc"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className={`text-white/60 text-[13px] leading-[1.8] ${productAlignment === "center" ? "text-center" : "text-left"}`}
+                        >
+                          {(book as any).description || "No description available."}
+                        </motion.div>
+                      )}
+                      {detailsTab === "specs" && showSpecs !== false && (
+                        <motion.div
+                          key="specs"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="grid grid-cols-2 gap-3"
+                        >
+                          {(book as any).format && <SpecItem icon={<BookOpen size={11} />} label="Format" value={(book as any).format} />}
+                          {(book as any).language && <SpecItem icon={<Globe size={11} />} label="Language" value={(book as any).language} />}
+                          {(book as any).dimensions && <SpecItem icon={<Ruler size={11} />} label="Dimensions" value={(book as any).dimensions} />}
+                          {(book as any).isbn && <SpecItem icon={<Package size={11} />} label="ISBN" value={(book as any).isbn} />}
+                          {(book as any).weight && <SpecItem icon={<Weight size={11} />} label="Weight" value={(book as any).weight} />}
+                          {stockLevel > 0 && stockLevel !== 999 && stockLevel <= 10 && (
+                            <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label="Availability" value={`${stockLevel} remaining`} />
+                          )}
+                        </motion.div>
+                      )}
+                      {detailsTab === "reviews" && (
+                        <motion.div
+                          key="reviews"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                        >
+                          <ReviewsSection bookId={book.id} hideHeader={true} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              )}
+
+              {/* Accordions Control */}
+              {productDetailsLayout === "accordions" && (
+                <div className="space-y-2.5 w-full mt-4">
+                  {/* Description Accordion */}
+                  <div className="bg-white/[0.02] border border-white/5 rounded-3xl overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => toggleAccordion("description")}
+                      className="w-full flex items-center justify-between px-6 py-4.5 text-[10px] font-black tracking-widest uppercase text-white/70 hover:text-white"
+                    >
+                      <span>Description</span>
+                      <ChevronDown size={14} className={`transition-transform duration-300 ${openAccordions.description ? "rotate-180" : ""}`} />
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {openAccordions.description && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="overflow-hidden"
+                        >
+                          <p className={`px-6 pb-6 text-white/50 text-[13px] leading-[1.8] ${productAlignment === "center" ? "text-center" : "text-left"}`}>
+                            {(book as any).description || "No description available."}
+                          </p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Specifications Accordion */}
+                  {showSpecs !== false && ((book as any).format || (book as any).language || (book as any).dimensions || (book as any).isbn || (book as any).weight) && (
+                    <div className="bg-white/[0.02] border border-white/5 rounded-3xl overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => toggleAccordion("specs")}
+                        className="w-full flex items-center justify-between px-6 py-4.5 text-[10px] font-black tracking-widest uppercase text-white/70 hover:text-white"
+                      >
+                        <span>Specifications</span>
+                        <ChevronDown size={14} className={`transition-transform duration-300 ${openAccordions.specs ? "rotate-180" : ""}`} />
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {openAccordions.specs && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="px-6 pb-6 grid grid-cols-2 gap-3">
+                              {(book as any).format && <SpecItem icon={<BookOpen size={11} />} label="Format" value={(book as any).format} />}
+                              {(book as any).language && <SpecItem icon={<Globe size={11} />} label="Language" value={(book as any).language} />}
+                              {(book as any).dimensions && <SpecItem icon={<Ruler size={11} />} label="Dimensions" value={(book as any).dimensions} />}
+                              {(book as any).isbn && <SpecItem icon={<Package size={11} />} label="ISBN" value={(book as any).isbn} />}
+                              {(book as any).weight && <SpecItem icon={<Weight size={11} />} label="Weight" value={(book as any).weight} />}
+                              {stockLevel > 0 && stockLevel !== 999 && stockLevel <= 10 && (
+                                <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label="Availability" value={`${stockLevel} remaining`} />
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )}
+
+                  {/* Reviews Accordion */}
+                  <div className="bg-white/[0.02] border border-white/5 rounded-3xl overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => toggleAccordion("reviews")}
+                      className="w-full flex items-center justify-between px-6 py-4.5 text-[10px] font-black tracking-widest uppercase text-white/70 hover:text-white"
+                    >
+                      <span>Reviews</span>
+                      <ChevronDown size={14} className={`transition-transform duration-300 ${openAccordions.reviews ? "rotate-180" : ""}`} />
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {openAccordions.reviews && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="px-6 pb-6">
+                            <ReviewsSection bookId={book.id} hideHeader={true} />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 </div>
               )}
@@ -730,7 +989,13 @@ export default function BookDetail() {
               {showBundleWidget !== false && bundleBook && (
                 <div className="mt-8 pt-8 border-t border-white/5 space-y-6">
                   <h4 className="text-[10px] font-black tracking-[0.3em] uppercase text-white/40">Frequently Bought Together</h4>
-                  <div className="flex flex-col sm:flex-row items-center gap-6 bg-white/[0.02] border border-white/5 rounded-3xl p-6 relative overflow-hidden group/bundle hover:border-violet-500/20 transition-all">
+                  <div className={`flex flex-col sm:flex-row items-center gap-6 rounded-3xl p-6 relative overflow-hidden group/bundle transition-all duration-300 ${
+                    productBundleLayout === "glassmorphic"
+                      ? "bg-white/[0.01] backdrop-blur-xl border border-white/10 hover:border-violet-500/30"
+                      : productBundleLayout === "card"
+                      ? "bg-neutral-900 shadow-2xl border-none"
+                      : "bg-white/[0.02] border border-white/5 hover:border-violet-500/20"
+                  }`}>
                     {/* Cover Art Previews */}
                     <div className="flex items-center gap-4">
                       <div className="w-16 aspect-[3/4] bg-neutral-950 rounded-xl border border-white/10 shadow-lg shrink-0">
@@ -841,7 +1106,7 @@ export default function BookDetail() {
         )}
 
         {/* ── Reviews ── */}
-        {book && <ReviewsSection bookId={book.id} />}
+        {productDetailsLayout === "sections" && book && <ReviewsSection bookId={book.id} />}
 
         {/* ── Recently viewed ── */}
         <RecentlyViewedRow excludeId={book?.id} />

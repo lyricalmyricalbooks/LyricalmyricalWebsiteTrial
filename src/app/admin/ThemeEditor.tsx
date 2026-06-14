@@ -2261,6 +2261,167 @@ function ProductsPanel({ design, update }: any) {
             />
           </div>
 
+          <div className="pt-4 border-t border-white/5 space-y-6">
+            <SidebarLabel>Typography & Details</SidebarLabel>
+            <div>
+              <SidebarLabel>Title Size</SidebarLabel>
+              <SidebarRadioGroup
+                value={design.productTitleSize || "large"}
+                onChange={(v) => update("productTitleSize", v)}
+                options={[
+                  { value: "medium", label: "Medium" },
+                  { value: "large", label: "Large" },
+                  { value: "xlarge", label: "Extra Large" },
+                ]}
+              />
+            </div>
+            <div>
+              <SidebarLabel>Text Alignment</SidebarLabel>
+              <SidebarRadioGroup
+                value={design.productAlignment || "left"}
+                onChange={(v) => update("productAlignment", v)}
+                options={[
+                  { value: "left", label: "Left" },
+                  { value: "center", label: "Center" },
+                ]}
+              />
+            </div>
+            <div>
+              <SidebarLabel>Subtitle Weight</SidebarLabel>
+              <SidebarRadioGroup
+                value={design.productSubtitleWeight || "light"}
+                onChange={(v) => update("productSubtitleWeight", v)}
+                options={[
+                  { value: "light", label: "Light" },
+                  { value: "medium", label: "Medium" },
+                  { value: "bold", label: "Bold" },
+                ]}
+              />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-white/5 space-y-6">
+            <SidebarLabel>Cover Image Effects</SidebarLabel>
+            <SidebarRange
+              label="Border Radius"
+              value={design.productBorderRadius ?? 32}
+              min={0}
+              max={48}
+              suffix="px"
+              onChange={(v: number) => update("productBorderRadius", v)}
+            />
+            <SidebarRange
+              label="Image Hover Scale"
+              value={Math.round((design.productImageHoverScale ?? 1.05) * 100)}
+              min={100}
+              max={115}
+              suffix="%"
+              onChange={(v: number) => update("productImageHoverScale", v / 100)}
+            />
+            <div>
+              <SidebarLabel>Glow Backdrop Color</SidebarLabel>
+              <SidebarInput
+                value={design.productImageGlowColor || ""}
+                onChange={(v: string) => update("productImageGlowColor", v)}
+                placeholder="#A855F7"
+              />
+            </div>
+            <div>
+              <SidebarLabel>Cover Drop Shadow</SidebarLabel>
+              <SidebarRadioGroup
+                value={design.productImageShadow || "lg"}
+                onChange={(v) => update("productImageShadow", v)}
+                options={[
+                  { value: "none", label: "None" },
+                  { value: "sm", label: "Small" },
+                  { value: "md", label: "Medium" },
+                  { value: "lg", label: "Large" },
+                  { value: "xl", label: "Ultra Deep" },
+                ]}
+              />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-white/5 space-y-6">
+            <SidebarLabel>Detail Blocks Layout</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.productDetailsLayout || "sections"}
+              onChange={(v) => update("productDetailsLayout", v)}
+              options={[
+                { value: "sections", label: "Standard Stacked" },
+                { value: "tabs", label: "Interactive Tabs" },
+                { value: "accordions", label: "Accordion Drawers" },
+              ]}
+            />
+          </div>
+
+          <div className="pt-4 border-t border-white/5 space-y-6">
+            <SidebarLabel>Call-To-Action (CTA)</SidebarLabel>
+            <div>
+              <SidebarLabel>Hover Animation</SidebarLabel>
+              <SidebarRadioGroup
+                value={design.productCtaAnimation || "none"}
+                onChange={(v) => update("productCtaAnimation", v)}
+                options={[
+                  { value: "none", label: "Static" },
+                  { value: "pulse", label: "Pulse scale" },
+                  { value: "glow", label: "Glow shadows" },
+                  { value: "scale", label: "Lift / Press scale" },
+                ]}
+              />
+            </div>
+            <div>
+              <SidebarLabel>CTA Width</SidebarLabel>
+              <SidebarRadioGroup
+                value={design.productCtaWidth || "full"}
+                onChange={(v) => update("productCtaWidth", v)}
+                options={[
+                  { value: "full", label: "Full Width" },
+                  { value: "auto", label: "Compact Auto" },
+                ]}
+              />
+            </div>
+            <div>
+              <SidebarLabel>CTA Button Size</SidebarLabel>
+              <SidebarRadioGroup
+                value={design.productCtaSize || "large"}
+                onChange={(v) => update("productCtaSize", v)}
+                options={[
+                  { value: "medium", label: "Medium" },
+                  { value: "large", label: "Large" },
+                ]}
+              />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-white/5 space-y-6">
+            <SidebarLabel>Trust & Bundle Settings</SidebarLabel>
+            <div>
+              <SidebarLabel>Trust Signals Layout</SidebarLabel>
+              <SidebarRadioGroup
+                value={design.productTrustLayout || "row"}
+                onChange={(v) => update("productTrustLayout", v)}
+                options={[
+                  { value: "row", label: "Horizontal Row" },
+                  { value: "stack", label: "Vertical List" },
+                  { value: "grid", label: "Card Grid" },
+                ]}
+              />
+            </div>
+            <div>
+              <SidebarLabel>FBT Bundle Card Style</SidebarLabel>
+              <SidebarRadioGroup
+                value={design.productBundleLayout || "bordered"}
+                onChange={(v) => update("productBundleLayout", v)}
+                options={[
+                  { value: "bordered", label: "Thin Border" },
+                  { value: "glassmorphic", label: "Glassmorphic" },
+                  { value: "card", label: "Solid Card" },
+                ]}
+              />
+            </div>
+          </div>
+
           {design.showTrustSignals !== false && (
             <div className="space-y-4 pt-4 border-t border-white/5">
               <SidebarLabel>Custom Trust Signals</SidebarLabel>

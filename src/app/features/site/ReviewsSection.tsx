@@ -42,7 +42,7 @@ export function ReviewsSummary({ count, average }: { count: number; average: num
   );
 }
 
-export default function ReviewsSection({ bookId }: { bookId: string }) {
+export default function ReviewsSection({ bookId, hideHeader = false }: { bookId: string; hideHeader?: boolean }) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -106,14 +106,16 @@ export default function ReviewsSection({ bookId }: { bookId: string }) {
   };
 
   return (
-    <section className="border-t border-white/[0.06] mt-16">
-      <div className="max-w-4xl mx-auto px-6 py-16">
-        <header className="flex items-center justify-between mb-10">
-          <div>
-            <p className="text-[9px] font-black tracking-[0.4em] uppercase text-white/30 mb-2">Customer Reviews</p>
-            <ReviewsSummary count={aggregate.count} average={aggregate.average} />
-          </div>
-        </header>
+    <div className={hideHeader ? "w-full" : "border-t border-white/[0.06] mt-16"}>
+      <div className={hideHeader ? "w-full" : "max-w-4xl mx-auto px-6 py-16"}>
+        {!hideHeader && (
+          <header className="flex items-center justify-between mb-10">
+            <div>
+              <p className="text-[9px] font-black tracking-[0.4em] uppercase text-white/30 mb-2">Customer Reviews</p>
+              <ReviewsSummary count={aggregate.count} average={aggregate.average} />
+            </div>
+          </header>
+        )}
 
         {loading ? (
           <p className="text-[10px] tracking-widest text-white/30 uppercase">Loading reviews…</p>
@@ -196,6 +198,6 @@ export default function ReviewsSection({ bookId }: { bookId: string }) {
           )}
         </div>
       </div>
-    </section>
+    </div>
   );
 }
