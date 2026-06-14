@@ -677,6 +677,27 @@ export const adminApi = {
     });
   },
 
+  refundOrder: async (orderId: string, options?: { reason?: string; restock?: boolean }) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin to refund an order.");
+
+    const response = await fetch(functionUrl("refundOrder"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({
+        orderId,
+        reason: options?.reason || "Admin refund",
+        restock: options?.restock !== false,
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Stripe refund failed.");
+    return result;
+  },
+
   getShippoConfig: async () => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to view Shippo settings.");

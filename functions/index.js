@@ -96,6 +96,24 @@ async function getShippoToken() {
   }
 }
 
+async function getStripeClientForMode(mode, stripeAccountId = null) {
+  const settingsDoc = await db.collection("settings").doc("website").get();
+  const settings = settingsDoc.exists ? settingsDoc.data() || {} : {};
+  const stripeSettings = settings.payments?.stripe || {};
+  const stripeSecret = mode === "test"
+    ? stripeSettings.testSecretKey
+    : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
+
+  if (!stripeSecret) {
+    throw new Error(`Stripe ${mode === "test" ? "test" : "live"} secret key is not configured.`);
+  }
+
+  return {
+    stripe: new Stripe(stripeSecret),
+    requestOptions: stripeAccountId ? { stripeAccount: stripeAccountId } : {},
+  };
+}
+
 const FROM = "Lyricalmyrical Books <orders@lyricalmyricalbooks.com>";
 const ADMIN_TO = "lyricalmyricalbooks@gmail.com";
 
@@ -450,6 +468,8 @@ exports.createStripeCheckoutSession = onRequest(
 
       const shippingCountryCode = getCountryCode(order.customer.address.country);
       const ipCountryMatchesShipping = !ipCountry || ipCountry.toUpperCase() === shippingCountryCode.toUpperCase();
+      const testMode = settings.payments?.testMode || false;
+      const stripeSettings = settings.payments?.stripe || {};
 
       await orderRef.update({
         items: items.map(({ shippingProfileId, ...rest }) => rest),
@@ -461,6 +481,7 @@ exports.createStripeCheckoutSession = onRequest(
         total: finalTotal,
         checkoutCurrency: checkoutCurrency.toUpperCase(),
         exchangeRate: exchangeRate,
+        stripeMode: testMode ? "test" : "live",
         clientIp: clientIp,
         ipCountry: ipCountry || null,
         ipCountryMatchesShipping: ipCountryMatchesShipping,
@@ -468,8 +489,6 @@ exports.createStripeCheckoutSession = onRequest(
       });
 
       // 5. Stripe checkout parameters
-      const testMode = settings.payments?.testMode || false;
-      const stripeSettings = settings.payments?.stripe || {};
       const stripeSecret = testMode 
         ? stripeSettings.testSecretKey 
         : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
@@ -629,8 +648,22 @@ exports.stripeWebhook = onRequest(
             const orderDoc = await transaction.get(orderRef);
             if (!orderDoc.exists) return;
             const order = orderDoc.data();
+            const now = new Date().toISOString();
+            const paymentIntentId = typeof session.payment_intent === "string"
+              ? session.payment_intent
+              : session.payment_intent?.id || null;
+            const stripeTransaction = {
+              stripeCheckoutSessionId: session.id,
+              stripePaymentIntentId: paymentIntentId,
+              stripeAccountId: event.account || null,
+              stripeMode: session.livemode ? "live" : "test",
+              stripeAmountTotal: session.amount_total,
+              stripeCurrency: session.currency,
+              updatedAt: now,
+            };
 
             if (order.paymentStatus === "paid") {
+              transaction.update(orderRef, stripeTransaction);
               return;
             }
 
@@ -649,15 +682,15 @@ exports.stripeWebhook = onRequest(
             const downloadToken = crypto.randomBytes(32).toString("hex");
 
             transaction.update(orderRef, {
+              ...stripeTransaction,
               paymentStatus: "paid",
               fulfillmentStatus: "paid",
               status: "open",
               downloadToken,
-              paidAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
+              paidAt: now,
               activity: [
                 ...(order.activity || []),
-                { type: "event", message: "Payment completed (Stripe Webhook)", createdAt: new Date().toISOString() }
+                { type: "event", message: "Payment completed (Stripe Webhook)", createdAt: now }
               ]
             });
 
@@ -725,7 +758,193 @@ exports.stripeWebhook = onRequest(
 );
 
 // ──────────────────────────────────────────────────────────────
-// 3. HTTP Endpoint: Secure Digital Ebook Asset Downloads
+// 3. HTTP Endpoint: Refund a paid Stripe order (admin only)
+// ──────────────────────────────────────────────────────────────
+exports.refundOrder = onRequest(
+  { secrets: [STRIPE_SECRET_KEY] },
+  async (req, res) => {
+    if (applyCors(req, res)) return;
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+
+    const { orderId, reason, restock = true } = req.body || {};
+    if (!orderId) {
+      res.status(400).json({ error: "Missing orderId" });
+      return;
+    }
+
+    const orderRef = db.collection("orders").doc(orderId);
+    try {
+      const orderDoc = await orderRef.get();
+      if (!orderDoc.exists) {
+        res.status(404).json({ error: "Order not found" });
+        return;
+      }
+
+      const order = orderDoc.data();
+      if (order.paymentStatus !== "paid") {
+        res.status(409).json({
+          error: order.paymentStatus === "refunded"
+            ? "This order has already been refunded."
+            : "Only paid orders can be refunded.",
+        });
+        return;
+      }
+      if (!order.stripePaymentIntentId) {
+        res.status(409).json({ error: "This order does not have a saved Stripe Payment Intent ID." });
+        return;
+      }
+
+      const stripeMode = order.stripeMode === "test" ? "test" : "live";
+      const { stripe, requestOptions } = await getStripeClientForMode(
+        stripeMode,
+        order.stripeAccountId || null,
+      );
+      const idempotencyKey = `order-refund-${orderId}-full`;
+      const refund = await stripe.refunds.create({
+        payment_intent: order.stripePaymentIntentId,
+        reason: "requested_by_customer",
+        metadata: {
+          order_id: orderId,
+          admin_email: adminUser.email || "",
+          reason: String(reason || "Admin refund").slice(0, 500),
+        },
+      }, {
+        ...requestOptions,
+        idempotencyKey,
+      });
+
+      if (!["succeeded", "pending"].includes(refund.status)) {
+        throw new Error(`Stripe refund was not accepted (status: ${refund.status}).`);
+      }
+
+      const result = await db.runTransaction(async transaction => {
+        const freshOrderDoc = await transaction.get(orderRef);
+        if (!freshOrderDoc.exists) throw new Error("Order not found");
+        const freshOrder = freshOrderDoc.data();
+
+        if (freshOrder.refund?.id === refund.id || freshOrder.paymentStatus === "refunded") {
+          return { alreadyRecorded: true, order: freshOrder };
+        }
+        if (freshOrder.paymentStatus !== "paid") {
+          throw new Error("Order is no longer eligible for a refund.");
+        }
+
+        const itemList = freshOrder.items || [];
+        const shouldRestock = restock !== false && freshOrder.inventoryRestockedAt == null;
+        const bookRefs = shouldRestock
+          ? itemList.map(item => db.collection("books").doc(item.id))
+          : [];
+        const bookDocs = shouldRestock
+          ? await Promise.all(bookRefs.map(ref => transaction.get(ref)))
+          : [];
+
+        let discountRef = null;
+        let discountDoc = null;
+        const shouldReverseDiscount =
+          freshOrder.appliedDiscount?.id && freshOrder.discountUsageReversedAt == null;
+        if (shouldReverseDiscount) {
+          discountRef = db.collection("discounts").doc(freshOrder.appliedDiscount.id);
+          discountDoc = await transaction.get(discountRef);
+        }
+
+        const now = new Date().toISOString();
+        if (shouldRestock) {
+          itemList.forEach((item, index) => {
+            const bookDoc = bookDocs[index];
+            if (!bookDoc?.exists) return;
+            const book = bookDoc.data();
+            if (!book.trackInventory) return;
+            const quantity = Math.max(0, Number(item.quantity) || 0);
+
+            if (item.variantId) {
+              transaction.update(bookRefs[index], {
+                variants: (book.variants || []).map(variant => (
+                  variant.id === item.variantId
+                    ? { ...variant, stock: (Number(variant.stock) || 0) + quantity }
+                    : variant
+                )),
+                stockLevel: (Number(book.stockLevel) || 0) + quantity,
+                updatedAt: now,
+              });
+            } else {
+              transaction.update(bookRefs[index], {
+                stockLevel: (Number(book.stockLevel) || 0) + quantity,
+                updatedAt: now,
+              });
+            }
+          });
+        }
+
+        if (discountRef && discountDoc?.exists) {
+          transaction.update(discountRef, {
+            usageCount: Math.max(0, (Number(discountDoc.data().usageCount) || 0) - 1),
+            updatedAt: now,
+          });
+        }
+
+        const refundAmount = refund.amount / 100;
+        const actor = adminUser.email || adminUser.uid;
+        const stripePaymentStatus = refund.status === "succeeded" ? "refunded" : "refund_pending";
+        transaction.update(orderRef, {
+          paymentStatus: stripePaymentStatus,
+          status: "cancelled",
+          refund: {
+            id: refund.id,
+            amount: refundAmount,
+            currency: refund.currency?.toUpperCase() || freshOrder.checkoutCurrency || "CAD",
+            reason: String(reason || "Admin refund").slice(0, 500),
+            status: refund.status,
+            actor,
+            createdAt: now,
+          },
+          refundedAt: now,
+          refundedBy: actor,
+          ...(shouldRestock ? {
+            inventoryRestockedAt: now,
+            restockedItems: itemList.map(item => ({
+              id: item.id,
+              variantId: item.variantId || null,
+              quantity: Number(item.quantity) || 0,
+            })),
+          } : {}),
+          ...(shouldReverseDiscount ? { discountUsageReversedAt: now } : {}),
+          updatedAt: now,
+          activity: [
+            ...(freshOrder.activity || []),
+            {
+              type: "event",
+              message: `Stripe refund ${refund.id} ${refund.status} for ${refundAmount.toFixed(2)} ${refund.currency?.toUpperCase() || ""}${shouldRestock ? "; inventory restocked" : ""}.`,
+              createdAt: now,
+              actor,
+            },
+          ],
+        });
+        return { alreadyRecorded: false };
+      });
+
+      res.status(200).json({
+        refundId: refund.id,
+        amount: refund.amount / 100,
+        currency: refund.currency?.toUpperCase(),
+        status: refund.status,
+        alreadyRecorded: result.alreadyRecorded,
+      });
+    } catch (err) {
+      console.error("refundOrder failed:", err);
+      const status = err.type?.startsWith("Stripe") ? 400 : 500;
+      res.status(status).json({ error: err.message || "Refund failed" });
+    }
+  },
+);
+
+// ──────────────────────────────────────────────────────────────
+// 4. HTTP Endpoint: Secure Digital Ebook Asset Downloads
 // ──────────────────────────────────────────────────────────────
 exports.downloadDigitalAsset = onRequest(
   async (req, res) => {
@@ -1998,4 +2217,3 @@ exports.shippoWebhook = onRequest(
     }
   }
 );
-
