@@ -46,6 +46,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
   const [note, setNote] = useState("");
   const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
   const [isVoiding, setIsVoiding] = useState(false);
+  const [restockOnRefund, setRestockOnRefund] = useState(true);
 
   useEffect(() => {
     loadOrder();
@@ -132,26 +133,43 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     toast.success("Note added");
   };
 
-  const handleVoidAndRefund = async () => {
-    const confirmText = "Are you sure you want to VOID and REFUND this order? This will cancel the order, mark it as refunded, and record a timeline note. This action is irreversible.";
+  const handleRefund = async () => {
+    const confirmText = `Refund this paid order through Stripe?${restockOnRefund ? " The purchased quantities will also be restocked." : ""} This action is irreversible.`;
     if (!window.confirm(confirmText)) {
       return;
     }
+    const reason = window.prompt("Refund reason (saved on the order):", "Admin refund");
+    if (reason === null) return;
     setIsVoiding(true);
     try {
-      await adminApi.updateOrder(orderId, {
-        status: "cancelled",
-        paymentStatus: "refunded"
+      const result = await adminApi.refundOrder(orderId, {
+        reason: reason.trim() || "Admin refund",
+        restock: restockOnRefund,
       });
-      await adminApi.addOrderNote(
-        orderId,
-        "Order voided and refunded by administrator."
-      );
-      toast.success("Order cancelled and refunded");
-      loadOrder();
+      await loadOrder();
+      if (result.status === "succeeded") {
+        toast.success(`Stripe refund confirmed${restockOnRefund ? " and items restocked" : ""}`);
+      } else {
+        toast("Stripe accepted the refund; processing is pending");
+      }
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Failed to void and refund order.");
+      toast.error(err.message || "Failed to refund order.");
+    } finally {
+      setIsVoiding(false);
+    }
+  };
+
+  const handleCancelUnpaid = async () => {
+    if (!window.confirm("Cancel this unpaid order? No Stripe refund will be created.")) return;
+    setIsVoiding(true);
+    try {
+      await adminApi.updateOrder(orderId, { status: "cancelled" });
+      await adminApi.addOrderNote(orderId, "Unpaid order cancelled by administrator.");
+      await loadOrder();
+      toast.success("Unpaid order cancelled");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to cancel unpaid order.");
     } finally {
       setIsVoiding(false);
     }
@@ -565,13 +583,39 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
 
                    <div className="p-8 bg-white/[0.02] border border-white/5 rounded-[2.5rem] space-y-4">
                       <p className="text-[9px] tracking-[0.3em] text-slate-700 font-black uppercase mb-4 text-center">Administrative Overrides</p>
-                      <button 
-                        onClick={handleVoidAndRefund}
-                        disabled={isVoiding || order.status === "cancelled" || order.paymentStatus === "refunded"}
-                        className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-rose-400 transition-all group disabled:opacity-30 disabled:hover:text-slate-400 disabled:cursor-not-allowed"
-                      >
-                         {isVoiding ? "VOID & REFUNDING..." : order.status === "cancelled" ? "ORDER CANCELLED" : "VOID & REFUND"} <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
-                      </button>
+                      {order.paymentStatus === "paid" ? (
+                        <>
+                          <button
+                            onClick={handleRefund}
+                            disabled={isVoiding}
+                            className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-rose-400 transition-all group disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            {isVoiding ? "REFUNDING THROUGH STRIPE..." : "REFUND PAID ORDER"} <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
+                          </button>
+                          <label className="flex items-center justify-between gap-4 text-[10px] tracking-[0.2em] font-black text-slate-500 uppercase cursor-pointer">
+                            <span>Restock items</span>
+                            <input
+                              type="checkbox"
+                              checked={restockOnRefund}
+                              onChange={event => setRestockOnRefund(event.target.checked)}
+                              className="accent-violet-500"
+                            />
+                          </label>
+                        </>
+                      ) : order.paymentStatus === "refunded" || order.paymentStatus === "refund_pending" ? (
+                        <p className="text-[10px] tracking-[0.2em] font-black text-emerald-400 uppercase">
+                          {order.paymentStatus === "refund_pending" ? "Refund pending" : "Refunded"}
+                          {order.inventoryRestockedAt ? " · Items restocked" : ""}
+                        </p>
+                      ) : (
+                        <button
+                          onClick={handleCancelUnpaid}
+                          disabled={isVoiding || order.status === "cancelled"}
+                          className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-amber-400 transition-all group disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          {isVoiding ? "CANCELLING..." : order.status === "cancelled" ? "UNPAID ORDER CANCELLED" : "CANCEL UNPAID ORDER"} <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
+                        </button>
+                      )}
                       <div className="h-px bg-white/5" />
                       <button className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-blue-400 transition-all group">
                          SECURE CHANNEL <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
