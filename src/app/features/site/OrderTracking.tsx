@@ -255,28 +255,38 @@ export default function OrderTracking() {
               </div>
 
               {/* Shipping carrier information */}
-              {order.trackingNumber && (
-                <div className="bg-gradient-to-r from-violet-950/20 to-cyan-950/20 border border-violet-500/15 rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-black tracking-[0.3em] text-violet-400 uppercase">Fulfillment Logistics</p>
-                    <h4 className="text-2xl font-black tracking-tighter uppercase italic leading-none">Carrier Assigned</h4>
-                    <p className="text-xs font-medium text-slate-400 leading-relaxed max-w-md mt-2">
-                      Your parcel is in transit. Tracking number: <code className="text-white bg-white/10 px-2 py-0.5 rounded font-mono">{order.trackingNumber}</code> 
-                      {order.carrier ? ` (${order.carrier.toUpperCase()})` : ""}
-                    </p>
-                  </div>
-                  {order.trackingUrl && (
-                    <a 
-                      href={order.trackingUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
+              {order.trackingNumber && (() => {
+                const carrierTrackingUrl = (() => {
+                  const c = (order.trackingCarrier || "").toLowerCase();
+                  const n = encodeURIComponent(order.trackingNumber);
+                  if (c.includes("canada post")) return `https://www.canadapost-postescanada.ca/track-reperage/en#/resultList?searchKeys=${n}`;
+                  if (c.includes("usps")) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${n}`;
+                  if (c.includes("ups")) return `https://www.ups.com/track?tracknum=${n}`;
+                  if (c.includes("fedex")) return `https://www.fedex.com/apps/fedextrack/?tracknumbers=${n}`;
+                  if (c.includes("dhl")) return `https://www.dhl.com/en/express/tracking.html?AWB=${n}`;
+                  return `https://www.google.com/search?q=${encodeURIComponent((order.trackingCarrier || "") + " " + order.trackingNumber)}`;
+                })();
+                return (
+                  <div className="bg-gradient-to-r from-violet-950/20 to-cyan-950/20 border border-violet-500/15 rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black tracking-[0.3em] text-violet-400 uppercase">Fulfillment Logistics</p>
+                      <h4 className="text-2xl font-black tracking-tighter uppercase italic leading-none">Carrier Assigned</h4>
+                      <p className="text-xs font-medium text-slate-400 leading-relaxed max-w-md mt-2">
+                        Your parcel is in transit. Tracking number: <code className="text-white bg-white/10 px-2 py-0.5 rounded font-mono">{order.trackingNumber}</code>
+                        {order.trackingCarrier ? ` (${order.trackingCarrier.toUpperCase()})` : ""}
+                      </p>
+                    </div>
+                    <a
+                      href={carrierTrackingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="bg-white text-black hover:bg-slate-200 px-8 py-4 rounded-2xl text-[9px] font-black tracking-[0.25em] uppercase transition-all active:scale-95 flex items-center gap-3 shrink-0 shadow-xl"
                     >
                       Track Shipment <ExternalLink size={12} />
                     </a>
-                  )}
-                </div>
-              )}
+                  </div>
+                );
+              })()}
 
               {/* Digital Ebook Downloads Section */}
               {Object.keys(digitalItems).length > 0 && order.paymentStatus === "paid" && (
