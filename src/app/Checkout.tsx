@@ -13,7 +13,7 @@ import { useSEO } from "./lib/seo";
 import { useCurrency } from "./CurrencyContext";
 import { COUNTRIES, matchShippingZone } from "./features/site/shippingZones";
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 
 // ─── Country selector (matches Field styling) ─────────────────────────────────
@@ -84,7 +84,7 @@ function StepBadge({ n, label }: { n: string; label: string }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function Checkout() {
-  const { cart, cartTotal, clearCart } = useCart();
+  const { cart, cartTotal, clearCart, setCart } = useCart();
   const { currency, formatPrice } = useCurrency();
 
   const [isApplying, setIsApplying]     = useState(false);
@@ -189,6 +189,107 @@ export function Checkout() {
     }
     loadFulfillmentSettings();
   }, []);
+
+  // Recover cart if cartId query parameter is present in URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlCartId = params.get("cartId");
+    if (!urlCartId || books.length === 0) return;
+
+    (async () => {
+      try {
+        const cartRef = doc(db, "abandoned-carts", urlCartId);
+        const cartSnap = await getDoc(cartRef);
+        if (cartSnap.exists()) {
+          const cartData = cartSnap.data();
+          if (cartData.recovered) {
+            console.log("Cart already recovered");
+            return;
+          }
+
+          // Prefill customer details
+          if (cartData.customer) {
+            setCustomer(prev => ({
+              ...prev,
+              name: cartData.customer.name || prev.name,
+              email: cartData.customer.email || cartData.email || prev.email,
+              phone: cartData.customer.phone || prev.phone,
+              address: {
+                street: cartData.customer.address?.street || prev.address.street,
+                city: cartData.customer.address?.city || prev.address.city,
+                state: cartData.customer.address?.state || prev.address.state,
+                zip: cartData.customer.address?.zip || prev.address.zip,
+                country: cartData.customer.address?.country || prev.address.country,
+              }
+            }));
+          } else if (cartData.email) {
+            setCustomer(prev => ({
+              ...prev,
+              email: cartData.email,
+            }));
+          }
+
+          // Save cart ID in sessionStorage to keep updating it and resolve it later
+          sessionStorage.setItem("fm_checkout_cart_id", urlCartId);
+
+          // Restore cart items
+          const restoredItems = (cartData.items || []).map((item: any) => {
+            const matchedBook = books.find(b => b.id === item.id);
+            if (matchedBook) {
+              const photoUrl = matchedBook.photos?.[0]?.url || "";
+              const shippingProfileId = matchedBook.shippingProfileId || "";
+
+              let variantName = item.variantName || "";
+              let stripePriceId = item.stripePriceId || "";
+              let price = item.price;
+
+              if (item.variantId) {
+                const matchedVariant = matchedBook.variants?.find((v: any) => v.id === item.variantId);
+                if (matchedVariant) {
+                  variantName = matchedVariant.name;
+                  price = matchedVariant.price;
+                  if (matchedVariant.stripePriceId) stripePriceId = matchedVariant.stripePriceId;
+                }
+              } else {
+                price = matchedBook.isOnSale ? matchedBook.salePrice : matchedBook.retailPrice;
+                if (matchedBook.stripePriceId) stripePriceId = matchedBook.stripePriceId;
+              }
+
+              return {
+                id: item.id,
+                variantId: item.variantId || undefined,
+                variantName: variantName || undefined,
+                title: item.title || matchedBook.title,
+                price: typeof price === "number" ? price : item.price,
+                quantity: item.qty || item.quantity || 1,
+                photoUrl: item.photoUrl || photoUrl,
+                stripePriceId: stripePriceId || undefined,
+                shippingProfileId: item.shippingProfileId || shippingProfileId,
+              };
+            }
+            return {
+              id: item.id,
+              variantId: item.variantId || undefined,
+              variantName: item.variantName || undefined,
+              title: item.title,
+              price: item.price,
+              quantity: item.qty || item.quantity || 1,
+              photoUrl: item.photoUrl || "",
+              stripePriceId: item.stripePriceId || undefined,
+              shippingProfileId: item.shippingProfileId || "",
+            };
+          });
+
+          if (restoredItems.length > 0) {
+            clearCart();
+            setCart(restoredItems);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to recover cart:", err);
+      }
+    })();
+  }, [books]);
 
   useEffect(() => {
     async function detectCountry() {
@@ -535,9 +636,27 @@ export function Checkout() {
   useEffect(() => {
     if (!customer.email || !customer.email.includes("@") || cart.length === 0) return;
     const t = setTimeout(() => {
-      abandonedCartApi.upsert(`active_${customer.email.toLowerCase()}`, {
+      let recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id");
+      if (!recoveryCartId) {
+        const newRef = doc(collection(db, "abandoned-carts"));
+        recoveryCartId = newRef.id;
+        sessionStorage.setItem("fm_checkout_cart_id", recoveryCartId);
+      }
+
+      abandonedCartApi.upsert(recoveryCartId, {
         email: customer.email,
-        items: cart.map(i => ({ id: i.id, title: i.title, qty: i.quantity, price: i.price })),
+        items: cart.map(i => ({
+          id: i.id,
+          variantId: i.variantId || "",
+          variantName: i.variantName || "",
+          title: i.title,
+          price: i.price,
+          quantity: i.quantity,
+          photoUrl: i.photoUrl || "",
+          stripePriceId: i.stripePriceId || "",
+          stockLimit: i.stockLimit ?? null,
+          shippingProfileId: i.shippingProfileId || ""
+        })),
         subtotal: cartTotal,
         customer,
       });
@@ -712,10 +831,20 @@ export function Checkout() {
             clearCart();
             funnelApi.track("purchase");
             const email = order.customer?.email || localStorage.getItem("last_customer_email") || "";
-            if (email) abandonedCartApi.markRecovered(`active_${email.toLowerCase()}`);
+            const recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id") || `active_${email.toLowerCase()}`;
+            abandonedCartApi.markRecovered(recoveryCartId);
+            sessionStorage.removeItem("fm_checkout_cart_id");
             return;
           }
-          if (order?.paymentStatus === "pending") return;
+          if (order?.paymentStatus === "pending") {
+            clearCart();
+            funnelApi.track("purchase");
+            const email = order.customer?.email || localStorage.getItem("last_customer_email") || "";
+            const recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id") || `active_${email.toLowerCase()}`;
+            abandonedCartApi.markRecovered(recoveryCartId);
+            sessionStorage.removeItem("fm_checkout_cart_id");
+            return;
+          }
           await new Promise(resolve => setTimeout(resolve, 2500));
         }
       } catch (err) {

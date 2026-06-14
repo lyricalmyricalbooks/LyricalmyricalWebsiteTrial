@@ -135,7 +135,11 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
   };
 
   const handleRefund = async () => {
-    const confirmText = `Refund this paid order through Stripe?${restockOnRefund ? " The purchased quantities will also be restocked." : ""} This action is irreversible.`;
+    const isManual = order.paymentMethod && order.paymentMethod !== "Stripe" && order.paymentMethod !== "PayPal";
+    const confirmText = isManual
+      ? `Refund this paid manual order?${restockOnRefund ? " The purchased quantities will also be restocked." : ""} This action is irreversible.`
+      : `Refund this paid order through Stripe?${restockOnRefund ? " The purchased quantities will also be restocked." : ""} This action is irreversible.`;
+
     if (!window.confirm(confirmText)) {
       return;
     }
@@ -143,15 +147,29 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     if (reason === null) return;
     setIsVoiding(true);
     try {
-      const result = await adminApi.refundOrder(orderId, {
-        reason: reason.trim() || "Admin refund",
-        restock: restockOnRefund,
-      });
-      await loadOrder();
-      if (result.status === "succeeded") {
-        toast.success(`Stripe refund confirmed${restockOnRefund ? " and items restocked" : ""}`);
+      if (isManual) {
+        await adminApi.updateOrder(orderId, {
+          paymentStatus: "refunded",
+          restockOnRefund: restockOnRefund
+        });
+        await adminApi.addOrderNote(
+          orderId,
+          `Order payment manually refunded/voided by administrator. Reason: ${reason.trim() || "Admin refund"}`
+        );
+        await adminApi.recordAuditLog("orders", `Manually refunded order ${order.orderId || orderId}.`);
+        toast.success("Manual order marked as refunded");
+        loadOrder();
       } else {
-        toast("Stripe accepted the refund; processing is pending");
+        const result = await adminApi.refundOrder(orderId, {
+          reason: reason.trim() || "Admin refund",
+          restock: restockOnRefund,
+        });
+        await loadOrder();
+        if (result.status === "succeeded") {
+          toast.success(`Stripe refund confirmed${restockOnRefund ? " and items restocked" : ""}`);
+        } else {
+          toast("Stripe accepted the refund; processing is pending");
+        }
       }
     } catch (err: any) {
       console.error(err);

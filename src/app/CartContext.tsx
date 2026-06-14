@@ -19,6 +19,7 @@ interface CartContextType {
   removeFromCart: (id: string, variantId?: string) => void;
   updateQuantity: (id: string, variantId: string | undefined, delta: number) => void;
   clearCart: () => void;
+  setCart: (items: CartItem[]) => void;
   cartTotal: number;
   cartCount: number;
   isCartOpen: boolean;
@@ -103,7 +104,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   return (
     <CartContext.Provider value={{ 
-      cart, addToCart, removeFromCart, updateQuantity, clearCart, 
+      cart, addToCart, removeFromCart, updateQuantity, clearCart, setCart,
       cartTotal, cartCount, isCartOpen, setIsCartOpen 
     }}>
       {children}

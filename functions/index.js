@@ -1539,58 +1539,9 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
   return { subject, html };
 }
 
-// ──────────────────────────────────────────────────────────────
-// 5a. New Order: Notify admin immediately when any order is placed
-// ──────────────────────────────────────────────────────────────
-exports.onOrderCreated = onDocumentCreated(
-  { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
-  async event => {
-    const order = event.data?.data() || {};
-    const orderId = event.params.orderId;
 
-    if (order.isTest === true) return;
-    if (!order.customer?.email) return;
+// [Duplicate exports.onOrderCreated removed; logic consolidated in export at bottom]
 
-    const itemsTable = `
-      <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;">
-        ${orderRowsHtml(order.items)}
-        <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${moneyFmt(order.subtotal)}</td></tr>
-        <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${moneyFmt(order.shipping)}</td></tr>
-        ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${moneyFmt(order.tax)}</td></tr>` : ""}
-        ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">Discount</td><td style="text-align:right;color:#0a7;">−${moneyFmt(order.discount)}</td></tr>` : ""}
-        <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${moneyFmt(order.total)}</td></tr>
-      </table>
-    `;
-
-    const paymentLabel = order.paymentStatus === "pending"
-      ? `${order.paymentMethod || "Manual"} — awaiting payment`
-      : order.paymentMethod || "Unknown";
-
-    const adminHtml = `
-      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-        <h2 style="margin-top:0;">New Order Received</h2>
-        <p><strong>Order:</strong> ${order.orderId || orderId}</p>
-        <p><strong>Customer:</strong> ${order.customer.name} &lt;${order.customer.email}&gt;</p>
-        ${order.customer.phone ? `<p><strong>Phone:</strong> ${order.customer.phone}</p>` : ""}
-        <p><strong>Payment:</strong> ${paymentLabel}</p>
-        ${itemsTable}
-        ${order.customer.address ? `<p><strong>Ship to:</strong> ${[order.customer.address.street, order.customer.address.city, order.customer.address.state, order.customer.address.zip, order.customer.address.country].filter(Boolean).join(", ")}</p>` : ""}
-        ${order.paymentInstructions ? `<p><strong>Payment instructions sent:</strong> ${order.paymentInstructions}</p>` : ""}
-      </div>
-    `;
-
-    try {
-      await sendEmail({
-        to: ADMIN_TO,
-        subject: `[NEW ORDER] ${order.orderId || orderId} · ${moneyFmt(order.total)} · ${order.customer.name}`,
-        html: adminHtml,
-        secret: RESEND_API_KEY.value(),
-      });
-    } catch (err) {
-      console.error("New order admin notification failed", err);
-    }
-  }
-);
 
 // ──────────────────────────────────────────────────────────────
 // 5b. Order Paid: Trigger notifications only AFTER successful payment
@@ -1609,7 +1560,55 @@ exports.onOrderUpdated = onDocumentUpdated(
 
     // 1. Order Confirmation (Order Paid)
     const becamePaid = before.paymentStatus !== "paid" && after.paymentStatus === "paid";
-    if (becamePaid && notificationSettings.order_confirmation?.enabled !== false) {
+    if (becamePaid) {
+      // If it is a manual payment method, decrement stock levels
+      const isManual = after.paymentMethod && after.paymentMethod !== "Stripe" && after.paymentMethod !== "PayPal";
+      if (isManual && after.inventoryDecrementedAt == null) {
+        const itemList = after.items || [];
+        try {
+          await db.runTransaction(async transaction => {
+            const bookRefs = itemList.map(item => db.collection("books").doc(item.id));
+            const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
+            
+            itemList.forEach((item, idx) => {
+              const bookDoc = bookDocs[idx];
+              if (!bookDoc.exists) return;
+              const book = bookDoc.data();
+              if (!book.trackInventory) return;
+              
+              const quantity = Number(item.quantity) || 1;
+              if (item.variantId) {
+                const variants = book.variants || [];
+                const updatedVariants = variants.map(v => {
+                  if (v.id === item.variantId) {
+                    return { ...v, stock: Math.max(0, (Number(v.stock) || 0) - quantity) };
+                  }
+                  return v;
+                });
+                transaction.update(bookRefs[idx], {
+                  variants: updatedVariants,
+                  stockLevel: Math.max(0, (Number(book.stockLevel) || 0) - quantity),
+                  updatedAt: new Date().toISOString()
+                });
+              } else {
+                transaction.update(bookRefs[idx], {
+                  stockLevel: Math.max(0, (Number(book.stockLevel) || 0) - quantity),
+                  updatedAt: new Date().toISOString()
+                });
+              }
+            });
+            // Mark as decremented on the order document
+            transaction.update(db.collection("orders").doc(orderId), {
+              inventoryDecrementedAt: new Date().toISOString()
+            });
+          });
+          console.log(`Successfully decremented inventory for manual order ${orderId}`);
+        } catch (err) {
+          console.error(`Failed to decrement inventory for manual order ${orderId}:`, err);
+        }
+      }
+
+      if (notificationSettings.order_confirmation?.enabled !== false) {
       const order = after;
 
       // Compile digital items download section if any digital formats exist
@@ -1704,6 +1703,7 @@ exports.onOrderUpdated = onDocumentUpdated(
         console.error("Payment confirmation email failed", err);
       }
     }
+  }
 
     // 2. Shipping Confirmation (Order Shipped)
     const becameShipped = before.fulfillmentStatus !== "shipped" && after.fulfillmentStatus === "shipped";
@@ -1799,7 +1799,53 @@ exports.onOrderUpdated = onDocumentUpdated(
 
     // 4. Order Refunded
     const becameRefunded = before.paymentStatus !== "refunded" && after.paymentStatus === "refunded";
-    if (becameRefunded && notificationSettings.order_refunded?.enabled !== false) {
+    if (becameRefunded) {
+      // If it is a manual payment method, handle restocking
+      const isManual = after.paymentMethod && after.paymentMethod !== "Stripe" && after.paymentMethod !== "PayPal";
+      const shouldRestock = isManual && after.restockOnRefund !== false && after.inventoryRestockedAt == null;
+      if (shouldRestock) {
+        const itemList = after.items || [];
+        try {
+          await db.runTransaction(async transaction => {
+            const bookRefs = itemList.map(item => db.collection("books").doc(item.id));
+            const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
+            
+            itemList.forEach((item, index) => {
+              const bookDoc = bookDocs[index];
+              if (!bookDoc?.exists) return;
+              const book = bookDoc.data();
+              if (!book.trackInventory) return;
+              const quantity = Math.max(0, Number(item.quantity) || 0);
+
+              if (item.variantId) {
+                transaction.update(bookRefs[index], {
+                  variants: (book.variants || []).map(variant => (
+                    variant.id === item.variantId
+                      ? { ...variant, stock: (Number(variant.stock) || 0) + quantity }
+                      : variant
+                  )),
+                  stockLevel: (Number(book.stockLevel) || 0) + quantity,
+                  updatedAt: new Date().toISOString(),
+                });
+              } else {
+                transaction.update(bookRefs[index], {
+                  stockLevel: (Number(book.stockLevel) || 0) + quantity,
+                  updatedAt: new Date().toISOString(),
+                });
+              }
+            });
+            // Mark as restocked on the order document
+            transaction.update(db.collection("orders").doc(orderId), {
+              inventoryRestockedAt: new Date().toISOString()
+            });
+          });
+          console.log(`Successfully restocked manual order ${orderId}`);
+        } catch (err) {
+          console.error(`Failed to restock manual order ${orderId}:`, err);
+        }
+      }
+
+      if (notificationSettings.order_refunded?.enabled !== false) {
       const compiled = compileEmailTemplate("order_refunded", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
@@ -1819,6 +1865,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       }
     }
   }
+}
 );
 
 // ──────────────────────────────────────────────────────────────
@@ -2324,6 +2371,7 @@ exports.onOrderCreated = onDocumentCreated(
     const order = event.data?.data() || {};
     const orderId = event.params.orderId;
 
+    if (order.isTest === true) return;
     if (!order.customer?.email) return;
 
     const notificationSettings = await loadNotificationSettings();
@@ -2633,6 +2681,85 @@ exports.shippoWebhook = onRequest(
     } catch (err) {
       console.error("shippoWebhook error:", err);
       res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ──────────────────────────────────────────────────────────────
+// 12. Low Stock Alerts: Email admin when product or variant stock drops below 3 or hits 0
+// ──────────────────────────────────────────────────────────────
+exports.onBookUpdated = onDocumentUpdated(
+  { document: "books/{bookId}", secrets: [RESEND_API_KEY] },
+  async event => {
+    const before = event.data?.before?.data() || {};
+    const after = event.data?.after?.data() || {};
+
+    if (after.isTest === true) return;
+    if (!after.trackInventory) return;
+
+    const stockBefore = before.stockLevel !== undefined ? Number(before.stockLevel) : 999;
+    const stockAfter = after.stockLevel !== undefined ? Number(after.stockLevel) : 0;
+
+    let shouldAlert = false;
+    let alertLines = [];
+
+    // Check parent product stock
+    const parentBecameLowStock = (stockBefore > 3 && stockAfter <= 3 && stockAfter > 0);
+    const parentBecameSoldOut = (stockBefore > 0 && stockAfter === 0);
+
+    if (parentBecameLowStock) {
+      shouldAlert = true;
+      alertLines.push(`Product "<strong>${after.title}</strong>" is running low on stock (${stockAfter} remaining).`);
+    } else if (parentBecameSoldOut) {
+      shouldAlert = true;
+      alertLines.push(`Product "<strong>${after.title}</strong>" is now sold out!`);
+    }
+
+    // Check individual variants
+    if (after.variants && Array.isArray(after.variants)) {
+      const beforeVariants = before.variants || [];
+      after.variants.forEach(vAfter => {
+        const vBefore = beforeVariants.find(v => v.id === vAfter.id);
+        const vStockBefore = vBefore && vBefore.stock !== undefined ? Number(vBefore.stock) : 999;
+        const vStockAfter = vAfter.stock !== undefined ? Number(vAfter.stock) : 0;
+
+        const vBecameLowStock = (vStockBefore > 3 && vStockAfter <= 3 && vStockAfter > 0);
+        const vBecameSoldOut = (vStockBefore > 0 && vStockAfter === 0);
+
+        if (vBecameLowStock) {
+          shouldAlert = true;
+          alertLines.push(`Variant "<strong>${vAfter.name}</strong>" of product "${after.title}" is running low on stock (${vStockAfter} remaining).`);
+        } else if (vBecameSoldOut) {
+          shouldAlert = true;
+          alertLines.push(`Variant "<strong>${vAfter.name}</strong>" of product "${after.title}" is now sold out!`);
+        }
+      });
+    }
+
+    if (shouldAlert && alertLines.length > 0) {
+      const alertHtml = `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;border:1px solid #f3f4f6;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+          <h2 style="margin-top:0;color:#dc2626;font-size:18px;">&#9888; Inventory Alert</h2>
+          <p style="font-size:14px;color:#374151;line-height:1.6;">${alertLines.join("<br><br>")}</p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;">
+          <p style="font-size:12px;color:#9ca3af;margin-bottom:0;">
+            This email was sent automatically because inventory tracking is enabled for this item.
+            You can update your catalog settings in the storefront dashboard.
+          </p>
+        </div>
+      `;
+
+      try {
+        await sendEmail({
+          to: ADMIN_TO,
+          subject: `[INVENTORY ALERT] ${after.title}`,
+          html: alertHtml,
+          secret: RESEND_API_KEY.value(),
+        });
+        console.log(`Inventory alert email sent to admin for book ${after.title}`);
+      } catch (err) {
+        console.error("Failed to send inventory low stock email alert:", err);
+      }
     }
   }
 );

@@ -98,10 +98,11 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
     match /abandoned-carts/{cartId} {
-      // Anyone can write their own pending cart; only admin reads
+      // Anyone can retrieve their own cart by its secure token; only admin can query/list all carts
+      allow get: if true;
       allow create, update: if request.resource.data.email is string
         && request.resource.data.email.size() <= 254;
-      allow read, delete: if isAdmin();
+      allow list, delete: if isAdmin();
     }
   }
 }
