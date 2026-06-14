@@ -499,14 +499,28 @@ export function GlobalSectionsPanel({
   design,
   update,
   colorSchemes = [],
+  requestedSectionId,
+  onConsumeRequest,
 }: {
   design: any;
   update: (k: string, v: any, isGlobal?: boolean) => void;
   colorSchemes?: any[];
+  requestedSectionId?: string | null;
+  onConsumeRequest?: () => void;
 }) {
   const sections: any[] = design.globalSections || [];
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
+
+  useEffect(() => {
+    if (requestedSectionId) {
+      const match = sections.find((s) => s.id === requestedSectionId);
+      if (match) {
+        setActiveId(requestedSectionId);
+        onConsumeRequest?.();
+      }
+    }
+  }, [requestedSectionId, sections]);
 
   const setSections = (next: any[]) => update("globalSections", next, true);
 

@@ -798,6 +798,7 @@ export function GlobalSections({ design, books, onCtaClick, onProductClick }: an
           return (
             <div
               key={section.id}
+              data-section="globalSections"
               data-section-id={section.id}
               className={[s.hideOnMobile ? "hidden md:block" : "", s.hideOnDesktop ? "block md:hidden" : "", s.customClass || ""].filter(Boolean).join(" ") || undefined}
               style={{

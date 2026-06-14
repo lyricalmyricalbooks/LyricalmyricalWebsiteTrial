@@ -44,6 +44,8 @@ import {
   Braces,
   Command as CommandIcon,
   GitCompare,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
@@ -86,6 +88,7 @@ import {
   type CommandAction,
 } from "./ThemeEditorPro";
 import { Tablet } from "lucide-react";
+import toast from "react-hot-toast";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour palette presets
@@ -141,6 +144,7 @@ const applyThemePreset = (update: (k: string, v: any) => void, theme: any) => {
   update("cardRadius", theme.cardRadius);
   update("productCTA", theme.productCTA);
   update("themeLibraryPreset", theme.id);
+  toast.success(`Applied "${theme.name}" theme preset!`, { icon: "✨" });
 };
 
 const FONTS = [
@@ -1254,6 +1258,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
   const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null);
+  const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null);
   // Outline tree: which section's nested block list is expanded
   const [outlineId, setOutlineId] = useState<string | null>(null);
   const sections = design.sections || design.homepageSections || [];
@@ -1608,9 +1613,15 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                  key={section.id}
                  draggable
                  onDragStart={() => setDraggingSectionId(section.id)}
-                 onDragOver={(e) => e.preventDefault()}
+                 onDragOver={(e) => {
+                   e.preventDefault();
+                   if (draggingSectionId && draggingSectionId !== section.id) {
+                     setDragOverSectionId(section.id);
+                   }
+                 }}
                  onDrop={(e) => {
                    e.preventDefault();
+                   setDragOverSectionId(null);
                    if (!draggingSectionId || draggingSectionId === section.id) return;
                    const fromIndex = sections.findIndex((s: any) => s.id === draggingSectionId);
                    const toIndex = sections.findIndex((s: any) => s.id === section.id);
@@ -1621,13 +1632,27 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                    updateSections(reordered);
                    setDraggingSectionId(null);
                  }}
-                 onDragEnd={() => setDraggingSectionId(null)}
+                 onDragLeave={() => {
+
+                   setDragOverSectionId(null);
+
+                 }}
+
+                 onDragEnd={() => {
+
+                   setDraggingSectionId(null);
+
+                   setDragOverSectionId(null);
+
+                 }}
                  initial={{ opacity: 0, y: 8 }}
                  animate={{ opacity: 1, y: 0 }}
                  exit={{ opacity: 0, y: -8 }}
                  onClick={() => !isHidden && setActiveSectionId(section.id)}
-                 className={`group relative border rounded-3xl p-4 transition-all ${
-                   isHidden
+                 className={`group relative border rounded-3xl p-4 transition-all duration-300 ${
+                   dragOverSectionId === section.id && draggingSectionId !== section.id
+                     ? "border-2 border-dashed border-violet-500 bg-violet-600/5 scale-[1.02] shadow-lg shadow-violet-500/10"
+                     : isHidden
                      ? "bg-neutral-50/40 border-neutral-100 cursor-default opacity-50"
                      : `bg-white border-neutral-200 hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/5 cursor-pointer ${draggingSectionId === section.id ? "opacity-40" : ""}`
                  }`}
@@ -3822,12 +3847,38 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
             : "rounded-[3rem] border-[8px] border-neutral-900 w-[375px] h-[760px] scale-[0.85] 2xl:scale-100"
         }`}
       >
+        {/* Hardware side buttons */}
+        {!isDesktop && (
+          <>
+            {/* Volume Up */}
+            <div className="absolute top-28 -left-[10px] w-[2px] h-12 bg-neutral-800 rounded-l-md z-0" />
+            {/* Volume Down */}
+            <div className="absolute top-44 -left-[10px] w-[2px] h-12 bg-neutral-800 rounded-l-md z-0" />
+            {/* Power Button */}
+            <div className="absolute top-36 -right-[10px] w-[2px] h-16 bg-neutral-800 rounded-r-md z-0" />
+          </>
+        )}
+
         {/* Notch for Mobile only */}
         {!isDesktop && !isTablet && (
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-neutral-900 rounded-b-2xl z-20 flex items-center justify-center gap-1.5">
-            <div className="w-8 h-1 bg-white/10 rounded-full" />
-            <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 w-28 h-5 bg-neutral-900 rounded-full z-20 flex items-center justify-center gap-1.5 shadow-inner">
+            <div className="w-12 h-1 bg-neutral-800 rounded-full" />
+            <div className="w-2.5 h-2.5 rounded-full bg-neutral-950 flex items-center justify-center">
+              <div className="w-1 h-1 rounded-full bg-[#1a2d54]" />
+            </div>
           </div>
+        )}
+
+        {/* Camera dot for Tablet only */}
+        {!isDesktop && isTablet && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-neutral-950 z-20 flex items-center justify-center shadow-inner">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#1a2d54]" />
+          </div>
+        )}
+
+        {/* Screen Sheen Overlay */}
+        {!isDesktop && (
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-tr from-transparent via-white/[0.01] to-white/[0.04] rounded-[inherit] z-30" />
         )}
 
         {/* URL bar - Hidden on Mobile Frame for cleaner look */}
@@ -4440,6 +4491,8 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [activeTab, setActiveTab] = useState<string>("settings");
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [settingsSearch, setSettingsSearch] = useState("");
+  const [settingsSubTab, setSettingsSubTab] = useState<"sections" | "theme">("sections");
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [pages, setPages] = useState<any[]>([]);
   const [syncPreview, setSyncPreview] = useState(true);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
@@ -4670,13 +4723,18 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       // Click-to-select: iframe posts SECTION_SELECT with a panel id and/or a section instance id.
       if (event.data?.type === "SECTION_SELECT" && (event.data?.sectionId || event.data?.instanceId)) {
         setActiveTab("settings");
-        if (event.data.instanceId) {
-          // A concrete homepage section was clicked — open its field editor directly.
-          setActiveSection("homepage");
-          setPendingSectionId(event.data.instanceId);
-          setSelectedInstanceId(event.data.instanceId);
-        } else {
-          setActiveSection(event.data.sectionId);
+        const secId = event.data.sectionId;
+        const instId = event.data.instanceId;
+        if (instId) {
+          if (secId === "globalSections") {
+            setActiveSection("globalSections");
+          } else {
+            setActiveSection("homepage");
+          }
+          setPendingSectionId(instId);
+          setSelectedInstanceId(instId);
+        } else if (secId) {
+          setActiveSection(secId);
         }
       }
       // Inline text editing: iframe double-click posts TEXT_EDIT with {field, value}
@@ -4684,11 +4742,23 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         const sectionId = event.data.sectionId as string;
         const settingKey = event.data.settingKey as string;
         const value = event.data.value;
-        const sections = (design?.[designSurface]?.sections || design?.[designSurface]?.homepageSections || []) as any[];
-        const updated = sections.map((s: any) =>
-          s.id === sectionId ? { ...s, settings: { ...(s.settings || {}), [settingKey]: value } } : s
-        );
-        update("sections", updated);
+        
+        // 1. Check in global sections first
+        const globalSectionsList = (design?.globalSections || []) as any[];
+        const isGlobalSection = globalSectionsList.some((s: any) => s.id === sectionId);
+        if (isGlobalSection) {
+          const updated = globalSectionsList.map((s: any) =>
+            s.id === sectionId ? { ...s, settings: { ...(s.settings || {}), [settingKey]: value } } : s
+          );
+          update("globalSections", updated, true);
+        } else {
+          // 2. Check in standard sections
+          const sections = (design?.[designSurface]?.sections || design?.[designSurface]?.homepageSections || []) as any[];
+          const updated = sections.map((s: any) =>
+            s.id === sectionId ? { ...s, settings: { ...(s.settings || {}), [settingKey]: value } } : s
+          );
+          update("sections", updated);
+        }
       }
     };
     window.addEventListener("message", handler);
@@ -4822,6 +4892,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     setFutureDesigns((next) => [design, ...next].slice(0, 75));
     setDesign(previous);
     setSaved(false);
+    toast.success("Undone!", { id: "editor-history", icon: "↩️" });
   };
 
   const redo = () => {
@@ -4831,7 +4902,31 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     setPastDesigns((prev) => [...prev.slice(-74), design]);
     setDesign(next);
     setSaved(false);
+    toast.success("Redone!", { id: "editor-history", icon: "↪️" });
   };
+
+  // ── Keyboard shortcuts: Ctrl+Z (undo) and Ctrl+Y (redo) ──
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+      if (cmdOrCtrl) {
+        if (e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            redo();
+          } else {
+            undo();
+          }
+        } else if (e.key.toLowerCase() === 'y') {
+          e.preventDefault();
+          redo();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [pastDesigns, futureDesigns, design]);
 
   const handleSave = async (options: { publish?: boolean } = {}) => {
     if (options.publish) setSaving(true);
@@ -5039,6 +5134,8 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           design={design}
           update={update}
           colorSchemes={(design.colorSchemes && design.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES}
+          requestedSectionId={pendingSectionId}
+          onConsumeRequest={() => setPendingSectionId(null)}
         />
       );
       case "products":      return <ProductsPanel design={activeDesign} update={update} />;
@@ -5136,7 +5233,10 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       label: "Surprise me — remix colors and fonts",
       group: "Actions",
       keywords: "random shuffle generate theme",
-      perform: () => surpriseMe(update),
+      perform: () => {
+        surpriseMe(update);
+        toast.success("Remixed theme styling!", { icon: "🎨" });
+      },
     },
     ...THEME_LIBRARY.map((theme) => ({
       id: `theme-${theme.id}`,
@@ -5150,7 +5250,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   return (
     <div className="fixed inset-0 z-[200] flex flex-col bg-[#050506] text-white overflow-hidden" style={{ fontFamily: "'Outfit', sans-serif" }}>
       {/* ── Top bar ── */}
-      <div className="h-20 bg-black/40 backdrop-blur-3xl flex items-center justify-between px-8 flex-shrink-0 border-b border-white/5 z-50">
+      <div className={`transition-all duration-500 ease-in-out flex items-center justify-between px-8 flex-shrink-0 border-b border-white/5 z-50 ${isFullscreen ? "h-0 opacity-0 overflow-hidden border-none pointer-events-none" : "h-20 bg-black/40 backdrop-blur-3xl"}`}>
         <div className="flex items-center gap-6">
           <div className="flex flex-col">
             <span className="text-[10px] font-black tracking-[0.4em] text-violet-400 uppercase italic">Architectural Core</span>
@@ -5193,18 +5293,28 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
             <button
               onClick={undo}
               disabled={pastDesigns.length === 0}
-              className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all disabled:opacity-10"
+              className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all disabled:opacity-10 relative"
               title={`Undo (${pastDesigns.length} steps) — Ctrl+Z`}
             >
               <ChevronLeft size={18} strokeWidth={3} />
+              {pastDesigns.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-violet-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full scale-90 border border-black/50">
+                  {pastDesigns.length}
+                </span>
+              )}
             </button>
             <button
               onClick={redo}
               disabled={futureDesigns.length === 0}
-              className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all disabled:opacity-10"
+              className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all disabled:opacity-10 relative"
               title={`Redo (${futureDesigns.length} steps) — Ctrl+Y`}
             >
               <ChevronRight size={18} strokeWidth={3} />
+              {futureDesigns.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-cyan-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full scale-90 border border-black/50">
+                  {futureDesigns.length}
+                </span>
+              )}
             </button>
           </div>
 
@@ -5280,6 +5390,19 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
               <span className="text-[9px] font-black uppercase tracking-widest italic">{d}</span>
             </button>
           ))}
+          <div className="h-4 w-px bg-white/10 mx-1" />
+          <button
+            onClick={() => setIsFullscreen(prev => !prev)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all relative group/btn ${
+              isFullscreen
+                ? "bg-violet-600/20 text-violet-300 border border-violet-500/30 shadow-[0_0_12px_rgba(124,58,237,0.1)]"
+                : "text-slate-500 border-transparent hover:text-slate-300"
+            }`}
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Preview"}
+          >
+            {isFullscreen ? <Minimize2 size={14} strokeWidth={2.5} /> : <Maximize2 size={14} strokeWidth={2.5} />}
+            <span className="text-[9px] font-black uppercase tracking-widest italic">{isFullscreen ? "Exit" : "Full"}</span>
+          </button>
         </div>
 
         {/* Actions */}
@@ -5541,7 +5664,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       {/* ── Body ── */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* ── Left sidebar ── */}
-        <div className="w-[380px] bg-black/20 backdrop-blur-3xl flex flex-col border-r border-white/5 flex-shrink-0 z-10 relative overflow-hidden">
+        <div className={`transition-all duration-500 ease-in-out flex flex-col border-r border-white/5 flex-shrink-0 z-10 relative overflow-hidden bg-black/20 backdrop-blur-3xl ${isFullscreen ? "w-0 opacity-0 border-none pointer-events-none" : "w-[380px]"}`}>
           <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
           
           {/* Tab nav — compact pill grid so every label stays readable */}
@@ -5599,8 +5722,34 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                         <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase italic mb-2 block">Theme Editor</span>
                         <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Theme Settings</h2>
 
-                        {/* Page template pills — Shopify-style template selector */}
+                        {/* Sub-tabs to switch between sections and theme settings */}
                         {!settingsSearch && (
+                          <div className="flex bg-white/[0.03] border border-white/5 rounded-2xl p-1 mb-6 relative">
+                            <button
+                              onClick={() => setSettingsSubTab("sections")}
+                              className={`flex-1 py-2.5 text-[10px] font-black tracking-widest uppercase transition-all rounded-xl border ${
+                                settingsSubTab === "sections"
+                                  ? "bg-violet-600/20 text-violet-300 border-violet-500/30 shadow-[0_0_12px_rgba(124,58,237,0.1)]"
+                                  : "text-slate-500 border-transparent hover:text-slate-400"
+                              }`}
+                            >
+                              Sections
+                            </button>
+                            <button
+                              onClick={() => setSettingsSubTab("theme")}
+                              className={`flex-1 py-2.5 text-[10px] font-black tracking-widest uppercase transition-all rounded-xl border ${
+                                settingsSubTab === "theme"
+                                  ? "bg-violet-600/20 text-violet-300 border-violet-500/30 shadow-[0_0_12px_rgba(124,58,237,0.1)]"
+                                  : "text-slate-500 border-transparent hover:text-slate-400"
+                              }`}
+                            >
+                              Theme Settings
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Page template pills — Shopify-style template selector */}
+                        {!settingsSearch && settingsSubTab === "sections" && (
                           <div className="mb-4">
                             <p className="text-[8px] font-black tracking-[0.3em] text-slate-600 uppercase italic mb-2">Editing template</p>
                             <div className="flex items-center gap-1.5 flex-wrap">
@@ -5626,7 +5775,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                               })}
                             </div>
                             <p className="text-[8px] text-slate-700 font-black tracking-widest mt-3">
-                              {filteredSections.length} settings
+                              {filteredSections.filter(s => s.pages.includes(previewMode) || s.pages.includes("both")).length} settings
                             </p>
                           </div>
                         )}
@@ -5645,28 +5794,37 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                       </div>
 
                       <div className="space-y-4 px-2">
-                        {SECTION_GROUPS.map((group) => {
-                          const items = filteredSections.filter((s) => group.ids.includes(s.id));
-                          if (items.length === 0) return null;
-                          return (
-                            <div key={group.label}>
-                              <p className="px-6 pb-1.5 text-[8px] font-black tracking-[0.3em] text-slate-600 uppercase">
-                                {group.label}
-                              </p>
-                              <div className="space-y-1">
-                                {items.map((section) => (
-                                  <SectionRow
-                                    key={section.id}
-                                    icon={section.icon}
-                                    title={section.title}
-                                    description={section.description}
-                                    onClick={() => setActiveSection(section.id)}
-                                  />
-                                ))}
+                        {SECTION_GROUPS
+                          .filter((group) => {
+                            if (settingsSearch) return true; // Show all groups when searching
+                            if (settingsSubTab === "sections") {
+                              return group.label === "Sections";
+                            } else {
+                              return group.label !== "Sections";
+                            }
+                          })
+                          .map((group) => {
+                            const items = filteredSections.filter((s) => group.ids.includes(s.id));
+                            if (items.length === 0) return null;
+                            return (
+                              <div key={group.label}>
+                                <p className="px-6 pb-1.5 text-[8px] font-black tracking-[0.3em] text-slate-600 uppercase">
+                                  {group.label}
+                                </p>
+                                <div className="space-y-1">
+                                  {items.map((section) => (
+                                    <SectionRow
+                                      key={section.id}
+                                      icon={section.icon}
+                                      title={section.title}
+                                      description={section.description}
+                                      onClick={() => setActiveSection(section.id)}
+                                    />
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
                       </div>
                       
                       {filteredSections.length === 0 && (
@@ -5860,6 +6018,16 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         {/* ── Right preview pane ── */}
         <div data-tour="live-preview" className="flex-1 bg-[#0a0a0c] relative overflow-hidden flex flex-col">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.05),transparent_60%)] pointer-events-none" />
+          {isFullscreen && (
+            <button
+              onClick={() => setIsFullscreen(false)}
+              className="absolute top-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full bg-black/80 backdrop-blur-md border border-white/10 hover:border-violet-500/50 hover:bg-violet-600/20 text-white shadow-2xl transition-all duration-300 group hover:scale-105"
+              title="Exit Fullscreen"
+            >
+              <Minimize2 size={14} className="text-violet-400 group-hover:rotate-90 transition-transform duration-300" strokeWidth={2.5} />
+              <span className="text-[10px] font-black uppercase tracking-widest">Exit Fullscreen</span>
+            </button>
+          )}
           <LivePreview
             design={previewDesign}
             device={device}
