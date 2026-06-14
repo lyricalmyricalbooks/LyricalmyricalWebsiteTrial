@@ -4646,9 +4646,9 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     "homepage" | "shop" | "product" | "collection" | "page" | "wishlist" | "account" | "cart"
   >("homepage");
   const [previewBooks, setPreviewBooks] = useState<any[]>([]);
-  const [previewBookSlug, setPreviewBookSlug] = useState<string>("");
+  const [previewBookSlug, setPreviewBookSlug] = useState<string>("test");
   const [previewPageSlug, setPreviewPageSlug] = useState<string>("");
-  const [previewCollectionSlug, setPreviewCollectionSlug] = useState<string>("");
+  const [previewCollectionSlug, setPreviewCollectionSlug] = useState<string>("publications");
   const [activeTab, setActiveTab] = useState<string>("settings");
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [settingsSearch, setSettingsSearch] = useState("");
@@ -6194,7 +6194,26 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
             device={device}
             previewMode={{
               value: previewMode,
-              set: (m: typeof previewMode) => { setPreviewMode(m); setIsPreviewReady(false); },
+              set: (m: typeof previewMode) => {
+                setPreviewMode(m);
+                setIsPreviewReady(false);
+                if (m === "product") {
+                  setActiveTab("settings");
+                  setSettingsSubTab("theme");
+                  setActiveSection("products");
+                } else if (m === "homepage") {
+                  setActiveTab("settings");
+                  setSettingsSubTab("sections");
+                  setActiveSection("homepage");
+                } else if (m === "shop") {
+                  setActiveTab("settings");
+                  setSettingsSubTab("theme");
+                  setActiveSection("layout");
+                } else if (m === "page") {
+                  setActiveTab("pages");
+                  setActiveSection(null);
+                }
+              },
               books: previewBooks,
               bookSlug: previewBookSlug,
               setBookSlug: (s: string) => { setPreviewBookSlug(s); setIsPreviewReady(false); },
