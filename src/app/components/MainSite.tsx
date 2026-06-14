@@ -4,7 +4,14 @@ import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as Use
 import { Link, useNavigate, useLocation } from "react-router";
 import { useCart } from "../CartContext";
 import { CATEGORIES, DEFAULT_IMAGE } from "../features/site/constants";
-import { getFeaturedBooks, getFilteredItems, getPublications, getPublishedBooks } from "../features/site/selectors";
+import {
+  getFeaturedBooks,
+  getFilteredItems,
+  getPublications,
+  getPublishedBooks,
+  resolveLogoDesign,
+  resolveLogoPosition,
+} from "../features/site/selectors";
 import type { Book } from "../features/site/types";
 import { useSiteData } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
@@ -837,6 +844,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontDesign = legacyDesign.storefront && Object.keys(legacyDesign.storefront).length > 0
     ? legacyDesign.storefront
     : legacyDesign;
+  const heroLogoDesign = resolveLogoDesign(legacyDesign.heroPage, [legacyDesign]);
+  const storefrontLogoDesign = resolveLogoDesign(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
+  const heroLogoPosition = resolveLogoPosition(legacyDesign.heroPage, [legacyDesign]);
+  const storefrontLogoPosition = resolveLogoPosition(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   // Prioritize global categories if they exist (new behavior), otherwise fall back to storefront or legacy
@@ -931,7 +942,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     },
   });
 
-  const logoPosition = storefrontDesign?.logoPosition || "left";
   const isHeaderTransparent = storefrontDesign?.transparentHeader && !scrolled;
 
   const heroHeaderLinks = heroDesign?.headerLinks || {};
@@ -1080,14 +1090,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         >
           <div className="mx-auto px-6 py-4 flex items-center justify-between gap-4" style={{ maxWidth: storefrontMaxWidth }}>
             {/* Left Section */}
-            <div className={`flex items-center gap-8 md:gap-12 flex-1 ${logoPosition === "center" ? "" : "flex-initial"}`}>
-              {logoPosition === "left" && (
+            <div className={`flex items-center gap-8 md:gap-12 flex-1 ${storefrontLogoPosition === "center" ? "" : "flex-initial"}`}>
+              {storefrontLogoPosition === "left" && (
                 <button 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
                   className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
-                  <LogoMark design={storefrontDesign} />
+                  <LogoMark design={storefrontLogoDesign} />
                 </button>
               )}
               
@@ -1112,27 +1122,27 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             </div>
 
             {/* Center Section (Logo) */}
-            {logoPosition === "center" && (
+            {storefrontLogoPosition === "center" && (
               <div className="flex-1 flex justify-center">
                 <button 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
                   className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
-                  <LogoMark design={storefrontDesign} />
+                  <LogoMark design={storefrontLogoDesign} />
                 </button>
               </div>
             )}
 
             {/* Right Section */}
-            <div className={`flex gap-6 md:gap-8 items-center flex-1 justify-end ${logoPosition === "right" ? "flex-initial" : ""}`}>
-              {logoPosition === "right" && (
+            <div className={`flex gap-6 md:gap-8 items-center flex-1 justify-end ${storefrontLogoPosition === "right" ? "flex-initial" : ""}`}>
+              {storefrontLogoPosition === "right" && (
                 <button 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
                   className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
-                  <LogoMark design={storefrontDesign} />
+                  <LogoMark design={storefrontLogoDesign} />
                 </button>
               )}
 
@@ -1470,10 +1480,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         }}
       >
         {/* Left Section */}
-        <div className={`flex items-center gap-8 flex-1 ${logoPosition === "center" ? "" : "flex-initial"}`}>
-          {logoPosition === "left" && (
+        <div className={`flex items-center gap-8 flex-1 ${heroLogoPosition === "center" ? "" : "flex-initial"}`}>
+          {heroLogoPosition === "left" && (
             <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
-              <LogoMark design={heroDesign} />
+              <LogoMark design={heroLogoDesign} />
             </button>
           )}
 
@@ -1489,19 +1499,19 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         </div>
 
         {/* Center Section (Logo) */}
-        {logoPosition === "center" && (
+        {heroLogoPosition === "center" && (
           <div className="flex-1 flex justify-center">
             <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
-              <LogoMark design={heroDesign} />
+              <LogoMark design={heroLogoDesign} />
             </button>
           </div>
         )}
 
         {/* Right Section */}
-        <div className={`flex gap-8 items-center flex-1 justify-end ${logoPosition === "right" ? "flex-initial" : ""}`}>
-          {logoPosition === "right" && (
+        <div className={`flex gap-8 items-center flex-1 justify-end ${heroLogoPosition === "right" ? "flex-initial" : ""}`}>
+          {heroLogoPosition === "right" && (
             <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
-              <LogoMark design={heroDesign} />
+              <LogoMark design={heroLogoDesign} />
             </button>
           )}
 
