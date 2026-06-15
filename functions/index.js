@@ -169,7 +169,43 @@ function orderRowsHtml(items = []) {
 
 async function sendEmail({ to, subject, html, secret }) {
   const resend = new Resend(secret);
-  return resend.emails.send({ from: FROM, to, subject, html });
+
+  let fromName = "Lyricalmyrical Books";
+  let fromEmail = "orders@lyricalmyricalbooks.com";
+  let replyTo = null;
+
+  try {
+    const settingsDoc = await db.collection("settings").doc("website").get();
+    if (settingsDoc.exists) {
+      const settings = settingsDoc.data() || {};
+      const comms = settings.communications || {};
+      if (comms.fromName) fromName = comms.fromName;
+      if (comms.replyTo) replyTo = comms.replyTo;
+      if (comms.fromEmail) fromEmail = comms.fromEmail;
+    }
+  } catch (err) {
+    console.warn("Failed to load custom sender details, using default fallbacks:", err);
+  }
+
+  // If using a Resend onboarding key, force the sender to onboarding@resend.dev
+  if (secret && secret.startsWith("re_onb_")) {
+    fromEmail = "onboarding@resend.dev";
+  }
+
+  const from = `${fromName} <${fromEmail}>`;
+
+  const { data, error } = await resend.emails.send({
+    from,
+    to,
+    subject,
+    html,
+    reply_to: replyTo || undefined
+  });
+
+  if (error) {
+    throw new Error(error.message || "Failed to send email via Resend");
+  }
+  return data;
 }
 
 // ──────────────────────────────────────────────────────────────

@@ -797,23 +797,6 @@ export const adminApi = {
     return await response.json();
   },
 
-  // Pushes the order to the Shippo dashboard (pre-filled) and returns the
-  // Shippo site URL to open so the admin can buy the label directly on Shippo.
-  // Handled by the createShippingLabel endpoint via mode: "shippoOrder" so no
-  // new Cloud Function deployment (and its extra IAM permission) is required.
-  refundOrder: async (orderId: string) => {
-    const idToken = await auth.currentUser?.getIdToken();
-    if (!idToken) throw new Error("You must be signed in as admin to issue refunds.");
-    const response = await fetch(functionUrl("refundOrder"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
-      body: JSON.stringify({ orderId }),
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Refund failed.");
-    return result;
-  },
-
   markOrderPaid: async (orderId: string) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
@@ -827,6 +810,10 @@ export const adminApi = {
     return result;
   },
 
+  // Pushes the order to the Shippo dashboard (pre-filled) and returns the
+  // Shippo site URL to open so the admin can buy the label directly on Shippo.
+  // Handled by the createShippingLabel endpoint via mode: "shippoOrder" so no
+  // new Cloud Function deployment (and its extra IAM permission) is required.
   createShippoOrder: async (orderId: string) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to push orders to Shippo.");

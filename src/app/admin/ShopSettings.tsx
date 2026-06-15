@@ -383,12 +383,19 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
           icon={Mail} 
           color="violet"
         />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative z-10">
           <InputField 
             label="TRANSMITTER ALIAS" 
             placeholder="Lyricalmyrical Books"
             value={comms.fromName || ""}
             onChange={(e: any) => updateComms({ fromName: e.target.value })}
+          />
+          <InputField 
+            label="SENDER EMAIL" 
+            icon={Mail}
+            placeholder="orders@lyricalmyricalbooks.com"
+            value={comms.fromEmail || ""}
+            onChange={(e: any) => updateComms({ fromEmail: e.target.value })}
           />
           <InputField 
             label="REPLY-TO ADDRESS" 
