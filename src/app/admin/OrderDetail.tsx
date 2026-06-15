@@ -140,38 +140,12 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     const confirmText = isManual
       ? `Refund this paid manual order?${restockOnRefund ? " The purchased quantities will also be restocked." : ""} This action is irreversible.`
       : `Refund this paid order through Stripe?${restockOnRefund ? " The purchased quantities will also be restocked." : ""} This action is irreversible.`;
-
-    if (!window.confirm(confirmText)) {
-      return;
-    }
-    const reason = window.prompt("Refund reason (saved on the order):", "Admin refund");
-    if (reason === null) return;
+    if (!window.confirm(confirmText)) return;
     setIsVoiding(true);
     try {
-      if (isManual) {
-        await adminApi.updateOrder(orderId, {
-          paymentStatus: "refunded",
-          restockOnRefund: restockOnRefund
-        });
-        await adminApi.addOrderEvent(
-          orderId,
-          `Order payment manually refunded/voided by administrator. Reason: ${reason.trim() || "Admin refund"}`
-        );
-        await adminApi.recordAuditLog("orders", `Manually refunded order ${order.orderId || orderId}.`);
-        toast.success("Manual order marked as refunded");
-        loadOrder();
-      } else {
-        const result = await adminApi.refundOrder(orderId, {
-          reason: reason.trim() || "Admin refund",
-          restock: restockOnRefund,
-        });
-        await loadOrder();
-        if (result.status === "succeeded") {
-          toast.success(`Stripe refund confirmed${restockOnRefund ? " and items restocked" : ""}`);
-        } else {
-          toast("Stripe accepted the refund; processing is pending");
-        }
-      }
+      await adminApi.refundOrder(orderId);
+      toast.success(isManual ? "Manual order marked as refunded" : "Stripe refund issued and order cancelled");
+      loadOrder();
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Failed to refund order.");
@@ -196,21 +170,11 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
   };
 
   const handleMarkAsPaid = async () => {
-    const confirmText = "Mark this order as paid? This will update payment status to PAID, log a timeline activity, and trigger any paid notification emails.";
-    if (!window.confirm(confirmText)) {
-      return;
-    }
+    if (!window.confirm("Mark this order as paid? This will decrement inventory, record revenue, and send the customer a confirmation email.")) return;
     setIsMarkingPaid(true);
     try {
-      await adminApi.updateOrder(orderId, {
-        paymentStatus: "paid"
-      });
-      await adminApi.addOrderEvent(
-        orderId,
-        "Payment verified and marked as paid by administrator."
-      );
-      await adminApi.recordAuditLog("orders", `Marked order ${order.orderId || orderId} as paid.`);
-      toast.success("Order marked as paid");
+      await adminApi.markOrderPaid(orderId);
+      toast.success("Order marked as paid — confirmation email sent");
       loadOrder();
     } catch (err: any) {
       console.error(err);
@@ -474,6 +438,12 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                     <span className="uppercase font-black">Logistics Fee</span>
                     <span className="text-white font-mono">CA${order.shipping?.toFixed(2)}</span>
                   </div>
+                  {order.tax > 0 && (
+                    <div className="flex justify-between items-center text-[11px] tracking-widest text-slate-400">
+                      <span className="uppercase font-black">Tax</span>
+                      <span className="text-white font-mono">CA${order.tax?.toFixed(2)}</span>
+                    </div>
+                  )}
                   {order.discount > 0 && (
                     <div className="flex justify-between items-center text-[11px] tracking-widest text-emerald-400">
                       <span className="uppercase font-black">Discount Applied</span>
@@ -486,20 +456,27 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                   </div>
                 </div>
 
-                <div className="mt-12 p-6 bg-white/[0.02] border border-white/5 rounded-[2rem] flex items-center justify-between group">
-                   <div className="flex items-center gap-6">
-                      <div className="p-3 bg-white/5 rounded-xl text-slate-400 group-hover:text-white transition-colors">
-                        <CreditCard size={20} />
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-[10px] tracking-[0.2em] text-slate-300 uppercase font-black">Authenticated Via Stripe</p>
-                        <p className="text-[8px] text-slate-600 uppercase tracking-widest font-mono">{order.stripeId || 'tx_882910_arch'}</p>
-                      </div>
-                   </div>
-                   <button className="w-10 h-10 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center hover:bg-white/10 text-white transition-all">
-                      <ExternalLink size={14} />
-                   </button>
-                </div>
+                {order.stripePaymentIntentId && (
+                  <div className="mt-12 p-6 bg-white/[0.02] border border-white/5 rounded-[2rem] flex items-center justify-between group">
+                     <div className="flex items-center gap-6">
+                        <div className="p-3 bg-white/5 rounded-xl text-slate-400 group-hover:text-white transition-colors">
+                          <CreditCard size={20} />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] tracking-[0.2em] text-slate-300 uppercase font-black">Paid via Stripe</p>
+                          <p className="text-[8px] text-slate-600 uppercase tracking-widest font-mono">{order.stripePaymentIntentId}</p>
+                        </div>
+                     </div>
+                     <a
+                       href={`https://dashboard.stripe.com/payments/${order.stripePaymentIntentId}`}
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       className="w-10 h-10 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center hover:bg-white/10 text-white transition-all"
+                     >
+                        <ExternalLink size={14} />
+                     </a>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -648,14 +625,14 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
 
                    <div className="p-8 bg-white/[0.02] border border-white/5 rounded-[2.5rem] space-y-4">
                       <p className="text-[9px] tracking-[0.3em] text-slate-700 font-black uppercase mb-4 text-center">Administrative Overrides</p>
-                      {order.paymentStatus !== "paid" && order.status !== "cancelled" && (
+                      {(order.paymentStatus === "pending" || order.paymentStatus === "unpaid") && order.status !== "cancelled" && (
                         <>
-                          <button 
+                          <button
                             onClick={handleMarkAsPaid}
                             disabled={isMarkingPaid}
-                            className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-emerald-400 transition-all group disabled:opacity-30 disabled:hover:text-slate-400 disabled:cursor-not-allowed"
+                            className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-emerald-400 transition-all group disabled:opacity-30 disabled:cursor-not-allowed"
                           >
-                            {isMarkingPaid ? "MARKING AS PAID..." : "MARK AS PAID"} <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
+                            {isMarkingPaid ? "PROCESSING..." : "MARK AS PAID"} <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
                           </button>
                           <div className="h-px bg-white/5" />
                         </>
@@ -667,7 +644,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                             disabled={isVoiding}
                             className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-rose-400 transition-all group disabled:opacity-30 disabled:cursor-not-allowed"
                           >
-                            {isVoiding ? "REFUNDING THROUGH STRIPE..." : "REFUND PAID ORDER"} <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
+                            {isVoiding ? "REFUNDING..." : "REFUND PAID ORDER"} <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
                           </button>
                           <label className="flex items-center justify-between gap-4 text-[10px] tracking-[0.2em] font-black text-slate-500 uppercase cursor-pointer">
                             <span>Restock items</span>
@@ -693,10 +670,6 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                           {isVoiding ? "CANCELLING..." : order.status === "cancelled" ? "UNPAID ORDER CANCELLED" : "CANCEL UNPAID ORDER"} <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
                         </button>
                       )}
-                      <div className="h-px bg-white/5" />
-                      <button className="flex items-center justify-between w-full text-[10px] tracking-[0.2em] font-black text-slate-400 hover:text-blue-400 transition-all group">
-                         SECURE CHANNEL <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
-                      </button>
                    </div>
                 </div>
               </div>

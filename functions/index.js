@@ -1102,7 +1102,9 @@ exports.stripeWebhook = onRequest(
               fulfillmentStatus: "paid",
               status: "open",
               downloadToken,
+              stripePaymentIntentId: session.payment_intent || null,
               paidAt: now,
+              updatedAt: now,
               activity: [
                 ...(order.activity || []),
                 { type: "event", message: "Payment completed (Stripe Webhook)", createdAt: now }
@@ -1651,7 +1653,6 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
 
 // [Duplicate exports.onOrderCreated removed; logic consolidated in export at bottom]
 
-
 // ──────────────────────────────────────────────────────────────
 // 5b. Order Paid: Trigger notifications only AFTER successful payment
 // ──────────────────────────────────────────────────────────────
@@ -1887,8 +1888,9 @@ exports.onOrderUpdated = onDocumentUpdated(
       }
     }
 
-    // 3. Order Cancelled
-    const becameCancelled = before.status !== "cancelled" && after.status === "cancelled";
+    // 3. Order Cancelled (skip if the order is being refunded simultaneously — the refund email is more accurate)
+    const becameCancelled = before.status !== "cancelled" && after.status === "cancelled"
+      && after.paymentStatus !== "refunded";
     if (becameCancelled && notificationSettings.order_cancelled?.enabled !== false) {
       const compiled = compileEmailTemplate("order_cancelled", notificationSettings, {
         customer_name: after.customer?.name || "there",
@@ -3025,6 +3027,188 @@ exports.onBookUpdated = onDocumentUpdated(
       } catch (err) {
         console.error("Failed to send inventory low stock email alert:", err);
       }
+    }
+  }
+);
+
+// ──────────────────────────────────────────────────────────────
+// 13. HTTP Endpoint: Refund Order via Stripe (Admin Secure)
+//     Calls stripe.refunds.create, restores inventory, then updates order.
+//     onOrderUpdated fires the customer "refunded" email automatically.
+// ──────────────────────────────────────────────────────────────
+exports.refundOrder = onRequest(
+  { secrets: [STRIPE_SECRET_KEY] },
+  async (req, res) => {
+    if (applyCors(req, res)) return;
+    if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
+
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+
+    const { orderId } = req.body;
+    if (!orderId) { res.status(400).json({ error: "Missing orderId" }); return; }
+
+    try {
+      const orderRef = db.collection("orders").doc(orderId);
+      const orderDoc = await orderRef.get();
+      if (!orderDoc.exists) { res.status(404).json({ error: "Order not found" }); return; }
+      const order = orderDoc.data();
+
+      if (order.paymentStatus === "refunded") {
+        res.status(400).json({ error: "Order has already been refunded" }); return;
+      }
+
+      // Issue the Stripe refund only for paid Stripe orders.
+      if (order.paymentStatus === "paid" && order.stripePaymentIntentId) {
+        const settingsDoc = await db.collection("settings").doc("website").get();
+        const settings = settingsDoc.data() || {};
+        const testMode = settings.payments?.testMode || false;
+        const stripeSettings = settings.payments?.stripe || {};
+        const stripeSecret = testMode
+          ? stripeSettings.testSecretKey
+          : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
+        if (!stripeSecret) { res.status(500).json({ error: "Stripe is not configured." }); return; }
+        const stripe = new Stripe(stripeSecret);
+        await stripe.refunds.create({ payment_intent: order.stripePaymentIntentId });
+      }
+
+      // Atomically restore inventory and update order status.
+      await db.runTransaction(async transaction => {
+        const freshOrderDoc = await transaction.get(orderRef);
+        if (!freshOrderDoc.exists) return;
+        const freshOrder = freshOrderDoc.data();
+
+        const bookRefs = (freshOrder.items || []).map(item => db.collection("books").doc(item.id));
+        const bookDocs = await Promise.all(bookRefs.map(r => transaction.get(r)));
+
+        // Only restore stock that was previously decremented (paid orders).
+        if (freshOrder.paymentStatus === "paid") {
+          (freshOrder.items || []).forEach((item, idx) => {
+            const bookDoc = bookDocs[idx];
+            if (!bookDoc.exists) return;
+            const book = bookDoc.data();
+            if (!book.trackInventory) return;
+            if (item.variantId) {
+              const updatedVariants = (book.variants || []).map(v =>
+                v.id === item.variantId ? { ...v, stock: (v.stock || 0) + item.quantity } : v
+              );
+              transaction.update(bookRefs[idx], {
+                variants: updatedVariants,
+                stockLevel: (book.stockLevel || 0) + item.quantity,
+                updatedAt: new Date().toISOString()
+              });
+            } else {
+              transaction.update(bookRefs[idx], {
+                stockLevel: (book.stockLevel || 0) + item.quantity,
+                updatedAt: new Date().toISOString()
+              });
+            }
+          });
+        }
+
+        transaction.update(orderRef, {
+          status: "cancelled",
+          paymentStatus: "refunded",
+          refundedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          activity: [
+            ...(freshOrder.activity || []),
+            { type: "event", message: `Order cancelled and refunded by ${adminUser.email}.`, createdAt: new Date().toISOString() }
+          ]
+        });
+      });
+
+      res.status(200).json({ success: true });
+    } catch (err) {
+      console.error("refundOrder failed:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// ──────────────────────────────────────────────────────────────
+// 14. HTTP Endpoint: Mark Manual Order as Paid (Admin Secure)
+//     Decrements stock, records analytics, flips status to paid.
+//     onOrderUpdated fires the customer order-confirmation email automatically.
+// ──────────────────────────────────────────────────────────────
+exports.markOrderPaid = onRequest(
+  async (req, res) => {
+    if (applyCors(req, res)) return;
+    if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
+
+    const adminUser = await requireAdmin(req, res);
+    if (!adminUser) return;
+
+    const { orderId } = req.body;
+    if (!orderId) { res.status(400).json({ error: "Missing orderId" }); return; }
+
+    try {
+      const orderRef = db.collection("orders").doc(orderId);
+      let paidTotal = null;
+
+      await db.runTransaction(async transaction => {
+        const orderDoc = await transaction.get(orderRef);
+        if (!orderDoc.exists) return;
+        const order = orderDoc.data();
+        if (order.paymentStatus === "paid") return; // idempotent
+
+        const itemList = order.items || [];
+        const bookRefs = itemList.map(item => db.collection("books").doc(item.id));
+        const bookDocs = await Promise.all(bookRefs.map(r => transaction.get(r)));
+
+        const downloadToken = crypto.randomBytes(32).toString("hex");
+
+        transaction.update(orderRef, {
+          paymentStatus: "paid",
+          fulfillmentStatus: "paid",
+          status: "open",
+          downloadToken,
+          paidAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          activity: [
+            ...(order.activity || []),
+            { type: "event", message: `Payment confirmed manually by ${adminUser.email}.`, createdAt: new Date().toISOString() }
+          ]
+        });
+
+        itemList.forEach((item, idx) => {
+          const bookDoc = bookDocs[idx];
+          if (!bookDoc.exists) return;
+          const book = bookDoc.data();
+          if (!book.trackInventory) return;
+          if (item.variantId) {
+            const updatedVariants = (book.variants || []).map(v =>
+              v.id === item.variantId ? { ...v, stock: Math.max(0, (v.stock || 0) - item.quantity) } : v
+            );
+            transaction.update(bookRefs[idx], {
+              variants: updatedVariants,
+              stockLevel: Math.max(0, (book.stockLevel || 0) - item.quantity),
+              updatedAt: new Date().toISOString()
+            });
+          } else {
+            transaction.update(bookRefs[idx], {
+              stockLevel: Math.max(0, (book.stockLevel || 0) - item.quantity),
+              updatedAt: new Date().toISOString()
+            });
+          }
+        });
+
+        paidTotal = Number(order.total) || 0;
+      });
+
+      if (paidTotal !== null) {
+        const today = new Date().toISOString().split("T")[0];
+        await db.collection("analytics").doc(today).set({
+          date: today,
+          orders: admin.firestore.FieldValue.increment(1),
+          revenue: admin.firestore.FieldValue.increment(paidTotal),
+        }, { merge: true });
+      }
+
+      res.status(200).json({ success: true });
+    } catch (err) {
+      console.error("markOrderPaid failed:", err);
+      res.status(500).json({ error: err.message });
     }
   }
 );
