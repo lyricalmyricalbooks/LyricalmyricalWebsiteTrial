@@ -1103,6 +1103,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
                   className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                  aria-label="Return to store"
                 >
                   <LogoMark design={storefrontLogoDesign} />
                 </button>
@@ -1135,6 +1136,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
                   className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                  aria-label="Return to store"
                 >
                   <LogoMark design={storefrontLogoDesign} />
                 </button>
@@ -1148,6 +1150,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
                   className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                  aria-label="Return to store"
                 >
                   <LogoMark design={storefrontLogoDesign} />
                 </button>
@@ -1489,7 +1492,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         {/* Left Section */}
         <div className={`flex items-center gap-8 flex-1 ${heroLogoPosition === "center" ? "" : "flex-initial"}`}>
           {heroLogoPosition === "left" && (
-            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
+            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center" aria-label="Return to store">
               <LogoMark design={heroLogoDesign} />
             </button>
           )}
@@ -1508,7 +1511,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         {/* Center Section (Logo) */}
         {heroLogoPosition === "center" && (
           <div className="flex-1 flex justify-center">
-            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
+            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center" aria-label="Return to store">
               <LogoMark design={heroLogoDesign} />
             </button>
           </div>
@@ -1517,7 +1520,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         {/* Right Section */}
         <div className={`flex gap-8 items-center flex-1 justify-end ${heroLogoPosition === "right" ? "flex-initial" : ""}`}>
           {heroLogoPosition === "right" && (
-            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
+            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center" aria-label="Return to store">
               <LogoMark design={heroLogoDesign} />
             </button>
           )}

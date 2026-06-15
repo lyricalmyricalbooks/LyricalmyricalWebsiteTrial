@@ -5,3 +5,7 @@
 ## 2024-05-24 - Admin Theme Editor Accessibility Improvements
 **Learning:** Similar to the Cart Drawer, the Admin Theme Editor lacked `aria-label`s on icon-only buttons used for reordering and deleting sections and menu links. These administrative interfaces are equally important to keep accessible for content managers relying on screen readers.
 **Action:** Consistently verify that reorder arrows (up/down) and delete (trash/X) icon buttons include `aria-label`s, especially in complex list-editing interfaces like navigation menus or page builders.
+
+## 2024-05-24 - Main Site Accessibility Improvements
+**Learning:** The main site header and hero sections used the `<LogoMark />` component wrapped in `<button>` elements to allow users to navigate back to the store/catalog view. However, these buttons did not include an `aria-label`, meaning screen reader users could not understand their purpose.
+**Action:** When using images or logos as navigation buttons, always provide a descriptive `aria-label` (e.g., `aria-label="Return to store"`) so that their function is clear to users relying on assistive technologies.
