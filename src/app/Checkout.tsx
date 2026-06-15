@@ -1256,7 +1256,7 @@ export function Checkout() {
                 type="button"
                 onClick={handleCompletePurchase}
                 disabled={isCompleting || (!hasStripe && !hasPaypal && enabledManualMethods.length === 0)}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#1773b0] px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-[#12649b] focus:outline-none focus:ring-2 focus:ring-[#1773b0] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2 rounded-lg fm-accent-bg px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isCompleting ? <><Loader2 size={18} className="animate-spin" /> Processing order…</> : <><Lock size={16} /> {paymentLabel}</>}
               </button>

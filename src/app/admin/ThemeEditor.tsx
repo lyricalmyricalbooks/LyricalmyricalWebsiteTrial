@@ -1033,6 +1033,21 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
             value={design.favoriteColor || "#fb7185"}
             onChange={(val) => update("favoriteColor", val)}
           />
+          <ColorPicker
+            label="Secondary accent"
+            value={design.secondaryColor || "#22d3ee"}
+            onChange={(val) => update("secondaryColor", val)}
+          />
+          <ColorPicker
+            label="Warning"
+            value={design.warningColor || "#f59e0b"}
+            onChange={(val) => update("warningColor", val)}
+          />
+          <ColorPicker
+            label="Danger / error"
+            value={design.dangerColor || "#f43f5e"}
+            onChange={(val) => update("dangerColor", val)}
+          />
           <div className="border-t border-neutral-100 pt-4" />
           <ColorPicker
             label="Active control background"
@@ -1046,11 +1061,13 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
           />
           {(design.surfaceColor || design.surfaceRaisedColor || design.overlayColor ||
             design.successColor || design.successTextColor || design.favoriteColor ||
+            design.secondaryColor || design.warningColor || design.dangerColor ||
             design.activeControlBg || design.activeControlText) && (
             <button
               onClick={() => {
                 ["surfaceColor", "surfaceRaisedColor", "overlayColor", "successColor",
-                 "successTextColor", "favoriteColor", "activeControlBg", "activeControlText"]
+                 "successTextColor", "favoriteColor", "secondaryColor", "warningColor",
+                 "dangerColor", "activeControlBg", "activeControlText"]
                   .forEach((k) => update(k, undefined));
               }}
               className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2 text-[10px] font-bold text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all uppercase tracking-wider"

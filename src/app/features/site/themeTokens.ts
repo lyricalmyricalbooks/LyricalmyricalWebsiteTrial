@@ -86,6 +86,10 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
   const activeFg = design?.activeControlText || bg;
   const overlay = design?.overlayColor || "#000000";
   const onSuccess = design?.successTextColor || "#ffffff";
+  // Secondary accent (cyan), warning (amber), danger/error (rose).
+  const accent2 = design?.secondaryColor || "#22d3ee";
+  const warning = design?.warningColor || "#f59e0b";
+  const danger = design?.dangerColor || "#f43f5e";
   const fgTriplet = hexToRgbTriplet(fg, "255 255 255");
 
   return [
@@ -98,8 +102,14 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
     `--surface-2: ${surface2};`,
     `--accent: ${accent};`,
     `--accent-rgb: ${hexToRgbTriplet(accent, "168 85 247")};`,
+    `--accent-2: ${accent2};`,
+    `--accent-2-rgb: ${hexToRgbTriplet(accent2, "34 211 238")};`,
     `--success: ${success};`,
     `--success-rgb: ${hexToRgbTriplet(success, "52 211 153")};`,
+    `--warning: ${warning};`,
+    `--warning-rgb: ${hexToRgbTriplet(warning, "245 158 11")};`,
+    `--danger: ${danger};`,
+    `--danger-rgb: ${hexToRgbTriplet(danger, "244 63 94")};`,
     `--favorite: ${favorite};`,
     `--favorite-rgb: ${hexToRgbTriplet(favorite, "251 113 133")};`,
     `--active-bg: ${activeBg};`,
@@ -167,24 +177,31 @@ function buildSolidRules(color: string, cssVar: string): string {
     .join("\n");
 }
 
-// The brand chose violet as its accent hue and emerald for success/savings.
-// Map every shade+alpha of those utilities onto the accent / success tokens so
-// they recolor with the theme, exactly like the white/black utilities do.
-// (rose is deliberately NOT mapped — it doubles as a validation/error color.)
+// Map the brand's semantic hues onto tokens so every shade+alpha recolors with
+// the theme, exactly like the white/black utilities do:
+//   violet / purple -> accent       emerald / green -> success
+//   cyan            -> secondary     amber / yellow  -> warning
+//   rose            -> danger (error). Favorites use the dedicated fm-favorite-*
+//   helpers, so remapping raw rose to danger does not affect the wishlist.
 const BRAND_ALPHAS = ["10", "15", "20", "25", "30", "40", "50", "60", "70", "[0.05]", "[0.08]"];
-const VIOLET_SHADES = ["300", "400", "500", "600", "700", "900", "950"];
-const EMERALD_SHADES = ["300", "400", "500", "600"];
+const SHADES = ["300", "400", "500", "600", "700", "900", "950"];
 
-const brandOverrideCss = [
-  ...VIOLET_SHADES.flatMap((shade) => [
-    buildAlphaRules(`violet-${shade}`, BRAND_ALPHAS, () => "--accent-rgb"),
-    buildSolidRules(`violet-${shade}`, "--accent"),
-  ]),
-  ...EMERALD_SHADES.flatMap((shade) => [
-    buildAlphaRules(`emerald-${shade}`, BRAND_ALPHAS, () => "--success-rgb"),
-    buildSolidRules(`emerald-${shade}`, "--success"),
-  ]),
-].join("\n");
+const BRAND_HUES: Array<{ names: string[]; solidVar: string; rgbVar: string }> = [
+  { names: ["violet", "purple"], solidVar: "--accent", rgbVar: "--accent-rgb" },
+  { names: ["emerald", "green"], solidVar: "--success", rgbVar: "--success-rgb" },
+  { names: ["cyan"], solidVar: "--accent-2", rgbVar: "--accent-2-rgb" },
+  { names: ["amber", "yellow"], solidVar: "--warning", rgbVar: "--warning-rgb" },
+  { names: ["rose", "red"], solidVar: "--danger", rgbVar: "--danger-rgb" },
+];
+
+const brandOverrideCss = BRAND_HUES.flatMap(({ names, solidVar, rgbVar }) =>
+  names.flatMap((name) =>
+    SHADES.flatMap((shade) => [
+      buildAlphaRules(`${name}-${shade}`, BRAND_ALPHAS, () => rgbVar),
+      buildSolidRules(`${name}-${shade}`, solidVar),
+    ]),
+  ),
+).join("\n");
 
 const alphaOverrideCss = [
   // text/bg follow the foreground; borders follow the Border color token.

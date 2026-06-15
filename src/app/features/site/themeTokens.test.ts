@@ -69,11 +69,22 @@ describe("STOREFRONT_TOKEN_CSS", () => {
     expect(rules.every((r) => r.includes("[data-fm-store]"))).toBe(true);
   });
 
-  it("maps the brand accent (violet) and success (emerald) hues onto tokens", () => {
+  it("maps the brand semantic hues (violet/emerald/cyan/amber/rose) onto tokens", () => {
     expect(STOREFRONT_TOKEN_CSS).toContain(".bg-violet-500{background-color:var(--accent);}");
     expect(STOREFRONT_TOKEN_CSS).toContain(".border-violet-500\\/30{border-color:rgba(var(--accent-rgb), 0.3);}");
     expect(STOREFRONT_TOKEN_CSS).toContain(".text-emerald-400{color:var(--success);}");
     expect(STOREFRONT_TOKEN_CSS).toContain(".bg-emerald-500\\/10{background-color:rgba(var(--success-rgb), 0.1);}");
+    expect(STOREFRONT_TOKEN_CSS).toContain(".text-cyan-400{color:var(--accent-2);}");
+    expect(STOREFRONT_TOKEN_CSS).toContain(".text-amber-400{color:var(--warning);}");
+    expect(STOREFRONT_TOKEN_CSS).toContain(".text-rose-400{color:var(--danger);}");
+    expect(STOREFRONT_TOKEN_CSS).toContain(".bg-purple-600{background-color:var(--accent);}");
+  });
+
+  it("emits the new status tokens with defaults", () => {
+    const css = buildStorefrontTokenVars({});
+    expect(css).toContain("--accent-2: #22d3ee;");
+    expect(css).toContain("--warning: #f59e0b;");
+    expect(css).toContain("--danger: #f43f5e;");
   });
 
   it("provides solid semantic helper classes", () => {
