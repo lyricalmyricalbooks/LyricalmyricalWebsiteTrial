@@ -187,6 +187,18 @@ async function sendEmail({ to, subject, html, secret }) {
     console.warn("Failed to load custom sender details, using default fallbacks:", err);
   }
 
+  // Also check settings/notifications for custom API Key
+  try {
+    const notificationsDoc = await db.collection("settings").doc("notifications").get();
+    if (notificationsDoc.exists) {
+      const notifications = notificationsDoc.data() || {};
+      if (notifications.resendApiKey) apiKey = notifications.resendApiKey;
+      if (notifications.brand && notifications.brand.resendApiKey) apiKey = notifications.brand.resendApiKey;
+    }
+  } catch (err) {
+    console.warn("Failed to load notifications custom API Key:", err);
+  }
+
   const resend = new Resend(apiKey);
 
   // If using a Resend onboarding key, force the sender to onboarding@resend.dev
