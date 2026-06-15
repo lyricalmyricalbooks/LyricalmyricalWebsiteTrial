@@ -18,6 +18,7 @@ type NotificationSettings = {
   brand: {
     logoUrl: string;
     brandColor: string;
+    resendApiKey?: string;
   };
   order_confirmation: TemplateFields;
   shipping_confirmation: TemplateFields;
@@ -31,7 +32,8 @@ type NotificationSettings = {
 const DEFAULT_SETTINGS: NotificationSettings = {
   brand: {
     logoUrl: "",
-    brandColor: "#7C3AED"
+    brandColor: "#7C3AED",
+    resendApiKey: ""
   },
   order_confirmation: {
     subject: "Order confirmed: {{order_id}}",
@@ -309,7 +311,7 @@ export function NotificationEditor() {
     handleFieldChange("enabled", !isCurrentlyEnabled);
   };
 
-  const handleBrandChange = (field: "logoUrl" | "brandColor", val: string) => {
+  const handleBrandChange = (field: "logoUrl" | "brandColor" | "resendApiKey", val: string) => {
     setData(prev => ({
       ...prev,
       brand: {
@@ -402,7 +404,7 @@ export function NotificationEditor() {
             <Globe className="text-cyan-400" size={18} />
             <h4 className="text-[10px] font-black tracking-[0.4em] uppercase text-slate-400">Global Notifications Brand Settings</h4>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-3">
               <label className="text-[9px] font-black uppercase tracking-widest text-slate-600 ml-1">Brand Logo URL</label>
               <input
@@ -430,6 +432,16 @@ export function NotificationEditor() {
                   className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-cyan-500/50 uppercase font-mono"
                 />
               </div>
+            </div>
+            <div className="space-y-3">
+              <label className="text-[9px] font-black uppercase tracking-widest text-slate-600 ml-1">Resend API Key</label>
+              <input
+                type="password"
+                value={data.brand?.resendApiKey || ""}
+                onChange={(e) => handleBrandChange("resendApiKey", e.target.value)}
+                placeholder="re_..."
+                className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-cyan-500/50"
+              />
             </div>
           </div>
         </div>
