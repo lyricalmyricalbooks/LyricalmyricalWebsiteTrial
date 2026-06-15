@@ -189,19 +189,42 @@ export default function AccountPage() {
   }
 
   // Scan order items for secure digital eBook versions
+  // ⚡ Bolt: Eliminate N+1 queries by gathering unique book IDs and fetching them concurrently.
   async function checkDigitalAssets(loadedOrders: any[]) {
     const assetMap: Record<string, Record<string, boolean>> = {};
+
+    // 1. Gather unique item IDs
+    const uniqueItemIds = new Set<string>();
+    for (const order of loadedOrders) {
+      if (order.paymentStatus === "paid") {
+        for (const item of order.items || []) {
+          uniqueItemIds.add(item.id);
+        }
+      }
+    }
+
+    // 2. Fetch all unique items concurrently
+    const digitalStatusMap: Record<string, boolean> = {};
+    await Promise.all(
+      Array.from(uniqueItemIds).map(async (id) => {
+        try {
+          const book = await adminApi.getBook(id);
+          if (book && book.digitalFileName) {
+            digitalStatusMap[id] = true;
+          }
+        } catch (err) {
+          console.warn("E-Book metadata scan error:", err);
+        }
+      })
+    );
+
+    // 3. Map back to orders
     for (const order of loadedOrders) {
       if (order.paymentStatus !== "paid") continue;
       const orderDigitalItems: Record<string, boolean> = {};
       for (const item of order.items || []) {
-        try {
-          const book = await adminApi.getBook(item.id);
-          if (book && book.digitalFileName) {
-            orderDigitalItems[item.id] = true;
-          }
-        } catch (err) {
-          console.warn("E-Book metadata scan error:", err);
+        if (digitalStatusMap[item.id]) {
+          orderDigitalItems[item.id] = true;
         }
       }
       if (Object.keys(orderDigitalItems).length > 0) {

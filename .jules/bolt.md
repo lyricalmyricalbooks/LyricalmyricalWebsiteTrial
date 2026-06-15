@@ -4,3 +4,6 @@
 ## 2024-05-19 - O(1) Cache Lookups for Constant Arrays
 **Learning:** Functions that frequently search through a static array using `.find()` and `.toLowerCase()` (like `COUNTRIES.find(...)`) cause O(N) array iteration and O(N) string memory allocations per call. When these functions are called during renders or loops (e.g. `matchShippingZone` in checkout), they can block the main thread.
 **Action:** Always convert static list lookups that rely on computed string comparisons into an O(1) `Map` that is built exactly once at module load time. This completely eliminates both the array traversal overhead and the repeated string allocations.
+## 2024-05-20 - Eliminating N+1 Queries in Order History
+**Learning:** Iterating through orders or order items and dispatching asynchronous requests sequentially (`await getBook(id)` inside a `for...of` loop) creates a classic N+1 query problem, heavily delaying UI rendering and duplicating API requests when identical items exist across multiple orders.
+**Action:** Always batch requests by collecting a unique `Set` of IDs from the dataset and fetching them concurrently using `Promise.all()`. Then, populate a local cache/map to resolve the references synchronously when looping through the original dataset.
