@@ -15,6 +15,7 @@ import { COUNTRIES, matchShippingZone } from "./features/site/shippingZones";
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, getDoc, collection } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
+import { StorefrontThemeStyle } from "./features/site/StorefrontThemeStyle";
 
 // ─── Country selector (matches Field styling) ─────────────────────────────────
 function CountryField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -1007,24 +1008,25 @@ export function Checkout() {
   if (isSuccess) {
     const isManual = successOrder?.paymentStatus === "pending";
     return (
-      <div className="h-screen bg-[#050506] text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+      <div data-fm-store className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+        <StorefrontThemeStyle design={settings?.design} />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.15)_0%,transparent_70%)] pointer-events-none" />
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", duration: 0.8 }}
           className="relative z-10 flex flex-col items-center max-w-md w-full">
-          <div className="w-24 h-24 rounded-[2rem] bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mb-10 shadow-[0_0_60px_rgba(124,58,237,0.3)]">
-            <CheckCircle2 size={44} className="text-violet-400" />
+          <div className="w-24 h-24 rounded-[2rem] border flex items-center justify-center mb-10 shadow-[0_0_60px_rgba(124,58,237,0.3)]" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.2)", borderColor: "rgba(var(--accent-rgb), 0.3)" }}>
+            <CheckCircle2 size={44} style={{ color: "var(--accent)" }} />
           </div>
-          <p className="text-[9px] font-black tracking-[0.5em] text-violet-400 uppercase mb-4">
-            {isManual 
-              ? "Order Placed" 
+          <p className="text-[9px] font-black tracking-[0.5em] uppercase mb-4" style={{ color: "var(--accent)" }}>
+            {isManual
+              ? "Order Placed"
               : (paymentConfirmed ? "Order Confirmed" : "Finalizing Payment")}
           </p>
           <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white mb-4">Thank You</h2>
           <p className="text-white/30 text-xs font-mono mb-2 tracking-widest">ORDER #{orderNumber}</p>
-          
+
           {isManual ? (
             <div className="w-full mt-4 mb-10 p-8 bg-white/[0.02] border border-white/5 rounded-[2rem] text-left space-y-4 shadow-inner animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <h4 className="text-[10px] font-black text-violet-400 uppercase tracking-[0.25em] italic flex items-center gap-2">
+              <h4 className="text-[10px] font-black uppercase tracking-[0.25em] italic flex items-center gap-2" style={{ color: "var(--accent)" }}>
                 <Building size={14} /> {successOrder?.paymentMethod || "Payment Instructions"}
               </h4>
               <p className="text-white/80 text-xs font-bold leading-relaxed whitespace-pre-wrap">
@@ -1044,9 +1046,9 @@ export function Checkout() {
                 : "Your payment is being confirmed — the receipt email will follow shortly."}
             </p>
           )}
-          
+
           <Link to="/"
-            className="flex items-center gap-3 bg-violet-600 hover:bg-violet-500 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase transition-all active:scale-95 shadow-[0_10px_40px_rgba(124,58,237,0.4)]">
+            className="flex items-center gap-3 hover:bg-violet-500 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase transition-all active:scale-95 shadow-[0_10px_40px_rgba(124,58,237,0.4)]" style={{ backgroundColor: "var(--accent)" }}>
             Continue Exploring
           </Link>
         </motion.div>
@@ -1057,7 +1059,8 @@ export function Checkout() {
   // ── Empty cart ──────────────────────────────────────────────────────────────
   if (cart.length === 0) {
     return (
-      <div className="h-screen bg-[#050506] text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+      <div data-fm-store className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+        <StorefrontThemeStyle design={settings?.design} />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.08)_0%,transparent_70%)] pointer-events-none" />
         <div className="relative z-10 flex flex-col items-center">
           <div className="w-20 h-20 rounded-[1.5rem] bg-white/5 border border-white/10 flex items-center justify-center mb-8">
@@ -1066,7 +1069,7 @@ export function Checkout() {
           <p className="text-[9px] font-black tracking-[0.5em] text-white/20 uppercase mb-4">Empty Archive</p>
           <h2 className="text-4xl font-black tracking-tighter uppercase italic text-white mb-12">Nothing Here</h2>
           <Link to="/"
-            className="bg-white text-black px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase hover:bg-white/90 transition-all active:scale-95">
+            className="fm-active px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase hover:bg-white/90 transition-all active:scale-95">
             Return to Catalog
           </Link>
         </div>
@@ -1085,7 +1088,8 @@ export function Checkout() {
       : "Place order";
 
   return (
-    <div className="min-h-screen bg-white font-sans text-slate-900 selection:bg-sky-100">
+    <div data-fm-store className="min-h-screen bg-white font-sans text-slate-900 selection:bg-sky-100">
+      <StorefrontThemeStyle design={settings?.design} />
       {settings?.payments?.testMode && (
         <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-sm font-medium text-amber-900">
           Test mode is active. No real charges will be made.
@@ -1127,7 +1131,7 @@ export function Checkout() {
                     <p className="font-medium text-slate-900">Signed in</p>
                     <p className="text-slate-500">{currentUser.email}</p>
                   </div>
-                  <CheckCircle2 size={20} className="text-emerald-600" />
+                  <CheckCircle2 size={20} style={{ color: "var(--success)" }} />
                 </div>
               ) : (
                 <button
@@ -1257,7 +1261,7 @@ export function Checkout() {
                 {isCompleting ? <><Loader2 size={18} className="animate-spin" /> Processing order…</> : <><Lock size={16} /> {paymentLabel}</>}
               </button>
               <div className="mt-4 flex items-start justify-center gap-2 text-center text-xs leading-5 text-slate-500">
-                <ShieldCheck size={16} className="mt-0.5 shrink-0 text-emerald-600" />
+                <ShieldCheck size={16} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
                 <p>Your payment details are submitted directly to the selected payment provider and are not stored by this shop.</p>
               </div>
             </div>
@@ -1317,13 +1321,13 @@ export function Checkout() {
               )}
             </div>
             {discountError && <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} />{discountError}</p>}
-            {appliedDiscount && <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-700"><CheckCircle2 size={13} />{appliedDiscount.code} applied</p>}
+            {appliedDiscount && <p className="mt-2 flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--success)" }}><CheckCircle2 size={13} />{appliedDiscount.code} applied</p>}
 
             <div className="my-7 border-t border-slate-200" />
 
             <div className="space-y-3 text-sm">
               <div className="flex justify-between text-slate-600"><span>Subtotal</span><span className="font-medium text-slate-900">{formatPrice(cartTotal)}</span></div>
-              {discountAmount > 0 && <div className="flex justify-between text-emerald-700"><span>Discount</span><span>-{formatPrice(discountAmount)}</span></div>}
+              {discountAmount > 0 && <div className="flex justify-between" style={{ color: "var(--success)" }}><span>Discount</span><span>-{formatPrice(discountAmount)}</span></div>}
               <div className="flex justify-between text-slate-600">
                 <span>Shipping{getActiveShippingDetails()?.serviceName ? ` · ${getActiveShippingDetails()?.serviceName}` : ""}</span>
                 <span className="font-medium text-slate-900">{isFreeShipping || shippingCost === 0 ? "Free" : formatPrice(finalShipping)}</span>

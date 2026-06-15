@@ -8,6 +8,7 @@ import { useWishlist } from "../../lib/wishlist";
 import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
 import { useCurrency } from "../../CurrencyContext";
+import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
@@ -58,14 +59,16 @@ export default function CollectionPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#050508] text-white flex items-center justify-center">
+      <div data-fm-store className="min-h-screen fm-page text-white flex items-center justify-center">
+        <StorefrontThemeStyle design={settings?.design} />
         <p className="text-[10px] tracking-[0.4em] text-white/40 uppercase">Loading…</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#050508] text-white">
+    <div data-fm-store className="min-h-screen fm-page text-white">
+      <StorefrontThemeStyle design={settings?.design} />
       <header className="border-b border-white/10 px-6 py-5 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-[10px] tracking-[0.3em] text-white/50 hover:text-white uppercase">
           <ArrowLeft size={14} /> Archive
@@ -107,13 +110,13 @@ export default function CollectionPage() {
                   onClick={() => toggle(book.id)}
                   aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
                   className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center transition-colors ${
-                    wished ? "bg-rose-500/20 text-rose-400 border border-rose-400/40" : "bg-black/40 text-white/60 border border-white/10 hover:text-white"
+                    wished ? "fm-favorite-active border" : "bg-black/40 text-white/60 border border-white/10 hover:text-white"
                   }`}
                 >
                   <Heart size={14} fill={wished ? "currentColor" : "none"} />
                 </button>
                 <Link to={`/books/${bSlug}`} className="block">
-                  <div className="relative aspect-[3/4] bg-neutral-900 rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
+                  <div className="relative aspect-[3/4] fm-surface rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
                     <img
                       src={(book as any).photos?.[0]?.url || DEFAULT_IMAGE}
                       alt={book.title}

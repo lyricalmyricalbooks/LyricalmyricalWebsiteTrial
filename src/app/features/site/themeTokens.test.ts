@@ -45,6 +45,11 @@ describe("buildStorefrontTokenVars", () => {
     expect(css).toContain("--active-fg: #101010;");
   });
 
+  it("border tint defaults to the foreground, follows borderColor when set", () => {
+    expect(buildStorefrontTokenVars({ textColor: "#111111" })).toContain("--border-rgb: 17 17 17;");
+    expect(buildStorefrontTokenVars({ borderColor: "#B1B1AA" })).toContain("--border-rgb: 177 177 170;");
+  });
+
   it("honors explicit overrides", () => {
     const css = buildStorefrontTokenVars({ successColor: "#00ff00", surfaceColor: "#123456" });
     expect(css).toContain("--success: #00ff00;");
@@ -56,12 +61,19 @@ describe("STOREFRONT_TOKEN_CSS", () => {
   it("remaps the Tailwind alpha utilities onto the token layer", () => {
     expect(STOREFRONT_TOKEN_CSS).toContain(".text-white\\/40{color:rgba(var(--fg-rgb), 0.4);}");
     expect(STOREFRONT_TOKEN_CSS).toContain(".bg-black\\/70{background-color:rgba(var(--overlay-rgb), 0.7);}");
-    expect(STOREFRONT_TOKEN_CSS).toContain(".border-white\\/\\[0\\.08\\]{border-color:rgba(var(--fg-rgb), 0.08);}");
+    expect(STOREFRONT_TOKEN_CSS).toContain(".border-white\\/\\[0\\.08\\]{border-color:rgba(var(--border-rgb), 0.08);}");
   });
 
   it("scopes every rule under [data-fm-store]", () => {
     const rules = STOREFRONT_TOKEN_CSS.split("\n").filter((l) => l.trim().length > 0);
     expect(rules.every((r) => r.includes("[data-fm-store]"))).toBe(true);
+  });
+
+  it("maps the brand accent (violet) and success (emerald) hues onto tokens", () => {
+    expect(STOREFRONT_TOKEN_CSS).toContain(".bg-violet-500{background-color:var(--accent);}");
+    expect(STOREFRONT_TOKEN_CSS).toContain(".border-violet-500\\/30{border-color:rgba(var(--accent-rgb), 0.3);}");
+    expect(STOREFRONT_TOKEN_CSS).toContain(".text-emerald-400{color:var(--success);}");
+    expect(STOREFRONT_TOKEN_CSS).toContain(".bg-emerald-500\\/10{background-color:rgba(var(--success-rgb), 0.1);}");
   });
 
   it("provides solid semantic helper classes", () => {

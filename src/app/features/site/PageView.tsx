@@ -3,11 +3,14 @@ import { useParams, Link } from "react-router";
 import { motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { adminApi } from "../../admin/api";
+import { useSiteData } from "./useSiteData";
+import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import type { Page } from "./types";
 
 
 export function PageView() {
   const { slug } = useParams<{ slug: string }>();
+  const { settings } = useSiteData();
   const [page, setPage] = useState<Page | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -52,7 +55,8 @@ export function PageView() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#030213] flex items-center justify-center">
+      <div data-fm-store className="min-h-screen fm-page flex items-center justify-center">
+        <StorefrontThemeStyle design={settings?.design} />
         <p className="text-white/40 text-[10px] tracking-[0.4em] uppercase animate-pulse">
           Loading…
         </p>
@@ -77,7 +81,8 @@ export function PageView() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div data-fm-store className="min-h-screen bg-white">
+      <StorefrontThemeStyle design={settings?.design} />
       {/* Nav bar */}
       <header className="border-b border-neutral-100 px-8 py-5 flex items-center justify-between sticky top-0 bg-white/90 backdrop-blur-md z-10">
         <Link to="/" className="text-xl font-black tracking-tighter text-neutral-900">
@@ -115,7 +120,7 @@ export function PageView() {
             [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-6 [&_li]:mb-2
             [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-6
             [&_strong]:font-bold [&_strong]:text-neutral-900
-            [&_a]:text-purple-600 [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:text-purple-800
+            [&_a]:text-[var(--accent)] [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:opacity-80
             [&_blockquote]:border-l-4 [&_blockquote]:border-neutral-100 [&_blockquote]:pl-6 [&_blockquote]:italic [&_blockquote]:text-neutral-500 [&_blockquote]:my-8
             [&_em]:italic"
           dangerouslySetInnerHTML={{ __html: page.body || "" }}

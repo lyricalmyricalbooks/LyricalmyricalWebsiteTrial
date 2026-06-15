@@ -29,7 +29,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
             const slug = book.slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
             return (
               <Link key={book.id} to={`/books/${slug}`} className="group">
-                <div className="relative aspect-[3/4] bg-neutral-950 rounded-xl overflow-hidden border border-white/[0.05]">
+                <div className="relative aspect-[3/4] fm-surface rounded-xl overflow-hidden border border-white/[0.05]">
                   <img
                     src={book.photos?.[0]?.url || DEFAULT_IMAGE}
                     alt={book.title}

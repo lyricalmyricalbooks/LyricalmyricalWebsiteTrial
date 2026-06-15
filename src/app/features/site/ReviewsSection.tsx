@@ -141,7 +141,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
 
         <div className="border border-white/10 rounded-3xl p-8 bg-white/[0.02]">
           {submitted ? (
-            <div className="flex items-center gap-3 text-emerald-400 text-sm">
+            <div className="flex items-center gap-3 text-sm" style={{ color: "var(--success)" }}>
               <CheckCircle2 size={18} />
               <span>Thanks — your review has been submitted for moderation.</span>
             </div>
@@ -186,7 +186,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
               <button
                 type="submit"
                 disabled={submitting}
-                className="bg-white text-black px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase hover:bg-white/90 transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="fm-active px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase hover:bg-white/90 transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 {submitting ? <Loader2 size={12} className="animate-spin" /> : null}
                 Submit Review

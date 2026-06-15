@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import { useSEO } from "../../lib/seo";
 import { useWishlist } from "../../lib/wishlist";
+import { useSiteData } from "./useSiteData";
+import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { adminApi } from "../../admin/api";
 import { functionUrl } from "../../lib/functionsBase";
 import toast from "react-hot-toast";
@@ -72,6 +74,7 @@ export default function AccountPage() {
   });
 
   const { count: wishlistCount } = useWishlist();
+  const { settings } = useSiteData();
 
   useSEO({ title: "Your Account", description: "Manage your account, orders and saved addresses." });
 
@@ -298,23 +301,25 @@ export default function AccountPage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#050508] text-white flex items-center justify-center">
-        <Loader2 size={24} className="animate-spin text-violet-400" />
+      <div data-fm-store className="min-h-screen fm-page text-white flex items-center justify-center">
+        <StorefrontThemeStyle design={settings?.design} />
+        <Loader2 size={24} className="animate-spin" style={{ color: "var(--accent)" }} />
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#050508] text-white flex flex-col items-center justify-center px-6 relative overflow-hidden">
+      <div data-fm-store className="min-h-screen fm-page text-white flex flex-col items-center justify-center px-6 relative overflow-hidden">
+        <StorefrontThemeStyle design={settings?.design} />
         {/* Glow Effects */}
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-violet-600/5 blur-[120px] rounded-full pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] blur-[120px] rounded-full pointer-events-none" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.05)" }} />
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-cyan-600/5 blur-[120px] rounded-full pointer-events-none" />
 
         <div className="glass-card max-w-md w-full border border-white/5 p-10 rounded-[2.5rem] relative z-10 space-y-8 shadow-2xl">
           <div className="text-center">
             <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 mx-auto">
-              <UserIcon size={28} className="text-violet-400" strokeWidth={1.5} />
+              <UserIcon size={28} style={{ color: "var(--accent)" }} strokeWidth={1.5} />
             </div>
             <h1 className="text-3xl font-black tracking-tight uppercase italic leading-none">Customer Account</h1>
             <p className="text-[10px] tracking-[0.2em] text-white/30 uppercase mt-3 font-bold">Lyricalmyrical Books Ledger</p>
@@ -353,7 +358,7 @@ export default function AccountPage() {
 
           <button
             onClick={handleGoogleSignIn}
-            className="w-full bg-white text-black py-4.5 rounded-2xl text-[9px] font-black tracking-[0.3em] uppercase hover:bg-white/90 transition-all flex items-center justify-center gap-2 shadow-xl shadow-white/5"
+            className="w-full fm-active py-4.5 rounded-2xl text-[9px] font-black tracking-[0.3em] uppercase hover:bg-white/90 transition-all flex items-center justify-center gap-2 shadow-xl shadow-white/5"
           >
             Continue with Google
           </button>
@@ -369,12 +374,13 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050508] text-white relative overflow-hidden pb-24">
+    <div data-fm-store className="min-h-screen fm-page text-white relative overflow-hidden pb-24">
+      <StorefrontThemeStyle design={settings?.design} />
       {/* Background glow */}
-      <div className="fixed top-0 right-0 w-[600px] h-[600px] bg-violet-600/5 blur-[120px] rounded-full pointer-events-none -mr-64 -mt-64" />
+      <div className="fixed top-0 right-0 w-[600px] h-[600px] blur-[120px] rounded-full pointer-events-none -mr-64 -mt-64" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.05)" }} />
       <div className="fixed bottom-0 left-0 w-[400px] h-[400px] bg-cyan-600/5 blur-[100px] rounded-full pointer-events-none" />
 
-      <header className="border-b border-white/5 px-8 py-6 flex items-center justify-between backdrop-blur-xl bg-black/20 relative z-20">
+      <header className="border-b border-white/5 px-8 py-6 flex items-center justify-between backdrop-blur-xl relative z-20" style={{ backgroundColor: "rgba(var(--overlay-rgb), 0.2)" }}>
         <Link to="/" className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-white transition-colors group uppercase">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> Storefront
         </Link>
@@ -394,7 +400,7 @@ export default function AccountPage() {
           {user.photoURL ? (
             <img src={user.photoURL} className="w-16 h-16 rounded-full border border-white/10" alt="" />
           ) : (
-            <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xl font-black text-violet-400 uppercase">
+            <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xl font-black uppercase" style={{ color: "var(--accent)" }}>
               {(user.displayName || user.email || "?")[0]}
             </div>
           )}
@@ -415,7 +421,7 @@ export default function AccountPage() {
           </Link>
 
           <div className="glass-card border border-white/5 rounded-[2rem] p-8 flex flex-col gap-3">
-            <Package size={20} className="text-violet-400" />
+            <Package size={20} style={{ color: "var(--accent)" }} />
             <div>
               <p className="text-[9px] font-black tracking-widest uppercase text-slate-500">Order Logs</p>
               <p className="text-3xl font-black tracking-tight mt-1">{orders.length} Transacted</p>
@@ -555,7 +561,7 @@ export default function AccountPage() {
           <h2 className="text-xs font-black tracking-[0.5em] text-white/30 uppercase mb-8">Purchase History Log</h2>
           {loadingData ? (
             <div className="py-20 flex flex-col items-center justify-center space-y-4">
-              <Loader2 className="animate-spin text-violet-400" size={24} />
+              <Loader2 className="animate-spin" style={{ color: "var(--accent)" }} size={24} />
               <p className="text-[9px] font-black tracking-[0.3em] text-slate-500 uppercase">Accessing transaction logs...</p>
             </div>
           ) : orders.length === 0 ? (
@@ -577,7 +583,14 @@ export default function AccountPage() {
                       className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 cursor-pointer"
                     >
                       <div className="flex items-center gap-6">
-                        <div className={`p-3 rounded-xl ${o.paymentStatus === 'paid' ? 'bg-emerald-500/5 text-emerald-400' : 'bg-amber-500/5 text-amber-400'}`}>
+                        <div
+                          className={`p-3 rounded-xl ${o.paymentStatus === 'paid' ? '' : 'bg-amber-500/5 text-amber-400'}`}
+                          style={
+                            o.paymentStatus === 'paid'
+                              ? { backgroundColor: "rgba(var(--success-rgb), 0.05)", color: "var(--success)" }
+                              : undefined
+                          }
+                        >
                           <Package size={18} />
                         </div>
                         <div>
@@ -590,22 +603,47 @@ export default function AccountPage() {
 
                       <div className="flex items-center gap-6 self-stretch md:self-auto justify-between border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
                         <div className="flex items-center gap-3">
+                          {(() => {
+                            const isDelivered = o.fulfillmentStatus === "delivered" || o.status === "completed";
+                            return (
+                              <span
+                                className={`text-[8px] font-black tracking-widest uppercase px-3.5 py-1.5 rounded-xl border ${
+                                  isDelivered
+                                    ? ""
+                                    : o.fulfillmentStatus === "shipped"
+                                    ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"
+                                    : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                                }`}
+                                style={
+                                  isDelivered
+                                    ? {
+                                        backgroundColor: "rgba(var(--success-rgb), 0.1)",
+                                        color: "var(--success)",
+                                        borderColor: "rgba(var(--success-rgb), 0.2)",
+                                      }
+                                    : undefined
+                                }
+                              >
+                                {o.fulfillmentStatus?.toUpperCase() || (o.status === 'completed' ? 'DELIVERED' : 'UNFULFILLED')}
+                              </span>
+                            );
+                          })()}
                           <span
                             className={`text-[8px] font-black tracking-widest uppercase px-3.5 py-1.5 rounded-xl border ${
-                              o.fulfillmentStatus === "delivered" || o.status === "completed"
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                : o.fulfillmentStatus === "shipped"
-                                ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"
-                                : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                              o.paymentStatus === 'paid'
+                                ? ''
+                                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                             }`}
+                            style={
+                              o.paymentStatus === 'paid'
+                                ? {
+                                    backgroundColor: "rgba(var(--success-rgb), 0.1)",
+                                    color: "var(--success)",
+                                    borderColor: "rgba(var(--success-rgb), 0.2)",
+                                  }
+                                : undefined
+                            }
                           >
-                            {o.fulfillmentStatus?.toUpperCase() || (o.status === 'completed' ? 'DELIVERED' : 'UNFULFILLED')}
-                          </span>
-                          <span className={`text-[8px] font-black tracking-widest uppercase px-3.5 py-1.5 rounded-xl border ${
-                            o.paymentStatus === 'paid'
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                              : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                          }`}>
                             {o.paymentStatus?.toUpperCase()}
                           </span>
                         </div>
@@ -623,23 +661,27 @@ export default function AccountPage() {
                         
                         {/* E-book downloads section */}
                         {Object.keys(orderDigitalAssets).length > 0 && o.paymentStatus === 'paid' && (
-                          <div className="bg-violet-950/20 border border-violet-500/20 p-6 rounded-2xl space-y-4">
+                          <div
+                            className="border p-6 rounded-2xl space-y-4"
+                            style={{ backgroundColor: "rgba(var(--accent-rgb), 0.08)", borderColor: "rgba(var(--accent-rgb), 0.2)" }}
+                          >
                             <div>
-                              <h4 className="text-xs font-black tracking-[0.3em] uppercase text-violet-400">Digital Archive Access</h4>
+                              <h4 className="text-xs font-black tracking-[0.3em] uppercase" style={{ color: "var(--accent)" }}>Digital Archive Access</h4>
                               <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">Download your digital secure purchases. Tokens refresh automatically.</p>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {o.items.map((item: any) => {
                                 if (!orderDigitalAssets[item.id]) return null;
                                 return (
-                                  <div key={item.id} className="bg-slate-950/50 border border-white/5 rounded-xl p-4 flex justify-between items-center">
+                                  <div key={item.id} className="fm-surface-2 border border-white/5 rounded-xl p-4 flex justify-between items-center">
                                     <div className="truncate pr-4">
                                       <p className="text-[10px] font-bold text-white uppercase truncate">{item.title}</p>
                                       <p className="text-[8px] text-slate-600 uppercase tracking-widest mt-1">E-Book File</p>
                                     </div>
                                     <button
                                       onClick={() => handleDownloadDigitalAsset(o, item.id)}
-                                      className="bg-violet-600 hover:bg-violet-500 text-white p-2.5 rounded-lg transition-all flex items-center justify-center shrink-0 active:scale-95"
+                                      className="text-white p-2.5 rounded-lg transition-all flex items-center justify-center shrink-0 active:scale-95"
+                                      style={{ backgroundColor: "var(--accent)" }}
                                       title="Download E-Book"
                                     >
                                       <Download size={12} />
@@ -657,7 +699,7 @@ export default function AccountPage() {
                           <div className="space-y-3">
                             {o.items?.map((item: any, idx: number) => (
                               <div key={idx} className="flex gap-4 items-center">
-                                <div className="w-10 aspect-[3/4] bg-neutral-900 rounded-md overflow-hidden border border-white/5 shrink-0">
+                                <div className="w-10 aspect-[3/4] fm-surface rounded-md overflow-hidden border border-white/5 shrink-0">
                                   <img src={item.photoUrl} alt="" className="w-full h-full object-cover" />
                                 </div>
                                 <div className="flex-grow min-w-0">
@@ -682,7 +724,7 @@ export default function AccountPage() {
                               href={getTrackingUrl(o.trackingCarrier, o.trackingNumber)} 
                               target="_blank" 
                               rel="noopener noreferrer"
-                              className="px-6 py-3 bg-white text-black hover:bg-slate-200 text-[9px] font-black tracking-widest uppercase rounded-xl transition-all flex items-center gap-2 shadow-lg"
+                              className="px-6 py-3 fm-active hover:bg-slate-200 text-[9px] font-black tracking-widest uppercase rounded-xl transition-all flex items-center gap-2 shadow-lg"
                             >
                               Track Package <ExternalLink size={12} />
                             </a>
@@ -711,7 +753,7 @@ export default function AccountPage() {
                               <span className="font-mono text-white/80">CA${o.shipping?.toFixed(2)}</span>
                             </div>
                             {o.discount > 0 && (
-                              <div className="flex justify-between text-emerald-400">
+                              <div className="flex justify-between fm-success-text">
                                 <span className="uppercase text-[9px] tracking-widest">Discount</span>
                                 <span className="font-mono">-CA${o.discount?.toFixed(2)}</span>
                               </div>

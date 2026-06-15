@@ -8,6 +8,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { adminApi } from "../../admin/api";
 import { functionUrl } from "../../lib/functionsBase";
 import { useCurrency } from "../../CurrencyContext";
+import { useSiteData } from "./useSiteData";
+import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 
 export default function OrderTracking() {
   const [orderIdInput, setOrderIdInput] = useState("");
@@ -18,6 +20,7 @@ export default function OrderTracking() {
   const [digitalItems, setDigitalItems] = useState<Record<string, boolean>>({});
   
   const { formatPrice, currency: defaultCurrency } = useCurrency();
+  const { settings } = useSiteData();
 
   // If order is already found, check if items have digital formats
   useEffect(() => {
@@ -108,9 +111,13 @@ export default function OrderTracking() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050506] text-white font-sans selection:bg-violet-500/30 relative overflow-hidden pb-24">
+    <div data-fm-store className="min-h-screen fm-page text-white font-sans selection:bg-[rgba(var(--accent-rgb),0.3)] relative overflow-hidden pb-24">
+      <StorefrontThemeStyle design={settings?.design} />
       {/* Ambient background glow */}
-      <div className="fixed top-0 right-0 w-[600px] h-[600px] bg-violet-600/8 blur-[140px] rounded-full pointer-events-none -mr-72 -mt-72" />
+      <div
+        className="fixed top-0 right-0 w-[600px] h-[600px] blur-[140px] rounded-full pointer-events-none -mr-72 -mt-72"
+        style={{ backgroundColor: "rgba(var(--accent-rgb), 0.08)" }}
+      />
       <div className="fixed bottom-0 left-0 w-[400px] h-[400px] bg-cyan-600/5 blur-[120px] rounded-full pointer-events-none" />
 
       {/* Header */}
@@ -120,7 +127,7 @@ export default function OrderTracking() {
           Back to Store
         </Link>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
+          <div className="w-2 h-2 rounded-full fm-accent-bg animate-pulse" />
           <span className="text-[9px] font-black tracking-[0.3em] text-white/30 uppercase">Order Ledger</span>
         </div>
       </nav>
@@ -138,8 +145,8 @@ export default function OrderTracking() {
             >
               <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.04] to-transparent pointer-events-none" />
               <div className="text-center mb-10">
-                <div className="w-16 h-16 rounded-2xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mb-6 mx-auto shadow-[0_0_40px_rgba(124,58,237,0.2)]">
-                  <Lock size={24} className="text-violet-400" />
+                <div className="w-16 h-16 rounded-2xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center mb-6 mx-auto shadow-[0_0_40px_rgba(124,58,237,0.2)]">
+                  <Lock size={24} className="fm-accent-text" />
                 </div>
                 <h2 className="text-3xl font-black tracking-tighter uppercase italic">Track Order</h2>
                 <p className="text-[10px] tracking-[0.2em] uppercase text-white/30 mt-2 font-bold">Secure Order Status Ledger</p>
@@ -180,7 +187,7 @@ export default function OrderTracking() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-violet-600 hover:bg-violet-500 text-white py-5 rounded-2xl text-[10px] font-black tracking-[0.4em] uppercase transition-all active:scale-[0.98] disabled:opacity-60 shadow-[0_15px_40px_rgba(124,58,237,0.3)] flex items-center justify-center gap-3"
+                  className="w-full fm-accent-bg hover:bg-violet-500 text-white py-5 rounded-2xl text-[10px] font-black tracking-[0.4em] uppercase transition-all active:scale-[0.98] disabled:opacity-60 shadow-[0_15px_40px_rgba(124,58,237,0.3)] flex items-center justify-center gap-3"
                 >
                   {loading ? (
                     <><Loader2 size={16} className="animate-spin" /> Querying...</>
@@ -209,7 +216,7 @@ export default function OrderTracking() {
               {/* Order Header Summary */}
               <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8 backdrop-blur-sm">
                 <div>
-                  <p className="text-[10px] font-black tracking-[0.3em] text-violet-400 uppercase mb-2">ARCHIVE MATCH FOUND</p>
+                  <p className="text-[10px] font-black tracking-[0.3em] fm-accent-text uppercase mb-2">ARCHIVE MATCH FOUND</p>
                   <h2 className="text-4xl font-black tracking-tighter uppercase italic leading-none">ORDER #{order.orderId}</h2>
                   <p className="text-[10px] font-mono text-white/30 mt-3 uppercase tracking-widest flex items-center gap-3">
                     <Calendar size={12} /> Created: {new Date(order.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
@@ -218,7 +225,7 @@ export default function OrderTracking() {
                 <div className="flex flex-col items-end gap-1.5 self-stretch md:self-auto border-t md:border-t-0 border-white/5 pt-6 md:pt-0">
                   <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Total Payable</span>
                   <span className="text-3xl font-black text-white">{orderFormatPrice(order.total)}</span>
-                  <span className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg uppercase tracking-widest mt-1">
+                  <span className="text-[9px] font-black fm-success-text bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg uppercase tracking-widest mt-1">
                     {order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
                   </span>
                 </div>
@@ -237,7 +244,7 @@ export default function OrderTracking() {
                       <div key={index} className="flex flex-col items-center md:items-start text-center md:text-left relative z-10 space-y-4">
                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 border
                           ${isCompleted 
-                            ? "bg-violet-600/20 border-violet-500/40 text-violet-400 shadow-[0_0_30px_rgba(124,58,237,0.25)]" 
+                            ? "bg-violet-500/20 border-violet-500/40 fm-accent-text shadow-[0_0_30px_rgba(124,58,237,0.25)]" 
                             : "bg-white/[0.03] border-white/10 text-white/20"
                           }
                           ${isActive ? "ring-2 ring-violet-500 ring-offset-4 ring-offset-[#050506]" : ""}
@@ -258,7 +265,7 @@ export default function OrderTracking() {
               {order.trackingNumber && (
                 <div className="bg-gradient-to-r from-violet-950/20 to-cyan-950/20 border border-violet-500/15 rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
                   <div className="space-y-2">
-                    <p className="text-[10px] font-black tracking-[0.3em] text-violet-400 uppercase">Fulfillment Logistics</p>
+                    <p className="text-[10px] font-black tracking-[0.3em] fm-accent-text uppercase">Fulfillment Logistics</p>
                     <h4 className="text-2xl font-black tracking-tighter uppercase italic leading-none">Carrier Assigned</h4>
                     <p className="text-xs font-medium text-slate-400 leading-relaxed max-w-md mt-2">
                       Your parcel is in transit. Tracking number: <code className="text-white bg-white/10 px-2 py-0.5 rounded font-mono">{order.trackingNumber}</code> 
@@ -270,7 +277,7 @@ export default function OrderTracking() {
                       href={order.trackingUrl} 
                       target="_blank" 
                       rel="noopener noreferrer" 
-                      className="bg-white text-black hover:bg-slate-200 px-8 py-4 rounded-2xl text-[9px] font-black tracking-[0.25em] uppercase transition-all active:scale-95 flex items-center gap-3 shrink-0 shadow-xl"
+                      className="fm-active hover:bg-slate-200 px-8 py-4 rounded-2xl text-[9px] font-black tracking-[0.25em] uppercase transition-all active:scale-95 flex items-center gap-3 shrink-0 shadow-xl"
                     >
                       Track Shipment <ExternalLink size={12} />
                     </a>
@@ -292,12 +299,12 @@ export default function OrderTracking() {
                       return (
                         <div key={item.id} className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 flex justify-between items-center group/download">
                           <div className="truncate pr-4">
-                            <p className="text-[10px] font-bold text-white uppercase leading-tight truncate group-hover/download:text-violet-400 transition-colors">{item.title}</p>
+                            <p className="text-[10px] font-bold text-white uppercase leading-tight truncate group-hover/download:fm-accent-text transition-colors">{item.title}</p>
                             <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-2">Format: Digital Book</p>
                           </div>
                           <button
                             onClick={() => handleDownload(item.id)}
-                            className="bg-violet-600 hover:bg-violet-500 text-white p-3 rounded-xl transition-all shadow-lg shadow-violet-600/20 flex items-center justify-center shrink-0 active:scale-95 border border-violet-400/20"
+                            className="fm-accent-bg hover:bg-violet-500 text-white p-3 rounded-xl transition-all shadow-lg shadow-violet-600/20 flex items-center justify-center shrink-0 active:scale-95 border border-violet-400/20"
                             title="Download File"
                           >
                             <Download size={14} />
@@ -316,7 +323,7 @@ export default function OrderTracking() {
                 <div className="space-y-6">
                   {order.items.map((item: any, idx: number) => (
                     <div key={idx} className="flex gap-6 items-center">
-                      <div className="w-14 aspect-[3/4] bg-neutral-900 rounded-lg overflow-hidden border border-white/10 shrink-0">
+                      <div className="w-14 aspect-[3/4] fm-surface-2 rounded-lg overflow-hidden border border-white/10 shrink-0">
                         <img src={item.photoUrl} alt={item.title} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -340,7 +347,7 @@ export default function OrderTracking() {
                     <span className="font-mono text-white/80">{orderFormatPrice(order.subtotal)}</span>
                   </div>
                   {order.discount > 0 && (
-                    <div className="flex justify-between text-emerald-400">
+                    <div className="flex justify-between fm-success-text">
                       <span className="text-[10px] font-black uppercase tracking-[0.25em]">Discount</span>
                       <span className="font-mono">−{orderFormatPrice(order.discount)}</span>
                     </div>

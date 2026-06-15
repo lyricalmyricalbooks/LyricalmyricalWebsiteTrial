@@ -86,9 +86,13 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
   const activeFg = design?.activeControlText || bg;
   const overlay = design?.overlayColor || "#000000";
   const onSuccess = design?.successTextColor || "#ffffff";
+  const fgTriplet = hexToRgbTriplet(fg, "255 255 255");
 
   return [
-    `--fg-rgb: ${hexToRgbTriplet(fg, "255 255 255")};`,
+    `--fg-rgb: ${fgTriplet};`,
+    // Border tint: follows the dedicated "Border" color when set, else the
+    // foreground. Alpha gradation of each border utility is preserved.
+    `--border-rgb: ${hexToRgbTriplet(design?.borderColor, fgTriplet)};`,
     `--overlay-rgb: ${hexToRgbTriplet(overlay, "0 0 0")};`,
     `--surface: ${surface};`,
     `--surface-2: ${surface2};`,
@@ -110,57 +114,84 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
 // base (non-variant) utilities are remapped; :hover / :focus variants are left
 // untouched so interaction deltas keep working.
 
-type AlphaRule = [string, "color" | "background-color" | "border-color", number, string];
-
 const FG = "--fg-rgb";
+const BORDER = "--border-rgb";
 const OVERLAY = "--overlay-rgb";
 
-const ALPHA_RULES: AlphaRule[] = [
-  // text-white/*
-  ["text-white/20", "color", 0.2, FG],
-  ["text-white/25", "color", 0.25, FG],
-  ["text-white/30", "color", 0.3, FG],
-  ["text-white/40", "color", 0.4, FG],
-  ["text-white/50", "color", 0.5, FG],
-  ["text-white/60", "color", 0.6, FG],
-  ["text-white/70", "color", 0.7, FG],
-  ["text-white/80", "color", 0.8, FG],
-  // bg-white/*
-  ["bg-white/5", "background-color", 0.05, FG],
-  ["bg-white/20", "background-color", 0.2, FG],
-  ["bg-white/30", "background-color", 0.3, FG],
-  ["bg-white/[0.01]", "background-color", 0.01, FG],
-  ["bg-white/[0.02]", "background-color", 0.02, FG],
-  ["bg-white/[0.03]", "background-color", 0.03, FG],
-  ["bg-white/[0.06]", "background-color", 0.06, FG],
-  // border-white/*
-  ["border-white/5", "border-color", 0.05, FG],
-  ["border-white/10", "border-color", 0.1, FG],
-  ["border-white/20", "border-color", 0.2, FG],
-  ["border-white/[0.05]", "border-color", 0.05, FG],
-  ["border-white/[0.06]", "border-color", 0.06, FG],
-  ["border-white/[0.07]", "border-color", 0.07, FG],
-  ["border-white/[0.08]", "border-color", 0.08, FG],
-  ["border-white/[0.12]", "border-color", 0.12, FG],
-  ["border-white/[0.14]", "border-color", 0.14, FG],
-  // bg-black/* (overlays / scrims)
-  ["bg-black/20", "background-color", 0.2, OVERLAY],
-  ["bg-black/50", "background-color", 0.5, OVERLAY],
-  ["bg-black/65", "background-color", 0.65, OVERLAY],
-  ["bg-black/70", "background-color", 0.7, OVERLAY],
-  ["bg-black/75", "background-color", 0.75, OVERLAY],
-  ["bg-black/80", "background-color", 0.8, OVERLAY],
+const PREFIX_PROP: Record<string, string> = {
+  text: "color",
+  bg: "background-color",
+  border: "border-color",
+};
+
+// Alpha suffixes as they appear in the storefront Tailwind classes (fraction
+// steps like "40" => 0.40, and arbitrary values like "[0.03]" => 0.03).
+const WHITE_ALPHAS = [
+  "5", "8", "10", "15", "20", "25", "30", "40", "50", "60", "70", "75", "80", "90",
+  "[0.01]", "[0.02]", "[0.03]", "[0.04]", "[0.05]", "[0.06]", "[0.07]", "[0.08]", "[0.12]", "[0.14]",
 ];
+const BLACK_ALPHAS = ["20", "30", "40", "50", "60", "65", "70", "75", "80"];
+
+function suffixToAlpha(suffix: string): number {
+  if (suffix.startsWith("[")) return parseFloat(suffix.slice(1, -1));
+  return parseInt(suffix, 10) / 100;
+}
 
 /** Escape a Tailwind class so it can be used as a CSS selector. */
 function escapeClass(cls: string): string {
   return cls.replace(/[/[\].]/g, (ch) => "\\" + ch);
 }
 
-const alphaOverrideCss = ALPHA_RULES.map(
-  ([cls, prop, alpha, varName]) =>
-    `[data-fm-store] .${escapeClass(cls)}{${prop}:rgba(var(${varName}), ${alpha});}`,
-).join("\n");
+function buildAlphaRules(
+  color: string,
+  suffixes: string[],
+  varFor: (prefix: string) => string,
+): string {
+  const rules: string[] = [];
+  for (const suffix of suffixes) {
+    const alpha = suffixToAlpha(suffix);
+    for (const prefix of Object.keys(PREFIX_PROP)) {
+      const cls = `${prefix}-${color}/${suffix}`;
+      rules.push(
+        `[data-fm-store] .${escapeClass(cls)}{${PREFIX_PROP[prefix]}:rgba(var(${varFor(prefix)}), ${alpha});}`,
+      );
+    }
+  }
+  return rules.join("\n");
+}
+
+// Solid (no-alpha) utility remap for a Tailwind color name → a CSS variable.
+function buildSolidRules(color: string, cssVar: string): string {
+  return Object.entries(PREFIX_PROP)
+    .map(([prefix, prop]) => `[data-fm-store] .${prefix}-${color}{${prop}:var(${cssVar});}`)
+    .join("\n");
+}
+
+// The brand chose violet as its accent hue and emerald for success/savings.
+// Map every shade+alpha of those utilities onto the accent / success tokens so
+// they recolor with the theme, exactly like the white/black utilities do.
+// (rose is deliberately NOT mapped — it doubles as a validation/error color.)
+const BRAND_ALPHAS = ["10", "15", "20", "25", "30", "40", "50", "60", "70", "[0.05]", "[0.08]"];
+const VIOLET_SHADES = ["300", "400", "500", "600", "700", "900", "950"];
+const EMERALD_SHADES = ["300", "400", "500", "600"];
+
+const brandOverrideCss = [
+  ...VIOLET_SHADES.flatMap((shade) => [
+    buildAlphaRules(`violet-${shade}`, BRAND_ALPHAS, () => "--accent-rgb"),
+    buildSolidRules(`violet-${shade}`, "--accent"),
+  ]),
+  ...EMERALD_SHADES.flatMap((shade) => [
+    buildAlphaRules(`emerald-${shade}`, BRAND_ALPHAS, () => "--success-rgb"),
+    buildSolidRules(`emerald-${shade}`, "--success"),
+  ]),
+].join("\n");
+
+const alphaOverrideCss = [
+  // text/bg follow the foreground; borders follow the Border color token.
+  buildAlphaRules("white", WHITE_ALPHAS, (p) => (p === "border" ? BORDER : FG)),
+  buildAlphaRules("black", BLACK_ALPHAS, () => OVERLAY),
+  brandOverrideCss,
+].join("\n");
 
 /**
  * Static stylesheet that wires the Tailwind alpha utilities + a few semantic
@@ -170,7 +201,12 @@ export const STOREFRONT_TOKEN_CSS = `
 ${alphaOverrideCss}
 [data-fm-store] .text-white{color:rgb(var(--fg-rgb));}
 [data-fm-store] .bg-white{background-color:rgb(var(--fg-rgb));}
-[data-fm-store] .border-white{border-color:rgb(var(--fg-rgb));}
+[data-fm-store] .border-white{border-color:rgb(var(--border-rgb));}
+[data-fm-store] .fm-page{background-color:var(--bg-color);}
+[data-fm-store] .fm-accent-text{color:var(--accent);}
+[data-fm-store] .fm-accent-bg{background-color:var(--accent);}
+[data-fm-store] .fm-success-text{color:var(--success);}
+[data-fm-store] .fm-favorite-text{color:var(--favorite);}
 [data-fm-store] .fm-surface{background-color:var(--surface);}
 [data-fm-store] .fm-surface-2{background-color:var(--surface-2);}
 [data-fm-store] .fm-success-solid{background-color:var(--success);color:var(--on-success);}
