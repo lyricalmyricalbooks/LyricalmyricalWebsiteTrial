@@ -194,7 +194,7 @@ async function sendEmail({ to, subject, html, secret }) {
 
   const from = `${fromName} <${fromEmail}>`;
 
-  const { data, error } = await resend.emails.send({
+  let response = await resend.emails.send({
     from,
     to,
     subject,
@@ -202,10 +202,36 @@ async function sendEmail({ to, subject, html, secret }) {
     reply_to: replyTo || undefined
   });
 
-  if (error) {
-    throw new Error(error.message || "Failed to send email via Resend");
+  if (response.error && fromEmail !== "onboarding@resend.dev") {
+    const errorMsg = response.error.message || "";
+    // If it's a domain validation / verification error, retry using the Resend sandbox address
+    if (
+      errorMsg.includes("verify") || 
+      errorMsg.includes("domain") || 
+      errorMsg.includes("sender") || 
+      errorMsg.includes("From address") ||
+      errorMsg.includes("Unverified")
+    ) {
+      console.warn(`Domain not verified for '${fromEmail}'. Retrying send via 'onboarding@resend.dev' sandbox fallback...`);
+      const fallbackFrom = `${fromName} <onboarding@resend.dev>`;
+      const fallbackResponse = await resend.emails.send({
+        from: fallbackFrom,
+        to,
+        subject,
+        html,
+        reply_to: replyTo || undefined
+      });
+      if (!fallbackResponse.error) {
+        return fallbackResponse.data;
+      }
+      response = fallbackResponse; // If fallback also fails, report the fallback's error
+    }
   }
-  return data;
+
+  if (response.error) {
+    throw new Error(response.error.message || "Failed to send email via Resend");
+  }
+  return response.data;
 }
 
 // ──────────────────────────────────────────────────────────────
