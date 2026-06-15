@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router";
 import { useCart } from "../CartContext";
 import { useSiteData } from "../features/site/useSiteData";

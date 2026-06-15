@@ -13,9 +13,12 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import RichTextEditor from "../components/RichTextEditor";
+import { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
 import { normalizeHexForColorInput } from "./ThemeEditorPro";
+
+export { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Section type registry — drives the Add Section library + per-type editor
@@ -1438,14 +1441,6 @@ export function SectionSettingsPanel({
 // ─────────────────────────────────────────────────────────────────────────────
 // Color Schemes panel
 // ─────────────────────────────────────────────────────────────────────────────
-
-export type ColorScheme = { id: string; name: string; background: string; text: string; accent: string };
-
-export const DEFAULT_COLOR_SCHEMES: ColorScheme[] = [
-  { id: "scheme-default", name: "Default", background: "#ffffff", text: "#111111", accent: "#A855F7" },
-  { id: "scheme-inverse", name: "Inverse", background: "#0a0a0a", text: "#ffffff", accent: "#A855F7" },
-  { id: "scheme-accent", name: "Accent", background: "#A855F7", text: "#ffffff", accent: "#ffffff" },
-];
 
 export function ColorSchemesPanel({
   schemes,

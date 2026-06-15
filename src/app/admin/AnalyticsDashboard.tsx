@@ -27,7 +27,7 @@ import {
   Loader2
 } from "lucide-react";
 import { adminApi } from "./api";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import toast from "react-hot-toast";
 
 export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?: (tab: string) => void; onEditBook?: (book: any) => void }) {

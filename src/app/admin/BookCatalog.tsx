@@ -23,7 +23,7 @@ import {
   TrendingUp
 } from "lucide-react";
 import { adminApi } from "./api";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import toast from "react-hot-toast";
 
 interface BookCatalogProps {

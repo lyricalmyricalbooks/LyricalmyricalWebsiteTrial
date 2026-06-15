@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router";
@@ -28,7 +28,7 @@ import { useSEO } from "../lib/seo";
 import { CatalogControls, applyCatalogControls, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { SearchOverlay } from "../features/site/SearchOverlay";
-import { DEFAULT_COLOR_SCHEMES } from "../admin/ThemeEditorExtensions";
+import { DEFAULT_COLOR_SCHEMES } from "../features/site/colorSchemes";
 
 // ──────────────────────────────
 // Image with skeleton loader
