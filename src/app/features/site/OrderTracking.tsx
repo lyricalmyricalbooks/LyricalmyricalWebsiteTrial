@@ -25,18 +25,21 @@ export default function OrderTracking() {
   // If order is already found, check if items have digital formats
   useEffect(() => {
     if (!order) return;
+    // ⚡ Bolt: Eliminate sequential DB reads by fetching all items in the order concurrently.
     async function checkDigitalAssets() {
       const digitalMap: Record<string, boolean> = {};
-      for (const item of order.items || []) {
-        try {
-          const book = await adminApi.getBook(item.id);
-          if (book && book.digitalFileName) {
-            digitalMap[item.id] = true;
+      await Promise.all(
+        (order.items || []).map(async (item: any) => {
+          try {
+            const book = await adminApi.getBook(item.id);
+            if (book && book.digitalFileName) {
+              digitalMap[item.id] = true;
+            }
+          } catch (err) {
+            console.warn("Could not retrieve book metadata for digital check", err);
           }
-        } catch (err) {
-          console.warn("Could not retrieve book metadata for digital check", err);
-        }
-      }
+        })
+      );
       setDigitalItems(digitalMap);
     }
     checkDigitalAssets();
