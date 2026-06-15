@@ -137,7 +137,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
       {settings.imageUrl && (
         <img src={settings.imageUrl} alt="" loading="eager" decoding="async" fetchPriority="high" className="absolute inset-0 w-full h-full object-cover" />
       )}
-      <div className="absolute inset-0 bg-black" style={{ opacity: settings.overlayOpacity ?? 0.5 }} />
+      <div className="absolute inset-0" style={{ backgroundColor: "rgb(var(--overlay-rgb))", opacity: settings.overlayOpacity ?? 0.5 }} />
       <div
         className={`relative z-10 px-6 max-w-3xl ${
           settings.align === "left" ? "text-left" : settings.align === "right" ? "text-right" : "text-center"
@@ -246,7 +246,7 @@ export function NewsletterSection({ settings, enableAnimations }: any) {
               />
               <button
                 type="button"
-                className="bg-white text-black rounded-full px-8 py-3 text-[10px] font-bold tracking-widest hover:bg-neutral-200 transition-all flex items-center gap-2"
+                className="fm-active rounded-full px-8 py-3 text-[10px] font-bold tracking-widest transition-all flex items-center gap-2"
                 style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #fff)", color: "var(--btn-text, #000)", ...btnS(settings) }}
               >
                 <Send size={12} />
@@ -548,7 +548,7 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
       {slide.imageUrl && (
         <img src={slide.imageUrl} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" alt={slide.title || ""} />
       )}
-      <div className="absolute inset-0 bg-black" style={{ opacity: slide.overlayOpacity ?? 0.4 }} />
+      <div className="absolute inset-0" style={{ backgroundColor: "rgb(var(--overlay-rgb))", opacity: slide.overlayOpacity ?? 0.4 }} />
       <AnimationContainer enabled={enableAnimations}>
         <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-6 max-w-3xl mx-auto">
           {slide.eyebrow && (
@@ -627,7 +627,7 @@ export function VideoSection({ settings, enableAnimations }: any) {
               )}
             </div>
           )}
-          <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black border border-white/10">
+          <div className="aspect-video w-full overflow-hidden rounded-2xl fm-surface border border-white/10">
             {embed ? (
               <iframe src={embed} title={settings.title || "Video"} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen className="w-full h-full" />
             ) : url ? (
@@ -1014,7 +1014,7 @@ function RowBlock({ block, accentFallback, settings }: any) {
     const vimeoId = url.match(/vimeo\.com\/(\d+)/)?.[1];
     const embed = ytId ? `https://www.youtube.com/embed/${ytId}?rel=0` : vimeoId ? `https://player.vimeo.com/video/${vimeoId}` : "";
     return (
-      <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black border border-white/10">
+      <div className="aspect-video w-full overflow-hidden rounded-2xl fm-surface border border-white/10">
         {embed ? (
           <iframe src={embed} title={block.title || "Video"} allow="autoplay; fullscreen" allowFullScreen className="w-full h-full" />
         ) : url ? (

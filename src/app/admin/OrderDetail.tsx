@@ -670,7 +670,6 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                           {isVoiding ? "CANCELLING..." : order.status === "cancelled" ? "UNPAID ORDER CANCELLED" : "CANCEL UNPAID ORDER"} <ChevronDown size={14} className="-rotate-90 group-hover:translate-x-1 transition-transform" />
                         </button>
                       )}
-                      </button>
                    </div>
                 </div>
               </div>

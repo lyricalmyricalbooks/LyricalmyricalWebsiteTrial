@@ -14,6 +14,7 @@ import {
 } from "../features/site/selectors";
 import type { Book } from "../features/site/types";
 import { useSiteData } from "../features/site/useSiteData";
+import { buildStorefrontTokenVars, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
 import { LogoMark } from "./LogoMark";
@@ -37,7 +38,7 @@ function SkeletonImage({ src, alt, className }: { src: string; alt: string; clas
   return (
     <div className="relative w-full h-full">
       {!loaded && (
-        <div className="absolute inset-0 bg-gradient-to-br from-neutral-800 via-neutral-700 to-neutral-800 animate-pulse" />
+        <div className="absolute inset-0 fm-surface-2 animate-pulse" />
       )}
       <img
         src={src}
@@ -99,7 +100,7 @@ function AboutPanel({ settings, pages, onClose }: { settings: any; pages: any[];
         exit={{ x: "100%" }}
         transition={{ type: "spring", stiffness: 300, damping: 35 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative z-10 w-full max-w-md bg-[#0a0a1a] border-l border-white/10 h-full overflow-y-auto flex flex-col"
+        className="relative z-10 w-full max-w-md fm-surface border-l border-white/10 h-full overflow-y-auto flex flex-col"
       >
         <div className="flex justify-between items-center px-8 py-6 border-b border-white/10">
           <span className="text-[10px] tracking-[0.5em] text-white/40 uppercase">Information</span>
@@ -506,7 +507,7 @@ function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive:
           className="absolute inset-0 w-full h-full object-cover"
         />
       ) : (
-        <div className="absolute inset-0 bg-neutral-950" />
+        <div className="absolute inset-0 fm-surface" />
       )}
       <div className="absolute inset-0" style={{ background: "black", opacity: hero.overlayOpacity ?? 0.45 }} />
 
@@ -664,6 +665,7 @@ function TypographyTokens({ design }: { design: any }) {
   font-size:${t.base}px;
   line-height:${t.lineHeight};
   font-weight:${t.bodyWeight};
+  ${buildStorefrontTokenVars(design)}
   --btn-bg:${btnBg};
   --btn-text:${btnText};
   --bg-color:${design?.backgroundColor || "#030213"};
@@ -686,8 +688,8 @@ function TypographyTokens({ design }: { design: any }) {
 [data-fm-store] a:hover, [data-fm-store] button.hover-text-accent:hover {
   color: var(--link-hover-color) !important;
 }
-/* Apply custom border color to standard borders on the site */
-[data-fm-store] .border-white\/5, [data-fm-store] .border-white\/10, [data-fm-store] .border-white\/\[0\.06\], [data-fm-store] .border-b {
+/* Keep the legacy plain border-b tied to the configurable Border color. */
+[data-fm-store] .border-b {
   border-color: var(--border-color) !important;
 }
 /* Style hover transitions for buttons */
@@ -695,6 +697,8 @@ function TypographyTokens({ design }: { design: any }) {
   background-color: var(--btn-hover-bg) !important;
   color: var(--btn-hover-text) !important;
 }
+/* Semantic token layer: remaps white/black alpha utilities + fm-* helpers. */
+${STOREFRONT_TOKEN_CSS}
 `;
   if (t.typeScale) {
     const size = (steps: number) => Math.round(t.base * Math.pow(t.typeScale, steps) * 10) / 10;
@@ -1072,6 +1076,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         {/* Promo / announcement banner */}
         {showAnnouncement && announcementMsg && (
           <div
+            data-section="announcements"
             className="text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]"
             style={{
               backgroundColor: storefrontDesign?.announcementBg || "#000000",
@@ -1083,6 +1088,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         )}
 
         <header
+          data-section="navigation"
           className={`${storefrontDesign?.stickyHeader ?? true ? "sticky" : "relative"} ${showAnnouncement && announcementMsg ? "top-10" : "top-0"} z-50 transition-all duration-500 ${isHeaderTransparent ? "border-transparent" : "backdrop-blur-xl border-b"}`}
           style={{
             backgroundColor: headerBgColor,
@@ -1204,7 +1210,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               >
                 <Heart size={14} />
                 {wishlistCount > 0 && (
-                  <span className="absolute -top-1 -right-1 text-[8px] font-bold bg-rose-500 text-white rounded-full px-1.5 py-0.5">
+                  <span className="absolute -top-1 -right-1 text-[8px] font-bold text-white rounded-full px-1.5 py-0.5" style={{ backgroundColor: "var(--accent)" }}>
                     {wishlistCount}
                   </span>
                 )}
@@ -1338,14 +1344,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
                     className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center transition-colors ${
                       wished
-                        ? "bg-rose-500/20 text-rose-400 border border-rose-400/40"
+                        ? "fm-favorite-active border"
                         : "bg-black/40 text-white/70 border border-white/10 hover:text-white opacity-0 group-hover:opacity-100"
                     }`}
                   >
                     <Heart size={13} fill={wished ? "currentColor" : "none"} />
                   </button>
                   <Link to={`/books/${slug}`}>
-                    <div className={`relative ${imageAspectClass} bg-neutral-900/50 mb-4 overflow-hidden border border-white/5 shadow-2xl`} style={{ borderRadius: storefrontCardRadius }}>
+                    <div className={`relative ${imageAspectClass} fm-surface mb-4 overflow-hidden border border-white/5 shadow-2xl`} style={{ borderRadius: storefrontCardRadius }}>
                       <SkeletonImage
                         src={item.photos?.[0]?.url || DEFAULT_IMAGE}
                         alt={item.title}
@@ -1420,7 +1426,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                             {onSale && (
                               <span className="text-white/30 line-through">{formatBookPrice(item, true)}</span>
                             )}
-                            <span className={onSale ? "text-rose-400 font-semibold" : "text-white/50"}>{formatBookPrice(item)}</span>
+                            <span className={onSale ? "fm-success-text font-semibold" : "text-white/50"}>{formatBookPrice(item)}</span>
                           </span>
                         )}
                       </div>

@@ -996,6 +996,93 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
         </div>
       </Accordion>
 
+      <Accordion title="Surfaces & status colors" defaultOpen={false}>
+        <div className="space-y-6">
+          <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic mb-2">
+            Surfaces, overlays and status colors used across the product page and
+            storefront (cards, image wells, sale &amp; "added" states, wishlist, active tabs).
+          </p>
+          <ColorPicker
+            label="Card / image surface"
+            value={design.surfaceColor || "#0a0a0a"}
+            onChange={(val) => update("surfaceColor", val)}
+          />
+          <ColorPicker
+            label="Raised surface"
+            value={design.surfaceRaisedColor || "#171717"}
+            onChange={(val) => update("surfaceRaisedColor", val)}
+          />
+          <ColorPicker
+            label="Overlay / scrim (sold-out, image darken)"
+            value={design.overlayColor || "#000000"}
+            onChange={(val) => update("overlayColor", val)}
+          />
+          <div className="border-t border-neutral-100 pt-4" />
+          <ColorPicker
+            label="Success / savings"
+            value={design.successColor || "#34d399"}
+            onChange={(val) => update("successColor", val)}
+          />
+          <ColorPicker
+            label="Success text"
+            value={design.successTextColor || "#ffffff"}
+            onChange={(val) => update("successTextColor", val)}
+          />
+          <ColorPicker
+            label="Favorite / wishlist"
+            value={design.favoriteColor || "#fb7185"}
+            onChange={(val) => update("favoriteColor", val)}
+          />
+          <ColorPicker
+            label="Secondary accent"
+            value={design.secondaryColor || "#22d3ee"}
+            onChange={(val) => update("secondaryColor", val)}
+          />
+          <ColorPicker
+            label="Warning"
+            value={design.warningColor || "#f59e0b"}
+            onChange={(val) => update("warningColor", val)}
+          />
+          <ColorPicker
+            label="Danger / error"
+            value={design.dangerColor || "#f43f5e"}
+            onChange={(val) => update("dangerColor", val)}
+          />
+          <ColorPicker
+            label="Muted / secondary text"
+            value={design.mutedTextColor || "#94a3b8"}
+            onChange={(val) => update("mutedTextColor", val)}
+          />
+          <div className="border-t border-neutral-100 pt-4" />
+          <ColorPicker
+            label="Active control background"
+            value={design.activeControlBg || design.textColor || "#ffffff"}
+            onChange={(val) => update("activeControlBg", val)}
+          />
+          <ColorPicker
+            label="Active control text"
+            value={design.activeControlText || design.backgroundColor || "#000000"}
+            onChange={(val) => update("activeControlText", val)}
+          />
+          {(design.surfaceColor || design.surfaceRaisedColor || design.overlayColor ||
+            design.successColor || design.successTextColor || design.favoriteColor ||
+            design.secondaryColor || design.warningColor || design.dangerColor ||
+            design.mutedTextColor || design.activeControlBg || design.activeControlText) && (
+            <button
+              onClick={() => {
+                ["surfaceColor", "surfaceRaisedColor", "overlayColor", "successColor",
+                 "successTextColor", "favoriteColor", "secondaryColor", "warningColor",
+                 "dangerColor", "mutedTextColor", "activeControlBg", "activeControlText"]
+                  .forEach((k) => update(k, undefined));
+              }}
+              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2 text-[10px] font-bold text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all uppercase tracking-wider"
+            >
+              Reset surfaces &amp; status to defaults
+            </button>
+          )}
+        </div>
+      </Accordion>
+
       <Accordion title="Color Schemes" defaultOpen={false}>
         <div className="pt-2">
           <ColorSchemesPanel
@@ -5258,20 +5345,98 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     { label: "Advanced", ids: ["a11y", "tokens", "additional"] },
   ];
 
+  // Fine-grained search index: maps individual setting names → the panel that
+  // houses them, so a query like "sale", "favorite", "shadow" or "radius"
+  // surfaces the right section instead of only matching panel titles.
+  const SETTINGS_INDEX: { section: string; label: string; keywords: string }[] = useMemo(() => [
+    // Colors
+    { section: "colors", label: "Primary accent color", keywords: "accent brand primary highlight" },
+    { section: "colors", label: "Background color", keywords: "background page bg" },
+    { section: "colors", label: "Text color", keywords: "text foreground font color" },
+    { section: "colors", label: "Border color", keywords: "border outline divider" },
+    { section: "colors", label: "Link hover color", keywords: "link hover anchor" },
+    { section: "colors", label: "Header background & text", keywords: "header nav top bar color" },
+    { section: "colors", label: "Button colors", keywords: "button cta color hover" },
+    { section: "colors", label: "Badge colors", keywords: "badge tag label color" },
+    { section: "colors", label: "Announcement bar colors", keywords: "announcement banner color" },
+    { section: "colors", label: "Low inventory color", keywords: "low stock inventory color" },
+    { section: "colors", label: "Card / image surface", keywords: "surface card image well panel background" },
+    { section: "colors", label: "Raised surface", keywords: "surface raised elevated card" },
+    { section: "colors", label: "Overlay / scrim", keywords: "overlay scrim sold out darken" },
+    { section: "colors", label: "Success / savings color", keywords: "success savings sale added green" },
+    { section: "colors", label: "Favorite / wishlist color", keywords: "favorite wishlist heart" },
+    { section: "colors", label: "Secondary accent color", keywords: "secondary accent cyan" },
+    { section: "colors", label: "Warning color", keywords: "warning amber caution" },
+    { section: "colors", label: "Danger / error color", keywords: "danger error invalid red" },
+    { section: "colors", label: "Muted / secondary text", keywords: "muted secondary subtle gray slate text" },
+    { section: "colors", label: "Active control colors", keywords: "active selected tab toggle" },
+    { section: "colors", label: "Color schemes", keywords: "scheme palette section colors" },
+    // Typography
+    { section: "style", label: "Body font", keywords: "font typeface body family" },
+    { section: "style", label: "Heading font", keywords: "font heading title family" },
+    { section: "style", label: "Font weight", keywords: "weight bold heading body" },
+    { section: "style", label: "Letter spacing", keywords: "letter spacing tracking kerning" },
+    { section: "textsize", label: "Base font size", keywords: "font size scale base" },
+    { section: "textsize", label: "Line height", keywords: "line height leading" },
+    { section: "textsize", label: "Type scale", keywords: "type scale modular ratio heading sizes" },
+    // Products
+    { section: "products", label: "Product card style", keywords: "product card grid style" },
+    { section: "products", label: "Image aspect ratio", keywords: "image aspect ratio product" },
+    { section: "products", label: "Product columns", keywords: "columns grid product layout" },
+    { section: "products", label: "Sale / new / sold-out badges", keywords: "sale new sold out badge product" },
+    { section: "products", label: "Product image shadow & glow", keywords: "shadow glow image product" },
+    { section: "products", label: "Related products", keywords: "related recommended products" },
+    { section: "products", label: "Trust signals", keywords: "trust signals shipping returns product" },
+    { section: "products", label: "Bundle / frequently bought", keywords: "bundle frequently bought together" },
+    { section: "products", label: "Add to cart CTA", keywords: "cta add to cart button animation product" },
+    // Layout & Buttons
+    { section: "layout", label: "Container width", keywords: "container width max layout" },
+    { section: "layout", label: "Section spacing", keywords: "spacing section gap layout density" },
+    { section: "layout", label: "Card radius", keywords: "radius corner rounded card" },
+    { section: "layout", label: "Density", keywords: "density compact spacious rhythm" },
+    { section: "buttons", label: "Button style", keywords: "button style solid outline ghost" },
+    { section: "buttons", label: "Button radius", keywords: "button radius corner rounded pill" },
+    { section: "buttons", label: "Button uppercase & shadow", keywords: "button uppercase shadow" },
+    // Header / Nav
+    { section: "navigation", label: "Header layout & logo", keywords: "header logo layout sticky transparent" },
+    { section: "navigation", label: "Nav link style", keywords: "nav link size weight transform" },
+    { section: "menus", label: "Header & footer menus", keywords: "menu navigation links mega footer" },
+    // Content
+    { section: "announcements", label: "Announcement bar", keywords: "announcement banner marquee" },
+    { section: "social", label: "Social links", keywords: "social instagram twitter facebook tiktok" },
+    { section: "translations", label: "Labels & copy", keywords: "copy label text cart bag translations strings" },
+    // Advanced
+    { section: "additional", label: "Animations & effects", keywords: "animation effects glow ambient back to top" },
+  ], []);
+
+  const matchedSettingLabels = useMemo(() => {
+    const q = settingsSearch.trim().toLowerCase();
+    const map: Record<string, string[]> = {};
+    if (!q) return map;
+    for (const entry of SETTINGS_INDEX) {
+      if (entry.label.toLowerCase().includes(q) || entry.keywords.includes(q)) {
+        (map[entry.section] ||= []).push(entry.label);
+      }
+    }
+    return map;
+  }, [SETTINGS_INDEX, settingsSearch]);
+
   const filteredSections = useMemo(() => {
     const q = settingsSearch.trim().toLowerCase();
-    // When searching, show all matching sections across both contexts
+    // When searching, show all matching sections across both contexts —
+    // matching panel title/description OR any indexed setting inside it.
     if (q) {
       return SECTIONS.filter((section) =>
         section.title.toLowerCase().includes(q) ||
-        section.description.toLowerCase().includes(q),
+        section.description.toLowerCase().includes(q) ||
+        (matchedSettingLabels[section.id]?.length ?? 0) > 0,
       );
     }
     // When not searching, filter by the active preview mode
     return SECTIONS.filter((section) =>
       section.pages.includes("both") || section.pages.includes(previewMode),
     );
-  }, [SECTIONS, settingsSearch, previewMode]);
+  }, [SECTIONS, settingsSearch, previewMode, matchedSettingLabels]);
 
   const renderSubPanel = () => {
     switch (activeSection) {
@@ -5974,13 +6139,27 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                                 </p>
                                 <div className="space-y-1">
                                   {items.map((section) => (
-                                    <SectionRow
-                                      key={section.id}
-                                      icon={section.icon}
-                                      title={section.title}
-                                      description={section.description}
-                                      onClick={() => setActiveSection(section.id)}
-                                    />
+                                    <div key={section.id}>
+                                      <SectionRow
+                                        icon={section.icon}
+                                        title={section.title}
+                                        description={section.description}
+                                        onClick={() => setActiveSection(section.id)}
+                                      />
+                                      {settingsSearch && (matchedSettingLabels[section.id]?.length ?? 0) > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 px-6 pb-2 pt-1">
+                                          {matchedSettingLabels[section.id].map((lbl) => (
+                                            <button
+                                              key={lbl}
+                                              onClick={() => setActiveSection(section.id)}
+                                              className="text-[8px] font-black tracking-wider uppercase px-2 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 hover:bg-violet-500/20 transition-colors"
+                                            >
+                                              {lbl}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
                                   ))}
                                 </div>
                               </div>

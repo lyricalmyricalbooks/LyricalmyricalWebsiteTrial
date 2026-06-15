@@ -111,7 +111,7 @@ export function CatalogControls({
             className="bg-white/[0.04] border border-white/10 rounded-full py-3 px-5 text-[10px] tracking-widest uppercase text-white/70 outline-none focus:border-white/30 cursor-pointer"
           >
             {SORT_OPTIONS.map(o => (
-              <option key={o.key} value={o.key} className="bg-neutral-900">
+              <option key={o.key} value={o.key} className="fm-surface-2">
                 {o.label}
               </option>
             ))}
@@ -120,7 +120,7 @@ export function CatalogControls({
             onClick={() => setInStockOnly(!inStockOnly)}
             className={`px-4 py-3 rounded-full text-[10px] tracking-widest uppercase border transition-colors ${
               inStockOnly
-                ? "bg-white text-black border-white"
+                ? "fm-active border-white"
                 : "bg-white/[0.04] text-white/60 border-white/10 hover:border-white/30"
             }`}
           >

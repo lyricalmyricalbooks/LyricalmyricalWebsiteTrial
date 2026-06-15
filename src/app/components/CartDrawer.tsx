@@ -4,6 +4,7 @@ import { useCart } from "../CartContext";
 import { useSiteData } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
 import { useCurrency } from "../CurrencyContext";
+import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
 
 export function CartDrawer() {
@@ -59,10 +60,12 @@ export function CartDrawer() {
             className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60]"
           />
           <motion.div
+            data-fm-store
             initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
             className="fixed right-0 top-0 h-screen w-full max-w-md bg-white text-black shadow-2xl z-[70] flex flex-col pt-24"
           >
+            <StorefrontThemeStyle design={design} />
             <div className="px-8 pb-4 flex justify-between items-center bg-white">
               <div>
                 <h3 className="text-2xl font-light tracking-tight">{getCopy(design, "cartTitle")}</h3>
@@ -81,12 +84,12 @@ export function CartDrawer() {
                   {remaining > 0 ? (
                     <span>{formatPrice(remaining)} away from free shipping</span>
                   ) : (
-                    <span className="text-emerald-600">You qualify for free shipping</span>
+                    <span style={{ color: "var(--success)" }}>You qualify for free shipping</span>
                   )}
                 </div>
                 <div className="h-1 bg-neutral-100 rounded-full overflow-hidden">
                   <div
-                    className={`h-full transition-all duration-500 ${remaining > 0 ? "bg-black" : "bg-emerald-500"}`}
+                    className={`h-full transition-all duration-500 ${remaining > 0 ? "bg-black" : "fm-success-solid"}`}
                     style={{ width: `${progress}%` }}
                   />
                 </div>

@@ -105,7 +105,7 @@ export function SearchOverlay({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -20, opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="w-full max-w-2xl bg-neutral-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+            className="w-full max-w-2xl fm-surface border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10">
@@ -147,7 +147,7 @@ export function SearchOverlay({
                     onClick={onClose}
                     className="flex items-center gap-4 px-5 py-3 hover:bg-white/5 transition-colors border-b border-white/5 last:border-b-0"
                   >
-                    <div className="w-12 h-16 bg-neutral-900 overflow-hidden rounded flex-shrink-0">
+                    <div className="w-12 h-16 fm-surface-2 overflow-hidden rounded flex-shrink-0">
                       {photo && (
                         <img
                           src={photo}

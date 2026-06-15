@@ -7,10 +7,11 @@ import { useCart } from "../../CartContext";
 import { DEFAULT_IMAGE } from "./constants";
 import { useSEO } from "../../lib/seo";
 import { useCurrency } from "../../CurrencyContext";
+import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 
 export default function WishlistPage() {
   const { ids, remove } = useWishlist();
-  const { books, loading } = useSiteData();
+  const { books, settings, loading } = useSiteData();
   const { addToCart } = useCart();
   const { formatBookPrice } = useCurrency();
 
@@ -29,14 +30,16 @@ export default function WishlistPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#050508] text-white flex items-center justify-center">
+      <div data-fm-store className="min-h-screen fm-page text-white flex items-center justify-center">
+        <StorefrontThemeStyle design={settings?.design} />
         <p className="text-[10px] tracking-[0.4em] text-white/40 uppercase">Loading…</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#050508] text-white">
+    <div data-fm-store className="min-h-screen fm-page text-white">
+      <StorefrontThemeStyle design={settings?.design} />
       <header className="border-b border-white/10 px-6 py-5 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-[10px] tracking-[0.3em] text-white/50 hover:text-white uppercase">
           <ArrowLeft size={14} /> Back
@@ -67,7 +70,7 @@ export default function WishlistPage() {
             return (
               <article key={book.id} className="group">
                 <Link to={`/books/${slug}`} className="block">
-                  <div className="relative aspect-[3/4] bg-neutral-900 rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
+                  <div className="relative aspect-[3/4] fm-surface rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
                     <img
                       src={(book as any).photos?.[0]?.url || DEFAULT_IMAGE}
                       alt={book.title}
@@ -88,7 +91,7 @@ export default function WishlistPage() {
                   <button
                     onClick={() => addToCart(book)}
                     disabled={out}
-                    className="flex-1 flex items-center justify-center gap-2 bg-white text-black py-2.5 rounded-full text-[9px] tracking-[0.3em] uppercase font-bold disabled:opacity-30 hover:bg-white/90 transition-all"
+                    className="flex-1 flex items-center justify-center gap-2 fm-active py-2.5 rounded-full text-[9px] tracking-[0.3em] uppercase font-bold disabled:opacity-30 hover:bg-white/90 transition-all"
                   >
                     <ShoppingBag size={11} /> Add
                   </button>

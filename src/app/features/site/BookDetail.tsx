@@ -20,6 +20,7 @@ import ReviewsSection from "./ReviewsSection";
 import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 import { resolveLogoDesign } from "./selectors";
+import { buildStorefrontTokenVars, STOREFRONT_TOKEN_CSS } from "./themeTokens";
 
 // ── small helper ────────────────────────────────────────────────────────────
 function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
@@ -128,8 +129,13 @@ export default function BookDetail() {
   const borderColor = settings?.design?.borderColor || "rgba(255,255,255,0.05)";
   const linkHoverColor = settings?.design?.linkColorHover || "#F61515";
 
+  // Merge top-level design with storefront-level overrides so tokens can be set
+  // at either level (storefront wins).
+  const tokenSource = { ...(settings?.design || {}), ...(storefrontDesign || {}) };
+
   const css = `
     [data-fm-store] {
+      ${buildStorefrontTokenVars(tokenSource)}
       --bg-color: ${storefrontBg};
       --text-color: ${storefrontText};
       --link-hover-color: ${linkHoverColor};
@@ -153,15 +159,7 @@ export default function BookDetail() {
       color: var(--btn-hover-text) !important;
       box-shadow: none !important;
     }
-    /* Apply custom border color to standard borders on the page */
-    [data-fm-store] .border-white\\/5, 
-    [data-fm-store] .border-white\\/10, 
-    [data-fm-store] .border-white\\/\\[0\\.06\\], 
-    [data-fm-store] .border-white\\/\\[0\\.07\\], 
-    [data-fm-store] .border-white\\/\\[0\\.08\\], 
-    [data-fm-store] .border-b {
-      border-color: var(--border-color) !important;
-    }
+    ${STOREFRONT_TOKEN_CSS}
   `;
 
   const bookCategories = (book as any)?.categories || (book as any)?.genres || [];
@@ -273,7 +271,10 @@ export default function BookDetail() {
   // ── loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="h-screen bg-[#050508] flex items-center justify-center">
+      <div
+        className="h-screen flex items-center justify-center"
+        style={{ backgroundColor: settings?.design?.backgroundColor || "#050508" }}
+      >
         <div className="flex flex-col items-center gap-5">
           <motion.div
             animate={{ scale: [1, 1.08, 1], opacity: [0.4, 1, 0.4] }}
@@ -343,6 +344,7 @@ export default function BookDetail() {
 
       {/* ── sticky header ── */}
       <header
+        data-section="navigation"
         className="sticky top-0 z-50 border-b backdrop-blur-2xl transition-all duration-300"
         style={{
           backgroundColor: headerBgColor,
@@ -406,12 +408,12 @@ export default function BookDetail() {
           }`}>
 
             {/* ── PHOTO COLUMN ── */}
-            <div className="space-y-4">
+            <div data-section="products" className="space-y-4">
               {productImageLayout === "slider" ? (
                 <>
                   {/* Main image */}
                   <div 
-                    className={`relative aspect-[3/4] overflow-hidden bg-neutral-950 transition-all duration-300 ${
+                    className={`relative aspect-[3/4] overflow-hidden fm-surface transition-all duration-300 ${
                       productImageShadow === "none" ? "shadow-none" :
                       productImageShadow === "sm" ? "shadow-sm" :
                       productImageShadow === "md" ? "shadow-md" :
@@ -422,7 +424,7 @@ export default function BookDetail() {
 
                     {/* shimmer */}
                     {!imageLoaded && (
-                      <div className="absolute inset-0 bg-gradient-to-br from-neutral-800/60 to-neutral-900/80 animate-pulse" />
+                      <div className="absolute inset-0 fm-surface-2 animate-pulse" />
                     )}
 
                     <AnimatePresence mode="wait">
@@ -544,7 +546,7 @@ export default function BookDetail() {
               ) : productImageLayout === "grid" ? (
                 <div className="grid grid-cols-2 gap-4">
                   {photos.map((photo: any, i: number) => (
-                    <div key={i} className={`${i === 0 ? "col-span-2" : ""} relative aspect-[3/4] bg-neutral-950 rounded-[1.5rem] overflow-hidden`}>
+                    <div key={i} className={`${i === 0 ? "col-span-2" : ""} relative aspect-[3/4] fm-surface rounded-[1.5rem] overflow-hidden`}>
                       <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
@@ -566,7 +568,7 @@ export default function BookDetail() {
               ) : (
                 <div className="space-y-4">
                   {photos.map((photo: any, i: number) => (
-                    <div key={i} className="relative aspect-[3/4] bg-neutral-950 rounded-[1.5rem] overflow-hidden">
+                    <div key={i} className="relative aspect-[3/4] fm-surface rounded-[1.5rem] overflow-hidden">
                       <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
@@ -589,7 +591,7 @@ export default function BookDetail() {
             </div>
 
             {/* ── INFO COLUMN ── */}
-            <div className={`flex flex-col gap-8 lg:sticky lg:top-24 w-full ${productAlignment === "center" ? "items-center text-center" : "items-start text-left"}`}>
+            <div data-section="products" className={`flex flex-col gap-8 lg:sticky lg:top-24 w-full ${productAlignment === "center" ? "items-center text-center" : "items-start text-left"}`}>
 
               {/* Genre tag */}
               <div>
@@ -624,12 +626,19 @@ export default function BookDetail() {
               </div>
 
               {/* Price */}
-              <div className={`flex items-baseline gap-4 ${productAlignment === "center" ? "justify-center" : ""}`}>
+              <div data-section="colors" className={`flex items-baseline gap-4 ${productAlignment === "center" ? "justify-center" : ""}`}>
                 {isOnSale ? (
                   <>
                     <span className="text-4xl font-black tracking-tight text-white">{formatBookPrice(book)}</span>
                     <span className="text-white/25 line-through text-xl">{formatBookPrice(book, true)}</span>
-                    <span className="text-[9px] font-black tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full uppercase">
+                    <span
+                      className="text-[9px] font-black tracking-widest border px-3 py-1.5 rounded-full uppercase"
+                      style={{
+                        color: "var(--success)",
+                        backgroundColor: "rgba(var(--success-rgb), 0.1)",
+                        borderColor: "rgba(var(--success-rgb), 0.2)",
+                      }}
+                    >
                       Save {formatPrice(getBookPrice(book, true) - getBookPrice(book))}
                     </span>
                   </>
@@ -689,7 +698,7 @@ export default function BookDetail() {
                           onClick={() => setSelectedVariant(v)}
                           className={`px-5 py-3 rounded-2xl border text-[9px] font-black tracking-widest uppercase transition-all duration-300 ${
                             isSelected
-                              ? "bg-white text-black border-white shadow-xl shadow-white/5"
+                              ? "fm-active border-transparent shadow-xl shadow-black/20"
                               : isVOutOfStock
                               ? "bg-white/5 border-white/5 text-white/20 cursor-not-allowed line-through"
                               : "bg-white/[0.02] border-white/10 text-white/60 hover:text-white hover:border-white/20"
@@ -710,6 +719,7 @@ export default function BookDetail() {
                   : "w-full"
               }`}>
                 <motion.button
+                  data-section="buttons"
                   onClick={handleAddToCart}
                   disabled={isOutOfStock}
                   whileTap={!isOutOfStock ? { scale: 0.97 } : {}}
@@ -736,7 +746,7 @@ export default function BookDetail() {
                     isOutOfStock
                       ? "bg-white/[0.06] text-white/25 cursor-not-allowed border border-white/[0.06]"
                       : added
-                      ? "bg-emerald-500 text-white"
+                      ? "fm-success-solid"
                       : `custom-btn ${buttonShadow ? "shadow-2xl" : ""} ${buttonUppercase ? "uppercase" : ""}`
                   }`}
                   style={
@@ -761,12 +771,13 @@ export default function BookDetail() {
                 </motion.button>
 
                 <button
+                  data-section="colors"
                   onClick={() => book && toggleWish(book.id)}
                   aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
                   title={wished ? "In wishlist" : "Save to wishlist"}
                   className={`w-16 h-16 rounded-2xl border flex items-center justify-center transition-all ${
                     wished
-                      ? "border-rose-400/40 bg-rose-500/10 text-rose-400"
+                      ? "fm-favorite-active"
                       : "border-white/[0.08] hover:bg-white/[0.06] hover:border-white/20 text-white/40"
                   }`}
                 >
@@ -820,7 +831,7 @@ export default function BookDetail() {
                       onClick={() => setDetailsTab("description")}
                       className={`flex-1 py-2.5 text-[9px] font-black tracking-widest uppercase transition-all rounded-xl ${
                         detailsTab === "description"
-                          ? "bg-white text-black font-black"
+                          ? "fm-active font-black"
                           : "text-white/50 hover:text-white"
                       }`}
                     >
@@ -832,7 +843,7 @@ export default function BookDetail() {
                         onClick={() => setDetailsTab("specs")}
                         className={`flex-1 py-2.5 text-[9px] font-black tracking-widest uppercase transition-all rounded-xl ${
                           detailsTab === "specs"
-                            ? "bg-white text-black font-black"
+                            ? "fm-active font-black"
                             : "text-white/50 hover:text-white"
                         }`}
                       >
@@ -844,7 +855,7 @@ export default function BookDetail() {
                       onClick={() => setDetailsTab("reviews")}
                       className={`flex-1 py-2.5 text-[9px] font-black tracking-widest uppercase transition-all rounded-xl ${
                         detailsTab === "reviews"
-                          ? "bg-white text-black font-black"
+                          ? "fm-active font-black"
                           : "text-white/50 hover:text-white"
                       }`}
                     >
@@ -998,18 +1009,18 @@ export default function BookDetail() {
                   <h4 className="text-[10px] font-black tracking-[0.3em] uppercase text-white/40">Frequently Bought Together</h4>
                   <div className={`flex flex-col sm:flex-row items-center gap-6 rounded-3xl p-6 relative overflow-hidden group/bundle transition-all duration-300 ${
                     productBundleLayout === "glassmorphic"
-                      ? "bg-white/[0.01] backdrop-blur-xl border border-white/10 hover:border-violet-500/30"
+                      ? "bg-white/[0.01] backdrop-blur-xl border border-white/10 fm-accent-hover-border"
                       : productBundleLayout === "card"
-                      ? "bg-neutral-900 shadow-2xl border-none"
-                      : "bg-white/[0.02] border border-white/5 hover:border-violet-500/20"
+                      ? "fm-surface-2 shadow-2xl border-none"
+                      : "bg-white/[0.02] border border-white/5 fm-accent-hover-border"
                   }`}>
                     {/* Cover Art Previews */}
                     <div className="flex items-center gap-4">
-                      <div className="w-16 aspect-[3/4] bg-neutral-950 rounded-xl border border-white/10 shadow-lg shrink-0">
+                      <div className="w-16 aspect-[3/4] fm-surface rounded-xl border border-white/10 shadow-lg shrink-0">
                         <img src={photos[0]?.url || DEFAULT_IMAGE} alt={book.title} className="w-full h-full object-cover" />
                       </div>
                       <span className="text-white/20 font-black text-lg">+</span>
-                      <div className="w-16 aspect-[3/4] bg-neutral-950 rounded-xl border border-white/10 shadow-lg shrink-0">
+                      <div className="w-16 aspect-[3/4] fm-surface rounded-xl border border-white/10 shadow-lg shrink-0">
                         <img src={bundleBook.photos?.[0]?.url || DEFAULT_IMAGE} alt={bundleBook.title} className="w-full h-full object-cover" />
                       </div>
                     </div>
@@ -1026,7 +1037,7 @@ export default function BookDetail() {
                         onClick={handleAddBothToBag}
                         disabled={addingBoth}
                         className={`w-full sm:w-fit text-[9px] font-black tracking-[0.2em] px-6 py-3.5 transition-all active:scale-95 custom-btn ${
-                          buttonShadow ? "shadow-[0_10px_30px_rgba(124,58,237,0.25)]" : ""
+                          buttonShadow ? "fm-accent-shadow" : ""
                         } ${buttonUppercase ? "uppercase" : ""}`}
                         style={{
                           "--btn-bg": buttonStyle === "solid" ? buttonBg : "transparent",
@@ -1049,7 +1060,7 @@ export default function BookDetail() {
 
         {/* ── Related books ── */}
         {showRelatedProducts && otherBooks.length > 0 && (
-          <section className="relative z-10 mt-16 border-t border-white/[0.06]">
+          <section data-section="products" className="relative z-10 mt-16 border-t border-white/[0.06]">
             <div className="max-w-8xl mx-auto px-6 py-20">
               <div className="flex items-center gap-6 mb-12">
                 <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">
@@ -1071,7 +1082,7 @@ export default function BookDetail() {
                       className="group"
                     >
                       <Link to={`/books/${relSlug}`}>
-                        <div className="relative aspect-[3/4] bg-neutral-950 rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl">
+                        <div className="relative aspect-[3/4] fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl">
                           <img
                             src={(rel as any).photos?.[0]?.url || DEFAULT_IMAGE}
                             alt={rel.title}
