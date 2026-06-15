@@ -407,6 +407,29 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
         </div>
       </section>
 
+      {/* Resend API Credentials */}
+      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
+        <SectionHeader 
+          title="Resend API Settings" 
+          subtitle="Configure Resend API keys for transactional mail" 
+          icon={KeyRound} 
+          color="violet"
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
+          <InputField 
+            label="RESEND API KEY" 
+            placeholder="re_..."
+            type="password"
+            value={comms.resendApiKey || ""}
+            onChange={(e: any) => updateComms({ resendApiKey: e.target.value })}
+          />
+          <div className="text-xs text-slate-400 leading-relaxed self-center mt-6 font-medium">
+            If left blank, the system falls back to the default backend key. Enter your own API key to bypass unverified sender restrictions and use custom transmitter addresses.
+          </div>
+        </div>
+      </section>
+
       {/* Customer emails */}
       <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/[0.03] to-transparent pointer-events-none" />

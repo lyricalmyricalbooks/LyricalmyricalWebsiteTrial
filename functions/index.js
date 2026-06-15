@@ -168,8 +168,7 @@ function orderRowsHtml(items = []) {
 }
 
 async function sendEmail({ to, subject, html, secret }) {
-  const resend = new Resend(secret);
-
+  let apiKey = secret;
   let fromName = "Lyricalmyrical Books";
   let fromEmail = "orders@lyricalmyricalbooks.com";
   let replyTo = null;
@@ -182,13 +181,16 @@ async function sendEmail({ to, subject, html, secret }) {
       if (comms.fromName) fromName = comms.fromName;
       if (comms.replyTo) replyTo = comms.replyTo;
       if (comms.fromEmail) fromEmail = comms.fromEmail;
+      if (comms.resendApiKey) apiKey = comms.resendApiKey;
     }
   } catch (err) {
     console.warn("Failed to load custom sender details, using default fallbacks:", err);
   }
 
+  const resend = new Resend(apiKey);
+
   // If using a Resend onboarding key, force the sender to onboarding@resend.dev
-  if (secret && secret.startsWith("re_onb_")) {
+  if (apiKey && apiKey.startsWith("re_onb_")) {
     fromEmail = "onboarding@resend.dev";
   }
 
