@@ -90,6 +90,8 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
   const accent2 = design?.secondaryColor || "#22d3ee";
   const warning = design?.warningColor || "#f59e0b";
   const danger = design?.dangerColor || "#f43f5e";
+  // Muted/secondary body text.
+  const muted = design?.mutedTextColor || "#94a3b8";
   const fgTriplet = hexToRgbTriplet(fg, "255 255 255");
 
   return [
@@ -115,6 +117,8 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
     `--active-bg: ${activeBg};`,
     `--active-fg: ${activeFg};`,
     `--on-success: ${onSuccess};`,
+    `--muted: ${muted};`,
+    `--muted-rgb: ${hexToRgbTriplet(muted, "148 163 184")};`,
   ].join("\n      ");
 }
 
@@ -220,6 +224,7 @@ ${alphaOverrideCss}
 [data-fm-store] .bg-white{background-color:rgb(var(--fg-rgb));}
 [data-fm-store] .border-white{border-color:rgb(var(--border-rgb));}
 [data-fm-store] .fm-page{background-color:var(--bg-color);}
+[data-fm-store] .fm-muted{color:var(--muted);}
 [data-fm-store] .fm-accent-text{color:var(--accent);}
 [data-fm-store] .fm-accent-bg{background-color:var(--accent);}
 [data-fm-store] .fm-success-text{color:var(--success);}

@@ -85,6 +85,7 @@ describe("STOREFRONT_TOKEN_CSS", () => {
     expect(css).toContain("--accent-2: #22d3ee;");
     expect(css).toContain("--warning: #f59e0b;");
     expect(css).toContain("--danger: #f43f5e;");
+    expect(css).toContain("--muted: #94a3b8;");
   });
 
   it("provides solid semantic helper classes", () => {

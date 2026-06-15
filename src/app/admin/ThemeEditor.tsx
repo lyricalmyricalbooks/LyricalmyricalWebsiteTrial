@@ -1048,6 +1048,11 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
             value={design.dangerColor || "#f43f5e"}
             onChange={(val) => update("dangerColor", val)}
           />
+          <ColorPicker
+            label="Muted / secondary text"
+            value={design.mutedTextColor || "#94a3b8"}
+            onChange={(val) => update("mutedTextColor", val)}
+          />
           <div className="border-t border-neutral-100 pt-4" />
           <ColorPicker
             label="Active control background"
@@ -1062,12 +1067,12 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
           {(design.surfaceColor || design.surfaceRaisedColor || design.overlayColor ||
             design.successColor || design.successTextColor || design.favoriteColor ||
             design.secondaryColor || design.warningColor || design.dangerColor ||
-            design.activeControlBg || design.activeControlText) && (
+            design.mutedTextColor || design.activeControlBg || design.activeControlText) && (
             <button
               onClick={() => {
                 ["surfaceColor", "surfaceRaisedColor", "overlayColor", "successColor",
                  "successTextColor", "favoriteColor", "secondaryColor", "warningColor",
-                 "dangerColor", "activeControlBg", "activeControlText"]
+                 "dangerColor", "mutedTextColor", "activeControlBg", "activeControlText"]
                   .forEach((k) => update(k, undefined));
               }}
               className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2 text-[10px] font-bold text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all uppercase tracking-wider"
@@ -5363,6 +5368,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     { section: "colors", label: "Secondary accent color", keywords: "secondary accent cyan" },
     { section: "colors", label: "Warning color", keywords: "warning amber caution" },
     { section: "colors", label: "Danger / error color", keywords: "danger error invalid red" },
+    { section: "colors", label: "Muted / secondary text", keywords: "muted secondary subtle gray slate text" },
     { section: "colors", label: "Active control colors", keywords: "active selected tab toggle" },
     { section: "colors", label: "Color schemes", keywords: "scheme palette section colors" },
     // Typography

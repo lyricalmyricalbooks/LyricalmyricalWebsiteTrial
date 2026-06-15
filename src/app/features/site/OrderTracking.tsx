@@ -154,7 +154,7 @@ export default function OrderTracking() {
 
               <form onSubmit={handleTrack} className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">ORDER IDENTIFIER</label>
+                  <label className="text-[9px] font-black fm-muted uppercase tracking-[0.2em] block ml-1">ORDER IDENTIFIER</label>
                   <input
                     type="text"
                     required
@@ -166,7 +166,7 @@ export default function OrderTracking() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">CUSTOMER EMAIL</label>
+                  <label className="text-[9px] font-black fm-muted uppercase tracking-[0.2em] block ml-1">CUSTOMER EMAIL</label>
                   <input
                     type="email"
                     required
@@ -223,7 +223,7 @@ export default function OrderTracking() {
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1.5 self-stretch md:self-auto border-t md:border-t-0 border-white/5 pt-6 md:pt-0">
-                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Total Payable</span>
+                  <span className="text-[9px] font-black fm-muted uppercase tracking-widest">Total Payable</span>
                   <span className="text-3xl font-black text-white">{orderFormatPrice(order.total)}</span>
                   <span className="text-[9px] font-black fm-success-text bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg uppercase tracking-widest mt-1">
                     {order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
@@ -253,7 +253,7 @@ export default function OrderTracking() {
                         </div>
                         <div>
                           <p className={`text-xs font-black uppercase tracking-wider ${isCompleted ? "text-white" : "text-white/20"}`}>{step.label}</p>
-                          <p className={`text-[10px] mt-1 font-medium ${isCompleted ? "text-slate-500" : "text-white/10"}`}>{step.desc}</p>
+                          <p className={`text-[10px] mt-1 font-medium ${isCompleted ? "fm-muted" : "text-white/10"}`}>{step.desc}</p>
                         </div>
                       </div>
                     );
@@ -267,7 +267,7 @@ export default function OrderTracking() {
                   <div className="space-y-2">
                     <p className="text-[10px] font-black tracking-[0.3em] fm-accent-text uppercase">Fulfillment Logistics</p>
                     <h4 className="text-2xl font-black tracking-tighter uppercase italic leading-none">Carrier Assigned</h4>
-                    <p className="text-xs font-medium text-slate-400 leading-relaxed max-w-md mt-2">
+                    <p className="text-xs font-medium fm-muted leading-relaxed max-w-md mt-2">
                       Your parcel is in transit. Tracking number: <code className="text-white bg-white/10 px-2 py-0.5 rounded font-mono">{order.trackingNumber}</code> 
                       {order.carrier ? ` (${order.carrier.toUpperCase()})` : ""}
                     </p>
@@ -290,7 +290,7 @@ export default function OrderTracking() {
                 <div className="bg-violet-900/[0.05] border border-violet-500/20 rounded-[2.5rem] p-10 space-y-6">
                   <div className="space-y-1">
                     <h4 className="text-xl font-black tracking-tighter text-white uppercase italic">Digital Archive Delivery</h4>
-                    <p className="text-xs font-medium text-slate-400 leading-relaxed">Download your secure digital purchases below. Generated download tokens expire in 24 hours.</p>
+                    <p className="text-xs font-medium fm-muted leading-relaxed">Download your secure digital purchases below. Generated download tokens expire in 24 hours.</p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
@@ -300,7 +300,7 @@ export default function OrderTracking() {
                         <div key={item.id} className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 flex justify-between items-center group/download">
                           <div className="truncate pr-4">
                             <p className="text-[10px] font-bold text-white uppercase leading-tight truncate group-hover/download:fm-accent-text transition-colors">{item.title}</p>
-                            <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-2">Format: Digital Book</p>
+                            <p className="text-[9px] fm-muted uppercase tracking-widest mt-2">Format: Digital Book</p>
                           </div>
                           <button
                             onClick={() => handleDownload(item.id)}
@@ -329,9 +329,9 @@ export default function OrderTracking() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-black text-white uppercase tracking-wider truncate leading-tight">{item.title}</p>
                         {item.variantName && (
-                          <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">{item.variantName}</p>
+                          <p className="text-[9px] fm-muted uppercase tracking-widest mt-1">{item.variantName}</p>
                         )}
-                        <p className="text-[10px] text-slate-500 font-mono mt-2">QTY: {item.quantity} × {orderFormatPrice(item.price)}</p>
+                        <p className="text-[10px] fm-muted font-mono mt-2">QTY: {item.quantity} × {orderFormatPrice(item.price)}</p>
                       </div>
                       <div className="text-right">
                         <span className="text-sm font-black text-white font-mono">{orderFormatPrice(item.price * item.quantity)}</span>
@@ -343,7 +343,7 @@ export default function OrderTracking() {
                 {/* Subtotals list */}
                 <div className="border-t border-white/5 mt-8 pt-8 space-y-4 text-sm font-bold text-white/60">
                   <div className="flex justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Subtotal</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.25em] fm-muted">Subtotal</span>
                     <span className="font-mono text-white/80">{orderFormatPrice(order.subtotal)}</span>
                   </div>
                   {order.discount > 0 && (
@@ -353,12 +353,12 @@ export default function OrderTracking() {
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Shipping</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.25em] fm-muted">Shipping</span>
                     <span className="font-mono text-white/80">{order.shipping > 0 ? orderFormatPrice(order.shipping) : "FREE"}</span>
                   </div>
                   {order.tax > 0 && (
                     <div className="flex justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Estimated Tax</span>
+                      <span className="text-[10px] font-black uppercase tracking-[0.25em] fm-muted">Estimated Tax</span>
                       <span className="font-mono text-white/80">{orderFormatPrice(order.tax)}</span>
                     </div>
                   )}

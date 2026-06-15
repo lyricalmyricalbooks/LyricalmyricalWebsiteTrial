@@ -408,7 +408,7 @@ export default function BookDetail() {
           }`}>
 
             {/* ── PHOTO COLUMN ── */}
-            <div className="space-y-4">
+            <div data-section="products" className="space-y-4">
               {productImageLayout === "slider" ? (
                 <>
                   {/* Main image */}
@@ -591,7 +591,7 @@ export default function BookDetail() {
             </div>
 
             {/* ── INFO COLUMN ── */}
-            <div className={`flex flex-col gap-8 lg:sticky lg:top-24 w-full ${productAlignment === "center" ? "items-center text-center" : "items-start text-left"}`}>
+            <div data-section="products" className={`flex flex-col gap-8 lg:sticky lg:top-24 w-full ${productAlignment === "center" ? "items-center text-center" : "items-start text-left"}`}>
 
               {/* Genre tag */}
               <div>
@@ -626,7 +626,7 @@ export default function BookDetail() {
               </div>
 
               {/* Price */}
-              <div className={`flex items-baseline gap-4 ${productAlignment === "center" ? "justify-center" : ""}`}>
+              <div data-section="colors" className={`flex items-baseline gap-4 ${productAlignment === "center" ? "justify-center" : ""}`}>
                 {isOnSale ? (
                   <>
                     <span className="text-4xl font-black tracking-tight text-white">{formatBookPrice(book)}</span>
@@ -719,6 +719,7 @@ export default function BookDetail() {
                   : "w-full"
               }`}>
                 <motion.button
+                  data-section="buttons"
                   onClick={handleAddToCart}
                   disabled={isOutOfStock}
                   whileTap={!isOutOfStock ? { scale: 0.97 } : {}}
@@ -770,6 +771,7 @@ export default function BookDetail() {
                 </motion.button>
 
                 <button
+                  data-section="colors"
                   onClick={() => book && toggleWish(book.id)}
                   aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
                   title={wished ? "In wishlist" : "Save to wishlist"}
@@ -1058,7 +1060,7 @@ export default function BookDetail() {
 
         {/* ── Related books ── */}
         {showRelatedProducts && otherBooks.length > 0 && (
-          <section className="relative z-10 mt-16 border-t border-white/[0.06]">
+          <section data-section="products" className="relative z-10 mt-16 border-t border-white/[0.06]">
             <div className="max-w-8xl mx-auto px-6 py-20">
               <div className="flex items-center gap-6 mb-12">
                 <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">
