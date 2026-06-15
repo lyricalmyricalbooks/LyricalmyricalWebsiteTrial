@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { ArrowLeft } from "lucide-react";
 import { adminApi } from "../../admin/api";
 import { useSiteData } from "./useSiteData";

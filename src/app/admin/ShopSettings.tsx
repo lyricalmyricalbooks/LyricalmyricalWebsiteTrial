@@ -37,7 +37,7 @@ import {
   Save
 } from "lucide-react";
 import { adminApi } from "./api";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { ThemeEditor } from "./ThemeEditor";
 import { PagesManager } from "./PagesManager";
 import { NotificationEditor } from "./NotificationEditor";

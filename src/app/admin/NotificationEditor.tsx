@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, auth } from "../../lib/firebase";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Mail, Globe, Save, Info, AlertCircle } from "lucide-react";
 import { functionUrl } from "../lib/functionsBase";
 import toast from "react-hot-toast";

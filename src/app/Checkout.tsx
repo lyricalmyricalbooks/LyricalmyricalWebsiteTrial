@@ -5,7 +5,7 @@ import {
   ChevronLeft, Tag, ShieldCheck, X, AlertCircle,
   Package, Truck, CreditCard, CheckCircle2, Loader2, Lock, Building
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { adminApi } from "./admin/api";
 import { abandonedCartApi, funnelApi } from "./lib/commerce";
 import { functionUrl } from "./lib/functionsBase";

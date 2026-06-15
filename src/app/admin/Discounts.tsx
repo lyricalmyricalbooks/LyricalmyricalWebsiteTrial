@@ -6,7 +6,7 @@ import {
   Clock, Infinity as InfinityIcon, RefreshCw, BookOpen
 } from "lucide-react";
 import { adminApi } from "./api";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import toast from "react-hot-toast";
 import { CATEGORIES } from "../features/site/constants";
 

@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { BrowserRouter, Routes, Route } from "react-router";
 import { CartProvider } from "./CartContext";
 import { CurrencyProvider } from "./CurrencyContext";

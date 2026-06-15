@@ -4,7 +4,7 @@ import {
   ArrowLeft, Lock, Package, Truck, CheckCircle2, 
   MapPin, Calendar, AlertCircle, Loader2, Download, ExternalLink 
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { adminApi } from "../../admin/api";
 import { functionUrl } from "../../lib/functionsBase";
 import { useCurrency } from "../../CurrencyContext";
