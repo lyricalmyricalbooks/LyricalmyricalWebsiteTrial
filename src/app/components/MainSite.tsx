@@ -1076,6 +1076,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         {/* Promo / announcement banner */}
         {showAnnouncement && announcementMsg && (
           <div
+            data-section="announcements"
             className="text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]"
             style={{
               backgroundColor: storefrontDesign?.announcementBg || "#000000",
@@ -1087,6 +1088,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         )}
 
         <header
+          data-section="navigation"
           className={`${storefrontDesign?.stickyHeader ?? true ? "sticky" : "relative"} ${showAnnouncement && announcementMsg ? "top-10" : "top-0"} z-50 transition-all duration-500 ${isHeaderTransparent ? "border-transparent" : "backdrop-blur-xl border-b"}`}
           style={{
             backgroundColor: headerBgColor,

@@ -344,6 +344,7 @@ export default function BookDetail() {
 
       {/* ── sticky header ── */}
       <header
+        data-section="navigation"
         className="sticky top-0 z-50 border-b backdrop-blur-2xl transition-all duration-300"
         style={{
           backgroundColor: headerBgColor,
