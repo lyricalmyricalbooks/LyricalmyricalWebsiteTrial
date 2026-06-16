@@ -571,19 +571,21 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
         <>
           <button
             onClick={() => setActive((a) => (a - 1 + slides.length) % slides.length)}
+            aria-label="Previous slide"
             className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center backdrop-blur hover:bg-white/20"
           >
             <ChevronLeft size={18} />
           </button>
           <button
             onClick={() => setActive((a) => (a + 1) % slides.length)}
+            aria-label="Next slide"
             className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center backdrop-blur hover:bg-white/20"
           >
             <ChevronRight size={18} />
           </button>
           <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2">
             {slides.map((_: any, i: number) => (
-              <button key={i} onClick={() => setActive(i)} className={`w-2 h-2 rounded-full transition-all ${i === active ? "bg-white w-6" : "bg-white/40"}`} />
+              <button key={i} onClick={() => setActive(i)} aria-label={`Go to slide ${i + 1}`} className={`w-2 h-2 rounded-full transition-all ${i === active ? "bg-white w-6" : "bg-white/40"}`} />
             ))}
           </div>
         </>

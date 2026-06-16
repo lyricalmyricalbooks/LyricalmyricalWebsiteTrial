@@ -5,3 +5,7 @@
 ## 2024-05-24 - Admin Theme Editor Accessibility Improvements
 **Learning:** Similar to the Cart Drawer, the Admin Theme Editor lacked `aria-label`s on icon-only buttons used for reordering and deleting sections and menu links. These administrative interfaces are equally important to keep accessible for content managers relying on screen readers.
 **Action:** Consistently verify that reorder arrows (up/down) and delete (trash/X) icon buttons include `aria-label`s, especially in complex list-editing interfaces like navigation menus or page builders.
+
+## 2024-06-16 - Structural Component Accessibility Additions
+**Learning:** Certain structural UI components built with icon-only buttons, such as informational modal close buttons or image carousel controls (previous/next arrows, dot indicators), are completely inaccessible to screen readers without `aria-label`s.
+**Action:** When implementing or reviewing visual structural elements like modals or carousels, explicitly test keyboard and screen reader accessibility to catch missing semantic labels on interactive structural parts.

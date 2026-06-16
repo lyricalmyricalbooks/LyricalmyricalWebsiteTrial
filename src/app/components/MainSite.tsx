@@ -104,7 +104,7 @@ function AboutPanel({ settings, pages, onClose }: { settings: any; pages: any[];
       >
         <div className="flex justify-between items-center px-8 py-6 border-b border-white/10">
           <span className="text-[10px] tracking-[0.5em] text-white/40 uppercase">Information</span>
-          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+          <button onClick={onClose} aria-label="Close information" className="p-2 hover:bg-white/5 rounded-full transition-colors">
             <X size={18} className="text-white/60" />
           </button>
         </div>
