@@ -495,6 +495,7 @@ export default function BookDetail() {
                           onClick={() => setActivePhoto(p => Math.max(0, p - 1))}
                           disabled={activePhoto === 0}
                           className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all disabled:opacity-20"
+                          aria-label="Previous photo"
                         >
                           <ChevronLeft size={16} />
                         </button>
@@ -502,6 +503,7 @@ export default function BookDetail() {
                           onClick={() => setActivePhoto(p => Math.min(photos.length - 1, p + 1))}
                           disabled={activePhoto === photos.length - 1}
                           className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all disabled:opacity-20"
+                          aria-label="Next photo"
                         >
                           <ChevronRight size={16} />
                         </button>
@@ -789,6 +791,7 @@ export default function BookDetail() {
                     onClick={handleShare}
                     className="w-16 h-16 rounded-2xl border border-white/[0.08] flex items-center justify-center hover:bg-white/[0.06] hover:border-white/20 transition-all"
                     title="Share"
+                    aria-label="Share"
                   >
                     <Share2 size={15} className="text-white/40" />
                   </button>

@@ -706,6 +706,7 @@ export default function AccountPage() {
                                       className="text-white p-2.5 rounded-lg transition-all flex items-center justify-center shrink-0 active:scale-95"
                                       style={{ backgroundColor: "var(--accent)" }}
                                       title="Download E-Book"
+                                      aria-label="Download E-Book"
                                     >
                                       <Download size={12} />
                                     </button>
