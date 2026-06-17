@@ -72,10 +72,29 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     return ["All", ...Array.from(cats)];
   }, [books]);
 
+  // ⚡ Bolt: Cache the search strings per item to prevent repeated allocations
+  // and `.toLowerCase()` calls during active typing or filtering.
+  // Measured impact: Reduces filter computation time by avoiding string
+  // allocations on every re-render and keystroke.
+  const haystackCache = useMemo(() => new WeakMap<any, string>(), []);
+
+  const q = search.trim().toLowerCase();
+
   const filteredBooks = books.filter(b => {
-    const matchesSearch = (b.title || "").toLowerCase().includes(search.toLowerCase()) || 
-                          (b.isbn && b.isbn.toLowerCase().includes(search.toLowerCase())) ||
-                          (b.authorName && b.authorName.toLowerCase().includes(search.toLowerCase()));
+    let matchesSearch = true;
+
+    if (q) {
+      let haystack = haystackCache.get(b);
+      if (!haystack) {
+        haystack = [
+          b.title || "",
+          b.isbn || "",
+          b.authorName || ""
+        ].join(" ").toLowerCase();
+        haystackCache.set(b, haystack);
+      }
+      matchesSearch = haystack.includes(q);
+    }
     
     const bookCats = (b.categories || b.genres || []).map((c: string) => c.toUpperCase().trim());
     const matchesCategory = categoryFilter === "All" || bookCats.includes(categoryFilter.toUpperCase().trim());
