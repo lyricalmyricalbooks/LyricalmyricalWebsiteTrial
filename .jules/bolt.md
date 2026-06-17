@@ -7,3 +7,6 @@
 ## 2024-05-20 - Eliminating N+1 Queries in Order History
 **Learning:** Iterating through orders or order items and dispatching asynchronous requests sequentially (`await getBook(id)` inside a `for...of` loop) creates a classic N+1 query problem, heavily delaying UI rendering and duplicating API requests when identical items exist across multiple orders.
 **Action:** Always batch requests by collecting a unique `Set` of IDs from the dataset and fetching them concurrently using `Promise.all()`. Then, populate a local cache/map to resolve the references synchronously when looping through the original dataset.
+## 2024-05-21 - Caching Complex Lookups with useMemo
+**Learning:** During checkout, looping over `cartItems` and running `books.find(...)` repeatedly on a potentially large `books` array produces `O(N*M)` complexity (where N is the cart size and M is the book catalog). This happens synchronously on the main thread inside effect callbacks and calculations for discount amounts, causing UI jank when resolving complex discounts.
+**Action:** When finding matching items across arrays (e.g. `books` vs `cart` items), build a `Map` of the target array once using `useMemo` (e.g. `booksById`). Replace `.find()` with `.get()` to reduce `O(N*M)` traversal down to `O(N)`. Always use Map lookups instead of `.find()` inside tight loops.
