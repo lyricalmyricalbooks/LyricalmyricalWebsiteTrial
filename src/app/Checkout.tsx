@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router";
 import { useCart } from "./CartContext";
 import {
@@ -115,6 +115,14 @@ export function Checkout() {
   const [successOrder, setSuccessOrder] = useState<any>(null);
 
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // ⚡ Bolt: Cache book catalog in an O(1) Map to prevent O(N * M)
+  // nested lookups during checkout cart and discount iteration.
+  const booksMap = useMemo(() => {
+    const map = new Map<string, any>();
+    books.forEach(b => map.set(b.id, b));
+    return map;
+  }, [books]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -236,8 +244,9 @@ export function Checkout() {
           sessionStorage.setItem("fm_checkout_cart_id", urlCartId);
 
           // Restore cart items
+          const localBooksMap = new Map(books.map(b => [b.id, b]));
           const restoredItems = (cartData.items || []).map((item: any) => {
-            const matchedBook = books.find(b => b.id === item.id);
+            const matchedBook = localBooksMap.get(item.id);
             if (matchedBook) {
               const photoUrl = matchedBook.photos?.[0]?.url || "";
               const shippingProfileId = matchedBook.shippingProfileId || "";
@@ -317,7 +326,7 @@ export function Checkout() {
     detectCountry();
   }, []);
 
-  const validateDiscountRestrictions = (discount: any, email: string, cartItems: any[], booksCatalog: any[]) => {
+  const validateDiscountRestrictions = (discount: any, email: string, cartItems: any[], catalogMap: Map<string, any>) => {
     // 1. Min quantity / min order amount
     const totalQty = cartItems.reduce((sum, item) => sum + item.quantity, 0);
     if (discount.minQuantity && totalQty < discount.minQuantity) {
@@ -370,7 +379,7 @@ export function Checkout() {
     if (discount.appliesTo === "categories") {
       const selectedCats = discount.selectedCategories || [];
       const hasMatchingCategory = cartItems.some(item => {
-        const catalogBook = booksCatalog.find(b => b.id === item.id);
+        const catalogBook = catalogMap.get(item.id);
         const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
         return bookCats.some(cat => selectedCats.includes(cat));
       });
@@ -395,7 +404,7 @@ export function Checkout() {
       const qualItems = cartItems.filter(item => {
         if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return true;
         if (discount.appliesTo === "categories") {
-          const catalogBook = booksCatalog.find(b => b.id === item.id);
+          const catalogBook = catalogMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
           return bookCats.some(cat => discount.selectedCategories?.includes(cat));
         }
@@ -422,7 +431,7 @@ export function Checkout() {
         if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return sum + item.quantity * item.price;
         let qualifies = false;
         if (discount.appliesTo === "categories") {
-          const catalogBook = booksCatalog.find(b => b.id === item.id);
+          const catalogBook = catalogMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
           qualifies = bookCats.some(cat => discount.selectedCategories?.includes(cat));
         } else if (discount.appliesTo === "products") {
@@ -634,7 +643,7 @@ export function Checkout() {
   useEffect(() => {
     if (appliedDiscount && books.length > 0) {
       try {
-        validateDiscountRestrictions(appliedDiscount, customer.email, cart, books);
+        validateDiscountRestrictions(appliedDiscount, customer.email, cart, booksMap);
       } catch (err: any) {
         setAppliedDiscount(null);
         setDiscountError(err.message || "Discount no longer valid.");
@@ -665,7 +674,7 @@ export function Checkout() {
     setDiscountError("");
     try {
       const discount = await adminApi.validateDiscount(discountCode);
-      validateDiscountRestrictions(discount, customer.email, cart, books);
+      validateDiscountRestrictions(discount, customer.email, cart, booksMap);
       setAppliedDiscount(discount);
     } catch (err: any) {
       setDiscountError(err.message || "INVALID OR EXPIRED CODE");
@@ -692,7 +701,7 @@ export function Checkout() {
       const itemsList = cart.filter(item => {
         let qualifies = false;
         if (appliedDiscount.appliesTo === "categories") {
-          const catalogBook = books.find(b => b.id === item.id);
+          const catalogBook = booksMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
           qualifies = bookCats.some(cat => appliedDiscount.selectedCategories?.includes(cat));
         } else if (appliedDiscount.appliesTo === "products") {

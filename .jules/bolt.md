@@ -13,3 +13,7 @@
 ## 2024-05-21 - Optimizing Re-Renders in Filter Loops
 **Learning:** We observed identical `.toLowerCase()` allocations occurring in `BookCatalog.tsx` when filtering books. I applied a `useMemo` combined with a `WeakMap` to lazily construct and cache the lookup strings.
 **Action:** When filtering objects where only the search query changes, cache the object's computed search string (`haystack`) using a `WeakMap` indexed by the object itself.
+
+## 2026-06-18 - Eliminating O(N) Array Lookups in Cart Iteration
+**Learning:** Functions that frequently iterate through cart items and search for corresponding catalog items using `.find()` (e.g. `booksCatalog.find(b => b.id === item.id)`) cause O(N*M) complexity (where N is cart items and M is total books). In large catalogs, performing these nested lookups during checkout discount validations and calculations can significantly block the main thread and delay rendering.
+**Action:** Always create a `useMemo` map or a local Map keyed by ID (e.g. `Map<string, Book>`) before iterating over cart items to reduce the catalog lookup time to O(1).
