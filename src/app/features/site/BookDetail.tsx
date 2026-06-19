@@ -494,6 +494,7 @@ export default function BookDetail() {
                         <button
                           onClick={() => setActivePhoto(p => Math.max(0, p - 1))}
                           disabled={activePhoto === 0}
+                          aria-label="Previous photo"
                           className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all disabled:opacity-20"
                         >
                           <ChevronLeft size={16} />
@@ -501,6 +502,7 @@ export default function BookDetail() {
                         <button
                           onClick={() => setActivePhoto(p => Math.min(photos.length - 1, p + 1))}
                           disabled={activePhoto === photos.length - 1}
+                          aria-label="Next photo"
                           className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all disabled:opacity-20"
                         >
                           <ChevronRight size={16} />
@@ -515,6 +517,7 @@ export default function BookDetail() {
                           <button
                             key={i}
                             onClick={() => setActivePhoto(i)}
+                            aria-label={"Go to photo " + (i + 1)}
                             className={`rounded-full transition-all ${
                               activePhoto === i ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/30"
                             }`}
