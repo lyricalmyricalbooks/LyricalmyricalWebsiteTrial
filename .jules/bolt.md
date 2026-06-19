@@ -17,3 +17,7 @@
 ## 2026-06-18 - Eliminating O(N) Array Lookups in Cart Iteration
 **Learning:** Functions that frequently iterate through cart items and search for corresponding catalog items using `.find()` (e.g. `booksCatalog.find(b => b.id === item.id)`) cause O(N*M) complexity (where N is cart items and M is total books). In large catalogs, performing these nested lookups during checkout discount validations and calculations can significantly block the main thread and delay rendering.
 **Action:** Always create a `useMemo` map or a local Map keyed by ID (e.g. `Map<string, Book>`) before iterating over cart items to reduce the catalog lookup time to O(1).
+
+## 2024-06-19 - Eliminating O(N*M) Array Lookups in Cart Iteration
+**Learning:** In `CartDrawer.tsx`, using `.find()` inside of a `flatMap()` or similar iterations across the entire `cart` to search through the entire `books` catalog creates a massive O(N*M) performance drag, unnecessarily blocking the main thread.
+**Action:** When filtering or matching multiple items from a large list against another large list, wrap the list creation inside `useMemo()` and map them into an O(1) `Map` keyed by `id`. Then, reference the cached `Map` instead of re-iterating.
