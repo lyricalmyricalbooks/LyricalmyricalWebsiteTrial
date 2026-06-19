@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router";
 import { useCart } from "../CartContext";
@@ -13,6 +14,12 @@ export function CartDrawer() {
   const { books, settings } = useSiteData();
   const { formatPrice } = useCurrency();
 
+  // ⚡ Bolt: Cache books by ID for O(1) lookups during cart iteration
+  // Measured impact: Eliminates O(N*M) complexity when finding cart item categories.
+  const booksMap = useMemo(() => {
+    return new Map((books || []).map(b => [b.id, b]));
+  }, [books]);
+
   // Find a recommended book for "Complete your collection"
   const cartIds = new Set(cart.map((i) => i.id));
   const candidateBooks = (books || []).filter((b) => !cartIds.has(b.id) && b.status === "published");
@@ -20,7 +27,7 @@ export function CartDrawer() {
   // Find match in same category if possible
   const cartCategories = new Set(
     cart.flatMap((i) => {
-      const match = (books || []).find((b) => b.id === i.id);
+      const match = booksMap.get(i.id);
       return match?.categories || [];
     })
   );
