@@ -4475,7 +4475,7 @@ function GuidePanel({
   startInteractiveTour,
   hasCheckedMobile,
 }: GuidePanelProps) {
-  const [subTab, setSubTab] = useState<"tour" | "features" | "advanced" | "faq">("tour");
+  const [subTab, setSubTab] = useState<"tour" | "growth" | "features" | "advanced" | "faq">("tour");
   const [faqSearch, setFaqSearch] = useState("");
 
   const checks = {
@@ -4539,7 +4539,7 @@ function GuidePanel({
 
       {/* Sub tabs nav */}
       <div className="flex bg-white/[0.03] border border-white/5 rounded-2xl p-1 relative">
-        {(["tour", "features", "advanced", "faq"] as const).map((t) => (
+        {(["tour", "growth", "features", "advanced", "faq"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setSubTab(t)}
@@ -4588,6 +4588,60 @@ function GuidePanel({
                 <ChecklistItem label="6. Preview mobile layout" checked={checks.mobile} onAction={() => setDevice("mobile")} />
               </div>
             </div>
+          </div>
+        )}
+
+        {subTab === "growth" && (
+          <div className="space-y-5">
+            <div className="p-5 rounded-3xl bg-emerald-500/10 border border-emerald-500/20">
+              <p className="text-[10px] font-black text-emerald-300 uppercase tracking-[0.25em] italic mb-2">
+                E-commerce builder research notes
+              </p>
+              <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+                Prioritize changes that shorten the path from landing to checkout: trust cues near the buy action,
+                clearer merchandising, mobile-first previews, reusable templates, and accessible brand systems.
+              </p>
+            </div>
+
+            <FeatureLinkCard
+              icon={<ShieldCheck size={16} />}
+              title="Trust-first product pages"
+              desc="Tune product trust signals, bundle card layout, badges, reviews, wishlist and add-to-cart CTAs so shoppers see proof before they hesitate."
+              onAction={() => deepLink("settings", "products")}
+            />
+            <FeatureLinkCard
+              icon={<Smartphone size={16} />}
+              title="Mobile conversion pass"
+              desc="Switch to mobile and set breakpoint-specific columns, typography and announcement visibility before publishing."
+              onAction={() => {
+                setDevice("mobile");
+                deepLink("responsive");
+              }}
+            />
+            <FeatureLinkCard
+              icon={<ShoppingBag size={16} />}
+              title="Merchandising controls"
+              desc="Use collection metadata, sale/new badges, hover behavior and product card layout to make catalog scanning faster."
+              onAction={() => deepLink("settings", "products")}
+            />
+            <FeatureLinkCard
+              icon={<LayoutTemplate size={16} />}
+              title="Reusable page sections"
+              desc="Build reusable hero, FAQ, testimonials, newsletter and collection sections so every page can follow a proven funnel structure."
+              onAction={() => deepLink("settings", "homepage")}
+            />
+            <FeatureLinkCard
+              icon={<ShieldCheck size={16} />}
+              title="Accessibility and contrast audit"
+              desc="Run the WCAG color audit after brand changes; accessible contrast improves usability and keeps premium themes readable."
+              onAction={() => deepLink("settings", "accessibility")}
+            />
+            <FeatureLinkCard
+              icon={<Globe size={16} />}
+              title="SEO and social sharing polish"
+              desc="Add page titles, descriptions and share assets for home, shop and collection surfaces before launching a new theme."
+              onAction={() => deepLink("seo")}
+            />
           </div>
         )}
 
