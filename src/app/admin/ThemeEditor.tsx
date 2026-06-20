@@ -2653,6 +2653,33 @@ function LayoutPanel({ design, update }: any) {
             suffix="px"
             onChange={(v) => update("cardRadius", v)}
           />
+          <div>
+            <SidebarLabel>Card Shadow</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.shadowScale ?? 'subtle'}
+              options={[
+                { value: 'flat',     label: 'Flat' },
+                { value: 'subtle',   label: 'Subtle' },
+                { value: 'medium',   label: 'Medium' },
+                { value: 'raised',   label: 'Raised' },
+                { value: 'dramatic', label: 'Dramatic' },
+              ]}
+              onChange={(v) => update('shadowScale', v)}
+            />
+          </div>
+          <div>
+            <SidebarLabel>Section Spacing</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.spacingScale ?? 'normal'}
+              options={[
+                { value: 'compact',  label: 'Compact' },
+                { value: 'normal',   label: 'Normal' },
+                { value: 'relaxed',  label: 'Relaxed' },
+                { value: 'spacious', label: 'Spacious' },
+              ]}
+              onChange={(v) => update('spacingScale', v)}
+            />
+          </div>
         </div>
       </Accordion>
     </div>

@@ -599,3 +599,16 @@
   color: #0f172a !important;
 }
 
+/* Shadow and spacing scale utilities */
+[data-fm-store] .shadow-card {
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 0.2s ease;
+}
+[data-fm-store] .shadow-card:hover {
+  box-shadow: var(--card-shadow-hover);
+}
+[data-fm-store] section {
+  padding-top: var(--section-padding, 4rem);
+  padding-bottom: var(--section-padding, 4rem);
+}
+
