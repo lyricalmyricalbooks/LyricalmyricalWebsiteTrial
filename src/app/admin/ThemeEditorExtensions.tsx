@@ -347,6 +347,59 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     category: "Advanced",
     defaults: { html: "<!-- Your custom HTML here -->", fullBleed: false },
   },
+  {
+    type: "VideoHeroSection",
+    label: "Video Hero",
+    description: "Full-viewport hero with background video and overlay text.",
+    category: "Media",
+    defaults: {
+      videoUrl: "",
+      overlayOpacity: 40,
+      headline: "Our Story",
+      subheadline: "Where passion meets craft",
+      ctaText: "Shop Now",
+      ctaLink: "/collections/all",
+      textAlign: "center",
+      minHeight: "80vh",
+    },
+  },
+  {
+    type: "StatsCounterSection",
+    label: "Stats Counter",
+    description: "Animated number counters for key metrics.",
+    category: "Promo",
+    defaults: {
+      sectionTitle: "By The Numbers",
+      backgroundColor: "transparent",
+      items: [
+        { value: "10,000+", label: "Happy Customers", prefix: "", suffix: "+", description: "and counting" },
+        { value: "500", label: "Products", prefix: "", suffix: "+", description: "in our catalog" },
+        { value: "50", label: "Countries", prefix: "", suffix: "", description: "worldwide shipping" },
+      ],
+    },
+    blockType: "stat-item",
+    blockDefaults: { value: "10,000+", label: "Happy Customers", prefix: "", suffix: "+", description: "and counting" },
+    blockLabel: "Stat",
+  },
+  {
+    type: "PricingTableSection",
+    label: "Pricing Table",
+    description: "Side-by-side plan comparison cards.",
+    category: "Commerce",
+    defaults: {
+      sectionTitle: "Choose Your Plan",
+      sectionSubtitle: "Simple, transparent pricing",
+      highlightPlan: "Pro",
+      items: [
+        { planName: "Starter", price: "$29", period: "/month", description: "Perfect for getting started", features: "Feature one\nFeature two\nFeature three", ctaText: "Get Started", ctaLink: "/", isHighlighted: false },
+        { planName: "Pro", price: "$79", period: "/month", description: "For growing businesses", features: "Everything in Starter\nAdvanced analytics\nPriority support", ctaText: "Get Started", ctaLink: "/", isHighlighted: true },
+        { planName: "Enterprise", price: "$199", period: "/month", description: "For large teams", features: "Everything in Pro\nCustom integrations\nDedicated account manager", ctaText: "Contact Us", ctaLink: "/", isHighlighted: false },
+      ],
+    },
+    blockType: "pricing-plan",
+    blockDefaults: { planName: "Starter", price: "$29", period: "/month", description: "Perfect for getting started", features: "Feature one\nFeature two\nFeature three", ctaText: "Get Started", ctaLink: "/", isHighlighted: false },
+    blockLabel: "Plan",
+  },
 ];
 
 export function getSectionMeta(type: string): SectionTypeMeta | undefined {
@@ -571,6 +624,23 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "buttonUrl", label: "Button URL", kind: "text" },
     { key: "videoUrl", label: "Video URL (video blocks)", kind: "text" },
     { key: "accentColor", label: "Accent", kind: "color" },
+  ],
+  StatsCounterSection: [
+    { key: "value", label: "Value", kind: "text" },
+    { key: "label", label: "Label", kind: "text" },
+    { key: "prefix", label: "Prefix", kind: "text" },
+    { key: "suffix", label: "Suffix", kind: "text" },
+    { key: "description", label: "Description", kind: "text" },
+  ],
+  PricingTableSection: [
+    { key: "planName", label: "Plan name", kind: "text" },
+    { key: "price", label: "Price", kind: "text" },
+    { key: "period", label: "Period", kind: "text" },
+    { key: "description", label: "Description", kind: "text" },
+    { key: "features", label: "Features (one per line)", kind: "textarea", rows: 5 },
+    { key: "ctaText", label: "CTA label", kind: "text" },
+    { key: "ctaLink", label: "CTA URL", kind: "text" },
+    { key: "isHighlighted", label: "Highlight this plan", kind: "select", options: [{ value: "false", label: "No" }, { value: "true", label: "Yes" }] },
   ],
 };
 
@@ -1801,6 +1871,45 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
         { value: "bottom", label: "Bottom" },
       ],
     },
+  ],
+  VideoHeroSection: [
+    { key: "videoUrl", label: "Video URL (YouTube/Vimeo embed or MP4)", kind: "text" },
+    { key: "overlayOpacity", label: "Overlay opacity", kind: "range", min: 0, max: 90, step: 5, suffix: "%" },
+    { key: "headline", label: "Headline", kind: "text" },
+    { key: "subheadline", label: "Subheadline", kind: "text" },
+    { key: "ctaText", label: "CTA label", kind: "text" },
+    { key: "ctaLink", label: "CTA URL", kind: "text" },
+    {
+      key: "textAlign",
+      label: "Text alignment",
+      kind: "select",
+      options: [
+        { value: "center", label: "Center" },
+        { value: "left", label: "Left" },
+        { value: "right", label: "Right" },
+      ],
+    },
+    {
+      key: "minHeight",
+      label: "Min height",
+      kind: "select",
+      options: [
+        { value: "50vh", label: "50vh" },
+        { value: "60vh", label: "60vh" },
+        { value: "70vh", label: "70vh" },
+        { value: "80vh", label: "80vh" },
+        { value: "100vh", label: "100vh (full screen)" },
+      ],
+    },
+  ],
+  StatsCounterSection: [
+    { key: "sectionTitle", label: "Section title", kind: "text" },
+    { key: "backgroundColor", label: "Background color", kind: "color" },
+  ],
+  PricingTableSection: [
+    { key: "sectionTitle", label: "Section title", kind: "text" },
+    { key: "sectionSubtitle", label: "Section subtitle", kind: "text" },
+    { key: "highlightPlan", label: "Highlighted plan name", kind: "text" },
   ],
 };
 
