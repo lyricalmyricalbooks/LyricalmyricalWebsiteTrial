@@ -927,20 +927,26 @@ export const adminApi = {
 
   getAnalytics: async () => {
     const q = query(collection(db, "analytics"), orderBy("date", "desc"), limit(60));
-    const snap = await getDocs(q);
+    const settingsRef = doc(db, "settings", "website");
+
+    // ⚡ Bolt Performance Optimization: Fetch all independent data concurrently
+    // Expected impact: Eliminates waterfall queries, loading analytics ~3-4x faster
+    const [snap, ordersSnap, booksSnap, settingsSnap] = await Promise.all([
+      getDocs(q),
+      getDocs(collection(db, "orders")),
+      getDocs(collection(db, "books")),
+      getDoc(settingsRef)
+    ]);
+
     const dailyData = snap.docs.map(d => d.data()).reverse();
     
     // Also get top sellers from orders
-    const ordersSnap = await getDocs(collection(db, "orders"));
     const orders = ordersSnap.docs.map(d => d.data()).filter((order: any) => order.isTest !== true);
 
     // Get all books to map IDs to categories and photos
-    const booksSnap = await getDocs(collection(db, "books"));
     const books = booksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     // Get website settings for categories configuration
-    const settingsRef = doc(db, "settings", "website");
-    const settingsSnap = await getDoc(settingsRef);
     const settings = settingsSnap.exists() ? settingsSnap.data() : {};
     
     // Get configured categories
