@@ -34,5 +34,6 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
     [data-fm-store] .custom-btn:hover{background-color:var(--btn-hover-bg) !important;color:var(--btn-hover-text) !important;}
     ${STOREFRONT_TOKEN_CSS}
   `;
-  return <style>{css}</style>;
+  const customCss = d.customCss ? `\n/* Custom CSS */\n${d.customCss}` : '';
+  return <style>{css}{customCss}</style>;
 }

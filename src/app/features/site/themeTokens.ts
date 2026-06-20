@@ -94,6 +94,36 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
   const muted = design?.mutedTextColor || "#94a3b8";
   const fgTriplet = hexToRgbTriplet(fg, "255 255 255");
 
+  // Shadow elevation scale.
+  const shadowMap = {
+    flat:     '0 0 0 0 rgba(0,0,0,0)',
+    subtle:   '0 1px 2px 0 rgba(0,0,0,0.05)',
+    medium:   '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)',
+    raised:   '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
+    dramatic: '0 25px 50px -12px rgba(0,0,0,0.25)',
+  } as const;
+  type ShadowKey = keyof typeof shadowMap;
+  const shadowLevels: ShadowKey[] = ['flat', 'subtle', 'medium', 'raised', 'dramatic'];
+  const shadowKey: ShadowKey = (design.shadowScale ?? 'subtle') in shadowMap
+    ? (design.shadowScale as ShadowKey)
+    : 'subtle';
+  const cardShadow = shadowMap[shadowKey];
+  const nextShadowKey = shadowLevels[Math.min(shadowLevels.indexOf(shadowKey) + 1, shadowLevels.length - 1)];
+  const cardShadowHover = shadowMap[nextShadowKey];
+
+  // Section spacing scale.
+  const spacingMap = {
+    compact:  { section: '2rem', card: '1rem',    gap: '0.75rem' },
+    normal:   { section: '4rem', card: '1.5rem',  gap: '1rem'    },
+    relaxed:  { section: '6rem', card: '2rem',    gap: '1.5rem'  },
+    spacious: { section: '8rem', card: '2.5rem',  gap: '2rem'    },
+  } as const;
+  type SpacingKey = keyof typeof spacingMap;
+  const spacingKey: SpacingKey = (design.spacingScale ?? 'normal') in spacingMap
+    ? (design.spacingScale as SpacingKey)
+    : 'normal';
+  const spacing = spacingMap[spacingKey];
+
   return [
     `--fg-rgb: ${fgTriplet};`,
     // Border tint: follows the dedicated "Border" color when set, else the
@@ -119,6 +149,11 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
     `--on-success: ${onSuccess};`,
     `--muted: ${muted};`,
     `--muted-rgb: ${hexToRgbTriplet(muted, "148 163 184")};`,
+    `--card-shadow: ${cardShadow};`,
+    `--card-shadow-hover: ${cardShadowHover};`,
+    `--section-padding: ${spacing.section};`,
+    `--card-padding: ${spacing.card};`,
+    `--grid-gap: ${spacing.gap};`,
   ].join("\n      ");
 }
 
