@@ -104,8 +104,9 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
   } as const;
   type ShadowKey = keyof typeof shadowMap;
   const shadowLevels: ShadowKey[] = ['flat', 'subtle', 'medium', 'raised', 'dramatic'];
-  const shadowKey: ShadowKey = (design.shadowScale ?? 'subtle') in shadowMap
-    ? (design.shadowScale as ShadowKey)
+  const rawShadow = design.shadowScale ?? 'subtle';
+  const shadowKey: ShadowKey = rawShadow in shadowMap
+    ? (rawShadow as ShadowKey)
     : 'subtle';
   const cardShadow = shadowMap[shadowKey];
   const nextShadowKey = shadowLevels[Math.min(shadowLevels.indexOf(shadowKey) + 1, shadowLevels.length - 1)];
@@ -119,8 +120,9 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
     spacious: { section: '8rem', card: '2.5rem',  gap: '2rem'    },
   } as const;
   type SpacingKey = keyof typeof spacingMap;
-  const spacingKey: SpacingKey = (design.spacingScale ?? 'normal') in spacingMap
-    ? (design.spacingScale as SpacingKey)
+  const rawSpacing = design.spacingScale ?? 'normal';
+  const spacingKey: SpacingKey = rawSpacing in spacingMap
+    ? (rawSpacing as SpacingKey)
     : 'normal';
   const spacing = spacingMap[spacingKey];
 
