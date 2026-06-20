@@ -339,6 +339,22 @@ export function computeTypeScale(base: number, ratio: number) {
   };
 }
 
+// ─── helpers for clamp() fluid typography ─────────────────────────────────────
+function computeClamp(px: number): string {
+  const min = Math.round(px * 0.75);
+  const vw = Math.round(px * 0.1 * 10) / 10;
+  const vwAdd = Math.round(px * 0.5);
+  return `clamp(${min}px, ${vw}vw + ${vwAdd}px, ${px}px)`;
+}
+
+const HEADING_WEIGHT_OPTIONS = [
+  { value: 300, label: "300 Light" },
+  { value: 400, label: "400 Regular" },
+  { value: 500, label: "500 Medium" },
+  { value: 600, label: "600 SemiBold" },
+  { value: 700, label: "700 Bold" },
+] as const;
+
 export function TypeScaleDesigner({ design, update }: { design: any; update: (k: string, v: any) => void }) {
   const base = design.baseFontSize ?? (design.fontSize === "sm" ? 15 : design.fontSize === "lg" ? 18 : 16);
   const ratio = design.typeScale ?? 0;
@@ -346,12 +362,63 @@ export function TypeScaleDesigner({ design, update }: { design: any; update: (k:
   const scale = computeTypeScale(base, activeRatio);
   const headingFont = design.headingFont || design.font || "Inter";
 
+  // Line heights (defaults per heading level)
+  const lineHeights: Record<string, number> = design.headingLineHeights ?? {};
+  const bodyLineHeight: number = design.bodyLineHeight ?? 1.6;
+
+  // Letter spacing (em values)
+  const letterSpacing: Record<string, number> = design.headingLetterSpacing ?? {};
+
+  // Font weights per heading
+  const headingWeights: Record<string, number> = design.headingWeights ?? {};
+
+  // Fluid clamp toggle
+  const fluidTypography: boolean = design.fluidTypography ?? false;
+
+  // Defaults per level
+  const lhDefaults: Record<string, number> = { h1: 1.1, h2: 1.15, h3: 1.2, h4: 1.3 };
+  const lsDefaults: Record<string, number> = { h1: -0.03, h2: -0.02, h3: 0, h4: 0 };
+  const wDefaults: Record<string, number> = { h1: 700, h2: 700, h3: 600, h4: 500 };
+
+  const getLH = (tag: string) => lineHeights[tag] ?? lhDefaults[tag] ?? 1.2;
+  const getLS = (tag: string) => letterSpacing[tag] ?? lsDefaults[tag] ?? 0;
+  const getW = (tag: string) => headingWeights[tag] ?? wDefaults[tag] ?? 700;
+
+  const setLH = (tag: string, val: number) =>
+    update("headingLineHeights", { ...lineHeights, [tag]: val });
+  const setLS = (tag: string, val: number) =>
+    update("headingLetterSpacing", { ...letterSpacing, [tag]: val });
+  const setW = (tag: string, val: number) =>
+    update("headingWeights", { ...headingWeights, [tag]: val });
+
+  const HEADING_TAGS = ["h1", "h2", "h3", "h4"] as const;
+
   return (
     <div className="space-y-6">
       <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
         Pick a base size and a musical ratio — every heading level is computed automatically for a
         professionally tuned hierarchy.
       </p>
+
+      {/* Fluid clamp toggle */}
+      <div className="flex items-center justify-between bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3">
+        <div>
+          <p className="text-[9px] font-black tracking-[0.3em] text-slate-400 uppercase">Fluid scaling (CSS clamp)</p>
+          <p className="text-[8px] text-slate-600 mt-0.5">Responsive font sizes using clamp()</p>
+        </div>
+        <button
+          onClick={() => update("fluidTypography", !fluidTypography)}
+          className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
+            fluidTypography ? "bg-violet-600" : "bg-white/10"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+              fluidTypography ? "translate-x-5" : "translate-x-0"
+            }`}
+          />
+        </button>
+      </div>
 
       <div>
         <div className="flex justify-between items-center mb-3">
@@ -400,10 +467,111 @@ export function TypeScaleDesigner({ design, update }: { design: any; update: (k:
         </div>
       </div>
 
+      {/* Per-heading controls: line-height, letter-spacing, font weight */}
+      <div className="space-y-4">
+        <p className="text-[9px] font-black tracking-[0.3em] text-slate-500 uppercase">Heading controls</p>
+        {HEADING_TAGS.map((tag) => {
+          const px = scale[tag];
+          return (
+            <div key={tag} className="bg-white/[0.03] border border-white/10 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{tag}</span>
+                <span className="text-[9px] text-slate-500 font-black italic">
+                  {fluidTypography ? computeClamp(px) : `${px}px`}
+                </span>
+              </div>
+
+              {/* Fluid clamp readonly display */}
+              {fluidTypography && (
+                <div className="bg-black/30 border border-white/5 rounded-lg px-3 py-2">
+                  <p className="text-[8px] font-black tracking-[0.2em] text-violet-400 uppercase mb-1">clamp value</p>
+                  <code className="text-[9px] text-emerald-400 font-mono select-all">{computeClamp(px)}</code>
+                </div>
+              )}
+
+              {/* Font weight */}
+              <div>
+                <p className="text-[8px] font-black tracking-[0.25em] text-slate-600 uppercase mb-2">Weight</p>
+                <div className="flex gap-1 flex-wrap">
+                  {HEADING_WEIGHT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setW(tag, opt.value)}
+                      className={`px-2 py-1 rounded-lg text-[8px] font-black tracking-wide border transition-all ${
+                        getW(tag) === opt.value
+                          ? "bg-violet-600 border-violet-400/50 text-white"
+                          : "bg-white/[0.03] border-white/5 text-slate-500 hover:border-white/10 hover:text-slate-300"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Line height */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <p className="text-[8px] font-black tracking-[0.25em] text-slate-600 uppercase">Line height</p>
+                  <span className="text-[9px] text-slate-400 font-black italic">{getLH(tag).toFixed(2)}</span>
+                </div>
+                <input
+                  type="range"
+                  min={1.0}
+                  max={2.0}
+                  step={0.05}
+                  value={getLH(tag)}
+                  onChange={(e) => setLH(tag, Number(e.target.value))}
+                  className="w-full accent-violet-500 h-1 bg-white/10 rounded-full appearance-none cursor-pointer"
+                />
+              </div>
+
+              {/* Letter spacing */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <p className="text-[8px] font-black tracking-[0.25em] text-slate-600 uppercase">Letter spacing</p>
+                  <span className="text-[9px] text-slate-400 font-black italic">{getLS(tag).toFixed(3)}em</span>
+                </div>
+                <input
+                  type="range"
+                  min={-0.05}
+                  max={0.15}
+                  step={0.005}
+                  value={getLS(tag)}
+                  onChange={(e) => setLS(tag, Number(e.target.value))}
+                  className="w-full accent-violet-500 h-1 bg-white/10 rounded-full appearance-none cursor-pointer"
+                />
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Body line height */}
+        <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 space-y-3">
+          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Body</span>
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-[8px] font-black tracking-[0.25em] text-slate-600 uppercase">Line height</p>
+              <span className="text-[9px] text-slate-400 font-black italic">{bodyLineHeight.toFixed(2)}</span>
+            </div>
+            <input
+              type="range"
+              min={1.0}
+              max={2.0}
+              step={0.05}
+              value={bodyLineHeight}
+              onChange={(e) => update("bodyLineHeight", Number(e.target.value))}
+              className="w-full accent-violet-500 h-1 bg-white/10 rounded-full appearance-none cursor-pointer"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Live specimen sheet */}
       <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 space-y-2 overflow-hidden">
         <p className="text-[8px] font-black tracking-[0.3em] text-slate-600 uppercase mb-3 flex items-center gap-2">
           <Type size={10} /> Specimen {ratio ? `· ratio ${activeRatio}` : "· preview (off)"}
+          {fluidTypography && <span className="text-violet-400 ml-1">· fluid</span>}
         </p>
         {([
           ["h1", scale.h1],
@@ -416,8 +584,14 @@ export function TypeScaleDesigner({ design, update }: { design: any; update: (k:
               {tag} <span className="block text-slate-700">{px}</span>
             </span>
             <span
-              className="text-white truncate leading-tight"
-              style={{ fontSize: Math.min(px, 44), fontFamily: `'${headingFont}', sans-serif`, fontWeight: 800 }}
+              className="text-white truncate"
+              style={{
+                fontSize: Math.min(px, 44),
+                fontFamily: `'${headingFont}', sans-serif`,
+                fontWeight: getW(tag),
+                lineHeight: getLH(tag),
+                letterSpacing: `${getLS(tag)}em`,
+              }}
             >
               Archive
             </span>
@@ -427,7 +601,7 @@ export function TypeScaleDesigner({ design, update }: { design: any; update: (k:
           <span className="text-[8px] font-black text-slate-600 uppercase w-7 flex-shrink-0">
             Body <span className="block text-slate-700">{scale.body}</span>
           </span>
-          <span className="text-white/70" style={{ fontSize: scale.body }}>
+          <span className="text-white/70" style={{ fontSize: scale.body, lineHeight: bodyLineHeight }}>
             Photography is literature — each book a record of vision, place and time.
           </span>
         </div>
