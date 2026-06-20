@@ -21,3 +21,7 @@
 ## 2024-06-19 - Eliminating O(N*M) Array Lookups in Cart Iteration
 **Learning:** In `CartDrawer.tsx`, using `.find()` inside of a `flatMap()` or similar iterations across the entire `cart` to search through the entire `books` catalog creates a massive O(N*M) performance drag, unnecessarily blocking the main thread.
 **Action:** When filtering or matching multiple items from a large list against another large list, wrap the list creation inside `useMemo()` and map them into an O(1) `Map` keyed by `id`. Then, reference the cached `Map` instead of re-iterating.
+
+## 2026-06-20 - Eliminating Sequential Firebase Queries in Analytics
+**Learning:** Sequential `await` calls for independent Firebase collections (like `analytics`, `orders`, `books`) create a waterfall effect, significantly slowing down the load time of dashboards. This forces the client to wait for each network round-trip to complete before starting the next one.
+**Action:** Always fetch independent data concurrently using `Promise.all()` to parallelize network requests and eliminate the waterfall bottleneck.
