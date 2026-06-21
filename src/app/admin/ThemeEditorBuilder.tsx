@@ -809,10 +809,10 @@ export function GlobalSectionsPanel({
                 }`}
               >
                 <div className="flex flex-col gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => moveSection(idx, -1)} disabled={idx === 0} className="p-0.5 text-slate-600 hover:text-white disabled:opacity-20">
+                  <button onClick={() => moveSection(idx, -1)} disabled={idx === 0} className="p-0.5 text-slate-600 hover:text-white disabled:opacity-20" aria-label="Move section up">
                     <ChevronUp size={12} />
                   </button>
-                  <button onClick={() => moveSection(idx, 1)} disabled={idx === sections.length - 1} className="p-0.5 text-slate-600 hover:text-white disabled:opacity-20">
+                  <button onClick={() => moveSection(idx, 1)} disabled={idx === sections.length - 1} className="p-0.5 text-slate-600 hover:text-white disabled:opacity-20" aria-label="Move section down">
                     <ChevronDown size={12} />
                   </button>
                 </div>
@@ -829,6 +829,7 @@ export function GlobalSectionsPanel({
                     onClick={() => toggleVisible(section.id)}
                     className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-white/10 transition-all"
                     title={hidden ? "Show" : "Hide"}
+                    aria-label={hidden ? "Show section" : "Hide section"}
                   >
                     {hidden ? <EyeOff size={13} /> : <Eye size={13} />}
                   </button>
@@ -836,6 +837,7 @@ export function GlobalSectionsPanel({
                     onClick={() => removeSection(section.id)}
                     className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
                     title="Delete"
+                    aria-label="Delete section"
                   >
                     <Trash2 size={13} />
                   </button>
