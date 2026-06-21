@@ -923,6 +923,11 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
             onChange={(val) => update("textColor", val)}
           />
           <ColorPicker
+            label="Heading color"
+            value={design.headingColor || design.textColor || "#F9F9F9"}
+            onChange={(val) => update("headingColor", val)}
+          />
+          <ColorPicker
             label="Link hover"
             value={design.linkColorHover || "#F61515"}
             onChange={(val) => update("linkColorHover", val)}
@@ -2684,6 +2689,18 @@ function LayoutPanel({ design, update }: any) {
                 { value: 'spacious', label: 'Spacious' },
               ]}
               onChange={(v) => update('spacingScale', v)}
+            />
+          </div>
+          <div>
+            <SidebarLabel>Animation Level</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.animationLevel ?? 'moderate'}
+              options={[
+                { value: 'minimal',  label: 'Minimal' },
+                { value: 'moderate', label: 'Moderate' },
+                { value: 'high',     label: 'High' },
+              ]}
+              onChange={(v) => update('animationLevel', v)}
             />
           </div>
         </div>

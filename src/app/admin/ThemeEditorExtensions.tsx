@@ -400,6 +400,24 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     blockDefaults: { planName: "Starter", price: "$29", period: "/month", description: "Perfect for getting started", features: "Feature one\nFeature two\nFeature three", ctaText: "Get Started", ctaLink: "/", isHighlighted: false },
     blockLabel: "Plan",
   },
+  {
+    type: "BeforeAfterSection",
+    label: "Before / After",
+    description: "Side-by-side or slider comparison of two images.",
+    category: "Media",
+    defaults: {
+      sectionTitle: "See the difference",
+      beforeImageUrl: "",
+      afterImageUrl: "",
+      beforeLabel: "Before",
+      afterLabel: "After",
+      caption: "",
+      layout: "split",
+    },
+    blockType: undefined,
+    blockDefaults: undefined,
+    blockLabel: undefined,
+  },
 ];
 
 export function getSectionMeta(type: string): SectionTypeMeta | undefined {
@@ -560,11 +578,6 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "description", label: "Description", kind: "textarea", rows: 2 },
     { key: "icon", label: "Icon (emoji or symbol)", kind: "text" },
   ],
-  TestimonialsSection: [
-    { key: "quote", label: "Quote", kind: "textarea", rows: 3 },
-    { key: "author", label: "Author", kind: "text" },
-    { key: "role", label: "Role / company", kind: "text" },
-  ],
   FAQSection: [
     { key: "question", label: "Question", kind: "text" },
     { key: "answer", label: "Answer", kind: "textarea", rows: 3 },
@@ -641,6 +654,13 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "ctaText", label: "CTA label", kind: "text" },
     { key: "ctaLink", label: "CTA URL", kind: "text" },
     { key: "isHighlighted", label: "Highlight this plan", kind: "select", options: [{ value: "false", label: "No" }, { value: "true", label: "Yes" }] },
+  ],
+  TestimonialsSection: [
+    { key: "quote", label: "Quote", kind: "textarea", rows: 3 },
+    { key: "author", label: "Author name", kind: "text" },
+    { key: "role", label: "Author role / tag", kind: "text" },
+    { key: "stars", label: "Stars (1–5)", kind: "number", min: 1, max: 5, step: 1 },
+    { key: "avatarUrl", label: "Avatar image URL", kind: "text" },
   ],
 };
 
@@ -1910,6 +1930,23 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "sectionTitle", label: "Section title", kind: "text" },
     { key: "sectionSubtitle", label: "Section subtitle", kind: "text" },
     { key: "highlightPlan", label: "Highlighted plan name", kind: "text" },
+  ],
+  BeforeAfterSection: [
+    { key: "sectionTitle", label: "Section title", kind: "text" },
+    { key: "beforeImageUrl", label: "Before image URL", kind: "text" },
+    { key: "afterImageUrl", label: "After image URL", kind: "text" },
+    { key: "beforeLabel", label: "'Before' label text", kind: "text" },
+    { key: "afterLabel", label: "'After' label text", kind: "text" },
+    { key: "caption", label: "Caption", kind: "text" },
+    {
+      key: "layout",
+      label: "Display style",
+      kind: "select",
+      options: [
+        { value: "split", label: "Side by side" },
+        { value: "overlay", label: "Overlay slider" },
+      ],
+    },
   ],
 };
 
