@@ -114,6 +114,14 @@ export function Checkout() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
   const [successOrder, setSuccessOrder] = useState<any>(null);
 
+  // ⚡ Bolt: Cache shipping profiles in an O(1) Map to prevent O(N * M)
+  // nested lookups during cart evaluation.
+  const shippingProfilesMap = useMemo(() => {
+    const map = new Map<string, any>();
+    shippingProfiles.forEach(p => map.set(p.id, p));
+    return map;
+  }, [shippingProfiles]);
+
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // ⚡ Bolt: Cache book catalog in an O(1) Map to prevent O(N * M)
@@ -468,9 +476,9 @@ export function Checkout() {
     const profileRates: Record<string, any[]> = {};
     
     Object.entries(profileItemsMap).forEach(([pid, items]) => {
-      let profile = shippingProfiles.find(p => p.id === pid);
+      let profile = shippingProfilesMap.get(pid);
       if (!profile && pid !== "general-profile") {
-        profile = shippingProfiles.find(p => p.id === "general-profile");
+        profile = shippingProfilesMap.get("general-profile");
       }
       if (!profile) {
         profile = shippingProfiles[0];
