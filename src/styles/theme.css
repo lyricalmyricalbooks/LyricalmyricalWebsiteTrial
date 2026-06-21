@@ -612,3 +612,29 @@
   padding-bottom: var(--section-padding, 4rem);
 }
 
+/* Animation motion utilities */
+[data-fm-store] .anim-hover {
+  transition:
+    transform var(--transition-speed, 0.22s) var(--transition-easing, ease-in-out),
+    box-shadow var(--transition-speed, 0.22s) var(--transition-easing, ease-in-out);
+  will-change: transform;
+}
+[data-fm-store] .anim-hover:hover {
+  transform: translateY(var(--hover-lift, -2px)) scale(var(--hover-scale, 1.02));
+}
+[data-fm-store] .anim-fade-in {
+  animation: fm-fade-in var(--transition-speed, 0.22s) var(--transition-easing, ease-in-out) both;
+}
+@keyframes fm-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Heading color utility */
+[data-fm-store] .fm-heading {
+  color: var(--heading-color);
+}
+[data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3,[data-fm-store] h4 {
+  color: var(--heading-color, inherit);
+}
+

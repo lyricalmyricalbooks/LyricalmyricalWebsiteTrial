@@ -28,6 +28,7 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
       --badge-text-secondary:${d.badgeTextSecondary || "#000000"};
       --badge-bg-secondary:${d.badgeBgSecondary || "#E0E0E0"};
       --low-inventory-color:${d.lowInventoryColor || "#056FFA"};
+      --heading-color:${d.headingColor || d.textColor || "#ffffff"};
     }
     [data-fm-store] a:hover{color:var(--link-hover-color);}
     [data-fm-store] .custom-btn{background-color:var(--btn-bg) !important;color:var(--btn-text) !important;}

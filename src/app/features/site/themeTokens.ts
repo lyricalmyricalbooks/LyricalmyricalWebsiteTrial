@@ -126,6 +126,20 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
     : 'normal';
   const spacing = spacingMap[spacingKey];
 
+  // Animation / motion scale.
+  const animMap = {
+    minimal:  { speed: '0.12s', easing: 'ease-out',                            scale: '1.00', lift: '0px'  },
+    moderate: { speed: '0.22s', easing: 'ease-in-out',                         scale: '1.02', lift: '-2px' },
+    high:     { speed: '0.32s', easing: 'cubic-bezier(0.34,1.56,0.64,1)',      scale: '1.04', lift: '-4px' },
+  } as const;
+  type AnimKey = keyof typeof animMap;
+  const rawAnim = design.animationLevel ?? 'moderate';
+  const animKey: AnimKey = rawAnim in animMap ? (rawAnim as AnimKey) : 'moderate';
+  const anim = animMap[animKey];
+
+  // Heading color (separate from body text).
+  const headingColor = design.headingColor || design.textColor || '#ffffff';
+
   return [
     `--fg-rgb: ${fgTriplet};`,
     // Border tint: follows the dedicated "Border" color when set, else the
@@ -156,6 +170,11 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
     `--section-padding: ${spacing.section};`,
     `--card-padding: ${spacing.card};`,
     `--grid-gap: ${spacing.gap};`,
+    `--transition-speed: ${anim.speed};`,
+    `--transition-easing: ${anim.easing};`,
+    `--hover-scale: ${anim.scale};`,
+    `--hover-lift: ${anim.lift};`,
+    `--heading-color: ${headingColor};`,
   ].join("\n      ");
 }
 
