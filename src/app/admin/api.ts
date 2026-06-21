@@ -75,11 +75,17 @@ export const adminApi = {
       const profilesColl = collection(db, "shipping-profiles");
       const ordersColl = collection(db, "orders");
 
-      const [booksCount, authorsCount, profilesCount, ordersSnapshot] = await Promise.all([
+      // ⚡ Bolt Performance Optimization: Replace getDocs with O(1) getCountFromServer
+      // Expected impact: Eliminates O(N) array iteration and N document reads,
+      // speeding up dashboard load significantly for large order datasets.
+      const testOrdersQuery = query(ordersColl, where("isTest", "==", true));
+
+      const [booksCount, authorsCount, profilesCount, totalOrdersSnap, testOrdersSnap] = await Promise.all([
         getCountFromServer(booksColl),
         getCountFromServer(authorsColl),
         getCountFromServer(profilesColl),
-        getDocs(ordersColl)
+        getCountFromServer(ordersColl),
+        getCountFromServer(testOrdersQuery)
       ]);
       
       // For more granular stats like drafts, we still need a query count
@@ -97,7 +103,7 @@ export const adminApi = {
         publishedCount: publishedSnap.data().count,
         shippingProfiles: profilesCount.data().count,
         authors: authorsCount.data().count,
-        totalOrders: ordersSnapshot.docs.filter(order => order.data().isTest !== true).length
+        totalOrders: totalOrdersSnap.data().count - testOrdersSnap.data().count
       };
     } catch (err) {
       console.error("Stats Error:", err);

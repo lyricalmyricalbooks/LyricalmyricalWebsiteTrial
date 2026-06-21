@@ -25,3 +25,7 @@
 ## 2026-06-20 - Eliminating Sequential Firebase Queries in Analytics
 **Learning:** Sequential `await` calls for independent Firebase collections (like `analytics`, `orders`, `books`) create a waterfall effect, significantly slowing down the load time of dashboards. This forces the client to wait for each network round-trip to complete before starting the next one.
 **Action:** Always fetch independent data concurrently using `Promise.all()` to parallelize network requests and eliminate the waterfall bottleneck.
+
+## 2024-06-21 - Avoiding O(N) Array Operations for Collection Lengths
+**Learning:** In Firebase, fetching an entire collection using `getDocs` just to filter its contents and count the resulting length (`ordersSnapshot.docs.filter(...).length`) is extremely inefficient. It downloads every document's data, consuming O(N) memory, O(N) network bandwith, and blocks the main thread with array iterations, in addition to inflating Firestore read costs dramatically.
+**Action:** When computing scalar counts or aggregates across large collections based on boolean conditions, use Firestore's native O(1) `getCountFromServer`. You can run multiple instances concurrently, such as subtracting a specific exclusion criteria (`where("isTest", "==", true)`) from the total count to find the valid item count instantly.
