@@ -465,15 +465,22 @@ export function Checkout() {
       profileItemsMap[pid].push(item);
     });
 
+    // ⚡ Bolt: Cache shipping profiles in a Map to eliminate O(N) array lookups per item
+    const profilesMap = new Map<string, any>();
+    shippingProfiles.forEach((p) => profilesMap.set(p.id, p));
+
+    const generalProfile = profilesMap.get("general-profile");
+    const fallbackProfile = shippingProfiles[0];
+
     const profileRates: Record<string, any[]> = {};
     
     Object.entries(profileItemsMap).forEach(([pid, items]) => {
-      let profile = shippingProfiles.find(p => p.id === pid);
+      let profile = profilesMap.get(pid);
       if (!profile && pid !== "general-profile") {
-        profile = shippingProfiles.find(p => p.id === "general-profile");
+        profile = generalProfile;
       }
       if (!profile) {
-        profile = shippingProfiles[0];
+        profile = fallbackProfile;
       }
 
       if (!profile || !profile.zones || profile.zones.length === 0) {
@@ -487,19 +494,9 @@ export function Checkout() {
         return;
       }
 
-      let matchedZone = profile.zones.find((z: any) => 
-        z.countries?.some((c: string) => c.toLowerCase() === country)
-      );
-
-      if (!matchedZone) {
-        matchedZone = profile.zones.find((z: any) => 
-          z.countries?.some((c: string) => 
-            c.toLowerCase() === "rest of world" || 
-            c.toLowerCase() === "everywhere else" || 
-            c.toLowerCase() === "international"
-          )
-        );
-      }
+      // ⚡ Bolt: Use existing optimized matchShippingZone (O(1) Map lookups)
+      // instead of repeatedly creating string allocations for every zone mapping comparison.
+      let matchedZone = matchShippingZone(country, profile.zones);
 
       if (!matchedZone) {
         matchedZone = profile.zones[0];
