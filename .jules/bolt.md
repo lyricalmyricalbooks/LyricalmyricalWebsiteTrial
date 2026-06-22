@@ -25,3 +25,6 @@
 ## 2026-06-20 - Eliminating Sequential Firebase Queries in Analytics
 **Learning:** Sequential `await` calls for independent Firebase collections (like `analytics`, `orders`, `books`) create a waterfall effect, significantly slowing down the load time of dashboards. This forces the client to wait for each network round-trip to complete before starting the next one.
 **Action:** Always fetch independent data concurrently using `Promise.all()` to parallelize network requests and eliminate the waterfall bottleneck.
+## 2024-11-09 - Eliminate O(N*M) lookups in Checkout Shipping Zones
+**Learning:** In `Checkout.tsx`, the `calculateStaticProfileRates` function iterated over profile zones using nested `.find`, `.some` and `.toLowerCase()` operations to match the customer`s country. This led to heavy O(N*M) iterations and string allocations which blocked the main thread.
+**Action:** When performing geographic lookups based on countries, utilize a pre-computed lookup Map (like `countryLookupMap` within `matchShippingZone`) and cache arrays like `shippingProfiles` in a `Map` prior to iterating across shopping cart items to reduce lookup complexities to O(1).
