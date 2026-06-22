@@ -25,3 +25,7 @@
 ## 2026-06-20 - Eliminating Sequential Firebase Queries in Analytics
 **Learning:** Sequential `await` calls for independent Firebase collections (like `analytics`, `orders`, `books`) create a waterfall effect, significantly slowing down the load time of dashboards. This forces the client to wait for each network round-trip to complete before starting the next one.
 **Action:** Always fetch independent data concurrently using `Promise.all()` to parallelize network requests and eliminate the waterfall bottleneck.
+
+## 2026-06-21 - Eliminating O(N*M) Array Lookups in Admin Orders
+**Learning:** In `Orders.tsx`, finding and filtering operations across an array of IDs during bulk selections triggered O(N) `.find()` searches against the main orders list. Since this happens for every checked item (M selected orders against N total orders), it creates O(N*M) lookups which can delay the render thread significantly on large result sets.
+**Action:** Replaced `.find()` lookups with an O(1) `ordersMap` built using `useMemo` that maps each order's ID to its underlying data object. This reduces the selection time complexity to O(N) instead of O(N*M).
