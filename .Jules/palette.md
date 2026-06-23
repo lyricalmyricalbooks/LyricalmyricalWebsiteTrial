@@ -9,3 +9,7 @@
 ## 2024-05-25 - Carousel Navigation Accessibility Improvements
 **Learning:** Icon-only and indicator-dot buttons in product and hero section carousels (e.g., `ChevronLeft`, `ChevronRight`, and dot indicators) lacked `aria-label`s. Without these, screen reader users cannot perceive the navigation controls for important visual content like product images and hero slides.
 **Action:** Always ensure that carousel navigation elements, including previous/next arrows and pagination dots, have descriptive `aria-label`s (e.g., "Previous slide", "Next photo", "Go to slide 2") so that the interactive components of image galleries and sliders are fully accessible.
+
+## 2026-06-23 - Admin Dashboard Help Icon Accessibility Improvement
+**Learning:** Found an icon-only `HelpCircle` button in the admin dashboard navigation area missing an `aria-label`. Similar to previous findings in the theme editor and cart drawer, interactive elements meant to guide or support users must be accessible to screen reader users, especially in critical interfaces like the admin dashboard.
+**Action:** Consistently ensure that support/help buttons and other navigational icon-only buttons in administrative panels are properly labeled with descriptive `aria-label`s to maintain equitable access for content managers relying on assistive technology.
