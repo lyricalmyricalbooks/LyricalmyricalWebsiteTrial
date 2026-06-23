@@ -28,3 +28,7 @@
 ## 2024-11-09 - Eliminate O(N*M) lookups in Checkout Shipping Zones
 **Learning:** In `Checkout.tsx`, the `calculateStaticProfileRates` function iterated over profile zones using nested `.find`, `.some` and `.toLowerCase()` operations to match the customer`s country. This led to heavy O(N*M) iterations and string allocations which blocked the main thread.
 **Action:** When performing geographic lookups based on countries, utilize a pre-computed lookup Map (like `countryLookupMap` within `matchShippingZone`) and cache arrays like `shippingProfiles` in a `Map` prior to iterating across shopping cart items to reduce lookup complexities to O(1).
+
+## 2026-06-23 - Eliminating O(N*M) Array Lookups and Sorting in Checkout Loop
+**Learning:** In `Checkout.tsx`, the `calculateStaticProfileRates` function iterates over multiple shipping profile rate lists inside a map over unique cart rate names, resulting in repeated `.find()` lookups and array `.sort()` operations. For large carts and multiple profiles, this results in an O(N*M*log(M)) complexity and blocks the main thread with string evaluations.
+**Action:** Pre-compute maps to cache the rates (keyed by name) for each profile and the fallback cheapest rate outside the loop. In the loop, use an O(1) `.get()` from the `Map` to instantly find the correct rate, resolving complex nested lookups gracefully.

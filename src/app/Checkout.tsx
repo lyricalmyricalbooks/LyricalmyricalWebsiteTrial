@@ -528,6 +528,20 @@ export function Checkout() {
       return;
     }
 
+    // ⚡ Bolt: Pre-compute rate lookups to eliminate O(N*M) nested iterations and repeated array sorting
+    const profileRatesLookup = new Map<string, Map<string, any>>();
+    const profileFallbackRate = new Map<string, any>();
+
+    Object.entries(profileRates).forEach(([pid, rates]) => {
+      const ratesMap = new Map<string, any>();
+      rates.forEach((r: any) => ratesMap.set(r.name, r));
+      profileRatesLookup.set(pid, ratesMap);
+
+      if (rates.length > 0) {
+        profileFallbackRate.set(pid, [...rates].sort((a, b) => Number(a.base) - Number(b.base))[0]);
+      }
+    });
+
     const combinedRates = uniqueRateNames.map(rateName => {
       let highestBase = 0;
       let totalAdditional = 0;
@@ -536,10 +550,12 @@ export function Checkout() {
 
       cart.forEach((item, i) => {
         const pid = item.shippingProfileId || "general-profile";
-        const ratesForProfile = profileRates[pid] || [];
-        let matchedRate = ratesForProfile.find(r => r.name === rateName);
-        if (!matchedRate && ratesForProfile.length > 0) {
-          matchedRate = [...ratesForProfile].sort((a, b) => Number(a.base) - Number(b.base))[0];
+
+        const ratesMap = profileRatesLookup.get(pid);
+        let matchedRate = ratesMap?.get(rateName);
+
+        if (!matchedRate) {
+          matchedRate = profileFallbackRate.get(pid);
         }
 
         const base = matchedRate ? Number(matchedRate.base) : 15;
