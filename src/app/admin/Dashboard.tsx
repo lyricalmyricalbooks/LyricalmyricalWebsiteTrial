@@ -377,7 +377,10 @@ export function Dashboard() {
                 <Plus size={16} className="text-violet-400 group-hover:text-violet-300" />
                 <span className="font-black tracking-[0.2em] uppercase text-[10px]">Add Book</span>
               </button>
-              <button className="p-3 text-slate-500 hover:text-white transition-all hover:bg-white/5 rounded-xl border border-transparent hover:border-white/10 active:scale-95">
+              <button
+                aria-label="Help and Support"
+                className="p-3 text-slate-500 hover:text-white transition-all hover:bg-white/5 rounded-xl border border-transparent hover:border-white/10 active:scale-95"
+              >
                 <HelpCircle size={20} />
               </button>
               <button 
