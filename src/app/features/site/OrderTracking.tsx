@@ -319,6 +319,7 @@ export default function OrderTracking() {
                             onClick={() => handleDownload(item.id)}
                             className="fm-accent-bg hover:bg-violet-500 text-white p-3 rounded-xl transition-all shadow-lg shadow-violet-600/20 flex items-center justify-center shrink-0 active:scale-95 border border-violet-400/20"
                             title="Download File"
+                            aria-label="Download File"
                           >
                             <Download size={14} />
                           </button>
