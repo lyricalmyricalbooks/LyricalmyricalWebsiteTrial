@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from "react";
 
 interface CartItem {
   id: string;
@@ -49,7 +49,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("fm_cart", JSON.stringify(cart));
   }, [cart]);
 
-  const addToCart = (product: any, variant?: any) => {
+  const addToCart = useCallback((product: any, variant?: any) => {
     const stockLimit = variant ? (variant.stockLevel ?? variant.stock) : product.stockLevel;
     if (stockLimit === 0) return;
 
@@ -78,13 +78,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }];
     });
     setIsCartOpen(true);
-  };
+  }, []);
 
-  const removeFromCart = (id: string, variantId?: string) => {
+  const removeFromCart = useCallback((id: string, variantId?: string) => {
     setCart(prev => prev.filter(i => !(i.id === id && i.variantId === variantId)));
-  };
+  }, []);
 
-  const updateQuantity = (id: string, variantId: string | undefined, delta: number) => {
+  const updateQuantity = useCallback((id: string, variantId: string | undefined, delta: number) => {
     setCart(prev => prev.map(i => {
       if (i.id === id && i.variantId === variantId) {
         let newQty = Math.max(1, i.quantity + delta);
@@ -95,18 +95,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
       return i;
     }));
-  };
+  }, []);
 
-  const clearCart = () => setCart([]);
+  const clearCart = useCallback(() => setCart([]), []);
 
-  const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+  // ⚡ Bolt: Memoize derived state calculations to prevent O(N) recalculations on unrelated state changes (like isCartOpen toggles)
+  const cartTotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.quantity), 0), [cart]);
+  const cartCount = useMemo(() => cart.reduce((acc, item) => acc + item.quantity, 0), [cart]);
+
+  // ⚡ Bolt: Memoize the context value to prevent unnecessary re-renders in consumer components
+  const contextValue = useMemo(() => ({
+    cart, addToCart, removeFromCart, updateQuantity, clearCart, setCart,
+    cartTotal, cartCount, isCartOpen, setIsCartOpen
+  }), [cart, addToCart, removeFromCart, updateQuantity, clearCart, setCart, cartTotal, cartCount, isCartOpen, setIsCartOpen]);
 
   return (
-    <CartContext.Provider value={{ 
-      cart, addToCart, removeFromCart, updateQuantity, clearCart, setCart,
-      cartTotal, cartCount, isCartOpen, setIsCartOpen 
-    }}>
+    <CartContext.Provider value={contextValue}>
       {children}
     </CartContext.Provider>
   );
