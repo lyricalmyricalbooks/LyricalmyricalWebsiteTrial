@@ -5638,7 +5638,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                 <span className="flex items-center gap-1.5 text-[8px] font-black tracking-widest px-3 py-1 rounded-full border uppercase italic bg-amber-500/10 text-amber-300 border-amber-500/20">
                   <Clock size={9} />
                   Goes live {new Date(scheduledAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                  <button onClick={cancelSchedule} title="Cancel scheduled publish" className="ml-1 hover:text-white transition-colors">
+                  <button onClick={cancelSchedule} title="Cancel scheduled publish" aria-label="Cancel scheduled publish" className="ml-1 hover:text-white transition-colors">
                     <X size={9} strokeWidth={3} />
                   </button>
                 </span>
@@ -5785,6 +5785,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
             onClick={onExit}
             className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/5 border border-white/5 text-slate-500 hover:text-white hover:bg-red-500/20 hover:border-red-500/20 transition-all"
             title="Exit Editor"
+            aria-label="Exit Editor"
           >
             <X size={20} strokeWidth={3} />
           </button>
@@ -5901,6 +5902,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                 <button
                   onClick={() => setTourStep(null)}
                   className="text-slate-500 hover:text-white transition-colors"
+                  aria-label="Close Tour"
                 >
                   <X size={16} strokeWidth={3} />
                 </button>
@@ -6473,6 +6475,7 @@ function SidebarAssetUpload({ value, onChange, label, type }: any) {
             <button 
               onClick={(e) => { e.preventDefault(); onChange(""); }} 
               className="w-12 h-12 rounded-full bg-red-500/20 text-red-400 backdrop-blur-xl border border-red-500/20 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all transform hover:rotate-90"
+              aria-label="Clear Image"
             >
               <X size={18} strokeWidth={3} />
             </button>

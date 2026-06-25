@@ -499,6 +499,7 @@ export function NewSectionLibraryModal({
                             onDeletePreset(preset.id);
                           }}
                           title="Delete preset"
+                          aria-label="Delete preset"
                           className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
                         >
                           <Trash2 size={12} />
@@ -1036,7 +1037,7 @@ export function SectionSettingsPanel({
               <input type="color" value={settings.bgColor || "#ffffff"} onChange={(e) => onUpdate({ bgColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
             </div>
             <input value={settings.bgColor || ""} onChange={(e) => onUpdate({ bgColor: e.target.value || undefined })} placeholder="none" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
-            {settings.bgColor && <button type="button" onClick={() => onUpdate({ bgColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+            {settings.bgColor && <button type="button" onClick={() => onUpdate({ bgColor: undefined })} aria-label="Clear color" className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
           </div>
         </div>
 
@@ -1168,7 +1169,7 @@ export function SectionSettingsPanel({
               {settings.btnRadius != null && (
                 <div className="flex items-center gap-1">
                   <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-1.5 py-0.5 rounded-lg">{settings.btnRadius}px</span>
-                  <button type="button" onClick={() => onUpdate({ btnRadius: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">↺</button>
+                  <button type="button" onClick={() => onUpdate({ btnRadius: undefined })} aria-label="Reset radius" className="text-[9px] text-neutral-400 hover:text-red-400">↺</button>
                 </div>
               )}
             </div>

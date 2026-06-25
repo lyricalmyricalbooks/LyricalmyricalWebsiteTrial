@@ -362,7 +362,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
                 <button onClick={() => handleBulkAction('delete')} className="bg-rose-500/20 hover:bg-rose-500/40 text-rose-100 px-6 py-2.5 rounded-2xl text-[10px] uppercase font-black tracking-widest transition-all">Delete</button>
               </div>
             </div>
-            <button onClick={() => setSelectedBooks([])} className="p-3 text-white/50 hover:text-white transition-colors bg-white/10 rounded-full border border-white/10">
+            <button onClick={() => setSelectedBooks([])} aria-label="Clear selection" className="p-3 text-white/50 hover:text-white transition-colors bg-white/10 rounded-full border border-white/10">
               <X size={20} />
             </button>
           </motion.div>

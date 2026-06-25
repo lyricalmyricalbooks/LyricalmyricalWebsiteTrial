@@ -17,3 +17,7 @@
 ## 2026-06-24 - Information Panel Accessibility Improvement
 **Learning:** Found an icon-only `X` button inside the Information (About) panel missing an `aria-label`. Interactive elements meant to dismiss or close overlays are critical for keyboard and screen reader users and must be explicitly labeled so users know how to exit a view.
 **Action:** Always ensure that dismissive buttons, such as modal or panel close controls, are properly labeled with descriptive `aria-label`s to maintain equitable access.
+
+## 2024-06-25 - Secondary Action Buttons in Admin Interfaces
+**Learning:** Found multiple instances in admin panels (Theme Editor, Catalog Bulk Actions) where secondary or utility actions—like "Clear image," "Close tour," "Cancel schedule," or "Clear selection"—were represented by icon-only buttons (e.g., `X` or `↺`) without `aria-label`s. Because these buttons are often contextual and embedded in complex workflows, their purpose is unclear to screen reader users if unlabeled, preventing equitable access to content management features.
+**Action:** Always verify that every dismissive, reset, or secondary utility icon button in complex admin views is explicitly labeled with an `aria-label` describing the specific context of the action (e.g., "Clear color", "Cancel scheduled publish").
