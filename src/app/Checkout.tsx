@@ -664,46 +664,9 @@ export function Checkout() {
     }
   }, [customer.email, cart, books, appliedDiscount]);
  
-  useEffect(() => {
-    // Region-aware estimate: prefer a rate whose region matches the
-    // state/province, then fall back to the country-wide rate. The backend
-    // recomputes the authoritative amount at session creation.
-    const country = (customer.address.country || "United States").trim().toLowerCase();
-    const state = (customer.address.state || "").trim().toLowerCase();
-    const countryRates = taxRates.filter(r => (r.country || "").trim().toLowerCase() === country);
-    const matchedTaxRate =
-      countryRates.find(r => (r.region || "").trim().toLowerCase() === state && state !== "") ||
-      countryRates.find(r => !r.region);
-    const taxPercent = matchedTaxRate ? Number(matchedTaxRate.rate) : 0;
-
-    const discountAmount = calculateDiscountAmount();
-    const subtotalAfterDiscount = cartTotal - discountAmount;
-    setTaxCost(subtotalAfterDiscount * (taxPercent / 100));
-  }, [customer.address.country, customer.address.state, cartTotal, appliedDiscount, taxRates]);
- 
-  const applyDiscount = async () => {
-    if (!discountCode) return;
-    setIsApplying(true);
-    setDiscountError("");
-    try {
-      const discount = await adminApi.validateDiscount(discountCode);
-      validateDiscountRestrictions(discount, customer.email, cart, booksMap);
-      setAppliedDiscount(discount);
-    } catch (err: any) {
-      setDiscountError(err.message || "INVALID OR EXPIRED CODE");
-      setAppliedDiscount(null);
-    } finally {
-      setIsApplying(false);
-    }
-  };
- 
-  const removeDiscount = () => {
-    setAppliedDiscount(null);
-    setDiscountCode("");
-    setDiscountError("");
-  };
- 
-  const calculateDiscountAmount = () => {
+  // ⚡ Bolt: Memoize heavy discount calculations to avoid blocking main thread on every render
+  // Measured impact: prevents O(N*M) and O(N log N) calculations when typing in checkout inputs
+  const discountAmount = useMemo(() => {
     if (!appliedDiscount) return 0;
     
     // Calculate qualifying subtotal and qualifying items list
@@ -777,10 +740,49 @@ export function Checkout() {
       }
     }
     return 0;
+  }, [appliedDiscount, cart, cartTotal, booksMap]);
+
+  useEffect(() => {
+    // Region-aware estimate: prefer a rate whose region matches the
+    // state/province, then fall back to the country-wide rate. The backend
+    // recomputes the authoritative amount at session creation.
+    const country = (customer.address.country || "United States").trim().toLowerCase();
+    const state = (customer.address.state || "").trim().toLowerCase();
+    const countryRates = taxRates.filter(r => (r.country || "").trim().toLowerCase() === country);
+    const matchedTaxRate =
+      countryRates.find(r => (r.region || "").trim().toLowerCase() === state && state !== "") ||
+      countryRates.find(r => !r.region);
+    const taxPercent = matchedTaxRate ? Number(matchedTaxRate.rate) : 0;
+
+    const subtotalAfterDiscount = cartTotal - discountAmount;
+    setTaxCost(subtotalAfterDiscount * (taxPercent / 100));
+  }, [customer.address.country, customer.address.state, cartTotal, appliedDiscount, taxRates, discountAmount]);
+
+  const applyDiscount = async () => {
+    if (!discountCode) return;
+    setIsApplying(true);
+    setDiscountError("");
+    try {
+      const discount = await adminApi.validateDiscount(discountCode);
+      validateDiscountRestrictions(discount, customer.email, cart, booksMap);
+      setAppliedDiscount(discount);
+    } catch (err: any) {
+      setDiscountError(err.message || "INVALID OR EXPIRED CODE");
+      setAppliedDiscount(null);
+    } finally {
+      setIsApplying(false);
+    }
   };
 
+  const removeDiscount = () => {
+    setAppliedDiscount(null);
+    setDiscountCode("");
+    setDiscountError("");
+  };
+
+
+
   const isFreeShipping  = appliedDiscount?.type === "freeship";
-  const discountAmount  = calculateDiscountAmount();
   const finalShipping   = isFreeShipping ? 0 : shippingCost;
   const finalTotal      = cartTotal - discountAmount + finalShipping + taxCost;
 
