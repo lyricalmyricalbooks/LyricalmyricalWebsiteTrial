@@ -9,6 +9,7 @@ import {
 import { useCart } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
+import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 import { getCopy } from "./storeCopy";
 import { DEFAULT_IMAGE } from "./constants";
 import type { Book } from "./types";
@@ -1131,6 +1132,10 @@ export default function BookDetail() {
 
         {/* ── Recently viewed ── */}
         <RecentlyViewedRow excludeId={book?.id} />
+
+        <TemplateSections design={settings?.design} templateId="productPage" books={books} />
+
+        <GlobalSections design={settings?.design} books={books} />
 
         {/* ── Footer ── */}
         <footer className="relative z-10 border-t border-white/[0.06] py-10 text-center">

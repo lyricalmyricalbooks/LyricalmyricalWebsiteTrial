@@ -37,7 +37,8 @@ The editor is **not** a blank slate. It already supports:
 | `src/app/admin/ThemeEditorPro.tsx` | Color math/normalization, palette & color-scheme tooling, theme import/export. |
 | `src/app/admin/ThemeEditorBuilder.tsx` | Builder UI that consumes the registry helpers (`getSectionMeta`, `getSectionFields`, `getBlockFields`, `NewSectionLibraryModal`). |
 | `src/app/components/SectionComponents.tsx` | **22 storefront section renderers** (the components that actually draw each section) + shared style helpers (spacing, background, button styles, animation wrappers). |
-| `src/app/components/MainSite.tsx` | Renders the storefront and maps section data → renderer (see contract below). Distinguishes homepage `sections` from `globalSections` (rendered on every page above the footer). |
+| `src/app/components/sectionRender.tsx` | **Shared section renderer** (single source of truth for section→renderer mapping). `SectionList` (pure: maps a `sections` array → renderers via `(Sections as any)[type]`); `TemplateSections` (renders `design[templateId].sections` for a page-type template); `GlobalSections` (renders the flat `design.globalSections`). Used by MainSite **and** every standalone page. |
+| `src/app/components/MainSite.tsx` | Renders the homepage/storefront. Uses `SectionList` for `heroPage.sections` and the shared `GlobalSections` from `sectionRender`. |
 | `src/app/features/site/StorefrontThemeStyle.tsx` + `themeTokens` | Injects the semantic token / CSS-variable layer onto any storefront surface via the `[data-fm-store]` attribute. |
 | `src/app/admin/api.ts` | Persistence: `getSettings`, `updateSettings(settings, { publish })`, `schedulePublish`. |
 
@@ -67,9 +68,11 @@ To add (or fix) a section end-to-end, all of these must line up:
 2. **Renderer** — add an `export function <Type>({ settings, books, onCtaClick,
    onProductClick, enableAnimations }) {…}` in `SectionComponents.tsx`. The
    export name **must equal** the registry `type`.
-3. **Storefront mapping** — confirm it resolves via `(Sections as any)[type]` in
-   `MainSite.tsx` for the surfaces it should appear on (homepage `sections`
-   and/or `globalSections`).
+3. **Storefront mapping** — rendering goes through `sectionRender.tsx`
+   (`SectionList`), so a correctly named renderer resolves automatically on every
+   surface: the homepage (`heroPage.sections`), each page-type template via
+   `TemplateSections` (product/collection/page/cart), and `globalSections`. No
+   per-page wiring is needed for a new section type.
 4. **Section library** — make sure it's exposed in `NewSectionLibraryModal`
    (registry-driven). Do **not** add it only to the legacy `SECTION_TEMPLATES`.
 5. **Verify on the live storefront**, not just in the editor preview — render it,
@@ -99,9 +102,11 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
 - **Registry types without renderers:** `VideoHeroSection`,
   `StatsCounterSection`, `PricingTableSection` (verify before each change with
   the grep in "Verifying"). Either add renderers or remove the dead schemas.
-- **Homepage-centric.** Section editing is centered on the homepage +
-  `globalSections`. Other page types (product, collection, cart, custom pages)
-  are not yet first-class section-editable templates like Shopify.
+- **Page-type templates (milestone A — done).** Product, collection, custom
+  page, and cart now render their own `design[surface].sections`, and global
+  sections render on every page. Remaining surfaces (catalog `storefront`,
+  Wishlist/Account/OrderTracking) and click-to-edit routing per template are
+  follow-ups noted in roadmap A.
 
 ## Shopify-parity roadmap
 
@@ -109,15 +114,22 @@ Status legend: `[ ]` todo · `[~]` partial · `[x]` done. Update these as work
 lands. Pick a milestone, take it **end-to-end** (schema → renderer → mapping →
 library → verify), then check it off.
 
-### A. Sections everywhere (page-type templates)
-- [ ] Introduce a template concept keyed by page type (home, product,
-      collection, page, cart) instead of homepage-only `sections`.
-- [ ] Section editor can target the current template; each template stores its
-      own ordered section list in `design`.
-- [ ] Wire product/collection/cart/custom-page surfaces to render their
-      template's sections through the same `(Sections as any)[type]` mapping.
-- [~] Global sections (header/footer-adjacent) already render on every page via
-      `GlobalSections` — extend to a proper header/footer/announcement group.
+### A. Sections everywhere (page-type templates) — DONE
+- [x] Template concept keyed by page type. Sections live at
+      `design[surface].sections` for `heroPage / storefront / productPage /
+      collectionPage / cartPage / page / page404` (`PAGE_TEMPLATES` in
+      `ThemeEditorExtensions.tsx`).
+- [x] Section editor targets the current template via the `PAGE_TEMPLATES`
+      pills; `update()` scopes writes to the active `designSurface`.
+- [x] Product/collection/custom-page/cart surfaces render their template's
+      sections via `TemplateSections` (in `BookDetail`, `CollectionPage`,
+      `PageView`, `Checkout`). Rendering is unified in `sectionRender.tsx`.
+- [x] `GlobalSections` now renders on **every** standalone page (previously
+      homepage-only), via the shared `sectionRender.tsx`.
+- [ ] Follow-ups: wire the `storefront` (catalog) surface and the
+      Wishlist/Account/OrderTracking pages; route the editor's click-to-edit to
+      the correct template panel (currently maps non-global clicks to the home
+      sections panel); group global sections into header/footer/announcement.
 
 ### B. More section types (close gaps + expand)
 - [ ] Add renderers for `VideoHeroSection`, `StatsCounterSection`,

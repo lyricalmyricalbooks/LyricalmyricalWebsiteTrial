@@ -12,6 +12,7 @@ import { functionUrl } from "./lib/functionsBase";
 import { useSEO } from "./lib/seo";
 import { useCurrency } from "./CurrencyContext";
 import { COUNTRIES, matchShippingZone } from "./features/site/shippingZones";
+import { TemplateSections, GlobalSections } from "./components/sectionRender";
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, getDoc, collection } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
@@ -1136,6 +1137,8 @@ export function Checkout() {
         </div>
       </header>
 
+      <TemplateSections design={settings?.design} templateId="cartPage" />
+
       <div className="mx-auto grid min-h-[calc(100vh-77px)] max-w-6xl grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
         <main className="px-5 py-8 sm:px-8 sm:py-12 lg:border-r lg:border-slate-200 lg:pr-14">
           <div className="mx-auto max-w-2xl space-y-10">
@@ -1372,6 +1375,8 @@ export function Checkout() {
           </div>
         </aside>
       </div>
+
+      <GlobalSections design={settings?.design} />
     </div>
   );
 }
