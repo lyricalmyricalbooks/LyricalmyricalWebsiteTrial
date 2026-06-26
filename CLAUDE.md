@@ -2,6 +2,16 @@
 
 Guidance for working in this repository.
 
+> [!IMPORTANT]
+> **Read `AGENTS.md` at the start of every task, before doing anything else.**
+> `AGENTS.md` is the companion operating guide: it defines your role, priorities,
+> and — most importantly — the **skills/playbooks** you should pick up and apply
+> while working in this repo. Re-read it each session (it may have changed) and
+> **use the relevant skills from it whenever they apply** to the task at hand.
+> Treat its skills as active tools, not background reading. If anything in
+> `AGENTS.md` conflicts with this file, follow `CLAUDE.md` for repo facts and
+> `AGENTS.md` for how to work, and call out the conflict.
+
 ## What this is
 
 An e-commerce storefront + admin for **Lyricalmyrical Books**, a publisher.
