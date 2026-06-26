@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   Globe,
+  GripVertical,
   LayoutTemplate,
   Plus,
   Search,
@@ -18,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { adminApi } from "./api";
+import { SortableList, SortableRow } from "./dndSortable";
 import {
   NewSectionLibraryModal,
   getSectionMeta,
@@ -796,56 +798,73 @@ export function GlobalSectionsPanel({
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <SortableList
+          items={sections}
+          getId={(s) => s.id}
+          onReorder={(next) => setSections(next)}
+          className="space-y-2"
+        >
           {sections.map((section, idx) => {
             const hidden = section.visible === false;
             const meta = getSectionMeta(section.type);
             return (
-              <div
+              <SortableRow
                 key={section.id}
+                id={section.id}
                 onClick={() => setActiveId(section.id)}
                 className={`group flex items-center gap-3 bg-white/[0.03] border border-white/10 rounded-2xl p-4 cursor-pointer hover:border-violet-500/40 transition-all ${
                   hidden ? "opacity-40" : ""
                 }`}
               >
-                <div className="flex flex-col gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => moveSection(idx, -1)} disabled={idx === 0} className="p-0.5 text-slate-600 hover:text-white disabled:opacity-20" aria-label="Move section up">
-                    <ChevronUp size={12} />
-                  </button>
-                  <button onClick={() => moveSection(idx, 1)} disabled={idx === sections.length - 1} className="p-0.5 text-slate-600 hover:text-white disabled:opacity-20" aria-label="Move section down">
-                    <ChevronDown size={12} />
-                  </button>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-black text-white uppercase tracking-tight italic truncate">
-                    {section.settings?.title || meta?.label || section.type.replace("Section", "")}
-                  </p>
-                  <p className="text-[8px] text-slate-600 font-black uppercase tracking-widest mt-0.5">
-                    {meta?.label || section.type} · every page
-                  </p>
-                </div>
-                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={() => toggleVisible(section.id)}
-                    className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-white/10 transition-all"
-                    title={hidden ? "Show" : "Hide"}
-                    aria-label={hidden ? "Show section" : "Hide section"}
-                  >
-                    {hidden ? <EyeOff size={13} /> : <Eye size={13} />}
-                  </button>
-                  <button
-                    onClick={() => removeSection(section.id)}
-                    className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                    title="Delete"
-                    aria-label="Delete section"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              </div>
+                {({ handleProps }) => (
+                  <>
+                    <span
+                      {...handleProps}
+                      className="cursor-grab active:cursor-grabbing text-neutral-300 hover:text-neutral-500 flex-shrink-0"
+                      aria-label="Drag to reorder section"
+                    >
+                      <GripVertical size={14} />
+                    </span>
+                    <div className="flex flex-col gap-0.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <button onClick={() => moveSection(idx, -1)} disabled={idx === 0} className="p-0.5 text-slate-600 hover:text-white disabled:opacity-20" aria-label="Move section up">
+                        <ChevronUp size={12} />
+                      </button>
+                      <button onClick={() => moveSection(idx, 1)} disabled={idx === sections.length - 1} className="p-0.5 text-slate-600 hover:text-white disabled:opacity-20" aria-label="Move section down">
+                        <ChevronDown size={12} />
+                      </button>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-black text-white uppercase tracking-tight italic truncate">
+                        {section.settings?.title || meta?.label || section.type.replace("Section", "")}
+                      </p>
+                      <p className="text-[8px] text-slate-600 font-black uppercase tracking-widest mt-0.5">
+                        {meta?.label || section.type} · every page
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => toggleVisible(section.id)}
+                        className="p-2 rounded-xl text-slate-500 hover:text-white hover:bg-white/10 transition-all"
+                        title={hidden ? "Show" : "Hide"}
+                        aria-label={hidden ? "Show section" : "Hide section"}
+                      >
+                        {hidden ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </button>
+                      <button
+                        onClick={() => removeSection(section.id)}
+                        className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                        title="Delete"
+                        aria-label="Delete section"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </SortableRow>
             );
           })}
-        </div>
+        </SortableList>
       )}
 
       <button
