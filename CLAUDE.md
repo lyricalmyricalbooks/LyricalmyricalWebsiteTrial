@@ -120,13 +120,15 @@ A large (~11k-line) Shopify-style theme editor under `/admin`. **Read
 section/block contract, and the Shopify-parity roadmap.
 
 - `src/app/admin/ThemeEditor.tsx` — editor shell + panels + `HomepagePanel`
-  (section list, drag/reorder, duplicate, visibility). Contains a **legacy**
-  `SECTION_TEMPLATES` superseded by the registry below.
+  (section list, drag/reorder, duplicate, visibility). The section library is
+  unified on the registry-driven `NewSectionLibraryModal`; the legacy
+  `SECTION_TEMPLATES` + `SectionLibraryModal` dead code has been removed.
 - `src/app/admin/ThemeEditorExtensions.tsx` — the real `SECTION_REGISTRY`,
   `getSectionFields`/`getBlockFields`, `BlocksEditor`, `NewSectionLibraryModal`.
 - `src/app/admin/ThemeEditorPro.tsx` — color math, schemes, import/export.
 - `src/app/admin/ThemeEditorBuilder.tsx` — builder UI over the registry helpers.
-- `src/app/components/SectionComponents.tsx` — the storefront section renderers.
+- `src/app/components/SectionComponents.tsx` — the storefront section renderers
+  (one per registry type; registry and renderers are now at parity).
 - `src/app/components/sectionRender.tsx` — shared renderer: `SectionList` maps a
   section to its renderer **by name** (`(Sections as any)[section.type]`),
   `TemplateSections` renders `design[templateId].sections` for a page-type

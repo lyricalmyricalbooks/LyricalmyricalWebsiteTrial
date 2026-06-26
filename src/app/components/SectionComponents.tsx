@@ -1126,3 +1126,205 @@ export function GallerySection({ settings, enableAnimations }: any) {
     </section>
   );
 }
+
+// ──────────────────────────────
+// VIDEO HERO
+// ──────────────────────────────
+
+export function VideoHeroSection({ settings, onCtaClick }: any) {
+  const url = settings.videoUrl || "";
+  const isYoutube = /youtube\.com|youtu\.be/.test(url);
+  const isVimeo = /vimeo\.com/.test(url);
+
+  // Background embeds need autoplay + mute + loop + no chrome.
+  let bgEmbed = "";
+  if (isYoutube) {
+    const id = url.match(/(?:v=|youtu\.be\/)([\w-]{6,})/)?.[1];
+    if (id) bgEmbed = `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&loop=1&controls=0&playlist=${id}&rel=0&playsinline=1`;
+  } else if (isVimeo) {
+    const id = url.match(/vimeo\.com\/(\d+)/)?.[1];
+    if (id) bgEmbed = `https://player.vimeo.com/video/${id}?background=1&autoplay=1&loop=1&muted=1`;
+  }
+  const isFile = !!url && !bgEmbed;
+
+  const overlay = Math.max(0, Math.min(90, settings.overlayOpacity ?? 40)) / 100;
+  const align = settings.textAlign === "left" ? "items-start text-left" : settings.textAlign === "right" ? "items-end text-right" : "items-center text-center";
+
+  return (
+    <section
+      className="relative w-full overflow-hidden flex flex-col justify-center"
+      style={{ minHeight: settings.minHeight || "80vh", ...bgStyle(settings) }}
+    >
+      {bgEmbed ? (
+        <iframe
+          src={bgEmbed}
+          title={settings.headline || "Background video"}
+          allow="autoplay; fullscreen; picture-in-picture"
+          className="absolute inset-0 w-full h-full pointer-events-none object-cover"
+          style={{ border: 0 }}
+        />
+      ) : isFile ? (
+        <video src={url} autoPlay muted loop playsInline poster={settings.posterUrl} className="absolute inset-0 w-full h-full object-cover" />
+      ) : null}
+      <div className="absolute inset-0 bg-black" style={{ opacity: overlay }} />
+      <div className={`relative z-10 w-full mx-auto px-6 flex flex-col ${align} ${mw(settings, "max-w-5xl")}`} style={spacingStyle(settings)}>
+        {settings.headline && (
+          <h2 className="text-4xl md:text-6xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>{settings.headline}</h2>
+        )}
+        {settings.subheadline && (
+          <p className="mt-4 text-white/70 text-base md:text-lg leading-relaxed max-w-2xl" style={bStyle(settings)}>{settings.subheadline}</p>
+        )}
+        {settings.ctaText && (
+          <a
+            href={settings.ctaLink || "#"}
+            onClick={(e) => { if (onCtaClick) { e.preventDefault(); onCtaClick(); } }}
+            className="mt-8 inline-block px-8 py-3 text-[11px] font-bold tracking-[0.25em] uppercase bg-white text-black rounded-full transition-transform hover:scale-105"
+            style={btnS(settings)}
+          >
+            {settings.ctaText}
+          </a>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
+// STATS COUNTER
+// ──────────────────────────────
+
+/** Animated count-up for a stat value. Falls back to the raw string when the
+ *  value has no parseable number, or when animations are off / reduced-motion. */
+function StatNumber({ value, prefix, suffix, animate }: { value: string; prefix?: string; suffix?: string; animate?: boolean }) {
+  const raw = String(value ?? "");
+  const match = raw.match(/[\d.,]+/);
+  const target = match ? parseFloat(match[0].replace(/,/g, "")) : NaN;
+  const grouped = !!match && match[0].includes(",");
+  const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const canAnimate = animate && !reduce && match && Number.isFinite(target);
+  const [display, setDisplay] = useState<string>(canAnimate ? "" : raw);
+
+  useEffect(() => {
+    if (!canAnimate) { setDisplay(raw); return; }
+    let frame = 0;
+    const duration = 1400;
+    const start = performance.now();
+    const fmt = (n: number) => {
+      const rounded = Math.round(n);
+      const str = grouped ? rounded.toLocaleString() : String(rounded);
+      return raw.replace(match![0], str);
+    };
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(fmt(target * eased));
+      if (t < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [raw, canAnimate, target, grouped]);
+
+  return (
+    <span>
+      {prefix}{display || raw}{suffix}
+    </span>
+  );
+}
+
+export function StatsCounterSection({ settings, enableAnimations }: any) {
+  const items = visibleBlocks(settings.items || settings.blocks || []);
+  const cols = Math.max(1, Math.min(4, items.length || 1));
+  const bg = settings.backgroundColor && settings.backgroundColor !== "transparent" ? settings.backgroundColor : undefined;
+  return (
+    <section style={{ ...bgStyle(settings), ...(bg && { backgroundColor: bg }) }}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {settings.sectionTitle && (
+            <h2 className="text-3xl font-bold tracking-tight uppercase text-white text-center mb-12" style={hStyle(settings)}>{settings.sectionTitle}</h2>
+          )}
+        </AnimationContainer>
+        <div className="grid gap-8" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+          {items.map((item: any, idx: number) => (
+            <div key={idx} className="text-center">
+              <div className="text-4xl md:text-5xl font-bold text-white tracking-tight">
+                <StatNumber value={item.value} prefix={item.prefix} suffix={item.suffix} animate={enableAnimations} />
+              </div>
+              {item.label && <p className="mt-3 text-sm font-semibold tracking-wide uppercase text-white/80">{item.label}</p>}
+              {item.description && <p className="mt-1 text-xs text-white/50">{item.description}</p>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
+// PRICING TABLE
+// ──────────────────────────────
+
+export function PricingTableSection({ settings, onCtaClick, enableAnimations }: any) {
+  const items = visibleBlocks(settings.items || settings.blocks || []);
+  const cols = Math.max(1, Math.min(4, items.length || 1));
+  const highlightName = settings.highlightPlan;
+  return (
+    <section style={bgStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {(settings.sectionTitle || settings.sectionSubtitle) && (
+            <div className="text-center mb-12">
+              {settings.sectionTitle && (
+                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>{settings.sectionTitle}</h2>
+              )}
+              {settings.sectionSubtitle && (
+                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.sectionSubtitle}</p>
+              )}
+            </div>
+          )}
+        </AnimationContainer>
+        <div className="grid gap-6 items-stretch" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+          {items.map((item: any, idx: number) => {
+            const highlighted = item.isHighlighted === true || item.isHighlighted === "true" || (highlightName && item.planName === highlightName);
+            const features = String(item.features || "").split("\n").map((f: string) => f.trim()).filter(Boolean);
+            return (
+              <div
+                key={idx}
+                className={`flex flex-col rounded-2xl p-8 border ${highlighted ? "border-white/40 bg-white/[0.07] shadow-2xl md:scale-[1.03]" : "border-white/10 bg-white/[0.03]"}`}
+              >
+                {highlighted && (
+                  <span className="self-start mb-4 px-3 py-1 text-[9px] font-bold tracking-[0.2em] uppercase rounded-full bg-white text-black">Most popular</span>
+                )}
+                {item.planName && <h3 className="text-lg font-bold tracking-wide uppercase text-white">{item.planName}</h3>}
+                <div className="mt-3 flex items-baseline gap-1">
+                  {item.price && <span className="text-4xl font-bold text-white">{item.price}</span>}
+                  {item.period && <span className="text-sm text-white/50">{item.period}</span>}
+                </div>
+                {item.description && <p className="mt-3 text-sm text-white/60 leading-relaxed">{item.description}</p>}
+                {features.length > 0 && (
+                  <ul className="mt-6 space-y-2 text-sm text-white/70 flex-1">
+                    {features.map((f: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="mt-1 text-white/40">✓</span>
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {item.ctaText && (
+                  <a
+                    href={item.ctaLink || "#"}
+                    onClick={(e) => { if (onCtaClick && (!item.ctaLink || item.ctaLink === "/")) { e.preventDefault(); onCtaClick(); } }}
+                    className={`mt-8 inline-block text-center px-6 py-3 text-[11px] font-bold tracking-[0.2em] uppercase rounded-full transition-transform hover:scale-105 ${highlighted ? "bg-white text-black" : "bg-white/10 text-white border border-white/20"}`}
+                    style={btnS(settings)}
+                  >
+                    {item.ctaText}
+                  </a>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}

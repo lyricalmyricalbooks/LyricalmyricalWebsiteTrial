@@ -8,6 +8,7 @@ import { DEFAULT_IMAGE } from "./constants";
 import { useSEO } from "../../lib/seo";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
+import { GlobalSections } from "../../components/sectionRender";
 
 export default function WishlistPage() {
   const { ids, remove } = useWishlist();
@@ -108,6 +109,8 @@ export default function WishlistPage() {
           })}
         </div>
       )}
+
+      <GlobalSections design={settings?.design} books={books} />
     </div>
   );
 }

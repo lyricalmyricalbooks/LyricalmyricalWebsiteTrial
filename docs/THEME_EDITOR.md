@@ -32,11 +32,11 @@ The editor is **not** a blank slate. It already supports:
 
 | File | Owns |
 |------|------|
-| `src/app/admin/ThemeEditor.tsx` | Top-level editor shell and panels: Style, Colors, Navigation, Homepage. `HomepagePanel` drives the section list (drag/reorder, duplicate, visibility, delete) and the per-section/block settings forms. **Contains a legacy `SECTION_TEMPLATES` (5 entries) + `SectionLibraryModal` — superseded by the registry below.** |
+| `src/app/admin/ThemeEditor.tsx` | Top-level editor shell and panels: Style, Colors, Navigation, Homepage. `HomepagePanel` drives the section list (drag/reorder, duplicate, visibility, delete) and the per-section/block settings forms. The section library is unified on the registry-driven `NewSectionLibraryModal`; the legacy `SECTION_TEMPLATES` + `SectionLibraryModal` dead code has been removed. |
 | `src/app/admin/ThemeEditorExtensions.tsx` | The real **`SECTION_REGISTRY`** (~25 section types), `getSectionFields`, `getBlockFields`, `BlocksEditor`, `NewSectionLibraryModal`, `getSectionMeta`. Field types: `text`, `textarea`, `html`, `richtext`, `color`, `number`, `range`, `select`, `toggle`, `date`, `image`. |
 | `src/app/admin/ThemeEditorPro.tsx` | Color math/normalization, palette & color-scheme tooling, theme import/export. |
 | `src/app/admin/ThemeEditorBuilder.tsx` | Builder UI that consumes the registry helpers (`getSectionMeta`, `getSectionFields`, `getBlockFields`, `NewSectionLibraryModal`). |
-| `src/app/components/SectionComponents.tsx` | **22 storefront section renderers** (the components that actually draw each section) + shared style helpers (spacing, background, button styles, animation wrappers). |
+| `src/app/components/SectionComponents.tsx` | **One storefront renderer per registry section type** (the components that actually draw each section) + shared style helpers (spacing, background, button styles, animation wrappers). Registry and renderers are at parity — every `SECTION_REGISTRY` type has a matching renderer. |
 | `src/app/components/sectionRender.tsx` | **Shared section renderer** (single source of truth for section→renderer mapping). `SectionList` (pure: maps a `sections` array → renderers via `(Sections as any)[type]`); `TemplateSections` (renders `design[templateId].sections` for a page-type template); `GlobalSections` (renders the flat `design.globalSections`). Used by MainSite **and** every standalone page. |
 | `src/app/components/MainSite.tsx` | Renders the homepage/storefront. Uses `SectionList` for `heroPage.sections` and the shared `GlobalSections` from `sectionRender`. |
 | `src/app/features/site/StorefrontThemeStyle.tsx` + `themeTokens` | Injects the semantic token / CSS-variable layer onto any storefront surface via the `[data-fm-store]` attribute. |
@@ -55,9 +55,10 @@ if (!SectionComponent) return null;   // <-- silently renders nothing
 This is the #1 footgun: if a section type exists in `SECTION_REGISTRY` (so it
 appears/edits in the admin) but has **no matching exported renderer** in
 `SectionComponents.tsx`, the storefront silently renders nothing — "I added it
-but it doesn't show up." As of this writing the registry has **25** types but
-`SectionComponents.tsx` exports only **22** renderers; missing renderers:
-**`VideoHeroSection`**, **`StatsCounterSection`**, **`PricingTableSection`**.
+but it doesn't show up." The registry and renderers are currently at **parity**
+— every `SECTION_REGISTRY` type has an identically named renderer — so keep it
+that way: whenever you add a registry type, add its renderer in the same change
+(verify with the grep in "Verifying").
 
 To add (or fix) a section end-to-end, all of these must line up:
 
@@ -74,7 +75,7 @@ To add (or fix) a section end-to-end, all of these must line up:
    `TemplateSections` (product/collection/page/cart), and `globalSections`. No
    per-page wiring is needed for a new section type.
 4. **Section library** — make sure it's exposed in `NewSectionLibraryModal`
-   (registry-driven). Do **not** add it only to the legacy `SECTION_TEMPLATES`.
+   (registry-driven; this is the only section library).
 5. **Verify on the live storefront**, not just in the editor preview — render it,
    reorder it, hide/show it, and save+publish.
 
@@ -96,17 +97,18 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
 
 ## Known gaps & inconsistencies (seed for the roadmap)
 
-- **Two section libraries.** Legacy `SECTION_TEMPLATES` (5) in `ThemeEditor.tsx`
-  vs `SECTION_REGISTRY` (~25) in `ThemeEditorExtensions.tsx`. Unify on the
-  registry and remove/retire the legacy list.
-- **Registry types without renderers:** `VideoHeroSection`,
-  `StatsCounterSection`, `PricingTableSection` (verify before each change with
-  the grep in "Verifying"). Either add renderers or remove the dead schemas.
+- **Section library unified.** The single library is the registry-driven
+  `NewSectionLibraryModal` over `SECTION_REGISTRY` (~25) in
+  `ThemeEditorExtensions.tsx`. The legacy `SECTION_TEMPLATES` +
+  `SectionLibraryModal` dead code in `ThemeEditor.tsx` has been removed.
+- **Registry↔renderer parity.** Every `SECTION_REGISTRY` type has an identically
+  named renderer in `SectionComponents.tsx` (verify before each change with the
+  grep in "Verifying"). Keep them in lockstep when adding section types.
 - **Page-type templates (milestone A — done).** Product, collection, custom
-  page, and cart now render their own `design[surface].sections`, and global
-  sections render on every page. Remaining surfaces (catalog `storefront`,
-  Wishlist/Account/OrderTracking) and click-to-edit routing per template are
-  follow-ups noted in roadmap A.
+  page, cart, and the catalog `storefront` surface now render their own
+  `design[surface].sections`, and global sections render on every page
+  (including Wishlist/Account/OrderTracking). The remaining follow-up is
+  click-to-edit routing per template (noted in roadmap A).
 
 ## Shopify-parity roadmap
 
@@ -125,17 +127,19 @@ library → verify), then check it off.
       sections via `TemplateSections` (in `BookDetail`, `CollectionPage`,
       `PageView`, `Checkout`). Rendering is unified in `sectionRender.tsx`.
 - [x] `GlobalSections` now renders on **every** standalone page (previously
-      homepage-only), via the shared `sectionRender.tsx`.
-- [ ] Follow-ups: wire the `storefront` (catalog) surface and the
-      Wishlist/Account/OrderTracking pages; route the editor's click-to-edit to
-      the correct template panel (currently maps non-global clicks to the home
-      sections panel); group global sections into header/footer/announcement.
+      homepage-only), via the shared `sectionRender.tsx` — including the
+      Wishlist, Account, and OrderTracking pages.
+- [x] The catalog `storefront` surface now renders its template's sections via
+      `TemplateSections` in `MainSite`.
+- [ ] Follow-ups: route the editor's click-to-edit to the correct template
+      panel (currently maps non-global clicks to the home sections panel); group
+      global sections into header/footer/announcement.
 
 ### B. More section types (close gaps + expand)
-- [ ] Add renderers for `VideoHeroSection`, `StatsCounterSection`,
-      `PricingTableSection` (or remove the schemas).
-- [ ] Unify the section library on `SECTION_REGISTRY`; retire
-      `SECTION_TEMPLATES`.
+- [x] Renderers added for `VideoHeroSection`, `StatsCounterSection`,
+      `PricingTableSection` — registry and renderers are now at full parity.
+- [x] Unified the section library on `SECTION_REGISTRY`; retired the legacy
+      `SECTION_TEMPLATES` + `SectionLibraryModal`.
 - [ ] Add common Shopify sections end-to-end as needed (e.g. featured
       collection, image banner, blog posts, rich content) — each via the full
       contract.
@@ -147,8 +151,8 @@ library → verify), then check it off.
 ### C. Live preview & editing UX
 - [~] Inline click-to-edit exists (preview → open section); polish coverage and
       make it bidirectional/stable.
-- [ ] Device preview toggle (desktop / tablet / mobile widths).
-- [ ] Undo / redo for editor changes.
+- [x] Device preview toggle (desktop / tablet / mobile widths).
+- [x] Undo / redo for editor changes (Ctrl+Z / Ctrl+Y).
 - [ ] Reorder polish: keyboard reordering, drag affordances, nested block DnD
       parity with section DnD.
 - [~] Live preview channel (`THEME_UPDATE` postMessage) exists — extend it to
