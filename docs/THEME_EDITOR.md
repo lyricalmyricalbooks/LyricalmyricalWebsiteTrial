@@ -163,6 +163,139 @@ library → verify), then check it off.
       one active/published.
 - [ ] Version history / restore previous published versions.
 
+### E. Visual layout & responsive engine (Fluid Engine / Wix Studio)
+- [ ] Nested blocks (block-in-block) in the schema, `BlocksEditor`, and
+      renderers — at least 2–3 levels deep.
+- [ ] Reusable shared blocks usable across any section ("theme blocks").
+- [ ] Emit stable `data-fm-section` / `data-fm-block` ids on every rendered
+      node for reliable click-to-edit/hover-highlight.
+- [ ] CSS-Grid block positioning (start/end coords + `z-index` overlap) with
+      separate desktop/mobile grids and dynamic-row guardrails.
+- [ ] Per-breakpoint overrides + device preview toggle (also under C) with
+      auto `clamp()` typography.
+- [ ] Soft section/block limits with in-editor warnings (25 sections / 50
+      blocks reference).
+
+### F. Performance & assets (Core Web Vitals)
+- [ ] Keep renderers shallow; add a DOM-depth/node-count audit.
+- [ ] Image pipeline: 1500–2000px cap, JPEG 80–85, WebP/AVIF, responsive
+      `srcset`, focal-point mapping, payload budgets (hero <200KB / content
+      <150KB / thumb <50KB).
+- [ ] Lazy-load below-the-fold sections/images; on-demand section JS.
+- [ ] Element caching of unchanged rendered section HTML.
+- [ ] Surface an in-editor theme-weight / Core Web Vitals score.
+
+### G. AI authoring & custom code
+- [ ] Prompt → registry-valid section/block JSON inserted as a draft.
+- [ ] Desktop → mobile breakpoint/typography auto-generation.
+- [ ] Custom CSS panel (global + per-section) via the token layer.
+- [ ] Deferred custom JS hook (post first-paint) for widgets/analytics.
+
+## Best-in-class feature targets (competitive analysis)
+
+This is the bar a "legit" theme editor has to clear. It's distilled from a
+comparative analysis of **Shopify Online Store 2.0 / Horizon, BigCommerce
+Stencil / Catalyst, WooCommerce (Gutenberg vs Elementor), Wix Studio /
+Harmony, and Squarespace Fluid Engine**. Each item below names the
+best-in-class behaviour, then maps it to where it lands in *this* codebase
+(registry, renderers, `design`/`draftDesign`, the token layer) so it can be
+built end-to-end via the section contract above.
+
+### Where we stand vs. the platforms
+
+| Capability | Best-in-class reference | Us today | Gap to close |
+|------------|------------------------|----------|--------------|
+| Declarative page state | Shopify OS 2.0 JSON template tree (`templates/*.json`) | `design.sections` JSON in settings | Per-page-type templates (roadmap A) |
+| Sections + blocks | OS 2.0 sections/blocks; Horizon **8 levels** of nesting | section → 1 level of blocks | Nested/recursive blocks |
+| Reusable blocks across sections | OS 2.0 "theme blocks" / app blocks | section-local blocks only | Shared block library |
+| Click-to-edit in preview | `{{ block.shopify_attributes }}` data hooks | partial (`THEME_UPDATE` postMessage) | Emit stable `data-fm-*` ids on every section/block; bidirectional highlight |
+| Visual drag layout | Squarespace Fluid Engine CSS-Grid coordinates; Wix Studio Grid+Flexbox | vertical section list only | Grid/coordinate positioning w/ z-index overlap |
+| Responsive per-device editing | Wix Studio breakpoints; Squarespace 24-col desktop / 8-col mobile grids | single layout, CSS handles reflow | Per-breakpoint overrides + device preview |
+| AI authoring | Horizon AI block generator; Wix AI layout/`clamp` typography | none | Prompt → registry-valid section JSON |
+| Custom code | OS 2.0 `custom.css` inject + editor CSS panel | token/CSS-var layer only | Global + per-section custom CSS, deferred custom JS |
+| Performance budgets | Lean semantic HTML, Core Web Vitals pass-rate, element caching | not measured in-editor | Asset pipeline + CWV/score surfacing |
+| Theme management | Theme library, versions, duplicate | draft/publish + presets + JSON import/export | Multiple themes, version history |
+
+### Feature backlog (the "make it legit" list)
+
+**1. Sections & blocks model parity (Shopify OS 2.0 / Horizon)**
+- **Nested blocks.** Today blocks are a flat list under a section. Add
+  recursive blocks (block-in-block) so layouts like cards-in-columns work
+  without bespoke section types. Horizon allows up to **8** levels; even 2–3
+  unlocks most real layouts. Extend `getBlockFields`/`BlocksEditor` and the
+  renderer's block loop.
+- **Reusable / shared blocks** ("theme blocks"): promote a configured block to
+  a library entry usable inside any section, not just where it was authored.
+- **Limits + guardrails.** OS 2.0 caps templates at **25 sections / 50 blocks
+  per section** to protect performance. Surface soft caps + a warning in
+  `HomepagePanel` instead of letting pages grow unbounded.
+- **Stable edit ids.** Emit a `data-fm-section`/`data-fm-block` attribute on
+  every rendered section/block (the analogue of `block.shopify_attributes`) so
+  the preview iframe can hover-highlight and round-trip click-to-edit reliably.
+
+**2. Visual layout & responsive engine (Squarespace Fluid Engine / Wix Studio)**
+- **Grid positioning.** Move beyond a single vertical stack: allow blocks to be
+  placed on a CSS Grid with start/end coordinates and a `z-index` so elements
+  can overlap natively (Fluid Engine stores `[x_start,y_start]→[x_end,y_end]` +
+  z per block). Keep the storefront output as CSS Grid so no layout JS runs at
+  runtime.
+- **Separate desktop/mobile grids.** Fluid Engine exposes a **24-col desktop /
+  8-col mobile** grid; store per-breakpoint coordinates so mobile isn't just a
+  squashed desktop.
+- **Editing guardrails** (so dynamic row heights don't make dragging chaotic):
+  prevent shrinking a container below its content, auto-adjust the end
+  coordinate when content height changes, and temporarily restore a uniform
+  grid while a drag is in progress.
+- **Per-breakpoint overrides + device preview toggle** (desktop/tablet/mobile),
+  with auto `clamp()` typography generation like Wix Studio's AI breakpoints.
+
+**3. AI authoring (Horizon AI block generator / Wix AI layout)**
+- **Prompt → section.** "Add a 3-up testimonial row in our brand colors"
+  should emit a *registry-valid* section/block JSON (validated against
+  `SECTION_REGISTRY` field types) and insert it as a draft. This is the single
+  highest-leverage modern differentiator.
+- **Desktop → mobile.** Given a desktop layout, auto-generate the mobile
+  breakpoint coordinates/typography rather than making the merchant redo it.
+
+**4. Custom code & extensibility (OS 2.0 `custom.css` / BigCommerce widgets)**
+- **Custom CSS panel** — global and per-section — injected through the existing
+  `StorefrontThemeStyle` / token layer (scoped under `[data-fm-store]`).
+- **Deferred custom JS** hook for analytics/widgets, executed after first paint
+  (Wix's lesson: never block INP with editor-injected scripts).
+- **Custom HTML block** already exists — keep it sandboxed/sanitised.
+
+**5. Performance & asset discipline (Core Web Vitals — the report's headline)**
+The whole report hammers one point: **lean semantic HTML wins.** Gutenberg
+beats Elementor by ~75% smaller DOM purely by avoiding nested `div` wrappers.
+Our renderers must stay shallow.
+- **Keep renderers shallow** — no Elementor-style wrapper-in-wrapper nesting in
+  `SectionComponents.tsx`. Audit DOM depth as sections are added.
+- **Image pipeline / payload budgets:** cap uploads at **1500–2000px**, JPEG
+  **80–85%**, prefer **WebP/AVIF**, generate responsive `srcset`, and apply
+  **focal-point mapping** so subjects stay centred across breakpoints. Target
+  budgets: hero **<200 KB**, content image **<150 KB**, thumbnail **<50 KB**.
+- **Lazy-load** below-the-fold sections/images; load section JS on demand.
+- **Element caching:** memoise rendered section HTML where settings are
+  unchanged (Elementor 3.24+ cut response time ~30% this way).
+- **Surface a Core Web Vitals / "theme weight" score** in the editor (LCP, CLS,
+  INP proxy, DOM node count) so merchants see the cost of what they add.
+
+**6. Theme management & TCO (all platforms)**
+- **Multiple saved themes** (a library of complete themes, one published) +
+  **version history / restore** — already seeded in roadmap D.
+- **Duplicate-theme** flow on top of the existing JSON import/export.
+- **Section & theme presets** library (presets exist; grow into a gallery).
+
+### Guiding principles pulled from the analysis
+- **Declarative, JSON-first state** (we already match this with `design`).
+- **Lean DOM > visual convenience** — every wrapper has a Core Web Vitals cost.
+- **Responsive by construction**, not absolute positioning — favour CSS
+  Grid/Flexbox and breakpoint overrides over pixel coordinates baked for one
+  screen.
+- **Editor stays WYSIWYG** — block-limit workarounds that push merchants into
+  sidebar-only forms (the Shopify metafield-repeater hack) are a regression in
+  UX; prefer real nested blocks.
+
 ## Verifying changes
 
 - Re-confirm the registry↔renderer match before/after a change:
