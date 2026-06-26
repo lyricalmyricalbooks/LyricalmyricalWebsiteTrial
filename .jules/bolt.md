@@ -36,3 +36,7 @@
 ## 2024-11-10 - Memoizing Checkout Discount Calculations
 **Learning:** In large React components like `Checkout`, computing complex derived state (such as calculating discounts with `.filter()`, `.some()`, and array `.sort()`) directly inline inside the functional component body blocks the main thread on every render. This becomes particularly problematic and laggy when typing into uncontrolled or frequently changing input fields like email and promo codes since the root component re-evaluates all discount constraints (which can involve O(N*M) lookups) on every keystroke.
 **Action:** Always wrap heavy derived calculations in `useMemo` when they rely on stable data structures (like `cart` and `appliedDiscount`), ensuring that text input re-renders do not redundantly re-run intensive array processing logic.
+
+## 2024-06-26 - Eliminating O(N*M) Array Lookups in Admin Orders Bulk Operations
+**Learning:** In `Orders.tsx`, when selecting or deselecting rows to perform bulk operations, verifying properties with `.find()` (e.g. `orders.find(o => o.id === id)?.isTest`) inside iterations across selected IDs creates an O(N*M) complexity drag. Even in an admin table, repeatedly scanning an array is inefficient when you can cache lookups.
+**Action:** Always create a `useMemo` map or a local Map keyed by ID (e.g. `Map<string, Order>`) prior to iterating across selection arrays to reduce the property lookup time to O(1).
