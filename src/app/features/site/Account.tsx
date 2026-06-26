@@ -30,6 +30,7 @@ import { useSEO } from "../../lib/seo";
 import { useWishlist } from "../../lib/wishlist";
 import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
+import { GlobalSections } from "../../components/sectionRender";
 import { adminApi } from "../../admin/api";
 import { functionUrl } from "../../lib/functionsBase";
 import toast from "react-hot-toast";
@@ -74,7 +75,7 @@ export default function AccountPage() {
   });
 
   const { count: wishlistCount } = useWishlist();
-  const { settings } = useSiteData();
+  const { settings, books } = useSiteData();
 
   useSEO({ title: "Your Account", description: "Manage your account, orders and saved addresses." });
 
@@ -804,6 +805,8 @@ export default function AccountPage() {
           )}
         </section>
       </main>
+
+      <GlobalSections design={settings?.design} books={books} />
     </div>
   );
 }

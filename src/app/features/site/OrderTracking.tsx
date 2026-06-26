@@ -10,6 +10,7 @@ import { functionUrl } from "../../lib/functionsBase";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
+import { GlobalSections } from "../../components/sectionRender";
 
 export default function OrderTracking() {
   const [orderIdInput, setOrderIdInput] = useState("");
@@ -20,7 +21,7 @@ export default function OrderTracking() {
   const [digitalItems, setDigitalItems] = useState<Record<string, boolean>>({});
   
   const { formatPrice, currency: defaultCurrency } = useCurrency();
-  const { settings } = useSiteData();
+  const { settings, books } = useSiteData();
 
   // If order is already found, check if items have digital formats
   useEffect(() => {
@@ -387,6 +388,8 @@ export default function OrderTracking() {
           )}
         </AnimatePresence>
       </div>
+
+      <GlobalSections design={settings?.design} books={books} />
     </div>
   );
 }

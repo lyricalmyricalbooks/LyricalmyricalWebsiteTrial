@@ -103,10 +103,12 @@ enhance it:
    guessing.
 2. **Honor the full section contract.** The storefront resolves renderers by the
    registry `type` name — a registry type with no identically named renderer
-   renders nothing. Adding/fixing a section means: registry schema **+** matching
-   renderer **+** storefront mapping **+** library entry **+** verify it actually
-   shows on the live storefront, not just the editor preview. Use the registry
-   (`NewSectionLibraryModal`), not the legacy `SECTION_TEMPLATES`.
+   renders nothing. The registry and `SectionComponents.tsx` renderers are
+   currently at parity; keep them in lockstep. Adding/fixing a section means:
+   registry schema **+** matching renderer **+** storefront mapping **+** library
+   entry **+** verify it actually shows on the live storefront, not just the
+   editor preview. The single section library is the registry-driven
+   `NewSectionLibraryModal` (the legacy `SECTION_TEMPLATES` has been removed).
 3. **Work the roadmap, complete a milestone end-to-end.** Pick a checklist item
    from the roadmap in `docs/THEME_EDITOR.md` (sections-everywhere, more section
    types, live-preview/UX, theme management), finish it fully, then **tick it off

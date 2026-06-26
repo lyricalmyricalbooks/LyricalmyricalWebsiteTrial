@@ -22,7 +22,7 @@ import { ThemeToggle } from "./theme/ThemeToggle";
 import { CurrencySelector, useCurrency } from "../CurrencyContext";
 import { addDoc, collection } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { SectionList, GlobalSections } from "./sectionRender";
+import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
 import { useWishlist } from "../lib/wishlist";
 import { useSEO } from "../lib/seo";
 import { CatalogControls, applyCatalogControls, type SortKey } from "../features/site/CatalogControls";
@@ -1180,6 +1180,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         </header>
 
         <main className="mx-auto px-6 py-12 md:py-20" style={{ maxWidth: storefrontMaxWidth }}>
+          {/* Theme-editor sections authored for the storefront page template */}
+          <TemplateSections design={activeDesign} templateId="storefront" books={books} />
+
           {/* Category Header */}
           <AnimatePresence mode="wait">
             {activeCategory && (activeCategory.description || activeCategory.imageUrl) && (
