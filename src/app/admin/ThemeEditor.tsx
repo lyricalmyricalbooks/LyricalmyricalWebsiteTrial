@@ -1,6 +1,15 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
+  DndContext,
+  closestCenter,
+  DragOverlay,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableRow, SortableList, useListSensors } from "./dndSortable";
+import {
   ChevronRight,
   ChevronLeft,
   X,
@@ -1246,11 +1255,12 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
   const [editTab, setEditTab] = useState<"content" | "design">("content");
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [showLibrary, setShowLibrary] = useState(false);
-  const [draggingSectionId, setDraggingSectionId] = useState<string | null>(null);
-  const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null);
+  // The section type currently being dragged out of the library (for the overlay preview)
+  const [dragLibType, setDragLibType] = useState<string | null>(null);
   // Outline tree: which section's nested block list is expanded
   const [outlineId, setOutlineId] = useState<string | null>(null);
   const sections = design.sections || design.homepageSections || [];
+  const sensors = useListSensors();
 
   // Click-to-edit: the preview can request a specific section instance be opened.
   useEffect(() => {
@@ -1285,7 +1295,8 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
     update("sections", newSections);
   };
 
-  const addSection = (type: string) => {
+  // Insert a brand-new section at a specific index (drag-from-library drops here).
+  const addSectionAt = (type: string, index: number) => {
     const id = crypto.randomUUID();
     const meta = getSectionMeta(type);
     const newSection = {
@@ -1294,8 +1305,40 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
       visible: true,
       settings: JSON.parse(JSON.stringify(meta?.defaults || {})),
     };
-    updateSections([...sections, newSection]);
+    const next = [...sections];
+    const clamped = Math.max(0, Math.min(index, next.length));
+    next.splice(clamped, 0, newSection);
+    updateSections(next);
     setActiveSectionId(id);
+  };
+
+  // Click-to-add from the library appends to the end (accessible fallback).
+  const addSection = (type: string) => addSectionAt(type, sections.length);
+
+  // Single drag handler for the section list — reorders existing sections AND
+  // handles a section type dragged out of the library modal (id "lib:<type>").
+  const handleSectionDragStart = (e: DragStartEvent) => {
+    const id = String(e.active.id);
+    if (id.startsWith("lib:")) setDragLibType(id.slice(4));
+  };
+
+  const handleSectionDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    setDragLibType(null);
+    if (!over) return;
+    const activeId = String(active.id);
+    if (activeId.startsWith("lib:")) {
+      const type = activeId.slice(4);
+      const overIndex = sections.findIndex((s: any) => s.id === String(over.id));
+      addSectionAt(type, overIndex >= 0 ? overIndex : sections.length);
+      setShowLibrary(false);
+      return;
+    }
+    if (activeId === String(over.id)) return;
+    const oldIndex = sections.findIndex((s: any) => s.id === activeId);
+    const newIndex = sections.findIndex((s: any) => s.id === String(over.id));
+    if (oldIndex < 0 || newIndex < 0) return;
+    updateSections(arrayMove(sections, oldIndex, newIndex));
   };
 
   const duplicateSection = (id: string, e?: any) => {
@@ -1587,68 +1630,39 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
       </div>
 
       <div className="space-y-3 pb-8">
+       <DndContext
+         sensors={sensors}
+         collisionDetection={closestCenter}
+         onDragStart={handleSectionDragStart}
+         onDragEnd={handleSectionDragEnd}
+         onDragCancel={() => setDragLibType(null)}
+       >
         {sections.length === 0 ? (
           <div className="py-20 text-center border-2 border-dashed border-neutral-100 rounded-[2rem] bg-neutral-50/50">
              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm"><LayoutTemplate size={20} className="text-neutral-300" /></div>
              <p className="text-[11px] text-neutral-400 font-medium px-8">Your homepage is empty. Start by adding a Hero section.</p>
           </div>
         ) : (
+          <SortableContext items={sections.map((s: any) => s.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-2">
              {sections.map((section: any, index: number) => {
                const isHidden = section.visible === false;
                return (
-               <motion.div
-                 layout
+               <SortableRow
                  key={section.id}
-                 draggable
-                 onDragStart={() => setDraggingSectionId(section.id)}
-                 onDragOver={(e) => {
-                   e.preventDefault();
-                   if (draggingSectionId && draggingSectionId !== section.id) {
-                     setDragOverSectionId(section.id);
-                   }
-                 }}
-                 onDrop={(e) => {
-                   e.preventDefault();
-                   setDragOverSectionId(null);
-                   if (!draggingSectionId || draggingSectionId === section.id) return;
-                   const fromIndex = sections.findIndex((s: any) => s.id === draggingSectionId);
-                   const toIndex = sections.findIndex((s: any) => s.id === section.id);
-                   if (fromIndex < 0 || toIndex < 0) return;
-                   const reordered = [...sections];
-                   const [moved] = reordered.splice(fromIndex, 1);
-                   reordered.splice(toIndex, 0, moved);
-                   updateSections(reordered);
-                   setDraggingSectionId(null);
-                 }}
-                 onDragLeave={() => {
-
-                   setDragOverSectionId(null);
-
-                 }}
-
-                 onDragEnd={() => {
-
-                   setDraggingSectionId(null);
-
-                   setDragOverSectionId(null);
-
-                 }}
-                 initial={{ opacity: 0, y: 8 }}
-                 animate={{ opacity: 1, y: 0 }}
-                 exit={{ opacity: 0, y: -8 }}
+                 id={section.id}
                  onClick={() => !isHidden && setActiveSectionId(section.id)}
                  className={`group relative border rounded-3xl p-4 transition-all duration-300 ${
-                   dragOverSectionId === section.id && draggingSectionId !== section.id
-                     ? "border-2 border-dashed border-violet-500 bg-violet-600/5 scale-[1.02] shadow-lg shadow-violet-500/10"
-                     : isHidden
+                   isHidden
                      ? "bg-neutral-50/40 border-neutral-100 cursor-default opacity-50"
-                     : `bg-white border-neutral-200 hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/5 cursor-pointer ${draggingSectionId === section.id ? "opacity-40" : ""}`
+                     : "bg-white border-neutral-200 hover:border-blue-400 hover:shadow-xl hover:shadow-blue-500/5 cursor-pointer"
                  }`}
                >
+                {({ handleProps }) => (
+                <>
                 <div className="flex items-center gap-3">
                  {/* Drag handle */}
-                 <div className="text-neutral-200 hover:text-neutral-400 transition-colors cursor-grab active:cursor-grabbing flex-shrink-0">
+                 <div {...handleProps} className="text-neutral-200 hover:text-neutral-400 transition-colors cursor-grab active:cursor-grabbing flex-shrink-0">
                    <GripVertical size={16} />
                  </div>
 
@@ -1755,10 +1769,13 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                     </div>
                   );
                 })()}
-               </motion.div>
+                </>
+                )}
+               </SortableRow>
                );
              })}
           </div>
+          </SortableContext>
         )}
 
         {/* Add Section button */}
@@ -1812,6 +1829,19 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
             onDeletePreset={onDeletePreset}
           />
         )}
+
+        {/* Preview of a section type being dragged out of the library */}
+        <DragOverlay dropAnimation={null}>
+          {dragLibType ? (
+            <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-violet-600 text-white shadow-2xl shadow-violet-500/30 cursor-grabbing">
+              <Plus size={14} strokeWidth={3} />
+              <span className="text-[11px] font-black uppercase tracking-[0.15em]">
+                {getSectionMeta(dragLibType)?.label || dragLibType.replace("Section", "")}
+              </span>
+            </div>
+          ) : null}
+        </DragOverlay>
+       </DndContext>
       </div>
     </div>
   );
@@ -3027,12 +3057,14 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
         </div>
       )}
 
-      <div className="space-y-4">
+      <SortableList items={items} getId={(it) => it.id} onReorder={(next) => setItems(next)} className="space-y-4">
         {items.map((item, i) => (
-          <div key={item.id} className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 space-y-4">
+          <SortableRow key={item.id} id={item.id} className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 space-y-4">
+            {({ handleProps }) => (
+            <>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1 text-slate-600">
-                <GripVertical size={14} />
+                <span {...handleProps} className="cursor-grab active:cursor-grabbing hover:text-slate-300 transition-colors"><GripVertical size={14} /></span>
                 <span className="text-[9px] font-black uppercase tracking-widest italic text-slate-500">Link {i + 1}</span>
               </div>
               <div className="flex items-center gap-1">
@@ -3134,9 +3166,11 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
             >
               <Plus size={12} /> Add sub-link
             </button>
-          </div>
+            </>
+            )}
+          </SortableRow>
         ))}
-      </div>
+      </SortableList>
 
       <button
         onClick={() => setItems([...items, newMenuItem()])}

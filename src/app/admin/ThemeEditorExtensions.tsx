@@ -1,4 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useDraggable } from "@dnd-kit/core";
+import { SortableList, SortableRow } from "./dndSortable";
 import {
   ChevronDown,
   ChevronRight,
@@ -417,6 +419,34 @@ export type SectionPreset = {
   settings: Record<string, any>;
 };
 
+function DraggableSectionCard({
+  meta,
+  onAdd,
+  onClose,
+}: {
+  meta: SectionTypeMeta;
+  onAdd: (type: string) => void;
+  onClose: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `lib:${meta.type}` });
+  return (
+    <button
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{ opacity: isDragging ? 0.4 : 1 }}
+      onClick={() => {
+        onAdd(meta.type);
+        onClose();
+      }}
+      className="text-left p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-violet-500/40 hover:bg-violet-500/5 transition-all group"
+    >
+      <p className="text-white text-sm font-black uppercase tracking-tight italic mb-1">{meta.label}</p>
+      <p className="text-slate-400 text-xs leading-relaxed">{meta.description}</p>
+    </button>
+  );
+}
+
 export function NewSectionLibraryModal({
   onAdd,
   onClose,
@@ -517,17 +547,12 @@ export function NewSectionLibraryModal({
                   <p className="text-[10px] font-black tracking-[0.3em] text-slate-500 uppercase italic mb-3">{cat}</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {items.map((meta) => (
-                      <button
+                      <DraggableSectionCard
                         key={meta.type}
-                        onClick={() => {
-                          onAdd(meta.type);
-                          onClose();
-                        }}
-                        className="text-left p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-violet-500/40 hover:bg-violet-500/5 transition-all group"
-                      >
-                        <p className="text-white text-sm font-black uppercase tracking-tight italic mb-1">{meta.label}</p>
-                        <p className="text-slate-400 text-xs leading-relaxed">{meta.description}</p>
-                      </button>
+                        meta={meta}
+                        onAdd={onAdd}
+                        onClose={onClose}
+                      />
                     ))}
                   </div>
                 </div>
@@ -674,14 +699,22 @@ export function BlocksEditor({
   const blocksKey = getBlocksKey(sectionType);
   const blocks: any[] = settings[blocksKey] || [];
   const [open, setOpen] = useState<number | null>(0);
-  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
-
-  if (!meta?.blockType || fields.length === 0) return null;
 
   const setBlocks = (next: any[]) => onUpdate({ [blocksKey]: next });
 
+  // Backfill stable ids for legacy blocks (dnd-kit needs a stable key per row).
+  // Guarded so it only fires when an id is actually missing — no update loop.
+  useEffect(() => {
+    if (blocks.some((b) => !b.id)) {
+      setBlocks(blocks.map((b) => (b.id ? b : { ...b, id: crypto.randomUUID() })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blocks]);
+
+  if (!meta?.blockType || fields.length === 0) return null;
+
   const addBlock = () => {
-    const next = [...blocks, { ...(meta.blockDefaults || {}) }];
+    const next = [...blocks, { ...(meta.blockDefaults || {}), id: crypto.randomUUID() }];
     setBlocks(next);
     setOpen(next.length - 1);
   };
@@ -693,7 +726,9 @@ export function BlocksEditor({
 
   const duplicateBlock = (idx: number) => {
     const next = [...blocks];
-    next.splice(idx + 1, 0, JSON.parse(JSON.stringify(blocks[idx])));
+    const copy = JSON.parse(JSON.stringify(blocks[idx]));
+    copy.id = crypto.randomUUID();
+    next.splice(idx + 1, 0, copy);
     setBlocks(next);
     setOpen(idx + 1);
   };
@@ -720,99 +755,110 @@ export function BlocksEditor({
         </p>
       </div>
 
-      <div className="space-y-2">
+      <SortableList
+        items={blocks}
+        getId={(b, i) => b.id ?? `blk-${i}`}
+        className="space-y-2"
+        onReorder={(next, _old, newIndex) => {
+          setBlocks(next);
+          setOpen(newIndex);
+        }}
+      >
         {blocks.map((block, idx) => {
           const expanded = open === idx;
+          const id = block.id ?? `blk-${idx}`;
           return (
-            <div
-              key={idx}
-              draggable
-              onDragStart={() => setDraggingIdx(idx)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (draggingIdx == null || draggingIdx === idx) return;
-                moveBlock(draggingIdx, idx);
-                setDraggingIdx(null);
-              }}
-              onDragEnd={() => setDraggingIdx(null)}
+            <SortableRow
+              key={id}
+              id={id}
               className={`bg-white border rounded-2xl overflow-hidden transition-all ${
                 expanded ? "border-blue-400 shadow-lg shadow-blue-500/5" : "border-neutral-200"
-              } ${draggingIdx === idx ? "opacity-50" : ""}`}
+              }`}
             >
-              <button
-                type="button"
-                onClick={() => setOpen(expanded ? null : idx)}
-                className="w-full flex items-center gap-2 px-3 py-3 hover:bg-neutral-50 transition-colors"
-              >
-                <GripVertical size={14} className="text-neutral-300 flex-shrink-0 cursor-grab" />
-                <span className={`text-[11px] font-bold truncate flex-1 text-left ${block.hidden ? "text-neutral-300 line-through" : "text-neutral-700"}`}>
-                  {block.title || block.question || block.heading || block.author || block.alt || `${meta.blockLabel} ${idx + 1}`}
-                </span>
-                <span
-                  role="button"
-                  title={block.hidden ? "Show block" : "Hide block"}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    updateBlock(idx, "hidden", !block.hidden);
-                  }}
-                  className={`p-1 rounded-lg transition-colors ${block.hidden ? "text-neutral-300 hover:text-emerald-500" : "text-neutral-400 hover:text-neutral-700"}`}
-                >
-                  {block.hidden ? <EyeOff size={13} /> : <Eye size={13} />}
-                </span>
-                <ChevronDown size={13} className={`text-neutral-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
-              </button>
-
-              {expanded && (
-                <div className="px-3 pb-4 border-t border-neutral-100 space-y-3 bg-neutral-50/50">
-                  <div className="flex items-center gap-1 pt-3">
-                    <button
-                      onClick={() => moveBlock(idx, idx - 1)}
-                      disabled={idx === 0}
-                      className="p-1.5 rounded-lg hover:bg-white text-neutral-500 disabled:opacity-20"
-                      title="Move up"
+              {({ handleProps }) => (
+                <>
+                  <div className="w-full flex items-center gap-2 px-3 py-3 hover:bg-neutral-50 transition-colors">
+                    <span
+                      {...handleProps}
+                      className="text-neutral-300 flex-shrink-0 cursor-grab active:cursor-grabbing"
                     >
-                      <ChevronDown size={12} className="rotate-180" />
-                    </button>
+                      <GripVertical size={14} />
+                    </span>
                     <button
-                      onClick={() => moveBlock(idx, idx + 1)}
-                      disabled={idx === blocks.length - 1}
-                      className="p-1.5 rounded-lg hover:bg-white text-neutral-500 disabled:opacity-20"
-                      title="Move down"
+                      type="button"
+                      onClick={() => setOpen(expanded ? null : idx)}
+                      className="flex items-center gap-2 flex-1 min-w-0"
                     >
-                      <ChevronDown size={12} />
-                    </button>
-                    <button
-                      onClick={() => duplicateBlock(idx)}
-                      className="p-1.5 rounded-lg hover:bg-white text-neutral-500"
-                      title="Duplicate"
-                    >
-                      <Copy size={12} />
-                    </button>
-                    <button
-                      onClick={() => removeBlock(idx)}
-                      className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 ml-auto"
-                      title="Remove"
-                    >
-                      <Trash2 size={12} />
+                      <span className={`text-[11px] font-bold truncate flex-1 text-left ${block.hidden ? "text-neutral-300 line-through" : "text-neutral-700"}`}>
+                        {block.title || block.question || block.heading || block.author || block.alt || `${meta.blockLabel} ${idx + 1}`}
+                      </span>
+                      <span
+                        role="button"
+                        title={block.hidden ? "Show block" : "Hide block"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateBlock(idx, "hidden", !block.hidden);
+                        }}
+                        className={`p-1 rounded-lg transition-colors ${block.hidden ? "text-neutral-300 hover:text-emerald-500" : "text-neutral-400 hover:text-neutral-700"}`}
+                      >
+                        {block.hidden ? <EyeOff size={13} /> : <Eye size={13} />}
+                      </span>
+                      <ChevronDown size={13} className={`text-neutral-400 transition-transform ${expanded ? "rotate-180" : ""}`} />
                     </button>
                   </div>
 
-                  {fields.map((field) => (
-                    <BlockFieldEditor
-                      key={field.key}
-                      field={field}
-                      value={block[field.key]}
-                      onChange={(v) => updateBlock(idx, field.key, v)}
-                      uploadFile={uploadFile}
-                    />
-                  ))}
-                </div>
+                  {expanded && (
+                    <div className="px-3 pb-4 border-t border-neutral-100 space-y-3 bg-neutral-50/50">
+                      <div className="flex items-center gap-1 pt-3">
+                        <button
+                          onClick={() => moveBlock(idx, idx - 1)}
+                          disabled={idx === 0}
+                          className="p-1.5 rounded-lg hover:bg-white text-neutral-500 disabled:opacity-20"
+                          title="Move up"
+                        >
+                          <ChevronDown size={12} className="rotate-180" />
+                        </button>
+                        <button
+                          onClick={() => moveBlock(idx, idx + 1)}
+                          disabled={idx === blocks.length - 1}
+                          className="p-1.5 rounded-lg hover:bg-white text-neutral-500 disabled:opacity-20"
+                          title="Move down"
+                        >
+                          <ChevronDown size={12} />
+                        </button>
+                        <button
+                          onClick={() => duplicateBlock(idx)}
+                          className="p-1.5 rounded-lg hover:bg-white text-neutral-500"
+                          title="Duplicate"
+                        >
+                          <Copy size={12} />
+                        </button>
+                        <button
+                          onClick={() => removeBlock(idx)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 ml-auto"
+                          title="Remove"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+
+                      {fields.map((field) => (
+                        <BlockFieldEditor
+                          key={field.key}
+                          field={field}
+                          value={block[field.key]}
+                          onChange={(v) => updateBlock(idx, field.key, v)}
+                          uploadFile={uploadFile}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
-            </div>
+            </SortableRow>
           );
         })}
-      </div>
+      </SortableList>
 
       <button
         type="button"
@@ -1537,51 +1583,71 @@ export function ColorSchemesPanel({
 
   return (
     <div className="space-y-3">
-      {list.map((scheme) => (
-        <div key={scheme.id} className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <input
-              value={scheme.name}
-              onChange={(e) => updateScheme(scheme.id, { name: e.target.value })}
-              className="bg-transparent outline-none text-[12px] font-black text-white uppercase tracking-widest italic"
-            />
-            <button
-              onClick={() => removeScheme(scheme.id)}
-              className="text-slate-600 hover:text-red-400 p-1"
-              title="Remove"
-              disabled={list.length <= 1}
-            >
-              <Trash2 size={12} />
-            </button>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {(["background", "text", "accent"] as const).map((k) => (
-              <div key={k}>
-                <label className="text-[8px] font-black tracking-[0.25em] text-slate-500 uppercase block mb-1">{k}</label>
-                <div className="flex items-center gap-2 bg-white/[0.04] border border-white/10 rounded-xl px-2 py-1.5">
-                  <div
-                    className="w-7 h-7 rounded-lg border border-white/10 relative overflow-hidden flex-shrink-0"
-                    style={{ background: scheme[k] }}
-                  >
+      <SortableList
+        items={list}
+        getId={(s) => s.id}
+        className="space-y-3"
+        onReorder={(next) => onChange(next)}
+      >
+        {list.map((scheme) => (
+          <SortableRow
+            key={scheme.id}
+            id={scheme.id}
+            className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 space-y-3"
+          >
+            {({ handleProps }) => (
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span {...handleProps} className="cursor-grab active:cursor-grabbing text-neutral-300">
+                      <GripVertical size={14} />
+                    </span>
                     <input
-                      type="color"
-                      value={normalizeHexForColorInput(scheme[k])}
-                      onChange={(e) => updateScheme(scheme.id, { [k]: e.target.value })}
-                      className="absolute inset-0 opacity-0 cursor-pointer scale-150"
+                      value={scheme.name}
+                      onChange={(e) => updateScheme(scheme.id, { name: e.target.value })}
+                      className="bg-transparent outline-none text-[12px] font-black text-white uppercase tracking-widest italic flex-1 min-w-0"
                     />
                   </div>
-                  <input
-                    value={scheme[k]}
-                    onChange={(e) => updateScheme(scheme.id, { [k]: e.target.value })}
-                    onBlur={(e) => updateScheme(scheme.id, { [k]: normalizeHexForColorInput(e.target.value) })}
-                    className="flex-1 min-w-0 bg-transparent text-[10px] font-bold text-white uppercase tracking-widest outline-none"
-                  />
+                  <button
+                    onClick={() => removeScheme(scheme.id)}
+                    className="text-slate-600 hover:text-red-400 p-1"
+                    title="Remove"
+                    disabled={list.length <= 1}
+                  >
+                    <Trash2 size={12} />
+                  </button>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+                <div className="grid grid-cols-3 gap-2">
+                  {(["background", "text", "accent"] as const).map((k) => (
+                    <div key={k}>
+                      <label className="text-[8px] font-black tracking-[0.25em] text-slate-500 uppercase block mb-1">{k}</label>
+                      <div className="flex items-center gap-2 bg-white/[0.04] border border-white/10 rounded-xl px-2 py-1.5">
+                        <div
+                          className="w-7 h-7 rounded-lg border border-white/10 relative overflow-hidden flex-shrink-0"
+                          style={{ background: scheme[k] }}
+                        >
+                          <input
+                            type="color"
+                            value={normalizeHexForColorInput(scheme[k])}
+                            onChange={(e) => updateScheme(scheme.id, { [k]: e.target.value })}
+                            className="absolute inset-0 opacity-0 cursor-pointer scale-150"
+                          />
+                        </div>
+                        <input
+                          value={scheme[k]}
+                          onChange={(e) => updateScheme(scheme.id, { [k]: e.target.value })}
+                          onBlur={(e) => updateScheme(scheme.id, { [k]: normalizeHexForColorInput(e.target.value) })}
+                          className="flex-1 min-w-0 bg-transparent text-[10px] font-bold text-white uppercase tracking-widest outline-none"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </SortableRow>
+        ))}
+      </SortableList>
       <button
         onClick={addScheme}
         className="w-full py-3 rounded-2xl border-2 border-dashed border-white/10 hover:border-violet-500/40 hover:bg-violet-500/5 text-[10px] font-black tracking-[0.2em] text-violet-400 uppercase italic flex items-center justify-center gap-2"

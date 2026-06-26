@@ -153,8 +153,11 @@ library → verify), then check it off.
       make it bidirectional/stable.
 - [x] Device preview toggle (desktop / tablet / mobile widths).
 - [x] Undo / redo for editor changes (Ctrl+Z / Ctrl+Y).
-- [ ] Reorder polish: keyboard reordering, drag affordances, nested block DnD
-      parity with section DnD.
+- [x] Reorder polish: sections, blocks, global sections, nav menu items and
+      color schemes all reorder via `@dnd-kit` (pointer + keyboard) through the
+      shared `src/app/admin/dndSortable.tsx` helper. Section types can also be
+      dragged out of the library modal to insert at a position. (Nested
+      block / mega-menu child DnD is a remaining follow-up.)
 - [~] Live preview channel (`THEME_UPDATE` postMessage) exists — extend it to
       cover all edits (not only some) and all templates.
 
