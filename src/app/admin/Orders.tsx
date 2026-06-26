@@ -30,6 +30,8 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
   const [bulkStatus, setBulkStatus] = useState<FulfillmentStatus>("processing");
   const [orderType, setOrderType] = useState<"production" | "test" | "all">("production");
 
+  const ordersMap = useMemo(() => new Map(orders.map(o => [o.id, o])), [orders]);
+
   const toggleSelect = (id: string) => {
     setSelected(prev => {
       const next = new Set(prev);
@@ -63,7 +65,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
 
   const handleBulkDeleteTests = async () => {
     const ids = Array.from(selected);
-    if (!ids.length || !ids.every(id => orders.find(o => o.id === id)?.isTest === true)) {
+    if (!ids.length || !ids.every(id => ordersMap.get(id)?.isTest === true)) {
       toast.error("Bulk deletion is limited to marked test orders");
       return;
     }
@@ -211,7 +213,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
             </button>
             {selected.size > 0 && (
               <div className="flex items-center gap-3">
-                {Array.from(selected).every(id => orders.find(o => o.id === id)?.isTest === true) && (
+                {Array.from(selected).every(id => ordersMap.get(id)?.isTest === true) && (
                   <button
                     onClick={handleBulkDeleteTests}
                     className="flex items-center gap-2 bg-rose-600 hover:bg-rose-500 text-white px-5 py-2 rounded-xl text-[10px] tracking-widest font-black uppercase transition-colors"
@@ -219,7 +221,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
                     <Trash2 size={13} /> Delete tests
                   </button>
                 )}
-                {!Array.from(selected).some(id => orders.find(o => o.id === id)?.isTest === true) && (
+                {!Array.from(selected).some(id => ordersMap.get(id)?.isTest === true) && (
                   <>
                 <select
                   value={bulkStatus}
