@@ -22,13 +22,12 @@ import { ThemeToggle } from "./theme/ThemeToggle";
 import { CurrencySelector, useCurrency } from "../CurrencyContext";
 import { addDoc, collection } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import * as Sections from "./SectionComponents";
+import { SectionList, GlobalSections } from "./sectionRender";
 import { useWishlist } from "../lib/wishlist";
 import { useSEO } from "../lib/seo";
 import { CatalogControls, applyCatalogControls, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { SearchOverlay } from "../features/site/SearchOverlay";
-import { DEFAULT_COLOR_SCHEMES } from "../features/site/colorSchemes";
 
 // ──────────────────────────────
 // Image with skeleton loader
@@ -731,97 +730,10 @@ ${STOREFRONT_TOKEN_CSS}
 // Per-section helpers: font overrides + entrance animations
 // ──────────────────────────────
 
-/** Scoped style + font loading for a section's heading/body font overrides. */
-function SectionFontOverride({ sectionId, settings }: { sectionId: string; settings: any }) {
-  const heading = settings?.headingFontOverride;
-  const body = settings?.bodyFontOverride;
-  if (!heading && !body) return null;
-  let css = "";
-  if (body) css += `[data-section-id="${sectionId}"]{font-family:'${body}',sans-serif;}`;
-  if (heading)
-    css += `[data-section-id="${sectionId}"] h1,[data-section-id="${sectionId}"] h2,[data-section-id="${sectionId}"] h3,[data-section-id="${sectionId}"] h4{font-family:'${heading}',sans-serif;}`;
-  return (
-    <>
-      {heading && <GoogleFontLoader font={heading} />}
-      {body && <GoogleFontLoader font={body} />}
-      <style>{css}</style>
-    </>
-  );
-}
-
-const prefersReducedMotion = () =>
-  typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-
-/** Per-section publish window: only render between showFrom and showUntil (if set). */
-function sectionInWindow(section: any): boolean {
-  const s = section?.settings || {};
-  if (s.showFrom && Date.now() < new Date(s.showFrom).getTime()) return false;
-  if (s.showUntil && Date.now() > new Date(s.showUntil).getTime()) return false;
-  return true;
-}
-
-/** Entrance animation wrapper driven by section.settings.animation. */
-function SectionReveal({ animation, enableAnimations, children }: any) {
-  const mode = animation || (enableAnimations ? "" : "none");
-  if (mode === "none" || mode === "" || prefersReducedMotion()) return children;
-  const initials: Record<string, any> = {
-    "fade-up": { opacity: 0, y: 36 },
-    fade: { opacity: 0 },
-    "slide-left": { opacity: 0, x: 60 },
-    "slide-right": { opacity: 0, x: -60 },
-    zoom: { opacity: 0, scale: 0.92 },
-  };
-  const initial = initials[mode];
-  if (!initial) return children;
-  return (
-    <motion.div
-      initial={initial}
-      whileInView={{ opacity: 1, x: 0, y: 0, scale: 1 }}
-      viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.9, ease: [0.215, 0.61, 0.355, 1] }}
-    >
-      {children}
-    </motion.div>
-  );
-}
-
-/** Global sections render on every page, just above the footer. */
-export function GlobalSections({ design, books, onCtaClick, onProductClick }: any) {
-  const sections: any[] = design?.globalSections || [];
-  if (sections.length === 0) return null;
-  const schemes: any[] = (design?.colorSchemes && design?.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES;
-  return (
-    <div className="flex flex-col">
-      {sections
-        .filter((section: any) => section.visible !== false && sectionInWindow(section))
-        .map((section: any) => {
-          const SectionComponent = (Sections as any)[section.type];
-          if (!SectionComponent) return null;
-          const s = section.settings || {};
-          const scheme = s.colorSchemeId ? schemes.find((sc: any) => sc.id === s.colorSchemeId) : null;
-          return (
-            <div
-              key={section.id}
-              data-section="globalSections"
-              data-section-id={section.id}
-              className={[s.hideOnMobile ? "hidden md:block" : "", s.hideOnDesktop ? "block md:hidden" : "", s.customClass || ""].filter(Boolean).join(" ") || undefined}
-              style={{
-                paddingTop: s.paddingTop != null ? `${s.paddingTop}px` : undefined,
-                paddingBottom: s.paddingBottom != null ? `${s.paddingBottom}px` : undefined,
-                background: scheme?.background || s.sectionBackground || undefined,
-                color: scheme?.text || undefined,
-              }}
-            >
-              <SectionFontOverride sectionId={section.id} settings={s} />
-              <SectionReveal animation={s.animation} enableAnimations={false}>
-                <SectionComponent settings={s} books={books} onCtaClick={onCtaClick} onProductClick={onProductClick} enableAnimations={false} />
-              </SectionReveal>
-            </div>
-          );
-        })}
-    </div>
-  );
-}
+// Section rendering helpers (SectionFontOverride, SectionReveal, sectionInWindow)
+// and the GlobalSections component now live in ./sectionRender so they can be
+// shared with the standalone storefront pages (product/collection/page/cart).
+// GlobalSections is imported at the top of this file.
 
 // ──────────────────────────────
 // Main exported component
@@ -1611,63 +1523,21 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       <main className="relative w-auto overflow-hidden">
         {(heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections) &&
         (heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections).length > 0 ? (
-          <div className="flex flex-col">
-            {(heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections)
-              .filter((section: any) => section.visible !== false && sectionInWindow(section))
-              .map((section: any) => {
-                const SectionComponent = (Sections as any)[section.type];
-                if (!SectionComponent) return null;
-
-                const s = section.settings || {};
-                const schemes: any[] = (heroDesign.colorSchemes && heroDesign.colorSchemes.length > 0)
-                  ? heroDesign.colorSchemes
-                  : (activeDesign.colorSchemes && activeDesign.colorSchemes.length > 0)
-                  ? activeDesign.colorSchemes
-                  : DEFAULT_COLOR_SCHEMES;
-                const scheme = s.colorSchemeId
-                  ? schemes.find((sc: any) => sc.id === s.colorSchemeId)
-                  : null;
-                const wrapperStyle: React.CSSProperties = {
-                  paddingTop: s.paddingTop != null ? `${s.paddingTop}px` : undefined,
-                  paddingBottom: s.paddingBottom != null ? `${s.paddingBottom}px` : undefined,
-                  background: scheme?.background || s.sectionBackground || undefined,
-                  color: scheme?.text || undefined,
-                };
-                const wrapperCls = [
-                  "relative",
-                  s.fullWidth ? "w-full" : "",
-                  s.hideOnMobile ? "hidden md:block" : "",
-                  s.hideOnDesktop ? "block md:hidden" : "",
-                  s.customClass || "",
-                ]
-                  .filter(Boolean)
-                  .join(" ");
-
-                return (
-                  <div
-                    key={section.id}
-                    id={`section-${section.id}`}
-                    data-section="homepage"
-                    data-section-id={section.id}
-                    className={wrapperCls}
-                    style={wrapperStyle}
-                  >
-                    <SectionFontOverride sectionId={section.id} settings={s} />
-                    <SectionReveal animation={s.animation} enableAnimations={heroDesign?.enableAnimations ?? true}>
-                      <SectionComponent
-                        settings={s}
-                        books={books}
-                        onCtaClick={() => setShowCatalog(true)}
-                        onProductClick={(book: any) =>
-                          navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
-                        }
-                        enableAnimations={heroDesign?.enableAnimations ?? true}
-                      />
-                    </SectionReveal>
-                  </div>
-                );
-              })}
-          </div>
+          <SectionList
+            sections={heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections}
+            colorSchemes={
+              heroDesign.colorSchemes && heroDesign.colorSchemes.length > 0
+                ? heroDesign.colorSchemes
+                : activeDesign.colorSchemes
+            }
+            books={books}
+            onCtaClick={() => setShowCatalog(true)}
+            onProductClick={(book: any) =>
+              navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
+            }
+            enableAnimations={heroDesign?.enableAnimations ?? true}
+            dataSection="homepage"
+          />
         ) : (
           /* Fallback to legacy structure */
           <>

@@ -5,12 +5,13 @@ import { ArrowLeft } from "lucide-react";
 import { adminApi } from "../../admin/api";
 import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
+import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 import type { Page } from "./types";
 
 
 export function PageView() {
   const { slug } = useParams<{ slug: string }>();
-  const { settings } = useSiteData();
+  const { settings, books } = useSiteData();
   const [page, setPage] = useState<Page | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -97,6 +98,8 @@ export function PageView() {
         </Link>
       </header>
 
+      <TemplateSections design={settings?.design} templateId="page" books={books} />
+
       {/* Content */}
       <motion.main
         initial={{ opacity: 0, y: 20 }}
@@ -126,6 +129,8 @@ export function PageView() {
           dangerouslySetInnerHTML={{ __html: page.body || "" }}
         />
       </motion.main>
+
+      <GlobalSections design={settings?.design} books={books} />
 
       <footer className="border-t border-neutral-100 px-8 py-8 text-center">
         <p className="text-[10px] text-neutral-300 tracking-widest">

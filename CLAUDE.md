@@ -127,8 +127,12 @@ section/block contract, and the Shopify-parity roadmap.
 - `src/app/admin/ThemeEditorPro.tsx` — color math, schemes, import/export.
 - `src/app/admin/ThemeEditorBuilder.tsx` — builder UI over the registry helpers.
 - `src/app/components/SectionComponents.tsx` — the storefront section renderers.
-- `src/app/components/MainSite.tsx` — maps a section to its renderer **by name**:
-  `(Sections as any)[section.type]`.
+- `src/app/components/sectionRender.tsx` — shared renderer: `SectionList` maps a
+  section to its renderer **by name** (`(Sections as any)[section.type]`),
+  `TemplateSections` renders `design[templateId].sections` for a page-type
+  template, `GlobalSections` renders `design.globalSections`. Used by MainSite
+  and every standalone page (product/collection/page/cart all render their
+  template's sections — milestone A).
 
 **Section contract:** the storefront looks up renderers by the registry `type`
 string. A registry type with **no identically named renderer renders nothing**

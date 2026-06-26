@@ -9,6 +9,7 @@ import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
+import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
@@ -79,6 +80,8 @@ export default function CollectionPage() {
         </Link>
       </header>
 
+      <TemplateSections design={settings?.design} templateId="collectionPage" books={books} />
+
       <main className="max-w-6xl mx-auto px-6 py-14">
         <nav aria-label="Breadcrumb" className="mb-8 text-[10px] tracking-[0.3em] uppercase text-white/30 flex gap-2">
           <Link to="/" className="hover:text-white">Home</Link>
@@ -144,6 +147,8 @@ export default function CollectionPage() {
           </p>
         )}
       </main>
+
+      <GlobalSections design={settings?.design} books={books} />
     </div>
   );
 }
