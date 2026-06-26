@@ -215,8 +215,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             Lyricalmyrical E-Commerce Platform Updated
           </h3>
           <p className="text-slate-400 text-xs font-medium max-w-2xl leading-relaxed">
-            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 13, 2026 at 10:09 PM</strong>.
-            This update released optional dynamic shipping rates via Shippo, advanced promotional discounts (like Buy One Get One and Minimum Spend Tiers), custom order timeline logging, and variant-level format/cover photo matching.
+            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 26, 2026 at 4:45 PM</strong>.
+            This release hardened the payment &amp; fulfilment flow after a full customer + backend e-commerce audit: removed a duplicate refund endpoint that issued non-idempotent Stripe refunds, made revenue analytics record atomically inside the payment transaction, flagged discount over-redemptions for review, fixed a checkout crash on missing state codes, repaired a silently-broken Buy One Get One promo, and added email validation before checkout.
           </p>
         </div>
         <div className="shrink-0 relative z-10 bg-white/5 border border-white/10 rounded-2xl p-4 text-center min-w-[150px]">
@@ -224,7 +224,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <p className="text-xs font-bold text-emerald-400 mt-1 uppercase tracking-wider">Deploy Success</p>
           <div className="h-px bg-white/5 my-3" />
           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Last Code Push</p>
-          <p className="text-[10px] font-mono text-slate-300 mt-1">June 13, 22:09</p>
+          <p className="text-[10px] font-mono text-slate-300 mt-1">June 26, 16:45</p>
         </div>
       </motion.div>
 

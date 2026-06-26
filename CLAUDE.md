@@ -172,10 +172,12 @@ and the **Last Code Push** timestamp.
 > - the summary paragraph listing what this release shipped,
 > - the **Last Code Push** timestamp (e.g. "June 13, 22:09").
 >
-> Current state: updated **June 13, 2026 at 10:09 PM** — released optional
-> dynamic shipping rates via Shippo, advanced promotional discounts (Buy One
-> Get One and Minimum Spend Tiers), custom order timeline logging, and
-> variant-level format/cover photo matching.
+> Current state: updated **June 26, 2026 at 4:45 PM** — payment/fulfilment
+> hardening after a customer + backend e-commerce audit: removed a duplicate
+> non-idempotent Stripe refund endpoint, made revenue analytics atomic inside
+> the payment transaction, flagged discount over-redemptions for review, fixed a
+> checkout crash on missing state codes, repaired a broken Buy One Get One promo,
+> and added pre-checkout email validation.
 
 ## Conventions & gotchas
 

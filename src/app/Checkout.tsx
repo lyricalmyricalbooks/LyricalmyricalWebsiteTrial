@@ -699,7 +699,7 @@ export function Checkout() {
     if (appliedDiscount.type === "bogo") {
       const buyQty = Number(appliedDiscount.buyQuantity) || 1;
       const getQty = Number(appliedDiscount.getQuantity) || 1;
-      const getVal = Number(appliedDiscount.getDiscountValue) ?? 100;
+      const getVal = Number(appliedDiscount.getDiscountValue) || 100;
 
       const unitPrices: number[] = [];
       qualifyingItems.forEach(i => {
@@ -841,6 +841,12 @@ export function Checkout() {
   const handleCompletePurchase = async () => {
     if (!customer.name || !customer.email || !customer.address.street || !customer.address.city || !customer.address.state || !customer.address.zip) {
       alert("Please fill in all required shipping details including city, state/province, and postal/zip code.");
+      return;
+    }
+    // Validate the email locally before any (expensive) order/Stripe round-trip,
+    // so a typo can't create an unpaid order whose receipt goes nowhere.
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) {
+      alert("Please enter a valid email address — your receipt and order updates are sent there.");
       return;
     }
     setIsCompleting(true);

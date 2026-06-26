@@ -278,7 +278,7 @@ function getStateCode(stateName) {
   if (clean.length === 2) {
     return clean.toUpperCase();
   }
-  return US_STATES[clean] || CA_PROVINCES[clean] || stateName.toUpperCase();
+  return US_STATES[clean] || CA_PROVINCES[clean] || String(stateName || "").toUpperCase();
 }
 
 async function callShippo(endpoint, method, body, token) {
@@ -1158,6 +1158,8 @@ exports.stripeWebhook = onRequest(
               return;
             }
 
+            const orderActivity = [];
+            let orderNeedsReview = false;
             const itemList = order.items || [];
             const bookRefs = itemList.map(item => db.collection("books").doc(item.id));
             const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
@@ -1172,20 +1174,7 @@ exports.stripeWebhook = onRequest(
             // Single-use token securing digital download links in emails.
             const downloadToken = crypto.randomBytes(32).toString("hex");
 
-            transaction.update(orderRef, {
-              ...stripeTransaction,
-              paymentStatus: "paid",
-              fulfillmentStatus: "paid",
-              status: "open",
-              downloadToken,
-              stripePaymentIntentId: session.payment_intent || null,
-              paidAt: now,
-              updatedAt: now,
-              activity: [
-                ...(order.activity || []),
-                { type: "event", message: "Payment completed (Stripe Webhook)", createdAt: now }
-              ]
-            });
+            orderActivity.push({ type: "event", message: "Payment completed (Stripe Webhook)", createdAt: now });
 
             // Atomic Stock Level Decrement
             itemList.forEach((item, idx) => {
@@ -1218,26 +1207,59 @@ exports.stripeWebhook = onRequest(
             });
 
             // Count discount redemptions so usage limits are enforceable.
+            // Re-check the live limit inside the transaction: concurrent
+            // checkouts can each pass the create-time validation, so flag any
+            // redemption that pushes usage past the cap for admin review
+            // instead of silently over-redeeming.
             if (discountRef && discountDoc?.exists) {
+              const discountData = discountDoc.data();
+              const priorUsage = Number(discountData.usageCount) || 0;
+              const usageLimit = Number(discountData.usageLimit) || 0;
               transaction.update(discountRef, {
-                usageCount: (discountDoc.data().usageCount || 0) + 1,
+                usageCount: priorUsage + 1,
                 updatedAt: new Date().toISOString()
               });
+              if (usageLimit > 0 && priorUsage >= usageLimit) {
+                console.warn(
+                  `Discount ${order.appliedDiscount.id} over-redeemed on order ${orderId} ` +
+                  `(usage ${priorUsage + 1} > limit ${usageLimit}).`
+                );
+                orderActivity.push({
+                  type: "event",
+                  message: `Discount "${discountData.code || order.appliedDiscount.id}" was redeemed past its usage limit (${usageLimit}). Needs review.`,
+                  createdAt: now,
+                });
+                orderNeedsReview = true;
+              }
             }
 
-            paidTotal = Number(order.total) || 0;
-          });
+            // Single authoritative paid-update for the order (enqueued once,
+            // after stock/discount logic, so activity + needsReview are folded in).
+            transaction.update(orderRef, {
+              ...stripeTransaction,
+              paymentStatus: "paid",
+              fulfillmentStatus: "paid",
+              status: "open",
+              downloadToken,
+              stripePaymentIntentId: session.payment_intent || null,
+              paidAt: now,
+              updatedAt: now,
+              ...(orderNeedsReview ? { needsReview: true } : {}),
+              activity: [...(order.activity || []), ...orderActivity],
+            });
 
-          // Revenue/order analytics are recorded here — at payment time —
-          // never client-side at order creation.
-          if (paidTotal !== null) {
-            const today = new Date().toISOString().split("T")[0];
-            await db.collection("analytics").doc(today).set({
+            paidTotal = Number(order.total) || 0;
+
+            // Record revenue/order analytics inside the same transaction so a
+            // partial failure can't mark the order paid while silently dropping
+            // the revenue count (the paid-guard would skip it on retry).
+            const today = now.split("T")[0];
+            transaction.set(db.collection("analytics").doc(today), {
               date: today,
               orders: admin.firestore.FieldValue.increment(1),
               revenue: admin.firestore.FieldValue.increment(paidTotal),
             }, { merge: true });
-          }
+          });
 
           console.log(`Order ${orderId} successfully processed via webhook.`);
         } catch (err) {
@@ -3107,100 +3129,11 @@ exports.onBookUpdated = onDocumentUpdated(
   }
 );
 
-// ──────────────────────────────────────────────────────────────
-// 13. HTTP Endpoint: Refund Order via Stripe (Admin Secure)
-//     Calls stripe.refunds.create, restores inventory, then updates order.
-//     onOrderUpdated fires the customer "refunded" email automatically.
-// ──────────────────────────────────────────────────────────────
-exports.refundOrder = onRequest(
-  { secrets: [STRIPE_SECRET_KEY] },
-  async (req, res) => {
-    if (applyCors(req, res)) return;
-    if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
-
-    const adminUser = await requireAdmin(req, res);
-    if (!adminUser) return;
-
-    const { orderId } = req.body;
-    if (!orderId) { res.status(400).json({ error: "Missing orderId" }); return; }
-
-    try {
-      const orderRef = db.collection("orders").doc(orderId);
-      const orderDoc = await orderRef.get();
-      if (!orderDoc.exists) { res.status(404).json({ error: "Order not found" }); return; }
-      const order = orderDoc.data();
-
-      if (order.paymentStatus === "refunded") {
-        res.status(400).json({ error: "Order has already been refunded" }); return;
-      }
-
-      // Issue the Stripe refund only for paid Stripe orders.
-      if (order.paymentStatus === "paid" && order.stripePaymentIntentId) {
-        const settingsDoc = await db.collection("settings").doc("website").get();
-        const settings = settingsDoc.data() || {};
-        const testMode = settings.payments?.testMode || false;
-        const stripeSettings = settings.payments?.stripe || {};
-        const stripeSecret = testMode
-          ? stripeSettings.testSecretKey
-          : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
-        if (!stripeSecret) { res.status(500).json({ error: "Stripe is not configured." }); return; }
-        const stripe = new Stripe(stripeSecret);
-        await stripe.refunds.create({ payment_intent: order.stripePaymentIntentId });
-      }
-
-      // Atomically restore inventory and update order status.
-      await db.runTransaction(async transaction => {
-        const freshOrderDoc = await transaction.get(orderRef);
-        if (!freshOrderDoc.exists) return;
-        const freshOrder = freshOrderDoc.data();
-
-        const bookRefs = (freshOrder.items || []).map(item => db.collection("books").doc(item.id));
-        const bookDocs = await Promise.all(bookRefs.map(r => transaction.get(r)));
-
-        // Only restore stock that was previously decremented (paid orders).
-        if (freshOrder.paymentStatus === "paid") {
-          (freshOrder.items || []).forEach((item, idx) => {
-            const bookDoc = bookDocs[idx];
-            if (!bookDoc.exists) return;
-            const book = bookDoc.data();
-            if (!book.trackInventory) return;
-            if (item.variantId) {
-              const updatedVariants = (book.variants || []).map(v =>
-                v.id === item.variantId ? { ...v, stock: (v.stock || 0) + item.quantity } : v
-              );
-              transaction.update(bookRefs[idx], {
-                variants: updatedVariants,
-                stockLevel: (book.stockLevel || 0) + item.quantity,
-                updatedAt: new Date().toISOString()
-              });
-            } else {
-              transaction.update(bookRefs[idx], {
-                stockLevel: (book.stockLevel || 0) + item.quantity,
-                updatedAt: new Date().toISOString()
-              });
-            }
-          });
-        }
-
-        transaction.update(orderRef, {
-          status: "cancelled",
-          paymentStatus: "refunded",
-          refundedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          activity: [
-            ...(freshOrder.activity || []),
-            { type: "event", message: `Order cancelled and refunded by ${adminUser.email}.`, createdAt: new Date().toISOString() }
-          ]
-        });
-      });
-
-      res.status(200).json({ success: true });
-    } catch (err) {
-      console.error("refundOrder failed:", err);
-      res.status(500).json({ error: err.message });
-    }
-  }
-);
+// NOTE: The canonical refundOrder endpoint is defined earlier in this file
+// (section 3). A second, less-safe duplicate that lived here was removed — it
+// silently overrode the robust version (no Stripe idempotency key, restocked
+// the wrong variant field, and never reversed discount usage). Do not re-add a
+// second `exports.refundOrder`; extend the section-3 implementation instead.
 
 // ──────────────────────────────────────────────────────────────
 // 14. HTTP Endpoint: Mark Manual Order as Paid (Admin Secure)
