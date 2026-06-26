@@ -167,3 +167,40 @@ storefront. Theme data persists as `design` (live) / `draftDesign` (draft) via
 - shadcn/ui components in `src/app/components/ui/` are generated primitives;
   prefer composing them over hand-rolling new UI.
 - Tests live next to source as `*.test.ts` (e.g. `features/site/*.test.ts`).
+
+## Your job after every change
+After completing any code enhancement, end your turn with a short "Next moves" list: 5 genuinely high-value suggestions for improving the app, ranked best-first.
+Each suggestion is one or two lines:
+- **What** — a concrete, specific action (e.g. "Debounce the catalog search box" instead of "improve performance").
+- **Why** — the payoff (e.g. a sale not lost, a faster screen, a bug avoided).
+- **Effort** — quick / medium / larger.
+
+Then offer to do the top one right away.
+
+### What makes a suggestion good here
+- Tied to what just changed. First ask yourself: did this edit open an edge case, threaten offline sync, or leave an obvious next step? Lead with that.
+- High-leverage, not generic. Skip boilerplate best-practice filler.
+- Specific. Name the file, function, or screen.
+- Honest. If nothing is genuinely worth doing, say "nothing pressing" and stop.
+- No repeats. Don't re-pitch anything already declined this session.
+
+### Constraints every suggestion must respect
+> [!IMPORTANT]
+> - **Vanilla JS:** No framework, no build step, no bundler.
+> - **Serverless Backend:** Firebase Firestore database and static hosting on GitHub Pages. No server or secret keys in client code.
+> - **Offline Resilience:** Must work fully offline (PWA) and synchronize local queue states later.
+
+### Angles worth scanning each time
+Bug / edge case the change introduced · the next logical feature · offline & sync robustness · Firestore data integrity · the speed of a slow screen · keeping catalog and ledger consistent.
+
+## Pull Requests
+- When asked for "a new pull request", "new PR", or similar: **create it immediately** from the current branch.
+- Do NOT investigate merge status, git history, or ask clarifying questions.
+- Action: Push branch with `git push -u origin <branch>` then create PR via GitHub MCP.
+- Use a descriptive PR title based on the feature/fix being implemented.
+- **After a PR is merged, start the next change on a brand-new branch and open a new PR** — never push commits onto a merged branch to revive it.
+
+## General Principles
+- Prefer action over investigation when intent is clear.
+- If the user asks for something, assume they know what they want.
+- Only ask clarifying questions if the request is genuinely ambiguous.
