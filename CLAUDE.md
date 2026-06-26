@@ -156,6 +156,27 @@ storefront. Theme data persists as `design` (live) / `draftDesign` (draft) via
 - If adding a custom domain, update `ALLOWED_ORIGINS` in `functions/index.js`
   and OAuth redirect URIs.
 
+### System Status & Recent Release banner
+
+The admin Analytics dashboard renders a **"System Status & Recent Release"**
+banner at the top (the "App Update Summary Notice" `motion.div` in
+`src/app/admin/AnalyticsDashboard.tsx`, ~line 203). It shows the headline
+"Lyricalmyrical E-Commerce Platform Updated", a summary of what the latest
+release shipped, the deploy date/time, a **Build Status** ("Deploy Success"),
+and the **Last Code Push** timestamp.
+
+> [!IMPORTANT]
+> **Always update this banner after each deploy.** Whenever you ship a change,
+> edit `AnalyticsDashboard.tsx` so the banner reflects the new release:
+> - the update date/time (e.g. "June 13, 2026 at 10:09 PM"),
+> - the summary paragraph listing what this release shipped,
+> - the **Last Code Push** timestamp (e.g. "June 13, 22:09").
+>
+> Current state: updated **June 13, 2026 at 10:09 PM** — released optional
+> dynamic shipping rates via Shippo, advanced promotional discounts (Buy One
+> Get One and Minimum Spend Tiers), custom order timeline logging, and
+> variant-level format/cover photo matching.
+
 ## Conventions & gotchas
 
 - Path alias `@` → `src/` (see `vite.config.ts`).
