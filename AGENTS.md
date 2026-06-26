@@ -88,6 +88,37 @@ Bring general best-practices, grounded in what this repo already does:
 - **Analytics:** referral-source capture lives in `src/app/App.tsx` — don't
   break it, and think about how a change affects the funnel you can measure.
 
+## Theme editor — go all the way to Shopify parity
+
+The `/admin` theme editor is the most-requested area to "make as good as
+Shopify." It is **already large and capable** (~11k lines: sections/blocks,
+drag-and-drop, color schemes, fonts, draft/publish, live preview). The failure
+mode here is **stopping after one small increment**. Don't. When asked to
+enhance it:
+
+1. **Read `docs/THEME_EDITOR.md` first**, plus the whole section/block system —
+   `ThemeEditor.tsx`, `ThemeEditorExtensions.tsx` (the `SECTION_REGISTRY`),
+   `SectionComponents.tsx` (renderers), and the `(Sections as any)[section.type]`
+   mapping in `MainSite.tsx`. The files are big; budget for that instead of
+   guessing.
+2. **Honor the full section contract.** The storefront resolves renderers by the
+   registry `type` name — a registry type with no identically named renderer
+   renders nothing. Adding/fixing a section means: registry schema **+** matching
+   renderer **+** storefront mapping **+** library entry **+** verify it actually
+   shows on the live storefront, not just the editor preview. Use the registry
+   (`NewSectionLibraryModal`), not the legacy `SECTION_TEMPLATES`.
+3. **Work the roadmap, complete a milestone end-to-end.** Pick a checklist item
+   from the roadmap in `docs/THEME_EDITOR.md` (sections-everywhere, more section
+   types, live-preview/UX, theme management), finish it fully, then **tick it off
+   and update the doc** in the same PR. Prefer one milestone done completely over
+   several half-done.
+4. If a request is open-ended ("enhance the theme editor"), state which milestone
+   you're taking and why, then take it all the way — don't stop at a cosmetic
+   tweak.
+
+When prompting this agent, naming a specific roadmap milestone gets the most
+complete result.
+
 ## Working rules
 
 - Match the surrounding code's style, naming, and patterns.

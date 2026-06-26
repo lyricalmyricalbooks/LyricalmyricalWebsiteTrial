@@ -113,6 +113,30 @@ npm run logs
 Secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`,
 `SHIPPO_API_TOKEN`) are stored as Firebase Functions secrets, not in the repo.
 
+## Theme editor
+
+A large (~11k-line) Shopify-style theme editor under `/admin`. **Read
+`docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the
+section/block contract, and the Shopify-parity roadmap.
+
+- `src/app/admin/ThemeEditor.tsx` — editor shell + panels + `HomepagePanel`
+  (section list, drag/reorder, duplicate, visibility). Contains a **legacy**
+  `SECTION_TEMPLATES` superseded by the registry below.
+- `src/app/admin/ThemeEditorExtensions.tsx` — the real `SECTION_REGISTRY`,
+  `getSectionFields`/`getBlockFields`, `BlocksEditor`, `NewSectionLibraryModal`.
+- `src/app/admin/ThemeEditorPro.tsx` — color math, schemes, import/export.
+- `src/app/admin/ThemeEditorBuilder.tsx` — builder UI over the registry helpers.
+- `src/app/components/SectionComponents.tsx` — the storefront section renderers.
+- `src/app/components/MainSite.tsx` — maps a section to its renderer **by name**:
+  `(Sections as any)[section.type]`.
+
+**Section contract:** the storefront looks up renderers by the registry `type`
+string. A registry type with **no identically named renderer renders nothing**
+("added but doesn't show up"). Adding a section = registry schema **+** matching
+renderer **+** storefront mapping **+** library entry **+** verify on the live
+storefront. Theme data persists as `design` (live) / `draftDesign` (draft) via
+`adminApi.updateSettings(..., { publish })`.
+
 ## Deployment
 
 - **Frontend** → GitHub Pages via `.github/workflows/deploy-pages.yml` on push
