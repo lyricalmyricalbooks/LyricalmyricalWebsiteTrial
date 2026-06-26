@@ -17,7 +17,7 @@ const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { Resend } = require("resend");
 const Stripe = require("stripe");
-const { matchShippingZone } = require("./shippingGeo");
+const { calculateShipping, applyStockDelta } = require("./orderMath");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -281,6 +281,19 @@ function getStateCode(stateName) {
   return US_STATES[clean] || CA_PROVINCES[clean] || stateName.toUpperCase();
 }
 
+// fetch() with a hard timeout so a slow/hung third party can never stall a
+// request that sits on the checkout critical path. Resolves/rejects like fetch;
+// aborts (and throws) after `ms` milliseconds.
+async function fetchWithTimeout(url, options = {}, ms = 3000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function callShippo(endpoint, method, body, token) {
   const headers = {
     "Authorization": `ShippoToken ${token}`,
@@ -298,49 +311,7 @@ async function callShippo(endpoint, method, body, token) {
   return await res.json();
 }
 
-// ──────────────────────────────────────────────────────────────
-// Dynamic Shipping Cost Calculation Helper
-// ──────────────────────────────────────────────────────────────
-function calculateShipping(items, customerAddress, profiles) {
-  const country = customerAddress.country || "Canada";
-  let highestBase = 0;
-  let totalAdditional = 0;
-
-  const subtotal = items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
-
-  // Geography-aware zone for this destination: explicit country > continent >
-  // legacy region name > rest-of-world. Per-item shippingProfileId still wins.
-  const zoneForCountry = matchShippingZone(country, profiles) || profiles[0];
-
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    let profile = profiles.find(p => p.id === item.shippingProfileId) || zoneForCountry;
-
-    const freeThreshold = profile?.freeThreshold ? Number(profile.freeThreshold) : 0;
-    let base = Number(profile?.base || 15);
-    let additional = Number(profile?.additional || 5);
-
-    if (freeThreshold > 0 && subtotal >= freeThreshold) {
-      base = 0;
-      additional = 0;
-    }
-
-    if (i === 0) {
-      highestBase = base;
-      totalAdditional += additional * (item.quantity - 1);
-    } else {
-      if (base > highestBase) {
-        totalAdditional += highestBase;
-        highestBase = base;
-        totalAdditional += additional * (item.quantity - 1);
-      } else {
-        totalAdditional += additional * item.quantity;
-      }
-    }
-  }
-
-  return highestBase + totalAdditional;
-}
+// `calculateShipping` now lives in ./orderMath (pure + unit-tested).
 
 // Region-aware tax matching: prefer a rate whose region matches the
 // destination state/province, otherwise fall back to the country-wide rate.
@@ -518,7 +489,7 @@ const FALLBACK_RATES = {
 
 async function getExchangeRates() {
   try {
-    const res = await fetch("https://open.er-api.com/v6/latest/CAD");
+    const res = await fetchWithTimeout("https://open.er-api.com/v6/latest/CAD", {}, 3000);
     if (res.ok) {
       const data = await res.json();
       if (data.rates) {
@@ -945,7 +916,9 @@ exports.createStripeCheckoutSession = onRequest(
       if (!ipCountry && clientIp && clientIp !== "127.0.0.1" && clientIp !== "::1") {
         try {
           const firstIp = clientIp.split(",")[0].trim();
-          const ipRes = await fetch(`http://ip-api.com/json/${firstIp}`);
+          // Soft signal only (sets ipCountryMatchesShipping); never let it
+          // block the customer from reaching Stripe — short timeout + swallow.
+          const ipRes = await fetchWithTimeout(`https://ip-api.com/json/${firstIp}`, {}, 2000);
           if (ipRes.ok) {
             const ipData = await ipRes.json();
             if (ipData.countryCode) {
@@ -1125,6 +1098,14 @@ exports.stripeWebhook = onRequest(
       return;
     }
 
+    // Event-level idempotency: Stripe can deliver the same event more than once.
+    // Mirror the PayPal webhook's dedupe so each event is processed at most once.
+    const stripeEventRef = db.collection("payment-webhook-events").doc(`stripe-${event.id}`);
+    if ((await stripeEventRef.get()).exists) {
+      res.json({ received: true, duplicate: true });
+      return;
+    }
+
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       const orderId = session.client_reference_id;
@@ -1247,6 +1228,107 @@ exports.stripeWebhook = onRequest(
         }
       }
     }
+
+    // Refunds issued directly from the Stripe Dashboard (or by any other path)
+    // arrive as charge.refunded — sync them back so the order, inventory, and
+    // analytics don't drift out of "paid".
+    if (event.type === "charge.refunded") {
+      const charge = event.data.object;
+      const paymentIntentId = typeof charge.payment_intent === "string"
+        ? charge.payment_intent
+        : charge.payment_intent?.id || null;
+      const fullyRefunded = charge.refunded === true || (charge.amount_refunded >= charge.amount && charge.amount > 0);
+
+      if (paymentIntentId && fullyRefunded) {
+        try {
+          const snap = await db.collection("orders")
+            .where("stripePaymentIntentId", "==", paymentIntentId).limit(1).get();
+          if (!snap.empty) {
+            const orderRef = snap.docs[0].ref;
+            let reversal = null;
+            await db.runTransaction(async transaction => {
+              const orderDoc = await transaction.get(orderRef);
+              if (!orderDoc.exists) return;
+              const order = orderDoc.data();
+              if (order.paymentStatus === "refunded") return; // already synced
+
+              const itemList = order.items || [];
+              const shouldRestock = order.inventoryRestockedAt == null;
+              const bookRefs = shouldRestock ? itemList.map(item => db.collection("books").doc(item.id)) : [];
+              const bookDocs = shouldRestock
+                ? await Promise.all(bookRefs.map(ref => transaction.get(ref)))
+                : [];
+
+              const now = new Date().toISOString();
+              if (shouldRestock) {
+                itemList.forEach((item, idx) => {
+                  const bookDoc = bookDocs[idx];
+                  if (!bookDoc?.exists) return;
+                  const book = bookDoc.data();
+                  if (!book.trackInventory) return;
+                  const quantity = Math.max(0, Number(item.quantity) || 0);
+                  if (item.variantId) {
+                    transaction.update(bookRefs[idx], {
+                      variants: (book.variants || []).map(v => {
+                        if (v.id === item.variantId) {
+                          const currentStock = v.stockLevel !== undefined ? v.stockLevel : v.stock;
+                          const newStock = (Number(currentStock) || 0) + quantity;
+                          return { ...v, stockLevel: newStock, stock: newStock };
+                        }
+                        return v;
+                      }),
+                      stockLevel: (Number(book.stockLevel) || 0) + quantity,
+                      updatedAt: now,
+                    });
+                  } else {
+                    transaction.update(bookRefs[idx], {
+                      stockLevel: (Number(book.stockLevel) || 0) + quantity,
+                      updatedAt: now,
+                    });
+                  }
+                });
+              }
+
+              transaction.update(orderRef, {
+                paymentStatus: "refunded",
+                status: "cancelled",
+                refundedAt: now,
+                refundedBy: "stripe-dashboard",
+                ...(shouldRestock ? { inventoryRestockedAt: now } : {}),
+                updatedAt: now,
+                activity: [
+                  ...(order.activity || []),
+                  { type: "event", message: `Refund synced from Stripe (${(charge.amount_refunded / 100).toFixed(2)} ${(charge.currency || "").toUpperCase()})${shouldRestock ? "; inventory restocked" : ""}.`, createdAt: now },
+                ],
+              });
+              reversal = { revenue: Number(order.total) || 0, paidDay: typeof order.paidAt === "string" ? order.paidAt.split("T")[0] : null };
+            });
+
+            if (reversal) {
+              const day = reversal.paidDay || new Date().toISOString().split("T")[0];
+              await db.collection("analytics").doc(day).set({
+                date: day,
+                orders: admin.firestore.FieldValue.increment(-1),
+                revenue: admin.firestore.FieldValue.increment(-(reversal.revenue || 0)),
+                refunds: admin.firestore.FieldValue.increment(1),
+                refundedRevenue: admin.firestore.FieldValue.increment(reversal.revenue || 0),
+              }, { merge: true });
+            }
+          }
+        } catch (err) {
+          console.error("Failed to sync charge.refunded:", err);
+          res.status(500).send(`Refund sync failure: ${err.message}`);
+          return;
+        }
+      }
+    }
+
+    // Mark this event processed (after successful handling) for idempotency.
+    await stripeEventRef.set({
+      eventType: event.type,
+      stripeEventId: event.id,
+      processedAt: new Date().toISOString(),
+    });
 
     res.json({ received: true });
   }
@@ -1423,8 +1505,28 @@ exports.refundOrder = onRequest(
             },
           ],
         });
-        return { alreadyRecorded: false };
+        // Reverse the analytics this order contributed at payment time. Revenue
+        // was recorded as `order.total` (base currency), so we reverse the same
+        // figure — not the Stripe refund amount, which is in checkout currency.
+        return {
+          alreadyRecorded: false,
+          reversedRevenue: Number(freshOrder.total) || 0,
+          paidDay: typeof freshOrder.paidAt === "string" ? freshOrder.paidAt.split("T")[0] : null,
+        };
       });
+
+      // Net out revenue/order count for refunds. Keyed by the original paid day
+      // when known (so each day's net is correct), else today.
+      if (!result.alreadyRecorded) {
+        const day = result.paidDay || new Date().toISOString().split("T")[0];
+        await db.collection("analytics").doc(day).set({
+          date: day,
+          orders: admin.firestore.FieldValue.increment(-1),
+          revenue: admin.firestore.FieldValue.increment(-(result.reversedRevenue || 0)),
+          refunds: admin.firestore.FieldValue.increment(1),
+          refundedRevenue: admin.firestore.FieldValue.increment(result.reversedRevenue || 0),
+        }, { merge: true });
+      }
 
       res.status(200).json({
         refundId: refund.id,
@@ -3107,100 +3209,11 @@ exports.onBookUpdated = onDocumentUpdated(
   }
 );
 
-// ──────────────────────────────────────────────────────────────
-// 13. HTTP Endpoint: Refund Order via Stripe (Admin Secure)
-//     Calls stripe.refunds.create, restores inventory, then updates order.
-//     onOrderUpdated fires the customer "refunded" email automatically.
-// ──────────────────────────────────────────────────────────────
-exports.refundOrder = onRequest(
-  { secrets: [STRIPE_SECRET_KEY] },
-  async (req, res) => {
-    if (applyCors(req, res)) return;
-    if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
-
-    const adminUser = await requireAdmin(req, res);
-    if (!adminUser) return;
-
-    const { orderId } = req.body;
-    if (!orderId) { res.status(400).json({ error: "Missing orderId" }); return; }
-
-    try {
-      const orderRef = db.collection("orders").doc(orderId);
-      const orderDoc = await orderRef.get();
-      if (!orderDoc.exists) { res.status(404).json({ error: "Order not found" }); return; }
-      const order = orderDoc.data();
-
-      if (order.paymentStatus === "refunded") {
-        res.status(400).json({ error: "Order has already been refunded" }); return;
-      }
-
-      // Issue the Stripe refund only for paid Stripe orders.
-      if (order.paymentStatus === "paid" && order.stripePaymentIntentId) {
-        const settingsDoc = await db.collection("settings").doc("website").get();
-        const settings = settingsDoc.data() || {};
-        const testMode = settings.payments?.testMode || false;
-        const stripeSettings = settings.payments?.stripe || {};
-        const stripeSecret = testMode
-          ? stripeSettings.testSecretKey
-          : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
-        if (!stripeSecret) { res.status(500).json({ error: "Stripe is not configured." }); return; }
-        const stripe = new Stripe(stripeSecret);
-        await stripe.refunds.create({ payment_intent: order.stripePaymentIntentId });
-      }
-
-      // Atomically restore inventory and update order status.
-      await db.runTransaction(async transaction => {
-        const freshOrderDoc = await transaction.get(orderRef);
-        if (!freshOrderDoc.exists) return;
-        const freshOrder = freshOrderDoc.data();
-
-        const bookRefs = (freshOrder.items || []).map(item => db.collection("books").doc(item.id));
-        const bookDocs = await Promise.all(bookRefs.map(r => transaction.get(r)));
-
-        // Only restore stock that was previously decremented (paid orders).
-        if (freshOrder.paymentStatus === "paid") {
-          (freshOrder.items || []).forEach((item, idx) => {
-            const bookDoc = bookDocs[idx];
-            if (!bookDoc.exists) return;
-            const book = bookDoc.data();
-            if (!book.trackInventory) return;
-            if (item.variantId) {
-              const updatedVariants = (book.variants || []).map(v =>
-                v.id === item.variantId ? { ...v, stock: (v.stock || 0) + item.quantity } : v
-              );
-              transaction.update(bookRefs[idx], {
-                variants: updatedVariants,
-                stockLevel: (book.stockLevel || 0) + item.quantity,
-                updatedAt: new Date().toISOString()
-              });
-            } else {
-              transaction.update(bookRefs[idx], {
-                stockLevel: (book.stockLevel || 0) + item.quantity,
-                updatedAt: new Date().toISOString()
-              });
-            }
-          });
-        }
-
-        transaction.update(orderRef, {
-          status: "cancelled",
-          paymentStatus: "refunded",
-          refundedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          activity: [
-            ...(freshOrder.activity || []),
-            { type: "event", message: `Order cancelled and refunded by ${adminUser.email}.`, createdAt: new Date().toISOString() }
-          ]
-        });
-      });
-
-      res.status(200).json({ success: true });
-    } catch (err) {
-      console.error("refundOrder failed:", err);
-      res.status(500).json({ error: err.message });
-    }
-  }
-);
+// (The second, weaker `refundOrder` definition that previously lived here was
+// removed: it shadowed the robust idempotent implementation above — see the
+// `exports.refundOrder` near the top of this file. The version above carries a
+// Stripe idempotency key, partial-refund recording, restock-once guards, and
+// manual-payment handling.)
 
 // ──────────────────────────────────────────────────────────────
 // 14. HTTP Endpoint: Mark Manual Order as Paid (Admin Secure)
@@ -3250,23 +3263,8 @@ exports.markOrderPaid = onRequest(
         itemList.forEach((item, idx) => {
           const bookDoc = bookDocs[idx];
           if (!bookDoc.exists) return;
-          const book = bookDoc.data();
-          if (!book.trackInventory) return;
-          if (item.variantId) {
-            const updatedVariants = (book.variants || []).map(v =>
-              v.id === item.variantId ? { ...v, stock: Math.max(0, (v.stock || 0) - item.quantity) } : v
-            );
-            transaction.update(bookRefs[idx], {
-              variants: updatedVariants,
-              stockLevel: Math.max(0, (book.stockLevel || 0) - item.quantity),
-              updatedAt: new Date().toISOString()
-            });
-          } else {
-            transaction.update(bookRefs[idx], {
-              stockLevel: Math.max(0, (book.stockLevel || 0) - item.quantity),
-              updatedAt: new Date().toISOString()
-            });
-          }
+          const patch = applyStockDelta(bookDoc.data(), item, -(Number(item.quantity) || 0));
+          if (patch) transaction.update(bookRefs[idx], patch);
         });
 
         paidTotal = Number(order.total) || 0;
