@@ -172,10 +172,13 @@ and the **Last Code Push** timestamp.
 > - the summary paragraph listing what this release shipped,
 > - the **Last Code Push** timestamp (e.g. "June 13, 22:09").
 >
-> Current state: updated **June 13, 2026 at 10:09 PM** — released optional
-> dynamic shipping rates via Shippo, advanced promotional discounts (Buy One
-> Get One and Minimum Spend Tiers), custom order timeline logging, and
-> variant-level format/cover photo matching.
+> Current state: updated **June 26, 2026 at 8:30 PM** — hardened the payments
+> backend: removed a duplicate `refundOrder` that risked double refunds, added
+> Stripe webhook event de-duplication and a `charge.refunded` sync (dashboard
+> refunds now reconcile inventory + analytics), reversed revenue/order counts on
+> refunds, added hard timeouts to the exchange-rate and geo-IP calls on the
+> checkout path, and unified inventory math behind a tested `applyStockDelta`
+> helper (`functions/orderMath.js`).
 
 ## Conventions & gotchas
 
