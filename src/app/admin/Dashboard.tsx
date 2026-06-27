@@ -228,7 +228,7 @@ export function Dashboard() {
 
       {/* Sidebar */}
       <aside className={`fixed lg:static inset-y-0 left-0 w-72 bg-black/40 backdrop-blur-2xl border-r border-white/5 flex flex-col z-[70] transform transition-all duration-500 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        <div className="p-8 flex items-center gap-3.5 mb-8 border-b border-white/5">
+        <div className="h-20 px-8 flex items-center gap-3.5 mb-4 border-b border-white/5 shrink-0">
           <div className="relative group shrink-0">
             <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 to-indigo-600 rounded-xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
             <div className="relative h-11 w-11 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
@@ -338,25 +338,26 @@ export function Dashboard() {
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-cyan-600/5 blur-[120px] rounded-full -ml-64 -mb-64 pointer-events-none" />
 
         {/* TopNavBar */}
-        <header className="h-20 flex items-center justify-between px-10 bg-black/20 backdrop-blur-2xl border-b border-white/5 shrink-0 z-50">
-          <div className="flex items-center gap-10">
+        <header className="h-20 flex items-center justify-between gap-4 px-6 lg:px-8 bg-black/20 backdrop-blur-2xl border-b border-white/5 shrink-0 z-50">
+          <div className="flex min-w-0 flex-1 items-center gap-4">
             <button 
               onClick={() => setSidebarOpen(true)}
               className="lg:hidden p-3 bg-white/5 rounded-xl text-slate-400 hover:text-white border border-white/10"
             >
               <Menu size={20} />
             </button>
-            <div className="hidden md:flex items-center bg-white/[0.03] rounded-2xl px-5 py-2.5 border border-white/5 group focus-within:border-violet-500/30 transition-all w-96 shadow-inner">
-              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-violet-500 transition-colors" size={16} />
-              <input 
-                type="text" 
-                placeholder="Search books, orders, discounts..." 
-                className="w-full bg-slate-900/50 border border-white/5 rounded-2xl py-4 pl-16 pr-6 text-xs text-white placeholder:text-slate-600 outline-none focus:border-violet-500/30 focus:bg-slate-900/80 transition-all font-medium"
+            <div className="admin-search-shell hidden md:flex items-center relative group w-full max-w-md">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-violet-400 transition-colors" size={16} />
+              <input
+                type="search"
+                placeholder="Search books, orders, discounts..."
+                aria-label="Search books, orders, and discounts"
+                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] py-0 pl-10 pr-4 text-sm text-white placeholder:text-slate-500 outline-none shadow-inner transition-all font-medium focus:border-violet-500/40 focus:bg-white/[0.07] focus:shadow-[0_0_0_4px_rgba(124,58,237,0.12)]"
               />
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex shrink-0 items-center gap-4">
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => {
