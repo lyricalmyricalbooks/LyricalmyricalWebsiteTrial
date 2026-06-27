@@ -25,6 +25,11 @@ function visibleBlocks(list: any[]): any[] {
   return (list || []).filter((b: any) => !b?.hidden);
 }
 
+function blockEditAttrs(block: any, idx: number) {
+  const id = block?.id || `block-${idx}`;
+  return { "data-fm-block": id, "data-block-id": id };
+}
+
 // ──────────────────────────────
 // Per-section style helpers
 // ──────────────────────────────
@@ -204,7 +209,7 @@ export function FeatureGridSection({ settings, enableAnimations }: any) {
         <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
           {(items.length ? items : [{ title: "Feature One", description: "Describe your value." }]).map((item: any, idx: number) => (
             <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.1}>
-              <div className="p-6 bg-white/[0.03] border border-white/10 rounded-2xl">
+              <div {...blockEditAttrs(item, idx)} className="p-6 bg-white/[0.03] border border-white/10 rounded-2xl">
                 {item.icon && <div className="text-3xl mb-3">{item.icon}</div>}
                 <h3 className="text-sm font-bold uppercase text-white" style={bStyle(settings)}>{item.title}</h3>
                 <p className="text-xs text-white/50 mt-2" style={bStyle(settings)}>{item.description}</p>
@@ -281,7 +286,7 @@ export function TestimonialsSection({ settings, enableAnimations }: any) {
           </div>
           <div className="grid md:grid-cols-2 gap-6">
             {(items.length ? items : [{ quote: "An incredible independent shop.", author: "Customer" }]).map((item: any, idx: number) => (
-              <div key={idx} className="p-6 bg-white/[0.03] rounded-2xl border border-white/10">
+              <div key={idx} {...blockEditAttrs(item, idx)} className="p-6 bg-white/[0.03] rounded-2xl border border-white/10">
                 <p className="text-white/70 text-lg leading-relaxed font-light" style={bStyle(settings)}>"{item.quote}"</p>
                 <p className="text-white/40 text-xs mt-4 uppercase tracking-widest" style={bStyle(settings)}>{item.author}</p>
                 {item.role && <p className="text-white/30 text-[10px] mt-1" style={bStyle(settings)}>{item.role}</p>}
@@ -314,7 +319,7 @@ export function FAQSection({ settings, enableAnimations }: any) {
           </div>
           <div className="space-y-3">
             {(items.length ? items : [{ question: "Sample question?", answer: "Sample answer." }]).map((item: any, idx: number) => (
-              <details key={idx} className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
+              <details key={idx} {...blockEditAttrs(item, idx)} className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
                 <summary className="text-sm font-bold text-white cursor-pointer" style={bStyle(settings)}>{item.question}</summary>
                 <p className="text-white/60 text-sm mt-3" style={bStyle(settings)}>{item.answer}</p>
               </details>
@@ -497,7 +502,7 @@ export function MulticolumnSection({ settings, enableAnimations }: any) {
         <div className="grid gap-8" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
           {items.map((item: any, idx: number) => (
             <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.1}>
-              <div className={`space-y-4 ${textAlign}`}>
+              <div {...blockEditAttrs(item, idx)} className={`space-y-4 ${textAlign}`}>
                 {item.imageUrl && (
                   <div className="aspect-square w-32 mx-auto rounded-full overflow-hidden border border-white/10">
                     <img src={item.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={item.title || ""} />
@@ -668,7 +673,7 @@ export function LogoListSection({ settings, enableAnimations }: any) {
           )}
           <div className="flex flex-wrap items-center justify-center gap-8 md:gap-16">
             {items.map((item: any, idx: number) => (
-              <div key={idx} className="opacity-60 hover:opacity-100 transition-opacity">
+              <div key={idx} {...blockEditAttrs(item, idx)} className="opacity-60 hover:opacity-100 transition-opacity">
                 {item.logoUrl ? (
                   <img src={item.logoUrl} alt={item.alt || ""} loading="lazy" decoding="async" className="h-10 w-auto object-contain" />
                 ) : (
@@ -705,7 +710,7 @@ export function CollapsibleSection({ settings, enableAnimations }: any) {
           )}
           <div className="border-t border-white/10">
             {items.map((item: any, idx: number) => (
-              <details key={idx} className="border-b border-white/10 group">
+              <details key={idx} {...blockEditAttrs(item, idx)} className="border-b border-white/10 group">
                 <summary className="flex items-center justify-between cursor-pointer py-5 text-white text-sm font-bold tracking-wide uppercase" style={bStyle(settings)}>
                   {item.heading || "Heading"}
                   <span className="text-white/40 group-open:rotate-45 transition-transform">+</span>
@@ -750,7 +755,7 @@ export function CollectionListSection({ settings, enableAnimations }: any) {
         <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
           {items.map((item: any, idx: number) => (
             <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.05}>
-              <a href={item.linkUrl || "#"} className="group relative block aspect-[3/4] overflow-hidden rounded-2xl bg-white/5">
+              <a href={item.linkUrl || "#"} {...blockEditAttrs(item, idx)} className="group relative block aspect-[3/4] overflow-hidden rounded-2xl bg-white/5">
                 {item.imageUrl && (
                   <img src={item.imageUrl} alt={item.title || ""} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                 )}
@@ -981,12 +986,12 @@ export function MapSection({ settings, enableAnimations }: any) {
 // ROW (multi-column layout where each column holds any block kind)
 // ──────────────────────────────
 
-function RowBlock({ block, accentFallback, settings }: any) {
+function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
   const kind = block.kind || "text";
 
   if (kind === "image") {
     return (
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+      <div {...blockEditAttrs(block, blockIndex)} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
         {block.imageUrl ? (
           <img src={block.imageUrl} alt={block.title || ""} loading="lazy" decoding="async" className="w-full h-auto object-cover" />
         ) : (
@@ -998,7 +1003,7 @@ function RowBlock({ block, accentFallback, settings }: any) {
 
   if (kind === "button") {
     return (
-      <div className="flex justify-center">
+      <div {...blockEditAttrs(block, blockIndex)} className="flex justify-center">
         <a
           href={block.buttonUrl || "#"}
           className="inline-block px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
@@ -1016,7 +1021,7 @@ function RowBlock({ block, accentFallback, settings }: any) {
     const vimeoId = url.match(/vimeo\.com\/(\d+)/)?.[1];
     const embed = ytId ? `https://www.youtube.com/embed/${ytId}?rel=0` : vimeoId ? `https://player.vimeo.com/video/${vimeoId}` : "";
     return (
-      <div className="aspect-video w-full overflow-hidden rounded-2xl fm-surface border border-white/10">
+      <div {...blockEditAttrs(block, blockIndex)} className="aspect-video w-full overflow-hidden rounded-2xl fm-surface border border-white/10">
         {embed ? (
           <iframe src={embed} title={block.title || "Video"} allow="autoplay; fullscreen" allowFullScreen className="w-full h-full" />
         ) : url ? (
@@ -1030,7 +1035,7 @@ function RowBlock({ block, accentFallback, settings }: any) {
 
   // text (default)
   return (
-    <div className="space-y-4">
+    <div {...blockEditAttrs(block, blockIndex)} className="space-y-4">
       {block.title && <h3 className="text-2xl font-bold tracking-tight text-white" style={settings ? hStyle(settings) : {}}>{block.title}</h3>}
       {block.body && <p className="text-white/60 leading-relaxed text-sm" style={settings ? bStyle(settings) : {}}>{block.body}</p>}
       {block.buttonText && (
@@ -1074,7 +1079,7 @@ export function RowSection({ settings, enableAnimations }: any) {
           >
             {(blocks.length ? blocks : [{ kind: "text", title: "Add columns", body: "Use the Row section to combine text, images, buttons and video side by side." }]).map(
               (block: any, idx: number) => (
-                <RowBlock key={idx} block={block} accentFallback={settings.accentColor} settings={settings} />
+                <RowBlock key={idx} block={block} blockIndex={idx} accentFallback={settings.accentColor} settings={settings} />
               ),
             )}
           </div>
@@ -1111,6 +1116,7 @@ export function GallerySection({ settings, enableAnimations }: any) {
           {items.map((item: any, idx: number) => (
             <a
               key={idx}
+              {...blockEditAttrs(item, idx)}
               href={item.linkUrl || item.imageUrl || "#"}
               target={item.linkUrl ? "_blank" : undefined}
               rel="noreferrer"
@@ -1245,7 +1251,7 @@ export function StatsCounterSection({ settings, enableAnimations }: any) {
         </AnimationContainer>
         <div className="grid gap-8" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
           {items.map((item: any, idx: number) => (
-            <div key={idx} className="text-center">
+            <div key={idx} {...blockEditAttrs(item, idx)} className="text-center">
               <div className="text-4xl md:text-5xl font-bold text-white tracking-tight">
                 <StatNumber value={item.value} prefix={item.prefix} suffix={item.suffix} animate={enableAnimations} />
               </div>
@@ -1289,6 +1295,7 @@ export function PricingTableSection({ settings, onCtaClick, enableAnimations }: 
             return (
               <div
                 key={idx}
+                {...blockEditAttrs(item, idx)}
                 className={`flex flex-col rounded-2xl p-8 border ${highlighted ? "border-white/40 bg-white/[0.07] shadow-2xl md:scale-[1.03]" : "border-white/10 bg-white/[0.03]"}`}
               >
                 {highlighted && (

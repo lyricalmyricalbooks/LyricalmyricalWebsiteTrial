@@ -104,7 +104,8 @@ enhance it:
 2. **Honor the full section contract.** The storefront resolves renderers by the
    registry `type` name — a registry type with no identically named renderer
    renders nothing. The registry and `SectionComponents.tsx` renderers are
-   currently at parity; keep them in lockstep. Adding/fixing a section means:
+   currently at parity; keep them in lockstep. Rendered sections/blocks also carry stable
+   `data-fm-section` / `data-fm-block` edit hooks for template-aware preview selection, and section settings support scoped CSS. Adding/fixing a section means:
    registry schema **+** matching renderer **+** storefront mapping **+** library
    entry **+** verify it actually shows on the live storefront, not just the
    editor preview. The single section library is the registry-driven

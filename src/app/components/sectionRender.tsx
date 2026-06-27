@@ -48,6 +48,31 @@ export function sectionInWindow(section: any): boolean {
 }
 
 /** Scoped style + font loading for a section's heading/body font overrides. */
+
+function SectionScopedCss({ sectionId, css }: { sectionId: string; css?: string }) {
+  if (!css) return null;
+  const selector = `[data-fm-section="${sectionId}"]`;
+  const scoped = String(css)
+    .split("}")
+    .map((rule) => {
+      const [rawSelectors, body] = rule.split("{");
+      if (!rawSelectors || !body) return "";
+      const selectors = rawSelectors
+        .split(",")
+        .map((sel) => {
+          const trimmed = sel.trim();
+          if (!trimmed) return "";
+          return trimmed.includes("&") ? trimmed.replace(/&/g, selector) : `${selector} ${trimmed}`;
+        })
+        .filter(Boolean)
+        .join(", ");
+      return selectors ? `${selectors}{${body}}` : "";
+    })
+    .filter(Boolean)
+    .join("\n");
+  return scoped ? <style>{scoped}</style> : null;
+}
+
 function SectionFontOverride({ sectionId, settings }: { sectionId: string; settings: any }) {
   const heading = settings?.headingFontOverride;
   const body = settings?.bodyFontOverride;
@@ -143,6 +168,7 @@ export function SectionList({
             id={`section-${section.id}`}
             data-section={dataSection}
             data-section-id={section.id}
+            data-fm-section={section.id}
             className={wrapperCls}
             style={{
               paddingTop: s.paddingTop != null ? `${s.paddingTop}px` : undefined,
@@ -152,6 +178,7 @@ export function SectionList({
             }}
           >
             <SectionFontOverride sectionId={section.id} settings={s} />
+            <SectionScopedCss sectionId={section.id} css={s.customCss} />
             <SectionReveal animation={s.animation} enableAnimations={enableAnimations}>
               <SectionComponent
                 settings={s}

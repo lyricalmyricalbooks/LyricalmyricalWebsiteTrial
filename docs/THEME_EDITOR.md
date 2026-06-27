@@ -37,7 +37,7 @@ The editor is **not** a blank slate. It already supports:
 | `src/app/admin/ThemeEditorPro.tsx` | Color math/normalization, palette & color-scheme tooling, theme import/export. |
 | `src/app/admin/ThemeEditorBuilder.tsx` | Builder UI that consumes the registry helpers (`getSectionMeta`, `getSectionFields`, `getBlockFields`, `NewSectionLibraryModal`). |
 | `src/app/components/SectionComponents.tsx` | **One storefront renderer per registry section type** (the components that actually draw each section) + shared style helpers (spacing, background, button styles, animation wrappers). Registry and renderers are at parity — every `SECTION_REGISTRY` type has a matching renderer. |
-| `src/app/components/sectionRender.tsx` | **Shared section renderer** (single source of truth for section→renderer mapping). `SectionList` (pure: maps a `sections` array → renderers via `(Sections as any)[type]`); `TemplateSections` (renders `design[templateId].sections` for a page-type template); `GlobalSections` (renders the flat `design.globalSections`). Used by MainSite **and** every standalone page. |
+| `src/app/components/sectionRender.tsx` | **Shared section renderer** (single source of truth for section→renderer mapping). `SectionList` (pure: maps a `sections` array → renderers via `(Sections as any)[type]` and emits stable `data-fm-section` / `data-section-id` edit hooks); `TemplateSections` (renders `design[templateId].sections` for a page-type template); `GlobalSections` (renders the flat `design.globalSections`). Used by MainSite **and** every standalone page. |
 | `src/app/components/MainSite.tsx` | Renders the homepage/storefront. Uses `SectionList` for `heroPage.sections` and the shared `GlobalSections` from `sectionRender`. |
 | `src/app/features/site/StorefrontThemeStyle.tsx` + `themeTokens` | Injects the semantic token / CSS-variable layer onto any storefront surface via the `[data-fm-store]` attribute. |
 | `src/app/admin/api.ts` | Persistence: `getSettings`, `updateSettings(settings, { publish })`, `schedulePublish`. |
@@ -131,9 +131,9 @@ library → verify), then check it off.
       Wishlist, Account, and OrderTracking pages.
 - [x] The catalog `storefront` surface now renders its template's sections via
       `TemplateSections` in `MainSite`.
-- [ ] Follow-ups: route the editor's click-to-edit to the correct template
-      panel (currently maps non-global clicks to the home sections panel); group
-      global sections into header/footer/announcement.
+- [x] Click-to-edit now routes preview section clicks to the owning page-template
+      panel before opening the section editor.
+- [ ] Follow-up: group global sections into header/footer/announcement.
 
 ### B. More section types (close gaps + expand)
 - [x] Renderers added for `VideoHeroSection`, `StatsCounterSection`,
@@ -149,8 +149,7 @@ library → verify), then check it off.
       Row, Marquee, Logo list, Collapsible, Text content, Custom HTML).
 
 ### C. Live preview & editing UX
-- [~] Inline click-to-edit exists (preview → open section); polish coverage and
-      make it bidirectional/stable.
+- [x] Inline click-to-edit routes preview clicks to the correct section/template panel and keeps the selected section highlighted.
 - [x] Device preview toggle (desktop / tablet / mobile widths).
 - [x] Undo / redo for editor changes (Ctrl+Z / Ctrl+Y).
 - [x] Reorder polish: sections, blocks, global sections, nav menu items and
@@ -164,8 +163,7 @@ library → verify), then check it off.
 ### D. Theme management
 - [~] Draft/publish + scheduled publish exist — bring to full Shopify parity
       (clear "unpublished changes" state, discard-draft).
-- [~] Import/export JSON exists (`ThemeEditorPro`) — add a friendly
-      duplicate-theme flow.
+- [x] Import/export JSON exists (`ThemeEditorPro`) plus a friendly duplicate-theme draft flow in the theme toolbar.
 - [ ] Multiple saved themes (a library of full themes, not just presets), with
       one active/published.
 - [ ] Version history / restore previous published versions.
@@ -174,13 +172,13 @@ library → verify), then check it off.
 - [ ] Nested blocks (block-in-block) in the schema, `BlocksEditor`, and
       renderers — at least 2–3 levels deep.
 - [ ] Reusable shared blocks usable across any section ("theme blocks").
-- [ ] Emit stable `data-fm-section` / `data-fm-block` ids on every rendered
-      node for reliable click-to-edit/hover-highlight.
+- [x] Emit stable `data-fm-section` / `data-fm-block` ids on rendered
+      section and block nodes for reliable click-to-edit/hover-highlight.
 - [ ] CSS-Grid block positioning (start/end coords + `z-index` overlap) with
       separate desktop/mobile grids and dynamic-row guardrails.
 - [ ] Per-breakpoint overrides + device preview toggle (also under C) with
       auto `clamp()` typography.
-- [ ] Soft section/block limits with in-editor warnings (25 sections / 50
+- [x] Soft section/block limits with in-editor warnings (25 sections / 50
       blocks reference).
 
 ### F. Performance & assets (Core Web Vitals)
@@ -190,12 +188,13 @@ library → verify), then check it off.
       <150KB / thumb <50KB).
 - [ ] Lazy-load below-the-fold sections/images; on-demand section JS.
 - [ ] Element caching of unchanged rendered section HTML.
-- [ ] Surface an in-editor theme-weight / Core Web Vitals score.
+- [x] Surface an in-editor theme-weight guardrail score (section/block counts plus warning states).
+- [ ] Expand theme-weight into a full Core Web Vitals proxy (LCP, CLS, INP, DOM node count).
 
 ### G. AI authoring & custom code
 - [ ] Prompt → registry-valid section/block JSON inserted as a draft.
 - [ ] Desktop → mobile breakpoint/typography auto-generation.
-- [ ] Custom CSS panel (global + per-section) via the token layer.
+- [x] Custom CSS panel (global + per-section) via the token layer / scoped section style injection.
 - [ ] Deferred custom JS hook (post first-paint) for widgets/analytics.
 
 ## Best-in-class feature targets (competitive analysis)
@@ -236,9 +235,7 @@ built end-to-end via the section contract above.
 - **Limits + guardrails.** OS 2.0 caps templates at **25 sections / 50 blocks
   per section** to protect performance. Surface soft caps + a warning in
   `HomepagePanel` instead of letting pages grow unbounded.
-- **Stable edit ids.** Emit a `data-fm-section`/`data-fm-block` attribute on
-  every rendered section/block (the analogue of `block.shopify_attributes`) so
-  the preview iframe can hover-highlight and round-trip click-to-edit reliably.
+- **Stable edit ids.** `SectionList` emits `data-fm-section` on every rendered section wrapper, and block-based renderers emit `data-fm-block`/`data-block-id` on their primary block node (the analogue of `block.shopify_attributes`) so the preview iframe can hover-highlight and round-trip click-to-edit reliably.
 
 **2. Visual layout & responsive engine (Squarespace Fluid Engine / Wix Studio)**
 - **Grid positioning.** Move beyond a single vertical stack: allow blocks to be
