@@ -47,6 +47,8 @@ describe("buildStorefrontTokenVars", () => {
 
   it("border tint defaults to the foreground, follows borderColor when set", () => {
     expect(buildStorefrontTokenVars({ textColor: "#111111" })).toContain("--border-rgb: 17 17 17;");
+    expect(buildStorefrontTokenVars({ surfaceColor: "#123456", surfaceRaisedColor: "#abcdef" })).toContain("--surface-rgb: 18 52 86;");
+    expect(buildStorefrontTokenVars({ surfaceColor: "#123456", surfaceRaisedColor: "#abcdef" })).toContain("--surface-2-rgb: 171 205 239;");
     expect(buildStorefrontTokenVars({ borderColor: "#B1B1AA" })).toContain("--border-rgb: 177 177 170;");
   });
 
@@ -60,6 +62,7 @@ describe("buildStorefrontTokenVars", () => {
 describe("STOREFRONT_TOKEN_CSS", () => {
   it("remaps the Tailwind alpha utilities onto the token layer", () => {
     expect(STOREFRONT_TOKEN_CSS).toContain(".text-white\\/40{color:rgba(var(--fg-rgb), 0.4);}");
+    expect(STOREFRONT_TOKEN_CSS).toContain(".bg-white\\/\\[0\\.03\\]{background-color:rgba(var(--surface-rgb), 0.03);}");
     expect(STOREFRONT_TOKEN_CSS).toContain(".bg-black\\/70{background-color:rgba(var(--overlay-rgb), 0.7);}");
     expect(STOREFRONT_TOKEN_CSS).toContain(".border-white\\/\\[0\\.08\\]{border-color:rgba(var(--border-rgb), 0.08);}");
   });

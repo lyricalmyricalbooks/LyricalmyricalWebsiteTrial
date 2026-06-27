@@ -133,7 +133,9 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
     `--border-rgb: ${hexToRgbTriplet(design?.borderColor, fgTriplet)};`,
     `--overlay-rgb: ${hexToRgbTriplet(overlay, "0 0 0")};`,
     `--surface: ${surface};`,
+    `--surface-rgb: ${hexToRgbTriplet(surface, "10 10 10")};`,
     `--surface-2: ${surface2};`,
+    `--surface-2-rgb: ${hexToRgbTriplet(surface2, "23 23 23")};`,
     `--accent: ${accent};`,
     `--accent-rgb: ${hexToRgbTriplet(accent, "168 85 247")};`,
     `--accent-2: ${accent2};`,
@@ -246,7 +248,7 @@ const brandOverrideCss = BRAND_HUES.flatMap(({ names, solidVar, rgbVar }) =>
 
 const alphaOverrideCss = [
   // text/bg follow the foreground; borders follow the Border color token.
-  buildAlphaRules("white", WHITE_ALPHAS, (p) => (p === "border" ? BORDER : FG)),
+  buildAlphaRules("white", WHITE_ALPHAS, (p) => (p === "border" ? BORDER : p === "bg" ? "--surface-rgb" : FG)),
   buildAlphaRules("black", BLACK_ALPHAS, () => OVERLAY),
   brandOverrideCss,
 ].join("\n");

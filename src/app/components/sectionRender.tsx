@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import * as Sections from "./SectionComponents";
+import { hexToRgbTriplet } from "../features/site/themeTokens";
 import { DEFAULT_COLOR_SCHEMES } from "../features/site/colorSchemes";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -175,6 +176,9 @@ export function SectionList({
               paddingBottom: s.paddingBottom != null ? `${s.paddingBottom}px` : undefined,
               background: scheme?.background || s.sectionBackground || undefined,
               color: scheme?.text || undefined,
+              ...(s.lineColor && { "--border-rgb": hexToRgbTriplet(s.lineColor) }),
+              ...(s.boxColor && { "--surface": s.boxColor, "--surface-rgb": hexToRgbTriplet(s.boxColor, "10 10 10") }),
+              ...(s.raisedBoxColor && { "--surface-2": s.raisedBoxColor, "--surface-2-rgb": hexToRgbTriplet(s.raisedBoxColor, "23 23 23") }),
             }}
           >
             <SectionFontOverride sectionId={section.id} settings={s} />
