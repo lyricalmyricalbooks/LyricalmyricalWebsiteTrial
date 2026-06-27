@@ -155,10 +155,34 @@ library → verify), then check it off.
 - [x] Reorder polish: sections, blocks, global sections, nav menu items and
       color schemes all reorder via `@dnd-kit` (pointer + keyboard) through the
       shared `src/app/admin/dndSortable.tsx` helper. Section types can also be
-      dragged out of the library modal to insert at a position. (Nested
+      dragged out of the library modal onto explicit between-section insertion
+      zones, and existing sections use the same insertion targets plus a lifted
+      drag overlay for precise moves, including an empty page and the start/end
+      of the outline. (Nested
       block / mega-menu child DnD is a remaining follow-up.)
 - [~] Live preview channel (`THEME_UPDATE` postMessage) exists — extend it to
       cover all edits (not only some) and all templates.
+
+
+### Next five theme-editor suggestions
+
+After the insertion-zone drag/drop work, the next five highest-leverage
+Shopify/WordPress-parity improvements are:
+
+1. **Drag/drop inside the live preview iframe** — map `data-fm-section` and
+   `data-fm-block` targets back to the owning template so merchants can reorder
+   from the canvas, not only the sidebar outline.
+2. **Nested block drag/drop** — extend `BlocksEditor` from flat section-local
+   arrays to 2–3 levels of recursive blocks for columns, cards, and media/text
+   groups.
+3. **Mega-menu child drag/drop** — replace child/grandchild nav arrow controls
+   with nested sortable lists so menu structure editing matches modern builders.
+4. **CSS-grid visual positioning** — add guarded grid coordinates, z-index, and
+   overlap controls for sections that need true visual layout rather than only
+   vertical order.
+5. **Per-breakpoint layout overrides** — store desktop/tablet/mobile placement
+   overrides and pair them with the existing device preview toggle so mobile
+   layouts can be intentionally edited.
 
 ### D. Theme management
 - [~] Draft/publish + scheduled publish exist — bring to full Shopify parity
