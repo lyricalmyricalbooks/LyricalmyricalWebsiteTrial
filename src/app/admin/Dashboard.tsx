@@ -346,12 +346,13 @@ export function Dashboard() {
             >
               <Menu size={20} />
             </button>
-            <div className="hidden md:flex items-center bg-white/[0.03] rounded-2xl px-5 py-2.5 border border-white/5 group focus-within:border-violet-500/30 transition-all w-96 shadow-inner">
-              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-violet-500 transition-colors" size={16} />
-              <input 
-                type="text" 
-                placeholder="Search books, orders, discounts..." 
-                className="w-full bg-slate-900/50 border border-white/5 rounded-2xl py-4 pl-16 pr-6 text-xs text-white placeholder:text-slate-600 outline-none focus:border-violet-500/30 focus:bg-slate-900/80 transition-all font-medium"
+            <div className="admin-search-shell hidden md:flex items-center relative group w-[min(34rem,42vw)]">
+              <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-violet-400 transition-colors" size={17} />
+              <input
+                type="search"
+                placeholder="Search books, orders, discounts..."
+                aria-label="Search books, orders, and discounts"
+                className="h-12 w-full rounded-2xl border border-white/10 bg-white/[0.04] py-0 pl-11 pr-4 text-sm text-white placeholder:text-slate-500 outline-none shadow-inner transition-all font-medium focus:border-violet-500/40 focus:bg-white/[0.07] focus:shadow-[0_0_0_4px_rgba(124,58,237,0.12)]"
               />
             </div>
           </div>
