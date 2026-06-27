@@ -304,7 +304,6 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
       manualSlugs: "",
     },
   },
-
   {
     type: "BlogPostsSection",
     label: "Blog Posts",

@@ -881,9 +881,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontButtonBg = storefrontDesign?.buttonColor || storefrontAccent;
   const storefrontButtonText = storefrontDesign?.buttonTextColor || "#000000";
   const storefrontMaxWidth = Math.max(900, Math.min(1600, storefrontDesign?.containerWidth ?? 1200));
-  const isReferenceCatalog = storefrontDesign?.catalogLayoutStyle === "reference";
+  // Default legacy storefronts into the requested photo-reference design. The
+  // previous implementation only changed sites after a merchant manually applied
+  // the preset, so existing published Firestore designs still rendered the old
+  // catalog.
+  const isReferenceCatalog = storefrontDesign?.catalogLayoutStyle !== "modern";
   const storefrontMobileColumns = Math.max(1, Math.min(3, storefrontDesign?.productColumnsMobile ?? 2));
-  const storefrontDesktopColumns = Math.max(2, Math.min(6, storefrontDesign?.productColumnsDesktop ?? 4));
+  const storefrontDesktopColumns = Math.max(2, Math.min(6, storefrontDesign?.productColumnsDesktop ?? (isReferenceCatalog ? 3 : 4)));
   const storefrontCardRadius = Math.max(0, Math.min(30, storefrontDesign?.cardRadius ?? 8));
   const storefrontGridGap = Math.max(8, Math.min(72, storefrontDesign?.catalogGridGap ?? (isReferenceCatalog ? 18 : 32)));
   const storefrontHeaderRuleWidth = Math.max(0, Math.min(8, storefrontDesign?.catalogHeaderRuleWidth ?? (isReferenceCatalog ? 4 : 1)));
@@ -895,6 +899,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const catalogNavGapDesktop = Math.max(12, Math.min(80, storefrontDesign?.catalogNavGapDesktop ?? 40));
   const catalogNavGapMobile = Math.max(8, Math.min(48, storefrontDesign?.catalogNavGapMobile ?? 18));
   const catalogCartPlacement = storefrontDesign?.catalogCartPlacement || "top-right";
+  const catalogMastheadText = storefrontDesign?.catalogMastheadText || settings?.info?.name || "Lyricalmyrical Books";
   const catalogImageFocalX = Math.max(0, Math.min(100, storefrontDesign?.catalogImageFocalX ?? 50));
   const catalogImageFocalY = Math.max(0, Math.min(100, storefrontDesign?.catalogImageFocalY ?? 50));
   const storefrontButtonRadius = Math.max(0, Math.min(999, storefrontDesign?.buttonRadius ?? 999));
@@ -919,7 +924,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const newBadgeLabel = storefrontDesign?.newBadgeLabel || "NEW";
   const newBadgeDays = Math.max(1, Math.min(365, storefrontDesign?.newBadgeDays ?? 30));
   const bagLabel = storefrontDesign?.cartLabel || "BAG";
-  const showAnnouncement = storefrontDesign?.showAnnouncement ?? true;
+  const showAnnouncement = storefrontDesign?.showAnnouncement ?? !isReferenceCatalog;
+  const showCatalogControls = storefrontDesign?.showCatalogControls ?? !isReferenceCatalog;
   const announcementMsg = storefrontDesign?.announcementText || settings?.announcements?.[0]?.message;
   
   const headerTextColor = isHeaderTransparent ? storefrontText : (storefrontDesign?.headerColor || storefrontText);
@@ -927,9 +933,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const headerBorderColor = isHeaderTransparent ? "transparent" : (storefrontDesign?.headerColor ? `${storefrontDesign.headerColor}1a` : `${storefrontText}1a`);
 
   const shopSectionSpacing = Math.max(24, Math.min(120, storefrontDesign?.sectionSpacing ?? 64));
-  const imageAspectClass = storefrontDesign?.imageAspectRatio === "1:1"
+  const imageAspect = storefrontDesign?.imageAspectRatio || (isReferenceCatalog ? "1:1" : "3:4");
+  const imageAspectClass = imageAspect === "1:1"
     ? "aspect-square"
-    : storefrontDesign?.imageAspectRatio === "2:3"
+    : imageAspect === "2:3"
     ? "aspect-[2/3]"
     : "aspect-[3/4]";
   const mobileColsClass = storefrontMobileColumns === 1 ? "grid-cols-1" : storefrontMobileColumns === 3 ? "grid-cols-3" : "grid-cols-2";
@@ -1029,9 +1036,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   className="text-left font-black tracking-tight leading-none hover:opacity-80 transition-opacity"
                   style={{ color: headerTextColor, textTransform: storefrontDesign?.brandTransform || "none", fontSize: `clamp(${catalogMastheadMobile}px, 5vw, ${catalogMastheadDesktop}px)` }}
                 >
-                  <LogoMark design={{ ...storefrontLogoDesign, logoType: storefrontLogoDesign?.logoType || "text" }} />
+                  {catalogMastheadText}
                 </button>
-                {showBag && catalogCartPlacement !== "hidden" && (
+                {showBag && catalogCartPlacement === "top-right" && (
                   <button
                     onClick={() => setIsCartOpen(true)}
                     aria-label="Open cart"
@@ -1278,15 +1285,17 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             )}
           </AnimatePresence>
 
-          <CatalogControls
-            query={searchQuery}
-            setQuery={setSearchQuery}
-            sort={sort}
-            setSort={setSort}
-            inStockOnly={inStockOnly}
-            setInStockOnly={setInStockOnly}
-            resultCount={filteredItems.length}
-          />
+          {showCatalogControls && (
+            <CatalogControls
+              query={searchQuery}
+              setQuery={setSearchQuery}
+              sort={sort}
+              setSort={setSort}
+              inStockOnly={inStockOnly}
+              setInStockOnly={setInStockOnly}
+              resultCount={filteredItems.length}
+            />
+          )}
 
           {filteredItems.length === 0 && (
             <p className="py-20 text-center text-[10px] tracking-[0.4em] text-white/30 uppercase">

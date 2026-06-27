@@ -118,7 +118,7 @@ const PALETTES = [
 ];
 
 const THEME_LIBRARY = [
-  { id: "lyrical-photo-reference", name: "Lyrical Photo Reference", mood: "Black reference storefront with oversized masthead, ruled nav and three-column book grid", palettePreset: "cyber", font: "Inter", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "1:1", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 0, productCTA: "VIEW", catalogLayoutStyle: "reference", catalogHeaderWidth: 1180, catalogHeaderRuleWidth: 4, catalogGridGap: 18, catalogTitleTransform: "none", catalogImageFit: "cover", showAnnouncement: false, showCollectionMeta: false, referenceCategoryLimit: 1, catalogCartPlacement: "top-right", catalogMastheadDesktop: 58, catalogMastheadMobile: 38, catalogNavGapDesktop: 40, catalogNavGapMobile: 18, catalogImageFocalX: 50, catalogImageFocalY: 50, headerBg: "#000000", headerColor: "#ffffff", borderColor: "#B1B1AA" },
+  { id: "lyrical-photo-reference", name: "Lyrical Photo Reference", mood: "Black reference storefront with oversized masthead, ruled nav and three-column book grid", palettePreset: "cyber", font: "Inter", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "1:1", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 0, productCTA: "VIEW", catalogLayoutStyle: "reference", catalogMastheadText: "Lyricalmyrical Books", catalogHeaderWidth: 1180, catalogHeaderRuleWidth: 4, catalogGridGap: 18, catalogTitleTransform: "none", catalogImageFit: "cover", showAnnouncement: false, showCatalogControls: false, showCollectionMeta: false, referenceCategoryLimit: 1, catalogCartPlacement: "top-right", catalogMastheadDesktop: 58, catalogMastheadMobile: 38, catalogNavGapDesktop: 40, catalogNavGapMobile: 18, catalogImageFocalX: 50, catalogImageFocalY: 50, headerBg: "#000000", headerColor: "#ffffff", borderColor: "#B1B1AA" },
   { id: "editorial-luxe", name: "Editorial Luxe", mood: "High-contrast serif with generous spacing", palettePreset: "light", font: "Playfair Display", fontSize: "md", cornerStyle: "rounded", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "3:4", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 12, productCTA: "READ MORE" },
   { id: "night-neon", name: "Night Neon", mood: "Dark cinematic storefront with energetic accents", palettePreset: "cyber", font: "Space Mono", fontSize: "md", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high", productCardStyle: "card", productHoverEffect: "lift", imageAspectRatio: "2:3", productImageLayout: "slider", productContentPosition: "left", productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 4, productCTA: "BUY NOW" },
   { id: "earthy-studio", name: "Earthy Studio", mood: "Warm lifestyle brand with artisan feel", palettePreset: "warm", font: "Fraunces", fontSize: "md", cornerStyle: "rounded", buttonStyle: "soft", animationLevel: "moderate", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "3:4", productImageLayout: "stacked", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 2, cardRadius: 14, productCTA: "DISCOVER" },
@@ -161,12 +161,14 @@ const applyThemePreset = (update: (k: string, v: any) => void, theme: any) => {
   update("productCTA", theme.productCTA);
   [
     "catalogLayoutStyle",
+    "catalogMastheadText",
     "catalogHeaderWidth",
     "catalogHeaderRuleWidth",
     "catalogGridGap",
     "catalogTitleTransform",
     "catalogImageFit",
     "showAnnouncement",
+    "showCatalogControls",
     "showCollectionMeta",
     "referenceCategoryLimit",
     "catalogCartPlacement",
@@ -2276,7 +2278,7 @@ function ProductsPanel({ design, update }: any) {
           <div>
             <SidebarLabel>Catalog Layout Style</SidebarLabel>
             <SidebarRadioGroup
-              value={design.catalogLayoutStyle || "modern"}
+              value={design.catalogLayoutStyle || "reference"}
               onChange={(v) => update("catalogLayoutStyle", v)}
               options={[
                 { value: "modern", label: "Modern" },
@@ -2284,6 +2286,12 @@ function ProductsPanel({ design, update }: any) {
               ]}
             />
           </div>
+          <SidebarInput
+            label="Masthead Text"
+            value={design.catalogMastheadText || "Lyricalmyrical Books"}
+            onChange={(v: string) => update("catalogMastheadText", v)}
+            placeholder="Lyricalmyrical Books"
+          />
           <SidebarRange
             label="Header Max Width"
             value={design.catalogHeaderWidth ?? design.containerWidth ?? 1200}
@@ -2347,6 +2355,12 @@ function ProductsPanel({ design, update }: any) {
             max={8}
             step={1}
             onChange={(v: number) => update("referenceCategoryLimit", v)}
+          />
+          <SidebarToggle
+            label="Show search/sort controls"
+            description="Turn this on for the old utility bar; the photo reference hides it."
+            checked={design.showCatalogControls ?? false}
+            onChange={(v: boolean) => update("showCatalogControls", v)}
           />
           <div>
             <SidebarLabel>Cart Placement</SidebarLabel>

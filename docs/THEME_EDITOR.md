@@ -147,6 +147,10 @@ library → verify), then check it off.
       renderer + library entry, responsive masthead/nav controls, product focal
       point controls, and preview-canvas section drag/reorder via
       `data-fm-section` hooks.
+- [x] Existing live storefronts now default into the photo-reference catalog
+      treatment even before a merchant manually reapplies the preset, so older
+      Firestore theme documents no longer stay on the previous utility-grid
+      storefront by accident.
 - [x] Renderers added for `VideoHeroSection`, `StatsCounterSection`,
       `PricingTableSection` — registry and renderers are now at full parity.
 - [x] Unified the section library on `SECTION_REGISTRY`; retired the legacy
