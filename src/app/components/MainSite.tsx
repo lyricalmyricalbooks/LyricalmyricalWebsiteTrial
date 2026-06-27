@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon } from "lucide-react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon, ShoppingCart } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router";
 import { useCart } from "../CartContext";
 import { CATEGORIES, DEFAULT_IMAGE } from "../features/site/constants";
@@ -32,7 +32,7 @@ import { SearchOverlay } from "../features/site/SearchOverlay";
 // ──────────────────────────────
 // Image with skeleton loader
 // ──────────────────────────────
-function SkeletonImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+function SkeletonImage({ src, alt, className, style }: { src: string; alt: string; className?: string; style?: CSSProperties }) {
   const [loaded, setLoaded] = useState(false);
   return (
     <div className="relative w-full h-full">
@@ -44,6 +44,7 @@ function SkeletonImage({ src, alt, className }: { src: string; alt: string; clas
         alt={alt}
         loading="lazy"
         className={`${className} transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"}`}
+        style={style}
         onLoad={() => setLoaded(true)}
       />
     </div>
@@ -741,8 +742,8 @@ ${STOREFRONT_TOKEN_CSS}
 export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, currentPage, nextPage, prevPage }: any) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { cartCount, setIsCartOpen } = useCart();
-  const { formatBookPrice } = useCurrency();
+  const { cartCount, cartTotal, setIsCartOpen } = useCart();
+  const { formatBookPrice, formatPrice } = useCurrency();
   const { books, settings, pages, loading } = useSiteData();
 
   // Auto-open catalog view when the editor previews the shop tab
@@ -880,9 +881,22 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontButtonBg = storefrontDesign?.buttonColor || storefrontAccent;
   const storefrontButtonText = storefrontDesign?.buttonTextColor || "#000000";
   const storefrontMaxWidth = Math.max(900, Math.min(1600, storefrontDesign?.containerWidth ?? 1200));
+  const isReferenceCatalog = storefrontDesign?.catalogLayoutStyle === "reference";
   const storefrontMobileColumns = Math.max(1, Math.min(3, storefrontDesign?.productColumnsMobile ?? 2));
   const storefrontDesktopColumns = Math.max(2, Math.min(6, storefrontDesign?.productColumnsDesktop ?? 4));
   const storefrontCardRadius = Math.max(0, Math.min(30, storefrontDesign?.cardRadius ?? 8));
+  const storefrontGridGap = Math.max(8, Math.min(72, storefrontDesign?.catalogGridGap ?? (isReferenceCatalog ? 18 : 32)));
+  const storefrontHeaderRuleWidth = Math.max(0, Math.min(8, storefrontDesign?.catalogHeaderRuleWidth ?? (isReferenceCatalog ? 4 : 1)));
+  const storefrontHeaderMaxWidth = Math.max(900, Math.min(1800, storefrontDesign?.catalogHeaderWidth ?? storefrontMaxWidth));
+  const storefrontImageFit = storefrontDesign?.catalogImageFit === "contain" ? "object-contain" : "object-cover";
+  const storefrontTitleTransform = (storefrontDesign?.catalogTitleTransform || (isReferenceCatalog ? "none" : "uppercase")) as any;
+  const catalogMastheadDesktop = Math.max(28, Math.min(96, storefrontDesign?.catalogMastheadDesktop ?? 58));
+  const catalogMastheadMobile = Math.max(24, Math.min(72, storefrontDesign?.catalogMastheadMobile ?? 38));
+  const catalogNavGapDesktop = Math.max(12, Math.min(80, storefrontDesign?.catalogNavGapDesktop ?? 40));
+  const catalogNavGapMobile = Math.max(8, Math.min(48, storefrontDesign?.catalogNavGapMobile ?? 18));
+  const catalogCartPlacement = storefrontDesign?.catalogCartPlacement || "top-right";
+  const catalogImageFocalX = Math.max(0, Math.min(100, storefrontDesign?.catalogImageFocalX ?? 50));
+  const catalogImageFocalY = Math.max(0, Math.min(100, storefrontDesign?.catalogImageFocalY ?? 50));
   const storefrontButtonRadius = Math.max(0, Math.min(999, storefrontDesign?.buttonRadius ?? 999));
   const storefrontButtonStyle = storefrontDesign?.buttonStyle || "solid";
   const storefrontButtonUppercase = storefrontDesign?.buttonUppercase ?? true;
@@ -1001,12 +1015,63 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
         <header
           data-section="navigation"
-          className={`${storefrontDesign?.stickyHeader ?? true ? "sticky" : "relative"} ${showAnnouncement && announcementMsg ? "top-10" : "top-0"} z-50 transition-all duration-500 ${isHeaderTransparent ? "border-transparent" : "backdrop-blur-xl border-b"}`}
+          className={`${storefrontDesign?.stickyHeader ?? true ? "sticky" : "relative"} ${showAnnouncement && announcementMsg ? "top-10" : "top-0"} z-50 transition-all duration-500 ${isHeaderTransparent ? "border-transparent" : isReferenceCatalog ? "" : "backdrop-blur-xl border-b"}`}
           style={{
             backgroundColor: headerBgColor,
             borderColor: headerBorderColor,
           }}
         >
+          {isReferenceCatalog ? (
+            <div className="mx-auto px-6 py-6" style={{ maxWidth: storefrontHeaderMaxWidth, color: headerTextColor }}>
+              <div className="flex items-start justify-between gap-6">
+                <button
+                  onClick={() => setShowCatalog(false)}
+                  className="text-left font-black tracking-tight leading-none hover:opacity-80 transition-opacity"
+                  style={{ color: headerTextColor, textTransform: storefrontDesign?.brandTransform || "none", fontSize: `clamp(${catalogMastheadMobile}px, 5vw, ${catalogMastheadDesktop}px)` }}
+                >
+                  <LogoMark design={{ ...storefrontLogoDesign, logoType: storefrontLogoDesign?.logoType || "text" }} />
+                </button>
+                {showBag && catalogCartPlacement !== "hidden" && (
+                  <button
+                    onClick={() => setIsCartOpen(true)}
+                    aria-label="Open cart"
+                    className="flex items-center gap-2 pt-1 text-lg md:text-2xl font-black leading-none hover:opacity-70 transition-opacity"
+                    style={{ color: headerTextColor }}
+                  >
+                    <ShoppingCart size={28} strokeWidth={2.4} />
+                    <span>{cartCount}</span>
+                    <span aria-hidden="true" className="font-light">|</span>
+                    <span>
+                      {cartTotal > 0 ? formatPrice(cartTotal) : formatPrice(Number(storefrontDesign?.catalogCartTotalPlaceholder ?? 0))}
+                    </span>
+                  </button>
+                )}
+              </div>
+              <div className="mt-6" style={{ borderTop: `${storefrontHeaderRuleWidth}px solid ${storefrontDesign?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
+              <div className="py-5 flex flex-wrap items-center text-base font-black" style={{ columnGap: catalogNavGapDesktop, rowGap: catalogNavGapMobile }}>
+                {categories.filter((c: any) => c.showInNav !== false).slice(0, storefrontDesign?.referenceCategoryLimit ?? 1).map((cat: any) => {
+                  const catName = typeof cat === "string" ? cat : cat.name;
+                  const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === catName;
+                  return (
+                    <button key={catName} onClick={() => setActiveCategory(cat)} className={isActive ? "opacity-100" : "opacity-70 hover:opacity-100"}>
+                      {catName}⌄
+                    </button>
+                  );
+                })}
+                {showCustomPages && (pages || []).filter((p: any) => p.showInNav && p.status === "published").map((page: any) => (
+                  <Link key={page.id} to={`/page/${page.slug}`} className="hover:opacity-70 transition-opacity">{page.title}</Link>
+                ))}
+                {showInformation && <button onClick={() => setShowAbout(true)} className="hover:opacity-70 transition-opacity">About</button>}
+                <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity">Search</button>
+                {showBag && catalogCartPlacement === "nav-end" && (
+                  <button onClick={() => setIsCartOpen(true)} className="hover:opacity-70 transition-opacity">
+                    {cartCount} | {cartTotal > 0 ? formatPrice(cartTotal) : formatPrice(Number(storefrontDesign?.catalogCartTotalPlaceholder ?? 0))}
+                  </button>
+                )}
+              </div>
+              <div style={{ borderTop: `${storefrontHeaderRuleWidth}px solid ${storefrontDesign?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
+            </div>
+          ) : (
           <div className="mx-auto px-6 py-4 flex items-center justify-between gap-4" style={{ maxWidth: storefrontMaxWidth }}>
             {/* Left Section */}
             <div className={`flex items-center gap-8 md:gap-12 flex-1 ${storefrontLogoPosition === "center" ? "" : "flex-initial"}`}>
@@ -1177,9 +1242,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               )}
             </div>
           </div>
+          )}
         </header>
 
-        <main className="mx-auto px-6 py-12 md:py-20" style={{ maxWidth: storefrontMaxWidth }}>
+        <main className="mx-auto px-6 py-12 md:py-20" style={{ maxWidth: isReferenceCatalog ? storefrontHeaderMaxWidth : storefrontMaxWidth }}>
           {/* Theme-editor sections authored for the storefront page template */}
           <TemplateSections design={activeDesign} templateId="storefront" books={books} />
 
@@ -1228,7 +1294,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             </p>
           )}
 
-          <div className={`grid ${mobileColsClass} ${desktopColsClass} gap-8`} style={{ rowGap: shopSectionSpacing }}>
+          <div className={`grid ${mobileColsClass} ${desktopColsClass}`} style={{ gap: storefrontGridGap, rowGap: isReferenceCatalog ? Math.max(40, storefrontGridGap * 3) : shopSectionSpacing }}>
             {filteredItems.map((item: any, index: number) => {
               const slug = getBookSlug(item);
               const stock = item.stockLevel ?? 999;
@@ -1266,11 +1332,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     <Heart size={13} fill={wished ? "currentColor" : "none"} />
                   </button>
                   <Link to={`/books/${slug}`}>
-                    <div className={`relative ${imageAspectClass} fm-surface mb-4 overflow-hidden border border-white/5 shadow-2xl`} style={{ borderRadius: storefrontCardRadius }}>
+                    <div className={`relative ${imageAspectClass} fm-surface mb-4 overflow-hidden ${isReferenceCatalog ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius }}>
                       <SkeletonImage
                         src={item.photos?.[0]?.url || DEFAULT_IMAGE}
                         alt={item.title}
-                        className={`w-full h-full object-cover transition-transform duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}
+                        className={`w-full h-full ${storefrontImageFit} transition-transform duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}
+                        style={{ objectPosition: `${catalogImageFocalX}% ${catalogImageFocalY}%` }}
                       />
                       {/* Status ribbons */}
                       <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5">
@@ -1326,18 +1393,23 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         </span>
                       </div>
                     </div>
-                    <div className="px-1">
-                      <h3 className="text-xs tracking-wider font-medium leading-relaxed uppercase text-white/90">{item.title}</h3>
-                      <div className="mt-2 flex items-center justify-between">
+                    <div className={isReferenceCatalog ? "px-0" : "px-1"}>
+                      <h3
+                        className={`${isReferenceCatalog ? "text-lg md:text-xl font-black tracking-tight" : "text-xs tracking-wider font-medium"} leading-tight text-white/90`}
+                        style={{ color: storefrontDesign?.productTitleColor || storefrontText, textTransform: storefrontTitleTransform }}
+                      >
+                        {item.title}
+                      </h3>
+                      <div className={`${isReferenceCatalog ? "mt-2 block space-y-1" : "mt-2 flex items-center justify-between"}`}>
                         {showCollectionMeta ? (
-                          <span className="text-[10px] tracking-[0.1em] text-white/40">
+                          <span className={`${isReferenceCatalog ? "hidden" : "text-[10px] tracking-[0.1em] text-white/40"}`}>
                             {item.genres?.[0] || item.categories?.[0] || "Publication"}
                           </span>
                         ) : (
                           <span />
                         )}
                         {displayPrice > 0 && (
-                          <span className="text-[10px] flex items-center gap-1.5">
+                          <span className={`${isReferenceCatalog ? "text-lg" : "text-[10px]"} flex items-center gap-1.5`} style={{ color: storefrontDesign?.productPriceColor || (isReferenceCatalog ? storefrontText : undefined) }}>
                             {onSale && (
                               <span className="text-white/30 line-through">{formatBookPrice(item, true)}</span>
                             )}
