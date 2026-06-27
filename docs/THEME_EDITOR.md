@@ -163,6 +163,27 @@ library → verify), then check it off.
 - [~] Live preview channel (`THEME_UPDATE` postMessage) exists — extend it to
       cover all edits (not only some) and all templates.
 
+
+### Next five theme-editor suggestions
+
+After the insertion-zone drag/drop work, the next five highest-leverage
+Shopify/WordPress-parity improvements are:
+
+1. **Drag/drop inside the live preview iframe** — map `data-fm-section` and
+   `data-fm-block` targets back to the owning template so merchants can reorder
+   from the canvas, not only the sidebar outline.
+2. **Nested block drag/drop** — extend `BlocksEditor` from flat section-local
+   arrays to 2–3 levels of recursive blocks for columns, cards, and media/text
+   groups.
+3. **Mega-menu child drag/drop** — replace child/grandchild nav arrow controls
+   with nested sortable lists so menu structure editing matches modern builders.
+4. **CSS-grid visual positioning** — add guarded grid coordinates, z-index, and
+   overlap controls for sections that need true visual layout rather than only
+   vertical order.
+5. **Per-breakpoint layout overrides** — store desktop/tablet/mobile placement
+   overrides and pair them with the existing device preview toggle so mobile
+   layouts can be intentionally edited.
+
 ### D. Theme management
 - [~] Draft/publish + scheduled publish exist — bring to full Shopify parity
       (clear "unpublished changes" state, discard-draft).

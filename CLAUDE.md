@@ -148,6 +148,14 @@ section/block contract, and the Shopify-parity roadmap.
   click-to-edit, scoped per-section CSS, and template-aware preview selection. Used by MainSite and every standalone page
   (product/collection/page/cart all render their template's sections — milestone A).
 
+
+Recommended next theme-editor increments after the insertion-zone DnD work:
+1. live-preview iframe drag/drop using `data-fm-section` / `data-fm-block`;
+2. nested block drag/drop in `BlocksEditor`;
+3. mega-menu child/grandchild sortable lists;
+4. CSS-grid visual positioning with guarded coordinates and overlap;
+5. per-breakpoint layout overrides tied to the device preview toggle.
+
 **Section contract:** the storefront looks up renderers by the registry `type`
 string. A registry type with **no identically named renderer renders nothing**
 ("added but doesn't show up"). Adding a section = registry schema **+** matching
