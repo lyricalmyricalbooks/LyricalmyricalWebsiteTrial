@@ -793,6 +793,7 @@ export default function BookDetail() {
                     onClick={handleShare}
                     className="w-16 h-16 rounded-2xl border border-white/[0.08] flex items-center justify-center hover:bg-white/[0.06] hover:border-white/20 transition-all"
                     title="Share"
+                    aria-label="Share"
                   >
                     <Share2 size={15} className="text-white/40" />
                   </button>
