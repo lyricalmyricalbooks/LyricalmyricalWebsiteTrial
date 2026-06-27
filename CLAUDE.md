@@ -130,7 +130,8 @@ A large (~11k-line) Shopify-style theme editor under `/admin`. **Read
 section/block contract, and the Shopify-parity roadmap.
 
 - `src/app/admin/ThemeEditor.tsx` — editor shell + panels + `HomepagePanel`
-  (section list, drag/reorder, duplicate, visibility). The section library is
+  (section list, drag/reorder, duplicate, visibility, and library-to-outline
+  insertion drop zones). The section library is
   unified on the registry-driven `NewSectionLibraryModal`; the legacy
   `SECTION_TEMPLATES` + `SectionLibraryModal` dead code has been removed.
 - `src/app/admin/ThemeEditorExtensions.tsx` — the real `SECTION_REGISTRY`,

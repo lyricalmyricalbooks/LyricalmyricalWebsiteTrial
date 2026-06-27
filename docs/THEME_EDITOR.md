@@ -155,7 +155,10 @@ library → verify), then check it off.
 - [x] Reorder polish: sections, blocks, global sections, nav menu items and
       color schemes all reorder via `@dnd-kit` (pointer + keyboard) through the
       shared `src/app/admin/dndSortable.tsx` helper. Section types can also be
-      dragged out of the library modal to insert at a position. (Nested
+      dragged out of the library modal onto explicit between-section insertion
+      zones, and existing sections use the same insertion targets plus a lifted
+      drag overlay for precise moves, including an empty page and the start/end
+      of the outline. (Nested
       block / mega-menu child DnD is a remaining follow-up.)
 - [~] Live preview channel (`THEME_UPDATE` postMessage) exists — extend it to
       cover all edits (not only some) and all templates.
