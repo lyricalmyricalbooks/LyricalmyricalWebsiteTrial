@@ -150,7 +150,7 @@ export function SectionList({
         const SectionComponent = (Sections as any)[section.type];
         if (!SectionComponent) return null;
 
-        const s = section.settings || {};
+        const s = { ...(section.settings || {}), __sectionId: section.id };
         const scheme = s.colorSchemeId ? schemes.find((sc: any) => sc.id === s.colorSchemeId) : null;
         const wrapperCls =
           [

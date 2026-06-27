@@ -118,6 +118,7 @@ const PALETTES = [
 ];
 
 const THEME_LIBRARY = [
+  { id: "lyrical-photo-reference", name: "Lyrical Photo Reference", mood: "Black reference storefront with oversized masthead, ruled nav and three-column book grid", palettePreset: "cyber", font: "Inter", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "1:1", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 0, productCTA: "VIEW", catalogLayoutStyle: "reference", catalogMastheadText: "Lyricalmyrical Books", catalogHeaderWidth: 1180, catalogHeaderRuleWidth: 4, catalogGridGap: 18, catalogTitleTransform: "none", catalogImageFit: "cover", showAnnouncement: false, showCatalogControls: false, showCollectionMeta: false, referenceCategoryLimit: 1, catalogCartPlacement: "top-right", catalogMastheadDesktop: 58, catalogMastheadMobile: 38, catalogNavGapDesktop: 40, catalogNavGapMobile: 18, catalogImageFocalX: 50, catalogImageFocalY: 50, headerBg: "#000000", headerColor: "#ffffff", borderColor: "#B1B1AA" },
   { id: "editorial-luxe", name: "Editorial Luxe", mood: "High-contrast serif with generous spacing", palettePreset: "light", font: "Playfair Display", fontSize: "md", cornerStyle: "rounded", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "3:4", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 12, productCTA: "READ MORE" },
   { id: "night-neon", name: "Night Neon", mood: "Dark cinematic storefront with energetic accents", palettePreset: "cyber", font: "Space Mono", fontSize: "md", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high", productCardStyle: "card", productHoverEffect: "lift", imageAspectRatio: "2:3", productImageLayout: "slider", productContentPosition: "left", productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 4, productCTA: "BUY NOW" },
   { id: "earthy-studio", name: "Earthy Studio", mood: "Warm lifestyle brand with artisan feel", palettePreset: "warm", font: "Fraunces", fontSize: "md", cornerStyle: "rounded", buttonStyle: "soft", animationLevel: "moderate", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "3:4", productImageLayout: "stacked", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 2, cardRadius: 14, productCTA: "DISCOVER" },
@@ -158,6 +159,31 @@ const applyThemePreset = (update: (k: string, v: any) => void, theme: any) => {
   update("productColumnsMobile", theme.productColumnsMobile);
   update("cardRadius", theme.cardRadius);
   update("productCTA", theme.productCTA);
+  [
+    "catalogLayoutStyle",
+    "catalogMastheadText",
+    "catalogHeaderWidth",
+    "catalogHeaderRuleWidth",
+    "catalogGridGap",
+    "catalogTitleTransform",
+    "catalogImageFit",
+    "showAnnouncement",
+    "showCatalogControls",
+    "showCollectionMeta",
+    "referenceCategoryLimit",
+    "catalogCartPlacement",
+    "catalogMastheadDesktop",
+    "catalogMastheadMobile",
+    "catalogNavGapDesktop",
+    "catalogNavGapMobile",
+    "catalogImageFocalX",
+    "catalogImageFocalY",
+    "headerBg",
+    "headerColor",
+    "borderColor",
+  ].forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(theme, key)) update(key, theme[key]);
+  });
   update("themeLibraryPreset", theme.id);
   toast.success(`Applied "${theme.name}" theme preset!`, { icon: "✨" });
 };
@@ -881,6 +907,16 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
             label="Low Inventory messages"
             value={design.lowInventoryColor || "#056FFA"}
             onChange={(val) => update("lowInventoryColor", val)}
+          />
+          <ColorPicker
+            label="Product title text"
+            value={design.productTitleColor || ""}
+            onChange={(val) => update("productTitleColor", val)}
+          />
+          <ColorPicker
+            label="Product price text"
+            value={design.productPriceColor || ""}
+            onChange={(val) => update("productPriceColor", val)}
           />
           <ColorPicker
             label="Announcement banner text"
@@ -2233,6 +2269,168 @@ function PagesPanel({ pages, setPages, design, update }: any) {
 function ProductsPanel({ design, update }: any) {
   return (
     <div className="p-4 space-y-2 overflow-y-auto flex-1">
+      <Accordion title="Screenshot-style Catalog" defaultOpen={true}>
+        <div className="space-y-6">
+          <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic">
+            Match the provided black bookstore reference: oversized wordmark, ruled navigation,
+            compact cart total, large image-led cards, and editable typography/spacing.
+          </p>
+          <div>
+            <SidebarLabel>Catalog Layout Style</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.catalogLayoutStyle || "reference"}
+              onChange={(v) => update("catalogLayoutStyle", v)}
+              options={[
+                { value: "modern", label: "Modern" },
+                { value: "reference", label: "Photo Reference" },
+              ]}
+            />
+          </div>
+          <SidebarInput
+            label="Masthead Text"
+            value={design.catalogMastheadText || "Lyricalmyrical Books"}
+            onChange={(v: string) => update("catalogMastheadText", v)}
+            placeholder="Lyricalmyrical Books"
+          />
+          <SidebarRange
+            label="Header Max Width"
+            value={design.catalogHeaderWidth ?? design.containerWidth ?? 1200}
+            min={900}
+            max={1800}
+            step={20}
+            suffix="px"
+            onChange={(v: number) => update("catalogHeaderWidth", v)}
+          />
+          <SidebarRange
+            label="Header Rule Thickness"
+            value={design.catalogHeaderRuleWidth ?? 4}
+            min={0}
+            max={8}
+            step={1}
+            suffix="px"
+            onChange={(v: number) => update("catalogHeaderRuleWidth", v)}
+          />
+          <SidebarRange
+            label="Product Grid Gap"
+            value={design.catalogGridGap ?? 18}
+            min={8}
+            max={72}
+            step={2}
+            suffix="px"
+            onChange={(v: number) => update("catalogGridGap", v)}
+          />
+          <div>
+            <SidebarLabel>Image Fit</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.catalogImageFit || "cover"}
+              onChange={(v) => update("catalogImageFit", v)}
+              options={[
+                { value: "cover", label: "Cover" },
+                { value: "contain", label: "Contain" },
+              ]}
+            />
+          </div>
+          <div>
+            <SidebarLabel>Product Title Case</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.catalogTitleTransform || "none"}
+              onChange={(v) => update("catalogTitleTransform", v)}
+              options={[
+                { value: "none", label: "Natural" },
+                { value: "uppercase", label: "Uppercase" },
+                { value: "capitalize", label: "Capitalize" },
+              ]}
+            />
+          </div>
+          <SidebarInput
+            label="Cart Total Placeholder"
+            value={design.catalogCartTotalPlaceholder || "130.00"}
+            onChange={(v: string) => update("catalogCartTotalPlaceholder", v)}
+            placeholder="130.00"
+          />
+          <SidebarRange
+            label="Category Links Shown"
+            value={design.referenceCategoryLimit ?? 1}
+            min={1}
+            max={8}
+            step={1}
+            onChange={(v: number) => update("referenceCategoryLimit", v)}
+          />
+          <SidebarToggle
+            label="Show search/sort controls"
+            description="Turn this on for the old utility bar; the photo reference hides it."
+            checked={design.showCatalogControls ?? false}
+            onChange={(v: boolean) => update("showCatalogControls", v)}
+          />
+          <div>
+            <SidebarLabel>Cart Placement</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.catalogCartPlacement || "top-right"}
+              onChange={(v) => update("catalogCartPlacement", v)}
+              options={[
+                { value: "top-right", label: "Top right" },
+                { value: "nav-end", label: "Nav end" },
+                { value: "hidden", label: "Hidden" },
+              ]}
+            />
+          </div>
+          <SidebarRange
+            label="Masthead Size Desktop"
+            value={design.catalogMastheadDesktop ?? 58}
+            min={28}
+            max={96}
+            step={1}
+            suffix="px"
+            onChange={(v: number) => update("catalogMastheadDesktop", v)}
+          />
+          <SidebarRange
+            label="Masthead Size Mobile"
+            value={design.catalogMastheadMobile ?? 38}
+            min={24}
+            max={72}
+            step={1}
+            suffix="px"
+            onChange={(v: number) => update("catalogMastheadMobile", v)}
+          />
+          <SidebarRange
+            label="Nav Gap Desktop"
+            value={design.catalogNavGapDesktop ?? 40}
+            min={12}
+            max={80}
+            step={2}
+            suffix="px"
+            onChange={(v: number) => update("catalogNavGapDesktop", v)}
+          />
+          <SidebarRange
+            label="Nav Gap Mobile"
+            value={design.catalogNavGapMobile ?? 18}
+            min={8}
+            max={48}
+            step={2}
+            suffix="px"
+            onChange={(v: number) => update("catalogNavGapMobile", v)}
+          />
+          <SidebarRange
+            label="Image Focal X"
+            value={design.catalogImageFocalX ?? 50}
+            min={0}
+            max={100}
+            step={1}
+            suffix="%"
+            onChange={(v: number) => update("catalogImageFocalX", v)}
+          />
+          <SidebarRange
+            label="Image Focal Y"
+            value={design.catalogImageFocalY ?? 50}
+            min={0}
+            max={100}
+            step={1}
+            suffix="%"
+            onChange={(v: number) => update("catalogImageFocalY", v)}
+          />
+        </div>
+      </Accordion>
+
       <Accordion title="Card Styling" defaultOpen={true}>
         <div className="space-y-6">
           <div>
@@ -4032,6 +4230,40 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
             if (instanceId) { selectedId = instanceId; drawSel(); }
             window.parent.postMessage({ type:'SECTION_SELECT', sectionId: sid, instanceId: instanceId, blockId: blockId }, window.location.origin);
           }, true);
+          document.addEventListener('dragstart', function(e){
+            var node = e.target && e.target.closest ? e.target.closest('[data-fm-section], [data-section-id]') : null;
+            if (!node) return;
+            var id = node.getAttribute('data-fm-section') || node.getAttribute('data-section-id');
+            var surface = node.getAttribute('data-section') || getSectionId(node) || 'homepage';
+            if (!id || !e.dataTransfer) return;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', id);
+            e.dataTransfer.setData('application/x-fm-section', JSON.stringify({ id: id, surface: surface }));
+          }, true);
+          document.addEventListener('dragover', function(e){
+            var node = e.target && e.target.closest ? e.target.closest('[data-fm-section], [data-section-id]') : null;
+            if (!node) return;
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+          }, true);
+          document.addEventListener('drop', function(e){
+            var node = e.target && e.target.closest ? e.target.closest('[data-fm-section], [data-section-id]') : null;
+            if (!node || !e.dataTransfer) return;
+            var raw = e.dataTransfer.getData('application/x-fm-section');
+            if (!raw) return;
+            var data;
+            try { data = JSON.parse(raw); } catch(_) { return; }
+            var dropId = node.getAttribute('data-fm-section') || node.getAttribute('data-section-id');
+            if (!data.id || !dropId || data.id === dropId) return;
+            var r = node.getBoundingClientRect();
+            var position = e.clientY < (r.top + r.height / 2) ? 'before' : 'after';
+            e.preventDefault(); e.stopPropagation();
+            window.parent.postMessage({ type:'SECTION_REORDER', dragId: data.id, dropId: dropId, surface: data.surface, position: position }, window.location.origin);
+          }, true);
+          Array.prototype.forEach.call(document.querySelectorAll('[data-fm-section], [data-section-id]'), function(node){
+            node.setAttribute('draggable', 'true');
+            node.style.cursor = node.style.cursor || 'grab';
+          });
           document.addEventListener('dblclick', function(e){
             var fieldNode = e.target && e.target.closest ? e.target.closest('[data-theme-field]') : null;
             var sectionNode = e.target && e.target.closest ? e.target.closest('[data-section-id]') : null;
@@ -5075,6 +5307,43 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           }));
           setSaved(false);
           setSaveStatus("unsaved");
+        }
+      }
+      if (event.data?.type === "SECTION_REORDER" && event.data?.dragId && event.data?.dropId) {
+        const dragId = String(event.data.dragId);
+        const dropId = String(event.data.dropId);
+        const position = event.data.position === "after" ? "after" : "before";
+        const reorder = (list: any[]) => {
+          const from = list.findIndex((s: any) => s.id === dragId);
+          const to = list.findIndex((s: any) => s.id === dropId);
+          if (from < 0 || to < 0 || from === to) return list;
+          const next = [...list];
+          const [moved] = next.splice(from, 1);
+          const targetIndex = next.findIndex((s: any) => s.id === dropId);
+          next.splice(position === "after" ? targetIndex + 1 : targetIndex, 0, moved);
+          return next;
+        };
+        const globalSectionsList = (design?.globalSections || []) as any[];
+        if (globalSectionsList.some((s: any) => s.id === dragId) && globalSectionsList.some((s: any) => s.id === dropId)) {
+          update("globalSections", reorder(globalSectionsList), true);
+          return;
+        }
+        const owningTemplate = PAGE_TEMPLATES.find((tpl) => {
+          const list = (design?.[tpl.id]?.sections || design?.[tpl.id]?.homepageSections || []) as any[];
+          return list.some((s: any) => s.id === dragId) && list.some((s: any) => s.id === dropId);
+        });
+        if (owningTemplate) {
+          const surfaceId = owningTemplate.id;
+          const list = (design?.[surfaceId]?.sections || design?.[surfaceId]?.homepageSections || []) as any[];
+          setDesignSurface(surfaceId);
+          setPreviewMode(owningTemplate.previewMode);
+          setDesign((prev: any) => ({
+            ...prev,
+            [surfaceId]: { ...(prev?.[surfaceId] || {}), sections: reorder(list) },
+          }));
+          setSaved(false);
+          setSaveStatus("unsaved");
+          toast.success("Section reordered from live preview");
         }
       }
     };
