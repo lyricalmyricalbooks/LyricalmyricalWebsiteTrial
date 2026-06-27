@@ -304,6 +304,31 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
       manualSlugs: "",
     },
   },
+
+  {
+    type: "BlogPostsSection",
+    label: "Blog Posts",
+    description: "Editorial article cards for announcements, release notes, and journal entries.",
+    category: "Engagement",
+    defaults: {
+      eyebrow: "JOURNAL",
+      title: "Latest notes",
+      subtitle: "Share publishing news, behind-the-scenes updates, and reader resources.",
+      columns: 3,
+      showDates: true,
+      showExcerpts: true,
+      ctaText: "Read more",
+      accentColor: "#A855F7",
+      items: [
+        { title: "New seasonal catalogue", date: "2026-06-27", excerpt: "Introduce readers to a new collection, author interview, or shop announcement.", imageUrl: "", linkUrl: "/page/news" },
+        { title: "Inside the archive", date: "2026-06-27", excerpt: "Use this card to explain your curation process and build trust before purchase.", imageUrl: "", linkUrl: "/page/news" },
+        { title: "Shipping and care notes", date: "2026-06-27", excerpt: "Highlight helpful guidance such as packing, fulfillment windows, or edition care.", imageUrl: "", linkUrl: "/page/shipping" },
+      ],
+    },
+    blockType: "article",
+    blockDefaults: { title: "New article", date: "2026-06-27", excerpt: "Write a short article summary.", imageUrl: "", linkUrl: "/page/news" },
+    blockLabel: "Article",
+  },
   {
     type: "CountdownSection",
     label: "Countdown",
@@ -657,6 +682,15 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "subtitle", label: "Subtitle", kind: "text" },
     { key: "imageUrl", label: "Image", kind: "image" },
     { key: "linkUrl", label: "Link URL", kind: "text" },
+  ],
+
+  BlogPostsSection: [
+    { key: "imageUrl", label: "Card image", kind: "image" },
+    { key: "title", label: "Title", kind: "text" },
+    { key: "date", label: "Date", kind: "text" },
+    { key: "excerpt", label: "Excerpt", kind: "textarea", rows: 3 },
+    { key: "linkUrl", label: "Link URL", kind: "text" },
+    { key: "tag", label: "Tag / category", kind: "text" },
   ],
   GallerySection: [
     { key: "imageUrl", label: "Image", kind: "image" },
@@ -2038,6 +2072,18 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     ] },
     { key: "showPrices", label: "Show prices", kind: "toggle" },
     { key: "showBadges", label: "Show sale/new badges", kind: "toggle" },
+  ],
+
+  BlogPostsSection: [
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
+    { key: "title", label: "Title", kind: "text" },
+    { key: "subtitle", label: "Subtitle / Description", kind: "textarea", rows: 2 },
+    { key: "columns", label: "Columns", kind: "range", min: 1, max: 4, step: 1 },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
+    { key: "showDates", label: "Show dates", kind: "toggle" },
+    { key: "showExcerpts", label: "Show excerpts", kind: "toggle" },
+    { key: "ctaText", label: "CTA label", kind: "text" },
+    { key: "accentColor", label: "Accent color", kind: "color" },
   ],
   CountdownSection: [
     { key: "eyebrow", label: "Eyebrow label", kind: "text" },

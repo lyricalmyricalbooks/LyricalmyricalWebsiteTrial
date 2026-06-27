@@ -215,8 +215,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             Lyricalmyrical E-Commerce Platform Updated
           </h3>
           <p className="text-slate-400 text-xs font-medium max-w-2xl leading-relaxed">
-            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 27, 2026 at 2:05 PM</strong>.
-            This release completed the reference-design follow-through: the masthead cart now uses the live multi-currency cart subtotal, the screenshot grid is available as a reusable theme-editor section, responsive header controls and product focal-point controls are editable, and the live preview canvas can reorder sections by dragging existing section hooks without changing checkout or payment flows.
+            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 27, 2026 at 11:06 PM</strong>.
+            This release turned the blog/news placeholder gap into a working theme-editor section: admins can add journal cards from the section library, edit article blocks with images, dates, tags, excerpts, and links, and publish them to the storefront without touching checkout or payment flows.
           </p>
         </div>
         <div className="shrink-0 relative z-10 bg-white/5 border border-white/10 rounded-2xl p-4 text-center min-w-[150px]">
@@ -224,7 +224,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <p className="text-xs font-bold text-emerald-400 mt-1 uppercase tracking-wider">Deploy Success</p>
           <div className="h-px bg-white/5 my-3" />
           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Last Code Push</p>
-          <p className="text-[10px] font-mono text-slate-300 mt-1">June 27, 14:05</p>
+          <p className="text-[10px] font-mono text-slate-300 mt-1">June 27, 23:06</p>
         </div>
       </motion.div>
 
