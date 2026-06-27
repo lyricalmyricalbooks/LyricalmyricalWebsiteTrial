@@ -948,6 +948,88 @@ export function CustomHTMLSection({ settings }: any) {
   );
 }
 
+
+// ──────────────────────────────
+// BLOG POSTS
+// ──────────────────────────────
+
+function formatArticleDate(value: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+export function BlogPostsSection({ settings, enableAnimations }: any) {
+  const items = visibleBlocks(settings.items || settings.blocks || []);
+  const columns = Math.max(1, Math.min(4, settings.columns ?? 3));
+  const align = aClass(settings);
+  const cards = items.length ? items : [
+    { title: "Add an article", date: "", excerpt: "Create article cards in the blocks editor to share news, releases, and reading guides.", imageUrl: "", linkUrl: "#" },
+  ];
+
+  return (
+    <section style={bgStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {(settings.eyebrow || settings.title || settings.subtitle) && (
+            <div className={`mb-10 ${align}`}>
+              {settings.eyebrow && (
+                <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50 mb-3" style={bStyle(settings)}>
+                  {settings.eyebrow}
+                </p>
+              )}
+              {settings.title && (
+                <h2 className="text-3xl md:text-4xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>
+                  {settings.title}
+                </h2>
+              )}
+              {settings.subtitle && (
+                <p className="mt-3 text-sm md:text-base text-white/60 leading-relaxed max-w-2xl mx-auto" style={bStyle(settings)}>
+                  {settings.subtitle}
+                </p>
+              )}
+            </div>
+          )}
+        </AnimationContainer>
+
+        <div className="grid grid-cols-1 gap-6 md:[grid-template-columns:var(--blog-post-columns)]" style={{ ["--blog-post-columns" as any]: `repeat(${columns}, minmax(0, 1fr))` }}>
+          {cards.map((article: any, idx: number) => (
+            <AnimationContainer key={article.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
+              <article {...blockEditAttrs(article, idx)} className="h-full overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.06]">
+                <a href={article.linkUrl || "#"} className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded-3xl">
+                  <div className="aspect-[4/3] bg-white/5 overflow-hidden">
+                    {article.imageUrl ? (
+                      <img src={article.imageUrl} alt={article.title || "Article image"} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-white/20 text-[10px] font-bold uppercase tracking-[0.3em]">
+                        Article Image
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-6 md:p-7">
+                    <div className="flex flex-wrap items-center gap-3 text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">
+                      {article.tag && <span style={bStyle(settings)}>{article.tag}</span>}
+                      {settings.showDates !== false && article.date && <time dateTime={article.date}>{formatArticleDate(article.date)}</time>}
+                    </div>
+                    <h3 className="mt-4 text-xl font-bold leading-tight text-white" style={hStyle(settings)}>{article.title || "Untitled article"}</h3>
+                    {settings.showExcerpts !== false && article.excerpt && (
+                      <p className="mt-3 text-sm leading-relaxed text-white/60" style={bStyle(settings)}>{article.excerpt}</p>
+                    )}
+                    <span className="mt-6 inline-flex items-center text-[10px] font-bold uppercase tracking-[0.25em] underline underline-offset-4" style={{ color: settings.accentColor || undefined }}>
+                      {settings.ctaText || "Read more"}
+                    </span>
+                  </div>
+                </a>
+              </article>
+            </AnimationContainer>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ──────────────────────────────
 // COUNTDOWN
 // ──────────────────────────────
