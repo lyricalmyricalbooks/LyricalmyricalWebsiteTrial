@@ -162,6 +162,7 @@ library → verify), then check it off.
       block / mega-menu child DnD is a remaining follow-up.)
 - [~] Live preview channel (`THEME_UPDATE` postMessage) exists — extend it to
       cover all edits (not only some) and all templates.
+- [x] Per-section box fill, raised box fill, and line/border color controls now feed the storefront token layer so hard-coded card/form/divider utilities can be recolored from the editor.
 
 
 ### Next five theme-editor suggestions

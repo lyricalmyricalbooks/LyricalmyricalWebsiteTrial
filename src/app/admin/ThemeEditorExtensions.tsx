@@ -1176,6 +1176,47 @@ export function SectionSettingsPanel({
         </div>
       </div>
 
+
+      {/* ── Boxes & lines ── */}
+      <div className="space-y-3">
+        <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Boxes & lines</p>
+        <p className="text-[9px] text-neutral-400 leading-relaxed">Controls cards, form fields, dividers, outlines, and framed media inside this section.</p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Box fill</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.boxColor || "transparent" }}>
+                <input type="color" value={settings.boxColor || "#0a0a0a"} onChange={(e) => onUpdate({ boxColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.boxColor || ""} onChange={(e) => onUpdate({ boxColor: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+              {settings.boxColor && <button type="button" onClick={() => onUpdate({ boxColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+            </div>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Raised box fill</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.raisedBoxColor || "transparent" }}>
+                <input type="color" value={settings.raisedBoxColor || "#171717"} onChange={(e) => onUpdate({ raisedBoxColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.raisedBoxColor || ""} onChange={(e) => onUpdate({ raisedBoxColor: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+              {settings.raisedBoxColor && <button type="button" onClick={() => onUpdate({ raisedBoxColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Line / border color</label>
+          <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+            <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.lineColor || "transparent" }}>
+              <input type="color" value={settings.lineColor || "#ffffff"} onChange={(e) => onUpdate({ lineColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+            </div>
+            <input value={settings.lineColor || ""} onChange={(e) => onUpdate({ lineColor: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+            {settings.lineColor && <button type="button" onClick={() => onUpdate({ lineColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+          </div>
+        </div>
+      </div>
+
       {/* ── Button overrides ── */}
       <div className="space-y-3">
         <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Buttons</p>
