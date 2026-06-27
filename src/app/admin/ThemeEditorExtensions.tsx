@@ -698,6 +698,8 @@ export function BlocksEditor({
   const fields = getBlockFields(sectionType);
   const blocksKey = getBlocksKey(sectionType);
   const blocks: any[] = settings[blocksKey] || [];
+  const blockLimitWarning = blocks.length >= 40;
+  const blockLimitExceeded = blocks.length > 50;
   const [open, setOpen] = useState<number | null>(0);
 
   const setBlocks = (next: any[]) => onUpdate({ [blocksKey]: next });
@@ -754,6 +756,11 @@ export function BlocksEditor({
           {meta.blockLabel}s · {blocks.length}
         </p>
       </div>
+      {blockLimitWarning && (
+        <div className={`rounded-xl border px-3 py-2 text-[10px] font-bold leading-relaxed ${blockLimitExceeded ? "border-red-200 bg-red-50 text-red-600" : "border-amber-200 bg-amber-50 text-amber-700"}`}>
+          {blockLimitExceeded ? "This section is over the 50-block performance guardrail." : "This section is approaching the 50-block performance guardrail."}
+        </div>
+      )}
 
       <SortableList
         items={blocks}
@@ -1540,6 +1547,19 @@ export function SectionSettingsPanel({
         </div>
       </div>
 
+      {/* ── Scoped custom CSS ── */}
+      <div>
+        <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Scoped CSS</label>
+        <textarea
+          value={settings.customCss || ""}
+          onChange={(e) => onUpdate({ customCss: e.target.value })}
+          rows={5}
+          placeholder="& .headline { letter-spacing: .04em; }"
+          className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400 font-mono resize-y"
+        />
+        <p className="mt-1 text-[9px] text-neutral-400 leading-relaxed">Use & to target this section wrapper. CSS is scoped to this section id in the storefront.</p>
+      </div>
+
       {/* ── Custom class ── */}
       <div>
         <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Custom CSS class</label>
@@ -1666,9 +1686,11 @@ export function ColorSchemesPanel({
 export function ThemeIOButtons({
   design,
   onImport,
+  onDuplicate,
 }: {
   design: any;
   onImport: (next: any) => void;
+  onDuplicate?: (next: any) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -1687,6 +1709,16 @@ export function ThemeIOButtons({
     }
   };
 
+  const duplicateTheme = () => {
+    const name = window.prompt("Name the duplicated theme draft:", `Copy ${new Date().toLocaleDateString()}`);
+    if (!name) return;
+    const next = JSON.parse(JSON.stringify(design || {}));
+    next.themeName = name;
+    next.duplicatedFrom = design?.themeName || design?.name || "Current theme";
+    next.duplicatedAt = new Date().toISOString();
+    onDuplicate?.(next);
+  };
+
   const importTheme = async (file: File) => {
     try {
       const text = await file.text();
@@ -1700,6 +1732,16 @@ export function ThemeIOButtons({
 
   return (
     <div className="flex items-center gap-1">
+      {onDuplicate && (
+        <button
+          type="button"
+          onClick={duplicateTheme}
+          title="Duplicate theme as draft"
+          className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all"
+        >
+          <Copy size={14} strokeWidth={2.5} />
+        </button>
+      )}
       <button
         type="button"
         onClick={exportTheme}

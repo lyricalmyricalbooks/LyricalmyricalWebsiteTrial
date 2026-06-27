@@ -215,8 +215,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             Lyricalmyrical E-Commerce Platform Updated
           </h3>
           <p className="text-slate-400 text-xs font-medium max-w-2xl leading-relaxed">
-            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 26, 2026 at 8:30 PM</strong>.
-            This release hardened the payments backend: removed a duplicate refund handler that risked double refunds, added Stripe webhook event de-duplication and a charge.refunded sync (so dashboard refunds reconcile inventory and analytics), reversed revenue/order counts on refunds, added hard timeouts to the exchange-rate and geo-IP calls on the checkout path, and unified inventory math behind a tested helper.
+            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 27, 2026 at 12:30 PM</strong>.
+            This release completed the next theme-editor roadmap moves: preview click-to-edit now opens the owning template panel, the editor surfaces theme-weight guardrails for section/block count, merchants can add scoped CSS per section, the toolbar can duplicate the current theme into an unpublished draft, and the stable data-fm section/block hooks remain in place without changing checkout or payment flows.
           </p>
         </div>
         <div className="shrink-0 relative z-10 bg-white/5 border border-white/10 rounded-2xl p-4 text-center min-w-[150px]">
@@ -224,7 +224,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <p className="text-xs font-bold text-emerald-400 mt-1 uppercase tracking-wider">Deploy Success</p>
           <div className="h-px bg-white/5 my-3" />
           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Last Code Push</p>
-          <p className="text-[10px] font-mono text-slate-300 mt-1">June 26, 20:30</p>
+          <p className="text-[10px] font-mono text-slate-300 mt-1">June 27, 12:30</p>
         </div>
       </motion.div>
 

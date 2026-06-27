@@ -1260,6 +1260,12 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
   // Outline tree: which section's nested block list is expanded
   const [outlineId, setOutlineId] = useState<string | null>(null);
   const sections = design.sections || design.homepageSections || [];
+  const blockTotal = sections.reduce((sum: number, section: any) => {
+    const key = getBlocksKey(section.type);
+    return sum + ((section.settings?.[key] || []).length || 0);
+  }, 0);
+  const sectionLimitWarning = sections.length >= 20;
+  const sectionLimitExceeded = sections.length > 25;
   const sensors = useListSensors();
 
   // Click-to-edit: the preview can request a specific section instance be opened.
@@ -1627,6 +1633,20 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
             ))}
           </div>
         )}
+      </div>
+
+      <div className={`rounded-2xl border p-4 ${sectionLimitExceeded ? "border-red-200 bg-red-50" : sectionLimitWarning ? "border-amber-200 bg-amber-50" : "border-emerald-100 bg-emerald-50/50"}`}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className={`text-[9px] font-black tracking-[0.25em] uppercase ${sectionLimitExceeded ? "text-red-500" : sectionLimitWarning ? "text-amber-600" : "text-emerald-600"}`}>Theme weight</p>
+            <p className="text-[11px] text-neutral-500 font-bold mt-1 leading-relaxed">
+              {sections.length}/25 sections · {blockTotal} blocks. Keep pages lean for stronger Core Web Vitals.
+            </p>
+          </div>
+          <span className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full ${sectionLimitExceeded ? "bg-red-100 text-red-600" : sectionLimitWarning ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>
+            {sectionLimitExceeded ? "Over limit" : sectionLimitWarning ? "Watch" : "Lean"}
+          </span>
+        </div>
       </div>
 
       <div className="space-y-3 pb-8">
@@ -3915,10 +3935,14 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
           window.addEventListener('scroll', drawSel, true);
           window.addEventListener('resize', drawSel);
           document.addEventListener('mouseover', function(e){
+            var blockNode = e.target && e.target.closest ? e.target.closest('[data-fm-block], [data-block-id]') : null;
+            var sectionNode = e.target && e.target.closest ? e.target.closest('[data-fm-section], [data-section-id]') : null;
+            var targetNode = blockNode || sectionNode || e.target;
             var sid = getSectionId(e.target);
-            if (!sid) { box.style.display='none'; return; }
-            var r = e.target.getBoundingClientRect();
-            box.style.display='block'; lbl.textContent=sid;
+            if (!sid && !sectionNode && !blockNode) { box.style.display='none'; return; }
+            var r = targetNode.getBoundingClientRect();
+            var blockId = blockNode ? (blockNode.getAttribute('data-fm-block') || blockNode.getAttribute('data-block-id')) : null;
+            box.style.display='block'; lbl.textContent=blockId ? sid + ' · block' : sid;
             box.style.top=r.top+'px'; box.style.left=r.left+'px';
             box.style.width=r.width+'px'; box.style.height=r.height+'px';
           }, true);
@@ -3929,13 +3953,15 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
             // Let real navigation links/buttons through so the editor can browse all pages.
             var navTarget = e.target && e.target.closest ? e.target.closest('a[href], button[type="submit"]') : null;
             if (navTarget) return;
-            var instNode = e.target && e.target.closest ? e.target.closest('[data-section-id]') : null;
-            var instanceId = instNode ? instNode.getAttribute('data-section-id') : null;
+            var instNode = e.target && e.target.closest ? e.target.closest('[data-fm-section], [data-section-id]') : null;
+            var blockNode = e.target && e.target.closest ? e.target.closest('[data-fm-block], [data-block-id]') : null;
+            var instanceId = instNode ? (instNode.getAttribute('data-fm-section') || instNode.getAttribute('data-section-id')) : null;
+            var blockId = blockNode ? (blockNode.getAttribute('data-fm-block') || blockNode.getAttribute('data-block-id')) : null;
             var sid = getSectionId(e.target);
             if (!sid && !instanceId) return;
             e.preventDefault(); e.stopPropagation();
             if (instanceId) { selectedId = instanceId; drawSel(); }
-            window.parent.postMessage({ type:'SECTION_SELECT', sectionId: sid, instanceId: instanceId }, window.location.origin);
+            window.parent.postMessage({ type:'SECTION_SELECT', sectionId: sid, instanceId: instanceId, blockId: blockId }, window.location.origin);
           }, true);
           document.addEventListener('dblclick', function(e){
             var fieldNode = e.target && e.target.closest ? e.target.closest('[data-theme-field]') : null;
@@ -4936,12 +4962,13 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         setActiveTab("settings");
         const secId = event.data.sectionId;
         const instId = event.data.instanceId;
+        const template = PAGE_TEMPLATES.find((tpl) => tpl.id === secId);
+        if (template) {
+          setDesignSurface(template.id);
+          setPreviewMode(template.previewMode);
+        }
         if (instId) {
-          if (secId === "globalSections") {
-            setActiveSection("globalSections");
-          } else {
-            setActiveSection("homepage");
-          }
+          setActiveSection(secId === "globalSections" ? "globalSections" : "homepage");
           setPendingSectionId(instId);
           setSelectedInstanceId(instId);
         } else if (secId) {
@@ -4963,12 +4990,22 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           );
           update("globalSections", updated, true);
         } else {
-          // 2. Check in standard sections
-          const sections = (design?.[designSurface]?.sections || design?.[designSurface]?.homepageSections || []) as any[];
+          // 2. Find the page-template surface that owns the clicked section.
+          const owningTemplate = PAGE_TEMPLATES.find((tpl) =>
+            ((design?.[tpl.id]?.sections || design?.[tpl.id]?.homepageSections || []) as any[]).some((s: any) => s.id === sectionId),
+          );
+          const surfaceId = owningTemplate?.id || designSurface;
+          const sections = (design?.[surfaceId]?.sections || design?.[surfaceId]?.homepageSections || []) as any[];
           const updated = sections.map((s: any) =>
             s.id === sectionId ? { ...s, settings: { ...(s.settings || {}), [settingKey]: value } } : s
           );
-          update("sections", updated);
+          setDesignSurface(surfaceId);
+          setDesign((prev: any) => ({
+            ...prev,
+            [surfaceId]: { ...(prev?.[surfaceId] || {}), sections: updated },
+          }));
+          setSaved(false);
+          setSaveStatus("unsaved");
         }
       }
     };
@@ -5610,6 +5647,13 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           {/* Theme import / export */}
           <ThemeIOButtons
             design={design}
+            onDuplicate={(next) => {
+              setPastDesigns((prev) => [...prev.slice(-74), design]);
+              setFutureDesigns([]);
+              setDesign(next);
+              setSaveStatus("unsaved");
+              toast.success("Theme duplicated as an unpublished draft", { id: "theme-duplicate" });
+            }}
             onImport={(next) => {
               setPastDesigns((prev) => [...prev.slice(-74), design]);
               setFutureDesigns([]);

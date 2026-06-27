@@ -142,9 +142,10 @@ section/block contract, and the Shopify-parity roadmap.
 - `src/app/components/sectionRender.tsx` — shared renderer: `SectionList` maps a
   section to its renderer **by name** (`(Sections as any)[section.type]`),
   `TemplateSections` renders `design[templateId].sections` for a page-type
-  template, `GlobalSections` renders `design.globalSections`. Used by MainSite
-  and every standalone page (product/collection/page/cart all render their
-  template's sections — milestone A).
+  template, `GlobalSections` renders `design.globalSections`, and section
+  wrappers emit stable `data-fm-section` / `data-section-id` hooks for preview
+  click-to-edit, scoped per-section CSS, and template-aware preview selection. Used by MainSite and every standalone page
+  (product/collection/page/cart all render their template's sections — milestone A).
 
 **Section contract:** the storefront looks up renderers by the registry `type`
 string. A registry type with **no identically named renderer renders nothing**
