@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { Send, ChevronLeft, ChevronRight, MapPin, Clock } from "lucide-react";
+import { useCurrency } from "../CurrencyContext";
 
 // ──────────────────────────────
 // Animation helper
@@ -812,6 +813,124 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
             </div>
           </div>
         </AnimationContainer>
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
+// REFERENCE PRODUCT GRID
+// ──────────────────────────────
+
+const productSlug = (book: any) => book?.slug || book?.title?.toLowerCase?.().replace(/[^a-z0-9]+/g, "-");
+
+export function ProductGridHeaderSection({ settings, books, onProductClick, enableAnimations }: any) {
+  const { formatBookPrice } = useCurrency();
+  const manualSlugs = String(settings.manualSlugs || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const source = settings.productSource || "all";
+  const candidates = (books || []).filter((book: any) => {
+    if (source === "featured") return book.featured !== false;
+    if (source === "manual") return manualSlugs.includes(productSlug(book));
+    return true;
+  });
+  const limit = Math.max(1, Math.min(24, settings.productLimit ?? 6));
+  const items = candidates.slice(0, limit);
+  const cols = Math.max(2, Math.min(6, settings.columnsDesktop ?? 3));
+  const mobileCols = Math.max(1, Math.min(3, settings.columnsMobile ?? 1));
+  const aspect = settings.imageAspectRatio === "2:3" ? "2 / 3" : settings.imageAspectRatio === "3:4" ? "3 / 4" : "1 / 1";
+  const text = settings.textColor || "#ffffff";
+  const rule = settings.ruleColor || "#B1B1AA";
+  const bg = settings.backgroundColor || "#000000";
+  const fit = settings.imageFit === "contain" ? "contain" : "cover";
+  const focal = `${Math.max(0, Math.min(100, settings.focalX ?? 50))}% ${Math.max(0, Math.min(100, settings.focalY ?? 50))}%`;
+
+  return (
+    <section style={{ background: bg, color: text }}>
+      <style>{`
+        .reference-product-grid-${settings.__sectionId || "section"} {
+          grid-template-columns: repeat(${mobileCols}, minmax(0, 1fr));
+        }
+        @media (min-width: 1024px) {
+          .reference-product-grid-${settings.__sectionId || "section"} {
+            grid-template-columns: repeat(${cols}, minmax(0, 1fr));
+          }
+        }
+      `}</style>
+      <div className={`px-6 py-8 mx-auto ${mw(settings, "max-w-7xl")}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className="flex items-start justify-between gap-6">
+            <h2
+              className="font-black tracking-tight leading-none"
+              data-theme-field="title"
+              style={{ fontSize: `clamp(${settings.mastheadMobile ?? 38}px, 5vw, ${settings.mastheadDesktop ?? 58}px)`, ...hStyle(settings) }}
+            >
+              {settings.title || "Lyricalmyrical Books"}
+            </h2>
+            <p className="text-lg md:text-2xl font-black whitespace-nowrap" data-theme-field="cartTotalText">
+              {settings.cartLabel || "Cart"} | {settings.cartTotalText || "CA$130.00"}
+            </p>
+          </div>
+          <div className="mt-6" style={{ borderTop: `${settings.headerRuleWidth ?? 4}px solid ${rule}` }} />
+          <div className="py-5 flex flex-wrap font-black text-base" style={{ gap: settings.navGap ?? 40 }}>
+            {(settings.navText || "Products · About · Project Submissions · Contact")
+              .split("·")
+              .map((label: string, idx: number) => (
+                <span key={idx} data-theme-field={idx === 0 ? "navText" : undefined}>{label.trim()}</span>
+              ))}
+          </div>
+          <div style={{ borderTop: `${settings.headerRuleWidth ?? 4}px solid ${rule}` }} />
+        </AnimationContainer>
+        <div
+          className={`reference-product-grid-${settings.__sectionId || "section"} grid mt-6`}
+          style={{ columnGap: settings.gridGap ?? 18, rowGap: settings.rowGap ?? 54 }}
+        >
+          {items.map((book: any, idx: number) => {
+            const onSale = !!book.isOnSale && book.salePrice > 0 && book.salePrice < (book.retailPrice ?? 0);
+            const price = onSale ? book.salePrice : book.retailPrice;
+            return (
+              <AnimationContainer key={book.id || idx} enabled={enableAnimations} delay={idx * 0.04}>
+                <button
+                  type="button"
+                  onClick={() => onProductClick?.(book)}
+                  {...blockEditAttrs({ id: book.id || productSlug(book) }, idx)}
+                  className="group block w-full text-left"
+                >
+                  <div className="relative overflow-hidden bg-white/5" style={{ aspectRatio: aspect }}>
+                    {book.photos?.[0]?.url && (
+                      <img
+                        src={book.photos[0].url}
+                        alt={book.title}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full transition-transform duration-700 group-hover:scale-105"
+                        style={{ objectFit: fit, objectPosition: focal }}
+                      />
+                    )}
+                    {settings.showBadges !== false && onSale && (
+                      <span
+                        className="absolute top-3 right-3 rounded-full px-4 py-3 text-[10px] font-black"
+                        style={{ background: settings.badgeColor || "#f63737", color: settings.badgeTextColor || "#000000" }}
+                      >
+                        On sale
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="mt-3 text-lg md:text-xl font-black leading-tight" style={{ color: text, textTransform: settings.titleTransform || "none" }}>
+                    {book.title}
+                  </h3>
+                  {settings.showPrices !== false && price > 0 && (
+                    <p className="mt-1 text-lg" style={{ color: text }}>
+                      {formatBookPrice(book)}
+                    </p>
+                  )}
+                </button>
+              </AnimationContainer>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

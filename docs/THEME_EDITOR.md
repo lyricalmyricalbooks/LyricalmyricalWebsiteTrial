@@ -136,6 +136,17 @@ library → verify), then check it off.
 - [ ] Follow-up: group global sections into header/footer/announcement.
 
 ### B. More section types (close gaps + expand)
+- [x] Configurable screenshot-style storefront homepage milestone shipped: a
+      black editorial header/product-grid design can now be built from theme
+      sections and settings rather than hard-coded homepage code. The milestone
+      is considered complete only when the published storefront matches the
+      reference screenshot, keeps registry↔renderer parity, and remains editable
+      through the theme editor.
+- [x] Reference design follow-through shipped: accurate live multi-currency
+      cart subtotal display, reusable `ProductGridHeaderSection` registry +
+      renderer + library entry, responsive masthead/nav controls, product focal
+      point controls, and preview-canvas section drag/reorder via
+      `data-fm-section` hooks.
 - [x] Renderers added for `VideoHeroSection`, `StatsCounterSection`,
       `PricingTableSection` — registry and renderers are now at full parity.
 - [x] Unified the section library on `SECTION_REGISTRY`; retired the legacy
@@ -167,23 +178,22 @@ library → verify), then check it off.
 
 ### Next five theme-editor suggestions
 
-After the insertion-zone drag/drop work, the next five highest-leverage
+After the reference-grid follow-through work, the next five highest-leverage
 Shopify/WordPress-parity improvements are:
 
-1. **Drag/drop inside the live preview iframe** — map `data-fm-section` and
-   `data-fm-block` targets back to the owning template so merchants can reorder
-   from the canvas, not only the sidebar outline.
-2. **Nested block drag/drop** — extend `BlocksEditor` from flat section-local
+1. **Nested block drag/drop** — extend `BlocksEditor` from flat section-local
    arrays to 2–3 levels of recursive blocks for columns, cards, and media/text
    groups.
-3. **Mega-menu child drag/drop** — replace child/grandchild nav arrow controls
+2. **Mega-menu child drag/drop** — replace child/grandchild nav arrow controls
    with nested sortable lists so menu structure editing matches modern builders.
-4. **CSS-grid visual positioning** — add guarded grid coordinates, z-index, and
+3. **CSS-grid visual positioning** — add guarded grid coordinates, z-index, and
    overlap controls for sections that need true visual layout rather than only
    vertical order.
-5. **Per-breakpoint layout overrides** — store desktop/tablet/mobile placement
+4. **Per-breakpoint layout overrides** — store desktop/tablet/mobile placement
    overrides and pair them with the existing device preview toggle so mobile
    layouts can be intentionally edited.
+5. **Reusable shared blocks** — promote configured blocks into a cross-section
+   library so repeated cards, CTAs, and media/text groups can be updated once.
 
 ### D. Theme management
 - [~] Draft/publish + scheduled publish exist — bring to full Shopify parity
