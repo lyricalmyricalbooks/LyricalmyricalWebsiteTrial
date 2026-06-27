@@ -874,7 +874,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showBag = showCatalog
     ? (storefrontHeaderLinks.showBag ?? true)
     : (heroHeaderLinks.showBag ?? true);
-  const showSys = heroHeaderLinks.showSys ?? true;
+  const showSys = showCatalog
+    ? (storefrontHeaderLinks.showSys ?? true)
+    : (heroHeaderLinks.showSys ?? true);
   const storefrontBg = storefrontDesign?.backgroundColor || "#050505";
   const storefrontText = storefrontDesign?.textColor || "#ffffff";
   const storefrontAccent = storefrontDesign?.primaryColor || "#ffffff";
@@ -1070,6 +1072,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 ))}
                 {showInformation && <button onClick={() => setShowAbout(true)} className="hover:opacity-70 transition-opacity">About</button>}
                 <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity">Search</button>
+                {showSys && (
+                  <Link to="/admin" className="hover:opacity-70 transition-opacity opacity-40">Admin</Link>
+                )}
                 {showBag && catalogCartPlacement === "nav-end" && (
                   <button onClick={() => setIsCartOpen(true)} className="hover:opacity-70 transition-opacity">
                     {cartCount} | {cartTotal > 0 ? formatPrice(cartTotal) : formatPrice(Number(storefrontDesign?.catalogCartTotalPlaceholder ?? 0))}
