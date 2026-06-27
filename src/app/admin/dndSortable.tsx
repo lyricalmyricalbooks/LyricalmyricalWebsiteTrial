@@ -4,6 +4,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  useDroppable,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -37,9 +38,8 @@ export function useListSensors() {
   );
 }
 
-type HandleProps = {
+type HandleProps = React.HTMLAttributes<HTMLElement> & {
   ref: (el: HTMLElement | null) => void;
-  [key: string]: any;
 };
 
 /**
@@ -48,6 +48,10 @@ type HandleProps = {
  * that ONLY the handle starts a drag while the rest of the row keeps its own
  * onClick (select / expand). `handleProps` also carries the dnd-kit a11y
  * attributes, enabling keyboard reordering (Tab to handle → Space → arrows).
+ *
+ * The default handle affordances live here instead of every caller: a shared
+ * label/title, touch-action lock (important for mobile side-panel editing),
+ * and click suppression so selecting/expanding rows remains predictable.
  */
 export function SortableRow({
   id,
@@ -84,6 +88,9 @@ export function SortableRow({
     ref: setActivatorNodeRef,
     ...attributes,
     ...listeners,
+    "aria-label": attributes["aria-label"] ?? "Drag to reorder",
+    title: "Drag to reorder",
+    style: { touchAction: "none", userSelect: "none" },
     // The handle should never trigger the row's select/expand onClick.
     onClick: (e: React.MouseEvent) => e.stopPropagation(),
   };
@@ -131,5 +138,42 @@ export function SortableList<T>({
         {className ? <div className={className}>{children}</div> : children}
       </SortableContext>
     </DndContext>
+  );
+}
+
+/**
+ * A visible insertion target for dragging a new item from a palette/library into
+ * a sortable outline. Sortable rows are great for reordering existing items,
+ * but library-to-canvas interactions need explicit "drop between rows" targets
+ * so the user can choose the exact insertion point (including an empty list).
+ */
+export function InsertionDropZone({
+  id,
+  active = false,
+  label = "Drop here",
+  className = "",
+}: {
+  id: string;
+  active?: boolean;
+  label?: string;
+  className?: string;
+}) {
+  const { isOver, setNodeRef } = useDroppable({ id });
+  const highlighted = active || isOver;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`relative flex items-center justify-center rounded-2xl border-2 border-dashed transition-all ${
+        highlighted
+          ? "h-12 border-violet-400 bg-violet-50 text-violet-700"
+          : "h-3 border-transparent text-transparent hover:h-10 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-500"
+      } ${className}`}
+      aria-label={label}
+    >
+      <span className="pointer-events-none text-[9px] font-black uppercase tracking-[0.2em]">
+        {label}
+      </span>
+    </div>
   );
 }

@@ -8,7 +8,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { SortableRow, SortableList, useListSensors } from "./dndSortable";
+import { InsertionDropZone, SortableRow, SortableList, useListSensors } from "./dndSortable";
 import {
   ChevronRight,
   ChevronLeft,
@@ -1257,6 +1257,8 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
   const [showLibrary, setShowLibrary] = useState(false);
   // The section type currently being dragged out of the library (for the overlay preview)
   const [dragLibType, setDragLibType] = useState<string | null>(null);
+  // Existing section currently being dragged in the outline.
+  const [dragSectionId, setDragSectionId] = useState<string | null>(null);
   // Outline tree: which section's nested block list is expanded
   const [outlineId, setOutlineId] = useState<string | null>(null);
   const sections = design.sections || design.homepageSections || [];
@@ -1326,23 +1328,39 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
   const handleSectionDragStart = (e: DragStartEvent) => {
     const id = String(e.active.id);
     if (id.startsWith("lib:")) setDragLibType(id.slice(4));
+    else if (sections.some((s: any) => s.id === id)) setDragSectionId(id);
   };
 
   const handleSectionDragEnd = (e: DragEndEvent) => {
     const { active, over } = e;
     setDragLibType(null);
+    setDragSectionId(null);
     if (!over) return;
     const activeId = String(active.id);
+    const overId = String(over.id);
+    const dropMatch = overId.match(/^section-drop-(\d+)$/);
     if (activeId.startsWith("lib:")) {
       const type = activeId.slice(4);
-      const overIndex = sections.findIndex((s: any) => s.id === String(over.id));
-      addSectionAt(type, overIndex >= 0 ? overIndex : sections.length);
+      const overIndex = dropMatch ? Number(dropMatch[1]) : sections.findIndex((s: any) => s.id === overId);
+      addSectionAt(type, Number.isFinite(overIndex) && overIndex >= 0 ? overIndex : sections.length);
       setShowLibrary(false);
       return;
     }
-    if (activeId === String(over.id)) return;
+    if (dropMatch) {
+      const oldIndex = sections.findIndex((s: any) => s.id === activeId);
+      const slotIndex = Number(dropMatch[1]);
+      if (oldIndex < 0 || !Number.isFinite(slotIndex)) return;
+      const next = [...sections];
+      const [moved] = next.splice(oldIndex, 1);
+      const adjustedIndex = Math.max(0, Math.min(slotIndex > oldIndex ? slotIndex - 1 : slotIndex, next.length));
+      if (adjustedIndex === oldIndex) return;
+      next.splice(adjustedIndex, 0, moved);
+      updateSections(next);
+      return;
+    }
+    if (activeId === overId) return;
     const oldIndex = sections.findIndex((s: any) => s.id === activeId);
-    const newIndex = sections.findIndex((s: any) => s.id === String(over.id));
+    const newIndex = sections.findIndex((s: any) => s.id === overId);
     if (oldIndex < 0 || newIndex < 0) return;
     updateSections(arrayMove(sections, oldIndex, newIndex));
   };
@@ -1655,21 +1673,42 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
          collisionDetection={closestCenter}
          onDragStart={handleSectionDragStart}
          onDragEnd={handleSectionDragEnd}
-         onDragCancel={() => setDragLibType(null)}
+         onDragCancel={() => {
+           setDragLibType(null);
+           setDragSectionId(null);
+         }}
        >
         {sections.length === 0 ? (
-          <div className="py-20 text-center border-2 border-dashed border-neutral-100 rounded-[2rem] bg-neutral-50/50">
+          <div className="py-10 text-center border-2 border-dashed border-neutral-100 rounded-[2rem] bg-neutral-50/50">
              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm"><LayoutTemplate size={20} className="text-neutral-300" /></div>
-             <p className="text-[11px] text-neutral-400 font-medium px-8">Your homepage is empty. Start by adding a Hero section.</p>
+             <p className="text-[11px] text-neutral-400 font-medium px-8 mb-5">Your homepage is empty. Drag a section here from the library, or start by adding a Hero section.</p>
+             <div className="px-5">
+               <InsertionDropZone
+                 id="section-drop-0"
+                 active={!!dragLibType || !!dragSectionId}
+                 label={
+                   dragLibType
+                     ? `Drop ${getSectionMeta(dragLibType)?.label || "section"} here`
+                     : "Drop section here"
+                 }
+               />
+             </div>
           </div>
         ) : (
           <SortableContext items={sections.map((s: any) => s.id)} strategy={verticalListSortingStrategy}>
           <div className="space-y-2">
+             {(dragLibType || dragSectionId) && (
+               <InsertionDropZone
+                 id="section-drop-0"
+                 active
+                 label={dragLibType ? `Add ${getSectionMeta(dragLibType)?.label || "section"} at top` : "Move section to top"}
+               />
+             )}
              {sections.map((section: any, index: number) => {
                const isHidden = section.visible === false;
                return (
+               <div key={section.id} className="space-y-2">
                <SortableRow
-                 key={section.id}
                  id={section.id}
                  onClick={() => !isHidden && setActiveSectionId(section.id)}
                  className={`group relative border rounded-3xl p-4 transition-all duration-300 ${
@@ -1792,6 +1831,18 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                 </>
                 )}
                </SortableRow>
+               {(dragLibType || dragSectionId) && (
+                 <InsertionDropZone
+                   id={`section-drop-${index + 1}`}
+                   active
+                   label={
+                     dragLibType
+                       ? `Add ${getSectionMeta(dragLibType)?.label || "section"} ${index === sections.length - 1 ? "at end" : "here"}`
+                       : `Move section ${index === sections.length - 1 ? "to end" : "here"}`
+                   }
+                 />
+               )}
+               </div>
                );
              })}
           </div>
@@ -1859,6 +1910,24 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                 {getSectionMeta(dragLibType)?.label || dragLibType.replace("Section", "")}
               </span>
             </div>
+          ) : dragSectionId ? (
+            (() => {
+              const section = sections.find((s: any) => s.id === dragSectionId);
+              if (!section) return null;
+              return (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white border border-blue-200 text-neutral-800 shadow-2xl shadow-blue-500/20 cursor-grabbing">
+                  <GripVertical size={14} className="text-blue-500" />
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-tight">
+                      {section.settings?.title || section.type.replace("Section", "")}
+                    </p>
+                    <p className="text-[8px] font-bold uppercase tracking-widest text-neutral-400">
+                      {section.type.replace("Section", "")}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()
           ) : null}
         </DragOverlay>
        </DndContext>
