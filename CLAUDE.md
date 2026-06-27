@@ -135,7 +135,8 @@ section/block contract, and the Shopify-parity roadmap.
   unified on the registry-driven `NewSectionLibraryModal`; the legacy
   `SECTION_TEMPLATES` + `SectionLibraryModal` dead code has been removed.
 - `src/app/admin/ThemeEditorExtensions.tsx` — the real `SECTION_REGISTRY`,
-  `getSectionFields`/`getBlockFields`, `BlocksEditor`, `NewSectionLibraryModal`.
+  `getSectionFields`/`getBlockFields`, `BlocksEditor`, `NewSectionLibraryModal`;
+  it includes reusable commerce/content sections such as `BlogPostsSection`.
 - `src/app/admin/ThemeEditorPro.tsx` — color math, schemes, import/export.
 - `src/app/admin/ThemeEditorBuilder.tsx` — builder UI over the registry helpers.
 - `src/app/components/SectionComponents.tsx` — the storefront section renderers
@@ -192,13 +193,12 @@ and the **Last Code Push** timestamp.
 > - the summary paragraph listing what this release shipped,
 > - the **Last Code Push** timestamp (e.g. "June 13, 22:09").
 >
-> Current state: updated **June 26, 2026 at 8:30 PM** — hardened the payments
-> backend: removed a duplicate `refundOrder` that risked double refunds, added
-> Stripe webhook event de-duplication and a `charge.refunded` sync (dashboard
-> refunds now reconcile inventory + analytics), reversed revenue/order counts on
-> refunds, added hard timeouts to the exchange-rate and geo-IP calls on the
-> checkout path, and unified inventory math behind a tested `applyStockDelta`
-> helper (`functions/orderMath.js`).
+> Current state: updated **June 27, 2026 at 11:06 PM** — expanded the theme
+> editor with a working `BlogPostsSection` so the former content-section gap can
+> render real journal/news cards on the storefront. The release added registry
+> defaults, section and block editing fields, a matching storefront renderer with
+> accessible article cards, roadmap documentation, and kept checkout/payment paths
+> untouched.
 
 ## Conventions & gotchas
 

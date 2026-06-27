@@ -155,13 +155,18 @@ library → verify), then check it off.
       `PricingTableSection` — registry and renderers are now at full parity.
 - [x] Unified the section library on `SECTION_REGISTRY`; retired the legacy
       `SECTION_TEMPLATES` + `SectionLibraryModal`.
-- [ ] Add common Shopify sections end-to-end as needed (e.g. featured
-      collection, image banner, blog posts, rich content) — each via the full
+- [x] Blog posts / journal cards shipped end-to-end as a reusable
+      `BlogPostsSection` (registry schema, block fields, storefront renderer,
+      and library exposure) for announcements, release notes, and editorial
+      content.
+- [ ] Add remaining common Shopify sections end-to-end as needed (e.g. featured
+      collection, image banner, richer content compositions) — each via the full
       contract.
 - [x] Core sections shipped end-to-end (Hero, FeatureGrid, Testimonials, FAQ,
       Newsletter, Slideshow, Multicolumn, RichText, Image-with-text, Video,
-      Collection list, Featured product, Countdown, Contact form, Map, Gallery,
-      Row, Marquee, Logo list, Collapsible, Text content, Custom HTML).
+      Collection list, Featured product, Blog posts, Countdown, Contact form,
+      Map, Gallery, Row, Marquee, Logo list, Collapsible, Text content,
+      Custom HTML).
 
 ### C. Live preview & editing UX
 - [x] Inline click-to-edit routes preview clicks to the correct section/template panel and keeps the selected section highlighted.
