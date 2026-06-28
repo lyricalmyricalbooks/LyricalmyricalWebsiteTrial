@@ -40,3 +40,7 @@
 ## 2024-06-26 - Eliminating O(N*M) Array Lookups in Admin Orders Bulk Operations
 **Learning:** In `Orders.tsx`, when selecting or deselecting rows to perform bulk operations, verifying properties with `.find()` (e.g. `orders.find(o => o.id === id)?.isTest`) inside iterations across selected IDs creates an O(N*M) complexity drag. Even in an admin table, repeatedly scanning an array is inefficient when you can cache lookups.
 **Action:** Always create a `useMemo` map or a local Map keyed by ID (e.g. `Map<string, Order>`) prior to iterating across selection arrays to reduce the property lookup time to O(1).
+
+## 2024-11-13 - Replace Inline Array Reductions With Memoized Context Values
+**Learning:** In React, placing an inline array reduction (e.g. `cartItems.reduce`) directly in the JSX render tree or inside event callbacks forces O(N) evaluation. In a codebase where a global context (e.g., `CartContext`) already memoizes the result as `cartCount` or `cartTotal`, redefining the `reduce` inline not only duplicates the work but also wastes rendering cycles and causes unnecessary latency during rapid input changes.
+**Action:** When working with context-provided collections, check the context definition for existing pre-calculated memoized values (like `cartCount`) and use them instead of performing inline array `.reduce()` or `.filter()` operations on the client arrays.
