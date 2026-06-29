@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { useMemo } from "react";
 import { useRecentlyViewed } from "../../lib/recentlyViewed";
 import { useSiteData } from "./useSiteData";
 import { DEFAULT_IMAGE } from "./constants";
@@ -7,11 +8,16 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
   const { ids } = useRecentlyViewed();
   const { books } = useSiteData();
 
-  const items = ids
-    .filter(id => id !== excludeId)
-    .map(id => books.find(b => b.id === id))
-    .filter(Boolean)
-    .slice(0, 6) as any[];
+  // ⚡ Bolt: Cache books by ID for O(1) lookups during iteration
+  // Measured impact: Eliminates O(N*M) complexity when computing recently viewed items on render.
+  const items = useMemo(() => {
+    const booksMap = new Map((books || []).map(b => [b.id, b]));
+    return ids
+      .filter(id => id !== excludeId)
+      .map(id => booksMap.get(id))
+      .filter(Boolean)
+      .slice(0, 6) as any[];
+  }, [ids, books, excludeId]);
 
   if (items.length === 0) return null;
 
