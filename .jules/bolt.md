@@ -40,3 +40,6 @@
 ## 2024-06-26 - Eliminating O(N*M) Array Lookups in Admin Orders Bulk Operations
 **Learning:** In `Orders.tsx`, when selecting or deselecting rows to perform bulk operations, verifying properties with `.find()` (e.g. `orders.find(o => o.id === id)?.isTest`) inside iterations across selected IDs creates an O(N*M) complexity drag. Even in an admin table, repeatedly scanning an array is inefficient when you can cache lookups.
 **Action:** Always create a `useMemo` map or a local Map keyed by ID (e.g. `Map<string, Order>`) prior to iterating across selection arrays to reduce the property lookup time to O(1).
+## 2024-06-29 - Replace localeCompare with Intl.Collator for sorting loops
+**Learning:** In JavaScript, sorting arrays of strings using `String.prototype.localeCompare` inside the `.sort()` callback is slow because it creates a new `Intl.Collator` object on each call.
+**Action:** When sorting arrays based on string comparison (like A-Z or Z-A), instantiate an `Intl.Collator` once outside the loop and use `collator.compare` to significantly reduce the overhead.
