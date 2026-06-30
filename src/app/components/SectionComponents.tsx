@@ -278,7 +278,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
             </MagneticButton>
             {settings.secondaryCtaText && (
               <button className="px-8 py-3.5 rounded-full border border-white/30 text-[10px] tracking-[0.3em] font-semibold uppercase hover:bg-white/10 transition-colors text-white">
-                {settings.secondaryCtaText}
+                <span data-theme-field="secondaryCtaText">{settings.secondaryCtaText}</span>
               </button>
             )}
           </div>
@@ -305,7 +305,7 @@ export function FeatureGridSection({ settings, enableAnimations }: any) {
               {settings.title || "Highlights"}
             </h2>
             {settings.subtitle && (
-              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
             )}
           </div>
         </AnimationContainer>
@@ -361,7 +361,7 @@ export function NewsletterSection({ settings, enableAnimations }: any) {
                 style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #fff)", color: "var(--btn-text, #000)", ...btnS(settings) }}
               >
                 <Send size={12} />
-                {settings.buttonLabel || "JOIN"}
+                <span data-theme-field="buttonLabel">{settings.buttonLabel || "JOIN"}</span>
               </MagneticButton>
             </form>
           </div>
@@ -387,7 +387,7 @@ export function TestimonialsSection({ settings, enableAnimations }: any) {
               {settings.title || "Testimonials"}
             </h2>
             {settings.subtitle && (
-              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
             )}
           </div>
           <div className="grid md:grid-cols-2 gap-6">
@@ -425,7 +425,7 @@ export function FAQSection({ settings, enableAnimations }: any) {
               {settings.title || "FAQ"}
             </h2>
             {settings.subtitle && (
-              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+              <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
             )}
           </div>
           <div className="space-y-3">
@@ -455,17 +455,17 @@ export function TextContentSection({ settings, enableAnimations }: any) {
         <AnimationContainer enabled={enableAnimations}>
           <div className="space-y-5">
             {settings.eyebrow && (
-              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>
+              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)} data-theme-field="eyebrow">
                 {settings.eyebrow}
               </p>
             )}
             {settings.title && (
-              <h2 className="text-3xl font-bold tracking-tight uppercase leading-tight text-white" style={hStyle(settings)}>
+              <h2 className="text-3xl font-bold tracking-tight uppercase leading-tight text-white" style={hStyle(settings)} data-theme-field="title">
                 {settings.title}
               </h2>
             )}
             {settings.subtitle && (
-              <p className="text-lg text-white/70 leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+              <p className="text-lg text-white/70 leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
             )}
             {settings.content && (
               hasHtml ? (
@@ -507,7 +507,7 @@ export function ImageWithTextSection({ settings, enableAnimations }: any) {
             </div>
             <div className="space-y-5">
               {settings.eyebrow && (
-                <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow}</p>
+                <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)} data-theme-field="eyebrow">{settings.eyebrow}</p>
               )}
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white" style={hStyle(settings)} data-theme-field="title">
                 {settings.title || "About the collection"}
@@ -521,7 +521,7 @@ export function ImageWithTextSection({ settings, enableAnimations }: any) {
                   className="inline-block px-7 py-3 rounded-full text-[10px] font-bold tracking-[0.3em] uppercase"
                   style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
                 >
-                  {settings.ctaText}
+                  <span data-theme-field="ctaText">{settings.ctaText}</span>
                 </a>
               )}
             </div>
@@ -608,7 +608,7 @@ export function MulticolumnSection({ settings, enableAnimations }: any) {
                 </h2>
               )}
               {settings.subtitle && (
-                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
               )}
             </div>
           )}
@@ -740,13 +740,13 @@ export function VideoSection({ settings, enableAnimations }: any) {
           {(settings.eyebrow || settings.title || settings.subtitle) && (
             <div className="text-center mb-8">
               {settings.eyebrow && (
-                <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50 mb-3" style={bStyle(settings)}>{settings.eyebrow}</p>
+                <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50 mb-3" style={bStyle(settings)} data-theme-field="eyebrow">{settings.eyebrow}</p>
               )}
               {settings.title && (
-                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>{settings.title}</h2>
+                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">{settings.title}</h2>
               )}
               {settings.subtitle && (
-                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
               )}
             </div>
           )}
@@ -780,10 +780,10 @@ export function LogoListSection({ settings, enableAnimations }: any) {
           {(settings.title || settings.subtitle) && (
             <div className="text-center mb-8">
               {settings.title && (
-                <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/40" style={hStyle(settings)}>{settings.title}</p>
+                <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/40" style={hStyle(settings)} data-theme-field="title">{settings.title}</p>
               )}
               {settings.subtitle && (
-                <p className="mt-2 text-white/40 text-xs" style={bStyle(settings)}>{settings.subtitle}</p>
+                <p className="mt-2 text-white/40 text-xs" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
               )}
             </div>
           )}
@@ -817,10 +817,10 @@ export function CollapsibleSection({ settings, enableAnimations }: any) {
           {(settings.title || settings.subtitle) && (
             <div className="text-center mb-8">
               {settings.title && (
-                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>{settings.title}</h2>
+                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">{settings.title}</h2>
               )}
               {settings.subtitle && (
-                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
               )}
             </div>
           )}
@@ -860,10 +860,10 @@ export function CollectionListSection({ settings, enableAnimations }: any) {
           {(settings.title || settings.subtitle) && (
             <div className={`mb-10 ${textAlign}`}>
               {settings.title && (
-                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>{settings.title}</h2>
+                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">{settings.title}</h2>
               )}
               {settings.subtitle && (
-                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
               )}
             </div>
           )}
@@ -1094,17 +1094,17 @@ export function BlogPostsSection({ settings, enableAnimations }: any) {
           {(settings.eyebrow || settings.title || settings.subtitle) && (
             <div className={`mb-10 ${align}`}>
               {settings.eyebrow && (
-                <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50 mb-3" style={bStyle(settings)}>
+                <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50 mb-3" style={bStyle(settings)} data-theme-field="eyebrow">
                   {settings.eyebrow}
                 </p>
               )}
               {settings.title && (
-                <h2 className="text-3xl md:text-4xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>
+                <h2 className="text-3xl md:text-4xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">
                   {settings.title}
                 </h2>
               )}
               {settings.subtitle && (
-                <p className="mt-3 text-sm md:text-base text-white/60 leading-relaxed max-w-2xl mx-auto" style={bStyle(settings)}>
+                <p className="mt-3 text-sm md:text-base text-white/60 leading-relaxed max-w-2xl mx-auto" style={bStyle(settings)} data-theme-field="subtitle">
                   {settings.subtitle}
                 </p>
               )}
@@ -1135,7 +1135,7 @@ export function BlogPostsSection({ settings, enableAnimations }: any) {
                     {settings.showExcerpts !== false && article.excerpt && (
                       <p className="mt-3 text-sm leading-relaxed text-white/60" style={bStyle(settings)}>{article.excerpt}</p>
                     )}
-                    <span className="mt-6 inline-flex items-center text-[10px] font-bold uppercase tracking-[0.25em] underline underline-offset-4" style={{ color: settings.accentColor || undefined }}>
+                    <span className="mt-6 inline-flex items-center text-[10px] font-bold uppercase tracking-[0.25em] underline underline-offset-4" style={{ color: settings.accentColor || undefined }} data-theme-field="ctaText">
                       {settings.ctaText || "Read more"}
                     </span>
                   </div>
@@ -1177,13 +1177,13 @@ export function CountdownSection({ settings, enableAnimations }: any) {
           {settings.eyebrow && (
             <p className={`text-[10px] font-bold tracking-[0.3em] uppercase text-white/60 mb-4 flex items-center gap-2 ${flexAlign}`} style={bStyle(settings)}>
               <Clock size={12} />
-              {settings.eyebrow}
+              <span data-theme-field="eyebrow">{settings.eyebrow}</span>
             </p>
           )}
-          <h2 className="text-3xl md:text-4xl font-bold uppercase text-white mb-2" style={hStyle(settings)}>
+          <h2 className="text-3xl md:text-4xl font-bold uppercase text-white mb-2" style={hStyle(settings)} data-theme-field="title">
             {settings.title || "Limited time offer"}
           </h2>
-          {settings.subtitle && <p className="text-white/60 mb-8" style={bStyle(settings)}>{settings.subtitle}</p>}
+          {settings.subtitle && <p className="text-white/60 mb-8" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>}
           <div className={`flex gap-4 md:gap-8 mt-8 ${flexAlign}`}>
             {[
               { label: "Days", v: days },
@@ -1203,7 +1203,7 @@ export function CountdownSection({ settings, enableAnimations }: any) {
               className="inline-block mt-10 px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
               style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
             >
-              {settings.ctaText}
+              <span data-theme-field="ctaText">{settings.ctaText}</span>
             </a>
           )}
         </AnimationContainer>
@@ -1224,13 +1224,13 @@ export function ContactFormSection({ settings, enableAnimations }: any) {
         <AnimationContainer enabled={enableAnimations}>
           <div className="text-center mb-10">
             {settings.eyebrow && (
-              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50 mb-3" style={bStyle(settings)}>{settings.eyebrow}</p>
+              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50 mb-3" style={bStyle(settings)} data-theme-field="eyebrow">{settings.eyebrow}</p>
             )}
-            <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>
+            <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">
               {settings.title || "Get in touch"}
             </h2>
             {settings.subtitle && (
-              <p className="text-white/60 mt-3" style={bStyle(settings)}>{settings.subtitle}</p>
+              <p className="text-white/60 mt-3" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
             )}
           </div>
           {submitted ? (
@@ -1248,7 +1248,7 @@ export function ContactFormSection({ settings, enableAnimations }: any) {
                 className="w-full py-4 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
                 style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
               >
-                {settings.buttonLabel || "Send message"}
+                <span data-theme-field="buttonLabel">{settings.buttonLabel || "Send message"}</span>
               </button>
             </form>
           )}
@@ -1272,15 +1272,15 @@ export function MapSection({ settings, enableAnimations }: any) {
           {(settings.title || settings.subtitle) && (
             <div className="text-center mb-8">
               {settings.title && (
-                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>{settings.title}</h2>
+                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">{settings.title}</h2>
               )}
               {settings.subtitle && (
-                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
               )}
               {settings.address && (
                 <p className="text-white/60 mt-2 flex items-center justify-center gap-2 text-sm" style={bStyle(settings)}>
                   <MapPin size={14} />
-                  {settings.address}
+                  <span data-theme-field="address">{settings.address}</span>
                 </p>
               )}
             </div>
@@ -1289,7 +1289,7 @@ export function MapSection({ settings, enableAnimations }: any) {
             <div className="text-center mb-8">
               <p className="text-white/60 flex items-center justify-center gap-2 text-sm">
                 <MapPin size={14} />
-                {settings.address}
+                <span data-theme-field="address">{settings.address}</span>
               </p>
             </div>
           )}
@@ -1424,10 +1424,10 @@ export function GallerySection({ settings, enableAnimations }: any) {
           {(settings.title || settings.subtitle) && (
             <div className={`mb-8 ${textAlign}`}>
               {settings.title && (
-                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>{settings.title}</h2>
+                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">{settings.title}</h2>
               )}
               {settings.subtitle && (
-                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.subtitle}</p>
+                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
               )}
             </div>
           )}
@@ -1503,10 +1503,10 @@ export function VideoHeroSection({ settings, onCtaClick }: any) {
       <div className="absolute inset-0 bg-black" style={{ opacity: overlay }} />
       <div className={`relative z-10 w-full mx-auto px-6 flex flex-col ${align} ${mw(settings, "max-w-5xl")}`} style={spacingStyle(settings)}>
         {settings.headline && (
-          <h2 className="text-4xl md:text-6xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>{settings.headline}</h2>
+          <h2 className="text-4xl md:text-6xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="headline">{settings.headline}</h2>
         )}
         {settings.subheadline && (
-          <p className="mt-4 text-white/70 text-base md:text-lg leading-relaxed max-w-2xl" style={bStyle(settings)}>{settings.subheadline}</p>
+          <p className="mt-4 text-white/70 text-base md:text-lg leading-relaxed max-w-2xl" style={bStyle(settings)} data-theme-field="subheadline">{settings.subheadline}</p>
         )}
         {settings.ctaText && (
           <a
@@ -1515,7 +1515,7 @@ export function VideoHeroSection({ settings, onCtaClick }: any) {
             className="mt-8 inline-block px-8 py-3 text-[11px] font-bold tracking-[0.25em] uppercase bg-white text-black rounded-full transition-transform hover:scale-105"
             style={btnS(settings)}
           >
-            {settings.ctaText}
+            <span data-theme-field="ctaText">{settings.ctaText}</span>
           </a>
         )}
       </div>
@@ -1574,7 +1574,7 @@ export function StatsCounterSection({ settings, enableAnimations }: any) {
       <div className={`py-20 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {settings.sectionTitle && (
-            <h2 className="text-3xl font-bold tracking-tight uppercase text-white text-center mb-12" style={hStyle(settings)}>{settings.sectionTitle}</h2>
+            <h2 className="text-3xl font-bold tracking-tight uppercase text-white text-center mb-12" style={hStyle(settings)} data-theme-field="sectionTitle">{settings.sectionTitle}</h2>
           )}
         </AnimationContainer>
         <div className="grid gap-8" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
@@ -1608,10 +1608,10 @@ export function PricingTableSection({ settings, onCtaClick, enableAnimations }: 
           {(settings.sectionTitle || settings.sectionSubtitle) && (
             <div className="text-center mb-12">
               {settings.sectionTitle && (
-                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)}>{settings.sectionTitle}</h2>
+                <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="sectionTitle">{settings.sectionTitle}</h2>
               )}
               {settings.sectionSubtitle && (
-                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)}>{settings.sectionSubtitle}</p>
+                <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)} data-theme-field="sectionSubtitle">{settings.sectionSubtitle}</p>
               )}
             </div>
           )}

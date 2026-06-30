@@ -4293,6 +4293,7 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
             var sectionNode = e.target && e.target.closest ? e.target.closest('[data-section-id]') : null;
             if (!fieldNode || !sectionNode) return;
             e.preventDefault(); e.stopPropagation();
+            var originalValue = fieldNode.textContent || '';
             fieldNode.setAttribute('contenteditable', 'true');
             fieldNode.focus();
             var fieldKey = fieldNode.getAttribute('data-theme-field');
@@ -4305,16 +4306,42 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
                 value: fieldNode.textContent || ''
               }, window.location.origin);
             };
+            var onKeyDown = function(ke) {
+              if (ke.key !== 'Escape') return;
+              ke.preventDefault();
+              fieldNode.textContent = originalValue;
+              fieldNode.removeAttribute('contenteditable');
+              fieldNode.removeEventListener('input', emit);
+              fieldNode.removeEventListener('keydown', onKeyDown);
+              window.parent.postMessage({
+                type: 'TEXT_EDIT',
+                sectionId: sectionId,
+                settingKey: fieldKey,
+                value: originalValue
+              }, window.location.origin);
+              fieldNode.blur();
+            };
             fieldNode.addEventListener('input', emit);
+            fieldNode.addEventListener('keydown', onKeyDown);
             fieldNode.addEventListener('blur', function() {
               fieldNode.removeAttribute('contenteditable');
               fieldNode.removeEventListener('input', emit);
+              fieldNode.removeEventListener('keydown', onKeyDown);
             }, { once: true });
           }, true);
           window.parent.postMessage({ type: 'PREVIEW_READY' }, window.location.origin);
         })();
       `;
       doc.head.appendChild(script);
+      var themeFieldHoverStyle = doc.createElement('style');
+      themeFieldHoverStyle.textContent = `
+        [data-theme-field]:hover {
+          outline: 1px dashed rgba(59,130,246,0.5);
+          outline-offset: 2px;
+          cursor: text;
+        }
+      `;
+      doc.head.appendChild(themeFieldHoverStyle);
     } catch(_) { /* cross-origin frames will silently fail */ }
   };
 

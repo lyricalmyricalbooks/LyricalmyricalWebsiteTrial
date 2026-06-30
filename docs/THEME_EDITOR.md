@@ -187,6 +187,19 @@ library → verify), then check it off.
       nested blocks across more section types remains a follow-up.)
 - [~] Live preview channel (`THEME_UPDATE` postMessage) exists — extend it to
       cover all edits (not only some) and all templates.
+- [x] Double-click-to-edit (`TEXT_EDIT` postMessage) now has broad `data-theme-field`
+      coverage: nearly every section-level `text`/`textarea` field across the 27
+      renderers in `SectionComponents.tsx` is wired (title/subtitle/eyebrow/CTA/body
+      copy, etc.), not just a handful of sections. The injected preview script also
+      shows a dashed hover outline on editable fields and supports Escape-to-cancel
+      (reverts to the pre-edit value and emits a final `TEXT_EDIT` so editor state
+      matches). Intentionally still unwired: `richtext`/`html` fields (would corrupt
+      markup via `textContent`), block/array-item fields (no "which index" concept in
+      the parent handler), `FeaturedProductSection` (renders live product data, not
+      themed settings), `MarqueeSection`'s `text`/`separator` (rendered as a
+      repeated/joined composite string, not a 1:1 field-to-node mapping), and
+      `ProductGridHeaderSection`'s `cartLabel` (pre-existing composite text node
+      shared with `cartTotalText`).
 - [x] Per-section box fill, raised box fill, and line/border color controls now feed the storefront token layer so hard-coded card/form/divider utilities can be recolored from the editor.
 
 

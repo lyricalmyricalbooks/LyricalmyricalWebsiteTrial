@@ -215,8 +215,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             Lyricalmyrical E-Commerce Platform Updated
           </h3>
           <p className="text-slate-400 text-xs font-medium max-w-2xl leading-relaxed">
-            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 30, 2026 at 8:13 PM</strong>.
-            This release replaces the mega-menu's child and grandchild arrow-button reordering with proper drag-and-drop, matching how top-level navigation items already reorder. Sub-links and mega-menu column links in the theme editor's Menu Builder now use the same accessible `SortableList`/`SortableRow` pattern (pointer + keyboard) at every nesting level. Checkout and payment flows are untouched.
+            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 30, 2026 at 9:05 PM</strong>.
+            This release greatly expands double-click-to-edit coverage in the theme editor's live preview: most section renderers in `SectionComponents.tsx` now carry `data-theme-field` attributes on their section-level title/subtitle/eyebrow/CTA text, so inline editing works almost everywhere instead of a handful of sections. The injected preview script also gained a dashed hover outline on editable text and an Escape-to-cancel safety net that reverts an in-progress edit. Checkout and payment flows are untouched.
           </p>
         </div>
         <div className="shrink-0 relative z-10 bg-white/5 border border-white/10 rounded-2xl p-4 text-center min-w-[150px]">
@@ -224,7 +224,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <p className="text-xs font-bold text-emerald-400 mt-1 uppercase tracking-wider">Deploy Success</p>
           <div className="h-px bg-white/5 my-3" />
           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Last Code Push</p>
-          <p className="text-[10px] font-mono text-slate-300 mt-1">June 30, 20:13</p>
+          <p className="text-[10px] font-mono text-slate-300 mt-1">June 30, 21:05</p>
         </div>
       </motion.div>
 
