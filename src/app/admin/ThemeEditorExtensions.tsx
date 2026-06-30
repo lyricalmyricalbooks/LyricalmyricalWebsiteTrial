@@ -19,6 +19,13 @@ import { motion, AnimatePresence } from "motion/react";
 import RichTextEditor from "../components/RichTextEditor";
 import { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
 import { normalizeHexForColorInput } from "./ThemeEditorPro";
+import {
+  BOX_SHADOW_OPTIONS,
+  CORNER_RADIUS_OPTIONS,
+  BACKDROP_BLUR_OPTIONS,
+  HOVER_EFFECTS,
+  SHAPE_DIVIDER_STYLES,
+} from "../components/sectionStyleHelpers";
 
 export { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
 
@@ -1283,6 +1290,104 @@ export function SectionSettingsPanel({
         </div>
       </div>
 
+      {/* ── Effects ── */}
+      <div className="space-y-3">
+        <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Effects</p>
+        <p className="text-[9px] text-neutral-400 leading-relaxed">Shadow, corner rounding, glassy blur, hover motion, and shape dividers for this section.</p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Shadow</label>
+            <select
+              value={settings.boxShadow || ""}
+              onChange={(e) => onUpdate({ boxShadow: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              {BOX_SHADOW_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Corner radius</label>
+            <select
+              value={settings.cornerRadius || ""}
+              onChange={(e) => onUpdate({ cornerRadius: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              {CORNER_RADIUS_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Backdrop blur</label>
+            <select
+              value={settings.backdropBlur || ""}
+              onChange={(e) => onUpdate({ backdropBlur: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              {BACKDROP_BLUR_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Hover effect</label>
+            <select
+              value={settings.hoverEffect || ""}
+              onChange={(e) => onUpdate({ hoverEffect: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              {HOVER_EFFECTS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Shape divider · top</label>
+            <select
+              value={settings.shapeDividerTop || "none"}
+              onChange={(e) => onUpdate({ shapeDividerTop: e.target.value === "none" ? undefined : e.target.value })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              {SHAPE_DIVIDER_STYLES.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Top divider color</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.shapeDividerTopColor || "#ffffff" }}>
+                <input type="color" value={settings.shapeDividerTopColor || "#ffffff"} onChange={(e) => onUpdate({ shapeDividerTopColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.shapeDividerTopColor || ""} onChange={(e) => onUpdate({ shapeDividerTopColor: e.target.value || undefined })} placeholder="#ffffff" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+              {settings.shapeDividerTopColor && <button type="button" onClick={() => onUpdate({ shapeDividerTopColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Shape divider · bottom</label>
+            <select
+              value={settings.shapeDividerBottom || "none"}
+              onChange={(e) => onUpdate({ shapeDividerBottom: e.target.value === "none" ? undefined : e.target.value })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              {SHAPE_DIVIDER_STYLES.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Bottom divider color</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.shapeDividerBottomColor || "#ffffff" }}>
+                <input type="color" value={settings.shapeDividerBottomColor || "#ffffff"} onChange={(e) => onUpdate({ shapeDividerBottomColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.shapeDividerBottomColor || ""} onChange={(e) => onUpdate({ shapeDividerBottomColor: e.target.value || undefined })} placeholder="#ffffff" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+              {settings.shapeDividerBottomColor && <button type="button" onClick={() => onUpdate({ shapeDividerBottomColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── Button overrides ── */}
       <div className="space-y-3">
         <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Buttons</p>
@@ -1351,6 +1456,18 @@ export function SectionSettingsPanel({
             <span className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.btnUppercase ? "left-6" : "left-1"}`} />
           </button>
         </div>
+
+        <div className="flex items-center justify-between bg-white border border-neutral-200 rounded-xl px-3 py-2">
+          <span className="text-[11px] font-bold text-neutral-700">Magnetic effect</span>
+          <button
+            type="button"
+            onClick={() => onUpdate({ btnMagnetic: !settings.btnMagnetic })}
+            className={`w-10 h-5 rounded-full relative transition-all ${settings.btnMagnetic ? "bg-blue-600" : "bg-neutral-200"}`}
+          >
+            <span className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.btnMagnetic ? "left-6" : "left-1"}`} />
+          </button>
+        </div>
+        <p className="text-[9px] text-neutral-400 leading-relaxed -mt-1">Button gently follows the cursor on hover (desktop pointer only).</p>
       </div>
 
       {/* ── Text styling overrides ── */}
@@ -1376,6 +1493,42 @@ export function SectionSettingsPanel({
               <input value={settings.bodyColor || ""} onChange={(e) => onUpdate({ bodyColor: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
             </div>
           </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase">Heading gradient</label>
+            {(settings.headingGradientFrom || settings.headingGradientTo) && (
+              <button
+                type="button"
+                onClick={() => onUpdate({ headingGradientFrom: undefined, headingGradientTo: undefined })}
+                className="text-[9px] text-neutral-400 hover:text-red-400"
+              >
+                ↺ Clear
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Gradient from</label>
+              <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+                <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.headingGradientFrom || "transparent" }}>
+                  <input type="color" value={settings.headingGradientFrom || "#A855F7"} onChange={(e) => onUpdate({ headingGradientFrom: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+                </div>
+                <input value={settings.headingGradientFrom || ""} onChange={(e) => onUpdate({ headingGradientFrom: e.target.value || undefined })} placeholder="none" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+              </div>
+            </div>
+            <div>
+              <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Gradient to</label>
+              <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+                <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.headingGradientTo || "transparent" }}>
+                  <input type="color" value={settings.headingGradientTo || "#3B82F6"} onChange={(e) => onUpdate({ headingGradientTo: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+                </div>
+                <input value={settings.headingGradientTo || ""} onChange={(e) => onUpdate({ headingGradientTo: e.target.value || undefined })} placeholder="none" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+              </div>
+            </div>
+          </div>
+          <p className="text-[9px] text-neutral-400 leading-relaxed mt-1">Set both colors to enable. Overrides solid heading color when active.</p>
         </div>
 
         <div>

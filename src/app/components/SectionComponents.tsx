@@ -1,7 +1,8 @@
-import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { motion, useMotionValue, useSpring } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 import { Send, ChevronLeft, ChevronRight, MapPin, Clock } from "lucide-react";
 import { useCurrency } from "../CurrencyContext";
+import { textGradientStyle, hoverEffectClassName, hoverEffectGlowStyle } from "./sectionStyleHelpers";
 
 // ──────────────────────────────
 // Animation helper
@@ -43,6 +44,8 @@ function hStyle(s: any) {
     ...(s.textTransform && { textTransform: s.textTransform }),
     ...(s.letterSpacingOverride != null && s.letterSpacingOverride !== 0 && { letterSpacing: `${s.letterSpacingOverride}em` }),
     ...(s.lineHeightOverride != null && { lineHeight: s.lineHeightOverride }),
+    // Gradient wins over solid headingColor when both are configured.
+    ...textGradientStyle(s.headingGradientFrom, s.headingGradientTo),
   };
 }
 
@@ -120,6 +123,60 @@ function btnS(s: any): Record<string, any> {
 }
 
 // ──────────────────────────────
+// Magnetic button — small cursor-tracking spring-physics wrapper used by any
+// section's primary CTA button when settings.btnMagnetic is true. Renders a
+// plain <button> with zero motion overhead when `magnetic` is falsy.
+// ──────────────────────────────
+
+const MAGNETIC_SPRING = { damping: 15, stiffness: 150, mass: 0.6 };
+const MAGNETIC_PULL = 0.35; // fraction of cursor offset the button translates by
+
+function MagneticButton({ magnetic, children, className, style, onClick, ...rest }: any) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const springX = useSpring(x, MAGNETIC_SPRING);
+  const springY = useSpring(y, MAGNETIC_SPRING);
+
+  if (!magnetic) {
+    return (
+      <button className={className} style={style} onClick={onClick} {...rest}>
+        {children}
+      </button>
+    );
+  }
+
+  const handleMouseMove = (e: any) => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const offsetX = e.clientX - (rect.left + rect.width / 2);
+    const offsetY = e.clientY - (rect.top + rect.height / 2);
+    x.set(offsetX * MAGNETIC_PULL);
+    y.set(offsetY * MAGNETIC_PULL);
+  };
+
+  const handleMouseLeave = () => {
+    x.set(0);
+    y.set(0);
+  };
+
+  return (
+    <motion.button
+      ref={ref}
+      className={className}
+      style={{ ...style, x: springX, y: springY }}
+      onClick={onClick}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      {...rest}
+    >
+      {children}
+    </motion.button>
+  );
+}
+
+// ──────────────────────────────
 // HERO
 // ──────────────────────────────
 
@@ -167,13 +224,16 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
           <div className={`flex flex-wrap items-center gap-4 ${
             settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center"
           }`}>
-            <button
+            <MagneticButton
+              magnetic={!!settings.btnMagnetic}
               onClick={onCtaClick}
-              className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase hover:scale-105 transition-transform"
+              className={`px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase ${
+                settings.hoverEffect ? hoverEffectClassName(settings.hoverEffect) : "hover:scale-105 transition-transform"
+              }`}
               style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
             >
               <span data-theme-field="ctaText">{settings.ctaText || "Explore"}</span>
-            </button>
+            </MagneticButton>
             {settings.secondaryCtaText && (
               <button className="px-8 py-3.5 rounded-full border border-white/30 text-[10px] tracking-[0.3em] font-semibold uppercase hover:bg-white/10 transition-colors text-white">
                 {settings.secondaryCtaText}
@@ -250,14 +310,17 @@ export function NewsletterSection({ settings, enableAnimations }: any) {
                 placeholder={settings.placeholder || "email@example.com"}
                 className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-3 text-xs text-white focus:border-white/30 transition-all outline-none"
               />
-              <button
+              <MagneticButton
+                magnetic={!!settings.btnMagnetic}
                 type="button"
-                className="fm-active rounded-full px-8 py-3 text-[10px] font-bold tracking-widest transition-all flex items-center gap-2"
+                className={`fm-active rounded-full px-8 py-3 text-[10px] font-bold tracking-widest flex items-center gap-2 ${
+                  hoverEffectClassName(settings.hoverEffect) || "transition-all"
+                }`}
                 style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #fff)", color: "var(--btn-text, #000)", ...btnS(settings) }}
               >
                 <Send size={12} />
                 {settings.buttonLabel || "JOIN"}
-              </button>
+              </MagneticButton>
             </form>
           </div>
         </AnimationContainer>
@@ -287,7 +350,12 @@ export function TestimonialsSection({ settings, enableAnimations }: any) {
           </div>
           <div className="grid md:grid-cols-2 gap-6">
             {(items.length ? items : [{ quote: "An incredible independent shop.", author: "Customer" }]).map((item: any, idx: number) => (
-              <div key={idx} {...blockEditAttrs(item, idx)} className="p-6 bg-white/[0.03] rounded-2xl border border-white/10">
+              <div
+                key={idx}
+                {...blockEditAttrs(item, idx)}
+                className={`p-6 bg-white/[0.03] rounded-2xl border border-white/10 ${hoverEffectClassName(settings.hoverEffect)}`}
+                style={hoverEffectGlowStyle(settings.hoverEffect, settings.accentColor)}
+              >
                 <p className="text-white/70 text-lg leading-relaxed font-light" style={bStyle(settings)}>"{item.quote}"</p>
                 <p className="text-white/40 text-xs mt-4 uppercase tracking-widest" style={bStyle(settings)}>{item.author}</p>
                 {item.role && <p className="text-white/30 text-[10px] mt-1" style={bStyle(settings)}>{item.role}</p>}
@@ -385,7 +453,10 @@ export function ImageWithTextSection({ settings, enableAnimations }: any) {
       <div className={`py-24 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           <div className={`grid md:grid-cols-2 gap-12 items-center ${reverse ? "md:[&>*:first-child]:order-2" : ""}`}>
-            <div className="aspect-[4/3] overflow-hidden rounded-2xl bg-white/5 border border-white/10">
+            <div
+              className={`aspect-[4/3] overflow-hidden rounded-2xl bg-white/5 border border-white/10 ${hoverEffectClassName(settings.hoverEffect)}`}
+              style={hoverEffectGlowStyle(settings.hoverEffect, settings.accentColor)}
+            >
               {settings.imageUrl ? (
                 <img src={settings.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={settings.imageAlt || ""} />
               ) : (
@@ -794,7 +865,10 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
       <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           <div className="grid md:grid-cols-2 gap-10 items-center">
-            <div className="aspect-[3/4] overflow-hidden rounded-2xl bg-white/5">
+            <div
+              className={`aspect-[3/4] overflow-hidden rounded-2xl bg-white/5 ${hoverEffectClassName(settings.hoverEffect)}`}
+              style={hoverEffectGlowStyle(settings.hoverEffect, settings.accentColor)}
+            >
               {photo ? <img src={photo} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
             </div>
             <div className="space-y-5">
@@ -803,13 +877,14 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
               {target.subtitle && <p className="text-white/60" style={bStyle(settings)}>{target.subtitle}</p>}
               <p className="text-2xl font-bold text-white" style={bStyle(settings)}>${typeof price === "number" ? price.toFixed(2) : price}</p>
               <p className="text-white/60 text-sm leading-relaxed line-clamp-4" style={bStyle(settings)}>{target.description || ""}</p>
-              <button
+              <MagneticButton
+                magnetic={!!settings.btnMagnetic}
                 onClick={() => onProductClick?.(target)}
                 className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
                 style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
               >
                 {settings.ctaText || "View product"}
-              </button>
+              </MagneticButton>
             </div>
           </div>
         </AnimationContainer>

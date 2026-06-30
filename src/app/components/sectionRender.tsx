@@ -4,6 +4,13 @@ import { useNavigate } from "react-router";
 import * as Sections from "./SectionComponents";
 import { hexToRgbTriplet } from "../features/site/themeTokens";
 import { DEFAULT_COLOR_SCHEMES } from "../features/site/colorSchemes";
+import {
+  boxShadowValue,
+  cornerRadiusValue,
+  backdropBlurValue,
+  shapeDividerSvgPath,
+  HOVER_GLOW_CSS,
+} from "./sectionStyleHelpers";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared section renderer
@@ -72,6 +79,30 @@ function SectionScopedCss({ sectionId, css }: { sectionId: string; css?: string 
     .filter(Boolean)
     .join("\n");
   return scoped ? <style>{scoped}</style> : null;
+}
+
+/**
+ * Renders an absolutely-positioned shape-divider SVG at the top or bottom
+ * edge of a section wrapper. No-op when `style` is unset or "none".
+ */
+function ShapeDivider({ style, position, color }: { style?: string; position: "top" | "bottom"; color?: string }) {
+  if (!style || style === "none") return null;
+  const path = shapeDividerSvgPath(style as "slope" | "curve" | "wave", position);
+  return (
+    <div
+      aria-hidden="true"
+      className={`absolute left-0 w-full overflow-hidden leading-[0] pointer-events-none ${position === "top" ? "top-0" : "bottom-0"}`}
+      style={{ height: "60px", zIndex: 1 }}
+    >
+      <svg
+        viewBox="0 0 1440 100"
+        preserveAspectRatio="none"
+        className="w-full h-full"
+      >
+        <path d={path} fill={color || "#ffffff"} />
+      </svg>
+    </div>
+  );
 }
 
 function SectionFontOverride({ sectionId, settings }: { sectionId: string; settings: any }) {
@@ -163,6 +194,8 @@ export function SectionList({
             .filter(Boolean)
             .join(" ") || undefined;
 
+        const hasGlowHover = s.hoverEffect === "glow";
+
         return (
           <div
             key={section.id}
@@ -179,10 +212,15 @@ export function SectionList({
               ...(s.lineColor && { "--border-rgb": hexToRgbTriplet(s.lineColor) }),
               ...(s.boxColor && { "--surface": s.boxColor, "--surface-rgb": hexToRgbTriplet(s.boxColor, "10 10 10") }),
               ...(s.raisedBoxColor && { "--surface-2": s.raisedBoxColor, "--surface-2-rgb": hexToRgbTriplet(s.raisedBoxColor, "23 23 23") }),
+              ...(boxShadowValue(s.boxShadow) && { boxShadow: boxShadowValue(s.boxShadow) }),
+              ...(cornerRadiusValue(s.cornerRadius) && { borderRadius: cornerRadiusValue(s.cornerRadius), overflow: "hidden" }),
+              ...(backdropBlurValue(s.backdropBlur) && { backdropFilter: backdropBlurValue(s.backdropBlur), WebkitBackdropFilter: backdropBlurValue(s.backdropBlur) }),
             }}
           >
             <SectionFontOverride sectionId={section.id} settings={s} />
             <SectionScopedCss sectionId={section.id} css={s.customCss} />
+            {hasGlowHover && <style>{HOVER_GLOW_CSS}</style>}
+            <ShapeDivider style={s.shapeDividerTop} position="top" color={s.shapeDividerTopColor} />
             <SectionReveal animation={s.animation} enableAnimations={enableAnimations}>
               <SectionComponent
                 settings={s}
@@ -192,6 +230,7 @@ export function SectionList({
                 enableAnimations={enableAnimations}
               />
             </SectionReveal>
+            <ShapeDivider style={s.shapeDividerBottom} position="bottom" color={s.shapeDividerBottomColor} />
           </div>
         );
       })}
