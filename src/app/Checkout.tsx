@@ -86,7 +86,7 @@ function StepBadge({ n, label }: { n: string; label: string }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function Checkout() {
-  const { cart, cartTotal, clearCart, setCart } = useCart();
+  const { cart, cartCount, cartTotal, clearCart, setCart } = useCart();
   const { currency, formatPrice } = useCurrency();
 
   const [isApplying, setIsApplying]     = useState(false);
@@ -1296,7 +1296,8 @@ export function Checkout() {
           <div className="mx-auto max-w-2xl lg:sticky lg:top-8">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">Order summary</h2>
-              <span className="text-sm text-slate-500">{cart.reduce((sum, item) => sum + item.quantity, 0)} item{cart.reduce((sum, item) => sum + item.quantity, 0) === 1 ? "" : "s"}</span>
+              {/* ⚡ Bolt: Using O(1) pre-computed cartCount from context instead of O(N) inline cart.reduce() array traversal during render */}
+              <span className="text-sm text-slate-500">{cartCount} item{cartCount === 1 ? "" : "s"}</span>
             </div>
 
             <div className="space-y-5">
