@@ -1619,7 +1619,9 @@ export function PricingTableSection({ settings, onCtaClick, enableAnimations }: 
         <div className="grid gap-6 items-stretch" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
           {items.map((item: any, idx: number) => {
             const highlighted = item.isHighlighted === true || item.isHighlighted === "true" || (highlightName && item.planName === highlightName);
-            const features = String(item.features || "").split("\n").map((f: string) => f.trim()).filter(Boolean);
+            const features = Array.isArray(item.features)
+              ? item.features.map((f: string) => String(f || "").trim()).filter(Boolean)
+              : String(item.features || "").split("\n").map((f: string) => f.trim()).filter(Boolean);
             return (
               <div
                 key={idx}
