@@ -19,6 +19,14 @@ import { motion, AnimatePresence } from "motion/react";
 import RichTextEditor from "../components/RichTextEditor";
 import { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
 import { normalizeHexForColorInput } from "./ThemeEditorPro";
+import {
+  BOX_SHADOW_OPTIONS,
+  CORNER_RADIUS_OPTIONS,
+  BACKDROP_BLUR_OPTIONS,
+  HOVER_EFFECTS,
+  SHAPE_DIVIDER_STYLES,
+  IMAGE_FILTER_PRESETS,
+} from "../components/sectionStyleHelpers";
 
 export { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
 
@@ -633,7 +641,8 @@ type BlockField =
   | { key: string; label: string; kind: "html" }
   | { key: string; label: string; kind: "color" }
   | { key: string; label: string; kind: "number"; min?: number; max?: number; step?: number }
-  | { key: string; label: string; kind: "select"; options: { value: string; label: string }[] };
+  | { key: string; label: string; kind: "select"; options: { value: string; label: string }[] }
+  | { key: string; label: string; kind: "list"; itemLabel?: string };
 
 const BLOCK_FIELDS: Record<string, BlockField[]> = {
   HeroSection: [],
@@ -728,7 +737,7 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "price", label: "Price", kind: "text" },
     { key: "period", label: "Period", kind: "text" },
     { key: "description", label: "Description", kind: "text" },
-    { key: "features", label: "Features (one per line)", kind: "textarea", rows: 5 },
+    { key: "features", label: "Features", kind: "list", itemLabel: "Feature" },
     { key: "ctaText", label: "CTA label", kind: "text" },
     { key: "ctaLink", label: "CTA URL", kind: "text" },
     { key: "isHighlighted", label: "Highlight this plan", kind: "select", options: [{ value: "false", label: "No" }, { value: "true", label: "Yes" }] },
@@ -812,6 +821,11 @@ export function BlocksEditor({
 
   const updateBlock = (idx: number, key: string, value: any) => {
     const next = blocks.map((b, i) => (i === idx ? { ...b, [key]: value } : b));
+    setBlocks(next);
+  };
+
+  const updateBlockPatch = (idx: number, patch: Record<string, any>) => {
+    const next = blocks.map((b, i) => (i === idx ? { ...b, ...patch } : b));
     setBlocks(next);
   };
 
@@ -915,15 +929,26 @@ export function BlocksEditor({
                         </button>
                       </div>
 
-                      {fields.map((field) => (
-                        <BlockFieldEditor
-                          key={field.key}
-                          field={field}
-                          value={block[field.key]}
-                          onChange={(v) => updateBlock(idx, field.key, v)}
-                          uploadFile={uploadFile}
-                        />
-                      ))}
+                      {fields.map((field) =>
+                        field.kind === "list" ? (
+                          <BlockListFieldEditor
+                            key={field.key}
+                            field={field}
+                            value={block[field.key]}
+                            onChange={(v) => updateBlock(idx, field.key, v)}
+                          />
+                        ) : (
+                          <BlockFieldEditor
+                            key={field.key}
+                            field={field}
+                            value={block[field.key]}
+                            onChange={(v) => updateBlock(idx, field.key, v)}
+                            uploadFile={uploadFile}
+                            block={block}
+                            onPatchBlock={(patch) => updateBlockPatch(idx, patch)}
+                          />
+                        )
+                      )}
                     </div>
                   )}
                 </>
@@ -945,16 +970,294 @@ export function BlocksEditor({
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Image style controls — focal point, object-fit, filter preset, color overlay,
+// hover zoom. Shared by both the section-level and block-level `kind: "image"`
+// field renderers below. Reads/writes companion keys named `${fieldKey}__suffix`
+// (see sectionStyleHelpers.ts) on whatever `record` object the caller owns
+// (section settings or a single block) via `onPatch`, leaving the field's own
+// URL string value/onChange untouched.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function ImageStyleControls({
+  fieldKey,
+  record,
+  onPatch,
+  imageUrl,
+}: {
+  fieldKey: string;
+  record: any;
+  onPatch: (patch: Record<string, any>) => void;
+  imageUrl?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const dragRef = useRef<HTMLDivElement>(null);
+
+  const k = (suffix: string) => `${fieldKey}__${suffix}`;
+  const fit = record?.[k("fit")] || "cover";
+  const focalX = record?.[k("focalX")] ?? 50;
+  const focalY = record?.[k("focalY")] ?? 50;
+  const filter = record?.[k("filter")] || "none";
+  const overlayColor = record?.[k("overlayColor")] || "";
+  const overlayOpacity = record?.[k("overlayOpacity")] ?? 0;
+  const hoverZoom = !!record?.[k("hoverZoom")];
+
+  const setFocalFromEvent = (clientX: number, clientY: number) => {
+    const el = dragRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+    const y = Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100));
+    onPatch({ [k("focalX")]: Math.round(x), [k("focalY")]: Math.round(y) });
+  };
+
+  const handleDotMouseDown = (e: any) => {
+    e.preventDefault();
+    setFocalFromEvent(e.clientX, e.clientY);
+    const handleMove = (ev: MouseEvent) => setFocalFromEvent(ev.clientX, ev.clientY);
+    const handleUp = () => {
+      document.removeEventListener("mousemove", handleMove);
+      document.removeEventListener("mouseup", handleUp);
+    };
+    document.addEventListener("mousemove", handleMove);
+    document.addEventListener("mouseup", handleUp);
+  };
+
+  return (
+    <div className="border border-neutral-200 rounded-xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-3 py-2 bg-neutral-50 hover:bg-neutral-100 transition-colors"
+      >
+        <span className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Image style</span>
+        <ChevronDown size={12} className={`text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="p-3 space-y-3 bg-white">
+          {/* Focal point */}
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">
+              Focal point
+            </label>
+            {imageUrl ? (
+              <div
+                ref={dragRef}
+                onMouseDown={handleDotMouseDown}
+                className="relative aspect-video w-full rounded-xl overflow-hidden border border-neutral-200 bg-neutral-100 cursor-crosshair select-none"
+              >
+                <img src={imageUrl} className="w-full h-full object-cover pointer-events-none" alt="" draggable={false} />
+                <div
+                  className="absolute w-3.5 h-3.5 rounded-full bg-blue-600 border-2 border-white shadow -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                  style={{ left: `${focalX}%`, top: `${focalY}%` }}
+                />
+              </div>
+            ) : (
+              <p className="text-[10px] text-neutral-400">Add an image above to set a focal point.</p>
+            )}
+            <p className="text-[9px] text-neutral-400 mt-1">{Math.round(focalX)}%, {Math.round(focalY)}%</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Object fit</label>
+              <select
+                value={fit}
+                onChange={(e) => onPatch({ [k("fit")]: e.target.value })}
+                className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+              >
+                <option value="cover">Cover</option>
+                <option value="contain">Contain</option>
+                <option value="fill">Fill</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Filter</label>
+              <select
+                value={filter}
+                onChange={(e) => onPatch({ [k("filter")]: e.target.value === "none" ? undefined : e.target.value })}
+                className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+              >
+                {IMAGE_FILTER_PRESETS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Color overlay</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5 mb-2">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: overlayColor || "transparent" }}>
+                <input
+                  type="color"
+                  value={overlayColor || "#000000"}
+                  onChange={(e) => onPatch({ [k("overlayColor")]: e.target.value })}
+                  className="absolute inset-0 opacity-0 cursor-pointer scale-150"
+                />
+              </div>
+              <input
+                value={overlayColor}
+                onChange={(e) => onPatch({ [k("overlayColor")]: e.target.value || undefined })}
+                placeholder="none"
+                className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase"
+              />
+              {overlayColor && (
+                <button type="button" onClick={() => onPatch({ [k("overlayColor")]: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>
+              )}
+            </div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] font-black tracking-widest text-neutral-400 uppercase">Overlay opacity</span>
+              <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded-lg">{overlayOpacity}</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={overlayOpacity}
+              onChange={(e) => onPatch({ [k("overlayOpacity")]: Number(e.target.value) })}
+              className="w-full accent-blue-600 h-1.5 bg-neutral-200 rounded-full appearance-none cursor-pointer"
+            />
+          </div>
+
+          <div className="flex items-center justify-between bg-white border border-neutral-200 rounded-xl px-3 py-2">
+            <span className="text-[11px] font-bold text-neutral-700">Hover zoom</span>
+            <button
+              type="button"
+              onClick={() => onPatch({ [k("hoverZoom")]: !hoverZoom })}
+              className={`w-10 h-5 rounded-full relative transition-all ${hoverZoom ? "bg-blue-600" : "bg-neutral-200"}`}
+            >
+              <span className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${hoverZoom ? "left-6" : "left-1"}`} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Normalizes a `kind: "list"` field's stored value to a string[]. Legacy data
+// (saved before this field became a list) is a single "\n"-joined string —
+// fall back to splitting it so old content keeps rendering/editing correctly.
+// New data is always written as a real array going forward.
+function normalizeListFieldValue(value: any): string[] {
+  if (Array.isArray(value)) return value;
+  return String(value || "")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Generic nested add/remove/reorder sub-list editor for `kind: "list"` block
+ * fields (plain strings, one per row — e.g. pricing table "Features"). Reuses
+ * the same SortableList/SortableRow primitives as the outer block list above,
+ * so drag-to-reorder behaves identically (pointer + keyboard, 5px activation).
+ */
+function BlockListFieldEditor({
+  field,
+  value,
+  onChange,
+}: {
+  field: BlockField & { kind: "list" };
+  value: any;
+  onChange: (v: string[]) => void;
+}) {
+  const items = normalizeListFieldValue(value);
+  const itemLabel = field.itemLabel || "item";
+
+  const updateItem = (idx: number, text: string) => {
+    onChange(items.map((it, i) => (i === idx ? text : it)));
+  };
+
+  const removeItem = (idx: number) => {
+    onChange(items.filter((_, i) => i !== idx));
+  };
+
+  const addItem = () => {
+    onChange([...items, ""]);
+  };
+
+  return (
+    <div>
+      <label className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase block mb-1.5">
+        {field.label}
+      </label>
+
+      <SortableList
+        items={items}
+        getId={(_item, idx) => `${field.key}-${idx}`}
+        className="space-y-1.5"
+        onReorder={(next) => onChange(next)}
+      >
+        {items.map((item, idx) => {
+          const id = `${field.key}-${idx}`;
+          return (
+            <SortableRow
+              key={id}
+              id={id}
+              className="flex items-center gap-1.5"
+            >
+              {({ handleProps }) => (
+                <>
+                  <span
+                    {...handleProps}
+                    className="text-neutral-300 flex-shrink-0 cursor-grab active:cursor-grabbing"
+                  >
+                    <GripVertical size={14} />
+                  </span>
+                  <input
+                    value={item}
+                    onChange={(e) => updateItem(idx, e.target.value)}
+                    placeholder={itemLabel}
+                    className="flex-1 min-w-0 bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeItem(idx)}
+                    className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 flex-shrink-0"
+                    title={`Remove ${itemLabel.toLowerCase()}`}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </>
+              )}
+            </SortableRow>
+          );
+        })}
+      </SortableList>
+
+      <button
+        type="button"
+        onClick={addItem}
+        className="w-full mt-1.5 flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-dashed border-blue-200 bg-blue-50/40 hover:bg-blue-50 hover:border-blue-400 text-[10px] font-black tracking-[0.2em] uppercase text-blue-600"
+      >
+        <Plus size={12} strokeWidth={3} />
+        Add {itemLabel.toLowerCase()}
+      </button>
+    </div>
+  );
+}
+
 function BlockFieldEditor({
   field,
   value,
   onChange,
   uploadFile,
+  block,
+  onPatchBlock,
 }: {
   field: BlockField;
   value: any;
   onChange: (v: any) => void;
   uploadFile?: (file: File) => Promise<string>;
+  // Full block record + a sibling-key patcher, used only by `kind: "image"` for
+  // the companion `${field.key}__suffix` image-style keys (focal point,
+  // fit, filter, overlay, hover zoom). Optional — omitting them just hides
+  // the "Image style" panel, the plain URL field still works.
+  block?: any;
+  onPatchBlock?: (patch: Record<string, any>) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -1108,6 +1411,11 @@ function BlockFieldEditor({
         <ImageIcon size={11} />
         {uploading ? "Uploading…" : "Upload image"}
       </button>
+      {onPatchBlock && (
+        <div className="mt-2">
+          <ImageStyleControls fieldKey={field.key} record={block} onPatch={onPatchBlock} imageUrl={value} />
+        </div>
+      )}
     </div>
   );
 }
@@ -1283,6 +1591,104 @@ export function SectionSettingsPanel({
         </div>
       </div>
 
+      {/* ── Effects ── */}
+      <div className="space-y-3">
+        <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Effects</p>
+        <p className="text-[9px] text-neutral-400 leading-relaxed">Shadow, corner rounding, glassy blur, hover motion, and shape dividers for this section.</p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Shadow</label>
+            <select
+              value={settings.boxShadow || ""}
+              onChange={(e) => onUpdate({ boxShadow: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              {BOX_SHADOW_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Corner radius</label>
+            <select
+              value={settings.cornerRadius || ""}
+              onChange={(e) => onUpdate({ cornerRadius: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              {CORNER_RADIUS_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Backdrop blur</label>
+            <select
+              value={settings.backdropBlur || ""}
+              onChange={(e) => onUpdate({ backdropBlur: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              {BACKDROP_BLUR_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Hover effect</label>
+            <select
+              value={settings.hoverEffect || ""}
+              onChange={(e) => onUpdate({ hoverEffect: e.target.value || undefined })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              {HOVER_EFFECTS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Shape divider · top</label>
+            <select
+              value={settings.shapeDividerTop || "none"}
+              onChange={(e) => onUpdate({ shapeDividerTop: e.target.value === "none" ? undefined : e.target.value })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              {SHAPE_DIVIDER_STYLES.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Top divider color</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.shapeDividerTopColor || "#ffffff" }}>
+                <input type="color" value={settings.shapeDividerTopColor || "#ffffff"} onChange={(e) => onUpdate({ shapeDividerTopColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.shapeDividerTopColor || ""} onChange={(e) => onUpdate({ shapeDividerTopColor: e.target.value || undefined })} placeholder="#ffffff" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+              {settings.shapeDividerTopColor && <button type="button" onClick={() => onUpdate({ shapeDividerTopColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Shape divider · bottom</label>
+            <select
+              value={settings.shapeDividerBottom || "none"}
+              onChange={(e) => onUpdate({ shapeDividerBottom: e.target.value === "none" ? undefined : e.target.value })}
+              className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            >
+              {SHAPE_DIVIDER_STYLES.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Bottom divider color</label>
+            <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+              <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.shapeDividerBottomColor || "#ffffff" }}>
+                <input type="color" value={settings.shapeDividerBottomColor || "#ffffff"} onChange={(e) => onUpdate({ shapeDividerBottomColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+              </div>
+              <input value={settings.shapeDividerBottomColor || ""} onChange={(e) => onUpdate({ shapeDividerBottomColor: e.target.value || undefined })} placeholder="#ffffff" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+              {settings.shapeDividerBottomColor && <button type="button" onClick={() => onUpdate({ shapeDividerBottomColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── Button overrides ── */}
       <div className="space-y-3">
         <p className="text-[9px] font-black tracking-[0.3em] text-neutral-500 uppercase">Buttons</p>
@@ -1351,6 +1757,18 @@ export function SectionSettingsPanel({
             <span className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.btnUppercase ? "left-6" : "left-1"}`} />
           </button>
         </div>
+
+        <div className="flex items-center justify-between bg-white border border-neutral-200 rounded-xl px-3 py-2">
+          <span className="text-[11px] font-bold text-neutral-700">Magnetic effect</span>
+          <button
+            type="button"
+            onClick={() => onUpdate({ btnMagnetic: !settings.btnMagnetic })}
+            className={`w-10 h-5 rounded-full relative transition-all ${settings.btnMagnetic ? "bg-blue-600" : "bg-neutral-200"}`}
+          >
+            <span className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.btnMagnetic ? "left-6" : "left-1"}`} />
+          </button>
+        </div>
+        <p className="text-[9px] text-neutral-400 leading-relaxed -mt-1">Button gently follows the cursor on hover (desktop pointer only).</p>
       </div>
 
       {/* ── Text styling overrides ── */}
@@ -1376,6 +1794,42 @@ export function SectionSettingsPanel({
               <input value={settings.bodyColor || ""} onChange={(e) => onUpdate({ bodyColor: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
             </div>
           </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase">Heading gradient</label>
+            {(settings.headingGradientFrom || settings.headingGradientTo) && (
+              <button
+                type="button"
+                onClick={() => onUpdate({ headingGradientFrom: undefined, headingGradientTo: undefined })}
+                className="text-[9px] text-neutral-400 hover:text-red-400"
+              >
+                ↺ Clear
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Gradient from</label>
+              <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+                <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.headingGradientFrom || "transparent" }}>
+                  <input type="color" value={settings.headingGradientFrom || "#A855F7"} onChange={(e) => onUpdate({ headingGradientFrom: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+                </div>
+                <input value={settings.headingGradientFrom || ""} onChange={(e) => onUpdate({ headingGradientFrom: e.target.value || undefined })} placeholder="none" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+              </div>
+            </div>
+            <div>
+              <label className="text-[9px] font-black tracking-widest text-neutral-400 uppercase block mb-1">Gradient to</label>
+              <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
+                <div className="w-5 h-5 rounded-md border border-neutral-200 relative overflow-hidden flex-shrink-0" style={{ background: settings.headingGradientTo || "transparent" }}>
+                  <input type="color" value={settings.headingGradientTo || "#3B82F6"} onChange={(e) => onUpdate({ headingGradientTo: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
+                </div>
+                <input value={settings.headingGradientTo || ""} onChange={(e) => onUpdate({ headingGradientTo: e.target.value || undefined })} placeholder="none" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
+              </div>
+            </div>
+          </div>
+          <p className="text-[9px] text-neutral-400 leading-relaxed mt-1">Set both colors to enable. Overrides solid heading color when active.</p>
         </div>
 
         <div>
@@ -2193,11 +2647,19 @@ export function SectionFieldEditor({
   value,
   onChange,
   uploadFile,
+  settings,
+  onPatch,
 }: {
   field: SectionFieldSchema;
   value: any;
   onChange: (v: any) => void;
   uploadFile?: (file: File) => Promise<string>;
+  // Full section settings + a sibling-key patcher, used only by `kind: "image"`
+  // for the companion `${field.key}__suffix` image-style keys (focal point,
+  // fit, filter, overlay, hover zoom). Optional — omitting them just hides
+  // the "Image style" panel, the plain URL field still works.
+  settings?: any;
+  onPatch?: (patch: Record<string, any>) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -2396,6 +2858,11 @@ export function SectionFieldEditor({
             <ImageIcon size={11} />
             {uploading ? "Uploading…" : "Upload image"}
           </button>
+          {onPatch && (
+            <div className="mt-2">
+              <ImageStyleControls fieldKey={field.key} record={settings} onPatch={onPatch} imageUrl={value} />
+            </div>
+          )}
         </div>
       );
   }

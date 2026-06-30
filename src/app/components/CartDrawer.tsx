@@ -68,6 +68,7 @@ export function CartDrawer() {
           />
           <motion.div
             data-fm-store
+            data-fm-checkout
             initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
             className="fixed right-0 top-0 h-screen w-full max-w-md bg-white text-black shadow-2xl z-[70] flex flex-col pt-24"
