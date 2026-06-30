@@ -398,9 +398,9 @@ export function TestimonialsSection({ settings, enableAnimations }: any) {
                 className={`p-6 bg-white/[0.03] rounded-2xl border border-white/10 ${hoverEffectClassName(settings.hoverEffect)}`}
                 style={hoverEffectGlowStyle(settings.hoverEffect, settings.accentColor)}
               >
-                <p className="text-white/70 text-lg leading-relaxed font-light" style={bStyle(settings)}>"{item.quote}"</p>
-                <p className="text-white/40 text-xs mt-4 uppercase tracking-widest" style={bStyle(settings)}>{item.author}</p>
-                {item.role && <p className="text-white/30 text-[10px] mt-1" style={bStyle(settings)}>{item.role}</p>}
+                <p className="text-white/70 text-lg leading-relaxed font-light" style={bStyle(settings)}>"<span data-theme-field="quote">{item.quote}</span>"</p>
+                <p className="text-white/40 text-xs mt-4 uppercase tracking-widest" style={bStyle(settings)}><span data-theme-field="author">{item.author}</span></p>
+                {item.role && <p className="text-white/30 text-[10px] mt-1" style={bStyle(settings)}><span data-theme-field="role">{item.role}</span></p>}
               </div>
             ))}
           </div>
@@ -431,8 +431,8 @@ export function FAQSection({ settings, enableAnimations }: any) {
           <div className="space-y-3">
             {(items.length ? items : [{ question: "Sample question?", answer: "Sample answer." }]).map((item: any, idx: number) => (
               <details key={idx} {...blockEditAttrs(item, idx)} className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
-                <summary className="text-sm font-bold text-white cursor-pointer" style={bStyle(settings)}>{item.question}</summary>
-                <p className="text-white/60 text-sm mt-3" style={bStyle(settings)}>{item.answer}</p>
+                <summary className="text-sm font-bold text-white cursor-pointer" style={bStyle(settings)} data-theme-field="question">{item.question}</summary>
+                <p className="text-white/60 text-sm mt-3" style={bStyle(settings)} data-theme-field="answer">{item.answer}</p>
               </details>
             ))}
           </div>
@@ -624,10 +624,24 @@ export function MulticolumnSection({ settings, enableAnimations }: any) {
                 )}
                 <h3 className="text-lg font-bold text-white" style={bStyle(settings)}>{item.title || "Column"}</h3>
                 <p className="text-white/60 text-sm" style={bStyle(settings)}>{item.body || ""}</p>
-                {item.linkText && (
-                  <a href={item.linkUrl || "#"} className="text-xs font-bold tracking-widest uppercase text-white/80 underline">
-                    {item.linkText}
-                  </a>
+                {Array.isArray(item.links) && item.links.length > 0 ? (
+                  <div className="flex flex-col gap-1.5">
+                    {item.links.map((link: any, linkIdx: number) => (
+                      <a
+                        key={linkIdx}
+                        href={link.url || "#"}
+                        className="text-xs font-bold tracking-widest uppercase text-white/80 underline"
+                      >
+                        {link.text}
+                      </a>
+                    ))}
+                  </div>
+                ) : (
+                  item.linkText && (
+                    <a href={item.linkUrl || "#"} className="text-xs font-bold tracking-widest uppercase text-white/80 underline">
+                      {item.linkText}
+                    </a>
+                  )
                 )}
               </div>
             </AnimationContainer>
@@ -671,17 +685,21 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
       )}
       <div className="absolute inset-0" style={{ backgroundColor: "rgb(var(--overlay-rgb))", opacity: slide.overlayOpacity ?? 0.4 }} />
       <AnimationContainer enabled={enableAnimations}>
-        <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-6 max-w-3xl mx-auto">
+        <div
+          {...blockEditAttrs(slide, active)}
+          className="relative z-10 h-full flex flex-col items-center justify-center text-center px-6 max-w-3xl mx-auto"
+        >
           {slide.eyebrow && (
-            <p className="text-[10px] tracking-[0.3em] font-bold uppercase text-white/70 mb-4">{slide.eyebrow}</p>
+            <p className="text-[10px] tracking-[0.3em] font-bold uppercase text-white/70 mb-4" data-theme-field="eyebrow">{slide.eyebrow}</p>
           )}
-          <h2 className="text-4xl md:text-6xl font-black uppercase text-white mb-4">{slide.title}</h2>
-          {slide.subtitle && <p className="text-white/70 text-lg mb-8">{slide.subtitle}</p>}
+          <h2 className="text-4xl md:text-6xl font-black uppercase text-white mb-4" data-theme-field="title">{slide.title}</h2>
+          {slide.subtitle && <p className="text-white/70 text-lg mb-8" data-theme-field="subtitle">{slide.subtitle}</p>}
           {slide.ctaText && (
             <a
               href={slide.ctaUrl || "#"}
               className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black"
               style={{ backgroundColor: slide.accentColor || "#fff" }}
+              data-theme-field="ctaText"
             >
               {slide.ctaText}
             </a>

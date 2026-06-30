@@ -1041,11 +1041,26 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
             value={design.checkoutAccentColor || ""}
             onChange={(val) => update("checkoutAccentColor", val)}
           />
+          {design.checkoutAccentColor && (
+            <ContrastBadge background={design.checkoutAccentColor} text="#ffffff" />
+          )}
           <ColorPicker
             label="Checkout background"
             value={design.checkoutBgColor || ""}
             onChange={(val) => update("checkoutBgColor", val)}
           />
+          {design.checkoutBgColor && (
+            <div className="space-y-2">
+              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest italic">
+                vs. order confirmation text
+              </p>
+              <ContrastBadge background={design.checkoutBgColor} text="#ffffff" />
+              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest italic">
+                vs. checkout form text
+              </p>
+              <ContrastBadge background={design.checkoutBgColor} text="#0f172a" />
+            </div>
+          )}
           <SidebarRange
             label="Checkout input corner radius"
             value={design.checkoutInputRadius ?? 8}
@@ -4338,12 +4353,15 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
             fieldNode.focus();
             var fieldKey = fieldNode.getAttribute('data-theme-field');
             var sectionId = sectionNode.getAttribute('data-section-id');
+            var blockNode = fieldNode.closest ? fieldNode.closest('[data-fm-block], [data-block-id]') : null;
+            var blockId = blockNode ? (blockNode.getAttribute('data-fm-block') || blockNode.getAttribute('data-block-id')) : null;
             var emit = function() {
               window.parent.postMessage({
                 type: 'TEXT_EDIT',
                 sectionId: sectionId,
                 settingKey: fieldKey,
-                value: fieldNode.textContent || ''
+                value: fieldNode.textContent || '',
+                blockId: blockId
               }, window.location.origin);
             };
             var onKeyDown = function(ke) {
@@ -4357,7 +4375,8 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
                 type: 'TEXT_EDIT',
                 sectionId: sectionId,
                 settingKey: fieldKey,
-                value: originalValue
+                value: originalValue,
+                blockId: blockId
               }, window.location.origin);
               fieldNode.blur();
             };
@@ -5367,19 +5386,48 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           setActiveSection(secId);
         }
       }
-      // Inline text editing: iframe double-click posts TEXT_EDIT with {field, value}
+      // Inline text editing: iframe double-click posts TEXT_EDIT with {field, value, blockId?}
       if (event.data?.type === "TEXT_EDIT" && event.data?.sectionId && event.data?.settingKey) {
         const sectionId = event.data.sectionId as string;
         const settingKey = event.data.settingKey as string;
         const value = event.data.value;
-        
+        const blockId = event.data.blockId as string | null | undefined;
+
+        // Helper: apply either a block-level or section-level write to a single section,
+        // mirroring the existing settings-spread for the non-block (section-level) path.
+        const applyEdit = (s: any) => {
+          if (s.id !== sectionId) return s;
+          if (!blockId) {
+            return { ...s, settings: { ...(s.settings || {}), [settingKey]: value } };
+          }
+          const blocksKey = getBlocksKey(s.type);
+          const blocks = (s[blocksKey] || []) as any[];
+          let blockIdx = blocks.findIndex((b: any) => b?.id === blockId);
+          if (blockIdx < 0) {
+            const fallbackMatch = /^block-(\d+)$/.exec(blockId);
+            if (fallbackMatch) {
+              const idx = parseInt(fallbackMatch[1], 10);
+              if (idx >= 0 && idx < blocks.length && !blocks[idx]?.id) {
+                blockIdx = idx;
+              }
+            }
+          }
+          if (blockIdx < 0) {
+            // No matching block found — leave the section untouched rather than
+            // mis-writing settings under a block-shaped key.
+            return s;
+          }
+          return {
+            ...s,
+            [blocksKey]: blocks.map((b: any, i: number) => (i === blockIdx ? { ...b, [settingKey]: value } : b)),
+          };
+        };
+
         // 1. Check in global sections first
         const globalSectionsList = (design?.globalSections || []) as any[];
         const isGlobalSection = globalSectionsList.some((s: any) => s.id === sectionId);
         if (isGlobalSection) {
-          const updated = globalSectionsList.map((s: any) =>
-            s.id === sectionId ? { ...s, settings: { ...(s.settings || {}), [settingKey]: value } } : s
-          );
+          const updated = globalSectionsList.map((s: any) => applyEdit(s));
           update("globalSections", updated, true);
         } else {
           // 2. Find the page-template surface that owns the clicked section.
@@ -5388,9 +5436,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           );
           const surfaceId = owningTemplate?.id || designSurface;
           const sections = (design?.[surfaceId]?.sections || design?.[surfaceId]?.homepageSections || []) as any[];
-          const updated = sections.map((s: any) =>
-            s.id === sectionId ? { ...s, settings: { ...(s.settings || {}), [settingKey]: value } } : s
-          );
+          const updated = sections.map((s: any) => applyEdit(s));
           setDesignSurface(surfaceId);
           setDesign((prev: any) => ({
             ...prev,
