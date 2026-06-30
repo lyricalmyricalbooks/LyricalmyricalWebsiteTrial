@@ -215,8 +215,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             Lyricalmyrical E-Commerce Platform Updated
           </h3>
           <p className="text-slate-400 text-xs font-medium max-w-2xl leading-relaxed">
-            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 30, 2026 at 9:20 PM</strong>.
-            This release adds three optional, purely cosmetic "Checkout & Cart" theme tokens — checkout accent color, checkout background, and checkout input corner radius — in a new Colors panel subsection. They let a merchant give the checkout page and cart drawer their own brand accent, scoped via a `data-fm-checkout` attribute and emitted only when set, with zero effect on Stripe session creation, totals, discounts, or the webhook path when left blank.
+            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 30, 2026 at 9:35 PM</strong>.
+            This release significantly expands creative control in the theme editor: a new visual effects toolkit (shadows, corner radius, backdrop blur, hover micro-interactions, magnetic CTA buttons, heading gradients, SVG shape dividers); per-image styling (focal point, object-fit, filters, color overlay, hover zoom); a reusable nested drag-reorder list field in the block editor (demoed on pricing table features); full drag-and-drop for mega-menu sub-links and column links; much broader double-click-to-edit-in-preview coverage with a hover affordance and Escape-to-cancel; and optional, purely cosmetic checkout/cart brand tokens. Checkout, totals, and the Stripe payment path are untouched throughout.
           </p>
         </div>
         <div className="shrink-0 relative z-10 bg-white/5 border border-white/10 rounded-2xl p-4 text-center min-w-[150px]">
@@ -224,7 +224,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <p className="text-xs font-bold text-emerald-400 mt-1 uppercase tracking-wider">Deploy Success</p>
           <div className="h-px bg-white/5 my-3" />
           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Last Code Push</p>
-          <p className="text-[10px] font-mono text-slate-300 mt-1">June 30, 21:20</p>
+          <p className="text-[10px] font-mono text-slate-300 mt-1">June 30, 21:35</p>
         </div>
       </motion.div>
 
