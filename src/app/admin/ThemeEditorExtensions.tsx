@@ -642,7 +642,7 @@ type BlockField =
   | { key: string; label: string; kind: "color" }
   | { key: string; label: string; kind: "number"; min?: number; max?: number; step?: number }
   | { key: string; label: string; kind: "select"; options: { value: string; label: string }[] }
-  | { key: string; label: string; kind: "list"; itemLabel?: string };
+  | { key: string; label: string; kind: "list"; itemLabel?: string; itemFields?: { key: string; label: string }[] };
 
 const BLOCK_FIELDS: Record<string, BlockField[]> = {
   HeroSection: [],
@@ -666,6 +666,7 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "body", label: "Body", kind: "textarea", rows: 3 },
     { key: "linkText", label: "Link label", kind: "text" },
     { key: "linkUrl", label: "Link URL", kind: "text" },
+    { key: "links", label: "Links", kind: "list", itemLabel: "Link", itemFields: [{ key: "text", label: "Label" }, { key: "url", label: "URL" }] },
   ],
   SlideshowSection: [
     { key: "eyebrow", label: "Eyebrow", kind: "text" },
@@ -1137,11 +1138,35 @@ function ImageStyleControls({
   );
 }
 
-// Normalizes a `kind: "list"` field's stored value to a string[]. Legacy data
-// (saved before this field became a list) is a single "\n"-joined string —
-// fall back to splitting it so old content keeps rendering/editing correctly.
-// New data is always written as a real array going forward.
-function normalizeListFieldValue(value: any): string[] {
+// Normalizes a `kind: "list"` field's stored value. Legacy data (saved before
+// this field became a list) is a single "\n"-joined string — fall back to
+// splitting it so old content keeps rendering/editing correctly. New data is
+// always written as a real array going forward.
+//
+// When `itemFields` is omitted, behaves exactly as before: returns a plain
+// string[] (e.g. pricing table "Features").
+//
+// When `itemFields` is provided, the field is "structured" — each row is a
+// Record<string, string> with one key per itemFields entry. There is no
+// meaningful migration from a flat string[]/legacy string for structured
+// fields (no prior structured data exists to migrate from), so anything that
+// isn't already an array of objects just normalizes to an empty array. Any
+// missing keys on an existing row are defensively filled in as "".
+function normalizeListFieldValue(value: any): string[];
+function normalizeListFieldValue(value: any, itemFields: { key: string; label: string }[]): Record<string, string>[];
+function normalizeListFieldValue(
+  value: any,
+  itemFields?: { key: string; label: string }[]
+): string[] | Record<string, string>[] {
+  if (itemFields && itemFields.length > 0) {
+    if (!Array.isArray(value)) return [];
+    return value.map((row) => {
+      const safeRow = row && typeof row === "object" ? row : {};
+      const out: Record<string, string> = {};
+      for (const f of itemFields) out[f.key] = safeRow[f.key] ?? "";
+      return out;
+    });
+  }
   if (Array.isArray(value)) return value;
   return String(value || "")
     .split("\n")
@@ -1151,9 +1176,17 @@ function normalizeListFieldValue(value: any): string[] {
 
 /**
  * Generic nested add/remove/reorder sub-list editor for `kind: "list"` block
- * fields (plain strings, one per row — e.g. pricing table "Features"). Reuses
- * the same SortableList/SortableRow primitives as the outer block list above,
- * so drag-to-reorder behaves identically (pointer + keyboard, 5px activation).
+ * fields. Reuses the same SortableList/SortableRow primitives as the outer
+ * block list above, so drag-to-reorder behaves identically (pointer +
+ * keyboard, 5px activation).
+ *
+ * Two modes, selected by whether `field.itemFields` is set:
+ *  - Plain mode (no `itemFields`, e.g. pricing table "Features"): each row is
+ *    a single unlabeled text input, value is a plain string[]. Unchanged from
+ *    before this field gained structured-row support.
+ *  - Structured mode (`itemFields` set, e.g. Multicolumn "Links"): each row
+ *    renders one labeled input per itemFields entry, value is a
+ *    Record<string, string>[].
  */
 function BlockListFieldEditor({
   field,
@@ -1162,10 +1195,95 @@ function BlockListFieldEditor({
 }: {
   field: BlockField & { kind: "list" };
   value: any;
-  onChange: (v: string[]) => void;
+  onChange: (v: any) => void;
 }) {
-  const items = normalizeListFieldValue(value);
   const itemLabel = field.itemLabel || "item";
+  const itemFields = field.itemFields;
+
+  if (itemFields && itemFields.length > 0) {
+    const items = normalizeListFieldValue(value, itemFields);
+
+    const updateItem = (idx: number, key: string, text: string) => {
+      onChange(items.map((it, i) => (i === idx ? { ...it, [key]: text } : it)));
+    };
+
+    const removeItem = (idx: number) => {
+      onChange(items.filter((_, i) => i !== idx));
+    };
+
+    const addItem = () => {
+      const blank: Record<string, string> = {};
+      for (const f of itemFields) blank[f.key] = "";
+      onChange([...items, blank]);
+    };
+
+    return (
+      <div>
+        <label className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase block mb-1.5">
+          {field.label}
+        </label>
+
+        <SortableList
+          items={items}
+          getId={(_item, idx) => `${field.key}-${idx}`}
+          className="space-y-1.5"
+          onReorder={(next) => onChange(next)}
+        >
+          {items.map((item, idx) => {
+            const id = `${field.key}-${idx}`;
+            return (
+              <SortableRow
+                key={id}
+                id={id}
+                className="flex items-center gap-1.5"
+              >
+                {({ handleProps }) => (
+                  <>
+                    <span
+                      {...handleProps}
+                      className="text-neutral-300 flex-shrink-0 cursor-grab active:cursor-grabbing"
+                    >
+                      <GripVertical size={14} />
+                    </span>
+                    <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                      {itemFields.map((f) => (
+                        <input
+                          key={f.key}
+                          value={item[f.key] ?? ""}
+                          onChange={(e) => updateItem(idx, f.key, e.target.value)}
+                          placeholder={f.label}
+                          className="flex-1 min-w-0 bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+                        />
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeItem(idx)}
+                      className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 flex-shrink-0"
+                      title={`Remove ${itemLabel.toLowerCase()}`}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </>
+                )}
+              </SortableRow>
+            );
+          })}
+        </SortableList>
+
+        <button
+          type="button"
+          onClick={addItem}
+          className="w-full mt-1.5 flex items-center justify-center gap-2 py-2 rounded-xl border-2 border-dashed border-blue-200 bg-blue-50/40 hover:bg-blue-50 hover:border-blue-400 text-[10px] font-black tracking-[0.2em] uppercase text-blue-600"
+        >
+          <Plus size={12} strokeWidth={3} />
+          Add {itemLabel.toLowerCase()}
+        </button>
+      </div>
+    );
+  }
+
+  const items = normalizeListFieldValue(value);
 
   const updateItem = (idx: number, text: string) => {
     onChange(items.map((it, i) => (i === idx ? text : it)));

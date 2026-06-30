@@ -194,12 +194,25 @@ library → verify), then check it off.
       shows a dashed hover outline on editable fields and supports Escape-to-cancel
       (reverts to the pre-edit value and emits a final `TEXT_EDIT` so editor state
       matches). Intentionally still unwired: `richtext`/`html` fields (would corrupt
-      markup via `textContent`), block/array-item fields (no "which index" concept in
-      the parent handler), `FeaturedProductSection` (renders live product data, not
+      markup via `textContent`), `FeaturedProductSection` (renders live product data, not
       themed settings), `MarqueeSection`'s `text`/`separator` (rendered as a
       repeated/joined composite string, not a 1:1 field-to-node mapping), and
       `ProductGridHeaderSection`'s `cartLabel` (pre-existing composite text node
       shared with `cartTotalText`).
+- [x] Block-level (array-item) double-click-to-edit: the `TEXT_EDIT` protocol now
+      carries an optional `blockId`, resolved in the injected preview script by
+      walking up to the closest `[data-fm-block]`/`[data-block-id]` ancestor of the
+      double-clicked field (the same `closest()` lookup the existing `SECTION_SELECT`
+      click handler already used). On the parent side, a truthy `blockId` is matched
+      against the section's blocks array (via `getBlocksKey(section.type)`) — first by
+      real `block.id`, falling back to parsing the `block-N` synthetic id — and only
+      that block's field is updated; a falsy/absent `blockId` keeps writing
+      `section.settings[settingKey]` exactly as before (non-breaking, additive).
+      Initial renderer coverage: `TestimonialsSection` (`quote`/`author`/`role`),
+      `FAQSection` (`question`/`answer`), and `SlideshowSection` (`eyebrow`/`title`/
+      `subtitle`/`ctaText`, gated on the currently displayed slide via `blockEditAttrs(slide, active)`).
+      Extending more block-heavy sections (`FeatureGridSection`, `BlogPostsSection`,
+      `MulticolumnSection`, etc.) with this now-proven pattern is a follow-up.
 - [x] Per-section box fill, raised box fill, and line/border color controls now feed the storefront token layer so hard-coded card/form/divider utilities can be recolored from the editor.
 
 
