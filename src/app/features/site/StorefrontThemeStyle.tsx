@@ -1,4 +1,4 @@
-import { buildStorefrontTokenVars, STOREFRONT_TOKEN_CSS } from "./themeTokens";
+import { buildStorefrontTokenVars, STOREFRONT_TOKEN_CSS, hexToRgbTriplet } from "./themeTokens";
 
 /**
  * Drop-in <style> block that wires the semantic token layer onto any storefront
@@ -35,5 +35,25 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
     ${STOREFRONT_TOKEN_CSS}
   `;
   const customCss = d.customCss ? `\n/* Custom CSS */\n${d.customCss}` : '';
-  return <style>{css}{customCss}</style>;
+
+  // Optional checkout/cart-only cosmetic overrides. Purely additive: the rule
+  // only exists when a merchant has actually set one of these three tokens, and
+  // it only ever touches colors/border-radius — never layout, totals, or any
+  // payment logic. Appended after the [data-fm-store] block above so, for the
+  // same element (checkout/cart roots carry both data-fm-store and
+  // data-fm-checkout), this later same-specificity rule wins in source order.
+  const hasCheckoutOverrides = Boolean(
+    d.checkoutAccentColor || d.checkoutBgColor || d.checkoutInputRadius != null
+  );
+  const checkoutCss = hasCheckoutOverrides
+    ? `
+    [data-fm-checkout]{
+      ${d.checkoutAccentColor ? `--accent:${d.checkoutAccentColor};--accent-rgb:${hexToRgbTriplet(d.checkoutAccentColor)};` : ''}
+      ${d.checkoutBgColor ? `background-color:${d.checkoutBgColor} !important;` : ''}
+    }
+    ${d.checkoutInputRadius != null ? `[data-fm-checkout] input, [data-fm-checkout] select { border-radius: ${d.checkoutInputRadius}px !important; }` : ''}
+  `
+    : '';
+
+  return <style>{css}{customCss}{checkoutCss}</style>;
 }

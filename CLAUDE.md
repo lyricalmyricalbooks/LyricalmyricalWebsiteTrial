@@ -197,12 +197,13 @@ and the **Last Code Push** timestamp.
 > - the summary paragraph listing what this release shipped,
 > - the **Last Code Push** timestamp (e.g. "June 13, 22:09").
 >
-> Current state: updated **June 30, 2026 at 8:13 PM** — replaced the mega-menu's
-> child/grandchild arrow-button reordering with proper drag-and-drop in
-> `MenuBuilderPanel` (`ThemeEditor.tsx`), matching the existing top-level menu
-> item pattern. Sub-links and mega-menu column links now use the shared
-> `SortableList`/`SortableRow` helper (pointer + keyboard accessible) at every
-> nesting level; checkout/payment paths are untouched.
+> Current state: updated **June 30, 2026 at 9:20 PM** — added three optional,
+> purely cosmetic "Checkout & Cart" theme tokens (`checkoutAccentColor`,
+> `checkoutBgColor`, `checkoutInputRadius`) editable from a new subsection in
+> `ColorsPanel` (`ThemeEditor.tsx`). They're emitted as a `[data-fm-checkout]`
+> CSS override block by `StorefrontThemeStyle.tsx` only when set, scoped via a
+> new `data-fm-checkout` attribute on `Checkout.tsx`'s three root divs and
+> `CartDrawer.tsx`'s root; checkout/payment/totals logic is untouched.
 
 ## Conventions & gotchas
 

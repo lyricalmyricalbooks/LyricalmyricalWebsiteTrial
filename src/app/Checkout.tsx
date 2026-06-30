@@ -1033,7 +1033,7 @@ export function Checkout() {
   if (isSuccess) {
     const isManual = successOrder?.paymentStatus === "pending";
     return (
-      <div data-fm-store className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+      <div data-fm-store data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
         <StorefrontThemeStyle design={settings?.design} />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.15)_0%,transparent_70%)] pointer-events-none" />
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", duration: 0.8 }}
@@ -1084,7 +1084,7 @@ export function Checkout() {
   // ── Empty cart ──────────────────────────────────────────────────────────────
   if (cart.length === 0) {
     return (
-      <div data-fm-store className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+      <div data-fm-store data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
         <StorefrontThemeStyle design={settings?.design} />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.08)_0%,transparent_70%)] pointer-events-none" />
         <div className="relative z-10 flex flex-col items-center">
@@ -1113,7 +1113,7 @@ export function Checkout() {
       : "Place order";
 
   return (
-    <div data-fm-store className="min-h-screen bg-white font-sans text-slate-900 selection:bg-sky-100">
+    <div data-fm-store data-fm-checkout className="min-h-screen bg-white font-sans text-slate-900 selection:bg-sky-100">
       <StorefrontThemeStyle design={settings?.design} />
       {settings?.payments?.testMode && (
         <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-sm font-medium text-amber-900">

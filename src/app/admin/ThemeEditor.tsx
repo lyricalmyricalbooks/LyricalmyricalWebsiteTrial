@@ -1030,6 +1030,46 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
         </div>
       </Accordion>
 
+      <Accordion title="Checkout & Cart" defaultOpen={false}>
+        <div className="space-y-6">
+          <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic mb-2">
+            Optional brand accent for the checkout page and cart drawer only —
+            leave blank to inherit the main theme colors above.
+          </p>
+          <ColorPicker
+            label="Checkout accent color"
+            value={design.checkoutAccentColor || ""}
+            onChange={(val) => update("checkoutAccentColor", val)}
+          />
+          <ColorPicker
+            label="Checkout background"
+            value={design.checkoutBgColor || ""}
+            onChange={(val) => update("checkoutBgColor", val)}
+          />
+          <SidebarRange
+            label="Checkout input corner radius"
+            value={design.checkoutInputRadius ?? 8}
+            min={0}
+            max={24}
+            step={1}
+            suffix="px"
+            onChange={(v: number) => update("checkoutInputRadius", v)}
+          />
+          {(design.checkoutAccentColor || design.checkoutBgColor || design.checkoutInputRadius != null) && (
+            <button
+              onClick={() => {
+                update("checkoutAccentColor", undefined);
+                update("checkoutBgColor", undefined);
+                update("checkoutInputRadius", undefined);
+              }}
+              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2 text-[10px] font-bold text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all uppercase tracking-wider"
+            >
+              Reset checkout &amp; cart to main theme
+            </button>
+          )}
+        </div>
+      </Accordion>
+
       <Accordion title="Color Schemes" defaultOpen={false}>
         <div className="pt-2">
           <ColorSchemesPanel
