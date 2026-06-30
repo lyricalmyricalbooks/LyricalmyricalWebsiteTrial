@@ -215,8 +215,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             Lyricalmyrical E-Commerce Platform Updated
           </h3>
           <p className="text-slate-400 text-xs font-medium max-w-2xl leading-relaxed">
-            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 27, 2026 at 11:25 PM</strong>.
-            This release makes the photo-reference catalog the live fallback for existing storefront themes, so older published Firestore design documents no longer need the preset to be manually reapplied before the visible site changes. The masthead text, search/sort utility bar visibility, responsive header controls, focal points, and cart subtotal remain editable without changing checkout or payment flows.
+            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 30, 2026 at 8:13 PM</strong>.
+            This release replaces the mega-menu's child and grandchild arrow-button reordering with proper drag-and-drop, matching how top-level navigation items already reorder. Sub-links and mega-menu column links in the theme editor's Menu Builder now use the same accessible `SortableList`/`SortableRow` pattern (pointer + keyboard) at every nesting level. Checkout and payment flows are untouched.
           </p>
         </div>
         <div className="shrink-0 relative z-10 bg-white/5 border border-white/10 rounded-2xl p-4 text-center min-w-[150px]">
@@ -224,7 +224,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <p className="text-xs font-bold text-emerald-400 mt-1 uppercase tracking-wider">Deploy Success</p>
           <div className="h-px bg-white/5 my-3" />
           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Last Code Push</p>
-          <p className="text-[10px] font-mono text-slate-300 mt-1">June 27, 23:25</p>
+          <p className="text-[10px] font-mono text-slate-300 mt-1">June 30, 20:13</p>
         </div>
       </motion.div>
 

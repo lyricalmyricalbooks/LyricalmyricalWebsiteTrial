@@ -178,8 +178,13 @@ library → verify), then check it off.
       dragged out of the library modal onto explicit between-section insertion
       zones, and existing sections use the same insertion targets plus a lifted
       drag overlay for precise moves, including an empty page and the start/end
-      of the outline. (Nested
-      block / mega-menu child DnD is a remaining follow-up.)
+      of the outline. Mega-menu child and grandchild links (`MenuBuilderPanel`
+      in `ThemeEditor.tsx`) now reorder via the same `SortableList`/`SortableRow`
+      pattern as top-level menu items, at all three nesting levels. `BlocksEditor`
+      also gained a generic `kind: "list"` nested sub-list field (drag-reorderable
+      plain-text rows via the same primitives), demonstrated on
+      `PricingTableSection`'s "Features" field. (Full recursive multi-field
+      nested blocks across more section types remains a follow-up.)
 - [~] Live preview channel (`THEME_UPDATE` postMessage) exists — extend it to
       cover all edits (not only some) and all templates.
 - [x] Per-section box fill, raised box fill, and line/border color controls now feed the storefront token layer so hard-coded card/form/divider utilities can be recolored from the editor.
@@ -190,19 +195,25 @@ library → verify), then check it off.
 After the reference-grid follow-through work, the next five highest-leverage
 Shopify/WordPress-parity improvements are:
 
-1. **Nested block drag/drop** — extend `BlocksEditor` from flat section-local
-   arrays to 2–3 levels of recursive blocks for columns, cards, and media/text
-   groups.
-2. **Mega-menu child drag/drop** — replace child/grandchild nav arrow controls
-   with nested sortable lists so menu structure editing matches modern builders.
-3. **CSS-grid visual positioning** — add guarded grid coordinates, z-index, and
+1. **Nested block drag/drop** — extend `BlocksEditor`'s new `kind: "list"`
+   sub-list pattern from flat plain-text rows to 2–3 levels of recursive,
+   multi-field blocks for columns, cards, and media/text groups, and adopt it
+   in more section types beyond `PricingTableSection`.
+2. **CSS-grid visual positioning** — add guarded grid coordinates, z-index, and
    overlap controls for sections that need true visual layout rather than only
    vertical order.
-4. **Per-breakpoint layout overrides** — store desktop/tablet/mobile placement
+3. **Per-breakpoint layout overrides** — store desktop/tablet/mobile placement
    overrides and pair them with the existing device preview toggle so mobile
    layouts can be intentionally edited.
-5. **Reusable shared blocks** — promote configured blocks into a cross-section
+4. **Reusable shared blocks** — promote configured blocks into a cross-section
    library so repeated cards, CTAs, and media/text groups can be updated once.
+5. **Live-preview iframe drag/drop** — let `data-fm-section` / `data-fm-block`
+   hooks in the preview itself become drag sources/targets, not just click
+   targets, so reordering can happen directly in the canvas.
+
+> Mega-menu child/grandchild drag/drop (previously #2 on this list) shipped:
+> `MenuBuilderPanel` in `ThemeEditor.tsx` now uses `SortableList`/`SortableRow`
+> for top-level items, sub-links, and mega-menu column links alike.
 
 ### D. Theme management
 - [~] Draft/publish + scheduled publish exist — bring to full Shopify parity

@@ -150,12 +150,16 @@ section/block contract, and the Shopify-parity roadmap.
   (product/collection/page/cart all render their template's sections — milestone A).
 
 
-Recommended next theme-editor increments after the insertion-zone DnD work:
+Recommended next theme-editor increments after the insertion-zone DnD work
+(mega-menu child/grandchild sortable lists are now done — see below; nested
+block drag/drop has an initial `kind: "list"` sub-list field in `BlocksEditor`,
+demonstrated on `PricingTableSection`'s features — full recursive multi-field
+nested blocks across more section types remains a follow-up):
 1. live-preview iframe drag/drop using `data-fm-section` / `data-fm-block`;
-2. nested block drag/drop in `BlocksEditor`;
-3. mega-menu child/grandchild sortable lists;
-4. CSS-grid visual positioning with guarded coordinates and overlap;
-5. per-breakpoint layout overrides tied to the device preview toggle.
+2. extend nested block drag/drop in `BlocksEditor` to more section types and
+   richer (multi-field, not just plain-text) nested items;
+3. CSS-grid visual positioning with guarded coordinates and overlap;
+4. per-breakpoint layout overrides tied to the device preview toggle.
 
 **Section contract:** the storefront looks up renderers by the registry `type`
 string. A registry type with **no identically named renderer renders nothing**
@@ -193,12 +197,12 @@ and the **Last Code Push** timestamp.
 > - the summary paragraph listing what this release shipped,
 > - the **Last Code Push** timestamp (e.g. "June 13, 22:09").
 >
-> Current state: updated **June 27, 2026 at 11:06 PM** — expanded the theme
-> editor with a working `BlogPostsSection` so the former content-section gap can
-> render real journal/news cards on the storefront. The release added registry
-> defaults, section and block editing fields, a matching storefront renderer with
-> accessible article cards, roadmap documentation, and kept checkout/payment paths
-> untouched.
+> Current state: updated **June 30, 2026 at 8:13 PM** — replaced the mega-menu's
+> child/grandchild arrow-button reordering with proper drag-and-drop in
+> `MenuBuilderPanel` (`ThemeEditor.tsx`), matching the existing top-level menu
+> item pattern. Sub-links and mega-menu column links now use the shared
+> `SortableList`/`SortableRow` helper (pointer + keyboard accessible) at every
+> nesting level; checkout/payment paths are untouched.
 
 ## Conventions & gotchas
 

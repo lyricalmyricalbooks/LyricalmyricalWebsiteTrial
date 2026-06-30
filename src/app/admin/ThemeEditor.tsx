@@ -3300,10 +3300,6 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
     setItems(items.map((it, idx) =>
       idx === i ? { ...it, children: (it.children || []).filter((_, cj) => cj !== j) } : it,
     ));
-  const moveChild = (i: number, j: number, dir: number) =>
-    setItems(items.map((it, idx) =>
-      idx === i ? { ...it, children: move(it.children || [], j, dir) } : it,
-    ));
 
   // Grandchildren — used by mega menus, where each sub-link is a column
   // heading and its own children are the column's links.
@@ -3317,6 +3313,8 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
     patchChildAt(i, j, (c) => ({ ...c, children: (c.children || []).map((g, gk) => (gk === k ? { ...g, ...patch } : g)) }));
   const removeGrand = (i: number, j: number, k: number) =>
     patchChildAt(i, j, (c) => ({ ...c, children: (c.children || []).filter((_, gk) => gk !== k) }));
+  const onReorderGrand = (i: number, j: number, next: MenuItem[]) =>
+    patchChildAt(i, j, (c) => ({ ...c, children: next }));
 
   return (
     <div className="p-4 space-y-5 overflow-y-auto flex-1">
@@ -3411,14 +3409,22 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
 
             {/* Children */}
             {(item.children || []).length > 0 && (
-              <div className="pl-4 border-l-2 border-violet-500/20 space-y-3">
+              <SortableList
+                items={item.children || []}
+                getId={(c) => c.id}
+                onReorder={(next) => patchTop(i, { children: next })}
+                className="pl-4 border-l-2 border-violet-500/20 space-y-3"
+              >
                 {(item.children || []).map((child, j) => (
-                  <div key={child.id} className="bg-white/[0.02] border border-white/5 rounded-xl p-3 space-y-3">
+                  <SortableRow key={child.id} id={child.id} className="bg-white/[0.02] border border-white/5 rounded-xl p-3 space-y-3">
+                    {({ handleProps }) => (
+                    <>
                     <div className="flex items-center justify-between">
-                      <span className="text-[8px] font-black uppercase tracking-widest italic text-slate-600">Sub-link {j + 1}</span>
+                      <div className="flex items-center gap-1 text-slate-600">
+                        <span {...handleProps} className="cursor-grab active:cursor-grabbing hover:text-slate-300 transition-colors"><GripVertical size={12} /></span>
+                        <span className="text-[8px] font-black uppercase tracking-widest italic text-slate-600">Sub-link {j + 1}</span>
+                      </div>
                       <div className="flex items-center gap-1">
-                        <button onClick={() => moveChild(i, j, -1)} disabled={j === 0} aria-label="Move sub-link up" className="p-1 rounded text-slate-500 hover:text-white disabled:opacity-20"><ChevronUp size={12} /></button>
-                        <button onClick={() => moveChild(i, j, 1)} disabled={j === (item.children || []).length - 1} aria-label="Move sub-link down" className="p-1 rounded text-slate-500 hover:text-white disabled:opacity-20"><ChevronDown size={12} /></button>
                         <button onClick={() => removeChild(i, j)} aria-label="Remove sub-link" className="p-1 rounded text-slate-500 hover:text-red-400"><Trash2 size={12} /></button>
                       </div>
                     </div>
@@ -3426,27 +3432,43 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
 
                     {/* Mega menus: this sub-link is a column heading — its links live here */}
                     {tab === "header" && item.mega && (
-                      <div className="pl-3 border-l border-amber-500/20 space-y-2">
+                      <SortableList
+                        items={child.children || []}
+                        getId={(g) => g.id}
+                        onReorder={(next) => onReorderGrand(i, j, next)}
+                        className="pl-3 border-l border-amber-500/20 space-y-2"
+                      >
                         {(child.children || []).map((grand, k) => (
-                          <div key={grand.id} className="bg-white/[0.02] border border-white/5 rounded-lg p-2.5 space-y-2">
+                          <SortableRow key={grand.id} id={grand.id} className="bg-white/[0.02] border border-white/5 rounded-lg p-2.5 space-y-2">
+                            {({ handleProps: grandHandleProps }) => (
+                            <>
                             <div className="flex items-center justify-between">
-                              <span className="text-[8px] font-black uppercase tracking-widest italic text-slate-600">Column link {k + 1}</span>
+                              <div className="flex items-center gap-1 text-slate-600">
+                                <span {...grandHandleProps} className="cursor-grab active:cursor-grabbing hover:text-slate-300 transition-colors"><GripVertical size={11} /></span>
+                                <span className="text-[8px] font-black uppercase tracking-widest italic text-slate-600">Column link {k + 1}</span>
+                              </div>
                               <button onClick={() => removeGrand(i, j, k)} aria-label="Remove column link" className="p-1 rounded text-slate-500 hover:text-red-400"><Trash2 size={11} /></button>
                             </div>
                             <MenuLinkFields item={grand} onPatch={(p) => patchGrand(i, j, k, p)} pageOpts={pageOpts} collOpts={collOpts} />
-                          </div>
+                            </>
+                            )}
+                          </SortableRow>
                         ))}
-                        <button
-                          onClick={() => addGrand(i, j)}
-                          className="text-[8px] font-black uppercase tracking-widest italic text-amber-400 hover:text-amber-300 flex items-center gap-1.5"
-                        >
-                          <Plus size={10} /> Add column link
-                        </button>
-                      </div>
+                      </SortableList>
                     )}
-                  </div>
+                    {tab === "header" && item.mega && (
+                      <button
+                        onClick={() => addGrand(i, j)}
+                        className="text-[8px] font-black uppercase tracking-widest italic text-amber-400 hover:text-amber-300 flex items-center gap-1.5"
+                      >
+                        <Plus size={10} /> Add column link
+                      </button>
+                    )}
+                    </>
+                    )}
+                  </SortableRow>
                 ))}
-              </div>
+              </SortableList>
             )}
 
             <button
