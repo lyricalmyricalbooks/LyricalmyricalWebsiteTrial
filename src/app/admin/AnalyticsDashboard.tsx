@@ -215,8 +215,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             Lyricalmyrical E-Commerce Platform Updated
           </h3>
           <p className="text-slate-400 text-xs font-medium max-w-2xl leading-relaxed">
-            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 30, 2026 at 10:05 PM</strong>.
-            This release follows up the theme editor expansion with three refinements: the block-list field now supports structured multi-field rows (demoed on Multicolumn section links, each with its own label and URL); the checkout color panel shows live WCAG contrast warnings for both the accent and background tokens (checked against both checkout-screen text colors); and double-click-to-edit in the live preview now reaches block-level fields too — testimonial quotes, FAQ answers, and slideshow text — not just section-level settings. Checkout, totals, and the Stripe payment path remain untouched.
+            The storefront, checkout, and admin dashboard were successfully updated on <strong>June 30, 2026 at 10:30 PM</strong>.
+            This release extends the recent theme editor refinements further: double-click-to-edit in the live preview now also covers Feature Grid and Blog Post cards; the Row section's button blocks can hold multiple CTAs side by side using the same structured list field that powers Multicolumn links; and the checkout color panel's contrast warnings now also check the cart drawer's text color, closing the last of three distinct text contexts the checkout background token affects. Checkout, totals, and the Stripe payment path remain untouched.
           </p>
         </div>
         <div className="shrink-0 relative z-10 bg-white/5 border border-white/10 rounded-2xl p-4 text-center min-w-[150px]">
@@ -224,7 +224,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <p className="text-xs font-bold text-emerald-400 mt-1 uppercase tracking-wider">Deploy Success</p>
           <div className="h-px bg-white/5 my-3" />
           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Last Code Push</p>
-          <p className="text-[10px] font-mono text-slate-300 mt-1">June 30, 22:05</p>
+          <p className="text-[10px] font-mono text-slate-300 mt-1">June 30, 22:30</p>
         </div>
       </motion.div>
 

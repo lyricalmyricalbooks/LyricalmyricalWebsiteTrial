@@ -1059,6 +1059,10 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
                 vs. checkout form text
               </p>
               <ContrastBadge background={design.checkoutBgColor} text="#0f172a" />
+              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest italic">
+                vs. cart drawer text
+              </p>
+              <ContrastBadge background={design.checkoutBgColor} text="#000000" />
             </div>
           )}
           <SidebarRange

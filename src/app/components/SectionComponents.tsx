@@ -314,8 +314,8 @@ export function FeatureGridSection({ settings, enableAnimations }: any) {
             <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.1}>
               <div {...blockEditAttrs(item, idx)} className="p-6 bg-white/[0.03] border border-white/10 rounded-2xl">
                 {item.icon && <div className="text-3xl mb-3">{item.icon}</div>}
-                <h3 className="text-sm font-bold uppercase text-white" style={bStyle(settings)}>{item.title}</h3>
-                <p className="text-xs text-white/50 mt-2" style={bStyle(settings)}>{item.description}</p>
+                <h3 className="text-sm font-bold uppercase text-white" style={bStyle(settings)} data-theme-field="title">{item.title}</h3>
+                <p className="text-xs text-white/50 mt-2" style={bStyle(settings)} data-theme-field="description">{item.description}</p>
               </div>
             </AnimationContainer>
           ))}
@@ -1146,12 +1146,12 @@ export function BlogPostsSection({ settings, enableAnimations }: any) {
                   </div>
                   <div className="p-6 md:p-7">
                     <div className="flex flex-wrap items-center gap-3 text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">
-                      {article.tag && <span style={bStyle(settings)}>{article.tag}</span>}
+                      {article.tag && <span style={bStyle(settings)} data-theme-field="tag">{article.tag}</span>}
                       {settings.showDates !== false && article.date && <time dateTime={article.date}>{formatArticleDate(article.date)}</time>}
                     </div>
-                    <h3 className="mt-4 text-xl font-bold leading-tight text-white" style={hStyle(settings)}>{article.title || "Untitled article"}</h3>
+                    <h3 className="mt-4 text-xl font-bold leading-tight text-white" style={hStyle(settings)} data-theme-field="title">{article.title || "Untitled article"}</h3>
                     {settings.showExcerpts !== false && article.excerpt && (
-                      <p className="mt-3 text-sm leading-relaxed text-white/60" style={bStyle(settings)}>{article.excerpt}</p>
+                      <p className="mt-3 text-sm leading-relaxed text-white/60" style={bStyle(settings)} data-theme-field="excerpt">{article.excerpt}</p>
                     )}
                     <span className="mt-6 inline-flex items-center text-[10px] font-bold uppercase tracking-[0.25em] underline underline-offset-4" style={{ color: settings.accentColor || undefined }} data-theme-field="ctaText">
                       {settings.ctaText || "Read more"}
@@ -1340,12 +1340,33 @@ function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
   }
 
   if (kind === "button") {
+    const buttonStyle = {
+      backgroundColor: block.accentColor || accentFallback || "var(--btn-bg, #A855F7)",
+      color: "var(--btn-text, #000000)",
+      ...(settings ? btnS(settings) : {}),
+    };
+    if (Array.isArray(block.buttons) && block.buttons.length > 0) {
+      return (
+        <div {...blockEditAttrs(block, blockIndex)} className="flex flex-wrap items-center justify-center gap-3">
+          {block.buttons.map((btn: any, btnIdx: number) => (
+            <a
+              key={btnIdx}
+              href={btn.url || "#"}
+              className="inline-block px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
+              style={buttonStyle}
+            >
+              {btn.text || "Shop now"}
+            </a>
+          ))}
+        </div>
+      );
+    }
     return (
       <div {...blockEditAttrs(block, blockIndex)} className="flex justify-center">
         <a
           href={block.buttonUrl || "#"}
           className="inline-block px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
-          style={{ backgroundColor: block.accentColor || accentFallback || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...(settings ? btnS(settings) : {}) }}
+          style={buttonStyle}
         >
           {block.buttonText || "Shop now"}
         </a>
