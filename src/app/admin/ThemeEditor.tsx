@@ -1502,6 +1502,8 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                         value={section.settings[field.key]}
                         onChange={(v) => updateSectionSettings(section.id, { [field.key]: v })}
                         uploadFile={uploadFile}
+                        settings={section.settings}
+                        onPatch={(patch) => updateSectionSettings(section.id, patch)}
                       />
                     ))}
                   </div>

@@ -173,3 +173,43 @@ export function textGradientStyle(from?: string, to?: string, angle?: number): R
     color: "transparent",
   };
 }
+
+// ── Image styling (focal point, object-fit, filter presets, overlay, hover zoom) ─
+//
+// These apply to every `kind: "image"` field across the editor. Per-field
+// companion settings are stored under sibling keys named `${field.key}__suffix`
+// (e.g. a field with key "imageUrl" has style keys "imageUrl__fit",
+// "imageUrl__focalX", "imageUrl__focalY", "imageUrl__filter",
+// "imageUrl__overlayColor", "imageUrl__overlayOpacity", "imageUrl__hoverZoom").
+// All optional/additive — absent keys mean "default browser behavior".
+
+export const IMAGE_FILTER_PRESETS: OptionItem[] = [
+  { value: "none", label: "None" },
+  { value: "grayscale", label: "Grayscale" },
+  { value: "blur", label: "Blur" },
+  { value: "darken", label: "Darken" },
+  { value: "grayscale-darken", label: "Grayscale + darken" },
+];
+
+/** Returns a CSS `filter` string for a preset, or undefined for "none"/unset. */
+export function imageFilterCss(preset?: string): string | undefined {
+  switch (preset) {
+    case "grayscale":
+      return "grayscale(100%)";
+    case "blur":
+      return "blur(4px)";
+    case "darken":
+      return "brightness(50%)";
+    case "grayscale-darken":
+      return "grayscale(100%) brightness(50%)";
+    default:
+      return undefined;
+  }
+}
+
+/** Returns a CSS `object-position` value like "30% 70%" from focal percentages (default "50% 50%"). */
+export function imageObjectPositionFromFocal(focalX?: number, focalY?: number): string {
+  const x = Math.max(0, Math.min(100, focalX ?? 50));
+  const y = Math.max(0, Math.min(100, focalY ?? 50));
+  return `${x}% ${y}%`;
+}

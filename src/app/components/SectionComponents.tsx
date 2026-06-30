@@ -2,7 +2,7 @@ import { motion, useMotionValue, useSpring } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { Send, ChevronLeft, ChevronRight, MapPin, Clock } from "lucide-react";
 import { useCurrency } from "../CurrencyContext";
-import { textGradientStyle, hoverEffectClassName, hoverEffectGlowStyle } from "./sectionStyleHelpers";
+import { textGradientStyle, hoverEffectClassName, hoverEffectGlowStyle, imageFilterCss, imageObjectPositionFromFocal } from "./sectionStyleHelpers";
 
 // ──────────────────────────────
 // Animation helper
@@ -177,6 +177,46 @@ function MagneticButton({ magnetic, children, className, style, onClick, ...rest
 }
 
 // ──────────────────────────────
+// Styled image — applies the optional per-field image style companion keys
+// (`${fieldKey}__fit`, `__focalX`/`__focalY`, `__filter`, `__overlayColor`/
+// `__overlayOpacity`, `__hoverZoom`) written by the editor's "Image style"
+// panel (ThemeEditorExtensions.tsx `ImageStyleControls`). `settings` is
+// whichever record owns the field — section settings for a section-level
+// `imageUrl`, or the block/slide object for a block-level one. Renders a
+// plain, behavior-preserving `<img>` (wrapped in a sizing div) when none of
+// the companion keys are set.
+// ──────────────────────────────
+
+function StyledImage({ src, alt = "", settings, fieldKey, className = "", imgClassName = "", loading, decoding, fetchPriority }: any) {
+  if (!src) return null;
+  const s = settings || {};
+  const k = (suffix: string) => `${fieldKey}__${suffix}`;
+  const fit = s[k("fit")] || "cover";
+  const filter = imageFilterCss(s[k("filter")]);
+  const objectPosition = imageObjectPositionFromFocal(s[k("focalX")], s[k("focalY")]);
+  const overlayColor = s[k("overlayColor")];
+  const overlayOpacity = s[k("overlayOpacity")] ?? 0;
+  const hoverZoom = !!s[k("hoverZoom")];
+
+  return (
+    <div className={`relative w-full h-full ${hoverZoom ? "group overflow-hidden" : ""} ${className}`}>
+      <img
+        src={src}
+        alt={alt}
+        loading={loading}
+        decoding={decoding}
+        fetchPriority={fetchPriority}
+        className={`w-full h-full ${hoverZoom ? "transition-transform duration-500 group-hover:scale-110" : ""} ${imgClassName}`}
+        style={{ objectFit: fit, objectPosition, ...(filter ? { filter } : {}) }}
+      />
+      {overlayColor && overlayOpacity > 0 && (
+        <div className="absolute inset-0 pointer-events-none" style={{ backgroundColor: overlayColor, opacity: overlayOpacity }} />
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────
 // HERO
 // ──────────────────────────────
 
@@ -198,7 +238,9 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
       style={{ backgroundColor: settings.backgroundColor || "#000", ...bgStyle(settings) }}
     >
       {settings.imageUrl && (
-        <img src={settings.imageUrl} alt="" loading="eager" decoding="async" fetchPriority="high" className="absolute inset-0 w-full h-full object-cover" />
+        <div className="absolute inset-0">
+          <StyledImage src={settings.imageUrl} alt="" settings={settings} fieldKey="imageUrl" loading="eager" decoding="async" fetchPriority="high" />
+        </div>
       )}
       <div className="absolute inset-0" style={{ backgroundColor: "rgb(var(--overlay-rgb))", opacity: settings.overlayOpacity ?? 0.5 }} />
       <div
@@ -458,7 +500,7 @@ export function ImageWithTextSection({ settings, enableAnimations }: any) {
               style={hoverEffectGlowStyle(settings.hoverEffect, settings.accentColor)}
             >
               {settings.imageUrl ? (
-                <img src={settings.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={settings.imageAlt || ""} />
+                <StyledImage src={settings.imageUrl} settings={settings} fieldKey="imageUrl" loading="lazy" decoding="async" alt={settings.imageAlt || ""} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-white/20 text-xs uppercase tracking-widest">No Image</div>
               )}
@@ -623,7 +665,9 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
   return (
     <section className="relative w-full h-[70vh] min-h-[480px] overflow-hidden">
       {slide.imageUrl && (
-        <img src={slide.imageUrl} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover" alt={slide.title || ""} />
+        <div className="absolute inset-0">
+          <StyledImage src={slide.imageUrl} settings={slide} fieldKey="imageUrl" loading="lazy" decoding="async" alt={slide.title || ""} />
+        </div>
       )}
       <div className="absolute inset-0" style={{ backgroundColor: "rgb(var(--overlay-rgb))", opacity: slide.overlayOpacity ?? 0.4 }} />
       <AnimationContainer enabled={enableAnimations}>
@@ -1399,7 +1443,15 @@ export function GallerySection({ settings, enableAnimations }: any) {
               className="block aspect-square overflow-hidden rounded-xl bg-white/5"
             >
               {item.imageUrl && (
-                <img src={item.imageUrl} alt={item.alt || ""} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
+                <StyledImage
+                  src={item.imageUrl}
+                  alt={item.alt || ""}
+                  settings={item}
+                  fieldKey="imageUrl"
+                  loading="lazy"
+                  decoding="async"
+                  imgClassName="transition-transform duration-500 hover:scale-105"
+                />
               )}
             </a>
           ))}
