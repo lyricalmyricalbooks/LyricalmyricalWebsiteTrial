@@ -86,7 +86,7 @@ function StepBadge({ n, label }: { n: string; label: string }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function Checkout() {
-  const { cart, cartTotal, clearCart, setCart } = useCart();
+  const { cart, cartCount, cartTotal, clearCart, setCart } = useCart();
   const { currency, formatPrice } = useCurrency();
 
   const [isApplying, setIsApplying]     = useState(false);
@@ -327,14 +327,13 @@ export function Checkout() {
     detectCountry();
   }, []);
 
-  const validateDiscountRestrictions = (discount: any, email: string, cartItems: any[], catalogMap: Map<string, any>) => {
+  // ⚡ Bolt: Accept pre-calculated `cartCount` and `cartTotal` to avoid O(N) recalculations on every validation
+  const validateDiscountRestrictions = (discount: any, email: string, cartItems: any[], catalogMap: Map<string, any>, currentCartCount: number, currentCartTotal: number) => {
     // 1. Min quantity / min order amount
-    const totalQty = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-    if (discount.minQuantity && totalQty < discount.minQuantity) {
+    if (discount.minQuantity && currentCartCount < discount.minQuantity) {
       throw new Error(`This code requires a minimum of ${discount.minQuantity} items in your cart.`);
     }
-    const itemsSubtotal = cartItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
-    if (discount.minOrderAmount && itemsSubtotal < Number(discount.minOrderAmount)) {
+    if (discount.minOrderAmount && currentCartTotal < Number(discount.minOrderAmount)) {
       throw new Error(`This code requires a minimum order of ${Number(discount.minOrderAmount).toFixed(2)}.`);
     }
 
@@ -428,18 +427,22 @@ export function Checkout() {
       }
 
       // Calculate qualifying subtotal
-      const qualifyingSubtotal = cartItems.reduce((sum, item) => {
-        if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return sum + item.quantity * item.price;
-        let qualifies = false;
-        if (discount.appliesTo === "categories") {
-          const catalogBook = catalogMap.get(item.id);
-          const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => discount.selectedCategories?.includes(cat));
-        } else if (discount.appliesTo === "products") {
-          qualifies = discount.selectedProducts?.includes(item.id);
-        }
-        return qualifies ? sum + item.quantity * item.price : sum;
-      }, 0);
+      let qualifyingSubtotal = 0;
+      if (discount.appliesTo === "all" || discount.appliesTo === "catalog") {
+        qualifyingSubtotal = currentCartTotal;
+      } else {
+        qualifyingSubtotal = cartItems.reduce((sum, item) => {
+          let qualifies = false;
+          if (discount.appliesTo === "categories") {
+            const catalogBook = catalogMap.get(item.id);
+            const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
+            qualifies = bookCats.some(cat => discount.selectedCategories?.includes(cat));
+          } else if (discount.appliesTo === "products") {
+            qualifies = discount.selectedProducts?.includes(item.id);
+          }
+          return qualifies ? sum + item.quantity * item.price : sum;
+        }, 0);
+      }
 
       const lowestMinSpend = Math.min(...tiers.map(t => Number(t.minSpend)));
       if (qualifyingSubtotal < lowestMinSpend) {
@@ -657,13 +660,13 @@ export function Checkout() {
   useEffect(() => {
     if (appliedDiscount && books.length > 0) {
       try {
-        validateDiscountRestrictions(appliedDiscount, customer.email, cart, booksMap);
+        validateDiscountRestrictions(appliedDiscount, customer.email, cart, booksMap, cartCount, cartTotal);
       } catch (err: any) {
         setAppliedDiscount(null);
         setDiscountError(err.message || "Discount no longer valid.");
       }
     }
-  }, [customer.email, cart, books, appliedDiscount]);
+  }, [customer.email, cart, books, appliedDiscount, cartCount, cartTotal]);
  
   // ⚡ Bolt: Memoize heavy discount calculations to avoid blocking main thread on every render
   // Measured impact: prevents O(N*M) and O(N log N) calculations when typing in checkout inputs
@@ -765,7 +768,7 @@ export function Checkout() {
     setDiscountError("");
     try {
       const discount = await adminApi.validateDiscount(discountCode);
-      validateDiscountRestrictions(discount, customer.email, cart, booksMap);
+      validateDiscountRestrictions(discount, customer.email, cart, booksMap, cartCount, cartTotal);
       setAppliedDiscount(discount);
     } catch (err: any) {
       setDiscountError(err.message || "INVALID OR EXPIRED CODE");
@@ -1296,7 +1299,7 @@ export function Checkout() {
           <div className="mx-auto max-w-2xl lg:sticky lg:top-8">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">Order summary</h2>
-              <span className="text-sm text-slate-500">{cart.reduce((sum, item) => sum + item.quantity, 0)} item{cart.reduce((sum, item) => sum + item.quantity, 0) === 1 ? "" : "s"}</span>
+              <span className="text-sm text-slate-500">{cartCount} item{cartCount === 1 ? "" : "s"}</span>
             </div>
 
             <div className="space-y-5">
