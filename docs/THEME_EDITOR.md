@@ -183,8 +183,15 @@ library → verify), then check it off.
       pattern as top-level menu items, at all three nesting levels. `BlocksEditor`
       also gained a generic `kind: "list"` nested sub-list field (drag-reorderable
       plain-text rows via the same primitives), demonstrated on
-      `PricingTableSection`'s "Features" field. (Full recursive multi-field
-      nested blocks across more section types remains a follow-up.)
+      `PricingTableSection`'s "Features" field. The same `kind: "list"` field also
+      supports a structured `itemFields` variant (`Record<string, string>[]` rows
+      instead of plain strings), first demonstrated on `MulticolumnSection`'s
+      "Links" field (`text` + `url` per row) and now also on `RowSection`'s button
+      blocks (`buttons` field, `text` + `url` per row) so a single column can hold
+      multiple CTAs side by side — the legacy single `buttonText`/`buttonUrl`
+      fields remain as a fallback for blocks that haven't been migrated to the
+      list. (Full recursive multi-field nested blocks across more section types
+      remains a follow-up.)
 - [~] Live preview channel (`THEME_UPDATE` postMessage) exists — extend it to
       cover all edits (not only some) and all templates.
 - [x] Double-click-to-edit (`TEXT_EDIT` postMessage) now has broad `data-theme-field`
@@ -211,8 +218,13 @@ library → verify), then check it off.
       Initial renderer coverage: `TestimonialsSection` (`quote`/`author`/`role`),
       `FAQSection` (`question`/`answer`), and `SlideshowSection` (`eyebrow`/`title`/
       `subtitle`/`ctaText`, gated on the currently displayed slide via `blockEditAttrs(slide, active)`).
-      Extending more block-heavy sections (`FeatureGridSection`, `BlogPostsSection`,
-      `MulticolumnSection`, etc.) with this now-proven pattern is a follow-up.
+      Also covered: `FeatureGridSection` (`title`/`description`; `icon` intentionally
+      skipped — low value) and `BlogPostsSection` (`title`/`excerpt`/`tag`; `date` is
+      skipped because it renders through `formatArticleDate()`, a display transform,
+      so the visible text isn't the raw stored value, and `linkUrl` is skipped since
+      it's only used as the card `href`, never rendered as text). Extending more
+      block-heavy sections (`MulticolumnSection`, etc.) with this now-proven pattern
+      is a follow-up.
 - [x] Per-section box fill, raised box fill, and line/border color controls now feed the storefront token layer so hard-coded card/form/divider utilities can be recolored from the editor.
 
 

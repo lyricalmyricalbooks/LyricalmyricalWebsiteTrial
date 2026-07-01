@@ -723,6 +723,7 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "imageUrl", label: "Image (image blocks)", kind: "image" },
     { key: "buttonText", label: "Button label", kind: "text" },
     { key: "buttonUrl", label: "Button URL", kind: "text" },
+    { key: "buttons", label: "Buttons", kind: "list", itemLabel: "Button", itemFields: [{ key: "text", label: "Label" }, { key: "url", label: "URL" }] },
     { key: "videoUrl", label: "Video URL (video blocks)", kind: "text" },
     { key: "accentColor", label: "Accent", kind: "color" },
   ],
