@@ -167,16 +167,16 @@ export default function RichTextEditor({
 
         {/* Text Formats */}
         <span className="ql-formats !mr-3 flex items-center gap-1 border-r border-neutral-200 dark:border-neutral-800 pr-3">
-          <button className="ql-bold p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+          <button aria-label="Bold" className="ql-bold p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
             <Bold size={14} />
           </button>
-          <button className="ql-italic p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+          <button aria-label="Italic" className="ql-italic p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
             <Italic size={14} />
           </button>
-          <button className="ql-underline p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+          <button aria-label="Underline" className="ql-underline p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
             <Underline size={14} />
           </button>
-          <button className="ql-strike p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+          <button aria-label="Strikethrough" className="ql-strike p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
             <Strikethrough size={14} />
           </button>
         </span>
@@ -189,49 +189,49 @@ export default function RichTextEditor({
 
         {/* Alignments */}
         <span className="ql-formats !mr-3 flex items-center gap-1 border-r border-neutral-200 dark:border-neutral-800 pr-3">
-          <button className="ql-align p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="">
+          <button aria-label="Align left" className="ql-align p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="">
             <AlignLeft size={14} />
           </button>
-          <button className="ql-align p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="center">
+          <button aria-label="Align center" className="ql-align p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="center">
             <AlignCenter size={14} />
           </button>
-          <button className="ql-align p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="right">
+          <button aria-label="Align right" className="ql-align p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="right">
             <AlignRight size={14} />
           </button>
-          <button className="ql-align p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="justify">
+          <button aria-label="Align justify" className="ql-align p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="justify">
             <AlignJustify size={14} />
           </button>
         </span>
 
         {/* Lists */}
         <span className="ql-formats !mr-3 flex items-center gap-1 border-r border-neutral-200 dark:border-neutral-800 pr-3">
-          <button className="ql-list p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="ordered">
+          <button aria-label="Ordered list" className="ql-list p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="ordered">
             <ListOrdered size={14} />
           </button>
-          <button className="ql-list p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="bullet">
+          <button aria-label="Bullet list" className="ql-list p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center" value="bullet">
             <List size={14} />
           </button>
         </span>
 
         {/* Links & Embeds */}
         <span className="ql-formats !mr-3 flex items-center gap-1 border-r border-neutral-200 dark:border-neutral-800 pr-3">
-          <button className="ql-link p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+          <button aria-label="Link" className="ql-link p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
             <Link2 size={14} />
           </button>
-          <button className="ql-image p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+          <button aria-label="Image" className="ql-image p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
             <ImageIcon size={14} />
           </button>
-          <button className="ql-video p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+          <button aria-label="Video" className="ql-video p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
             <Video size={14} />
           </button>
         </span>
 
         {/* Extra formatting utils */}
         <span className="ql-formats !mr-3 flex items-center gap-1">
-          <button className="ql-blockquote p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+          <button aria-label="Blockquote" className="ql-blockquote p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
             <Quote size={14} />
           </button>
-          <button className="ql-clean p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
+          <button aria-label="Clear formatting" className="ql-clean p-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800 rounded-lg transition-all flex items-center justify-center">
             <Eraser size={14} />
           </button>
         </span>
