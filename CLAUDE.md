@@ -149,6 +149,31 @@ section/block contract, and the Shopify-parity roadmap.
   click-to-edit, scoped per-section CSS, and template-aware preview selection. Used by MainSite and every standalone page
   (product/collection/page/cart all render their template's sections — milestone A).
 
+> [!IMPORTANT]
+> **After every theme-editor change, end your reply with a plain-English navigation
+> walkthrough** of how to find and use the new/changed feature in the actual admin
+> UI — not just a code/file summary. The user has said they find the theme editor
+> hard to navigate, so this is required, not optional, even for a small change.
+> Use the real on-screen labels (tab names, accordion titles, button text) as a click
+> path a non-developer can follow, e.g.:
+> - "Homepage → click a section on the canvas → **Design** tab → scroll to **Effects**"
+>   (shadow/radius/blur/hover effect/shape dividers/magnetic buttons/text gradients —
+>   these live in the per-section **Design** tab, via `SectionSettingsPanel`).
+> - "Homepage → click a section → **Content** tab → any image field → **Image style**"
+>   (focal point/filter/overlay/hover zoom — collapsed by default under image fields).
+> - "Homepage → click a section with blocks (Multicolumn, Row, Pricing Table, etc.) →
+>   **Content** tab → open a block → the list field (Links/Buttons/Features)" (drag
+>   handle to reorder, "Add" button to append a row).
+> - "Menus → Header or Footer tab → sub-links and (if Mega menu is on) column links
+>   now drag-reorder with the grip handle."
+> - "Just double-click text directly in the live preview pane" (inline canvas
+>   editing — dashed outline on hover, Escape to cancel; no panel involved).
+> - "Colors → scroll to **Checkout & Cart**" (accent/background/input radius +
+>   automatic WCAG contrast badges once a color is set).
+> Since `/admin` requires real Google sign-in restricted to one account, agents
+> cannot screenshot the live authenticated UI themselves — write the walkthrough
+> from the actual on-screen labels in the code (accordion `title`s, tab labels,
+> button text), not from memory or guesswork.
 
 Recommended next theme-editor increments after the insertion-zone DnD work
 (mega-menu child/grandchild sortable lists are now done — see below; nested
