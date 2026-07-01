@@ -40,3 +40,7 @@
 ## 2024-06-26 - Eliminating O(N*M) Array Lookups in Admin Orders Bulk Operations
 **Learning:** In `Orders.tsx`, when selecting or deselecting rows to perform bulk operations, verifying properties with `.find()` (e.g. `orders.find(o => o.id === id)?.isTest`) inside iterations across selected IDs creates an O(N*M) complexity drag. Even in an admin table, repeatedly scanning an array is inefficient when you can cache lookups.
 **Action:** Always create a `useMemo` map or a local Map keyed by ID (e.g. `Map<string, Order>`) prior to iterating across selection arrays to reduce the property lookup time to O(1).
+
+## 2024-11-15 - Optimizing Boolean Counts in Firebase Collections
+**Learning:** To calculate counts based on boolean values, such as identifying the amount of test orders vs total orders, we originally fetched the entire collection (`getDocs()`) and evaluated a client-side filter (`.filter(o => !o.data().isTest)`). This created an unnecessary O(N) fetch overhead.
+**Action:** Always utilize server-side aggregation when possible. `getCountFromServer` is an O(1) query. Use this along with exclusionary subtraction concurrently using `Promise.all()` to calculate counts conditionally without loading collections into memory.
