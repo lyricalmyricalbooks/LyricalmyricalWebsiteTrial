@@ -40,3 +40,7 @@
 ## 2024-06-26 - Eliminating O(N*M) Array Lookups in Admin Orders Bulk Operations
 **Learning:** In `Orders.tsx`, when selecting or deselecting rows to perform bulk operations, verifying properties with `.find()` (e.g. `orders.find(o => o.id === id)?.isTest`) inside iterations across selected IDs creates an O(N*M) complexity drag. Even in an admin table, repeatedly scanning an array is inefficient when you can cache lookups.
 **Action:** Always create a `useMemo` map or a local Map keyed by ID (e.g. `Map<string, Order>`) prior to iterating across selection arrays to reduce the property lookup time to O(1).
+
+## 2026-07-01 - Eliminating O(N*M) String Allocations in Legacy Sync
+**Learning:** In `syncInventoryFromLegacy`, matching books with a legacy system using `Object.keys().find` and `.toLowerCase().trim()` inside a loop over the entire `books` catalog creates an `O(N*M)` bottleneck. Recomputing the lowercase strings on every comparison iteration severely impacts performance as catalogs scale.
+**Action:** When cross-referencing keys across two large datasets, always pre-compute an `O(1)` `Map` of normalized keys and a separate cached array for substrings (if needed), removing string allocations and `O(N)` lookups from the inner loops entirely.

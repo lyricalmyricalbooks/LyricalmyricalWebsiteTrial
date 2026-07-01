@@ -1176,23 +1176,32 @@ export const adminApi = {
     const batch = writeBatch(db);
     let updateCount = 0;
 
+    // ⚡ Bolt Performance Optimization: Pre-compute lookups to eliminate O(N*M) iterations
+    // and redundant string allocations when comparing legacy keys to the entire books catalog.
+    const legacyKeysMap = new Map<string, string>();
+    const lowerLegacyKeysList: { original: string; lower: string }[] = [];
+
+    Object.keys(stockMap).forEach((k) => {
+      const lowerKey = k.toLowerCase().trim();
+      legacyKeysMap.set(lowerKey, k);
+      lowerLegacyKeysList.push({ original: k, lower: lowerKey });
+    });
+
     for (const bookDoc of booksSnap.docs) {
       const data = bookDoc.data();
       const slug = (data.slug || "").toLowerCase().trim();
       const title = (data.title || "").toLowerCase().trim();
 
       // Match priority:
-      //   1. Exact slug match ("hound" === "hound")
-      //   2. Case-insensitive title contains or is contained in legacy key
-      let legacyKey: string | undefined = Object.keys(stockMap).find(
-        (k) => k.toLowerCase().trim() === slug
-      );
+      //   1. Exact slug match ("hound" === "hound") via O(1) Map lookup
+      //   2. Case-insensitive title contains or is contained in legacy key via optimized pre-computed list
+      let legacyKey: string | undefined = legacyKeysMap.get(slug);
 
       if (!legacyKey && title) {
-        legacyKey = Object.keys(stockMap).find((k) => {
-          const lk = k.toLowerCase().trim();
-          return lk.includes(title) || title.includes(lk);
+        const found = lowerLegacyKeysList.find((kObj) => {
+          return kObj.lower.includes(title) || title.includes(kObj.lower);
         });
+        if (found) legacyKey = found.original;
       }
 
       if (legacyKey !== undefined) {
