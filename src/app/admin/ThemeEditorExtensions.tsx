@@ -467,6 +467,97 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     blockDefaults: { planName: "Starter", price: "$29", period: "/month", description: "Perfect for getting started", features: "Feature one\nFeature two\nFeature three", ctaText: "Get Started", ctaLink: "/", isHighlighted: false },
     blockLabel: "Plan",
   },
+  {
+    type: "ProductCoverCarouselSection",
+    label: "Cover Carousel Hero",
+    description: "Full-height hero that auto-cycles through your book covers with a serif wordmark overlay.",
+    category: "Commerce",
+    defaults: {
+      title: "Lyricalmyrical Books",
+      tagline: "An independent publishing house based in Toronto, specializing in contemporary photography and art books.",
+      titleItalic: true,
+      productSource: "all",
+      manualSlugs: "",
+      productLimit: 12,
+      autoplayMs: 4000,
+      showDots: true,
+      scrimOpacity: 0.55,
+      colorOverlay: "#A855F7",
+      colorOverlayOpacity: 0.3,
+      colorOverlayBlend: true,
+      grainOpacity: 0.45,
+      height: "punk",
+      ctaText: "",
+      ctaUrl: "",
+    },
+  },
+  {
+    type: "ProductShowcaseGridSection",
+    label: "Showcase Product Grid",
+    description: "Editorial book grid with category tags, quick-add buttons and a film-grain cover treatment.",
+    category: "Commerce",
+    defaults: {
+      title: "Recent Releases",
+      eyebrow: "",
+      productSource: "all",
+      manualSlugs: "",
+      productLimit: 12,
+      columnsDesktop: 3,
+      columnsMobile: 1,
+      imageAspectRatio: "4:5",
+      showCategoryTag: true,
+      showQuickAdd: true,
+      showFormatLine: true,
+      showPrices: true,
+      overlayColor: "#A855F7",
+      overlayOpacity: 0.22,
+      overlayBlend: true,
+      grainOpacity: 0.35,
+      tagBg: "rgba(0,0,0,0.7)",
+      tagText: "",
+    },
+  },
+  {
+    type: "StaffNotesTableSection",
+    label: "Staff Notes Table",
+    description: "Editorial table of books with a hand-written note per title. Rows link to the product page.",
+    category: "Commerce",
+    defaults: {
+      title: "Staff Notes",
+      backgroundColor: "",
+      showCategory: true,
+      showFormat: true,
+      colTitleLabel: "TITLE",
+      colCategoryLabel: "CATEGORY",
+      colFormatLabel: "FORMAT",
+      colNoteLabel: "NOTE",
+      fallbackLimit: 8,
+      items: [],
+    },
+    blockType: "note-row",
+    blockDefaults: { slug: "", note: "" },
+    blockLabel: "Book note",
+  },
+  {
+    type: "EphemeraRowSection",
+    label: "Ephemera Row",
+    description: "Decorative row of publishing objects — book spine, film negative, wax seal, ribbon, ISBN sticker.",
+    category: "Layout",
+    defaults: {
+      align: "center",
+      gap: 24,
+      items: [
+        { kind: "spine", label: "LYRICALMYRICAL", color: "#A855F7", rotation: -2 },
+        { kind: "negative", label: "", color: "#d97706", rotation: 1 },
+        { kind: "seal", label: "LM", color: "#9a2c3c", rotation: -3 },
+        { kind: "ribbon", label: "", color: "#A855F7", rotation: 2 },
+        { kind: "sticker", label: "ISBN 978-1-00-000000-0", color: "#f3f1ee", rotation: -4 },
+      ],
+    },
+    blockType: "object",
+    blockDefaults: { kind: "spine", label: "", color: "#A855F7", rotation: -3 },
+    blockLabel: "Ephemera object",
+  },
 ];
 
 export function getSectionMeta(type: string): SectionTypeMeta | undefined {
@@ -743,6 +834,27 @@ const BLOCK_FIELDS: Record<string, BlockField[]> = {
     { key: "ctaText", label: "CTA label", kind: "text" },
     { key: "ctaLink", label: "CTA URL", kind: "text" },
     { key: "isHighlighted", label: "Highlight this plan", kind: "select", options: [{ value: "false", label: "No" }, { value: "true", label: "Yes" }] },
+  ],
+  StaffNotesTableSection: [
+    { key: "slug", label: "Product slug (from Catalog)", kind: "text" },
+    { key: "note", label: "Staff note", kind: "textarea", rows: 2 },
+  ],
+  EphemeraRowSection: [
+    {
+      key: "kind",
+      label: "Object",
+      kind: "select",
+      options: [
+        { value: "spine", label: "Book spine" },
+        { value: "negative", label: "Film negative" },
+        { value: "seal", label: "Wax seal" },
+        { value: "ribbon", label: "Ribbon bookmark" },
+        { value: "sticker", label: "ISBN sticker" },
+      ],
+    },
+    { key: "label", label: "Label text", kind: "text" },
+    { key: "color", label: "Color", kind: "color" },
+    { key: "rotation", label: "Rotation (deg)", kind: "number", min: -12, max: 12, step: 1 },
   ],
 };
 
@@ -2478,13 +2590,18 @@ const ALIGN_OPTIONS = [
 
 const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   HeroSection: [
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Headline", kind: "text" },
+    { key: "titleItalic", label: "Italic headline", kind: "toggle" },
     { key: "subtitle", label: "Subtitle", kind: "text" },
     { key: "imageUrl", label: "Background image", kind: "image" },
+    { key: "sideImageUrl", label: "Floating cover card (optional)", kind: "image" },
     { key: "overlayOpacity", label: "Overlay darkness", kind: "range", min: 0, max: 1, step: 0.05 },
     { key: "accentColor", label: "Accent color", kind: "color" },
     { key: "ctaText", label: "CTA label", kind: "text" },
+    { key: "ctaUrl", label: "CTA URL (optional)", kind: "text" },
     { key: "secondaryCtaText", label: "Secondary CTA", kind: "text" },
+    { key: "metaText", label: "Meta text next to CTA (e.g. format · pages)", kind: "text" },
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   FeatureGridSection: [
@@ -2559,6 +2676,8 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "speed", label: "Scroll duration", kind: "range", min: 5, max: 120, step: 1, suffix: "s" },
     { key: "fontSize", label: "Font size", kind: "range", min: 10, max: 120, step: 1, suffix: "px" },
     { key: "bold", label: "Bold", kind: "toggle" },
+    { key: "fontWeight", label: "Font weight override", kind: "number", min: 100, max: 900, step: 100 },
+    { key: "letterSpacing", label: "Letter spacing (em)", kind: "number", min: 0, max: 0.5, step: 0.02 },
     { key: "uppercase", label: "Uppercase", kind: "toggle" },
     { key: "background", label: "Background color", kind: "color" },
     { key: "color", label: "Text color", kind: "color" },
@@ -2754,6 +2873,76 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "sectionTitle", label: "Section title", kind: "text" },
     { key: "sectionSubtitle", label: "Section subtitle", kind: "text" },
     { key: "highlightPlan", label: "Highlighted plan name", kind: "text" },
+  ],
+  ProductCoverCarouselSection: [
+    { key: "title", label: "Wordmark headline", kind: "text" },
+    { key: "tagline", label: "Tagline", kind: "textarea", rows: 2 },
+    { key: "titleItalic", label: "Italic headline", kind: "toggle" },
+    { key: "productSource", label: "Cover source", kind: "select", options: [
+      { value: "all", label: "All published" },
+      { value: "featured", label: "Featured" },
+      { value: "manual", label: "Manual slugs" },
+    ] },
+    { key: "manualSlugs", label: "Manual product slugs (comma separated)", kind: "textarea", rows: 2 },
+    { key: "productLimit", label: "Max covers", kind: "range", min: 1, max: 24, step: 1 },
+    { key: "autoplayMs", label: "Auto-advance speed (ms)", kind: "number", min: 1500, max: 15000, step: 250 },
+    { key: "showDots", label: "Show dots", kind: "toggle" },
+    { key: "scrimOpacity", label: "Bottom scrim darkness", kind: "range", min: 0, max: 1, step: 0.05 },
+    { key: "colorOverlay", label: "Color overlay", kind: "color" },
+    { key: "colorOverlayOpacity", label: "Color overlay opacity", kind: "range", min: 0, max: 1, step: 0.05 },
+    { key: "colorOverlayBlend", label: "Blend overlay into covers (duotone)", kind: "toggle" },
+    { key: "grainOpacity", label: "Film grain", kind: "range", min: 0, max: 1, step: 0.05 },
+    { key: "height", label: "Height", kind: "select", options: [
+      { value: "punk", label: "Tall (88vh, capped)" },
+      { value: "full", label: "Full screen" },
+      { value: "medium", label: "70vh" },
+    ] },
+    { key: "ctaText", label: "CTA label (optional)", kind: "text" },
+    { key: "ctaUrl", label: "CTA URL", kind: "text" },
+  ],
+  ProductShowcaseGridSection: [
+    { key: "eyebrow", label: "Eyebrow label", kind: "text" },
+    { key: "title", label: "Title", kind: "text" },
+    { key: "productSource", label: "Product source", kind: "select", options: [
+      { value: "all", label: "All published" },
+      { value: "featured", label: "Featured" },
+      { value: "manual", label: "Manual slugs" },
+    ] },
+    { key: "manualSlugs", label: "Manual product slugs (comma separated)", kind: "textarea", rows: 2 },
+    { key: "productLimit", label: "Product limit", kind: "range", min: 1, max: 24, step: 1 },
+    { key: "columnsDesktop", label: "Desktop columns", kind: "range", min: 1, max: 4, step: 1 },
+    { key: "columnsMobile", label: "Mobile columns", kind: "range", min: 1, max: 2, step: 1 },
+    { key: "imageAspectRatio", label: "Cover aspect ratio", kind: "select", options: [
+      { value: "4:5", label: "Book (4:5)" },
+      { value: "3:4", label: "Portrait (3:4)" },
+      { value: "2:3", label: "Tall (2:3)" },
+      { value: "1:1", label: "Square" },
+    ] },
+    { key: "showCategoryTag", label: "Show category tag", kind: "toggle" },
+    { key: "showQuickAdd", label: "Show quick-add button", kind: "toggle" },
+    { key: "showPrices", label: "Show prices", kind: "toggle" },
+    { key: "showFormatLine", label: "Show format line", kind: "toggle" },
+    { key: "overlayColor", label: "Cover color overlay", kind: "color" },
+    { key: "overlayOpacity", label: "Overlay opacity", kind: "range", min: 0, max: 1, step: 0.02 },
+    { key: "overlayBlend", label: "Blend overlay into covers (duotone)", kind: "toggle" },
+    { key: "grainOpacity", label: "Film grain", kind: "range", min: 0, max: 1, step: 0.05 },
+    { key: "tagBg", label: "Tag background", kind: "color" },
+    { key: "tagText", label: "Tag text color", kind: "color" },
+  ],
+  StaffNotesTableSection: [
+    { key: "title", label: "Title", kind: "text" },
+    { key: "backgroundColor", label: "Background color", kind: "color" },
+    { key: "showCategory", label: "Show category column", kind: "toggle" },
+    { key: "showFormat", label: "Show format column", kind: "toggle" },
+    { key: "colTitleLabel", label: "Title column label", kind: "text" },
+    { key: "colCategoryLabel", label: "Category column label", kind: "text" },
+    { key: "colFormatLabel", label: "Format column label", kind: "text" },
+    { key: "colNoteLabel", label: "Note column label", kind: "text" },
+    { key: "fallbackLimit", label: "Books shown when no notes are added", kind: "range", min: 1, max: 24, step: 1 },
+  ],
+  EphemeraRowSection: [
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
+    { key: "gap", label: "Object gap", kind: "range", min: 8, max: 80, step: 4, suffix: "px" },
   ],
 };
 
@@ -3001,7 +3190,14 @@ export type PreviewModeId =
   | "wishlist"
   | "account";
 
-export type PageTemplateMeta = { id: string; label: string; description: string; previewMode: PreviewModeId };
+export type PageTemplateMeta = {
+  id: string;
+  label: string;
+  description: string;
+  previewMode: PreviewModeId;
+  /** Set on per-page templates ("page:<slug>") so the preview opens that page. */
+  pageSlug?: string;
+};
 
 export const PAGE_TEMPLATES: PageTemplateMeta[] = [
   { id: "heroPage", label: "Home", description: "Sections shown on the storefront homepage.", previewMode: "homepage" },
@@ -3012,3 +3208,23 @@ export const PAGE_TEMPLATES: PageTemplateMeta[] = [
   { id: "page", label: "Custom Pages", description: "Default sections for editorial/custom pages.", previewMode: "page" },
   { id: "page404", label: "404", description: "Sections shown when a URL is not found.", previewMode: "homepage" },
 ];
+
+/**
+ * Static page templates plus one dynamic template per published custom page
+ * ("page:<slug>"). A per-page template's sections are stored at
+ * `design["page:<slug>"].sections`; the storefront (`PageView`) renders them
+ * when present and falls back to the shared `design.page.sections` otherwise —
+ * fully backward compatible.
+ */
+export function buildPageTemplates(pages: any[]): PageTemplateMeta[] {
+  const pageTemplates = (pages || [])
+    .filter((p: any) => p?.slug && p?.status === "published")
+    .map((p: any) => ({
+      id: `page:${p.slug}`,
+      label: p.title || p.slug,
+      description: `Sections for the "${p.title || p.slug}" page (overrides Custom Pages when set).`,
+      previewMode: "page" as PreviewModeId,
+      pageSlug: p.slug,
+    }));
+  return [...PAGE_TEMPLATES, ...pageTemplates];
+}

@@ -891,6 +891,64 @@ export type HomeLayoutTemplate = {
 
 export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
   {
+    id: "lyricalmyrical-punk",
+    name: "Lyricalmyrical Punk",
+    description: "Book-cover carousel hero, scrolling marquee, releases grid, staff notes table and a featured release banner.",
+    sections: [
+      // The homepage header is fixed/transparent, so the full-bleed carousel
+      // leads and the marquee strip sits below it (a first-section marquee
+      // would collide with the header).
+      { type: "ProductCoverCarouselSection", settings: {
+        title: "Lyricalmyrical Books",
+        tagline: "An independent publishing house based in Toronto, specializing in contemporary photography and art books.",
+      } },
+      { type: "MarqueeSection", settings: {
+        text: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA",
+        separator: "", speed: 24, fontSize: 11, bold: false, fontWeight: 600, letterSpacing: 0.14, uppercase: true,
+        background: "#141219", color: "rgba(243,241,238,0.56)",
+      } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Recent Releases" } },
+      { type: "StaffNotesTableSection", settings: { title: "Staff Notes", backgroundColor: "#0c0b12" } },
+      { type: "HeroSection", settings: {
+        eyebrow: "FEATURED RELEASE", title: "Roadkill", titleItalic: true,
+        subtitle: "Photographs taken along secondary highways — a document of what gets left behind.",
+        ctaText: "SHOP NOW", metaText: "Softcover · 112pp", height: "medium", align: "left",
+        overlayOpacity: 0.55, textTransform: "none", headingWeight: 600,
+      } },
+    ],
+  },
+  {
+    id: "lyricalmyrical-about",
+    name: "Lyricalmyrical About",
+    description: "Jumbo centered headline, ephemera object row, 'Why this exists' columns and a photo + contact block — apply on an About page template.",
+    sections: [
+      { type: "TextContentSection", settings: {
+        title: "About", align: "center", headingSize: 96, headingWeight: 800, content: "",
+      } },
+      { type: "EphemeraRowSection", settings: { align: "center" } },
+      { type: "RowSection", settings: { layout: "33-67", gap: 48, verticalAlign: "top", items: [
+        { kind: "text", title: "WHY THIS EXISTS", body: "" },
+        { kind: "text", title: "", body: "Lyricalmyrical Books is an independent imprint publishing contemporary photography and art books in small, considered runs. We care more about ink, paper, and sequence than trends. Independently run out of Toronto, and updated whenever there's something worth printing." },
+      ] } },
+      { type: "ImageWithTextSection", settings: {
+        eyebrow: "CONTACT", title: "Got a manuscript, a proposal, or a question about an order?",
+        body: "Toronto, Canada", ctaText: "Email us", ctaUrl: "mailto:lyricalmyricalbooks@gmail.com", layout: "image-left",
+      } },
+    ],
+  },
+  {
+    id: "lyricalmyrical-journal",
+    name: "Lyricalmyrical Journal",
+    description: "Jumbo centered headline plus editorial article cards — apply on a Journal page template.",
+    sections: [
+      { type: "TextContentSection", settings: {
+        title: "Journal", align: "center", headingSize: 96, headingWeight: 800,
+        content: "Essays, studio notes, and press.",
+      } },
+      { type: "BlogPostsSection", settings: { eyebrow: "", title: "", columns: 3 } },
+    ],
+  },
+  {
     id: "editorial-launch",
     name: "Editorial Launch",
     description: "Hero, story, featured title, social proof and email capture — a classic publisher homepage.",

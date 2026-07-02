@@ -136,7 +136,14 @@ section/block contract, and the Shopify-parity roadmap.
   `SECTION_TEMPLATES` + `SectionLibraryModal` dead code has been removed.
 - `src/app/admin/ThemeEditorExtensions.tsx` — the real `SECTION_REGISTRY`,
   `getSectionFields`/`getBlockFields`, `BlocksEditor`, `NewSectionLibraryModal`;
-  it includes reusable commerce/content sections such as `BlogPostsSection`.
+  it includes reusable commerce/content sections such as `BlogPostsSection`
+  and the catalog-driven "Lyricalmyrical Punk" set (`ProductCoverCarouselSection`,
+  `ProductShowcaseGridSection`, `StaffNotesTableSection`, `EphemeraRowSection`).
+  It also exports `buildPageTemplates(pages)` — static `PAGE_TEMPLATES` plus one
+  dynamic `page:<slug>` template per published custom page, so pages like About
+  and Journal get their own editable section stacks
+  (`design["page:<slug>"].sections`, rendered by `PageView` with fallback to the
+  shared `design.page.sections`).
 - `src/app/admin/ThemeEditorPro.tsx` — color math, schemes, import/export.
 - `src/app/admin/ThemeEditorBuilder.tsx` — builder UI over the registry helpers.
 - `src/app/components/SectionComponents.tsx` — the storefront section renderers

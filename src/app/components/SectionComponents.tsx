@@ -2,6 +2,8 @@ import { motion, useMotionValue, useSpring } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { Send, ChevronLeft, ChevronRight, MapPin, Clock } from "lucide-react";
 import { useCurrency } from "../CurrencyContext";
+import { useCart } from "../CartContext";
+import { resolveStaffNoteRows } from "../features/site/staffNotes";
 import { textGradientStyle, hoverEffectClassName, hoverEffectGlowStyle, imageFilterCss, imageObjectPositionFromFocal } from "./sectionStyleHelpers";
 
 // ──────────────────────────────
@@ -249,9 +251,18 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
         }`}
       >
         <AnimationContainer enabled={enableAnimations}>
+          {settings.eyebrow && (
+            <p
+              className="text-[10px] tracking-[0.3em] font-bold uppercase mb-4"
+              style={{ color: settings.eyebrowColor || settings.accentColor || "var(--accent, #A855F7)" }}
+              data-theme-field="eyebrow"
+            >
+              {settings.eyebrow}
+            </p>
+          )}
           <h1
             className="text-4xl md:text-6xl font-black tracking-tight uppercase mb-6 leading-none text-white"
-            style={hStyle(settings)}
+            style={{ ...(settings.titleItalic ? { fontStyle: "italic" } : {}), ...hStyle(settings) }}
             data-theme-field="title"
           >
             {settings.title || "Lyricalmyrical"}
@@ -268,7 +279,14 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
           }`}>
             <MagneticButton
               magnetic={!!settings.btnMagnetic}
-              onClick={onCtaClick}
+              onClick={() => {
+                const url = settings.ctaUrl;
+                if (!url) { onCtaClick?.(); return; }
+                if (/^https?:\/\//i.test(url)) { window.open(url, "_blank", "noopener"); return; }
+                // Site-relative URLs need the GitHub Pages sub-path prefix.
+                const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+                window.location.assign(url.startsWith("/") ? base + url : url);
+              }}
               className={`px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase ${
                 settings.hoverEffect ? hoverEffectClassName(settings.hoverEffect) : "hover:scale-105 transition-transform"
               }`}
@@ -281,9 +299,20 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
                 <span data-theme-field="secondaryCtaText">{settings.secondaryCtaText}</span>
               </button>
             )}
+            {settings.metaText && (
+              <span className="text-xs text-white/60" data-theme-field="metaText">{settings.metaText}</span>
+            )}
           </div>
         </AnimationContainer>
       </div>
+      {settings.sideImageUrl && (
+        <div
+          className="hidden lg:block absolute right-[8%] top-1/2 -translate-y-1/2 z-10 w-[280px] rounded-[2px] overflow-hidden shadow-[0_30px_60px_rgba(0,0,0,0.5)]"
+          style={{ aspectRatio: "4 / 5", transform: "translateY(-50%) rotate(-2deg)" }}
+        >
+          <StyledImage src={settings.sideImageUrl} alt="" settings={settings} fieldKey="sideImageUrl" loading="lazy" decoding="async" />
+        </div>
+      )}
     </section>
   );
 }
@@ -577,7 +606,12 @@ export function MarqueeSection({ settings }: any) {
             key={copy}
             aria-hidden={copy === 1}
             className={`px-6 ${bold ? "font-black" : "font-medium"} ${uppercase ? "uppercase" : ""} tracking-tight`}
-            style={{ fontSize, color }}
+            style={{
+              fontSize,
+              color,
+              ...(settings.fontWeight != null ? { fontWeight: settings.fontWeight } : {}),
+              ...(settings.letterSpacing != null ? { letterSpacing: `${settings.letterSpacing}em` } : {}),
+            }}
           >
             {phrase}
             {`  ${separator}  `}
@@ -961,18 +995,40 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
 
 const productSlug = (book: any) => book?.slug || book?.title?.toLowerCase?.().replace(/[^a-z0-9]+/g, "-");
 
-export function ProductGridHeaderSection({ settings, books, onProductClick, enableAnimations }: any) {
-  const { formatBookPrice } = useCurrency();
+// Shared product-source filter (All / Featured / Manual slugs) used by every
+// catalog-driven section. Note the model field is `isFeatured`; the legacy
+// `featured` key is kept as a fallback for older documents.
+function filterBooksBySource(books: any[], settings: any): any[] {
   const manualSlugs = String(settings.manualSlugs || "")
     .split(",")
-    .map((s) => s.trim())
+    .map((s: string) => s.trim())
     .filter(Boolean);
   const source = settings.productSource || "all";
-  const candidates = (books || []).filter((book: any) => {
-    if (source === "featured") return book.featured !== false;
+  return (books || []).filter((book: any) => {
+    if (source === "featured") return (book.isFeatured ?? book.featured) === true;
     if (source === "manual") return manualSlugs.includes(productSlug(book));
     return true;
   });
+}
+
+// Inline-SVG film grain (fractal noise) — self-contained data URI, safe under
+// the GitHub Pages sub-path since no asset request is made.
+const GRAIN_BG = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`;
+
+function GrainOverlay({ opacity }: { opacity?: number }) {
+  if (!opacity || opacity <= 0) return null;
+  return (
+    <div
+      aria-hidden="true"
+      className="absolute inset-0 pointer-events-none mix-blend-overlay"
+      style={{ backgroundImage: GRAIN_BG, backgroundSize: "160px", opacity: Math.min(1, opacity) }}
+    />
+  );
+}
+
+export function ProductGridHeaderSection({ settings, books, onProductClick, enableAnimations }: any) {
+  const { formatBookPrice } = useCurrency();
+  const candidates = filterBooksBySource(books, settings);
   const limit = Math.max(1, Math.min(24, settings.productLimit ?? 6));
   const items = candidates.slice(0, limit);
   const cols = Math.max(2, Math.min(6, settings.columnsDesktop ?? 3));
@@ -1068,6 +1124,420 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
             );
           })}
         </div>
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
+// COVER CAROUSEL HERO — full-height hero auto-cycling through book covers
+// with a serif wordmark overlay, violet duotone and film grain.
+// ──────────────────────────────
+
+export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any) {
+  const covers = filterBooksBySource(books, settings)
+    .map((book: any) => ({ id: book.id || productSlug(book), url: book.photos?.[0]?.url, title: book.title }))
+    .filter((c: any) => !!c.url)
+    .slice(0, Math.max(1, Math.min(24, settings.productLimit ?? 12)));
+  const [active, setActive] = useState(0);
+  const autoplayMs = Math.max(1500, settings.autoplayMs ?? 4000);
+
+  useEffect(() => {
+    if (covers.length <= 1) return;
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const t = setInterval(() => setActive((a) => (a + 1) % covers.length), autoplayMs);
+    return () => clearInterval(t);
+  }, [covers.length, autoplayMs]);
+
+  const height =
+    settings.height === "full" ? "100vh" : settings.height === "medium" ? "70vh" : "min(88vh, 780px)";
+  const current = covers.length ? active % covers.length : 0;
+  const scrim = Math.max(0, Math.min(1, settings.scrimOpacity ?? 0.55));
+  const overlayColor = settings.colorOverlay || "";
+  const overlayOpacity = Math.max(0, Math.min(1, settings.colorOverlayOpacity ?? 0.3));
+
+  return (
+    <section className="relative w-full overflow-hidden" style={{ height, minHeight: 420, ...bgStyle(settings) }}>
+      {covers.length === 0 ? (
+        <div className="absolute inset-0 flex items-center justify-center text-white/30 text-xs uppercase tracking-widest">
+          Add books with cover photos to fill this carousel
+        </div>
+      ) : (
+        covers.map((cover: any, i: number) => (
+          <div
+            key={cover.id || i}
+            className="absolute inset-0 transition-opacity duration-1000 ease-in-out"
+            style={{ opacity: i === current ? 1 : 0 }}
+            aria-hidden={i !== current}
+          >
+            <img
+              src={cover.url}
+              alt={i === current ? cover.title || "" : ""}
+              loading={i === 0 ? "eager" : "lazy"}
+              decoding="async"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        ))
+      )}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: `linear-gradient(180deg, rgba(0,0,0,${scrim * 0.18}) 0%, rgba(0,0,0,${scrim}) 60%, rgba(0,0,0,${Math.min(1, scrim * 1.75)}) 100%)` }}
+      />
+      {overlayColor && overlayOpacity > 0 && (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 pointer-events-none"
+          style={{ backgroundColor: overlayColor, opacity: overlayOpacity, mixBlendMode: settings.colorOverlayBlend === false ? undefined : ("color" as any) }}
+        />
+      )}
+      <GrainOverlay opacity={settings.grainOpacity ?? 0.45} />
+      <div className="absolute left-6 right-6 bottom-12 md:left-12 md:right-12 z-10">
+        <h1
+          className="text-white leading-none tracking-tight"
+          style={{
+            fontStyle: settings.titleItalic === false ? undefined : "italic",
+            fontSize: "clamp(2.8rem, 8vw, 6.5rem)",
+            lineHeight: 0.95,
+            ...hStyle(settings),
+          }}
+          data-theme-field="title"
+        >
+          {settings.title || "Lyricalmyrical Books"}
+        </h1>
+        {settings.tagline && (
+          <p className="mt-3.5 text-[15px] text-white/80 max-w-lg" style={bStyle(settings)} data-theme-field="tagline">
+            {settings.tagline}
+          </p>
+        )}
+        {settings.ctaText && (
+          <MagneticButton
+            magnetic={!!settings.btnMagnetic}
+            onClick={onCtaClick}
+            className="mt-6 px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
+            style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #ffffff)", ...btnS(settings) }}
+          >
+            <span data-theme-field="ctaText">{settings.ctaText}</span>
+          </MagneticButton>
+        )}
+      </div>
+      {settings.showDots !== false && covers.length > 1 && (
+        <div className="absolute right-6 bottom-12 md:right-12 z-10 flex gap-2">
+          {covers.map((cover: any, i: number) => (
+            <button
+              key={cover.id || i}
+              onClick={() => setActive(i)}
+              aria-label={`Go to cover ${i + 1}`}
+              aria-current={i === current}
+              className={`h-2 rounded-full transition-all ${i === current ? "w-5 bg-white" : "w-2 bg-white/40 hover:bg-white/70"}`}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ──────────────────────────────
+// SHOWCASE PRODUCT GRID — editorial book grid with category tags, quick-add
+// and duotone/grain cover treatment.
+// ──────────────────────────────
+
+export function ProductShowcaseGridSection({ settings, books, onProductClick, enableAnimations }: any) {
+  const { formatBookPrice } = useCurrency();
+  const { addToCart } = useCart();
+  const items = filterBooksBySource(books, settings).slice(0, Math.max(1, Math.min(24, settings.productLimit ?? 12)));
+  const cols = Math.max(1, Math.min(4, settings.columnsDesktop ?? 3));
+  const mobileCols = Math.max(1, Math.min(2, settings.columnsMobile ?? 1));
+  const aspect =
+    settings.imageAspectRatio === "1:1" ? "1 / 1"
+    : settings.imageAspectRatio === "3:4" ? "3 / 4"
+    : settings.imageAspectRatio === "2:3" ? "2 / 3"
+    : "4 / 5";
+  const overlayColor = settings.overlayColor || "";
+  const overlayOpacity = Math.max(0, Math.min(1, settings.overlayOpacity ?? 0.22));
+  const gridId = `showcase-grid-${settings.__sectionId || "section"}`;
+
+  const openBook = (book: any) => onProductClick?.(book);
+
+  return (
+    <section style={bgStyle(settings)}>
+      <style>{`
+        .${gridId} { grid-template-columns: repeat(${mobileCols}, minmax(0, 1fr)); }
+        @media (min-width: 1024px) { .${gridId} { grid-template-columns: repeat(${cols}, minmax(0, 1fr)); } }
+      `}</style>
+      <div className={`py-16 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {(settings.eyebrow || settings.title) && (
+            <div className="mb-8">
+              {settings.eyebrow && (
+                <p className="text-[10px] tracking-[0.3em] font-bold uppercase mb-2" style={{ color: "var(--accent, #A855F7)" }} data-theme-field="eyebrow">
+                  {settings.eyebrow}
+                </p>
+              )}
+              {settings.title && (
+                <h2 className="text-3xl md:text-4xl tracking-tight" style={hStyle(settings)} data-theme-field="title">
+                  {settings.title}
+                </h2>
+              )}
+            </div>
+          )}
+        </AnimationContainer>
+        <div className={`${gridId} grid gap-6`}>
+          {items.map((book: any, idx: number) => {
+            const onSale = !!book.isOnSale && book.salePrice > 0 && book.salePrice < (book.retailPrice ?? 0);
+            const soldOut = book.stockLevel === 0;
+            const category = book.categories?.[0] || "";
+            return (
+              <AnimationContainer key={book.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
+                <div
+                  {...blockEditAttrs({ id: book.id || productSlug(book) }, idx)}
+                  className="group relative cursor-pointer"
+                  role="link"
+                  tabIndex={0}
+                  aria-label={`View ${book.title}`}
+                  onClick={() => openBook(book)}
+                  onKeyDown={(e: any) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openBook(book);
+                    }
+                  }}
+                >
+                  <div className="relative overflow-hidden rounded-[2px] bg-white/5" style={{ aspectRatio: aspect }}>
+                    {book.photos?.[0]?.url && (
+                      <img
+                        src={book.photos[0].url}
+                        alt={book.title}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      />
+                    )}
+                    {overlayColor && overlayOpacity > 0 && (
+                      <div
+                        aria-hidden="true"
+                        className="absolute inset-0 pointer-events-none"
+                        style={{ backgroundColor: overlayColor, opacity: overlayOpacity, mixBlendMode: settings.overlayBlend === false ? undefined : ("color" as any) }}
+                      />
+                    )}
+                    <GrainOverlay opacity={settings.grainOpacity ?? 0.35} />
+                    {settings.showCategoryTag !== false && category && (
+                      <span
+                        className="absolute left-3 top-3 rounded-[2px] px-2 py-1 text-[10px] font-bold tracking-[0.12em] uppercase"
+                        style={{ background: settings.tagBg || "rgba(0,0,0,0.7)", color: settings.tagText || "rgba(255,255,255,0.75)" }}
+                      >
+                        {category}
+                      </span>
+                    )}
+                    {settings.showQuickAdd !== false && (
+                      <button
+                        type="button"
+                        aria-label={soldOut ? `${book.title} is sold out` : `Add ${book.title} to bag`}
+                        disabled={soldOut}
+                        onClick={(e: any) => {
+                          e.stopPropagation();
+                          if (!soldOut) addToCart(book);
+                        }}
+                        className={`absolute right-3 bottom-3 w-8 h-8 rounded-full border text-base leading-none flex items-center justify-center transition-colors ${
+                          soldOut
+                            ? "opacity-40 cursor-not-allowed border-white/20 bg-black/60 text-white/60"
+                            : "border-white/30 bg-black/70 text-white hover:border-transparent"
+                        }`}
+                        onMouseEnter={(e: any) => { if (!soldOut) e.currentTarget.style.backgroundColor = "var(--accent, #A855F7)"; }}
+                        onMouseLeave={(e: any) => { e.currentTarget.style.backgroundColor = ""; }}
+                      >
+                        +
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-2.5 flex items-baseline justify-between gap-3">
+                    <h3 className="text-[17px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
+                    {settings.showPrices !== false && (
+                      <p className="text-sm whitespace-nowrap fm-muted">
+                        {onSale ? (
+                          <>
+                            <span className="line-through opacity-60 mr-1.5">{formatBookPrice({ ...book, isOnSale: false })}</span>
+                            {formatBookPrice(book)}
+                          </>
+                        ) : (
+                          formatBookPrice(book)
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  {settings.showFormatLine !== false && book.format && (
+                    <p className="mt-0.5 text-xs fm-muted">{book.format}</p>
+                  )}
+                </div>
+              </AnimationContainer>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
+// STAFF NOTES TABLE — books-driven editorial table; rows open the book.
+// ──────────────────────────────
+
+export function StaffNotesTableSection({ settings, books, onProductClick, enableAnimations }: any) {
+  const rows = resolveStaffNoteRows(settings.items || settings.blocks || [], books, settings.fallbackLimit ?? 8);
+  const showCategory = settings.showCategory !== false;
+  const showFormat = settings.showFormat !== false;
+  const open = (book: any) => onProductClick?.(book);
+
+  return (
+    <section style={{ ...(settings.backgroundColor ? { backgroundColor: settings.backgroundColor } : {}), ...bgStyle(settings) }}>
+      <div className={`py-16 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          {settings.title && (
+            <h2 className="text-3xl md:text-4xl tracking-tight mb-8" style={hStyle(settings)} data-theme-field="title">
+              {settings.title}
+            </h2>
+          )}
+        </AnimationContainer>
+        {rows.length === 0 ? (
+          <p className="py-12 text-center text-sm fm-muted">Add book notes to fill this table.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-white/10">
+                  <th className="text-left py-3 px-2 text-[11px] font-bold tracking-[0.12em] fm-muted">{settings.colTitleLabel || "TITLE"}</th>
+                  {showCategory && <th className="text-left py-3 px-2 text-[11px] font-bold tracking-[0.12em] fm-muted">{settings.colCategoryLabel || "CATEGORY"}</th>}
+                  {showFormat && <th className="text-left py-3 px-2 text-[11px] font-bold tracking-[0.12em] fm-muted">{settings.colFormatLabel || "FORMAT"}</th>}
+                  <th className="text-left py-3 px-2 text-[11px] font-bold tracking-[0.12em] fm-muted">{settings.colNoteLabel || "NOTE"}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(({ book, note }, idx) => (
+                  <tr
+                    key={book.id || idx}
+                    className="border-b border-white/10 cursor-pointer transition-colors hover:bg-white/[0.04] focus-visible:bg-white/[0.06] outline-none"
+                    tabIndex={0}
+                    aria-label={`View ${book.title}`}
+                    onClick={() => open(book)}
+                    onKeyDown={(e: any) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        open(book);
+                      }
+                    }}
+                  >
+                    <td className="py-3.5 px-2 text-base" style={hStyle(settings)}>{book.title}</td>
+                    {showCategory && <td className="py-3.5 px-2 text-[13px] fm-muted">{book.categories?.[0] || ""}</td>}
+                    {showFormat && <td className="py-3.5 px-2 text-[13px] fm-muted">{book.format || ""}</td>}
+                    <td className="py-3.5 px-2 text-[13px] fm-muted">{note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
+// EPHEMERA ROW — decorative pure-CSS publishing objects.
+// ──────────────────────────────
+
+function shadeColor(hex: string, amount: number): string {
+  const m = /^#?([a-f\d]{6})$/i.exec(hex || "");
+  if (!m) return hex || "#A855F7";
+  const num = parseInt(m[1], 16);
+  const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
+  const r = clamp(((num >> 16) & 255) + amount);
+  const g = clamp(((num >> 8) & 255) + amount);
+  const b = clamp((num & 255) + amount);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+}
+
+function EphemeraObject({ item }: { item: any }) {
+  const color = item.color || "#A855F7";
+  const rotation = `rotate(${Math.max(-12, Math.min(12, item.rotation ?? -3))}deg)`;
+  const shadow = "0 10px 24px rgba(0,0,0,0.4)";
+  switch (item.kind) {
+    case "negative":
+      return (
+        <div className="relative w-[170px] h-28 rounded-[2px] overflow-hidden" style={{ background: "#2a1a06", boxShadow: shadow, transform: rotation }}>
+          <div className="absolute inset-0" style={{ background: "repeating-linear-gradient(90deg, transparent 0 30px, rgba(0,0,0,0.5) 30px 32px)" }} />
+          <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, ${color}59, transparent 30%, transparent 70%, ${color}59)` }} />
+        </div>
+      );
+    case "seal":
+      return (
+        <div
+          className="w-[90px] h-[90px] rounded-full flex items-center justify-center"
+          style={{
+            background: `radial-gradient(circle at 35% 30%, ${shadeColor(color, 24)}, ${shadeColor(color, -48)} 75%)`,
+            boxShadow: `${shadow}, inset 0 2px 6px rgba(255,255,255,0.15)`,
+            transform: rotation,
+          }}
+        >
+          {item.label && <span className="italic text-[1.4rem] text-white/90" style={{ fontWeight: 600 }}>{item.label}</span>}
+        </div>
+      );
+    case "ribbon":
+      return (
+        <div
+          className="w-[42px] h-[180px]"
+          style={{
+            background: `linear-gradient(180deg, ${color}, ${shadeColor(color, -60)})`,
+            clipPath: "polygon(0 0, 100% 0, 100% 85%, 50% 100%, 0 85%)",
+            boxShadow: shadow,
+            transform: rotation,
+          }}
+        />
+      );
+    case "sticker":
+      return (
+        <div className="w-[118px] h-[76px] rounded-[2px] p-2 flex flex-col gap-1.5" style={{ background: color || "#f3f1ee", boxShadow: shadow, transform: rotation }}>
+          <div className="h-[22px]" style={{ background: "repeating-linear-gradient(90deg, #0a0910 0 2px, transparent 2px 5px)" }} />
+          {item.label && <span className="text-[0.55rem] tracking-[0.06em] text-black/90">{item.label}</span>}
+        </div>
+      );
+    case "spine":
+    default:
+      return (
+        <div
+          className="w-16 h-[190px] rounded-[2px] flex items-center justify-center"
+          style={{
+            background: `linear-gradient(200deg, ${shadeColor(color, -100)} 0%, ${color} 60%, #05040a 100%)`,
+            boxShadow: shadow,
+            transform: rotation,
+          }}
+        >
+          {item.label && (
+            <span className="text-[0.62rem] font-bold tracking-[0.16em] text-white/85 whitespace-nowrap" style={{ writingMode: "vertical-rl" }}>
+              {item.label}
+            </span>
+          )}
+        </div>
+      );
+  }
+}
+
+export function EphemeraRowSection({ settings, enableAnimations }: any) {
+  const items = visibleBlocks(settings.items || settings.blocks || []);
+  const justify = settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center";
+  return (
+    <section style={bgStyle(settings)} aria-hidden="true">
+      <div className={`py-12 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className={`flex flex-wrap items-end ${justify}`} style={{ gap: settings.gap ?? 24 }}>
+            {items.map((item: any, idx: number) => (
+              <div key={item.id || idx} {...blockEditAttrs(item, idx)}>
+                <EphemeraObject item={item} />
+              </div>
+            ))}
+          </div>
+        </AnimationContainer>
       </div>
     </section>
   );

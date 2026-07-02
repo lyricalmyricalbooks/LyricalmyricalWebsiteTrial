@@ -73,6 +73,7 @@ import {
   DEFAULT_COLOR_SCHEMES,
   ThemeIOButtons,
   PAGE_TEMPLATES,
+  buildPageTemplates,
   type ColorScheme,
   type SectionPreset,
 } from "./ThemeEditorExtensions";
@@ -103,6 +104,7 @@ import toast from "react-hot-toast";
 // Colour palette presets
 // ─────────────────────────────────────────────────────────────────────────────
 const PALETTES = [
+  { id: "punk",    label: "Punk Violet",    bg: "#0a0910", text: "#f3f1ee", accent: "#A855F7", swatches: ["#0a0910","#f3f1ee","#A855F7"] },
   { id: "dark",    label: "Midnight Black", bg: "#030213", text: "#ffffff", accent: "#A855F7", swatches: ["#030213","#ffffff","#A855F7"] },
   { id: "light",   label: "Gallery White",  bg: "#f8f7f4", text: "#111111", accent: "#000000", swatches: ["#f8f7f4","#111111","#000000"] },
   { id: "minimal", label: "Pure Minimal",   bg: "#ffffff",  text: "#000000", accent: "#666666", swatches: ["#ffffff","#000000","#888888"] },
@@ -118,6 +120,51 @@ const PALETTES = [
 ];
 
 const THEME_LIBRARY = [
+  {
+    id: "lyricalmyrical-punk",
+    name: "Lyricalmyrical Punk",
+    mood: "Violet-on-black editorial punk — serif drama, sticker nav, film grain",
+    palettePreset: "punk",
+    font: "Inter", fontSize: "md", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "moderate",
+    productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "3:4", productImageLayout: "slider",
+    productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 2, productCTA: "ADD TO BAG",
+    catalogLayoutStyle: "modern", showCatalogControls: true,
+    // Installed on request after applying the preset (never silently overwrites sections).
+    homeLayoutTemplate: "lyricalmyrical-punk",
+    // Applied to the root design AND both page surfaces so every storefront
+    // surface (homepage, catalog, product page, cart drawer, footer, custom
+    // pages) inherits the full token set. Each key remains individually
+    // adjustable afterwards from the Colors / Typography / Navigation panels.
+    global: {
+      backgroundColor: "#0a0910", textColor: "#f3f1ee", primaryColor: "#A855F7",
+      surfaceColor: "#141219", surfaceRaisedColor: "#1c1a22",
+      successColor: "#34d399", dangerColor: "#fb7185", warningColor: "#f5b942",
+      favoriteColor: "#fb7185", mutedTextColor: "rgba(243,241,238,0.56)",
+      borderColor: "rgba(255,255,255,0.12)", linkColorHover: "#A855F7",
+      overlayColor: "#0a0910",
+      headingFont: "Cormorant Garamond", bodyFont: "Inter", font: "Inter", headingWeight: 600,
+      buttonColor: "#A855F7", buttonTextColor: "#ffffff",
+      buttonHoverBgColor: "#C084FC", buttonHoverTextColor: "#ffffff",
+      buttonStyle: "solid", buttonRadius: 999, buttonUppercase: true,
+      badgeBgPrimary: "#A855F7", badgeTextPrimary: "#ffffff",
+      badgeBgSecondary: "#1c1a22", badgeTextSecondary: "#f3f1ee",
+      headerBg: "#0a0910", headerColor: "#f3f1ee",
+      showAnnouncement: true, announcementBg: "#141219", announcementColor: "rgba(243,241,238,0.56)",
+      announcementScrolling: true, announcementFontSize: 11, announcementWeight: 600,
+      announcementTracking: 0.14, announcementSpeed: 24,
+      checkoutAccentColor: "#A855F7",
+      cartDrawerBg: "#141219", cartDrawerText: "#f3f1ee", cartDrawerMuted: "rgba(243,241,238,0.56)",
+      cartDrawerSurface: "#1c1a22", cartDrawerBorder: "rgba(255,255,255,0.12)",
+      footerLayout: "4col", footerBg: "#08070c", pageChromeStyle: "theme",
+      navStyle: "stickers", wordmarkStyle: "two-part", enterArchiveLabel: "Archive",
+      wordmarkPrimary: "Lyricalmyrical", wordmarkSecondary: "Books",
+      wordmarkSecondaryMuted: true, wordmarkSize: 1.75, wordmarkWeight: 600,
+      navPillRadius: "14px 4px 14px 4px", navPillRotate: true, navPillActivePalette: true,
+      showCategoryChips: true, categoryChipShowCounts: true,
+      catalogHeading: "The Archive", showCatalogCount: true,
+      showQtyStepper: true, productDescriptionStyle: "designed",
+    },
+  },
   { id: "lyrical-photo-reference", name: "Lyrical Photo Reference", mood: "Black reference storefront with oversized masthead, ruled nav and three-column book grid", palettePreset: "cyber", font: "Inter", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "1:1", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 0, productCTA: "VIEW", catalogLayoutStyle: "reference", catalogMastheadText: "Lyricalmyrical Books", catalogHeaderWidth: 1180, catalogHeaderRuleWidth: 4, catalogGridGap: 18, catalogTitleTransform: "none", catalogImageFit: "cover", showAnnouncement: false, showCatalogControls: false, showCollectionMeta: false, referenceCategoryLimit: 1, catalogCartPlacement: "top-right", catalogMastheadDesktop: 58, catalogMastheadMobile: 38, catalogNavGapDesktop: 40, catalogNavGapMobile: 18, catalogImageFocalX: 50, catalogImageFocalY: 50, headerBg: "#000000", headerColor: "#ffffff", borderColor: "#B1B1AA" },
   { id: "editorial-luxe", name: "Editorial Luxe", mood: "High-contrast serif with generous spacing", palettePreset: "light", font: "Playfair Display", fontSize: "md", cornerStyle: "rounded", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "3:4", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 12, productCTA: "READ MORE" },
   { id: "night-neon", name: "Night Neon", mood: "Dark cinematic storefront with energetic accents", palettePreset: "cyber", font: "Space Mono", fontSize: "md", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high", productCardStyle: "card", productHoverEffect: "lift", imageAspectRatio: "2:3", productImageLayout: "slider", productContentPosition: "left", productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 4, productCTA: "BUY NOW" },
@@ -139,7 +186,18 @@ const THEME_LIBRARY = [
   { id: "urban-streetwear", name: "Urban Streetwear", mood: "Hypebeast energy with bold display type and high-impact drops", palettePreset: "cyber", font: "Bebas Neue", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high", productCardStyle: "card", productHoverEffect: "zoom", imageAspectRatio: "2:3", productImageLayout: "grid", productContentPosition: "left", productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 0, productCTA: "COP IT" },
 ];
 
-const applyThemePreset = (update: (k: string, v: any) => void, theme: any) => {
+interface ApplyThemePresetOptions {
+  /** Bulk-writes keys to the root design AND both page surfaces (heroPage/storefront) in one history step. */
+  applyGlobal?: (keys: Record<string, any>) => void;
+  /** Installs a HOME_LAYOUT_TEMPLATES stack onto the homepage surface (used for `theme.homeLayoutTemplate`). */
+  installHomepageLayout?: (templateId: string) => void;
+}
+
+const applyThemePreset = (
+  update: (k: string, v: any, isGlobal?: boolean) => void,
+  theme: any,
+  opts?: ApplyThemePresetOptions,
+) => {
   const palette = PALETTES.find((p) => p.id === theme.palettePreset) || PALETTES[0];
   update("palettePreset", theme.palettePreset);
   update("primaryColor", palette.accent);
@@ -184,8 +242,24 @@ const applyThemePreset = (update: (k: string, v: any) => void, theme: any) => {
   ].forEach((key) => {
     if (Object.prototype.hasOwnProperty.call(theme, key)) update(key, theme[key]);
   });
+  if (theme.global) {
+    // Surface objects shadow root keys on the storefront (`design.heroPage ?? design`),
+    // so full-theme token sets must land on the root and both surfaces.
+    if (opts?.applyGlobal) {
+      opts.applyGlobal(theme.global);
+    } else {
+      Object.entries(theme.global).forEach(([key, value]) => update(key, value, true));
+    }
+  }
   update("themeLibraryPreset", theme.id);
   toast.success(`Applied "${theme.name}" theme preset!`, { icon: "✨" });
+  if (theme.homeLayoutTemplate && opts?.installHomepageLayout) {
+    setTimeout(() => {
+      if (confirm(`Also install the "${theme.name}" homepage layout? Your current Homepage sections are kept as the alternate (A/B) layout.`)) {
+        opts.installHomepageLayout!(theme.homeLayoutTemplate);
+      }
+    }, 100);
+  }
 };
 
 const FONTS = [
@@ -625,7 +699,7 @@ function SubPanelHeader({ title, onBack }: { title: string; onBack: () => void }
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION PANELS
 // ─────────────────────────────────────────────────────────────────────────────
-function StylePanel({ design, update }: any) {
+function StylePanel({ design, update, presetOptions }: any) {
   const currentPalette = PALETTES.find(p => p.id === design.palettePreset) || PALETTES[0];
   const backgroundColor = design.backgroundColor || currentPalette.bg;
   const textColor = design.textColor || currentPalette.text;
@@ -633,7 +707,7 @@ function StylePanel({ design, update }: any) {
   const applyTheme = (themeId: string) => {
     const theme = THEME_LIBRARY.find((t) => t.id === themeId);
     if (!theme) return;
-    applyThemePreset(update, theme);
+    applyThemePreset(update, theme, presetOptions);
   };
   const applyBrowsedFont = (font: string, target: "body" | "heading" | "both") => {
     if (target === "body" || target === "both") update("font", font);
@@ -765,11 +839,11 @@ function StylePanel({ design, update }: any) {
   );
 }
 
-function ThemeLibraryPanel({ design, update }: any) {
+function ThemeLibraryPanel({ design, update, presetOptions }: any) {
   const applyTheme = (themeId: string) => {
     const theme = THEME_LIBRARY.find((t) => t.id === themeId);
     if (!theme) return;
-    applyThemePreset(update, theme);
+    applyThemePreset(update, theme, presetOptions);
   };
 
   return (
@@ -1074,12 +1148,57 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
             suffix="px"
             onChange={(v: number) => update("checkoutInputRadius", v)}
           />
-          {(design.checkoutAccentColor || design.checkoutBgColor || design.checkoutInputRadius != null) && (
+          <div className="pt-4 border-t border-white/5 space-y-6">
+            <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic">
+              Cart drawer panel — leave blank for the classic white drawer.
+            </p>
+            <ColorPicker
+              label="Drawer background"
+              value={design.cartDrawerBg || ""}
+              onChange={(val) => update("cartDrawerBg", val)}
+            />
+            {design.cartDrawerBg && (
+              <ContrastBadge background={design.cartDrawerBg} text={design.cartDrawerText || "#000000"} />
+            )}
+            <ColorPicker
+              label="Drawer text"
+              value={design.cartDrawerText || ""}
+              onChange={(val) => update("cartDrawerText", val)}
+            />
+            <ColorPicker
+              label="Drawer muted text"
+              value={design.cartDrawerMuted || ""}
+              onChange={(val) => update("cartDrawerMuted", val)}
+            />
+            <ColorPicker
+              label="Drawer raised surface (pills, cards)"
+              value={design.cartDrawerSurface || ""}
+              onChange={(val) => update("cartDrawerSurface", val)}
+            />
+            <ColorPicker
+              label="Drawer dividers"
+              value={design.cartDrawerBorder || ""}
+              onChange={(val) => update("cartDrawerBorder", val)}
+            />
+            <SidebarToggle
+              label="Grayscale thumbnails"
+              description="Cart item covers render in black & white (classic look)"
+              checked={design.cartDrawerGrayscaleThumbs ?? !design.cartDrawerBg}
+              onChange={(v: boolean) => update("cartDrawerGrayscaleThumbs", v)}
+            />
+          </div>
+          {(design.checkoutAccentColor || design.checkoutBgColor || design.checkoutInputRadius != null || design.cartDrawerBg || design.cartDrawerText) && (
             <button
               onClick={() => {
                 update("checkoutAccentColor", undefined);
                 update("checkoutBgColor", undefined);
                 update("checkoutInputRadius", undefined);
+                update("cartDrawerBg", undefined);
+                update("cartDrawerText", undefined);
+                update("cartDrawerMuted", undefined);
+                update("cartDrawerSurface", undefined);
+                update("cartDrawerBorder", undefined);
+                update("cartDrawerGrayscaleThumbs", undefined);
               }}
               className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2 text-[10px] font-bold text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all uppercase tracking-wider"
             >
@@ -1207,6 +1326,108 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
         </div>
       </Accordion>
 
+      <Accordion title="Wordmark & Nav Pills">
+        <div className="space-y-6">
+          <div>
+            <SidebarLabel>Wordmark Style</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.wordmarkStyle || "logo"}
+              onChange={(v: string) => update("wordmarkStyle", v)}
+              options={[
+                { value: "logo", label: "Logo / text" },
+                { value: "two-part", label: "Two-part serif" },
+              ]}
+            />
+            <p className="text-[9px] text-slate-500 leading-relaxed mt-2">
+              "Two-part serif" renders a wordmark like <em>Lyricalmyrical Books</em> — both words the same
+              size in your heading font, second word muted.
+            </p>
+          </div>
+          {design.wordmarkStyle === "two-part" && (
+            <>
+              <SidebarInput
+                label="First word"
+                value={design.wordmarkPrimary ?? "Lyricalmyrical"}
+                onChange={(v: string) => update("wordmarkPrimary", v)}
+                placeholder="Lyricalmyrical"
+              />
+              <SidebarInput
+                label="Second word"
+                value={design.wordmarkSecondary ?? "Books"}
+                onChange={(v: string) => update("wordmarkSecondary", v)}
+                placeholder="Books"
+              />
+              <SidebarRange
+                label="Wordmark size"
+                value={design.wordmarkSize ?? 1.75}
+                min={1}
+                max={3}
+                step={0.05}
+                suffix="rem"
+                onChange={(v: number) => update("wordmarkSize", v)}
+              />
+              <SidebarRange
+                label="Wordmark weight"
+                value={design.wordmarkWeight ?? 600}
+                min={400}
+                max={800}
+                step={100}
+                onChange={(v: number) => update("wordmarkWeight", v)}
+              />
+              <SidebarToggle
+                label="Mute second word"
+                description="Render the second word at reduced opacity"
+                checked={design.wordmarkSecondaryMuted ?? true}
+                onChange={(v: boolean) => update("wordmarkSecondaryMuted", v)}
+              />
+            </>
+          )}
+          <div className="pt-2 border-t border-white/5">
+            <SidebarLabel>Nav Pill Style</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.navStyle || "default"}
+              onChange={(v: string) => update("navStyle", v)}
+              options={[
+                { value: "default", label: "Classic" },
+                { value: "stickers", label: "Sticker pills" },
+              ]}
+            />
+            <p className="text-[9px] text-slate-500 leading-relaxed mt-2">
+              Sticker pills give nav links an asymmetric corner shape and a slight rotation that
+              straightens on hover.
+            </p>
+          </div>
+          {design.navStyle === "stickers" && (
+            <>
+              <SidebarInput
+                label="Pill corner radius"
+                value={design.navPillRadius ?? "14px 4px 14px 4px"}
+                onChange={(v: string) => update("navPillRadius", v)}
+                placeholder="14px 4px 14px 4px"
+              />
+              <SidebarToggle
+                label="Rotate pills"
+                description="Give each pill a slight alternating tilt"
+                checked={design.navPillRotate ?? true}
+                onChange={(v: boolean) => update("navPillRotate", v)}
+              />
+              <SidebarToggle
+                label="Cycle active colors"
+                description="Active pills rotate through accent, success, gold and rose"
+                checked={design.navPillActivePalette ?? true}
+                onChange={(v: boolean) => update("navPillActivePalette", v)}
+              />
+            </>
+          )}
+          <SidebarInput
+            label="Enter Archive label"
+            value={design.enterArchiveLabel ?? "ENTER ARCHIVE"}
+            onChange={(v: string) => update("enterArchiveLabel", v)}
+            placeholder="ENTER ARCHIVE"
+          />
+        </div>
+      </Accordion>
+
       <div className="p-8 text-center bg-blue-50/50 rounded-[2.5rem] border border-blue-100 border-dashed mb-6">
         <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm shadow-blue-100">
            <LayoutTemplate size={20} className="text-blue-500" />
@@ -1237,6 +1458,35 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
             checked={design.footerColumns ?? true}
             onChange={(v: boolean) => update("footerColumns", v)}
           />
+          <div className="p-4 space-y-4">
+            <SidebarLabel>Custom Page Chrome</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.pageChromeStyle || "classic"}
+              onChange={(v: string) => update("pageChromeStyle", v)}
+              options={[
+                { value: "classic", label: "Classic (white)" },
+                { value: "theme", label: "Theme colors" },
+              ]}
+            />
+            <p className="text-[9px] text-slate-500 leading-relaxed">
+              "Theme colors" renders /page/… pages (About, Journal, …) in your storefront background,
+              text color and wordmark instead of the white editorial page.
+            </p>
+            <SidebarLabel>Footer Layout</SidebarLabel>
+            <SidebarRadioGroup
+              value={design.footerLayout || "3col"}
+              onChange={(v: string) => update("footerLayout", v)}
+              options={[
+                { value: "3col", label: "3 columns" },
+                { value: "4col", label: "4 columns + Location" },
+              ]}
+            />
+            <ColorPicker
+              label="Footer background (leave blank for default)"
+              value={design.footerBg || ""}
+              onChange={(val: string) => update("footerBg", val)}
+            />
+          </div>
           <SidebarToggle
             label="Social icons in footer"
             description="Display icons linking to your social accounts"
@@ -2423,6 +2673,34 @@ function ProductsPanel({ design, update }: any) {
             checked={design.showCatalogControls ?? false}
             onChange={(v: boolean) => update("showCatalogControls", v)}
           />
+          <div className="pt-4 border-t border-white/5 space-y-4">
+            <SidebarInput
+              label="Catalog heading (blank to hide)"
+              value={design.catalogHeading ?? ""}
+              onChange={(v: string) => update("catalogHeading", v)}
+              placeholder="The Archive"
+            />
+            <SidebarToggle
+              label="Show title count"
+              description={'Show "N titles" beside the catalog heading'}
+              checked={design.showCatalogCount ?? false}
+              onChange={(v: boolean) => update("showCatalogCount", v)}
+            />
+            <SidebarToggle
+              label="Category filter chips"
+              description="Pill filters above the grid (ALL / your categories) with an empty state"
+              checked={design.showCategoryChips ?? false}
+              onChange={(v: boolean) => update("showCategoryChips", v)}
+            />
+            {design.showCategoryChips && (
+              <SidebarToggle
+                label="Show counts on chips"
+                description={'Append "(N)" to each category chip'}
+                checked={design.categoryChipShowCounts ?? true}
+                onChange={(v: boolean) => update("categoryChipShowCounts", v)}
+              />
+            )}
+          </div>
           <div>
             <SidebarLabel>Cart Placement</SidebarLabel>
             <SidebarRadioGroup
@@ -2758,6 +3036,27 @@ function ProductsPanel({ design, update }: any) {
                   { value: "large", label: "Large" },
                 ]}
               />
+            </div>
+            <SidebarToggle
+              label="Quantity stepper"
+              description="Show a – / + quantity picker beside Add to Bag (respects stock limits)"
+              checked={design.showQtyStepper ?? false}
+              onChange={(v: boolean) => update("showQtyStepper", v)}
+            />
+            <div>
+              <SidebarLabel>Description Style</SidebarLabel>
+              <SidebarRadioGroup
+                value={design.productDescriptionStyle || "plain"}
+                onChange={(v) => update("productDescriptionStyle", v)}
+                options={[
+                  { value: "plain", label: "Plain" },
+                  { value: "designed", label: "Designed card" },
+                ]}
+              />
+              <p className="text-[9px] text-slate-500 leading-relaxed mt-2">
+                "Designed card" wraps the description in a surface card with an eyebrow label and serif lead
+                (edit the label under Content &amp; Text → Product page).
+              </p>
             </div>
           </div>
 
@@ -3113,6 +3412,43 @@ function AnnouncementsPanel({ design, update }: any) {
                 checked={design.announcementScrolling ?? false}
                 onChange={(v: boolean) => update("announcementScrolling", v)}
               />
+              {design.announcementScrolling && (
+                <div className="space-y-4 pt-4">
+                  <SidebarRange
+                    label="Scroll duration"
+                    value={design.announcementSpeed ?? 24}
+                    min={5}
+                    max={120}
+                    suffix="s"
+                    onChange={(v: number) => update("announcementSpeed", v)}
+                  />
+                  <SidebarRange
+                    label="Font size"
+                    value={design.announcementFontSize ?? 10}
+                    min={9}
+                    max={20}
+                    suffix="px"
+                    onChange={(v: number) => update("announcementFontSize", v)}
+                  />
+                  <SidebarRange
+                    label="Font weight"
+                    value={design.announcementWeight ?? 700}
+                    min={400}
+                    max={900}
+                    step={100}
+                    onChange={(v: number) => update("announcementWeight", v)}
+                  />
+                  <SidebarRange
+                    label="Letter spacing"
+                    value={design.announcementTracking ?? 0.3}
+                    min={0}
+                    max={0.5}
+                    step={0.02}
+                    suffix="em"
+                    onChange={(v: number) => update("announcementTracking", v)}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </Accordion>
@@ -5146,6 +5482,8 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [settingsSubTab, setSettingsSubTab] = useState<"sections" | "theme">("sections");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pages, setPages] = useState<any[]>([]);
+  // Static page templates + one dynamic "page:<slug>" template per published page.
+  const pageTemplates = useMemo(() => buildPageTemplates(pages), [pages]);
   const [syncPreview, setSyncPreview] = useState(true);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
   // "unsaved" | "draft" | "published"
@@ -5377,10 +5715,11 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         setActiveTab("settings");
         const secId = event.data.sectionId;
         const instId = event.data.instanceId;
-        const template = PAGE_TEMPLATES.find((tpl) => tpl.id === secId);
+        const template = pageTemplates.find((tpl) => tpl.id === secId);
         if (template) {
           setDesignSurface(template.id);
           setPreviewMode(template.previewMode);
+          if (template.pageSlug) setPreviewPageSlug(template.pageSlug);
         }
         if (instId) {
           setActiveSection(secId === "globalSections" ? "globalSections" : "homepage");
@@ -5435,7 +5774,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           update("globalSections", updated, true);
         } else {
           // 2. Find the page-template surface that owns the clicked section.
-          const owningTemplate = PAGE_TEMPLATES.find((tpl) =>
+          const owningTemplate = pageTemplates.find((tpl) =>
             ((design?.[tpl.id]?.sections || design?.[tpl.id]?.homepageSections || []) as any[]).some((s: any) => s.id === sectionId),
           );
           const surfaceId = owningTemplate?.id || designSurface;
@@ -5469,7 +5808,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           update("globalSections", reorder(globalSectionsList), true);
           return;
         }
-        const owningTemplate = PAGE_TEMPLATES.find((tpl) => {
+        const owningTemplate = pageTemplates.find((tpl) => {
           const list = (design?.[tpl.id]?.sections || design?.[tpl.id]?.homepageSections || []) as any[];
           return list.some((s: any) => s.id === dragId) && list.some((s: any) => s.id === dropId);
         });
@@ -5490,7 +5829,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [design, previewDesign, designSurface]);
+  }, [design, previewDesign, designSurface, pageTemplates]);
 
   // Echo the selected section instance back to the preview so it stays highlighted.
   useEffect(() => {
@@ -5611,6 +5950,56 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     setSaved(false);
     setSaveStatus("unsaved");
   }, [designSurface]);
+
+  // Bulk-write a set of design keys to the root AND both page surfaces in one
+  // history step. Full-theme presets need this: the storefront resolves
+  // `design.heroPage ?? design` / `design.storefront ?? design` object-first,
+  // so keys written only to the root are shadowed by existing surface clones.
+  const applyGlobalDesignKeys = useCallback((keys: Record<string, any>) => {
+    setDesign((prev: any) => {
+      setPastDesigns((prevHistory) => [...prevHistory.slice(-74), prev]);
+      setFutureDesigns([]);
+      return {
+        ...prev,
+        ...keys,
+        heroPage: { ...(prev?.heroPage || {}), ...keys },
+        storefront: { ...(prev?.storefront || {}), ...keys },
+      };
+    });
+    setSaved(false);
+    setSaveStatus("unsaved");
+  }, []);
+
+  // Install a curated homepage layout onto the homepage (heroPage) surface,
+  // preserving the current section stack as the alternate (A/B) layout.
+  const installHomepageLayout = useCallback((templateId: string) => {
+    const tpl = HOME_LAYOUT_TEMPLATES.find((t) => t.id === templateId);
+    if (!tpl) return;
+    setDesign((prev: any) => {
+      setPastDesigns((prevHistory) => [...prevHistory.slice(-74), prev]);
+      setFutureDesigns([]);
+      const heroPage = prev?.heroPage || {};
+      const currentSections = heroPage.sections || [];
+      return {
+        ...prev,
+        heroPage: {
+          ...heroPage,
+          altSections: currentSections.length
+            ? JSON.parse(JSON.stringify(currentSections))
+            : heroPage.altSections,
+          sections: buildTemplateSections(tpl),
+        },
+      };
+    });
+    setSaved(false);
+    setSaveStatus("unsaved");
+    toast.success(`Installed the "${tpl.name}" homepage layout`, { icon: "🧩" });
+  }, []);
+
+  const themePresetOptions = useMemo(
+    () => ({ applyGlobal: applyGlobalDesignKeys, installHomepageLayout }),
+    [applyGlobalDesignKeys, installHomepageLayout],
+  );
 
   const undo = () => {
     if (pastDesigns.length === 0) return;
@@ -5919,7 +6308,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
 
   const renderSubPanel = () => {
     switch (activeSection) {
-      case "style":         return <StylePanel design={activeDesign} update={update} />;
+      case "style":         return <StylePanel design={activeDesign} update={update} presetOptions={themePresetOptions} />;
       case "navigation":    return <NavigationPanel design={activeDesign} update={update} setActiveTab={setActiveTab} setActiveSection={setActiveSection} />;
       case "menus":         return <MenuBuilderPanel design={activeDesign} update={update} pages={pages} />;
       case "homepage":      return (
@@ -6048,7 +6437,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       label: `Apply theme: ${theme.name}`,
       group: "Theme Library",
       keywords: theme.mood,
-      perform: () => applyThemePreset(update, theme),
+      perform: () => applyThemePreset(update, theme, themePresetOptions),
     })),
   ];
 
@@ -6565,7 +6954,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                           <div className="mb-4">
                             <p className="text-[8px] font-black tracking-[0.3em] text-slate-600 uppercase italic mb-2">Editing template</p>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              {PAGE_TEMPLATES.map((tpl) => {
+                              {pageTemplates.map((tpl) => {
                                 const active = designSurface === tpl.id;
                                 return (
                                   <button
@@ -6573,6 +6962,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                                     onClick={() => {
                                       setDesignSurface(tpl.id as any);
                                       setPreviewMode(tpl.previewMode);
+                                      if (tpl.pageSlug) setPreviewPageSlug(tpl.pageSlug);
                                     }}
                                     title={tpl.description}
                                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[9px] font-black tracking-[0.2em] uppercase transition-all border ${
@@ -6586,6 +6976,16 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                                 );
                               })}
                             </div>
+                            {designSurface.startsWith("page:") && (
+                              <div className="mt-3">
+                                <SidebarToggle
+                                  label="Hide page body text"
+                                  description="Show only this page's sections; hides the title + body written under Pages"
+                                  checked={activeDesign.hidePageBody ?? false}
+                                  onChange={(v: boolean) => update("hidePageBody", v)}
+                                />
+                              </div>
+                            )}
                             <p className="text-[8px] text-slate-700 font-black tracking-widest mt-3">
                               {filteredSections.filter(s => s.pages.includes(previewMode) || s.pages.includes("both")).length} settings
                             </p>
@@ -6790,7 +7190,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                     <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Theme Library</h2>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-                    <ThemeLibraryPanel design={activeDesign} update={update} />
+                    <ThemeLibraryPanel design={activeDesign} update={update} presetOptions={themePresetOptions} />
                   </div>
                 </motion.div>
               ) : activeTab === "guide" ? (

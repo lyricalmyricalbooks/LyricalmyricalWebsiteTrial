@@ -13,6 +13,31 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
   const logoColor = design?.logoColor;
   const text = design?.logoText ?? defaultText;
 
+  // Two-part wordmark ("Lyricalmyrical Books"): both words share the same
+  // size and (heading) font; the second word can be muted.
+  if (design?.wordmarkStyle === "two-part") {
+    const size = design?.wordmarkSize ?? 1.75;
+    const weight = design?.wordmarkWeight ?? 600;
+    return (
+      <span
+        className="flex items-baseline gap-2 whitespace-nowrap normal-case"
+        style={{
+          ...(design?.headingFont ? { fontFamily: `'${design.headingFont}', serif` } : {}),
+          fontSize: `${size}rem`,
+          fontWeight: weight,
+          letterSpacing: "-0.01em",
+          lineHeight: 1,
+          ...(logoColor ? { color: logoColor } : {}),
+        }}
+      >
+        <span>{design?.wordmarkPrimary || "Lyricalmyrical"}</span>
+        <span style={design?.wordmarkSecondaryMuted === false ? undefined : { opacity: 0.56 }}>
+          {design?.wordmarkSecondary || "Books"}
+        </span>
+      </span>
+    );
+  }
+
   if (design?.logoUrl) {
     // Recolor (tint) a single-color / transparent logo with the theme's logo color.
     if (design?.logoTint) {
