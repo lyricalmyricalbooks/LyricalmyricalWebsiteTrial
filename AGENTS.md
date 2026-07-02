@@ -110,6 +110,12 @@ enhance it:
    entry **+** verify it actually shows on the live storefront, not just the
    editor preview. The single section library is the registry-driven
    `NewSectionLibraryModal` (the legacy `SECTION_TEMPLATES` has been removed).
+   Parity is also enforced by a permanent test
+   (`src/app/components/sectionParity.test.ts`). Custom pages can carry their
+   own section stacks via dynamic `page:<slug>` templates
+   (`buildPageTemplates` in `ThemeEditorExtensions.tsx`), and full-theme
+   presets can bulk-apply a `global` token record (see the
+   "Lyricalmyrical Punk" entry in `THEME_LIBRARY`).
 3. **Work the roadmap, complete a milestone end-to-end.** Pick a checklist item
    from the roadmap in `docs/THEME_EDITOR.md` (sections-everywhere, more section
    types, live-preview/UX, theme management), finish it fully, then **tick it off

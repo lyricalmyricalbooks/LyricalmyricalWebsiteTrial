@@ -30,6 +30,36 @@ import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { SearchOverlay } from "../features/site/SearchOverlay";
 
 // ──────────────────────────────
+// Sticker-pill navigation (navStyle: "stickers") — asymmetric border radius,
+// slight per-pill rotation, hover straighten + scale, and a cycling active
+// palette. All knobs come from design keys; navStyle "default" renders the
+// classic nav untouched.
+// ──────────────────────────────
+const STICKER_ROTATIONS = [-2, 1.5, 2, -1, 1, -1.5];
+const STICKER_ACTIVE_COLORS = [
+  { bg: "var(--accent, #A855F7)", text: "#ffffff" },
+  { bg: "var(--success, #34d399)", text: "#04150f" },
+  { bg: "var(--warning, #f5b942)", text: "#2b1a05" },
+  { bg: "var(--danger, #fb7185)", text: "#2b0810" },
+];
+const STICKER_PILL_CSS =
+  ".fm-sticker-pill{transition:all .2s ease}.fm-sticker-pill:hover{transform:rotate(0deg) scale(1.08)!important;opacity:1!important}";
+
+function stickerPillStyle(design: any, index: number, active = false): CSSProperties {
+  const rotate = design?.navPillRotate === false ? 0 : STICKER_ROTATIONS[index % STICKER_ROTATIONS.length];
+  const activeColors = design?.navPillActivePalette === false
+    ? STICKER_ACTIVE_COLORS[0]
+    : STICKER_ACTIVE_COLORS[index % STICKER_ACTIVE_COLORS.length];
+  return {
+    borderRadius: design?.navPillRadius || "14px 4px 14px 4px",
+    transform: `rotate(${rotate}deg)`,
+    padding: "0.5rem 1.05rem",
+    fontWeight: 700,
+    ...(active ? { backgroundColor: activeColors.bg, color: activeColors.text, opacity: 1 } : {}),
+  };
+}
+
+// ──────────────────────────────
 // Image with skeleton loader
 // ──────────────────────────────
 function SkeletonImage({ src, alt, className, style }: { src: string; alt: string; className?: string; style?: CSSProperties }) {
@@ -334,12 +364,25 @@ const PAYMENT_ICONS: Record<string, React.ReactNode> = {
 // ──────────────────────────────
 function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: any[]; onAboutOpen: () => void }) {
   const navPages = (pages || []).filter(p => p.showInNav && p.status === "published");
+  const rawDesign = settings?.design || {};
+  const d = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? rawDesign.storefront : rawDesign;
+  const fourCol = d?.footerLayout === "4col";
+  const headingFontFamily = d?.headingFont ? `'${d.headingFont}', serif` : undefined;
   return (
-    <footer className="border-t border-white/10 bg-black/40 backdrop-blur-xl">
-      <div className="max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-3 gap-10 text-[11px] text-white/40">
+    <footer
+      className="border-t border-white/10 bg-black/40 backdrop-blur-xl"
+      style={d?.footerBg ? { backgroundColor: d.footerBg } : undefined}
+    >
+      <div className={`max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 ${fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/40`}>
         {/* Col 1: Brand */}
         <div className="space-y-4">
-          <p className="text-white font-bold tracking-widest text-xs">LYRICALMYRICAL BOOKS</p>
+          {d?.wordmarkStyle === "two-part" ? (
+            <p className="text-white text-xl" style={{ fontFamily: headingFontFamily, fontWeight: d?.wordmarkWeight ?? 600, letterSpacing: "-0.01em" }}>
+              {d.wordmarkPrimary || "Lyricalmyrical"} <span className="opacity-60">{d.wordmarkSecondary || "Books"}</span>
+            </p>
+          ) : (
+            <p className="text-white font-bold tracking-widest text-xs">LYRICALMYRICAL BOOKS</p>
+          )}
           <p className="leading-relaxed max-w-xs">
             {settings?.info?.description || getCopy(settings?.design, "footerAbout")}
           </p>
@@ -381,8 +424,22 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
           {settings?.policies?.shipping && <p className="hover:text-white cursor-default transition-colors">Shipping Policy</p>}
           {settings?.policies?.returns && <p className="hover:text-white cursor-default transition-colors">Returns Policy</p>}
           {settings?.policies?.privacy && <p className="hover:text-white cursor-default transition-colors">Privacy Policy</p>}
-          <p className="mt-6">{getCopy(settings?.design, "footerLocation")}</p>
+          {!fourCol && <p className="mt-6">{getCopy(settings?.design, "footerLocation")}</p>}
         </div>
+
+        {/* Col 4: Location (4-column layout only) */}
+        {fourCol && (
+          <div className="space-y-3">
+            <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLocationHeading")}</p>
+            <p>{getCopy(settings?.design, "footerLocation")}</p>
+            <a
+              href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
+              className="block hover:text-white transition-colors"
+            >
+              {settings?.info?.email || "lyricalmyricalbooks@gmail.com"}
+            </a>
+          </div>
+        )}
       </div>
 
       {/* Bottom bar */}
@@ -810,6 +867,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   }, []);
 
   useEffect(() => {
+    // "ALL" is the category-chip pseudo-category (shows every published book).
+    if (activeCategory === "ALL") return;
     if (categories.length > 0 && !categories.includes(activeCategory)) {
       setActiveCategory(categories[0]);
     }
@@ -817,10 +876,24 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   const publications = useMemo(() => getPublications(getFeaturedBooks(books)), [books]);
   const baseFilteredItems = useMemo(
-    () => getFilteredItems(books, activeCategory, new Date().toISOString()),
+    () =>
+      activeCategory === "ALL"
+        ? getPublishedBooks(books)
+        : getFilteredItems(books, activeCategory, new Date().toISOString()),
     [books, activeCategory],
   );
   const publishedBooks = useMemo(() => getPublishedBooks(books), [books]);
+
+  // Category filter chip counts ("ALL (8)", "EPHEMERA (2)", …)
+  const categoryChipCounts = useMemo(() => {
+    const nowISO = new Date().toISOString();
+    const counts: Record<string, number> = { ALL: getPublishedBooks(books).length };
+    for (const cat of categories) {
+      const name = typeof cat === "string" ? cat : cat?.name;
+      if (name) counts[name] = getFilteredItems(books, cat, nowISO).length;
+    }
+    return counts;
+  }, [books, categories]);
 
   // Catalog controls: search + sort + in-stock filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -1008,18 +1081,46 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       >
         <TypographyTokens design={storefrontDesign} />
         {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
+        {storefrontDesign?.navStyle === "stickers" && <style>{STICKER_PILL_CSS}</style>}
         {/* Promo / announcement banner */}
         {showAnnouncement && announcementMsg && (
-          <div
-            data-section="announcements"
-            className="text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]"
-            style={{
-              backgroundColor: storefrontDesign?.announcementBg || "#000000",
-              color: storefrontDesign?.announcementColor || "#ffffff",
-            }}
-          >
-            {announcementMsg}
-          </div>
+          storefrontDesign?.announcementScrolling ? (
+            <div
+              data-section="announcements"
+              className="overflow-hidden py-2.5 sticky top-0 z-[60]"
+              style={{
+                backgroundColor: storefrontDesign?.announcementBg || "#000000",
+                color: storefrontDesign?.announcementColor || "#ffffff",
+              }}
+            >
+              <div
+                className="flex w-max animate-marquee font-bold uppercase"
+                style={{
+                  ["--marquee-duration" as any]: `${Math.max(5, Math.min(120, storefrontDesign?.announcementSpeed ?? 24))}s`,
+                  fontSize: storefrontDesign?.announcementFontSize ?? 10,
+                  fontWeight: storefrontDesign?.announcementWeight ?? 700,
+                  letterSpacing: `${storefrontDesign?.announcementTracking ?? 0.3}em`,
+                }}
+              >
+                {[0, 1].map((copy) => (
+                  <span key={copy} aria-hidden={copy === 1} className="px-8 whitespace-nowrap">
+                    {Array.from({ length: 4 }).map(() => announcementMsg).join("        ")}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div
+              data-section="announcements"
+              className="text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]"
+              style={{
+                backgroundColor: storefrontDesign?.announcementBg || "#000000",
+                color: storefrontDesign?.announcementColor || "#ffffff",
+              }}
+            >
+              {announcementMsg}
+            </div>
+          )
         )}
 
         <header
@@ -1097,18 +1198,25 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 </button>
               )}
               
-              <nav className="hidden md:flex gap-6">
-                {categories.filter((c: any) => c.showInNav !== false).map((cat: any) => {
+              <nav className={`hidden md:flex ${storefrontDesign?.navStyle === "stickers" ? "gap-2 items-center" : "gap-6"}`}>
+                {categories.filter((c: any) => c.showInNav !== false).map((cat: any, catIdx: number) => {
                   const catName = typeof cat === "string" ? cat : cat.name;
                   const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === catName;
+                  const stickers = storefrontDesign?.navStyle === "stickers";
                   return (
                     <button
                       key={catName}
                       onClick={() => setActiveCategory(cat)}
-                      style={{ color: headerTextColor }}
+                      style={{
+                        color: headerTextColor,
+                        ...(stickers ? stickerPillStyle(storefrontDesign, catIdx, isActive) : {}),
+                      }}
                       className={`text-[10px] tracking-[0.2em] font-medium transition-all ${
+                        stickers ? "fm-sticker-pill" : ""
+                      } ${
                         isActive ? "opacity-100" : "opacity-40 hover:opacity-80 hover-text-accent"
                       }`}
+                      aria-current={isActive ? "true" : undefined}
                     >
                       {catName}
                     </button>
@@ -1154,17 +1262,20 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   )}
                   {(pages || [])
                     .filter((p: any) => p.showInNav && p.status === "published")
-                    .map((page: any) => (
+                    .map((page: any, pageIdx: number) => (
                       <Link
                         key={page.id}
                         to={`/page/${page.slug}`}
-                        className="opacity-40 hover:opacity-100 transition-opacity whitespace-nowrap"
+                        className={`opacity-40 hover:opacity-100 transition-opacity whitespace-nowrap ${
+                          storefrontDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
+                        }`}
                         style={{
                           fontSize: storefrontDesign?.navLinkSize ? `${storefrontDesign.navLinkSize}px` : "10px",
                           letterSpacing: storefrontDesign?.navLinkSpacing != null ? `${storefrontDesign.navLinkSpacing}em` : "0.2em",
                           fontWeight: storefrontDesign?.navLinkWeight || undefined,
                           textTransform: (storefrontDesign?.navLinkTransform as any) || "uppercase",
                           ...(storefrontDesign?.navLinkColor && { color: storefrontDesign.navLinkColor }),
+                          ...(storefrontDesign?.navStyle === "stickers" ? stickerPillStyle(storefrontDesign, pageIdx + 2) : {}),
                         }}
                       >
                         {page.title}
@@ -1177,8 +1288,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               {showInformation && (
                 <button
                   onClick={() => setShowAbout(true)}
-                  style={{ color: headerTextColor }}
-                  className="text-[10px] tracking-[0.2em] opacity-50 hover:opacity-100 transition-opacity hidden md:block"
+                  style={{
+                    color: headerTextColor,
+                    ...(storefrontDesign?.navStyle === "stickers" ? stickerPillStyle(storefrontDesign, 3) : {}),
+                  }}
+                  className={`text-[10px] tracking-[0.2em] opacity-50 hover:opacity-100 transition-opacity hidden md:block ${
+                    storefrontDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
+                  }`}
                 >
                   INFORMATION
                 </button>
@@ -1228,12 +1344,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   onClick={() => setIsCartOpen(true)}
                   className={`group flex items-center gap-2 px-4 py-2 transition-all hover:scale-[1.02] store-btn-primary ${
                     storefrontButtonShadow ? "shadow-lg" : ""
-                  }`}
+                  } ${storefrontDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""}`}
                   style={{
                     backgroundColor: storefrontButtonStyle === "solid" ? storefrontButtonBg : "transparent",
                     color: storefrontButtonStyle === "solid" ? storefrontButtonText : storefrontButtonBg,
                     border: storefrontButtonStyle !== "solid" ? `1px solid ${storefrontButtonBg}` : "none",
                     borderRadius: storefrontButtonRadius,
+                    ...(storefrontDesign?.navStyle === "stickers"
+                      ? { borderRadius: storefrontDesign?.navPillRadius || "14px 4px 14px 4px", transform: "rotate(2deg)" }
+                      : {}),
                   }}
                 >
                   <span className={`text-[10px] tracking-[0.2em] font-semibold ${storefrontButtonUppercase ? "uppercase" : ""}`}>
@@ -1260,6 +1379,45 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         <main className="mx-auto px-6 py-12 md:py-20" style={{ maxWidth: isReferenceCatalog ? storefrontHeaderMaxWidth : storefrontMaxWidth }}>
           {/* Theme-editor sections authored for the storefront page template */}
           <TemplateSections design={activeDesign} templateId="storefront" books={books} />
+
+          {/* Catalog heading + title count */}
+          {(storefrontDesign?.catalogHeading || storefrontDesign?.showCatalogCount) && (
+            <div className="flex items-baseline justify-between flex-wrap gap-4 mb-8">
+              {storefrontDesign?.catalogHeading && (
+                <h1 className="text-3xl md:text-5xl tracking-tight m-0">{storefrontDesign.catalogHeading}</h1>
+              )}
+              {storefrontDesign?.showCatalogCount && (
+                <span className="text-xs fm-muted">
+                  {filteredItems.length} title{filteredItems.length === 1 ? "" : "s"}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Category filter chips */}
+          {storefrontDesign?.showCategoryChips && (
+            <div className="flex gap-2.5 flex-wrap mb-10">
+              {[{ name: "ALL", value: "ALL" as any }, ...categories.filter((c: any) => c.showInNav !== false).map((c: any) => ({ name: typeof c === "string" ? c : c.name, value: c }))].map((chip: any) => {
+                const isActive = chip.value === "ALL"
+                  ? activeCategory === "ALL"
+                  : (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === chip.name;
+                const count = categoryChipCounts[chip.name] ?? 0;
+                return (
+                  <button
+                    key={chip.name}
+                    onClick={() => setActiveCategory(chip.value)}
+                    aria-pressed={isActive}
+                    className={`rounded-full border px-4 py-2 text-[11px] font-bold tracking-[0.06em] uppercase transition-colors ${
+                      isActive ? "fm-active border-transparent" : "border-white/10 fm-muted hover:border-white/40"
+                    }`}
+                  >
+                    {chip.name}
+                    {storefrontDesign?.categoryChipShowCounts !== false && ` (${count})`}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Category Header */}
           <AnimatePresence mode="wait">
@@ -1479,7 +1637,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     >
       <TypographyTokens design={heroDesign} />
       {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
-      <header 
+      {heroDesign?.navStyle === "stickers" && <style>{STICKER_PILL_CSS}</style>}
+      <header
         className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-6 transition-all duration-500 border-b ${scrolled ? "backdrop-blur-xl py-4" : "border-transparent bg-gradient-to-b from-black/70 to-transparent"}`}
         style={{
           backgroundColor: scrolled ? (heroDesign?.headerBg || "rgba(0,0,0,0.8)") : "transparent",
@@ -1498,10 +1657,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           {showEnterArchive && (
             <button
               onClick={() => setShowCatalog(true)}
-              style={{ color: homeHeaderTextColor }}
-              className="text-[10px] md:text-xs tracking-[0.3em] font-bold hover:opacity-75 transition-opacity"
+              style={{
+                color: homeHeaderTextColor,
+                ...(heroDesign?.navStyle === "stickers" ? stickerPillStyle(heroDesign, 1) : {}),
+              }}
+              className={`text-[10px] md:text-xs tracking-[0.3em] font-bold hover:opacity-75 transition-opacity ${
+                heroDesign?.navStyle === "stickers" ? "fm-sticker-pill opacity-70" : ""
+              }`}
             >
-              ENTER ARCHIVE
+              {heroDesign?.enterArchiveLabel || "ENTER ARCHIVE"}
             </button>
           )}
         </div>
@@ -1526,8 +1690,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           {showInformation && (
             <button
               onClick={() => setShowAbout(true)}
-              style={{ color: homeHeaderTextColor }}
-              className="text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-80 hover:opacity-100 transition-opacity hidden md:block"
+              style={{
+                color: homeHeaderTextColor,
+                ...(heroDesign?.navStyle === "stickers" ? stickerPillStyle(heroDesign, 3) : {}),
+              }}
+              className={`text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-80 hover:opacity-100 transition-opacity hidden md:block ${
+                heroDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
+              }`}
             >
               INFORMATION
             </button>
@@ -1546,17 +1715,20 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               )}
               {(pages || [])
                 .filter((p: any) => p.showInNav && p.status === "published")
-                .map((page: any) => (
+                .map((page: any, pageIdx: number) => (
                   <Link
                     key={page.id}
                     to={`/page/${page.slug}`}
-                    className="opacity-60 hover:opacity-100 transition-opacity"
+                    className={`opacity-60 hover:opacity-100 transition-opacity ${
+                      heroDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
+                    }`}
                     style={{
                       fontSize: heroDesign?.navLinkSize ? `${heroDesign.navLinkSize}px` : "10px",
                       letterSpacing: heroDesign?.navLinkSpacing != null ? `${heroDesign.navLinkSpacing}em` : "0.2em",
                       fontWeight: heroDesign?.navLinkWeight || "500",
                       textTransform: (heroDesign?.navLinkTransform as any) || "uppercase",
                       ...(heroDesign?.navLinkColor && { color: heroDesign.navLinkColor }),
+                      ...(heroDesign?.navStyle === "stickers" ? stickerPillStyle(heroDesign, pageIdx + 2) : {}),
                     }}
                   >
                     {page.title}
@@ -1579,12 +1751,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               onClick={() => setIsCartOpen(true)}
               className={`group flex items-center gap-2 px-5 py-2.5 transition-all hover:scale-[1.02] store-btn-primary ${
                 heroButtonShadow ? "shadow-lg" : ""
-              }`}
+              } ${heroDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""}`}
               style={{
                 backgroundColor: heroButtonStyle === "solid" ? heroButtonBg : "transparent",
                 color: heroButtonStyle === "solid" ? heroButtonText : heroButtonBg,
                 border: heroButtonStyle !== "solid" ? `1px solid ${heroButtonBg}` : "none",
                 borderRadius: heroButtonRadius,
+                ...(heroDesign?.navStyle === "stickers"
+                  ? { borderRadius: heroDesign?.navPillRadius || "14px 4px 14px 4px", transform: "rotate(2deg)" }
+                  : {}),
               }}
             >
               <span className={`text-[10px] tracking-[0.2em] font-bold ${heroButtonUppercase ? "uppercase" : ""}`}>

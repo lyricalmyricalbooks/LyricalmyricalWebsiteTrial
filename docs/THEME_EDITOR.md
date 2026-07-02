@@ -94,6 +94,22 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
 - `adminApi.schedulePublish(design, at)` stores `scheduledPublish` so the
   storefront can promote a design at a future time.
 - `design.sectionPresets` holds saved section presets.
+- **Per-page section stacks** live at `design["page:<slug>"]` — one dynamic
+  surface per published custom page, listed by `buildPageTemplates(pages)`
+  (`ThemeEditorExtensions.tsx`) and shown as extra template pills. `PageView`
+  renders that surface when it has sections and falls back to the shared
+  `design.page.sections` otherwise; `design["page:<slug>"].hidePageBody`
+  suppresses the legacy title + body HTML so a page can be fully
+  section-built. Fully backward compatible — pages without a per-page stack
+  behave exactly as before.
+- **Full-theme presets** (`THEME_LIBRARY` in `ThemeEditor.tsx`) may carry a
+  `global` record; `applyThemePreset` bulk-writes those keys to the design
+  **root and both page surfaces** (heroPage/storefront) in one undo step via
+  `applyGlobalDesignKeys`. This matters because the storefront resolves
+  `design.heroPage ?? design` object-first, so surface clones shadow
+  root-only writes. A preset may also name a `homeLayoutTemplate`
+  (`HOME_LAYOUT_TEMPLATES` id), offered opt-in (confirm dialog) after apply.
+  Reference implementation: `lyricalmyrical-punk`.
 
 ## Known gaps & inconsistencies (seed for the roadmap)
 
@@ -167,6 +183,35 @@ library → verify), then check it off.
       Collection list, Featured product, Blog posts, Countdown, Contact form,
       Map, Gallery, Row, Marquee, Logo list, Collapsible, Text content,
       Custom HTML).
+- [x] "Lyricalmyrical Punk" design shipped end-to-end (violet-on-black,
+      Cormorant Garamond headings / Inter body). Four new catalog-driven
+      sections: `ProductCoverCarouselSection` (hero auto-cycling book covers
+      with dots, scrim, color-blend overlay, film grain),
+      `ProductShowcaseGridSection` (4:5 covers, category tags, quick-add via
+      `useCart()`, duotone + grain), `StaffNotesTableSection` (books-driven
+      table; per-book note blocks resolved by `resolveStaffNoteRows` in
+      `features/site/staffNotes.ts`, keyboard-accessible rows), and
+      `EphemeraRowSection` (pure-CSS decorative objects as blocks). Section
+      extensions: HeroSection `eyebrow`/`titleItalic`/`metaText`/
+      `sideImageUrl`/`ctaUrl`; MarqueeSection `fontWeight`/`letterSpacing`.
+      Theme plumbing: `punk` palette + `lyricalmyrical-punk` THEME_LIBRARY
+      preset with a full `global` token record, and `lyricalmyrical-punk` /
+      `lyricalmyrical-about` / `lyricalmyrical-journal` layout templates in
+      `HOME_LAYOUT_TEMPLATES` (the About/Journal ones are applied while a
+      per-page template pill is active). Chrome counterparts (settings-gated,
+      defaults preserve the old look): sticker-pill nav + two-part wordmark
+      (`navStyle`/`wordmarkStyle` etc., rendered by `MainSite` + `LogoMark`),
+      a real scrolling announcement marquee (`announcementScrolling` now
+      honored, plus speed/size/weight/tracking), catalog heading/count +
+      category filter chips (`showCategoryChips`, adds an "ALL"
+      pseudo-category), 4-column footer (`footerLayout`/`footerBg` +
+      `footerLocationHeading` copy), themeable cart drawer
+      (`cartDrawerBg/Text/Muted/Surface/Border`, `cartDrawerGrayscaleThumbs`),
+      themed custom-page chrome (`pageChromeStyle`), product-page quantity
+      stepper (`showQtyStepper`; `addToCart(product, variant?, quantity)`)
+      and designed description card (`productDescriptionStyle`). Bugfix:
+      `ProductGridHeaderSection`'s "Featured" source now filters on
+      `isFeatured` (it previously matched every book).
 
 ### C. Live preview & editing UX
 - [x] Inline click-to-edit routes preview clicks to the correct section/template panel and keeps the selected section highlighted.
@@ -399,6 +444,8 @@ Our renderers must stay shallow.
   - Registry types: `grep -oE 'type: "\w+Section"' src/app/admin/ThemeEditorExtensions.tsx`
   - Renderers: `grep -E 'export function \w+Section' src/app/components/SectionComponents.tsx`
   - Every registry `type` should have an identically named renderer.
+  - This grep is also enforced as a permanent Vitest test:
+    `src/app/components/sectionParity.test.ts` (runs with `npm test`).
 - Run the app (`npm run dev`), open `/admin` → theme editor, add/edit/reorder the
   affected section, then **load the live storefront** and confirm it renders,
   toggles visibility, and survives save → publish.

@@ -15,7 +15,7 @@ interface CartItem {
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (product: any, variant?: any) => void;
+  addToCart: (product: any, variant?: any, quantity?: number) => void;
   removeFromCart: (id: string, variantId?: string) => void;
   updateQuantity: (id: string, variantId: string | undefined, delta: number) => void;
   clearCart: () => void;
@@ -27,6 +27,16 @@ interface CartContextType {
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
+
+/**
+ * Pure quantity merge: existing line quantity + requested amount, clamped to
+ * the stock limit (999 = untracked stock). Exported for tests.
+ */
+export function nextCartQuantity(existingQty: number, requested: number, stockLimit?: number): number {
+  const req = Math.max(1, Math.floor(requested) || 1);
+  const next = Math.max(0, existingQty) + req;
+  return typeof stockLimit === "number" && stockLimit !== 999 ? Math.min(next, stockLimit) : next;
+}
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -49,7 +59,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("fm_cart", JSON.stringify(cart));
   }, [cart]);
 
-  const addToCart = (product: any, variant?: any) => {
+  const addToCart = (product: any, variant?: any, quantity: number = 1) => {
     const stockLimit = variant ? (variant.stockLevel ?? variant.stock) : product.stockLevel;
     if (stockLimit === 0) return;
 
@@ -60,17 +70,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
           return prev;
         }
         return prev.map(i => i === existing
-          ? { ...i, quantity: i.quantity + 1 }
+          ? { ...i, quantity: nextCartQuantity(existing.quantity, quantity, stockLimit) }
           : i
         );
       }
+      const initial = nextCartQuantity(0, quantity, stockLimit);
       return [...prev, {
         id: product.id,
         variantId: variant?.id,
         variantName: variant?.name,
         title: product.title,
         price: variant ? variant.price : (product.isOnSale ? product.salePrice : product.retailPrice),
-        quantity: 1,
+        quantity: initial,
         photoUrl: (variant && variant.photoUrl) ? variant.photoUrl : (product.photos?.[0]?.url || ""),
         stripePriceId: variant?.stripePriceId || product.stripePriceId || "",
         stockLimit: typeof stockLimit === "number" ? stockLimit : undefined,

@@ -54,6 +54,7 @@ export default function BookDetail() {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imgBg, setImgBg]             = useState("transparent");
   const [selectedVariant, setSelectedVariant] = useState<any>(null);
+  const [qty, setQty]                 = useState(1);
 
   const book: Book | undefined = books.find(
     (b) => b.id === slug || b.slug === slug ||
@@ -95,6 +96,8 @@ export default function BookDetail() {
   const productCtaSize         = storefrontDesign.productCtaSize         || "large";
   const productTrustLayout     = storefrontDesign.productTrustLayout     || "row";
   const productBundleLayout    = storefrontDesign.productBundleLayout    || "bordered";
+  const showQtyStepper         = storefrontDesign.showQtyStepper         ?? settings?.design?.showQtyStepper         ?? false;
+  const productDescriptionStyle = storefrontDesign.productDescriptionStyle || settings?.design?.productDescriptionStyle || "plain";
 
   // Tab & Accordion states
   const [detailsTab, setDetailsTab] = useState<"description" | "specs" | "reviews">("description");
@@ -223,6 +226,7 @@ export default function BookDetail() {
     window.scrollTo(0, 0);
     setActivePhoto(0);
     setImageLoaded(false);
+    setQty(1);
     if (typeof window !== "undefined" && window.location.search.includes("preview=true")) {
       window.parent.postMessage({ type: "PREVIEW_READY" }, "*");
     }
@@ -232,7 +236,7 @@ export default function BookDetail() {
     if (!book) return;
     const stock = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any).stockLevel ?? 999);
     if (stock === 0) return;
-    addToCart(book, selectedVariant || undefined);
+    addToCart(book, selectedVariant || undefined, showQtyStepper ? qty : 1);
     funnelApi.track("add_to_cart");
     setAdded(true);
     setTimeout(() => setAdded(false), 2500);
@@ -655,11 +659,29 @@ export default function BookDetail() {
 
               {/* Description */}
               {productDetailsLayout === "sections" && (book as any).description && (
+                productDescriptionStyle === "designed" ? (
+                  <div className={`w-full fm-surface border border-white/10 rounded-2xl p-6 md:p-8 ${
+                    productAlignment === "center" ? "text-center" : "text-left"
+                  }`}>
+                    <p className="text-[9px] font-black tracking-[0.3em] uppercase mb-4" style={{ color: "var(--accent, #A855F7)" }}>
+                      {getCopy(settings?.design, "productDescriptionLabel")}
+                    </p>
+                    <p
+                      className="text-white/70 text-[15px] leading-[1.85]"
+                      style={storefrontDesign?.headingFont || settings?.design?.headingFont
+                        ? { fontFamily: `'${storefrontDesign?.headingFont || settings?.design?.headingFont}', serif`, fontSize: "17px" }
+                        : undefined}
+                    >
+                      {(book as any).description}
+                    </p>
+                  </div>
+                ) : (
                 <p className={`text-white/50 text-[14px] leading-[1.8] pl-5 ${
                   productAlignment === "center" ? "border-none text-center px-4" : "border-l-2 border-white/10 text-left"
                 }`}>
                   {(book as any).description}
                 </p>
+                )
               )}
 
               {/* Specs grid */}
@@ -718,10 +740,36 @@ export default function BookDetail() {
 
               {/* CTA */}
               <div className={`flex gap-3 w-full ${
-                productCtaWidth === "auto" 
+                productCtaWidth === "auto"
                   ? (productAlignment === "center" ? "justify-center" : "justify-start")
                   : "w-full"
               }`}>
+                {showQtyStepper && !isOutOfStock && (
+                  <div className="flex items-center border border-white/15 rounded-full h-16 px-1 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setQty((q) => Math.max(1, q - 1))}
+                      aria-label="Decrease quantity"
+                      disabled={qty <= 1}
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-lg leading-none hover:bg-white/10 transition-colors disabled:opacity-30"
+                    >
+                      –
+                    </button>
+                    <span className="w-8 text-center text-sm font-bold" aria-live="polite">{qty}</span>
+                    <button
+                      type="button"
+                      onClick={() => setQty((q) => {
+                        const max = stockLevel !== 999 ? stockLevel : 99;
+                        return Math.min(max, q + 1);
+                      })}
+                      aria-label="Increase quantity"
+                      disabled={stockLevel !== 999 && qty >= stockLevel}
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-lg leading-none hover:bg-white/10 transition-colors disabled:opacity-30"
+                    >
+                      +
+                    </button>
+                  </div>
+                )}
                 <motion.button
                   data-section="buttons"
                   onClick={handleAddToCart}

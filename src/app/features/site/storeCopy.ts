@@ -70,6 +70,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       },
       { key: "footerNavHeading", label: "Navigation heading", default: "Navigate" },
       { key: "footerLegalHeading", label: "Legal heading", default: "Legal" },
+      { key: "footerLocationHeading", label: "Location heading (4-column footer)", default: "Location" },
       { key: "footerLocation", label: "Location line", default: "Toronto, Canada" },
       {
         key: "footerCopyright",
@@ -87,6 +88,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "productTrust3", label: "Trust signal 3", default: "Ships in 1–2 days" },
       { key: "relatedHeading", label: "Related products heading", default: "From the Archive" },
       { key: "backToCatalog", label: "Back link label", default: "Back" },
+      { key: "addToBagLabel", label: "Add to bag button", default: "ADD TO BAG" },
+      { key: "productDescriptionLabel", label: "Designed description eyebrow", default: "ABOUT THIS EDITION" },
     ],
   },
   {

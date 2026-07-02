@@ -1,7 +1,11 @@
 import { DEFAULT_BOOKS, DEFAULT_IMAGE } from "./constants";
 import type { Book } from "./types";
 
-const LOGO_DESIGN_FIELDS = ["logoUrl", "logoText", "logoColor", "logoTint", "logoHeight"] as const;
+const LOGO_DESIGN_FIELDS = [
+  "logoUrl", "logoText", "logoColor", "logoTint", "logoHeight",
+  // Two-part wordmark support (LogoMark renders these when wordmarkStyle is "two-part")
+  "wordmarkStyle", "wordmarkPrimary", "wordmarkSecondary", "wordmarkSize", "wordmarkWeight", "wordmarkSecondaryMuted", "headingFont",
+] as const;
 
 function firstConfiguredValue(field: (typeof LOGO_DESIGN_FIELDS)[number], designs: any[]) {
   return designs.find((design) => design?.[field] != null)?.[field];
