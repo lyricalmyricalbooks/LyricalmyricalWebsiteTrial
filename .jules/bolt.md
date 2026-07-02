@@ -40,3 +40,7 @@
 ## 2024-06-26 - Eliminating O(N*M) Array Lookups in Admin Orders Bulk Operations
 **Learning:** In `Orders.tsx`, when selecting or deselecting rows to perform bulk operations, verifying properties with `.find()` (e.g. `orders.find(o => o.id === id)?.isTest`) inside iterations across selected IDs creates an O(N*M) complexity drag. Even in an admin table, repeatedly scanning an array is inefficient when you can cache lookups.
 **Action:** Always create a `useMemo` map or a local Map keyed by ID (e.g. `Map<string, Order>`) prior to iterating across selection arrays to reduce the property lookup time to O(1).
+
+## 2024-07-02 - Eliminating Nested Loop Includes During Discount Validations
+**Learning:** In checkout validations, mapping over cart items to run `.filter()` or `.some()` constraints and subsequently calling `.includes()` on arrays (like `discount.selectedCategories` or `discount.selectedProducts`) leads to nested loops. As cart items increase and products contain multiple categories, the complexity scales to O(N*M), blocking the UI during keystrokes if not optimized.
+**Action:** Always pre-calculate and cache constraint arrays like `selectedCategories` or `selectedProducts` into O(1) `Set`s outside the cart iteration loops. Utilizing `.has(cat)` over `.includes(cat)` instantly removes the inner N loop and protects rendering speed.

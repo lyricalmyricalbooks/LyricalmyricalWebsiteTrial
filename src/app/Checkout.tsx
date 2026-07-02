@@ -350,10 +350,10 @@ export function Checkout() {
       
       // Check specific customer emails
       if (discount.allowedCustomerEmails && discount.allowedCustomerEmails.trim()) {
-        const allowedEmails = discount.allowedCustomerEmails.split(",")
+        const allowedEmails = new Set(discount.allowedCustomerEmails.split(",")
           .map((e: string) => e.trim().toLowerCase())
-          .filter(Boolean);
-        if (allowedEmails.length > 0 && !allowedEmails.includes(lowerEmail)) {
+          .filter(Boolean));
+        if (allowedEmails.size > 0 && !allowedEmails.has(lowerEmail)) {
           throw new Error("This code is restricted to specific VIP customer emails.");
         }
       }
@@ -376,20 +376,22 @@ export function Checkout() {
       }
     }
 
+    // ⚡ Bolt: Cache discount targets in O(1) Sets to eliminate nested O(N*M) iteration lookups across the cart array.
+    const selectedCatsSet = new Set<string>(discount.selectedCategories || []);
+    const selectedProdsSet = new Set<string>(discount.selectedProducts || []);
+
     // 3. Product / Category targeting
     if (discount.appliesTo === "categories") {
-      const selectedCats = discount.selectedCategories || [];
       const hasMatchingCategory = cartItems.some(item => {
         const catalogBook = catalogMap.get(item.id);
         const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-        return bookCats.some(cat => selectedCats.includes(cat));
+        return bookCats.some(cat => selectedCatsSet.has(cat));
       });
       if (!hasMatchingCategory) {
-        throw new Error(`This code only applies to categories: ${selectedCats.join(", ")}.`);
+        throw new Error(`This code only applies to categories: ${(discount.selectedCategories || []).join(", ")}.`);
       }
     } else if (discount.appliesTo === "products") {
-      const selectedProds = discount.selectedProducts || [];
-      const hasMatchingProduct = cartItems.some(item => selectedProds.includes(item.id));
+      const hasMatchingProduct = cartItems.some(item => selectedProdsSet.has(item.id));
       if (!hasMatchingProduct) {
         throw new Error("This code only applies to specific products not currently in your cart.");
       }
@@ -407,10 +409,10 @@ export function Checkout() {
         if (discount.appliesTo === "categories") {
           const catalogBook = catalogMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          return bookCats.some(cat => discount.selectedCategories?.includes(cat));
+          return bookCats.some(cat => selectedCatsSet.has(cat));
         }
         if (discount.appliesTo === "products") {
-          return discount.selectedProducts?.includes(item.id);
+          return selectedProdsSet.has(item.id);
         }
         return false;
       });
@@ -434,9 +436,9 @@ export function Checkout() {
         if (discount.appliesTo === "categories") {
           const catalogBook = catalogMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => discount.selectedCategories?.includes(cat));
+          qualifies = bookCats.some(cat => selectedCatsSet.has(cat));
         } else if (discount.appliesTo === "products") {
-          qualifies = discount.selectedProducts?.includes(item.id);
+          qualifies = selectedProdsSet.has(item.id);
         }
         return qualifies ? sum + item.quantity * item.price : sum;
       }, 0);
@@ -675,14 +677,19 @@ export function Checkout() {
       if (appliedDiscount.appliesTo === "all" || appliedDiscount.appliesTo === "catalog") {
         return { qualifyingSubtotal: cartTotal, qualifyingItems: cart };
       }
+
+      // ⚡ Bolt: Pre-calculate O(1) sets for discount lookups
+      const appliedCatsSet = new Set<string>(appliedDiscount.selectedCategories || []);
+      const appliedProdsSet = new Set<string>(appliedDiscount.selectedProducts || []);
+
       const itemsList = cart.filter(item => {
         let qualifies = false;
         if (appliedDiscount.appliesTo === "categories") {
           const catalogBook = booksMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => appliedDiscount.selectedCategories?.includes(cat));
+          qualifies = bookCats.some(cat => appliedCatsSet.has(cat));
         } else if (appliedDiscount.appliesTo === "products") {
-          qualifies = appliedDiscount.selectedProducts?.includes(item.id);
+          qualifies = appliedProdsSet.has(item.id);
         }
         return qualifies;
       });
