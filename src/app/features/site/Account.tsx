@@ -351,9 +351,10 @@ export default function AccountPage() {
 
           <form onSubmit={handleSendMagicLink} className="space-y-4">
             <div className="space-y-2">
-              <label className="text-[9px] font-black fm-muted uppercase tracking-widest block ml-1">Passwordless Sign In</label>
+              <label htmlFor="magic-link-email" className="text-[9px] font-black fm-muted uppercase tracking-widest block ml-1">Passwordless Sign In</label>
               <div className="relative">
                 <input
+                  id="magic-link-email"
                   type="email"
                   required
                   placeholder="name@example.com"
@@ -485,8 +486,9 @@ export default function AccountPage() {
             <form onSubmit={handleSaveAddress} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Full Legal Name</label>
+                  <label htmlFor="address-name" className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Full Legal Name</label>
                   <input
+                    id="address-name"
                     type="text"
                     required
                     value={addressForm.name}
@@ -495,8 +497,9 @@ export default function AccountPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Contact Phone</label>
+                  <label htmlFor="address-phone" className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Contact Phone</label>
                   <input
+                    id="address-phone"
                     type="text"
                     value={addressForm.phone}
                     onChange={(e) => setAddressForm({ ...addressForm, phone: e.target.value })}
@@ -507,8 +510,9 @@ export default function AccountPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Street Address</label>
+                <label htmlFor="address-street" className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Street Address</label>
                 <input
+                  id="address-street"
                   type="text"
                   required
                   placeholder="e.g. 456 Montrose Ave"
@@ -520,8 +524,9 @@ export default function AccountPage() {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="space-y-2 col-span-2 md:col-span-1">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">City</label>
+                  <label htmlFor="address-city" className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">City</label>
                   <input
+                    id="address-city"
                     type="text"
                     required
                     value={addressForm.city}
@@ -530,8 +535,9 @@ export default function AccountPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">State / Province</label>
+                  <label htmlFor="address-state" className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">State / Province</label>
                   <input
+                    id="address-state"
                     type="text"
                     required
                     value={addressForm.state}
@@ -540,8 +546,9 @@ export default function AccountPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Postal Code</label>
+                  <label htmlFor="address-zip" className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Postal Code</label>
                   <input
+                    id="address-zip"
                     type="text"
                     required
                     value={addressForm.zip}
@@ -550,8 +557,9 @@ export default function AccountPage() {
                   />
                 </div>
                 <div className="space-y-2 col-span-2 md:col-span-1">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Country</label>
+                  <label htmlFor="address-country" className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Country</label>
                   <input
+                    id="address-country"
                     type="text"
                     required
                     value={addressForm.country}

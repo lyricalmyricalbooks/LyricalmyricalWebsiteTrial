@@ -17,3 +17,7 @@
 ## 2026-06-24 - Information Panel Accessibility Improvement
 **Learning:** Found an icon-only `X` button inside the Information (About) panel missing an `aria-label`. Interactive elements meant to dismiss or close overlays are critical for keyboard and screen reader users and must be explicitly labeled so users know how to exit a view.
 **Action:** Always ensure that dismissive buttons, such as modal or panel close controls, are properly labeled with descriptive `aria-label`s to maintain equitable access.
+
+## 2026-06-25 - Form Labels Accessibility Improvement
+**Learning:** Found multiple `<label>` elements in the Customer Account forms (like Magic Link and Shipping Vector forms) that were missing `htmlFor` attributes, and their corresponding `<input>` fields were missing `id` attributes. Screen reader users rely on explicitly associated labels to understand the purpose of form inputs; without this connection, forms become difficult to navigate and use.
+**Action:** Always ensure that all `<label>` elements have an `htmlFor` attribute that exactly matches the `id` of the corresponding `<input>` field, creating a programmatic association required for accessibility.
