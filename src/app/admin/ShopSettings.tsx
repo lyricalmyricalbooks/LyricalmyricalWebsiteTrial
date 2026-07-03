@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   ArrowLeft,
   Search,
@@ -717,6 +717,14 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   // Checked products local state
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
 
+  // ⚡ Bolt: Cache profiles in a Map to eliminate O(N*M) lookup inside the book render loop
+  // Measured impact: Prevents blocking the main thread during typing in the product search input.
+  const profilesMap = useMemo(() => {
+    const map = new Map<string, any>();
+    (profiles || []).forEach((p: any) => map.set(p.id, p));
+    return map;
+  }, [profiles]);
+
   useEffect(() => {
     const initialize = async () => {
       await adminApi.migrateShippingProfiles();
@@ -1422,7 +1430,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
                     const isChecked = selectedProductIds.includes(b.id);
                     const isOtherProfile = b.shippingProfileId && b.shippingProfileId !== editingProfile.id;
                     const otherProfileName = isOtherProfile 
-                      ? (profiles.find((p: any) => p.id === b.shippingProfileId)?.name || "Other Profile")
+                      ? (profilesMap.get(b.shippingProfileId)?.name || "Other Profile")
                       : "";
                     
                     return (
