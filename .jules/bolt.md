@@ -40,3 +40,7 @@
 ## 2024-06-26 - Eliminating O(N*M) Array Lookups in Admin Orders Bulk Operations
 **Learning:** In `Orders.tsx`, when selecting or deselecting rows to perform bulk operations, verifying properties with `.find()` (e.g. `orders.find(o => o.id === id)?.isTest`) inside iterations across selected IDs creates an O(N*M) complexity drag. Even in an admin table, repeatedly scanning an array is inefficient when you can cache lookups.
 **Action:** Always create a `useMemo` map or a local Map keyed by ID (e.g. `Map<string, Order>`) prior to iterating across selection arrays to reduce the property lookup time to O(1).
+
+## 2024-12-07 - Eliminating O(N*M) Array Lookups in Recently Viewed Row
+**Learning:** In `RecentlyViewedRow.tsx`, iterating over `ids` using `.map(id => books.find(b => b.id === id))` creates an O(N*M) performance drag, unnecessarily blocking the main thread during render.
+**Action:** Always create a `useMemo` map or a local Map keyed by ID (e.g. `Map<string, Book>`) before iterating over array lists to reduce the catalog lookup time to O(1).
