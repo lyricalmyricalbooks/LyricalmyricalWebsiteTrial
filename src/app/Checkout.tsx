@@ -86,7 +86,7 @@ function StepBadge({ n, label }: { n: string; label: string }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export function Checkout() {
-  const { cart, cartTotal, clearCart, setCart } = useCart();
+  const { cart, cartTotal, cartCount, clearCart, setCart } = useCart();
   const { currency, formatPrice } = useCurrency();
 
   const [isApplying, setIsApplying]     = useState(false);
@@ -327,13 +327,15 @@ export function Checkout() {
     detectCountry();
   }, []);
 
-  const validateDiscountRestrictions = (discount: any, email: string, cartItems: any[], catalogMap: Map<string, any>) => {
+  const validateDiscountRestrictions = (discount: any, email: string, cartItems: any[], catalogMap: Map<string, any>, currentCartCount: number, currentCartTotal: number) => {
     // 1. Min quantity / min order amount
-    const totalQty = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+    // ⚡ Bolt: Replace O(N) array iteration with O(1) memoized cart count context value
+    const totalQty = currentCartCount;
     if (discount.minQuantity && totalQty < discount.minQuantity) {
       throw new Error(`This code requires a minimum of ${discount.minQuantity} items in your cart.`);
     }
-    const itemsSubtotal = cartItems.reduce((sum, item) => sum + item.quantity * item.price, 0);
+    // ⚡ Bolt: Replace O(N) array iteration with O(1) memoized cart total context value
+    const itemsSubtotal = currentCartTotal;
     if (discount.minOrderAmount && itemsSubtotal < Number(discount.minOrderAmount)) {
       throw new Error(`This code requires a minimum order of ${Number(discount.minOrderAmount).toFixed(2)}.`);
     }
@@ -657,7 +659,7 @@ export function Checkout() {
   useEffect(() => {
     if (appliedDiscount && books.length > 0) {
       try {
-        validateDiscountRestrictions(appliedDiscount, customer.email, cart, booksMap);
+        validateDiscountRestrictions(appliedDiscount, customer.email, cart, booksMap, cartCount, cartTotal);
       } catch (err: any) {
         setAppliedDiscount(null);
         setDiscountError(err.message || "Discount no longer valid.");
@@ -765,7 +767,7 @@ export function Checkout() {
     setDiscountError("");
     try {
       const discount = await adminApi.validateDiscount(discountCode);
-      validateDiscountRestrictions(discount, customer.email, cart, booksMap);
+      validateDiscountRestrictions(discount, customer.email, cart, booksMap, cartCount, cartTotal);
       setAppliedDiscount(discount);
     } catch (err: any) {
       setDiscountError(err.message || "INVALID OR EXPIRED CODE");
@@ -1296,7 +1298,8 @@ export function Checkout() {
           <div className="mx-auto max-w-2xl lg:sticky lg:top-8">
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">Order summary</h2>
-              <span className="text-sm text-slate-500">{cart.reduce((sum, item) => sum + item.quantity, 0)} item{cart.reduce((sum, item) => sum + item.quantity, 0) === 1 ? "" : "s"}</span>
+              {/* ⚡ Bolt: Replace O(N) array iterations in render with O(1) memoized value */}
+              <span className="text-sm text-slate-500">{cartCount} item{cartCount === 1 ? "" : "s"}</span>
             </div>
 
             <div className="space-y-5">
