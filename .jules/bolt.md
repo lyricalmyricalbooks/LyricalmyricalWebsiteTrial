@@ -40,3 +40,7 @@
 ## 2024-06-26 - Eliminating O(N*M) Array Lookups in Admin Orders Bulk Operations
 **Learning:** In `Orders.tsx`, when selecting or deselecting rows to perform bulk operations, verifying properties with `.find()` (e.g. `orders.find(o => o.id === id)?.isTest`) inside iterations across selected IDs creates an O(N*M) complexity drag. Even in an admin table, repeatedly scanning an array is inefficient when you can cache lookups.
 **Action:** Always create a `useMemo` map or a local Map keyed by ID (e.g. `Map<string, Order>`) prior to iterating across selection arrays to reduce the property lookup time to O(1).
+
+## 2024-11-12 - Eliminate O(N*M) Array Lookups in Cart Item Iteration
+**Learning:** When iterating over large arrays like `cartItems` inside functions such as `validateDiscountRestrictions` and checking if a property exists within another array using `.includes()` (e.g. `discount.selectedCategories.includes(cat)`), it causes O(N*M) performance bottlenecks because `.includes()` runs an O(N) linear search on every loop iteration.
+**Action:** Convert constraint arrays (like `selectedCategories` or `selectedProducts`) into O(1) `Set`s outside the loop. Use `Set.has()` instead of `Array.includes()` inside the loop to avoid O(N*M) lookups and significantly improve iteration speed over large collections.
