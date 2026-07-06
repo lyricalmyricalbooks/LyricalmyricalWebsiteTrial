@@ -17,3 +17,7 @@
 ## 2026-06-24 - Information Panel Accessibility Improvement
 **Learning:** Found an icon-only `X` button inside the Information (About) panel missing an `aria-label`. Interactive elements meant to dismiss or close overlays are critical for keyboard and screen reader users and must be explicitly labeled so users know how to exit a view.
 **Action:** Always ensure that dismissive buttons, such as modal or panel close controls, are properly labeled with descriptive `aria-label`s to maintain equitable access.
+
+## 2024-05-26 - Admin Theme Editor Color Picker Accessibility Improvement
+**Learning:** Found multiple icon-only "✕" buttons used for removing selected colors in the Admin Theme Editor missing `aria-label`s. Because these buttons are functionally identical (represented by "✕") but have vastly different contexts (e.g., "overlay color" vs "background color" vs "line color"), screen reader users receive no context on *which* color they are resetting.
+**Action:** Always provide highly specific `aria-label`s for repetitive icon-only actions within configuration forms. For instance, rather than generic labels like "Clear", use specific contextual labels like "Remove overlay color" or "Remove shape divider bottom color" to maintain spatial and functional context for users relying on assistive technology.

@@ -1217,7 +1217,7 @@ function ImageStyleControls({
                 className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase"
               />
               {overlayColor && (
-                <button type="button" onClick={() => onPatch({ [k("overlayColor")]: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>
+                <button type="button" aria-label="Remove overlay color" onClick={() => onPatch({ [k("overlayColor")]: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>
               )}
             </div>
             <div className="flex items-center justify-between mb-1">
@@ -1694,7 +1694,7 @@ export function SectionSettingsPanel({
               <input type="color" value={settings.bgColor || "#ffffff"} onChange={(e) => onUpdate({ bgColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
             </div>
             <input value={settings.bgColor || ""} onChange={(e) => onUpdate({ bgColor: e.target.value || undefined })} placeholder="none" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
-            {settings.bgColor && <button type="button" onClick={() => onUpdate({ bgColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+            {settings.bgColor && <button type="button" aria-label="Remove background color" onClick={() => onUpdate({ bgColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
           </div>
         </div>
 
@@ -1795,7 +1795,7 @@ export function SectionSettingsPanel({
                 <input type="color" value={settings.boxColor || "#0a0a0a"} onChange={(e) => onUpdate({ boxColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
               </div>
               <input value={settings.boxColor || ""} onChange={(e) => onUpdate({ boxColor: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
-              {settings.boxColor && <button type="button" onClick={() => onUpdate({ boxColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+              {settings.boxColor && <button type="button" aria-label="Remove box color" onClick={() => onUpdate({ boxColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
             </div>
           </div>
           <div>
@@ -1805,7 +1805,7 @@ export function SectionSettingsPanel({
                 <input type="color" value={settings.raisedBoxColor || "#171717"} onChange={(e) => onUpdate({ raisedBoxColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
               </div>
               <input value={settings.raisedBoxColor || ""} onChange={(e) => onUpdate({ raisedBoxColor: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
-              {settings.raisedBoxColor && <button type="button" onClick={() => onUpdate({ raisedBoxColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+              {settings.raisedBoxColor && <button type="button" aria-label="Remove raised box color" onClick={() => onUpdate({ raisedBoxColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
             </div>
           </div>
         </div>
@@ -1817,7 +1817,7 @@ export function SectionSettingsPanel({
               <input type="color" value={settings.lineColor || "#ffffff"} onChange={(e) => onUpdate({ lineColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
             </div>
             <input value={settings.lineColor || ""} onChange={(e) => onUpdate({ lineColor: e.target.value || undefined })} placeholder="inherit" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
-            {settings.lineColor && <button type="button" onClick={() => onUpdate({ lineColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+            {settings.lineColor && <button type="button" aria-label="Remove line color" onClick={() => onUpdate({ lineColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
           </div>
         </div>
       </div>
@@ -1891,7 +1891,7 @@ export function SectionSettingsPanel({
                 <input type="color" value={settings.shapeDividerTopColor || "#ffffff"} onChange={(e) => onUpdate({ shapeDividerTopColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
               </div>
               <input value={settings.shapeDividerTopColor || ""} onChange={(e) => onUpdate({ shapeDividerTopColor: e.target.value || undefined })} placeholder="#ffffff" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
-              {settings.shapeDividerTopColor && <button type="button" onClick={() => onUpdate({ shapeDividerTopColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+              {settings.shapeDividerTopColor && <button type="button" aria-label="Remove shape divider top color" onClick={() => onUpdate({ shapeDividerTopColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
             </div>
           </div>
         </div>
@@ -1914,7 +1914,7 @@ export function SectionSettingsPanel({
                 <input type="color" value={settings.shapeDividerBottomColor || "#ffffff"} onChange={(e) => onUpdate({ shapeDividerBottomColor: e.target.value })} className="absolute inset-0 opacity-0 cursor-pointer scale-150" />
               </div>
               <input value={settings.shapeDividerBottomColor || ""} onChange={(e) => onUpdate({ shapeDividerBottomColor: e.target.value || undefined })} placeholder="#ffffff" className="flex-1 min-w-0 bg-transparent outline-none text-[10px] font-bold uppercase" />
-              {settings.shapeDividerBottomColor && <button type="button" onClick={() => onUpdate({ shapeDividerBottomColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
+              {settings.shapeDividerBottomColor && <button type="button" aria-label="Remove shape divider bottom color" onClick={() => onUpdate({ shapeDividerBottomColor: undefined })} className="text-[9px] text-neutral-400 hover:text-red-400">✕</button>}
             </div>
           </div>
         </div>
