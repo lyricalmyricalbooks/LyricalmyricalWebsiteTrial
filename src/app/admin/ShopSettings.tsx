@@ -1151,6 +1151,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
                   {p.id !== "general-profile" && (
                     <button 
                       onClick={() => handleDeleteProfile(p.id)}
+                      aria-label="Delete shipping profile"
                       className="p-3.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-full transition-all border border-red-500/20"
                     >
                       <Trash2 size={14} />
@@ -1301,6 +1302,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
                     </button>
                     <button 
                       onClick={() => handleDeleteZone(z.id)}
+                      aria-label="Delete shipping zone"
                       className="p-2.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 rounded-full transition-all"
                     >
                       <Trash2 size={12} />
@@ -1354,12 +1356,14 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
                           <div className="flex gap-2">
                             <button 
                               onClick={() => openRateModal(z.id, r)}
+                              aria-label="Edit shipping rate"
                               className="p-2 bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/10 transition-all"
                             >
                               <Edit size={12} />
                             </button>
                             <button 
                               onClick={() => handleDeleteRate(z.id, r.id)}
+                              aria-label="Delete shipping rate"
                               className="p-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-all"
                             >
                               <Trash2 size={12} />
@@ -2324,6 +2328,7 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                   <button 
                     onClick={() => openEditMethod(method)}
                     className="p-3 bg-white/5 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-colors"
+                    aria-label="Edit payment method"
                     title="Edit Method"
                   >
                     <Edit size={14} />
@@ -2331,6 +2336,7 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                   <button 
                     onClick={() => handleDeleteMethod(method.id)}
                     className="p-3 bg-red-500/5 hover:bg-red-500/10 rounded-xl text-red-400/60 hover:text-red-400 transition-colors"
+                    aria-label="Delete payment method"
                     title="Delete Method"
                   >
                     <Trash2 size={14} />
@@ -2632,6 +2638,7 @@ function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingS
               <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <button 
                 onClick={() => handleDelete(idx)}
+                aria-label="Delete tax rate"
                 className="absolute top-8 right-8 p-3 bg-white/5 rounded-2xl text-slate-600 hover:text-rose-400 hover:bg-rose-500/10 transition-all z-20"
               >
                 <Trash2 size={16} />
