@@ -44,3 +44,7 @@
 ## 2024-11-12 - Reusing Context Memoized Values Instead of Inline Reduces
 **Learning:** In React components consuming Context (like `Checkout` consuming `CartContext`), performing inline array operations such as `cart.reduce()` or `cartItems.reduce()` within render loops or even event callbacks forces unnecessary O(N) evaluations. This is especially inefficient when the Context already calculates and exposes memoized aggregates like `cartCount` or `cartTotal`.
 **Action:** When consuming context-provided collections, always utilize existing pre-calculated memoized values (e.g., `cartCount`, `cartTotal`) instead of performing inline array operations inside component render trees or event callbacks to eliminate redundant O(N) evaluations.
+
+## 2024-11-14 - Eliminating O(N*M) Array Lookups in Mapped Arrays
+**Learning:** Using `.find()` to map arrays to corresponding reference items inside `.map()` arrays leads to hidden O(N*M) time complexity. Specifically, `RecentlyViewedRow.tsx` mapped over recently viewed IDs and used `books.find(...)` for each, and `staffNotes.ts` found visible blocks and used `books.find(...)` for each.
+**Action:** Always pre-compute a lookup Map or dictionary containing the reference items keyed by an identifier (e.g., ID or slug). Doing this changes the lookup complexity inside the map sequence from O(M) to O(1), improving the total iteration complexity from O(N*M) to O(N + M).

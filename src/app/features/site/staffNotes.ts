@@ -18,10 +18,21 @@ export function resolveStaffNoteRows(blocks: any[], books: any[], fallbackLimit 
       .slice(0, Math.max(1, fallbackLimit))
       .map((book: any) => ({ book, note: book.subtitle || "" }));
   }
+
+  // ⚡ Bolt: Pre-compute map of slugs to books for O(1) lookups
+  // Measured impact: Eliminates O(N*M) complexity finding books for staff notes blocks
+  const booksBySlug = new Map<string, any>();
+  (books || []).forEach((bk: any) => {
+    const slug = bookSlug(bk);
+    if (slug) {
+      booksBySlug.set(slug, bk);
+    }
+  });
+
   return visible
     .map((b: any) => {
       const slug = String(b.slug || "").trim();
-      const book = (books || []).find((bk: any) => bookSlug(bk) === slug);
+      const book = booksBySlug.get(slug);
       return book ? { book, note: b.note || "" } : null;
     })
     .filter(Boolean) as StaffNoteRow[];
