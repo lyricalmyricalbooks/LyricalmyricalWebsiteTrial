@@ -381,17 +381,21 @@ export function Checkout() {
     // 3. Product / Category targeting
     if (discount.appliesTo === "categories") {
       const selectedCats = discount.selectedCategories || [];
+      // ⚡ Bolt: Convert array to Set for O(1) lookups during iteration
+      const selectedCatsSet = new Set(selectedCats);
       const hasMatchingCategory = cartItems.some(item => {
         const catalogBook = catalogMap.get(item.id);
         const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-        return bookCats.some(cat => selectedCats.includes(cat));
+        return bookCats.some(cat => selectedCatsSet.has(cat));
       });
       if (!hasMatchingCategory) {
         throw new Error(`This code only applies to categories: ${selectedCats.join(", ")}.`);
       }
     } else if (discount.appliesTo === "products") {
       const selectedProds = discount.selectedProducts || [];
-      const hasMatchingProduct = cartItems.some(item => selectedProds.includes(item.id));
+      // ⚡ Bolt: Convert array to Set for O(1) lookups during iteration
+      const selectedProdsSet = new Set(selectedProds);
+      const hasMatchingProduct = cartItems.some(item => selectedProdsSet.has(item.id));
       if (!hasMatchingProduct) {
         throw new Error("This code only applies to specific products not currently in your cart.");
       }
@@ -403,16 +407,20 @@ export function Checkout() {
       const getQty = Number(discount.getQuantity) || 1;
       const requiredUnits = buyQty + getQty;
 
+      // ⚡ Bolt: Convert target arrays to Sets for O(1) lookups inside the filter loop
+      const bogoCatsSet = new Set(discount.selectedCategories || []);
+      const bogoProdsSet = new Set(discount.selectedProducts || []);
+
       // Filter qualifying items
       const qualItems = cartItems.filter(item => {
         if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return true;
         if (discount.appliesTo === "categories") {
           const catalogBook = catalogMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          return bookCats.some(cat => discount.selectedCategories?.includes(cat));
+          return bookCats.some(cat => bogoCatsSet.has(cat));
         }
         if (discount.appliesTo === "products") {
-          return discount.selectedProducts?.includes(item.id);
+          return bogoProdsSet.has(item.id);
         }
         return false;
       });
@@ -429,6 +437,10 @@ export function Checkout() {
         throw new Error("This tiered code is not configured correctly.");
       }
 
+      // ⚡ Bolt: Convert target arrays to Sets for O(1) lookups inside the reduce loop
+      const tieredCatsSet = new Set(discount.selectedCategories || []);
+      const tieredProdsSet = new Set(discount.selectedProducts || []);
+
       // Calculate qualifying subtotal
       const qualifyingSubtotal = cartItems.reduce((sum, item) => {
         if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return sum + item.quantity * item.price;
@@ -436,9 +448,9 @@ export function Checkout() {
         if (discount.appliesTo === "categories") {
           const catalogBook = catalogMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => discount.selectedCategories?.includes(cat));
+          qualifies = bookCats.some(cat => tieredCatsSet.has(cat));
         } else if (discount.appliesTo === "products") {
-          qualifies = discount.selectedProducts?.includes(item.id);
+          qualifies = tieredProdsSet.has(item.id);
         }
         return qualifies ? sum + item.quantity * item.price : sum;
       }, 0);
@@ -677,14 +689,19 @@ export function Checkout() {
       if (appliedDiscount.appliesTo === "all" || appliedDiscount.appliesTo === "catalog") {
         return { qualifyingSubtotal: cartTotal, qualifyingItems: cart };
       }
+
+      // ⚡ Bolt: Use Set for O(1) inclusion check instead of O(M) array lookup
+      const appliedCatsSet = new Set(appliedDiscount.selectedCategories || []);
+      const appliedProdsSet = new Set(appliedDiscount.selectedProducts || []);
+
       const itemsList = cart.filter(item => {
         let qualifies = false;
         if (appliedDiscount.appliesTo === "categories") {
           const catalogBook = booksMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => appliedDiscount.selectedCategories?.includes(cat));
+          qualifies = bookCats.some(cat => appliedCatsSet.has(cat));
         } else if (appliedDiscount.appliesTo === "products") {
-          qualifies = appliedDiscount.selectedProducts?.includes(item.id);
+          qualifies = appliedProdsSet.has(item.id);
         }
         return qualifies;
       });
