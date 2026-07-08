@@ -99,13 +99,13 @@ function DiscountCard({ d, onDelete, onToggle, onEdit }: {
           <Icon size={20} />
         </div>
         <div className="flex gap-2">
-          <button onClick={onEdit} title="Edit" className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-slate-600 hover:text-white hover:border-white/20 transition-all">
+          <button aria-label="Edit discount" onClick={onEdit} title="Edit" className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-slate-600 hover:text-white hover:border-white/20 transition-all">
             <Edit3 size={14} />
           </button>
-          <button onClick={copyCode} title="Copy code" className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-slate-600 hover:text-violet-400 hover:border-violet-500/30 transition-all">
+          <button aria-label="Copy code" onClick={copyCode} title="Copy code" className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-slate-600 hover:text-violet-400 hover:border-violet-500/30 transition-all">
             <Copy size={14} />
           </button>
-          <button onClick={onDelete} title="Delete" className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-slate-600 hover:text-rose-500 hover:border-rose-500/20 transition-all">
+          <button aria-label="Delete discount" onClick={onDelete} title="Delete" className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-slate-600 hover:text-rose-500 hover:border-rose-500/20 transition-all">
             <Trash2 size={14} />
           </button>
         </div>
@@ -297,7 +297,7 @@ function DiscountModal({ initial, onClose, onSave }: {
               {isEdit ? "Update promotional metadata" : "Configure a new incentive"}
             </p>
           </div>
-          <button onClick={onClose} className="p-3 bg-white/5 rounded-2xl text-slate-400 hover:text-white transition-colors flex-shrink-0">
+          <button aria-label="Close modal" onClick={onClose} className="p-3 bg-white/5 rounded-2xl text-slate-400 hover:text-white transition-colors flex-shrink-0">
             <X size={18} />
           </button>
         </div>
@@ -555,6 +555,7 @@ function DiscountModal({ initial, onClose, onSave }: {
                     {(form.tiers.length > 1) && (
                       <button
                         type="button"
+                        aria-label="Remove Tier"
                         onClick={() => {
                           set("tiers", form.tiers.filter((_: any, i: number) => i !== idx));
                         }}
