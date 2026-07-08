@@ -582,6 +582,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         <div className="flex items-center gap-6">
           <button 
             type="button"
+            aria-label="Go back"
             onClick={handleClose} 
             className="p-3 bg-white text-[#1E1E1F] rounded-full hover:bg-slate-100 transition-all flex items-center justify-center shadow-md cursor-pointer border border-slate-200"
           >
@@ -948,6 +949,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
                         <button 
                           type="button" 
+                          aria-label="Remove edition"
                           onClick={() => removeVariant(v.id)} 
                           className="absolute -right-3 -top-3 p-2.5 bg-red-50 text-red-500 rounded-full hover:bg-red-500 hover:text-white transition-all border border-red-200 opacity-0 group-hover:opacity-100 shadow-md z-10 cursor-pointer flex items-center justify-center"
                         >
@@ -986,6 +988,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                       </div>
                       <button
                         type="button"
+                        aria-label="Remove digital file"
                         onClick={() => setFormData((prev: any) => ({ ...prev, digitalFileName: "", digitalFileUrl: "" }))}
                         className="p-2.5 bg-red-50 hover:bg-red-500 hover:text-white text-red-500 rounded-xl transition-all border border-red-100 shadow-sm cursor-pointer"
                       >
@@ -1191,6 +1194,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                   />
                   <button 
                     type="button" 
+                    aria-label="Add image from URL"
                     onClick={addPhoto}
                     className="p-4 bg-slate-50 border border-slate-200 rounded-2xl hover:bg-slate-100 text-violet-500 transition-all cursor-pointer shadow-sm flex items-center justify-center"
                   >
