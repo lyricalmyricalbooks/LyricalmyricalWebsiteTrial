@@ -381,17 +381,21 @@ export function Checkout() {
     // 3. Product / Category targeting
     if (discount.appliesTo === "categories") {
       const selectedCats = discount.selectedCategories || [];
+      // ⚡ Bolt: Convert constraint arrays to O(1) Sets outside the loop to prevent O(N*M) nested lookups
+      const selectedCatsSet = new Set(selectedCats);
       const hasMatchingCategory = cartItems.some(item => {
         const catalogBook = catalogMap.get(item.id);
         const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-        return bookCats.some(cat => selectedCats.includes(cat));
+        return bookCats.some(cat => selectedCatsSet.has(cat));
       });
       if (!hasMatchingCategory) {
         throw new Error(`This code only applies to categories: ${selectedCats.join(", ")}.`);
       }
     } else if (discount.appliesTo === "products") {
       const selectedProds = discount.selectedProducts || [];
-      const hasMatchingProduct = cartItems.some(item => selectedProds.includes(item.id));
+      // ⚡ Bolt: Convert constraint arrays to O(1) Sets outside the loop to prevent O(N*M) nested lookups
+      const selectedProdsSet = new Set(selectedProds);
+      const hasMatchingProduct = cartItems.some(item => selectedProdsSet.has(item.id));
       if (!hasMatchingProduct) {
         throw new Error("This code only applies to specific products not currently in your cart.");
       }
@@ -404,15 +408,18 @@ export function Checkout() {
       const requiredUnits = buyQty + getQty;
 
       // Filter qualifying items
+      // ⚡ Bolt: Convert constraint arrays to O(1) Sets outside the loop to prevent O(N*M) nested lookups
+      const bogoCatsSet = new Set(discount.selectedCategories || []);
+      const bogoProdsSet = new Set(discount.selectedProducts || []);
       const qualItems = cartItems.filter(item => {
         if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return true;
         if (discount.appliesTo === "categories") {
           const catalogBook = catalogMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          return bookCats.some(cat => discount.selectedCategories?.includes(cat));
+          return bookCats.some(cat => bogoCatsSet.has(cat));
         }
         if (discount.appliesTo === "products") {
-          return discount.selectedProducts?.includes(item.id);
+          return bogoProdsSet.has(item.id);
         }
         return false;
       });
@@ -430,15 +437,18 @@ export function Checkout() {
       }
 
       // Calculate qualifying subtotal
+      // ⚡ Bolt: Convert constraint arrays to O(1) Sets outside the loop to prevent O(N*M) nested lookups
+      const tieredCatsSet = new Set(discount.selectedCategories || []);
+      const tieredProdsSet = new Set(discount.selectedProducts || []);
       const qualifyingSubtotal = cartItems.reduce((sum, item) => {
         if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return sum + item.quantity * item.price;
         let qualifies = false;
         if (discount.appliesTo === "categories") {
           const catalogBook = catalogMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => discount.selectedCategories?.includes(cat));
+          qualifies = bookCats.some(cat => tieredCatsSet.has(cat));
         } else if (discount.appliesTo === "products") {
-          qualifies = discount.selectedProducts?.includes(item.id);
+          qualifies = tieredProdsSet.has(item.id);
         }
         return qualifies ? sum + item.quantity * item.price : sum;
       }, 0);
@@ -677,14 +687,17 @@ export function Checkout() {
       if (appliedDiscount.appliesTo === "all" || appliedDiscount.appliesTo === "catalog") {
         return { qualifyingSubtotal: cartTotal, qualifyingItems: cart };
       }
+      // ⚡ Bolt: Convert constraint arrays to O(1) Sets outside the loop to prevent O(N*M) nested lookups
+      const calcCatsSet = new Set(appliedDiscount.selectedCategories || []);
+      const calcProdsSet = new Set(appliedDiscount.selectedProducts || []);
       const itemsList = cart.filter(item => {
         let qualifies = false;
         if (appliedDiscount.appliesTo === "categories") {
           const catalogBook = booksMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => appliedDiscount.selectedCategories?.includes(cat));
+          qualifies = bookCats.some(cat => calcCatsSet.has(cat));
         } else if (appliedDiscount.appliesTo === "products") {
-          qualifies = appliedDiscount.selectedProducts?.includes(item.id);
+          qualifies = calcProdsSet.has(item.id);
         }
         return qualifies;
       });
