@@ -380,18 +380,18 @@ export function Checkout() {
 
     // 3. Product / Category targeting
     if (discount.appliesTo === "categories") {
-      const selectedCats = discount.selectedCategories || [];
+      const selectedCats = new Set(discount.selectedCategories || []);
       const hasMatchingCategory = cartItems.some(item => {
         const catalogBook = catalogMap.get(item.id);
         const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-        return bookCats.some(cat => selectedCats.includes(cat));
+        return bookCats.some(cat => selectedCats.has(cat));
       });
       if (!hasMatchingCategory) {
-        throw new Error(`This code only applies to categories: ${selectedCats.join(", ")}.`);
+        throw new Error(`This code only applies to categories: ${(discount.selectedCategories || []).join(", ")}.`);
       }
     } else if (discount.appliesTo === "products") {
-      const selectedProds = discount.selectedProducts || [];
-      const hasMatchingProduct = cartItems.some(item => selectedProds.includes(item.id));
+      const selectedProds = new Set(discount.selectedProducts || []);
+      const hasMatchingProduct = cartItems.some(item => selectedProds.has(item.id));
       if (!hasMatchingProduct) {
         throw new Error("This code only applies to specific products not currently in your cart.");
       }
@@ -403,16 +403,19 @@ export function Checkout() {
       const getQty = Number(discount.getQuantity) || 1;
       const requiredUnits = buyQty + getQty;
 
+      const selectedCatsSet = discount.appliesTo === "categories" ? new Set(discount.selectedCategories || []) : null;
+      const selectedProdsSet = discount.appliesTo === "products" ? new Set(discount.selectedProducts || []) : null;
+
       // Filter qualifying items
       const qualItems = cartItems.filter(item => {
         if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return true;
-        if (discount.appliesTo === "categories") {
+        if (discount.appliesTo === "categories" && selectedCatsSet) {
           const catalogBook = catalogMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          return bookCats.some(cat => discount.selectedCategories?.includes(cat));
+          return bookCats.some(cat => selectedCatsSet.has(cat));
         }
-        if (discount.appliesTo === "products") {
-          return discount.selectedProducts?.includes(item.id);
+        if (discount.appliesTo === "products" && selectedProdsSet) {
+          return selectedProdsSet.has(item.id);
         }
         return false;
       });
@@ -429,16 +432,19 @@ export function Checkout() {
         throw new Error("This tiered code is not configured correctly.");
       }
 
+      const selectedCatsSet = discount.appliesTo === "categories" ? new Set(discount.selectedCategories || []) : null;
+      const selectedProdsSet = discount.appliesTo === "products" ? new Set(discount.selectedProducts || []) : null;
+
       // Calculate qualifying subtotal
       const qualifyingSubtotal = cartItems.reduce((sum, item) => {
         if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return sum + item.quantity * item.price;
         let qualifies = false;
-        if (discount.appliesTo === "categories") {
+        if (discount.appliesTo === "categories" && selectedCatsSet) {
           const catalogBook = catalogMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => discount.selectedCategories?.includes(cat));
-        } else if (discount.appliesTo === "products") {
-          qualifies = discount.selectedProducts?.includes(item.id);
+          qualifies = bookCats.some(cat => selectedCatsSet.has(cat));
+        } else if (discount.appliesTo === "products" && selectedProdsSet) {
+          qualifies = selectedProdsSet.has(item.id);
         }
         return qualifies ? sum + item.quantity * item.price : sum;
       }, 0);
@@ -677,14 +683,18 @@ export function Checkout() {
       if (appliedDiscount.appliesTo === "all" || appliedDiscount.appliesTo === "catalog") {
         return { qualifyingSubtotal: cartTotal, qualifyingItems: cart };
       }
+
+      const selectedCatsSet = appliedDiscount.appliesTo === "categories" ? new Set(appliedDiscount.selectedCategories || []) : null;
+      const selectedProdsSet = appliedDiscount.appliesTo === "products" ? new Set(appliedDiscount.selectedProducts || []) : null;
+
       const itemsList = cart.filter(item => {
         let qualifies = false;
-        if (appliedDiscount.appliesTo === "categories") {
+        if (appliedDiscount.appliesTo === "categories" && selectedCatsSet) {
           const catalogBook = booksMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => appliedDiscount.selectedCategories?.includes(cat));
-        } else if (appliedDiscount.appliesTo === "products") {
-          qualifies = appliedDiscount.selectedProducts?.includes(item.id);
+          qualifies = bookCats.some(cat => selectedCatsSet.has(cat));
+        } else if (appliedDiscount.appliesTo === "products" && selectedProdsSet) {
+          qualifies = selectedProdsSet.has(item.id);
         }
         return qualifies;
       });
