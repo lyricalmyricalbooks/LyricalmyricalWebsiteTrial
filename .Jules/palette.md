@@ -17,3 +17,6 @@
 ## 2026-06-24 - Information Panel Accessibility Improvement
 **Learning:** Found an icon-only `X` button inside the Information (About) panel missing an `aria-label`. Interactive elements meant to dismiss or close overlays are critical for keyboard and screen reader users and must be explicitly labeled so users know how to exit a view.
 **Action:** Always ensure that dismissive buttons, such as modal or panel close controls, are properly labeled with descriptive `aria-label`s to maintain equitable access.
+## 2026-06-25 - Rich Text Editor Toolbar Accessibility Improvement
+**Learning:** Found several icon-only buttons and `<select>` dropdowns in the `RichTextEditor` component missing `aria-label`s. Since this is a custom toolbar interacting with a rich text area, it is imperative that these formatting controls are accessible to screen reader users so they can confidently format text.
+**Action:** Always ensure that custom toolbar controls, whether they are buttons for text formatting or dropdowns for styles and colors, include explicit `aria-label` attributes to guarantee full accessibility.
