@@ -158,8 +158,9 @@ export default function OrderTracking() {
 
               <form onSubmit={handleTrack} className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-[0.2em] block ml-1">ORDER IDENTIFIER</label>
+                  <label htmlFor="order-id" className="text-[9px] font-black fm-muted uppercase tracking-[0.2em] block ml-1">ORDER IDENTIFIER</label>
                   <input
+                    id="order-id"
                     type="text"
                     required
                     placeholder="e.g. ABCD-123456"
@@ -170,8 +171,9 @@ export default function OrderTracking() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-[0.2em] block ml-1">CUSTOMER EMAIL</label>
+                  <label htmlFor="order-email" className="text-[9px] font-black fm-muted uppercase tracking-[0.2em] block ml-1">CUSTOMER EMAIL</label>
                   <input
+                    id="order-email"
                     type="email"
                     required
                     placeholder="e.g. reader@archive.com"
