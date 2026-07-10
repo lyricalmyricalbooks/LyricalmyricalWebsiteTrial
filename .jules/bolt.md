@@ -44,3 +44,7 @@
 ## 2024-11-12 - Reusing Context Memoized Values Instead of Inline Reduces
 **Learning:** In React components consuming Context (like `Checkout` consuming `CartContext`), performing inline array operations such as `cart.reduce()` or `cartItems.reduce()` within render loops or even event callbacks forces unnecessary O(N) evaluations. This is especially inefficient when the Context already calculates and exposes memoized aggregates like `cartCount` or `cartTotal`.
 **Action:** When consuming context-provided collections, always utilize existing pre-calculated memoized values (e.g., `cartCount`, `cartTotal`) instead of performing inline array operations inside component render trees or event callbacks to eliminate redundant O(N) evaluations.
+
+## 2024-11-13 - O(1) Sets for Array Constraints in Loops
+**Learning:** In components like `Checkout`, iterating through an array (like `cartItems`) and checking constraints using `.includes()` against another array (like `selectedCategories` or `selectedProducts`) creates an O(N*M) performance bottleneck, frequently blocking the main thread during repetitive validations.
+**Action:** When cross-referencing items against constraint arrays within loops or heavy operations, convert the constraint arrays into an O(1) `Set` outside of the loop, and use `Set.has()` inside the loop to avoid O(N*M) bottlenecks.
