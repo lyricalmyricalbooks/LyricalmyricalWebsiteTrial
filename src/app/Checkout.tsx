@@ -378,20 +378,22 @@ export function Checkout() {
       }
     }
 
+    // Pre-calculate target sets for O(1) loop checks
+    const targetCatsSet = discount.appliesTo === "categories" ? new Set(discount.selectedCategories || []) : new Set();
+    const targetProdsSet = discount.appliesTo === "products" ? new Set(discount.selectedProducts || []) : new Set();
+
     // 3. Product / Category targeting
     if (discount.appliesTo === "categories") {
-      const selectedCats = discount.selectedCategories || [];
       const hasMatchingCategory = cartItems.some(item => {
         const catalogBook = catalogMap.get(item.id);
         const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-        return bookCats.some(cat => selectedCats.includes(cat));
+        return bookCats.some(cat => targetCatsSet.has(cat));
       });
       if (!hasMatchingCategory) {
-        throw new Error(`This code only applies to categories: ${selectedCats.join(", ")}.`);
+        throw new Error(`This code only applies to categories: ${(discount.selectedCategories || []).join(", ")}.`);
       }
     } else if (discount.appliesTo === "products") {
-      const selectedProds = discount.selectedProducts || [];
-      const hasMatchingProduct = cartItems.some(item => selectedProds.includes(item.id));
+      const hasMatchingProduct = cartItems.some(item => targetProdsSet.has(item.id));
       if (!hasMatchingProduct) {
         throw new Error("This code only applies to specific products not currently in your cart.");
       }
@@ -409,10 +411,10 @@ export function Checkout() {
         if (discount.appliesTo === "categories") {
           const catalogBook = catalogMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          return bookCats.some(cat => discount.selectedCategories?.includes(cat));
+          return bookCats.some(cat => targetCatsSet.has(cat));
         }
         if (discount.appliesTo === "products") {
-          return discount.selectedProducts?.includes(item.id);
+          return targetProdsSet.has(item.id);
         }
         return false;
       });
@@ -436,9 +438,9 @@ export function Checkout() {
         if (discount.appliesTo === "categories") {
           const catalogBook = catalogMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => discount.selectedCategories?.includes(cat));
+          qualifies = bookCats.some(cat => targetCatsSet.has(cat));
         } else if (discount.appliesTo === "products") {
-          qualifies = discount.selectedProducts?.includes(item.id);
+          qualifies = targetProdsSet.has(item.id);
         }
         return qualifies ? sum + item.quantity * item.price : sum;
       }, 0);
@@ -677,14 +679,18 @@ export function Checkout() {
       if (appliedDiscount.appliesTo === "all" || appliedDiscount.appliesTo === "catalog") {
         return { qualifyingSubtotal: cartTotal, qualifyingItems: cart };
       }
+
+      const targetCatsSet = appliedDiscount.appliesTo === "categories" ? new Set(appliedDiscount.selectedCategories || []) : new Set();
+      const targetProdsSet = appliedDiscount.appliesTo === "products" ? new Set(appliedDiscount.selectedProducts || []) : new Set();
+
       const itemsList = cart.filter(item => {
         let qualifies = false;
         if (appliedDiscount.appliesTo === "categories") {
           const catalogBook = booksMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => appliedDiscount.selectedCategories?.includes(cat));
+          qualifies = bookCats.some(cat => targetCatsSet.has(cat));
         } else if (appliedDiscount.appliesTo === "products") {
-          qualifies = appliedDiscount.selectedProducts?.includes(item.id);
+          qualifies = targetProdsSet.has(item.id);
         }
         return qualifies;
       });
