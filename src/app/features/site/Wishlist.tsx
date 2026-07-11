@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Link } from "react-router";
 import { Heart, ArrowLeft, ShoppingBag, Trash2 } from "lucide-react";
 import { useWishlist } from "../../lib/wishlist";
@@ -27,7 +27,10 @@ export default function WishlistPage() {
     }
   }, []);
 
-  const items = books.filter(b => ids.includes(b.id));
+  // ⚡ Bolt: Cache wishlist ids in a Set for O(1) lookups
+  // Measured impact: Prevents O(N*M) lookups when filtering the books array.
+  const idSet = useMemo(() => new Set(ids), [ids]);
+  const items = useMemo(() => books.filter(b => idSet.has(b.id)), [books, idSet]);
 
   if (loading) {
     return (

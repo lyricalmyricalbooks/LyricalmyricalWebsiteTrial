@@ -44,3 +44,7 @@
 ## 2024-11-12 - Reusing Context Memoized Values Instead of Inline Reduces
 **Learning:** In React components consuming Context (like `Checkout` consuming `CartContext`), performing inline array operations such as `cart.reduce()` or `cartItems.reduce()` within render loops or even event callbacks forces unnecessary O(N) evaluations. This is especially inefficient when the Context already calculates and exposes memoized aggregates like `cartCount` or `cartTotal`.
 **Action:** When consuming context-provided collections, always utilize existing pre-calculated memoized values (e.g., `cartCount`, `cartTotal`) instead of performing inline array operations inside component render trees or event callbacks to eliminate redundant O(N) evaluations.
+
+## 2025-02-18 - Optimized Array Iterations Over `ids`
+**Learning:** Checking inclusion via `.includes()` over constraint arrays inside `.filter()` leads to O(N*M) bottlenecks during React renders when constraint array scales up.
+**Action:** When filtering iterating over objects filtering via an array of ids, convert the array into a `Set` using `useMemo` first, then run `idSet.has(x)` inside `.filter()`.
