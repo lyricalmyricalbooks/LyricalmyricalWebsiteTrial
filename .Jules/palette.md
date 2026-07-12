@@ -17,3 +17,7 @@
 ## 2026-06-24 - Information Panel Accessibility Improvement
 **Learning:** Found an icon-only `X` button inside the Information (About) panel missing an `aria-label`. Interactive elements meant to dismiss or close overlays are critical for keyboard and screen reader users and must be explicitly labeled so users know how to exit a view.
 **Action:** Always ensure that dismissive buttons, such as modal or panel close controls, are properly labeled with descriptive `aria-label`s to maintain equitable access.
+
+## 2026-06-25 - Admin Theme Editor Toolbar and Outline Accessibility
+**Learning:** Found multiple icon-only buttons in the Theme Editor (e.g., undo/redo, command palette, fullscreen toggle, section visibility, and duplication) that relied solely on `title` attributes for tooltips but lacked `aria-label`s. Screen reader users rely on `aria-label` to understand the function of these critical administrative controls.
+**Action:** Always ensure that icon-only buttons in complex admin interfaces like the Theme Editor have explicit `aria-label`s, even if a `title` attribute is present for visual tooltips, to guarantee full accessibility for assistive technologies.
