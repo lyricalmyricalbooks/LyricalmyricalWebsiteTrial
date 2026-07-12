@@ -2100,6 +2100,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                         isHidden ? "text-neutral-300 hover:text-emerald-500 hover:bg-emerald-50" : "text-neutral-300 hover:text-neutral-600 hover:bg-neutral-100"
                       }`}
                       title={isHidden ? "Show section" : "Hide section"}
+                      aria-label={isHidden ? "Show section" : "Hide section"}
                     >
                       {isHidden ? <EyeOff size={13} /> : <Eye size={13} />}
                     </button>
@@ -2108,6 +2109,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                       onClick={(e) => duplicateSection(section.id, e)}
                       className="p-2 text-neutral-200 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
                       title="Duplicate section"
+                      aria-label="Duplicate section"
                     >
                       <Layers size={13} />
                     </button>
@@ -2162,6 +2164,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                               <button
                                 onClick={() => toggleBlockHidden(bi)}
                                 title={block.hidden ? "Show block" : "Hide block"}
+                                aria-label={block.hidden ? "Show block" : "Hide block"}
                                 className={`p-1 rounded transition-colors ${
                                   block.hidden ? "text-neutral-300 hover:text-emerald-500" : "text-neutral-300 hover:text-neutral-600"
                                 }`}
@@ -6489,6 +6492,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
               disabled={pastDesigns.length === 0}
               className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all disabled:opacity-10 relative"
               title={`Undo (${pastDesigns.length} steps) — Ctrl+Z`}
+              aria-label={`Undo (${pastDesigns.length} steps)`}
             >
               <ChevronLeft size={18} strokeWidth={3} />
               {pastDesigns.length > 0 && (
@@ -6502,6 +6506,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
               disabled={futureDesigns.length === 0}
               className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all disabled:opacity-10 relative"
               title={`Redo (${futureDesigns.length} steps) — Ctrl+Y`}
+              aria-label={`Redo (${futureDesigns.length} steps)`}
             >
               <ChevronRight size={18} strokeWidth={3} />
               {futureDesigns.length > 0 && (
@@ -6539,6 +6544,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
             onTouchEnd={() => setComparing(false)}
             disabled={!hasChanges}
             title="Hold to preview the last-saved design — release to come back"
+            aria-label="Compare to saved version"
             className={`px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase border transition-all flex items-center gap-2 italic select-none ${
               comparing
                 ? "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_20px_rgba(251,191,36,0.15)]"
@@ -6556,6 +6562,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
             data-tour="command-palette"
             onClick={() => setShowCommandPalette(true)}
             title="Open command palette (Ctrl+K)"
+            aria-label="Open command palette"
             className="px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase border border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2 italic"
           >
             <CommandIcon size={12} strokeWidth={2.5} />
@@ -6600,6 +6607,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                 : "text-slate-500 border-transparent hover:text-slate-300"
             }`}
             title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Preview"}
+            aria-label={isFullscreen ? "Exit Fullscreen" : "Fullscreen Preview"}
           >
             {isFullscreen ? <Minimize2 size={14} strokeWidth={2.5} /> : <Maximize2 size={14} strokeWidth={2.5} />}
             <span className="text-[9px] font-black uppercase tracking-widest italic">{isFullscreen ? "Exit" : "Full"}</span>
@@ -6627,6 +6635,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
             onClick={onExit}
             className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/5 border border-white/5 text-slate-500 hover:text-white hover:bg-red-500/20 hover:border-red-500/20 transition-all"
             title="Exit Editor"
+            aria-label="Exit Editor"
           >
             <X size={20} strokeWidth={3} />
           </button>
