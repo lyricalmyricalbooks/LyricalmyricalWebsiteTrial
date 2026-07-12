@@ -381,71 +381,81 @@ export function Checkout() {
     // 3. Product / Category targeting
     if (discount.appliesTo === "categories") {
       const selectedCats = discount.selectedCategories || [];
+      // ⚡ Bolt: Convert constraint arrays to O(1) Sets before iterating over cartItems
+      const selectedCatsSet = new Set(selectedCats);
       const hasMatchingCategory = cartItems.some(item => {
         const catalogBook = catalogMap.get(item.id);
         const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-        return bookCats.some(cat => selectedCats.includes(cat));
+        return bookCats.some(cat => selectedCatsSet.has(cat));
       });
       if (!hasMatchingCategory) {
         throw new Error(`This code only applies to categories: ${selectedCats.join(", ")}.`);
       }
     } else if (discount.appliesTo === "products") {
       const selectedProds = discount.selectedProducts || [];
-      const hasMatchingProduct = cartItems.some(item => selectedProds.includes(item.id));
+      // ⚡ Bolt: Convert constraint arrays to O(1) Sets before iterating over cartItems
+      const selectedProdsSet = new Set(selectedProds);
+      const hasMatchingProduct = cartItems.some(item => selectedProdsSet.has(item.id));
       if (!hasMatchingProduct) {
         throw new Error("This code only applies to specific products not currently in your cart.");
       }
     }
 
     // 4. BOGO & Tiered specific checks
-    if (discount.type === "bogo") {
-      const buyQty = Number(discount.buyQuantity) || 1;
-      const getQty = Number(discount.getQuantity) || 1;
-      const requiredUnits = buyQty + getQty;
+    if (discount.type === "bogo" || discount.type === "tiered") {
+      // ⚡ Bolt: Convert constraint arrays to O(1) Sets before iterating over cartItems
+      const selectedCatsSet = discount.selectedCategories ? new Set(discount.selectedCategories) : new Set();
+      const selectedProdsSet = discount.selectedProducts ? new Set(discount.selectedProducts) : new Set();
 
-      // Filter qualifying items
-      const qualItems = cartItems.filter(item => {
-        if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return true;
-        if (discount.appliesTo === "categories") {
-          const catalogBook = catalogMap.get(item.id);
-          const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          return bookCats.some(cat => discount.selectedCategories?.includes(cat));
-        }
-        if (discount.appliesTo === "products") {
-          return discount.selectedProducts?.includes(item.id);
-        }
-        return false;
-      });
+      if (discount.type === "bogo") {
+        const buyQty = Number(discount.buyQuantity) || 1;
+        const getQty = Number(discount.getQuantity) || 1;
+        const requiredUnits = buyQty + getQty;
 
-      const totalQualUnits = qualItems.reduce((sum, item) => sum + item.quantity, 0);
-      if (totalQualUnits < requiredUnits) {
-        throw new Error(`This BOGO code requires buying at least ${requiredUnits} qualifying items.`);
+        // Filter qualifying items
+        const qualItems = cartItems.filter(item => {
+          if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return true;
+          if (discount.appliesTo === "categories") {
+            const catalogBook = catalogMap.get(item.id);
+            const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
+            return bookCats.some(cat => selectedCatsSet.has(cat));
+          }
+          if (discount.appliesTo === "products") {
+            return selectedProdsSet.has(item.id);
+          }
+          return false;
+        });
+
+        const totalQualUnits = qualItems.reduce((sum, item) => sum + item.quantity, 0);
+        if (totalQualUnits < requiredUnits) {
+          throw new Error(`This BOGO code requires buying at least ${requiredUnits} qualifying items.`);
+        }
       }
-    }
 
-    if (discount.type === "tiered") {
-      const tiers = discount.tiers || [];
-      if (!Array.isArray(tiers) || tiers.length === 0) {
-        throw new Error("This tiered code is not configured correctly.");
-      }
-
-      // Calculate qualifying subtotal
-      const qualifyingSubtotal = cartItems.reduce((sum, item) => {
-        if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return sum + item.quantity * item.price;
-        let qualifies = false;
-        if (discount.appliesTo === "categories") {
-          const catalogBook = catalogMap.get(item.id);
-          const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => discount.selectedCategories?.includes(cat));
-        } else if (discount.appliesTo === "products") {
-          qualifies = discount.selectedProducts?.includes(item.id);
+      if (discount.type === "tiered") {
+        const tiers = discount.tiers || [];
+        if (!Array.isArray(tiers) || tiers.length === 0) {
+          throw new Error("This tiered code is not configured correctly.");
         }
-        return qualifies ? sum + item.quantity * item.price : sum;
-      }, 0);
 
-      const lowestMinSpend = Math.min(...tiers.map(t => Number(t.minSpend)));
-      if (qualifyingSubtotal < lowestMinSpend) {
-        throw new Error(`This code requires a minimum spend of $${lowestMinSpend.toFixed(2)} on qualifying items.`);
+        // Calculate qualifying subtotal
+        const qualifyingSubtotal = cartItems.reduce((sum, item) => {
+          if (discount.appliesTo === "all" || discount.appliesTo === "catalog") return sum + item.quantity * item.price;
+          let qualifies = false;
+          if (discount.appliesTo === "categories") {
+            const catalogBook = catalogMap.get(item.id);
+            const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
+            qualifies = bookCats.some(cat => selectedCatsSet.has(cat));
+          } else if (discount.appliesTo === "products") {
+            qualifies = selectedProdsSet.has(item.id);
+          }
+          return qualifies ? sum + item.quantity * item.price : sum;
+        }, 0);
+
+        const lowestMinSpend = Math.min(...tiers.map(t => Number(t.minSpend)));
+        if (qualifyingSubtotal < lowestMinSpend) {
+          throw new Error(`This code requires a minimum spend of $${lowestMinSpend.toFixed(2)} on qualifying items.`);
+        }
       }
     }
   };
@@ -677,14 +687,19 @@ export function Checkout() {
       if (appliedDiscount.appliesTo === "all" || appliedDiscount.appliesTo === "catalog") {
         return { qualifyingSubtotal: cartTotal, qualifyingItems: cart };
       }
+
+      // ⚡ Bolt: Convert constraint arrays to O(1) Sets before filtering cart
+      const selectedCatsSet = appliedDiscount.selectedCategories ? new Set(appliedDiscount.selectedCategories) : new Set();
+      const selectedProdsSet = appliedDiscount.selectedProducts ? new Set(appliedDiscount.selectedProducts) : new Set();
+
       const itemsList = cart.filter(item => {
         let qualifies = false;
         if (appliedDiscount.appliesTo === "categories") {
           const catalogBook = booksMap.get(item.id);
           const bookCats = catalogBook && Array.isArray(catalogBook.categories) ? catalogBook.categories : [];
-          qualifies = bookCats.some(cat => appliedDiscount.selectedCategories?.includes(cat));
+          qualifies = bookCats.some(cat => selectedCatsSet.has(cat));
         } else if (appliedDiscount.appliesTo === "products") {
-          qualifies = appliedDiscount.selectedProducts?.includes(item.id);
+          qualifies = selectedProdsSet.has(item.id);
         }
         return qualifies;
       });
