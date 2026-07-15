@@ -78,46 +78,55 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   // allocations on every re-render and keystroke.
   const haystackCache = useMemo(() => new WeakMap<any, string>(), []);
 
-  const q = search.trim().toLowerCase();
+  // ⚡ Bolt: Wrap filtering logic in useMemo to prevent O(N) evaluations
+  // blocking the main thread when unrelated UI state (like dropdowns) changes.
+  // Measured impact: avoids O(N) redundant iteration and string allocations on every render.
+  const filteredBooks = useMemo(() => {
+    const q = search.trim().toLowerCase();
 
-  const filteredBooks = books.filter(b => {
-    let matchesSearch = true;
+    return books.filter(b => {
+      let matchesSearch = true;
 
-    if (q) {
-      let haystack = haystackCache.get(b);
-      if (!haystack) {
-        haystack = [
-          b.title || "",
-          b.isbn || "",
-          b.authorName || ""
-        ].join(" ").toLowerCase();
-        haystackCache.set(b, haystack);
+      if (q) {
+        let haystack = haystackCache.get(b);
+        if (!haystack) {
+          haystack = [
+            b.title || "",
+            b.isbn || "",
+            b.authorName || ""
+          ].join(" ").toLowerCase();
+          haystackCache.set(b, haystack);
+        }
+        matchesSearch = haystack.includes(q);
       }
-      matchesSearch = haystack.includes(q);
-    }
-    
-    const bookCats = (b.categories || b.genres || []).map((c: string) => c.toUpperCase().trim());
-    const matchesCategory = categoryFilter === "All" || bookCats.includes(categoryFilter.toUpperCase().trim());
-    
-    let matchesStatus = true;
-    if (statusFilter === "Published") matchesStatus = b.status === "published" && b.stockLevel > 0;
-    else if (statusFilter === "Sold Out") matchesStatus = b.stockLevel === 0;
-    else if (statusFilter === "Drafts") matchesStatus = b.status === "draft";
-    
-    return matchesSearch && matchesCategory && matchesStatus;
-  });
 
-  const sortedAndFiltered = [...filteredBooks].sort((a, b) => {
-    let aVal = a[sortField];
-    let bVal = b[sortField];
-    
-    if (sortField === "price") { aVal = a.retailPrice || 0; bVal = b.retailPrice || 0; }
-    if (sortField === "inventory") { aVal = a.stockLevel || 0; bVal = b.stockLevel || 0; }
-    
-    if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
-    if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
-    return 0;
-  });
+      const bookCats = (b.categories || b.genres || []).map((c: string) => c.toUpperCase().trim());
+      const matchesCategory = categoryFilter === "All" || bookCats.includes(categoryFilter.toUpperCase().trim());
+
+      let matchesStatus = true;
+      if (statusFilter === "Published") matchesStatus = b.status === "published" && b.stockLevel > 0;
+      else if (statusFilter === "Sold Out") matchesStatus = b.stockLevel === 0;
+      else if (statusFilter === "Drafts") matchesStatus = b.status === "draft";
+
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+  }, [books, search, categoryFilter, statusFilter, haystackCache]);
+
+  // ⚡ Bolt: Wrap sorting logic in useMemo to prevent O(N log N) evaluations
+  // on every render.
+  const sortedAndFiltered = useMemo(() => {
+    return [...filteredBooks].sort((a, b) => {
+      let aVal = a[sortField];
+      let bVal = b[sortField];
+
+      if (sortField === "price") { aVal = a.retailPrice || 0; bVal = b.retailPrice || 0; }
+      if (sortField === "inventory") { aVal = a.stockLevel || 0; bVal = b.stockLevel || 0; }
+
+      if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [filteredBooks, sortField, sortOrder]);
 
   const handleBulkAction = async (action: "publish" | "draft" | "delete") => {
     if (selectedBooks.length === 0) return;
