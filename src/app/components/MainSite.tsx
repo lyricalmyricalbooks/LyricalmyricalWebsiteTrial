@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "motion/react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon, ShoppingCart } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon, ShoppingCart, Loader2 } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router";
 import { useCart } from "../CartContext";
 import { CATEGORIES, DEFAULT_IMAGE } from "../features/site/constants";
@@ -279,6 +279,7 @@ function Newsletter({ design }: { design?: any }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={getCopy(design, "newsletterPlaceholder")}
+            aria-label={getCopy(design, "newsletterPlaceholder") || "Email for newsletter"}
             required
             className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-3 text-xs text-white placeholder-white/30 outline-none focus:border-white/30 transition-all"
           />
@@ -295,8 +296,12 @@ function Newsletter({ design }: { design?: any }) {
               borderRadius: buttonRadius,
             }}
           >
-            <Send size={12} />
-            {status === "loading" ? "..." : getCopy(design, "newsletterButton")}
+            {status === "loading" ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <Send size={12} />
+            )}
+            {status === "loading" ? "SUBSCRIBING..." : getCopy(design, "newsletterButton")}
           </button>
         </form>
       )}
