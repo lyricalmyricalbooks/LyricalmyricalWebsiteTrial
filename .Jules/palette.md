@@ -17,3 +17,7 @@
 ## 2026-06-24 - Information Panel Accessibility Improvement
 **Learning:** Found an icon-only `X` button inside the Information (About) panel missing an `aria-label`. Interactive elements meant to dismiss or close overlays are critical for keyboard and screen reader users and must be explicitly labeled so users know how to exit a view.
 **Action:** Always ensure that dismissive buttons, such as modal or panel close controls, are properly labeled with descriptive `aria-label`s to maintain equitable access.
+
+## 2024-06-25 - Async Button Feedback and Form Accessibility
+**Learning:** Found a newsletter submission form that used a static `"..."` text string to denote loading state, and an `<input>` field lacking an `aria-label`. Relying solely on placeholder text for form fields is poor accessibility practice, as placeholders disappear upon typing and are not consistently announced by screen readers. Furthermore, interactive buttons performing async requests should provide clear, recognizable visual feedback (like a spinner) to reassure users their action is processing.
+**Action:** When working with forms or async actions, always pair interactive submit buttons with animated loading spinners rather than vague text strings, and ensure all form inputs (even simple one-field newsletters) explicitly declare accessible labels.
