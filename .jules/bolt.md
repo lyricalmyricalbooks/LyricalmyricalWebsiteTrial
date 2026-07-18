@@ -44,3 +44,6 @@
 ## 2024-11-12 - Reusing Context Memoized Values Instead of Inline Reduces
 **Learning:** In React components consuming Context (like `Checkout` consuming `CartContext`), performing inline array operations such as `cart.reduce()` or `cartItems.reduce()` within render loops or even event callbacks forces unnecessary O(N) evaluations. This is especially inefficient when the Context already calculates and exposes memoized aggregates like `cartCount` or `cartTotal`.
 **Action:** When consuming context-provided collections, always utilize existing pre-calculated memoized values (e.g., `cartCount`, `cartTotal`) instead of performing inline array operations inside component render trees or event callbacks to eliminate redundant O(N) evaluations.
+## 2026-07-18 - Replacing array iteration with getCountFromServer
+**Learning:** Using `getDocs()` and then filtering in memory with `.filter()` for calculating stats is an O(N) operation and consumes bandwidth proportional to collection size.
+**Action:** Instead, leverage `getCountFromServer` directly on collections and queries. Compute conditional stats using subtraction between total and condition-matching counts concurrently.
