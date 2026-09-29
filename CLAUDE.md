@@ -238,13 +238,32 @@ and the **Last Code Push** timestamp.
 > - the summary paragraph listing what this release shipped,
 > - the **Last Code Push** timestamp (e.g. "June 13, 22:09").
 >
-> Current state: updated **June 30, 2026 at 9:20 PM** — added three optional,
+> Current state: updated **September 29, 2026** — Riso Press admin design system + rebuilt shell (see "Riso Press admin design system" below). Previous: **June 30, 2026 at 9:20 PM** — added three optional,
 > purely cosmetic "Checkout & Cart" theme tokens (`checkoutAccentColor`,
 > `checkoutBgColor`, `checkoutInputRadius`) editable from a new subsection in
 > `ColorsPanel` (`ThemeEditor.tsx`). They're emitted as a `[data-fm-checkout]`
 > CSS override block by `StorefrontThemeStyle.tsx` only when set, scoped via a
 > new `data-fm-checkout` attribute on `Checkout.tsx`'s three root divs and
 > `CartDrawer.tsx`'s root; checkout/payment/totals logic is untouched.
+
+## Riso Press admin design system
+
+`src/app/admin/riso/` — `riso.css` (semantic `--rp-*` tokens, light + dark, all
+`rp-*` component classes; honors reduced motion, 44px touch targets, visible
+focus, print), `components.tsx` (AppShell, Sidebar, Topbar, PageHeader,
+Breadcrumbs, SectionCard, MetricCard, Primary/Secondary/Destructive buttons,
+IconButton, TextField/TextArea/SelectField/SearchField, Toggle, Checkbox,
+StatusBadge, DataTable, FilterBar, Pagination, Tabs, Dialog/Drawer/ConfirmDialog
+with focus trap + Escape + focus restore, Toast, Empty/Loading/Error states,
+SaveBar), and `shellParts.tsx` (`GlobalSearch`, `ActivityLogDialog`).
+Migrated so far: shell (`Dashboard.tsx`), `Login`, `ReviewsModeration`, Activity
+Logs. **Not yet migrated** (still on the legacy `.admin-reso`/`.admin-light`
+utility remapping, which `Dashboard.tsx` now scopes to page content only —
+never wrap `rp-*` chrome in `.admin-light`, its `aside button`/`input` rules
+will override it): Overview/Analytics, Orders, OrderDetail, BookCatalog,
+BookEditor, Discounts, PagesManager, ShopSettings, NotificationEditor, the theme
+editor, and the whole storefront. Migrate one page at a time by composing these
+components; don't touch checkout/order/webhook logic.
 
 ## Conventions & gotchas
 

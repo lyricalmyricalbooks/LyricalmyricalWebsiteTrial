@@ -215,8 +215,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             Lyricalmyrical E-Commerce Platform Updated
           </h3>
           <p className="text-slate-400 text-xs font-medium max-w-2xl leading-relaxed">
-            The storefront, checkout, and admin dashboard were successfully updated on <strong>July 2, 2026 at 1:15 PM</strong>.
-            This release ships the "Lyricalmyrical Punk" design end-to-end through the theme editor: a new theme preset (violet-on-black, Cormorant Garamond + Inter) with a one-click homepage layout; four new sections (book-cover Carousel Hero, Showcase Product Grid with quick-add, Staff Notes Table, Ephemera Row); sticker-pill navigation and a two-part serif wordmark; a real scrolling announcement marquee; catalog category filter chips; a product-page quantity stepper and designed description card; a themeable (dark) cart drawer; a 4-column footer; and per-page section stacks so About and Journal can be built as fully editable pages. Every new setting defaults to the previous look — nothing changes until the preset is applied. Checkout, totals, and the Stripe payment path remain untouched.
+            The storefront, checkout, and admin dashboard were successfully updated on <strong>September 29, 2026 at 12:00 AM</strong>.
+            This release introduces the Riso Press application design system (reusable AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, buttons, fields, badges, tables, tabs, dialogs, toasts, and state components) and rebuilds the admin frame with a functional global search, an accessible mobile drawer, an administrator menu, and a redesigned Activity Logs dialog with category filters and search. The sign-in screen and Reviews moderation (bulk actions, confirmation, undo) now use the new components. Remaining admin pages are migrated in follow-up releases. Checkout, totals, and the Stripe payment path remain untouched.
           </p>
         </div>
         <div className="shrink-0 relative z-10 bg-white/5 border border-white/10 rounded-2xl p-4 text-center min-w-[150px]">
@@ -224,7 +224,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <p className="text-xs font-bold text-emerald-400 mt-1 uppercase tracking-wider">Deploy Success</p>
           <div className="h-px bg-white/5 my-3" />
           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Last Code Push</p>
-          <p className="text-[10px] font-mono text-slate-300 mt-1">July 2, 13:15</p>
+          <p className="text-[10px] font-mono text-slate-300 mt-1">September 29, 00:00</p>
         </div>
       </motion.div>
 
