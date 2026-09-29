@@ -45,6 +45,7 @@ import { PagesManager } from "./PagesManager";
 import { NotificationEditor } from "./NotificationEditor";
 import { COUNTRIES, CONTINENTS, describeZoneGeography } from "../features/site/shippingZones";
 import { summarizeShipping } from "./shippingHealth";
+import { paymentHealth } from "./paymentHealth";
 
 const PURPLE = "#A855F7";
 
@@ -1296,6 +1297,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
   const stripeLive = !!stripe.connected;
   const paypalLive = !!paypal.connected;
   const secretStored = !!(stripe.secretKey || stripe.testSecretKey);
+  const paymentIssues = useMemo(() => paymentHealth(settings.payments), [settings.payments]);
 
   const removeMethod = async (m: any) => {
     if (!(await askConfirm({ title: "Delete this payment method?", message: `“${m.name}” will no longer be offered at checkout once you save.`, confirmLabel: "Delete method" }))) return;
@@ -1315,6 +1317,13 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
         <p className="rp-hint" style={{ margin: "12px 0 0" }}>
           The amount charged is always calculated by the payment server, never in the browser. Orders are created unpaid and are marked paid only when the Stripe webhook confirms the payment.
         </p>
+        {paymentIssues.length === 0 ? (
+          <p role="status" style={{ padding: 12, background: "var(--rp-success-tint)", color: "var(--rp-success)", border: "1px solid var(--rp-success)" }}><strong>✓ Payment configuration is launch-ready.</strong></p>
+        ) : (
+          <ul className="rp-list" aria-label="Payment readiness issues" style={{ marginTop: 16, border: "1px solid var(--rp-border)" }}>
+            {paymentIssues.map((issue) => <li key={issue.id} style={{ padding: 12 }}><StatusBadge tone={issue.severity === "blocking" ? "danger" : "warning"}>{issue.severity}</StatusBadge> <strong style={{ marginLeft: 8 }}>{issue.label}</strong><span className="rp-hint" style={{ display: "block", marginTop: 4 }}>{issue.detail}</span></li>)}
+          </ul>
+        )}
         <div className="rp-card-actions">
           <Toggle label="Test (sandbox) mode" checked={!!testMode} onChange={updateTestMode} />
           <span className="rp-hint">In test mode Stripe and PayPal process test charges and orders are flagged as test orders.</span>

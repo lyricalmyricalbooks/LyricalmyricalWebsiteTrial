@@ -481,6 +481,20 @@ function computeDiscountAmount(discount, items, booksById) {
   return 0;
 }
 
+// Enforce customer targeting on the trusted server path. Client validation is
+// only an early UX hint and must never authorize a restricted promotion.
+function validateDiscountCustomer(discount, email) {
+  const normalized = String(email || "").trim().toLowerCase();
+  const emails = String(discount.allowedCustomerEmails || "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
+  const domains = String(discount.allowedEmailDomains || "").split(",").map(v => v.trim().toLowerCase().replace(/^@/, "")).filter(Boolean);
+  if ((emails.length || domains.length) && !normalized) throw new Error("Enter your email address to use this code.");
+  if (emails.length && !emails.includes(normalized)) throw new Error("This code is restricted to selected customers.");
+  if (domains.length) {
+    const customerDomain = normalized.split("@")[1] || "";
+    if (!domains.some(domain => customerDomain === domain || customerDomain.endsWith(`.${domain}`))) throw new Error("This code is restricted to selected email domains.");
+  }
+}
+
 const FALLBACK_RATES = {
   cad: 1.0,
   usd: 0.73,
@@ -585,6 +599,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
   let appliedDiscount = null;
   if (order.appliedDiscount?.code) {
     const verified = await fetchValidDiscount(order.appliedDiscount.code);
+    validateDiscountCustomer(verified, order.customer?.email);
     discount = computeDiscountAmount(verified, items, booksById);
     appliedDiscount = { id: verified.id, code: verified.code, type: verified.type, value: verified.value };
   }
@@ -874,6 +889,7 @@ exports.createStripeCheckoutSession = onRequest(
         let discount;
         try {
           discount = await fetchValidDiscount(order.appliedDiscount.code);
+          validateDiscountCustomer(discount, order.customer?.email);
           discountAmount = computeDiscountAmount(discount, items, booksById);
         } catch (discountErr) {
           res.status(400).json({ error: `Discount code error: ${discountErr.message}` });

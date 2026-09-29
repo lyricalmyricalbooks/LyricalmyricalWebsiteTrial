@@ -4,6 +4,7 @@ import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { CATEGORIES } from "../features/site/constants";
 import { discountState as state, today } from "./discountState";
+import { validateDiscountDraft } from "./discountValidation";
 import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState,
   MetricCard, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField,
@@ -61,12 +62,7 @@ function DiscountDialog({ initial, onClose, onSave }: { initial?: any; onClose: 
   }, []);
 
   const validate = () => {
-    const e: Record<string, string> = {};
-    if (!form.code.trim()) e.code = "Enter a code customers will type at checkout.";
-    if ((form.type === "percentage") && !(Number(form.value) > 0 && Number(form.value) <= 100)) e.value = "Enter a percentage between 1 and 100.";
-    if (form.type === "fixed" && !(Number(form.value) > 0)) e.value = "Enter an amount greater than zero.";
-    if (form.appliesTo === "categories" && !(form.selectedCategories || []).length) e.applies = "Choose at least one category.";
-    if (form.appliesTo === "products" && !(form.selectedProducts || []).length) e.applies = "Choose at least one book.";
+    const e = validateDiscountDraft(form);
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -135,10 +131,13 @@ function DiscountDialog({ initial, onClose, onSave }: { initial?: any; onClose: 
         )}
 
         {form.type === "bogo" && (
+          <div>
           <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
             <TextField label="Buy quantity" type="number" min={1} value={form.buyQuantity ?? 1} onChange={e => set("buyQuantity", parseInt(e.target.value) || 1)} />
             <TextField label="Get quantity" type="number" min={1} value={form.getQuantity ?? 1} onChange={e => set("getQuantity", parseInt(e.target.value) || 1)} />
             <TextField label="Discount on the free items (%)" type="number" min={0} max={100} value={form.getDiscountValue ?? 100} onChange={e => set("getDiscountValue", parseInt(e.target.value) || 0)} />
+          </div>
+          {errors.bogo && <p role="alert" className="rp-error-text">{errors.bogo}</p>}
           </div>
         )}
 
@@ -160,6 +159,7 @@ function DiscountDialog({ initial, onClose, onSave }: { initial?: any; onClose: 
               {(form.tiers || []).length < 3 && (
                 <SecondaryButton size="sm" icon={<Plus size={14} aria-hidden />} onClick={() => set("tiers", [...(form.tiers || []), { minSpend: 0, value: 0, type: "percentage" }])}>Add tier</SecondaryButton>
               )}
+              {errors.tiers && <p role="alert" className="rp-error-text">{errors.tiers}</p>}
             </div>
           </div>
         )}
@@ -188,10 +188,10 @@ function DiscountDialog({ initial, onClose, onSave }: { initial?: any; onClose: 
         </fieldset>
 
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
-          <TextField label="Expiry date (optional)" type="date" value={form.expiryDate || ""} onChange={e => set("expiryDate", e.target.value)} hint="Last day the code works." />
-          <TextField label="Minimum order (CA$)" type="number" min={0} value={form.minOrderAmount} onChange={e => set("minOrderAmount", e.target.value)} placeholder="No minimum" />
-          <TextField label="Minimum quantity" type="number" min={0} value={form.minQuantity} onChange={e => set("minQuantity", e.target.value)} placeholder="No minimum" />
-          <TextField label="Total usage limit" type="number" min={1} value={form.usageLimit} onChange={e => set("usageLimit", e.target.value)} placeholder="Unlimited" />
+          <TextField label="Expiry date (optional)" type="date" min={today()} value={form.expiryDate || ""} onChange={e => set("expiryDate", e.target.value)} hint="Last day the code works." error={errors.expiryDate} />
+          <TextField label="Minimum order (CA$)" type="number" min={0} value={form.minOrderAmount} onChange={e => set("minOrderAmount", e.target.value)} placeholder="No minimum" error={errors.minOrderAmount} />
+          <TextField label="Minimum quantity" type="number" min={0} step={1} value={form.minQuantity} onChange={e => set("minQuantity", e.target.value)} placeholder="No minimum" error={errors.minQuantity} />
+          <TextField label="Total usage limit" type="number" min={1} step={1} value={form.usageLimit} onChange={e => set("usageLimit", e.target.value)} placeholder="Unlimited" error={errors.usageLimit} />
         </div>
 
         <div style={{ display: "grid", gap: 4 }}>
