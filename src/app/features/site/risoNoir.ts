@@ -52,6 +52,8 @@ export const RISO_NOIR_TOKENS: Record<string, any> = {
   productDescriptionStyle: "designed",
   // Optional storefront elements (all on).
   showRecentlyViewed: true, showBreadcrumbs: true, showCookieBanner: true,
+  // Footer extras off by default: payment-badge row and the "Powered by" line.
+  showPaymentBadges: false, showPoweredBy: false,
 };
 
 /** Surfaces that resolve their own design object before falling back to the root. */

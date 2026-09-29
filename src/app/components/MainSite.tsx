@@ -453,7 +453,7 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
           {getCopy(settings?.design, "footerCopyright")}
         </p>
 
-        {settings?.payments?.footerBadges?.length > 0 && (
+        {settings?.payments?.footerBadges?.length > 0 && d?.showPaymentBadges !== false && (
           <div className="flex items-center gap-4 text-white/55 select-none">
             {settings.payments.footerBadges.map((badgeId: string) => {
               const icon = PAYMENT_ICONS[badgeId];
