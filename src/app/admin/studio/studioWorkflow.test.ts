@@ -3,6 +3,12 @@ import { normalizeDesign } from "./studioModel";
 import { applyPageStyle, createSnapshotWriter, parseRecovery, previewRoute, updateBlocks } from "./studioWorkflow";
 
 describe("Studio workflow", () => {
+  it("normalization is idempotent and never nests page surfaces inside one another", () => {
+    const initial = { primaryColor: "red", productPage: { sections: [] }, heroPage: { sections: [] } };
+    const once = normalizeDesign(initial);
+    expect(normalizeDesign(once)).toEqual(once);
+    expect(once.heroPage).not.toHaveProperty("productPage");
+  });
   it("gives legacy hidden and visible blocks stable identity across normalization", () => {
     const input = { heroPage: { sections: [{ id: "faq", type: "FAQSection", settings: { items: [{ hidden: true, question: "Hidden" }, { question: "Visible" }] } }] } };
     const a = normalizeDesign(input);

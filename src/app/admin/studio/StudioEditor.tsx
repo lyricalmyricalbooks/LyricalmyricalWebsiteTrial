@@ -5,14 +5,14 @@ import {
 } from "lucide-react";
 import { adminApi } from "../api";
 import {
-  SECTION_REGISTRY, SectionFieldEditor, SectionSettingsPanel, BlocksEditor, buildPageTemplates,
-  getBlockFields, getSectionFields, getSectionMeta, DEFAULT_COLOR_SCHEMES,
+  SECTION_REGISTRY, SectionFieldEditor, buildPageTemplates,
+  getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, DEFAULT_COLOR_SCHEMES,
 } from "../ThemeEditorExtensions";
 import { CATEGORIES } from "../../features/site/constants";
 import { COPY_SCHEMA, DEFAULT_COPY } from "../../features/site/storeCopy";
 import { MENU_LINK_TYPES, newMenuItem, type MenuItem } from "../../features/site/storeMenu";
 import {
-  commit, duplicateSection, getSections, initHistory, insertSection, makeSection, moveSection, normalizeDesign,
+  commit, duplicateSection, getSections, initHistory, insertSection, makeSection, normalizeDesign,
   patchBlockField, patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo,
   type Section, type SectionTarget,
 } from "./studioModel";
@@ -25,6 +25,12 @@ import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY, PALETTES } from "./themeLibrary";
+import { StudioOutline } from "./StudioOutline";
+import { StudioInspector } from "./StudioInspector";
+import { applyPageStyle, PAGE_STYLE_GROUPS, previewRoute } from "./studioWorkflow";
+import { useStudioPersistence } from "./useStudioPersistence";
+import { Dialog, SecondaryButton } from "../riso/components";
+import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages";
 type Toast = { kind: "ok" | "err"; text: string } | null;
@@ -41,6 +47,7 @@ const iconBtn =
 
 function Group({ title, hint, children, open: initial = false }: { title: string; hint?: string; children: any; open?: boolean }) {
   const [open, setOpen] = useState(initial);
+  useEffect(() => { setOpen(initial); }, [initial]);
   return (
     <section className="border-b border-neutral-200">
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
@@ -73,8 +80,7 @@ function AddSectionDialog({ onPick, onClose }: { onPick: (type: string) => void;
   );
   const cats = Array.from(new Set(list.map((s) => s.category)));
   return (
-    <div className="fixed inset-0 z-[400] bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Add section"
-      onKeyDown={(e) => e.key === "Escape" && onClose()}>
+    <Dialog open onClose={onClose} title="Add section" size="lg">
       <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl">
         <div className="flex items-center gap-3 p-4 border-b">
           <Search size={16} className="text-neutral-400" />
@@ -100,7 +106,7 @@ function AddSectionDialog({ onPick, onClose }: { onPick: (type: string) => void;
           {!list.length && <p className="text-sm text-neutral-500">No sections match “{q}”.</p>}
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
@@ -223,54 +229,9 @@ function MenusPanel({ design, pages, onChange }: { design: any; pages: any[]; on
   );
 }
 
-// ── Inspector (right column) ───────────────────────────────────────────────
-function Inspector({ section, colorSchemes, onPatch, onDuplicate, onDelete, onToggle, onClose }: {
-  section: Section; colorSchemes: any[]; onPatch: (p: Record<string, any>) => void;
-  onDuplicate: () => void; onDelete: () => void; onToggle: () => void; onClose: () => void;
-}) {
-  const [tab, setTab] = useState<"content" | "blocks" | "design">("content");
-  const meta = getSectionMeta(section.type);
-  const fields = getSectionFields(section.type);
-  const hasBlocks = Boolean(meta?.blockType && getBlockFields(section.type).length);
-  const uploadFile = useCallback((f: File) => adminApi.uploadFile(f, `sections/${section.id}_${Date.now()}`), [section.id]);
-  useEffect(() => setTab("content"), [section.id]);
-  const tabs: [typeof tab, string][] = [["content", "Content"], ...(hasBlocks ? [["blocks", meta?.blockLabel ? `${meta.blockLabel}s` : "Items"] as [typeof tab, string]] : []), ["design", "Design"]];
-  return (
-    <aside className="w-[340px] shrink-0 border-l border-neutral-200 bg-white flex flex-col min-h-0" aria-label="Section settings">
-      <div className="p-3 border-b flex items-center gap-1">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold truncate">{meta?.label || section.type}</p>
-          <p className="text-[11px] text-neutral-500 truncate">{meta?.description}</p>
-        </div>
-        <button className={iconBtn} onClick={onToggle} aria-label={section.visible === false ? "Show section" : "Hide section"}>
-          {section.visible === false ? <EyeOff size={15} /> : <Eye size={15} />}
-        </button>
-        <button className={iconBtn} onClick={onDuplicate} aria-label="Duplicate section"><Copy size={15} /></button>
-        <button className={iconBtn} onClick={onDelete} aria-label="Delete section"><Trash2 size={15} /></button>
-        <button className={iconBtn} onClick={onClose} aria-label="Close settings"><X size={15} /></button>
-      </div>
-      <div className="flex gap-1 p-2 border-b" role="tablist">
-        {tabs.map(([id, label]) => (
-          <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
-            className={`px-3 h-8 text-xs font-bold rounded-lg ${tab === id ? "bg-neutral-900 text-white" : "bg-neutral-100 hover:bg-neutral-200"}`}>{label}</button>
-        ))}
-      </div>
-      <div className="flex-1 overflow-auto p-4 space-y-4">
-        {tab === "content" && (
-          fields.length ? fields.map((f) => (
-            <SectionFieldEditor key={f.key} field={f} value={section.settings?.[f.key]} settings={section.settings}
-              onChange={(v) => onPatch({ [f.key]: v })} onPatch={onPatch} uploadFile={uploadFile} />
-          )) : <p className="text-sm text-neutral-500">This section has no text settings. Use the Design tab for layout and colors.</p>
-        )}
-        {tab === "blocks" && <BlocksEditor sectionType={section.type} settings={section.settings || {}} onUpdate={onPatch} uploadFile={uploadFile} />}
-        {tab === "design" && <SectionSettingsPanel settings={section.settings || {}} onUpdate={onPatch} colorSchemes={colorSchemes} />}
-      </div>
-    </aside>
-  );
-}
-
 // ── Main editor ────────────────────────────────────────────────────────────
-export function StudioEditor({ settings, onExit, onPersisted }: {
+export function StudioEditor({ settings, onExit, onPersisted, appearance = "light" }: {
+  appearance?: "light" | "dark";
   settings: any;
   onExit: () => void;
   /** Called after a successful save so the dashboard's copy of settings stays fresh. */
@@ -288,8 +249,18 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
   const [showGlobal, setShowGlobal] = useState(false);
   const [device, setDevice] = useState<keyof typeof DEVICE_W>("desktop");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [busy, setBusy] = useState<null | "draft" | "publish">(null);
+  const [adding, setAdding] = useState<number | null>(null);
+  const [blockId, setBlockId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"edit" | "browse">("edit");
+  const [mobilePanel, setMobilePanel] = useState("preview");
+  const [styleSearch, setStyleSearch] = useState("");
+  const [styleScope, setStyleScope] = useState<"all" | "page">("all");
+  const [productSlug, setProductSlug] = useState("");
+  const [collectionSlug, setCollectionSlug] = useState("publications");
+  const [previewStatus, setPreviewStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [previewRevision, setPreviewRevision] = useState(0);
+  const inlineStart = useRef<any>(null);
+
   const [toast, setToast] = useState<Toast>(null);
   const [copyFilter, setCopyFilter] = useState("");
   const [savedThemes, setSavedThemes] = useState<SavedTheme[]>(() => (Array.isArray(settings?.savedThemes) ? settings.savedThemes : []));
@@ -302,6 +273,11 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
   const target: SectionTarget = showGlobal ? { kind: "global" } : { kind: "template", id: template.id };
   const sections = getSections(design, target);
   const selected = sections.find((s) => s.id === selectedId) || null;
+  useEffect(() => {
+    if (!selected) { setBlockId(null); return; }
+    const blocks = selected.settings[getBlocksKey(selected.type)] || selected.settings.blocks || [];
+    if (blockId && !blocks.some((b: any) => b.id === blockId)) setBlockId(null);
+  }, [selected, blockId]);
   const colorSchemes = design.colorSchemes?.length ? design.colorSchemes : DEFAULT_COLOR_SCHEMES;
   const surfaceIds = useMemo(
     () => [...STATIC_SURFACES, ...templates.filter((t) => t.pageSlug).map((t) => t.id)],
@@ -318,10 +294,10 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
   // load pages + books for the preview pickers
   useEffect(() => {
     adminApi.getPages().then((p: any[]) => setPages(p || [])).catch(() => {});
-    adminApi.getBooks().then((b: any[]) => setBooks((b || []).filter((x) => x.status === "published" || !x.status))).catch(() => {});
+    adminApi.getBooks().then((b: any[]) => { const published = (b || []).filter(x => x.status === "published" || !x.status); setBooks(published); setProductSlug(published[0]?.slug || ""); }).catch(() => say("err", "Could not load preview products. Reopen Studio to retry."));
   }, []);
 
-  const change = useCallback((fn: (d: any) => any) => setHist((h) => commit(h, fn(h.present))), []);
+  const change = useCallback((fn: (d: any) => any) => setHist((h) => { const next = normalizeDesign(fn(h.present), defaults); return sameDesign(next, h.present) ? h : commit(h, next); }), [defaults]);
   const setList = (fn: (l: Section[]) => Section[]) => change((d) => setSections(d, target, fn(getSections(d, target))));
   const patchSelected = (patch: Record<string, any>) => selectedId && setList((l) => patchSectionSettings(l, selectedId, patch));
   const setStyle = (path: string, value: any) => change((d) => applyGlobalStyle(d, path, value, surfaceIds));
@@ -369,20 +345,25 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
   };
   const riso = design.themeStyle === "riso";
 
+  const setScopedStyle = (group: string, path: string, value: any) => {
+    if (styleScope === "page" && PAGE_STYLE_GROUPS.has(group)) change(d => applyPageStyle(d, template.id, path, value));
+    else setStyle(path, value);
+  };
+
   // ── preview wiring ──
   const previewUrl = useMemo(() => {
-    const base = window.location.origin + window.location.pathname.replace(/\/admin\/?.*$/, "").replace(/\/$/, "");
+    const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "");
     const withQ = (p: string) => `${base}${p}${p.includes("?") ? "&" : "?"}preview=true`;
     switch (template.id) {
       case "storefront": return withQ("/?catalog=true");
-      case "productPage": return withQ(`/books/${books[0]?.slug || ""}`);
-      case "collectionPage": return withQ("/collections/publications");
+      case "productPage": return withQ(`/books/${productSlug || ""}`);
+      case "collectionPage": return withQ(`/collections/${collectionSlug}`);
       case "cartPage": return withQ("/checkout");
       case "page404": return withQ("/page/page-not-found-preview");
       case "page": return withQ(`/page/${pages.find((p) => p.status === "published")?.slug || ""}`);
       default: return withQ(template.pageSlug ? `/page/${template.pageSlug}` : "/");
     }
-  }, [template.id, template.pageSlug, books, pages]);
+  }, [template.id, template.pageSlug, productSlug, collectionSlug, pages]);
 
   const sendDesign = useCallback(() => {
     try { iframeRef.current?.contentWindow?.postMessage({ type: "THEME_UPDATE", design: designRef.current }, window.location.origin); } catch { /* ignore */ }
@@ -398,29 +379,39 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
   const onIframeLoad = () => {
     try {
       const doc = iframeRef.current?.contentDocument;
-      if (!doc) return;
+      if (!doc) { setPreviewStatus("error"); return; }
       const s = doc.createElement("script");
       s.textContent = PREVIEW_BRIDGE_SOURCE;
       doc.head.appendChild(s);
-    } catch { /* cross-origin: preview is view-only */ }
+    } catch { setPreviewStatus("error"); }
   };
 
-  const highlight = useCallback((id: string | null, scroll = false) => {
-    try { iframeRef.current?.contentWindow?.postMessage({ type: "HIGHLIGHT_SECTION", instanceId: id, scroll }, window.location.origin); } catch { /* ignore */ }
-  }, []);
+  const highlight = useCallback((id: string | null, scroll = false, selectedBlock: string | null = blockId) => {
+    try { iframeRef.current?.contentWindow?.postMessage({ type: "HIGHLIGHT_SECTION", instanceId: id, blockId: selectedBlock, scroll }, window.location.origin); } catch { /* ignore */ }
+  }, [blockId]);
   useEffect(() => highlight(selectedId), [selectedId, highlight, design]);
+  useEffect(() => { iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); }, [mode]);
+  useEffect(() => { setPreviewStatus("loading"); const timer = setTimeout(() => setPreviewStatus(s => s === "loading" ? "error" : s), 15000); return () => clearTimeout(timer); }, [previewUrl, previewRevision]);
 
   // preview → editor messages
   useEffect(() => {
     const h = (e: MessageEvent) => {
-      if (e.origin !== window.location.origin || !e.data) return;
+      if (e.origin !== window.location.origin || e.source !== iframeRef.current?.contentWindow || !e.data) return;
       const d = e.data;
       if (d.type === "PREVIEW_ERROR") say("err", `The preview hit an error: ${String(d.message).slice(0, 200)}`);
-      if (d.type === "PREVIEW_READY") { sendDesign(); sendCopyMap(); highlight(selectedId); }
-      if (d.type === "COPY_SELECT" && typeof d.key === "string") {
+      if (d.type === "PREVIEW_READY") { setPreviewStatus("ready"); sendDesign(); sendCopyMap(); highlight(selectedId); iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); }
+      if (d.type === "STUDIO_ROUTE" && typeof d.href === "string") {
+        const route = previewRoute(d.href, import.meta.env.BASE_URL);
+        if (route && templates.some(t => t.id === route.templateId)) { setTemplateId(route.templateId); setShowGlobal(false); setSelectedId(null); setBlockId(null); }
+        if (route?.product) setProductSlug(route.product);
+        if (route?.collection) setCollectionSlug(route.collection);
+        sendDesign();
+      }
+      if (d.type === "COPY_SELECT" && typeof d.key === "string" && COPY_SCHEMA.some(g => g.fields.some(f => f.key === d.key))) {
+        setMobilePanel("outline");
         setLeftTab("text");
         setCopyFilter(d.key);
-        setTimeout(() => document.querySelector<HTMLElement>(`[data-copy-key="${d.key}"] input, [data-copy-key="${d.key}"] textarea`)?.focus(), 150);
+        setTimeout(() => document.querySelector<HTMLElement>(`[data-copy-key="${CSS.escape(d.key)}"] input, [data-copy-key="${CSS.escape(d.key)}"] textarea`)?.focus(), 150);
       }
       if (d.type === "SECTION_SELECT" && d.instanceId) {
         const cur = designRef.current;
@@ -428,59 +419,41 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
           setShowGlobal(true);
         } else {
           const owner = templates.find((t) => getSections(cur, { kind: "template", id: t.id }).some((s) => s.id === d.instanceId));
-          if (owner) { setShowGlobal(false); setTemplateId(owner.id); }
+          if (!owner) return;
+          setShowGlobal(false); setTemplateId(owner.id);
         }
         setLeftTab("sections");
         setSelectedId(d.instanceId);
+        setBlockId(typeof d.blockId === "string" ? d.blockId : null);
+        setMobilePanel("settings");
       }
-      if (d.type === "TEXT_EDIT" && d.sectionId && d.settingKey) {
+      if (d.type === "TEXT_EDIT_START") inlineStart.current = designRef.current;
+      if (d.type === "TEXT_EDIT_END") {
+        const before = inlineStart.current; inlineStart.current = null;
+        if (before) setHist(h => sameDesign(before, h.present) ? h : { past: [...h.past, before].slice(-100), present: h.present, future: [] });
+      }
+      if (d.type === "TEXT_EDIT" && d.sectionId && d.settingKey && typeof d.value === "string") {
         const scan: SectionTarget[] = [{ kind: "global" }, ...templates.map((t) => ({ kind: "template", id: t.id }) as SectionTarget)];
         const tgt = scan.find((t) => getSections(designRef.current, t).some((s) => s.id === d.sectionId));
         if (!tgt) return;
-        change((dd) => setSections(dd, tgt, d.blockId
+        const section = getSections(designRef.current, tgt).find(s => s.id === d.sectionId)!;
+        const fields = d.blockId ? getBlockFields(section.type) : getSectionFields(section.type);
+        if (!fields.some(f => f.key === d.settingKey && (f.kind === "text" || f.kind === "textarea"))) return;
+        const edit = (dd: any) => setSections(dd, tgt, d.blockId
           ? patchBlockField(getSections(dd, tgt), d.sectionId, d.blockId, d.settingKey, d.value)
-          : patchSectionSettings(getSections(dd, tgt), d.sectionId, { [d.settingKey]: d.value })));
+          : patchSectionSettings(getSections(dd, tgt), d.sectionId, { [d.settingKey]: d.value }));
+        if (inlineStart.current) setHist(h => ({ ...h, present: edit(h.present) })); else change(edit);
       }
     };
     window.addEventListener("message", h);
     return () => window.removeEventListener("message", h);
-  }, [templates, selectedId, sendDesign, sendCopyMap, highlight, change]);
+  }, [templates, selectedId, sendDesign, sendCopyMap, highlight, change, mode]);
 
-  // ── persistence ──
-  const saveDraft = async () => {
-    setBusy("draft");
-    try {
-      await adminApi.updateSettings({ design: designRef.current }, { publish: false });
-      setSavedDraft(designRef.current);
-      onPersisted?.(designRef.current, false);
-      say("ok", "Draft saved. The live site is unchanged.");
-    } catch (err: any) {
-      say("err", `Could not save: ${err?.message || "unknown error"}. Your edits are still here — try again.`);
-    } finally { setBusy(null); }
-  };
-  const publish = async () => {
-    if (!window.confirm("Publish these changes to the live storefront?")) return;
-    setBusy("publish");
-    try {
-      const snapshot = designRef.current;
-      await adminApi.updateSettings({ design: snapshot }, { publish: true });
-      setSavedDraft(snapshot); setPublished(snapshot);
-      onPersisted?.(snapshot, true);
-      adminApi.saveThemeVersion("published", `Published ${new Date().toLocaleString()}`, snapshot).catch(() => {});
-      say("ok", "Published. The live storefront now shows these changes.");
-    } catch (err: any) {
-      say("err", `Publish failed: ${err?.message || "unknown error"}. Nothing went live.`);
-    } finally { setBusy(null); }
-  };
-  const discard = async () => {
-    if (!window.confirm("Discard all unpublished changes and go back to the live design?")) return;
-    try {
-      await adminApi.discardThemeDraft(published);
-      setHist(initHistory(published)); setSavedDraft(published); setSelectedId(null);
-      onPersisted?.(published, false);
-      say("ok", "Draft discarded.");
-    } catch (err: any) { say("err", `Could not discard: ${err?.message || "unknown error"}`); }
-  };
+  const { busy, saveDraft, publish, discard, recovery, recover, dismissRecovery } = useStudioPersistence({
+    design, savedDraft, published, setSavedDraft, setPublished, onPersisted,
+    reset: (next) => { setHist(initHistory(next)); setSelectedId(null); setBlockId(null); },
+    restore: next => change(() => normalizeDesign(next, defaults)), say,
+  });
   const exit = () => {
     if (dirtyDraft && !window.confirm("You have unsaved edits. Leave without saving?")) return;
     onExit();
@@ -496,6 +469,7 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
     const key = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
       const typing = /input|textarea|select/i.test((e.target as HTMLElement)?.tagName || "") || (e.target as HTMLElement)?.isContentEditable;
+      if (busy === "discard") { e.preventDefault(); return; }
       if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); saveDraft(); }
       else if (mod && e.key.toLowerCase() === "z" && !typing) { e.preventDefault(); setHist((h) => (e.shiftKey ? redo(h) : undo(h))); }
     };
@@ -507,16 +481,18 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
   const addSection = (type: string) => {
     const meta = getSectionMeta(type);
     const s = makeSection(type, meta?.defaults || {});
-    const at = selected ? sections.findIndex((x) => x.id === selected.id) + 1 : sections.length;
+    const at = adding ?? sections.length;
     setList((l) => insertSection(l, s, at));
     setSelectedId(s.id);
-    setAdding(false);
+    setAdding(null);
+    setBlockId(null);
+    setMobilePanel("settings");
     setTimeout(() => highlight(s.id, true), 400);
   };
   const dupSection = (id: string) => {
     const r = duplicateSection(sections, id);
     setList(() => r.list);
-    if (r.newId) setSelectedId(r.newId);
+    if (r.newId) { setSelectedId(r.newId); setBlockId(null); }
   };
   const delSection = (id: string) => {
     if (!window.confirm("Delete this section?")) return;
@@ -528,12 +504,13 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
   const q = copyFilter.trim().toLowerCase();
 
   return (
-    <div className="fixed inset-0 z-[300] bg-neutral-100 text-neutral-900 flex flex-col font-sans" data-studio-editor>
+    <div className="rp studio-editor" data-rp-appearance={appearance} data-studio-editor data-mobile-panel={mobilePanel}>
       {/* top bar */}
-      <header className="h-14 shrink-0 bg-white border-b border-neutral-200 flex items-center gap-2 px-3">
+      <header className="studio-topbar">
         <button className={btn} onClick={exit}><ArrowLeft size={14} /> Exit</button>
+        <strong className="studio-title">Design studio</strong>
         <select value={showGlobal ? "__global" : template.id}
-          onChange={(e) => { const v = e.target.value; setSelectedId(null); if (v === "__global") setShowGlobal(true); else { setShowGlobal(false); setTemplateId(v); } setLeftTab("sections"); }}
+          onChange={(e) => { const v = e.target.value; setSelectedId(null); setBlockId(null); if (v === "__global") setShowGlobal(true); else { setShowGlobal(false); setTemplateId(v); } setLeftTab("sections"); }}
           aria-label="Page to edit" className="h-9 border border-neutral-300 rounded-lg px-2 text-xs font-bold max-w-[220px]">
           <optgroup label="Pages">
             {templates.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
@@ -542,12 +519,15 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
             <option value="__global">Header / footer sections (global)</option>
           </optgroup>
         </select>
-        <div className="hidden md:flex items-center gap-0.5 ml-2" role="group" aria-label="Preview size">
+        {template.id === "productPage" && <select aria-label="Preview product" value={productSlug} onChange={e => setProductSlug(e.target.value)}><option value="">Choose a product</option>{books.map(b => <option key={b.id} value={b.slug}>{b.title}</option>)}</select>}
+        {template.id === "collectionPage" && <select aria-label="Preview collection" value={collectionSlug} onChange={e => setCollectionSlug(e.target.value)}>{CATEGORIES.map(c => <option key={c} value={c.toLowerCase().replace(/ /g, "-")}>{c}</option>)}</select>}
+        <div className="flex items-center gap-0.5" role="group" aria-label="Preview size">
           {([["desktop", Monitor], ["tablet", Tablet], ["mobile", Smartphone]] as const).map(([d, Icon]) => (
             <button key={d} className={`${iconBtn} ${device === d ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""}`}
               onClick={() => setDevice(d)} aria-label={`${d} preview`} aria-pressed={device === d}><Icon size={15} /></button>
           ))}
         </div>
+        <button className={btn} aria-pressed={mode === "browse"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}>{mode === "edit" ? "Edit mode" : "Browse mode"}</button>
         <button className={iconBtn} disabled={!hist.past.length} onClick={() => setHist(undo)} aria-label="Undo (Ctrl+Z)"><Undo2 size={15} /></button>
         <button className={iconBtn} disabled={!hist.future.length} onClick={() => setHist(redo)} aria-label="Redo (Ctrl+Shift+Z)"><Redo2 size={15} /></button>
         <div className="flex-1" />
@@ -559,6 +539,8 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
         <button className={btnPrimary} disabled={(!unpublished && !dirtyDraft) || busy !== null} onClick={publish}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
       </header>
 
+      <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
+      {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={dismissRecovery}>Discard local recovery</SecondaryButton></div>}
       {toast && (
         <div role={toast.kind === "err" ? "alert" : "status"}
           className={`absolute top-16 left-1/2 -translate-x-1/2 z-[350] px-4 py-2 rounded-lg text-sm font-bold shadow-lg ${toast.kind === "err" ? "bg-red-600 text-white" : "bg-neutral-900 text-white"}`}>
@@ -567,9 +549,9 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
         </div>
       )}
 
-      <div className="flex-1 flex min-h-0">
+      <div className="studio-workspace" {...(busy === "discard" ? { inert: "" } : {})}>
         {/* left column */}
-        <nav className="w-[320px] shrink-0 bg-white border-r border-neutral-200 flex flex-col min-h-0" aria-label="Editor panels">
+        <nav className="studio-sidebar" aria-label="Editor panels">
           <div className="grid grid-cols-5 border-b" role="tablist">
             {sidebarTabs.map(([id, label]) => (
               <button key={id} role="tab" aria-selected={leftTab === id} onClick={() => setLeftTab(id)}
@@ -577,39 +559,19 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
             ))}
           </div>
           <div className="flex-1 overflow-auto">
-            {leftTab === "sections" && (
-              <div className="p-3 space-y-2">
-                <p className="text-xs text-neutral-500 px-1">
-                  {showGlobal ? "These sections appear on every page." : `Sections on the “${template.label}” page. Click one here or in the preview to edit it.`}
-                </p>
-                {sections.map((s, i) => {
-                  const t = sectionTitle(s);
-                  const on = s.id === selectedId;
-                  return (
-                    <div key={s.id} className={`flex items-center gap-1 border rounded-lg pl-3 pr-1 py-1 ${on ? "border-neutral-900 bg-neutral-50" : "border-neutral-200"} ${s.visible === false ? "opacity-50" : ""}`}>
-                      <button className="flex-1 min-w-0 text-left py-1.5" onClick={() => { setSelectedId(s.id); highlight(s.id, true); }} aria-current={on}>
-                        <p className="text-xs font-bold truncate">{t.label}</p>
-                        {t.snippet && <p className="text-[11px] text-neutral-500 truncate">{t.snippet}</p>}
-                      </button>
-                      <button className={iconBtn} disabled={i === 0} onClick={() => setList((l) => moveSection(l, i, i - 1))} aria-label={`Move ${t.label} up`}><ChevronUp size={14} /></button>
-                      <button className={iconBtn} disabled={i === sections.length - 1} onClick={() => setList((l) => moveSection(l, i, i + 1))} aria-label={`Move ${t.label} down`}><ChevronDown size={14} /></button>
-                      <button className={iconBtn} onClick={() => setList((l) => toggleSection(l, s.id))} aria-label={s.visible === false ? `Show ${t.label}` : `Hide ${t.label}`}>
-                        {s.visible === false ? <EyeOff size={14} /> : <Eye size={14} />}
-                      </button>
-                    </div>
-                  );
-                })}
-                {!sections.length && (
-                  <div className="text-sm text-neutral-500 border border-dashed border-neutral-300 rounded-lg p-4">
-                    No sections on this page yet{template.id === "productPage" || template.id === "collectionPage" ? " — the built-in layout is shown until you add some" : ""}.
-                  </div>
-                )}
-                <button className={`${btnPrimary} w-full justify-center`} onClick={() => setAdding(true)}><Plus size={14} /> Add section</button>
-              </div>
-            )}
-
-            {leftTab === "style" && (
-              <Group title="Theme look" open
+            {leftTab === "sections" && <StudioOutline
+              sections={sections} selectedId={selectedId} blockId={blockId}
+              onSelect={(id, block) => { setSelectedId(id); setBlockId(block || null); setMobilePanel("settings"); highlight(id, true, block || null); }}
+              onReorder={list => setList(() => list)} onPatch={(id, patch) => setList(list => patchSectionSettings(list, id, patch))}
+              onAdd={setAdding} onDuplicate={dupSection} onDelete={delSection}
+              onToggle={id => setList(list => toggleSection(list, id))} />}
+            {leftTab === "style" && <div className="studio-settings-search">
+              <input className="studio-search" aria-label="Search style settings" placeholder="Search colors, fonts, spacing…" value={styleSearch} onChange={e => setStyleSearch(e.target.value)} />
+              <label>Editing scope<select aria-label="Style scope" value={styleScope} onChange={e => setStyleScope(e.target.value as any)}><option value="all">All pages</option><option value="page">This page only: {template.label}</option></select></label>
+              {styleSearch && <button className={btn} onClick={() => setStyleSearch("")}>Clear search</button>}
+            </div>}
+            {leftTab === "style" && !styleSearch && (
+              <Group title="Theme look · All pages" open
                 hint={`Current look: ${design.themeLibraryPreset === RISO_NOIR_ID ? "Riso Noir" : riso ? "Riso Press" : "Standard / custom"}. One click sets every color, font and print detail below; you can still change each one afterwards.`}>
                 <button type="button" className={`${btnPrimary} w-full justify-center`} onClick={applyNoirLook}>Apply Riso Noir (black &amp; white)</button>
                 <button type="button" className={`${btn} w-full justify-center`} onClick={installNoirHome}>Also install the Noir homepage layout</button>
@@ -641,8 +603,8 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
               </Group>
             )}
 
-            {leftTab === "style" && (
-              <Group title="Payment icons (footer)" hint="Pick which payment logos the footer shows. Checkout itself always offers the methods enabled in Settings › Payments.">
+            {leftTab === "style" && !styleSearch && (
+              <Group title="Payment icons · All pages" hint="Pick which payment logos the footer shows. Checkout itself always offers the methods enabled in Settings › Payments.">
                 {PAYMENT_BADGE_OPTIONS.map((o) => {
                   const cur = resolveFooterBadges(design, settings);
                   const on = cur.includes(o.id);
@@ -658,16 +620,21 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
               </Group>
             )}
 
-            {leftTab === "style" && STYLE_GROUPS.map((g, gi) => (
-              <Group key={g.id} title={g.title} hint={g.hint} open={false}>
-                {g.fields.map((f) => (
-                  <SectionFieldEditor key={f.key} field={f as any}
-                    value={readStyle(design, f.key) ?? readStyle(defaults, f.key)}
-                    onChange={(v) => setStyle(f.key, v)}
-                    uploadFile={(file) => adminApi.uploadFile(file, `design/${Date.now()}_${file.name}`)} />
-                ))}
-              </Group>
-            ))}
+            {leftTab === "style" && STYLE_GROUPS.map(g => {
+              const fields = g.fields.filter(f => (g.title + " " + f.label + " " + f.key).toLowerCase().includes(styleSearch.toLowerCase()));
+              if (!fields.length) return null;
+              const local = styleScope === "page" && PAGE_STYLE_GROUPS.has(g.id);
+              return <Group key={g.id} title={g.title} hint={local ? "This page only. Reset a field to inherit its global value." : "All pages"} open={Boolean(styleSearch)}>
+                {fields.map(f => <div key={f.key} className="studio-field">
+                  <SectionFieldEditor field={f as any}
+                    value={(local ? readStyle(design[template.id], f.key) : undefined) ?? readStyle(design, f.key) ?? readStyle(defaults, f.key)}
+                    onChange={v => setScopedStyle(g.id, f.key, v)}
+                    uploadFile={file => adminApi.uploadFile(file, 'design/' + Date.now() + '_' + file.name)} />
+                  {local && readStyle(design[template.id], f.key) !== undefined && <button className="studio-reset" onClick={() => setScopedStyle(g.id, f.key, undefined)}>Reset to global</button>}
+                </div>)}
+              </Group>;
+            })}
+            {leftTab === "style" && styleSearch && !STYLE_GROUPS.some(g => g.fields.some(f => (g.title + " " + f.label + " " + f.key).toLowerCase().includes(styleSearch.toLowerCase()))) && <p className="studio-empty">No matching settings.</p>}
 
             {leftTab === "text" && (
               <div>
@@ -714,20 +681,22 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
         </nav>
 
         {/* preview */}
-        <main className="flex-1 min-w-0 p-3 flex justify-center bg-neutral-200 overflow-auto">
-          <div className="h-full bg-white shadow-lg rounded-lg overflow-hidden transition-all" style={{ width: DEVICE_W[device], maxWidth: "100%" }}>
-            <iframe ref={iframeRef} key={previewUrl} src={previewUrl} title="Live preview" onLoad={onIframeLoad} className="w-full h-full border-0" />
-          </div>
+        <main className="studio-canvas">
+          <div className="studio-canvas-status"><span>{template.label} · {device} · {mode === "edit" ? "Click to edit" : "Browse your storefront"}</span><span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}</div>
+          {template.id === "productPage" && !books.some(b => b.slug === productSlug) ? <p className="studio-empty">Choose an available product above to preview this template.</p> :
+          <div className="studio-preview-frame" style={{ width: DEVICE_W[device], maxWidth: "100%" }}>
+            <iframe ref={iframeRef} key={previewUrl + previewRevision} src={previewUrl} title="Live preview" onLoad={onIframeLoad} className="w-full h-full border-0" />
+          </div>}
         </main>
 
         {selected && (
-          <Inspector section={selected} colorSchemes={colorSchemes}
+          <StudioInspector section={selected} blockId={blockId} onSelectBlock={setBlockId} colorSchemes={colorSchemes}
             onPatch={patchSelected} onDuplicate={() => dupSection(selected.id)} onDelete={() => delSection(selected.id)}
-            onToggle={() => setList((l) => toggleSection(l, selected.id))} onClose={() => setSelectedId(null)} />
+            onToggle={() => setList((l) => toggleSection(l, selected.id))} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
         )}
       </div>
 
-      {adding && <AddSectionDialog onPick={addSection} onClose={() => setAdding(false)} />}
+      {adding !== null && <AddSectionDialog onPick={addSection} onClose={() => setAdding(null)} />}
     </div>
   );
 }

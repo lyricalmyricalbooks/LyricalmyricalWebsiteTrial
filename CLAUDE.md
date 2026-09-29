@@ -150,6 +150,15 @@ profile, rate dialog).
 > (`studio/StudioPages.tsx`); there is **no** separate Pages screen in the admin nav — do not
 > re-add one. Walkthroughs must use Studio's labels, not legacy legacy-editor tabs.
 
+Studio's Sections outline supports sortable sections and blocks. Canvas clicks
+open their inspector; **Edit mode** selects content and **Browse mode** lets
+storefront links and controls work. **Style** has searchable controls with
+**All pages / This page only** scope for supported visual groups. Save draft,
+Publish and local unsaved recovery are separate actions. These live in
+`studio/StudioEditor.tsx`, `StudioOutline.tsx`, `StudioInspector.tsx` and
+`useStudioPersistence.ts`; `themeWrite.ts` replaces complete design maps when
+saving so removed page overrides do not reappear.
+
 A large (~11k-line) Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the
 section/block contract, and the Shopify-parity roadmap.

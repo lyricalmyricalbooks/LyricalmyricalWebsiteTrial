@@ -1,3 +1,5 @@
+import { useLocation } from "react-router";
+import { resolveSurfaceDesign } from "./surfaceDesign";
 import { useEffect, useState } from "react";
 import { adminApi } from "../../admin/api";
 import { DEFAULT_BOOKS, DEFAULT_SETTINGS, SITE_CACHE_KEY } from "./constants";
@@ -30,9 +32,14 @@ function writeCache(payload: CachePayload) {
 }
 
 export function useSiteData() {
+  const location = useLocation();
   const cached = typeof window !== "undefined" ? readCache() : null;
   const [books, setBooks] = useState<Book[]>(cached?.books || DEFAULT_BOOKS);
-  const [settings, setSettings] = useState<SiteSettings>(cached?.settings || DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<SiteSettings>(() => {
+    const base = cached?.settings || DEFAULT_SETTINGS;
+    const preview = new URLSearchParams(window.location.search).get("preview") === "true" ? (window as any).__studioPreviewDesign : null;
+    return preview ? { ...base, design: preview } : base;
+  });
   const [pages, setPages] = useState<Page[]>(cached?.pages || []);
   const [loading, setLoading] = useState(!cached);
 
@@ -54,7 +61,7 @@ export function useSiteData() {
         const safeSettings = (settingsResponse || DEFAULT_SETTINGS) as any;
         
         if (isPreview && safeSettings.draftDesign) {
-          safeSettings.design = safeSettings.draftDesign;
+          safeSettings.design = (window as any).__studioPreviewDesign || safeSettings.draftDesign;
         }
 
         // Scheduled publishing: once the scheduled time passes, shoppers see
@@ -69,7 +76,7 @@ export function useSiteData() {
         setBooks(safeBooks);
         setSettings(safeSettings);
         setPages(safePages);
-        writeCache({ 
+        if (!isPreview) writeCache({
           books: safeBooks, 
           settings: safeSettings, 
           pages: safePages,
@@ -77,7 +84,7 @@ export function useSiteData() {
         });
 
         const sessionKey = `fm_visit_${new Date().toISOString().split("T")[0]}`;
-        if (!sessionStorage.getItem(sessionKey)) {
+        if (!isPreview && !sessionStorage.getItem(sessionKey)) {
           adminApi.recordVisit();
           sessionStorage.setItem(sessionKey, "true");
         }
@@ -95,10 +102,12 @@ export function useSiteData() {
     const handleMessage = (event: MessageEvent) => {
       // BroadcastChannel events have an empty origin; only enforce the origin
       // check for window postMessage events.
-      if (event.origin && event.origin !== window.location.origin) return;
+      if (new URLSearchParams(window.location.search).get("preview") !== "true") return;
+      if (event.origin && (event.origin !== window.location.origin || (window.parent !== window && event.source !== window.parent))) return;
       if (!event.data) return;
 
-      if (event.data.type === "THEME_UPDATE") {
+      if (event.data.type === "THEME_UPDATE" && event.data.design && typeof event.data.design === "object") {
+        (window as any).__studioPreviewDesign = event.data.design;
         setSettings((prev) => ({
           ...prev,
           design: event.data.design
@@ -149,7 +158,7 @@ export function useSiteData() {
     };
   }, []);
 
-  return { books, settings, pages, loading };
+  return { books, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading };
 }
 
 /**

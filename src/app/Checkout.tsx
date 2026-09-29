@@ -1,3 +1,4 @@
+import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router";
 import { useCart } from "./CartContext";
@@ -189,7 +190,9 @@ export function Checkout() {
         setShippingProfiles(profiles);
         setTaxRates(siteSettings?.taxes?.rates || []);
         setBooks(bookList);
-        setSettings(siteSettings);
+        const preview = new URLSearchParams(window.location.search).get("preview") === "true";
+        const design = preview ? (window as any).__studioPreviewDesign || siteSettings?.draftDesign || siteSettings?.design : siteSettings?.design;
+        setSettings({ ...siteSettings, design: resolveSurfaceDesign(design, "/checkout") });
 
         // Auto-select first available payment gateway
         const payments = siteSettings?.payments || {};
@@ -208,6 +211,18 @@ export function Checkout() {
       }
     }
     loadFulfillmentSettings();
+  }, []);
+
+  // Preview only replaces appearance; fulfillment and payment settings stay server-sourced.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("preview") !== "true") return;
+    const receive = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== window.parent || event.data?.type !== "THEME_UPDATE" || !event.data.design) return;
+      setSettings((current: any) => ({ ...current, design: resolveSurfaceDesign(event.data.design, "/checkout") }));
+    };
+    window.addEventListener("message", receive);
+    window.parent.postMessage({ type: "PREVIEW_READY" }, window.location.origin);
+    return () => window.removeEventListener("message", receive);
   }, []);
 
   // Recover cart if cartId query parameter is present in URL

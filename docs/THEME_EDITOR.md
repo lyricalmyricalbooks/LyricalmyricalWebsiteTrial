@@ -255,6 +255,20 @@ library → verify), then check it off.
       `resolveFooterBadges`). Style › Theme look › **My themes** saves/loads/deletes whole-design
       copies (`settings.savedThemes`, max 10, `studio/savedThemes.ts`). Still open: recursive
       nested blocks with drag-and-drop.
+- [x] **Studio visual editing workflow.** The active Studio has a sortable section
+      outline with explicit add positions and expandable sortable blocks. Preview
+      block selection opens its own inspector, including block fields, visibility,
+      duplicate and remove. Edit/Browse modes separate selection from storefront
+      interaction; device preview, selected product/collection, searchable settings,
+      page/global style scope and phone-sized editor navigation are available.
+      Draft saves capture an immutable snapshot, local unsaved work can be
+      recovered, and design writes replace the full map so cleared overrides
+      stay cleared. `studio/StudioEditor.tsx`, `StudioOutline.tsx`,
+      `StudioInspector.tsx`, `previewBridge.ts`, `useStudioPersistence.ts` and
+      `themeWrite.ts` own these behaviors. Fixture browser checks cover canvas
+      block selection, slideshow selection, keyboard reorder and save races;
+      authenticated Firestore save/publish remains to be checked in a live admin
+      session. Recursive blocks and canvas drag remain future milestones.
 - [x] Fixes found while verifying: token-layer selectors now also match roots that carry `data-fm-store` and `fm-page`/`fm-surface`/`text-white` on the SAME element (Account and Tracking never received the theme background before); Tracking text/placeholder contrast raised; `ProductCoverCarouselSection` text is pinned light
       over its image scrim (it was following the theme text colour), and Checkout restores
       literal paper for `bg-white` on light themes (the token layer maps `bg-white` to the

@@ -44,16 +44,13 @@ export function getPath(obj: any, path: string, fallback?: any) {
 export function normalizeDesign(incoming: any, defaults: any = {}) {
   const inc = incoming || {};
   const merged = { ...defaults, ...inc };
-  const { heroPage: _h, storefront: _s, ...surfaceBase } = merged;
   const normalized: any = {
     ...merged,
     heroPage: {
-      ...surfaceBase,
       sections: inc.heroPage?.sections || inc.heroPage?.homepageSections || inc.homepageSections || [],
       ...(inc.heroPage || {}),
     },
     storefront: {
-      ...surfaceBase,
       sections: inc.storefront?.sections || inc.storefront?.homepageSections || [],
       ...(inc.storefront || {}),
     },
