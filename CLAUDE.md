@@ -234,23 +234,10 @@ storefront. Theme data persists as `design` (live) / `draftDesign` (draft) via
 - If adding a custom domain, update `ALLOWED_ORIGINS` in `functions/index.js`
   and OAuth redirect URIs.
 
-### System Status & Recent Release banner
+### Release banner (removed)
 
-The admin Overview (`src/app/admin/AnalyticsDashboard.tsx`) renders a **"System status &
-recent release"** card at the top (a `SectionCard` with kicker, headline "Lyricalmyrical
-e-commerce platform updated", a summary paragraph, the **Build Status** badge and the
-**Last Code Push** timestamp).
-
-> [!IMPORTANT]
-> **Always update this card after each deploy.** Whenever you ship a change, edit
-> `AnalyticsDashboard.tsx` so it reflects the new release: the update date/time, the
-> summary of what shipped, and the **Last Code Push** timestamp.
->
-> Current state: updated **September 29, 2026 at 2:11 PM UTC** (theme editor version history is persisted in `theme-versions`; Discounts has status/count tabs; Shipping has Overview, Profiles, and Carrier & labels tabs with checkout-readiness diagnostics) — Riso Press admin complete for the
-> shell, Orders (list + detail), Overview (no simulated data), Books, Discounts,
-> Pages, Settings › General / Payments / Notifications; remaining admin pages take
-> the Riso palette through the compatibility layer. Storefront Riso preset aligned
-> to the published tokens (cart drawer + checkout accessibility fixes).
+The admin Overview no longer shows a "System status & recent release" card, so there is
+nothing to update after a deploy. Don't re-add it unless asked.
 
 ## Riso Press admin design system
 

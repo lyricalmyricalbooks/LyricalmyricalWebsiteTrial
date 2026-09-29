@@ -157,34 +157,6 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
 
   return (
     <div className="rp-stack">
-      {/* Release banner (updated on every deploy — see CLAUDE.md) */}
-      <SectionCard>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 20, justifyContent: "space-between" }}>
-          <div style={{ flex: "1 1 420px", minWidth: 0 }}>
-            <div className="rp-kicker">System status &amp; recent release</div>
-            <h3 className="rp-sec-title">Lyricalmyrical e-commerce platform updated</h3>
-            <p className="rp-page-desc" style={{ maxWidth: "none" }}>
-              The storefront, checkout, and admin dashboard were successfully updated on <strong>September 29, 2026 at 8:30 PM UTC</strong>.
-              This release adds an Inventory page (low-stock and reprint alerts, inline stock edits, CSV export) and a Customers page (segments, lifetime value, repeat rate, order history, CSV export), and earlier revamped the Overview for publishers: a "Needs your attention" desk (orders to ship, reviews to moderate, reprint watch, sold-out titles),
-              publisher insights (net revenue, average order, books sold, returning readers, discounts given, shelf value, subscribers, reader rating),
-              reprint and slow-moving stock lists, top destinations and a print-vs-digital format mix — all computed from paid, non-test orders only. Earlier, it made shipping server-authoritative and far more flexible (flat, per-order, weight, percentage, free and pickup rates, conditions, handling fees, a rate tester), and earlier moved the Book editor and theme-editor pop-ups (publish, discard, confirmations, prompts, font browser, command palette) onto Riso dialogs, and completes the Riso Press redesign of the admin: the shell, Orders (list and detail), this Overview, Books,
-              Discounts, Pages, and Settings (General, Payments, Shipping, Notifications) now use the design system; the theme editor top bar, tabs and section library do too, and the remaining pages take
-              its palette. The Overview no longer shows simulated figures and adds recent orders and low-stock alerts. The storefront Riso
-              preset matches the published tokens, and the cart drawer and checkout messages are accessible (dialog focus, stock limits,
-              inline errors instead of alerts). The theme editor's Version History now persists across sessions. Stripe and Resend secret fields are write-only in Settings. Checkout, totals, and the
-              Stripe payment path remain untouched. Discounts now have status tabs with live counts, while Shipping has dedicated
-              Overview, Profiles, and Carrier &amp; labels tabs plus actionable checkout-readiness diagnostics.
-            </p>
-          </div>
-          <div className="rp-card" style={{ padding: 14, boxShadow: "none", minWidth: 170, alignSelf: "flex-start" }}>
-            <div className="rp-label">Build status</div>
-            <div style={{ margin: "6px 0 12px" }}><StatusBadge tone="success">Deploy success</StatusBadge></div>
-            <div className="rp-label">Last code push</div>
-            <div className="rp-mono" style={{ marginTop: 6 }}>September 29, 20:30 UTC</div>
-          </div>
-        </div>
-      </SectionCard>
-
       <div>
         <SectionHead kicker="Performance" title="Store metrics" subcopy="Compared with the previous period of the same length."
           actions={<Tabs<Period> label="Period" value={period} onChange={setPeriod}
