@@ -113,6 +113,32 @@ export const STYLE_GROUPS: StyleGroup[] = [
     ],
   },
   {
+    id: "riso",
+    title: "Riso print treatment",
+    hint: "Outlines, offset shadows, focus ring and texture of the Riso Press look.",
+    fields: [
+      { key: "themeStyle", label: "Print style", kind: "select", options: [{ value: "riso", label: "Riso Press (outlined, flat shadows)" }, { value: "default", label: "Standard" }] },
+      { key: "risoOutlineColor", label: "Outline color", kind: "color" },
+      { key: "risoOutlineWidth", label: "Outline width", kind: "range", min: 0, max: 6, step: 1, suffix: "px" },
+      { key: "risoShadowColor", label: "Offset shadow color", kind: "color" },
+      { key: "risoShadowOffset", label: "Offset shadow distance", kind: "range", min: 0, max: 12, step: 1, suffix: "px" },
+      { key: "risoCardRadius", label: "Card corner radius", kind: "range", min: 0, max: 24, step: 1, suffix: "px" },
+      { key: "focusRingColor", label: "Keyboard focus ring", kind: "color" },
+      { key: "risoUppercaseHeadings", label: "UPPERCASE headings", kind: "toggle" },
+      { key: "risoGrain", label: "Halftone texture", kind: "range", min: 0, max: 1, step: 0.05 },
+    ],
+  },
+  {
+    id: "elements",
+    title: "Storefront elements",
+    hint: "Show or hide whole parts of the public site.",
+    fields: [
+      { key: "showRecentlyViewed", label: "Recently viewed row (product page)", kind: "toggle" },
+      { key: "showBreadcrumbs", label: "Breadcrumbs (collection pages)", kind: "toggle" },
+      { key: "showCookieBanner", label: "Cookie banner (keep on where law requires it)", kind: "toggle" },
+    ],
+  },
+  {
     id: "code",
     title: "Custom code (advanced)",
     hint: "Runs on the live storefront. Use with care.",
