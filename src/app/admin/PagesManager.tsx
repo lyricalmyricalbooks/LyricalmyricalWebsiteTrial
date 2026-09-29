@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { ArrowLeft, ExternalLink, Plus } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, ExternalLink, Plus } from "lucide-react";
+import { duplicatePage, movePage, seoHints } from "./pageInsights";
 import { adminApi } from "./api";
 import type { Page } from "../features/site/types";
 import ReactQuill from "react-quill";
@@ -7,7 +8,7 @@ import "react-quill/dist/quill.snow.css";
 import toast from "react-hot-toast";
 import {
   ConfirmDialog, DataTable, DestructiveButton, EmptyState, ErrorState, FilterBar, LoadingState, MetricCard,
-  PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, StatusBadge, TextArea, TextField, Toggle,
+  IconButton, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, StatusBadge, Tabs, TextArea, TextField, Toggle,
   type Column,
 } from "./riso/components";
 
@@ -44,6 +45,7 @@ export function PagesManager() {
   const [saving, setSaving] = useState(false);
   const [slugEdited, setSlugEdited] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [tab, setTab] = useState<"all" | "published" | "draft">("all");
   const [confirm, setConfirm] = useState<null | "delete" | "leave">(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -142,9 +144,19 @@ export function PagesManager() {
   const rows = useMemo(() => {
     const q = searchQuery.toLowerCase();
     return pages
-      .filter((p) => p.title.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q))
+      .filter((p) => (tab === "all" || p.status === tab) && (p.title.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q)))
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  }, [pages, searchQuery]);
+  }, [pages, searchQuery, tab]);
+
+  const ordered = useMemo(() => [...pages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)), [pages]);
+  async function move(id: string, dir: -1 | 1) {
+    const updates = movePage(ordered, id, dir);
+    if (!updates.length) return;
+    try {
+      await Promise.all(updates.map((u) => adminApi.updatePage(u.id, { ...pages.find((p) => p.id === u.id), order: u.order })));
+      setPages((prev) => prev.map((p) => { const u = updates.find((x) => x.id === p.id); return u ? { ...p, order: u.order } : p; }));
+    } catch { toast.error("Could not reorder pages"); load(); }
+  }
 
   const columns: Column<Page>[] = [
     { key: "title", header: "Page", lead: true, render: (p) => (
@@ -160,6 +172,11 @@ export function PagesManager() {
     { key: "actions", header: "Actions", render: (p) => (
       <span style={{ display: "inline-flex", gap: 8 }}>
         <SecondaryButton size="sm" onClick={() => open({ ...p }, false)}>Edit</SecondaryButton>
+        <SecondaryButton size="sm" onClick={() => open(duplicatePage(p, pages), true)}>Duplicate</SecondaryButton>
+        {tab === "all" && !searchQuery && <>
+          <IconButton label={`Move ${p.title} up in menu`} onClick={() => move(p.id, -1)}><ArrowUp size={16} aria-hidden /></IconButton>
+          <IconButton label={`Move ${p.title} down in menu`} onClick={() => move(p.id, 1)}><ArrowDown size={16} aria-hidden /></IconButton>
+        </>}
         {p.status === "published" && <a className="rp-btn rp-btn-secondary rp-btn-sm" href={publicUrl(p.slug)} target="_blank" rel="noreferrer">View <ExternalLink size={12} aria-hidden /></a>}
       </span>
     ) },
@@ -211,6 +228,11 @@ export function PagesManager() {
                   {editing.metaDescription || "Add a meta description to control the summary shown in search results (around 160 characters)."}
                 </div>
               </div>
+              <ul className="rp-hint" style={{ margin: "12px 0 0", paddingLeft: 0, listStyle: "none" }} aria-label="SEO checklist">
+                {seoHints(editing.title || "", editing.seoTitle || "", editing.metaDescription || "").map((h) => (
+                  <li key={h.text}><span aria-hidden>{h.level === "good" ? "✓ " : "⚠ "}</span>{h.text}</li>
+                ))}
+              </ul>
               <div className="rp-stack" style={{ gap: 16, marginTop: 16 }}>
                 <TextField label="SEO title" value={editing.seoTitle || ""} placeholder={editing.title}
                   onChange={(e) => setEditing((p) => ({ ...p, seoTitle: e.target.value }))} />
@@ -273,6 +295,11 @@ export function PagesManager() {
         </SectionCard>
       ) : (
         <>
+          <Tabs label="Page status" value={tab} onChange={setTab} tabs={[
+            { id: "all", label: "All", count: pages.length },
+            { id: "published", label: "Published", count: published },
+            { id: "draft", label: "Drafts", count: pages.length - published },
+          ]} />
           <FilterBar>
             <div className="rp-grow"><SearchField label="Search pages" placeholder="Search by title or slug…" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></div>
             <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={openNew}>New page</PrimaryButton>
