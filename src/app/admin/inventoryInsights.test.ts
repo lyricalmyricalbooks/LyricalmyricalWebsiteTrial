@@ -11,7 +11,7 @@ describe("inventoryInsights", () => {
     expect(statusOf(0, null, 5, true)).toBe("digital");
   });
   it("builds rows with velocity and summary", () => {
-    const books = [{ id: "a", title: "A", stockLevel: 10, price: 10, status: "published" }, { id: "d", title: "D", status: "draft" }, { id: "e", title: "E", format: "Ebook", stockLevel: 99, price: 5 }];
+    const books = [{ id: "a", title: "A", stockLevel: 10, price: 10, status: "published" }, { id: "d", title: "D", status: "draft" }, { id: "e", title: "E", format: "E-book (PDF)", stockLevel: 99, price: 5 }];
     const orders = [{ createdAt: "2026-09-20", items: [{ id: "a", quantity: 10 }] }];
     const rows = buildInventory(books, orders, 5, NOW);
     expect(rows.map((r) => r.id)).toEqual(["a", "e"]);
