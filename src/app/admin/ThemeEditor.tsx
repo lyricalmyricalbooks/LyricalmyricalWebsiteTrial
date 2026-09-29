@@ -150,7 +150,7 @@ export const THEME_LIBRARY = [
       navStyle: "default", wordmarkStyle: "two-part", enterArchiveLabel: "Browse books",
       wordmarkPrimary: "Lyricalmyrical", wordmarkSecondary: "Books", wordmarkSecondaryMuted: false,
       wordmarkSize: 1.8, wordmarkWeight: 400, showCategoryChips: true, categoryChipShowCounts: true,
-      catalogHeading: "Printed matter", showCatalogCount: true, showQtyStepper: true, productDescriptionStyle: "designed",
+      catalogHeading: "Printed matter", productBorderRadius: 0, showCatalogCount: true, showQtyStepper: true, productDescriptionStyle: "designed",
     },
   },
   {

@@ -358,20 +358,21 @@ export default function BookDetail() {
           borderColor: headerBorderColor,
         }}
       >
-        <div className="max-w-8xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-8xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
           <button
             onClick={() => navigate(-1)}
             style={{ color: headerTextColor }}
-            className="flex items-center gap-2.5 opacity-60 hover:opacity-100 transition-opacity group"
+            aria-label={getCopy(settings?.design, "backToCatalog")}
+            className="flex items-center gap-2.5 opacity-60 hover:opacity-100 transition-opacity group min-w-[44px] min-h-[44px] shrink-0"
           >
             <ArrowLeft size={15} className="group-hover:-translate-x-1 transition-transform" />
-            <span className="text-[9px] font-black tracking-[0.35em] uppercase">{getCopy(settings?.design, "backToCatalog")}</span>
+            <span className="hidden sm:inline text-[9px] font-black tracking-[0.35em] uppercase">{getCopy(settings?.design, "backToCatalog")}</span>
           </button>
 
           <Link
             to="/"
             style={{ color: headerTextColor }}
-            className="text-[11px] font-black tracking-[0.3em] opacity-80 hover:opacity-100 transition-opacity"
+            className="text-[11px] font-black tracking-[0.3em] opacity-80 hover:opacity-100 transition-opacity min-w-0 overflow-hidden text-ellipsis"
           >
             <LogoMark design={logoDesign} />
           </Link>
@@ -741,7 +742,7 @@ export default function BookDetail() {
               )}
 
               {/* CTA */}
-              <div className={`flex gap-3 w-full ${
+              <div className={`flex flex-wrap sm:flex-nowrap gap-3 w-full ${
                 productCtaWidth === "auto"
                   ? (productAlignment === "center" ? "justify-center" : "justify-start")
                   : "w-full"
