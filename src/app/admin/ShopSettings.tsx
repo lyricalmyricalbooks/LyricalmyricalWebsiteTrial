@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
+import { POLICY_KEYS, POLICY_TITLES, policySlug, type PolicyKey } from "../features/site/policyPages";
 import { Checkbox, ConfirmDialog, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, MetricCard, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SectionHead, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
 import { motion, AnimatePresence } from "motion/react";
 import { ThemeEditor } from "./ThemeEditor";
@@ -131,8 +132,15 @@ export function ShopSettings({
     </div>
   );
 }
+const POLICY_STARTERS: Record<PolicyKey, string> = {
+  shipping: "We ship orders within 2–5 business days of payment. Delivery times and costs are calculated at checkout based on your destination.\n\nYou will receive an email with tracking once your order ships. Digital titles are available to download immediately after payment.",
+  returns: "If your book arrives damaged or incorrect, contact us within 30 days of delivery and we will replace it or refund you.\n\nDigital downloads are non-refundable once accessed, unless the file is faulty.",
+  privacy: "We collect only what we need to fulfil your order and, if you opt in, send you our newsletter: your name, email, shipping address and order details.\n\nPayments are processed by Stripe; we never see or store your card number. We do not sell your personal information. You can ask us to delete your data at any time.",
+  terms: "By placing an order you agree that the details you provide are accurate and that you are authorised to use the payment method.\n\nPrices are shown in Canadian dollars unless stated otherwise. We may cancel and refund an order if a title is unavailable or a pricing error occurred.",
+};
+
 function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
-  const SECTIONS = ["maintenance", "domain", "info", "location"] as const;
+  const SECTIONS = ["maintenance", "domain", "info", "location", "policies"] as const;
   const dirty = SECTIONS.filter((k) => hasChanges(k));
   const [confirmMaintenance, setConfirmMaintenance] = useState(false);
   const set = (section: string, patch: any) => setSettings({ ...settings, [section]: { ...settings[section], ...patch } });
@@ -194,6 +202,25 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           </div>
           <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
           <TextField label="State / province" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Store policies" description="Shown in the storefront footer as links to public pages. A policy with no text is hidden. Card networks expect shipping and returns terms.">
+        <div className="rp-stack" style={{ gap: 20 }}>
+          {POLICY_KEYS.map((k) => {
+            const text: string = settings.policies?.[k] || "";
+            return (
+              <div key={k}>
+                <TextArea label={POLICY_TITLES[k]} rows={5} maxLength={20000} value={text}
+                  hint={text.trim() ? `Public at /page/${policySlug(k)} · blank line = new paragraph` : "Not published yet. Leave blank to hide the footer link."}
+                  onChange={(e) => set("policies", { [k]: e.target.value })} />
+                {!text.trim() && (
+                  <SecondaryButton size="sm" onClick={() => set("policies", { [k]: POLICY_STARTERS[k] })}>Insert starter text</SecondaryButton>
+                )}
+              </div>
+            );
+          })}
+          <p className="rp-hint" style={{ margin: 0 }}>Starter text is a plain-language outline, not legal advice — edit it to match how you actually operate.</p>
         </div>
       </SectionCard>
 

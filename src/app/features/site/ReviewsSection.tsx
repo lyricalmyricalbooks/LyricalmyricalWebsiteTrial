@@ -134,6 +134,12 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
                 {r.title && <h4 className="text-sm font-bold text-white mb-2">{r.title}</h4>}
                 <p className="text-white/70 text-sm leading-relaxed mb-3">{r.body}</p>
                 <p className="text-[10px] tracking-widest text-white/40 uppercase">— {r.authorName}</p>
+                {r.reply?.body && (
+                  <div className="mt-4 border-l-2 border-white/20 pl-3">
+                    <p className="text-[10px] tracking-widest text-white/50 uppercase mb-1">Reply from Lyricalmyrical Books</p>
+                    <p className="text-white/70 text-sm leading-relaxed">{r.reply.body}</p>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

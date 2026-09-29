@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { Plus } from "lucide-react";
+import { Download, Plus } from "lucide-react";
+import { catalogToCsv, previewPrices, type PriceMode } from "./bulkPricing";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import {
-  ActionMenu, Checkbox, ConfirmDialog, DataTable, DestructiveButton, EmptyState, ErrorState, FilterBar, LoadingState, Pagination,
+  ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, Pagination,
   PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, type BadgeTone, type Column,
 } from "./riso/components";
 
@@ -47,6 +48,9 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [sort, setSort] = useState<SortKey>("newest");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
+  const [priceOpen, setPriceOpen] = useState(false);
+  const [priceMode, setPriceMode] = useState<PriceMode>("percent");
+  const [priceValue, setPriceValue] = useState("10");
   const [confirm, setConfirm] = useState<null | { kind: "bulk"; } | { kind: "one"; book: any }>(null);
 
   useEffect(() => { loadBooks(); }, [refreshTrigger]);
@@ -117,6 +121,39 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
     try { await promise; } catch { /* surfaced by toast */ }
     setSelected([]);
     loadBooks();
+  };
+
+  const selectedBooks = useMemo(() => books.filter(b => selected.includes(b.id)), [books, selected]);
+  const pricePreview = useMemo(
+    () => (priceOpen && priceValue.trim() !== "" ? previewPrices(selectedBooks, priceMode, Number(priceValue)) : []),
+    [priceOpen, selectedBooks, priceMode, priceValue]);
+
+  const applyPrices = async () => {
+    const changes = pricePreview;
+    setPriceOpen(false);
+    if (!changes.length) return;
+    const promise = Promise.all(changes.map(c => adminApi.updateBook(c.id, { title: c.title, retailPrice: c.to })));
+    toast.promise(promise, { loading: "Updating prices…", success: `Updated ${changes.length} price${changes.length === 1 ? "" : "s"}`, error: "Some price updates failed" });
+    try { await promise; } catch { /* surfaced by toast */ }
+    setSelected([]);
+    loadBooks();
+  };
+
+  const bulkFeature = async (featured: boolean) => {
+    const promise = Promise.all(selectedBooks.map(b => adminApi.updateBook(b.id, { title: b.title, featured })));
+    toast.promise(promise, { loading: "Applying changes…", success: featured ? "Marked as featured" : "Removed from featured", error: "Some updates failed" });
+    try { await promise; } catch { /* surfaced by toast */ }
+    setSelected([]);
+    loadBooks();
+  };
+
+  const exportCsv = () => {
+    const list = selected.length ? selectedBooks : rows;
+    if (!list.length) return toast.error("Nothing to export");
+    const url = URL.createObjectURL(new Blob([catalogToCsv(list)], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `books-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    URL.revokeObjectURL(url);
   };
 
   const deleteOne = async (book: any) => {
@@ -196,10 +233,14 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
             <Checkbox label={selected.length ? `${selected.length} selected` : "Select page"} checked={allSelected}
               onChange={() => setSelected(allSelected ? [] : pageRows.map(b => b.id))} />
+            <SecondaryButton size="sm" icon={<Download size={14} aria-hidden />} onClick={exportCsv}>{selected.length ? "Export selected" : "Export CSV"}</SecondaryButton>
             {selected.length > 0 && (
               <>
                 <SecondaryButton size="sm" onClick={() => bulk("publish")}>Publish</SecondaryButton>
                 <SecondaryButton size="sm" onClick={() => bulk("draft")}>Set draft</SecondaryButton>
+                <SecondaryButton size="sm" onClick={() => setPriceOpen(true)}>Change price</SecondaryButton>
+                <SecondaryButton size="sm" onClick={() => bulkFeature(true)}>Feature</SecondaryButton>
+                <SecondaryButton size="sm" onClick={() => bulkFeature(false)}>Unfeature</SecondaryButton>
                 <DestructiveButton size="sm" onClick={() => setConfirm({ kind: "bulk" })}>Delete</DestructiveButton>
               </>
             )}
@@ -211,6 +252,24 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         {rows.length > PAGE_SIZE && <Pagination page={cur} pageCount={pageCount} onPage={setPage} />}
       </SectionCard>
 
+      <Dialog open={priceOpen} onClose={() => setPriceOpen(false)} title={`Change price for ${selected.length} title${selected.length === 1 ? "" : "s"}`}
+        description="Preview the new prices before anything is saved."
+        footer={<><SecondaryButton onClick={() => setPriceOpen(false)}>Cancel</SecondaryButton>
+          <PrimaryButton onClick={applyPrices} disabled={!pricePreview.length}>Apply to {pricePreview.length}</PrimaryButton></>}>
+        <div className="rp-stack">
+          <SelectField label="How" value={priceMode} onChange={e => setPriceMode(e.target.value as PriceMode)}>
+            <option value="percent">Change by percent (e.g. -10 for 10% off)</option>
+            <option value="amount">Change by amount (e.g. 2 adds CA$2)</option>
+            <option value="set">Set exact price</option>
+          </SelectField>
+          <TextField label="Value" type="number" step="0.01" value={priceValue} onChange={e => setPriceValue(e.target.value)} />
+          <ul className="rp-hint" style={{ margin: 0, paddingLeft: 18, maxHeight: 200, overflow: "auto" }} aria-label="Price preview">
+            {pricePreview.slice(0, 20).map(c => <li key={c.id}>{c.title}: CA${c.from.toFixed(2)} → <strong>CA${c.to.toFixed(2)}</strong></li>)}
+            {pricePreview.length > 20 && <li>…and {pricePreview.length - 20} more</li>}
+            {!pricePreview.length && <li>No prices would change.</li>}
+          </ul>
+        </div>
+      </Dialog>
       <ConfirmDialog open={confirm?.kind === "bulk"} title={`Delete ${selected.length} title${selected.length === 1 ? "" : "s"}?`} confirmLabel="Delete permanently"
         message="This permanently removes the selected books from the catalog. Set them to draft instead if you may want them back."
         onConfirm={() => { setConfirm(null); bulk("delete"); }} onCancel={() => setConfirm(null)} />

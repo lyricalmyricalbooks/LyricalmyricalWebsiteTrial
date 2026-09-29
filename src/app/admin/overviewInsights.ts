@@ -163,3 +163,25 @@ export function reviewSummary(reviews: Array<Record<string, any>>) {
 export function newsletterSummary(subs: Array<Record<string, any>>, start: number) {
   return { total: subs.length, added: subs.filter(s => ts(s.subscribedAt) >= start).length };
 }
+
+export interface BestSeller { id: string; title: string; units: number; revenue: number; share: number }
+
+/** Top titles by revenue in a set of paid orders. `share` is % of the listed revenue across all titles. */
+export function bestSellers(orders: Order[], limit = 5): BestSeller[] {
+  const map = new Map<string, BestSeller>();
+  let total = 0;
+  for (const o of orders) {
+    for (const i of o.items || []) {
+      const qty = Number(i.quantity) || 0;
+      const rev = qty * (Number(i.price) || 0);
+      if (!i.id || qty <= 0) continue;
+      const row = map.get(i.id) || { id: i.id, title: i.title || i.name || "Untitled", units: 0, revenue: 0, share: 0 };
+      row.units += qty; row.revenue += rev; total += rev;
+      map.set(i.id, row);
+    }
+  }
+  return [...map.values()]
+    .sort((a, b) => b.revenue - a.revenue || b.units - a.units)
+    .slice(0, limit)
+    .map(r => ({ ...r, share: total > 0 ? (r.revenue / total) * 100 : 0 }));
+}
