@@ -160,7 +160,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
 
       <SectionCard title={chartTab === "traffic" ? "Traffic" : "Revenue"}
         description={period === "today" ? "Hourly data isn't recorded — showing the last 7 days for context." : chartSummary}
-        actions={<Tabs label="Chart" value={chartTab} onChange={setChartTab} tabs={[{ id: "traffic", label: "Traffic" }, { id: "revenue", label: "Revenue" }]} />}>
+        actions={<Tabs<"traffic" | "revenue"> label="Chart" value={chartTab} onChange={setChartTab} tabs={[{ id: "traffic", label: "Traffic" }, { id: "revenue", label: "Revenue" }]} />}>
         {chartData.length === 0 ? (
           <EmptyState title="No analytics yet" description="Visits and orders will chart here once the storefront records them." />
         ) : (

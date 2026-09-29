@@ -339,7 +339,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
               </div>
               <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={handleAddNote} disabled={!note.trim()}>Add note</PrimaryButton>
             </div>
-            <Tabs label="Activity filter" value={timelineFilter} onChange={setTimelineFilter}
+            <Tabs<"all" | "event" | "note"> label="Activity filter" value={timelineFilter} onChange={setTimelineFilter}
               tabs={[{ id: "all", label: "All" }, { id: "event", label: "System events" }, { id: "note", label: "Notes only" }]} />
             {activity.length === 0 ? (
               <EmptyState title="No entries yet" description="System events and notes for this order appear here." />

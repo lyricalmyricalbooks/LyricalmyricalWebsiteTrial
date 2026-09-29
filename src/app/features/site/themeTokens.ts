@@ -277,23 +277,29 @@ ${alphaOverrideCss}
 [data-fm-store] .fm-accent-shadow{box-shadow:0 10px 30px rgba(var(--accent-rgb), 0.25);}
 `;
 
-/** Printmaking treatment shared by every storefront surface when the Riso theme is active. */
+/**
+ * Riso Press treatment shared by every storefront surface when the Riso theme is
+ * active: flat ink on newsprint, 2px ink outlines on objects, square corners,
+ * flat offset shadows, one flare focus ring. Mirrors the published design system
+ * (payment clarity always outranks decoration — inputs stay conventional).
+ */
 export const RISO_STOREFRONT_CSS = `
-[data-fm-store]{
-  background-image:radial-gradient(rgba(25,31,27,.13) .55px,transparent .7px);
-  background-size:5px 5px;
-}
-[data-fm-store] img{filter:saturate(.82) contrast(1.08);}
-[data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3{
-  text-wrap:balance;
-  text-shadow:1.5px 1.5px 0 rgba(var(--accent-2-rgb),.24);
-}
-[data-fm-store] button,[data-fm-store] a{transition-timing-function:steps(4,end);}
+[data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3{text-wrap:balance;text-transform:uppercase;letter-spacing:.01em;font-weight:400;}
+[data-fm-store] button,[data-fm-store] a{transition-timing-function:cubic-bezier(.2,.7,.2,1);}
 [data-fm-store] .glass-card{
   backdrop-filter:none;
-  background:rgba(var(--surface-rgb),.88);
-  box-shadow:4px 4px 0 rgba(var(--accent-2-rgb),.25);
+  background:var(--surface-raised,#fff);
+  border:2px solid #100f0d;
+  border-radius:4px;
+  box-shadow:3px 3px 0 rgba(16,15,13,.3);
 }
-[data-fm-store] input,[data-fm-store] select,[data-fm-store] textarea{box-shadow:none;}
-@media (prefers-reduced-motion:reduce){[data-fm-store] *{scroll-behavior:auto!important;}}
+[data-fm-store] .custom-btn,[data-fm-store] button.custom-btn{
+  border:2px solid #100f0d;border-radius:0;box-shadow:2px 2px 0 rgba(16,15,13,.18);
+  text-transform:uppercase;letter-spacing:.09em;font-weight:800;
+}
+[data-fm-store] .custom-btn:hover{box-shadow:3px 3px 0 rgba(16,15,13,.3);}
+[data-fm-store] input,[data-fm-store] select,[data-fm-store] textarea{border-radius:0;box-shadow:none;}
+[data-fm-store] :where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid #e8402a;outline-offset:2px;}
+@media (pointer:coarse){[data-fm-store] .custom-btn{min-height:44px;}}
+@media (prefers-reduced-motion:reduce){[data-fm-store] *{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important;}}
 `;

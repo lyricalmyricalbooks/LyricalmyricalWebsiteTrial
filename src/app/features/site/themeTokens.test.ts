@@ -29,7 +29,11 @@ describe("hexToRgbTriplet", () => {
 describe("RISO_STOREFRONT_CSS", () => {
   it("keeps the print treatment scoped to storefront surfaces", () => {
     expect(RISO_STOREFRONT_CSS).toContain("[data-fm-store]");
-    expect(RISO_STOREFRONT_CSS).toContain("radial-gradient");
+    // Flat ink on newsprint: 2px ink outlines, flare focus ring, reduced motion honoured, no halftone texture.
+    expect(RISO_STOREFRONT_CSS).toContain("2px solid #100f0d");
+    expect(RISO_STOREFRONT_CSS).toContain(":focus-visible");
+    expect(RISO_STOREFRONT_CSS).toContain("prefers-reduced-motion");
+    expect(RISO_STOREFRONT_CSS).not.toContain("radial-gradient");
     expect(RISO_STOREFRONT_CSS).not.toContain("body{");
   });
 });
