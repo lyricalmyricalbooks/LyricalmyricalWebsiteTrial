@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
@@ -12,66 +12,78 @@ import {
 } from "./overviewInsights";
 
 type Period = "today" | "7d" | "30d" | "90d" | "365d";
-const PERIOD_DAYS: Record<Period, number> = { today: 1, "7d": 7, "30d": 30, "90d": 90, "365d": 365 };
+type Section = "sales" | "stock" | "readers";
+const PERIODS: Array<{ id: Period; label: string; days: number; phrase: string }> = [
+  { id: "today", label: "Today", days: 1, phrase: "today" },
+  { id: "7d", label: "7 days", days: 7, phrase: "the last 7 days" },
+  { id: "30d", label: "30 days", days: 30, phrase: "the last 30 days" },
+  { id: "90d", label: "90 days", days: 90, phrase: "the last 90 days" },
+  { id: "365d", label: "1 year", days: 365, phrase: "the last year" },
+];
 const money = (n: number) => `CA$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 const LOW_STOCK = 5;
+const SPLIT = { gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" } as const;
+const ROW = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 } as const;
 
-const getTrend = (current: number, previous: number) => {
-  if (previous === 0) return current === 0 ? "0.0%" : current > 0 ? "+100.0%" : "-100.0%";
-  const pct = ((current - previous) / previous) * 100;
-  return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
-};
-const trendTone = (t: string): BadgeTone => (t.startsWith("+") ? "success" : t.startsWith("-") ? "danger" : "neutral");
+/** % change badge; "new" when there is nothing earlier to compare with. */
+function Trend({ now, before }: { now: number; before: number }) {
+  const v = change(now, before);
+  const tone: BadgeTone = v === null || v > 0 ? "success" : v < 0 ? "danger" : "neutral";
+  return <StatusBadge tone={tone}>{v === null ? "new" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`}</StatusBadge>;
+}
+
+/** A bar row: label + value, with a proportional bar underneath. */
+function BarRow({ label, value, share, color = "var(--rp-primary)" }: { label: ReactNode; value: ReactNode; share: number; color?: string }) {
+  return (
+    <li>
+      <div style={ROW}><strong style={{ minWidth: 0, overflowWrap: "anywhere" }}>{label}</strong><span className="rp-mono" style={{ whiteSpace: "nowrap" }}>{value}</span></div>
+      <div role="presentation" style={{ height: 8, marginTop: 8, background: "var(--rp-surface-inset)", border: "1px solid var(--rp-border)" }}>
+        <div style={{ height: "100%", width: `${Math.max(0, Math.min(100, share))}%`, background: color }} />
+      </div>
+    </li>
+  );
+}
+
+/** One line of the "to do" list: glyph + word status, what it is, and where to fix it. */
+function TodoRow({ label, detail, count, loading, onOpen, openLabel }: {
+  label: string; detail: string; count: number | null; loading: boolean; onOpen: () => void; openLabel: string;
+}) {
+  const clear = count === 0;
+  return (
+    <li style={ROW}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 600 }}>{loading ? "…" : count} <span style={{ fontWeight: 400 }}>{label}</span></div>
+        <div className="rp-hint">{loading ? "Loading…" : clear ? "Nothing to do here" : detail}</div>
+      </div>
+      {loading ? null : clear
+        ? <StatusBadge tone="success">✓ All clear</StatusBadge>
+        : <SecondaryButton size="sm" onClick={onOpen}>{openLabel}</SecondaryButton>}
+    </li>
+  );
+}
 
 export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?: (tab: string) => void; onEditBook?: (book: any) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [period, setPeriod] = useState<Period>("30d");
-  const [chartTab, setChartTab] = useState<"traffic" | "revenue">("traffic");
+  const [section, setSection] = useState<Section>("sales");
+  const [chartTab, setChartTab] = useState<"traffic" | "revenue">("revenue");
   const [fetchingBookId, setFetchingBookId] = useState<string | null>(null);
   // Secondary panels load independently so one failure never blanks the page.
-  const [recent, setRecent] = useState<{ orders: any[] | null; error: boolean }>({ orders: null, error: false });
-  const [stock, setStock] = useState<{ books: any[] | null; error: boolean }>({ books: null, error: false });
   const [allOrders, setAllOrders] = useState<{ orders: any[] | null; error: boolean }>({ orders: null, error: false });
+  const [stock, setStock] = useState<{ books: any[] | null; error: boolean }>({ books: null, error: false });
   const [audience, setAudience] = useState<{ data: { reviews: any[]; subscribers: any[] } | null; error: boolean }>({ data: null, error: false });
 
   useEffect(() => {
     loadAnalytics();
-    adminApi.getOrders(500).then((o: any[]) => {
-      setAllOrders({ orders: o, error: false });
-      setRecent({ orders: o.filter(x => x.isTest !== true).slice(0, 6), error: false });
-    }).catch(() => { setRecent({ orders: null, error: true }); setAllOrders({ orders: null, error: true }); });
+    adminApi.getOrders(500).then((o: any[]) => setAllOrders({ orders: o, error: false }))
+      .catch(() => setAllOrders({ orders: null, error: true }));
     adminApi.getBooks(200).then((b: any[]) => setStock({ books: b, error: false }))
       .catch(() => setStock({ books: null, error: true }));
-    adminApi.getAudienceSnapshot().then((data: any) => setAudience({ data, error: false }))
+    adminApi.getAudienceSnapshot().then((d: any) => setAudience({ data: d, error: false }))
       .catch(() => setAudience({ data: null, error: true }));
   }, []);
-
-  // Publisher insights come from real paid, non-test orders only.
-  const days = PERIOD_DAYS[period];
-  const insights = useMemo(() => {
-    if (!allOrders.orders) return null;
-    const p = splitPeriods(allOrders.orders, days);
-    const cur = totals(p.current);
-    const prev = totals(p.previous);
-    const books = stock.books || [];
-    const rows = titleStock(p.paid, books);
-    return {
-      cur, prev,
-      mix: customerMix(p.paid, p.current, p.start),
-      countries: topCountries(p.current),
-      best: bestSellers(p.current, 5),
-      formats: formatMix(p.current, books),
-      shelf: stockValue(books),
-      reprint: reprintWatch(rows).slice(0, 5),
-      dormant: dormantStock(rows).slice(0, 5),
-      fulfil: toFulfil(allOrders.orders),
-      start: p.start,
-    };
-  }, [allOrders.orders, stock.books, days]);
-  const pct = (v: number | null) => (v === null ? "new" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`);
-  const pctTone = (v: number | null): BadgeTone => (v === null || v > 0 ? "success" : v < 0 ? "danger" : "neutral");
 
   async function loadAnalytics() {
     setLoading(true); setFailed(false);
@@ -99,20 +111,43 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     }
   };
 
+  const meta = PERIODS.find(p => p.id === period)!;
+  const days = meta.days;
+
+  // Everything sales-related below comes from paid, real orders — one source of truth.
+  const insights = useMemo(() => {
+    if (!allOrders.orders) return null;
+    const p = splitPeriods(allOrders.orders, days);
+    const books = stock.books || [];
+    const rows = titleStock(p.paid, books);
+    return {
+      cur: totals(p.current), prev: totals(p.previous),
+      mix: customerMix(p.paid, p.current, p.start),
+      countries: topCountries(p.current),
+      best: bestSellers(p.current, 5),
+      formats: formatMix(p.current, books),
+      shelf: stockValue(books),
+      reprint: reprintWatch(rows),
+      dormant: dormantStock(rows).slice(0, 5),
+      fulfil: toFulfil(allOrders.orders),
+      start: p.start,
+    };
+  }, [allOrders.orders, stock.books, days]);
+
+  // Traffic (visits, funnel) is recorded per day; only what was recorded is shown.
   const allDaily: any[] = data?.daily || [];
-  const size = PERIOD_DAYS[period];
-  const currentSlice = allDaily.slice(-size);
-  const previousSlice = allDaily.slice(-size * 2, -size);
+  const currentSlice = allDaily.slice(-days);
+  const previousSlice = allDaily.slice(-days * 2, -days);
   // Hourly data isn't recorded, so "Today" charts the last 7 days for context.
   const chartData = period === "today" ? allDaily.slice(-7) : currentSlice;
-
   const sum = (arr: any[], f: string) => arr.reduce((a, d) => a + (d[f] || 0), 0);
-  const cur = { visits: sum(currentSlice, "visits"), orders: sum(currentSlice, "orders"), revenue: sum(currentSlice, "revenue") };
-  const prev = { visits: sum(previousSlice, "visits"), orders: sum(previousSlice, "orders"), revenue: sum(previousSlice, "revenue") };
-  const curConv = cur.visits > 0 ? (cur.orders / cur.visits) * 100 : 0;
-  const prevConv = prev.visits > 0 ? (prev.orders / prev.visits) * 100 : 0;
+  const visits = { cur: sum(currentSlice, "visits"), prev: sum(previousSlice, "visits") };
+  const conv = {
+    cur: visits.cur > 0 ? (sum(currentSlice, "orders") / visits.cur) * 100 : 0,
+    prev: visits.prev > 0 ? (sum(previousSlice, "orders") / visits.prev) * 100 : 0,
+  };
+  const trafficLimited = days > allDaily.length && allDaily.length > 0;
 
-  // Funnel: only what was recorded — never invented.
   const funnel = currentSlice.reduce((acc: any, d: any) => {
     const f = d.funnel || {};
     acc.view += f.view || 0; acc.add_to_cart += f.add_to_cart || 0;
@@ -132,6 +167,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       .sort((a, b) => (a.stockLevel || 0) - (b.stockLevel || 0)).slice(0, 6),
     [stock.books],
   );
+  const reviews = audience.data ? reviewSummary(audience.data.reviews) : null;
+  const subs = audience.data && insights ? newsletterSummary(audience.data.subscribers, insights.start) : null;
 
   const chartSummary = chartData.length
     ? `${chartTab === "traffic" ? "Visitors and sales" : "Gross and net revenue"} over ${chartData.length} day${chartData.length === 1 ? "" : "s"}: ` +
@@ -140,177 +177,81 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         : `${money(sum(chartData, "grossRevenue"))} gross, ${money(sum(chartData, "netRevenue"))} net.`)
     : "No chart data for this period.";
 
+  const recentOrders = useMemo(() => (allOrders.orders || []).filter(o => o.isTest !== true).slice(0, 6), [allOrders.orders]);
   const recentColumns: Column<any>[] = [
     { key: "id", header: "Order", lead: true, render: o => <span className="rp-mono">{o.orderId}</span> },
     { key: "cust", header: "Customer", render: o => o.customer?.name || "—" },
     { key: "total", header: "Total", numeric: true, render: o => money(o.total) },
-    { key: "pay", header: "Payment", render: o => <StatusBadge tone={o.paymentStatus === "paid" ? "success" : "danger"}>{o.paymentStatus === "paid" ? "Paid" : "Unpaid"}</StatusBadge> },
+    { key: "pay", header: "Payment", render: o => <StatusBadge tone={o.paymentStatus === "paid" ? "success" : "danger"}>{o.paymentStatus === "paid" ? "✓ Paid" : "✕ Unpaid"}</StatusBadge> },
   ];
 
   if (loading) return <LoadingState label="Loading overview…" />;
   if (failed) return <ErrorState title="Analytics unavailable" description="The sales figures could not be loaded. Orders and books below may still be available." onRetry={loadAnalytics} />;
 
-  const kpis: Array<{ label: string; value: string; trend: string; sub: string; tone?: "gold" | "warn" | "danger" }> = [
-    { label: "Visitors", value: cur.visits.toLocaleString(), trend: getTrend(cur.visits, prev.visits), sub: "Total visits" },
-    { label: "Orders", value: cur.orders.toLocaleString(), trend: getTrend(cur.orders, prev.orders), sub: "Total sales" },
-    { label: "Conversion", value: `${curConv.toFixed(1)}%`, trend: getTrend(curConv, prevConv), sub: "Visitor to sale" },
-    { label: "Revenue", value: money(cur.revenue), trend: getTrend(cur.revenue, prev.revenue), sub: "Gross sales", tone: "gold" },
-  ];
+  const ordersLoading = !insights && !allOrders.error;
+  const stockLoading = stock.books === null && !stock.error;
+  const noBooks = "Books could not be loaded.";
 
   return (
     <div className="rp-stack">
-      <div>
-        <SectionHead kicker="Performance" title="Store metrics" subcopy="Compared with the previous period of the same length."
-          actions={<Tabs<Period> label="Period" value={period} onChange={setPeriod}
-            tabs={[{ id: "today", label: "Today" }, { id: "7d", label: "7 days" }, { id: "30d", label: "30 days" }, { id: "90d", label: "90 days" }, { id: "365d", label: "1 year" }]} />} />
+      {/* 1 · Period: one control for every figure that depends on it */}
+      <SectionHead kicker="Overview" title="How the shop is doing"
+        subcopy={`Paid orders in ${meta.phrase}, compared with the ${period === "today" ? "day" : "period"} before.`}
+        actions={<Tabs<Period> label="Period" value={period} onChange={setPeriod} tabs={PERIODS.map(p => ({ id: p.id, label: p.label }))} />} />
+
+      {/* 2 · Headline numbers */}
+      {allOrders.error ? <ErrorState title="Sales figures unavailable" description="Orders could not be loaded, so revenue can't be calculated." /> : (
         <div className="rp-kpi-grid">
-          {kpis.map(k => (
-            <MetricCard key={k.label} label={k.label} value={k.value} tone={k.tone}
-              footer={<><StatusBadge tone={trendTone(k.trend)}>{k.trend}</StatusBadge> <span style={{ marginLeft: 6 }}>{k.sub}</span></>} />
-          ))}
-        </div>
-      </div>
-
-      {/* Publisher desk: what needs doing today */}
-      <div>
-        <SectionHead kicker="Publisher desk" title="Needs your attention" subcopy="Live counts from paid orders, your catalog and reader reviews." />
-        {allOrders.error && stock.error ? <ErrorState title="Publisher desk unavailable" description="Orders and books could not be loaded." /> : (
-          <div className="rp-kpi-grid">
-            <MetricCard label="Orders to ship" value={insights ? insights.fulfil.length : "…"} tone={insights && insights.fulfil.length > 0 ? "gold" : undefined}
-              footer={insights ? (insights.fulfil.length ? <>Oldest waiting {insights.fulfil[0].ageDays} day{insights.fulfil[0].ageDays === 1 ? "" : "s"} <SecondaryButton size="sm" onClick={() => setActiveTab?.("orders")}>Open orders</SecondaryButton></> : "All paid orders are shipped") : "Loading…"} />
-            <MetricCard label="Reviews to moderate" value={audience.data ? reviewSummary(audience.data.reviews).pending : audience.error ? "—" : "…"}
-              tone={audience.data && reviewSummary(audience.data.reviews).pending > 0 ? "warn" : undefined}
-              footer={audience.data ? <SecondaryButton size="sm" onClick={() => setActiveTab?.("reviews")}>Open reviews</SecondaryButton> : audience.error ? "Reviews unavailable" : "Loading…"} />
-            <MetricCard label="Reprint watch" value={insights ? insights.reprint.length : "…"} tone={insights && insights.reprint.length > 0 ? "danger" : undefined}
-              footer={insights ? `Titles with under ${REORDER_COVER_DAYS} days of stock at their current pace` : "Loading…"} />
-            <MetricCard label="Sold-out titles" value={insights ? insights.shelf.soldOut : "…"} tone={insights && insights.shelf.soldOut > 0 ? "danger" : undefined}
-              footer={insights ? `of ${insights.shelf.titles} print titles` : "Loading…"} />
-          </div>
-        )}
-      </div>
-
-      {/* Publisher insights: sales quality, readers, and the shelf */}
-      <div>
-        <SectionHead kicker="Publisher insights" title="Sales quality &amp; readers"
-          subcopy={`Paid orders only, ${period === "today" ? "today" : `last ${days} days`} vs the previous period.`} />
-        {allOrders.error ? <ErrorState title="Insights unavailable" description="Orders could not be loaded, so publisher insights can't be calculated." />
-          : !insights ? <LoadingState label="Calculating insights…" /> : (
-          <div className="rp-kpi-grid">
-            <MetricCard label="Net revenue" value={money(insights.cur.revenue)} tone="gold"
-              footer={<><StatusBadge tone={pctTone(change(insights.cur.revenue, insights.prev.revenue))}>{pct(change(insights.cur.revenue, insights.prev.revenue))}</StatusBadge> <span style={{ marginLeft: 6 }}>Incl. shipping &amp; tax</span></>} />
-            <MetricCard label="Average order" value={money(insights.cur.aov)}
-              footer={<><StatusBadge tone={pctTone(change(insights.cur.aov, insights.prev.aov))}>{pct(change(insights.cur.aov, insights.prev.aov))}</StatusBadge> <span style={{ marginLeft: 6 }}>Per paid order</span></>} />
-            <MetricCard label="Books sold" value={insights.cur.units.toLocaleString()}
-              footer={<><StatusBadge tone={pctTone(change(insights.cur.units, insights.prev.units))}>{pct(change(insights.cur.units, insights.prev.units))}</StatusBadge> <span style={{ marginLeft: 6 }}>Copies &amp; downloads</span></>} />
-            <MetricCard label="Returning readers" value={`${insights.mix.returningRate.toFixed(0)}%`}
-              footer={`${insights.mix.returning} returning · ${insights.mix.fresh} new of ${insights.mix.total} buyers`} />
-            <MetricCard label="Discounts given" value={money(insights.cur.discounts)}
-              footer={`${insights.cur.discountRate.toFixed(1)}% of list price`} />
-            <MetricCard label="Shelf value" value={money(insights.shelf.value)}
-              footer={`${insights.shelf.units.toLocaleString()} print copies at retail`} />
-            <MetricCard label="Subscribers" value={audience.data ? newsletterSummary(audience.data.subscribers, insights.start).total.toLocaleString() : audience.error ? "—" : "…"}
-              footer={audience.data ? `+${newsletterSummary(audience.data.subscribers, insights.start).added} this period` : audience.error ? "Newsletter unavailable" : "Loading…"} />
-            <MetricCard label="Reader rating" value={audience.data && reviewSummary(audience.data.reviews).average !== null ? `${(reviewSummary(audience.data.reviews).average as number).toFixed(1)} / 5` : audience.error ? "—" : audience.data ? "None yet" : "…"}
-              footer={audience.data ? `${reviewSummary(audience.data.reviews).approved} approved reviews` : "Loading…"} />
-          </div>
-        )}
-      </div>
-
-      {insights && (
-        <div className="rp-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" }}>
-          <SectionCard flush title="Reprint watch" description={`Selling fast, under ${REORDER_COVER_DAYS} days of stock`}
-            actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("catalog")}>Manage books</SecondaryButton>}>
-            {insights.reprint.length === 0 ? <EmptyState icon="✓" title="No reprints urgent" description="No title is on course to sell out within a month." /> : (
-              <ul className="rp-list" aria-label="Titles to reprint">
-                {insights.reprint.map(r => (
-                  <li key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-                    <div style={{ minWidth: 0 }}>
-                      <span style={{ overflowWrap: "anywhere", fontWeight: 600 }}>{r.title}</span>
-                      <div className="rp-hint rp-mono">{r.sold30} sold in 30 days · {r.stock} left</div>
-                    </div>
-                    <StatusBadge tone={r.coverDays! <= 7 ? "danger" : "warning"}>{r.stock <= 0 ? "Sold out" : `~${r.coverDays} days`}</StatusBadge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </SectionCard>
-
-          <SectionCard flush title="Slow-moving stock" description={`In stock, no sale in ${DORMANT_DAYS}+ days`}>
-            {insights.dormant.length === 0 ? <EmptyState icon="✓" title="Nothing dormant" description="Every title with stock has sold recently." /> : (
-              <ul className="rp-list" aria-label="Slow-moving titles">
-                {insights.dormant.map(r => (
-                  <li key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-                    <div style={{ minWidth: 0 }}>
-                      <span style={{ overflowWrap: "anywhere", fontWeight: 600 }}>{r.title}</span>
-                      <div className="rp-hint rp-mono">{r.lastSaleDays === null ? "Never sold" : `Last sale ${r.lastSaleDays} days ago`}</div>
-                    </div>
-                    <StatusBadge tone="neutral">{r.stock} in stock</StatusBadge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </SectionCard>
+          <MetricCard label="Revenue" tone="gold" value={insights ? money(insights.cur.revenue) : "…"}
+            footer={insights ? <><Trend now={insights.cur.revenue} before={insights.prev.revenue} /> <span style={{ marginLeft: 6 }}>incl. shipping &amp; tax</span></> : "Loading…"} />
+          <MetricCard label="Orders" value={insights ? insights.cur.orders.toLocaleString() : "…"}
+            footer={insights ? <><Trend now={insights.cur.orders} before={insights.prev.orders} /> <span style={{ marginLeft: 6 }}>{insights.cur.units.toLocaleString()} books sold</span></> : "Loading…"} />
+          <MetricCard label="Average order" value={insights ? money(insights.cur.aov) : "…"}
+            footer={insights ? <><Trend now={insights.cur.aov} before={insights.prev.aov} /> <span style={{ marginLeft: 6 }}>per paid order</span></> : "Loading…"} />
+          <MetricCard label="Visitors → sale" value={`${conv.cur.toFixed(1)}%`}
+            footer={<><Trend now={conv.cur} before={conv.prev} /> <span style={{ marginLeft: 6 }}>{visits.cur.toLocaleString()} visits{trafficLimited ? ` (last ${allDaily.length} days recorded)` : ""}</span></>} />
         </div>
       )}
 
-      {insights && (
-        <div className="rp-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" }}>
-          <SectionCard flush title="Best sellers" description="Top titles by revenue in this period">
-            {insights.best.length === 0 ? <EmptyState title="No sales in this period" description="Your top titles appear once paid orders arrive." /> : (
-              <ul className="rp-list" aria-label="Best selling titles">
-                {insights.best.map((b, i) => (
-                  <li key={b.id} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                    <span style={{ overflowWrap: "anywhere" }}><span className="rp-mono">{i + 1}.</span> <strong>{b.title}</strong></span>
-                    <span className="rp-mono" style={{ whiteSpace: "nowrap" }}>{money(b.revenue)} · {b.units} sold · {b.share.toFixed(0)}%</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </SectionCard>
+      {/* 3 · What needs doing, next to the newest orders */}
+      <div className="rp-split" style={SPLIT}>
+        <SectionCard flush title="To do today" description="Live status — not affected by the period above">
+          <ul className="rp-list" aria-label="Things that need attention">
+            <TodoRow label="paid orders waiting to ship" count={insights ? insights.fulfil.length : null} loading={ordersLoading}
+              detail={insights && insights.fulfil[0] ? `Oldest has waited ${insights.fulfil[0].ageDays} day${insights.fulfil[0].ageDays === 1 ? "" : "s"}` : ""}
+              onOpen={() => setActiveTab?.("orders")} openLabel="Ship orders" />
+            <TodoRow label="reviews to moderate" count={reviews ? reviews.pending : null} loading={!audience.data && !audience.error}
+              detail="Readers are waiting to see these" onOpen={() => setActiveTab?.("reviews")} openLabel="Moderate" />
+            <TodoRow label="titles to reprint soon" count={insights ? insights.reprint.length : null} loading={ordersLoading || stockLoading}
+              detail={`On course to sell out within ${REORDER_COVER_DAYS} days`} onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
+            <TodoRow label="print titles sold out" count={insights ? insights.shelf.soldOut : null} loading={ordersLoading || stockLoading}
+              detail="Customers can't buy these right now" onOpen={() => setActiveTab?.("inventory")} openLabel="Open inventory" />
+          </ul>
+          {(allOrders.error || audience.error || stock.error) && (
+            <p className="rp-hint" style={{ padding: "0 20px 16px" }}>
+              {[allOrders.error && "orders", audience.error && "reviews", stock.error && "books"].filter(Boolean).join(", ")} could not be loaded, so some counts are missing.
+            </p>
+          )}
+        </SectionCard>
 
-          <SectionCard flush title="Where readers are" description="Top destinations by revenue">
-            {insights.countries.length === 0 ? <EmptyState title="No orders in this period" description="Countries appear once paid orders arrive." /> : (
-              <ul className="rp-list" aria-label="Top countries">
-                {insights.countries.map(c => (
-                  <li key={c.country} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                    <strong>{c.country}</strong>
-                    <span className="rp-mono">{money(c.revenue)} · {c.orders} order{c.orders === 1 ? "" : "s"}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </SectionCard>
+        <SectionCard flush title="Newest orders" actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("orders")}>All orders</SecondaryButton>}>
+          {allOrders.error ? <ErrorState title="Orders unavailable" description="Recent orders could not be loaded." />
+            : !allOrders.orders ? <LoadingState label="Loading orders…" />
+            : <DataTable caption="Newest orders" columns={recentColumns} rows={recentOrders} rowKey={o => o.id}
+                empty={<EmptyState title="No orders yet" description="New orders appear here as soon as customers check out." />} />}
+        </SectionCard>
+      </div>
 
-          <SectionCard flush title="Format mix"
-            description={insights.formats.total > 0 ? `${insights.formats.printShare.toFixed(0)}% print · ${insights.formats.digitalShare.toFixed(0)}% digital` : "Revenue by book format"}>
-            {insights.formats.formats.length === 0 ? <EmptyState title="No sales in this period" description="Print vs digital revenue shows here once books sell." /> : (
-              <ul className="rp-list" aria-label="Revenue by format">
-                {insights.formats.formats.map(f => (
-                  <li key={f.format}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                      <strong>{f.format}</strong>
-                      <span className="rp-mono">{money(f.revenue)} · {f.units} sold</span>
-                    </div>
-                    <div role="presentation" style={{ height: 8, marginTop: 8, background: "var(--rp-surface-inset)", border: "1px solid var(--rp-border)" }}>
-                      <div style={{ height: "100%", width: `${insights.formats.total ? (f.revenue / insights.formats.total) * 100 : 0}%`, background: "var(--rp-primary)" }} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </SectionCard>
-        </div>
-      )}
-
+      {/* 4 · The trend behind the numbers */}
       <SectionCard title={chartTab === "traffic" ? "Traffic" : "Revenue"}
         description={period === "today" ? "Hourly data isn't recorded — showing the last 7 days for context." : chartSummary}
-        actions={<Tabs<"traffic" | "revenue"> label="Chart" value={chartTab} onChange={setChartTab} tabs={[{ id: "traffic", label: "Traffic" }, { id: "revenue", label: "Revenue" }]} />}>
+        actions={<Tabs<"traffic" | "revenue"> label="Chart" value={chartTab} onChange={setChartTab} tabs={[{ id: "revenue", label: "Revenue" }, { id: "traffic", label: "Traffic" }]} />}>
         {chartData.length === 0 ? (
           <EmptyState title="No analytics yet" description="Visits and orders will chart here once the storefront records them." />
         ) : (
           <>
             <p className="rp-sr-only">{chartSummary}</p>
-            <div style={{ height: 320, width: "100%" }} role="img" aria-label={chartSummary}>
+            <div style={{ height: 300, width: "100%" }} role="img" aria-label={chartSummary}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData} margin={{ left: 0, right: 8, top: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--rp-divider)" />
@@ -346,122 +287,182 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         )}
       </SectionCard>
 
-      <div className="rp-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" }}>
-        <SectionCard flush title="Recent orders" actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("orders")}>All orders</SecondaryButton>}>
-          {recent.error ? <ErrorState title="Orders unavailable" description="Recent orders could not be loaded." />
-            : recent.orders === null ? <LoadingState label="Loading orders…" />
-            : <DataTable caption="Recent orders" columns={recentColumns} rows={recent.orders} rowKey={o => o.id}
-                empty={<EmptyState title="No orders yet" description="New orders appear here as soon as customers check out." />} />}
-        </SectionCard>
+      {/* 5 · Detail, grouped by the question you're asking */}
+      <SectionHead kicker="Details" title="Dig deeper"
+        subcopy={section === "sales" ? "What is selling, in which format, and where." : section === "stock" ? "What to reprint, what is gathering dust, what is running low." : "Who is buying, how they find you, and where they drop off."}
+        actions={<Tabs<Section> label="Detail" value={section} onChange={setSection}
+          tabs={[{ id: "sales", label: "Sales" }, { id: "stock", label: "Stock" }, { id: "readers", label: "Readers & traffic" }]} />} />
 
-        <SectionCard flush title="Low stock" description={`${LOW_STOCK} units or fewer`}
-          actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("catalog")}>Manage books</SecondaryButton>}>
-          {stock.error ? <ErrorState title="Inventory unavailable" description="Stock levels could not be loaded." />
-            : stock.books === null ? <LoadingState label="Loading inventory…" />
-            : lowStock.length === 0 ? <EmptyState icon="✓" title="Stock looks healthy" description="No published titles are at or below the low-stock threshold." />
-            : (
-              <ul className="rp-list" aria-label="Low stock titles">
-                {lowStock.map(b => (
-                  <li key={b.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-                    <span style={{ minWidth: 0, overflowWrap: "anywhere", fontWeight: 600 }}>{b.title}</span>
-                    <StatusBadge tone={(b.stockLevel || 0) <= 0 ? "danger" : "warning"}>{(b.stockLevel || 0) <= 0 ? "Sold out" : `${b.stockLevel} left`}</StatusBadge>
+      {allOrders.error && section !== "stock" ? <ErrorState title="Details unavailable" description="Orders could not be loaded, so these lists can't be calculated." />
+        : !insights && section !== "stock" ? <LoadingState label="Calculating…" /> : null}
+
+      {section === "sales" && insights && (
+        <div className="rp-split" style={SPLIT}>
+          <SectionCard flush title="Best sellers" description="Top titles by revenue">
+            {insights.best.length === 0 ? <EmptyState title="No sales in this period" description="Your top titles appear once paid orders arrive." /> : (
+              <ul className="rp-list" aria-label="Best selling titles">
+                {insights.best.map((b, i) => (
+                  <li key={b.id} style={ROW}>
+                    <div style={{ minWidth: 0 }}>
+                      <span className="rp-mono">{i + 1}. </span>
+                      <GhostButton size="sm" onClick={() => handleEditClick(b.id)} disabled={fetchingBookId === b.id}
+                        aria-label={`Edit ${b.title}`} style={{ padding: 0, textAlign: "left", whiteSpace: "normal", textTransform: "none", letterSpacing: 0, fontSize: "var(--rp-text-base)" }}>
+                        {b.title}
+                      </GhostButton>
+                      <div className="rp-hint rp-mono">{b.units} sold · {b.share.toFixed(0)}% of revenue</div>
+                    </div>
+                    <span className="rp-mono" style={{ whiteSpace: "nowrap" }}>{money(b.revenue)}</span>
                   </li>
                 ))}
               </ul>
             )}
-        </SectionCard>
-      </div>
+          </SectionCard>
 
-      <div className="rp-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" }}>
-        <SectionCard flush title="Popular books" actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("catalog")}>Manage inventory</SecondaryButton>}>
-          {data?.topSellers?.length > 0 ? (
-            <ul className="rp-list" aria-label="Best selling books">
-              {data.topSellers.map((item: any) => (
-                <li key={item.id} style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
-                    {item.photoUrl && <img src={item.photoUrl} alt="" width={40} height={56} style={{ objectFit: "cover", border: "1px solid var(--rp-border-strong)" }} />}
-                    <div style={{ minWidth: 0 }}>
-                      <GhostButton size="sm" onClick={() => handleEditClick(item.id)} disabled={fetchingBookId === item.id}
-                        aria-label={`Edit ${item.title}`} style={{ padding: 0, textAlign: "left", whiteSpace: "normal", textTransform: "none", letterSpacing: 0, fontSize: "var(--rp-text-base)" }}>
-                        {item.title}
-                      </GhostButton>
-                      <div className="rp-hint rp-mono">{item.sold} sold</div>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div className="rp-mono" style={{ fontSize: "var(--rp-text-base)" }}>{money(item.revenue)}</div>
-                    <StatusBadge tone={item.trend?.startsWith("-") ? "danger" : "success"}>{item.trend || "0%"}</StatusBadge>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : <EmptyState title="No sales recorded yet" description="Your best sellers will rank here after the first paid orders." />}
-        </SectionCard>
+          <SectionCard flush title="Format mix"
+            description={insights.formats.total > 0 ? `${insights.formats.printShare.toFixed(0)}% print · ${insights.formats.digitalShare.toFixed(0)}% digital` : "Revenue by book format"}>
+            {insights.formats.formats.length === 0 ? <EmptyState title="No sales in this period" description="Print vs digital revenue shows here once books sell." /> : (
+              <ul className="rp-list" aria-label="Revenue by format">
+                {insights.formats.formats.map(f => (
+                  <BarRow key={f.format} label={f.format} value={`${money(f.revenue)} · ${f.units} sold`} share={insights.formats.total ? (f.revenue / insights.formats.total) * 100 : 0} />
+                ))}
+              </ul>
+            )}
+          </SectionCard>
 
-        <SectionCard flush title="Inventory categories">
-          {data?.categories?.length > 0 ? (
-            <ul className="rp-list" aria-label="Categories">
-              {data.categories.map((cat: any) => (
-                <li key={cat.name} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                  <div><strong>{cat.name}</strong><div className="rp-hint rp-mono">{cat.views.toLocaleString()} visits</div></div>
-                  <div style={{ textAlign: "right" }}>
-                    <div className="rp-mono">{money(cat.revenue)}</div>
-                    <div className="rp-hint rp-mono">{cat.sold} sold</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : <EmptyState title="No categories yet" description="Categories with visits or sales will be listed here." />}
-        </SectionCard>
-      </div>
+          <SectionCard flush title="Where readers are" description="Top destinations by revenue">
+            {insights.countries.length === 0 ? <EmptyState title="No orders in this period" description="Countries appear once paid orders arrive." /> : (
+              <ul className="rp-list" aria-label="Top countries">
+                {insights.countries.map(c => (
+                  <BarRow key={c.country} label={c.country} value={`${money(c.revenue)} · ${c.orders} order${c.orders === 1 ? "" : "s"}`}
+                    share={insights.cur.revenue > 0 ? (c.revenue / insights.cur.revenue) * 100 : 0} color="var(--rp-info)" />
+                ))}
+              </ul>
+            )}
+          </SectionCard>
 
-      <div className="rp-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" }}>
-        <SectionCard title="Referrals & campaigns" description="Orders placed with a ?ref= parameter.">
-          {data?.referrals?.length > 0 ? (
-            <ol className="rp-list" style={{ margin: -20 }} aria-label="Referral sources">
-              {data.referrals.map((ref: any) => {
-                const max = Math.max(1, ...data.referrals.map((r: any) => r.revenue));
-                return (
-                  <li key={ref.name}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                      <strong>{ref.name}</strong>
-                      <span className="rp-mono">{money(ref.revenue)} · {ref.ordersCount} sales</span>
-                    </div>
-                    <div role="presentation" style={{ height: 8, marginTop: 8, background: "var(--rp-surface-inset)", border: "1px solid var(--rp-border)" }}>
-                      <div style={{ height: "100%", width: `${(ref.revenue / max) * 100}%`, background: "var(--rp-primary)" }} />
+          <SectionCard flush title="Categories" description="All-time sales and recorded visits">
+            {data?.categories?.length > 0 ? (
+              <ul className="rp-list" aria-label="Categories">
+                {data.categories.map((cat: any) => (
+                  <li key={cat.name} style={ROW}>
+                    <div><strong>{cat.name}</strong><div className="rp-hint rp-mono">{cat.views.toLocaleString()} visits</div></div>
+                    <div style={{ textAlign: "right" }}>
+                      <div className="rp-mono">{money(cat.revenue)}</div>
+                      <div className="rp-hint rp-mono">{cat.sold} sold</div>
                     </div>
                   </li>
-                );
-              })}
-            </ol>
-          ) : <EmptyState title="No campaign traffic yet" description="Share a link ending in ?ref=name and its orders will appear here." />}
-        </SectionCard>
+                ))}
+              </ul>
+            ) : <EmptyState title="No categories yet" description="Categories with visits or sales will be listed here." />}
+          </SectionCard>
+        </div>
+      )}
 
-        <SectionCard title="Conversion funnel"
-          description={funnel.view > 0 ? `${((funnel.purchase / funnel.view) * 100).toFixed(2)}% of product views end in a purchase` : "Only recorded events are shown."}>
-          {funnel.view === 0 ? (
-            <EmptyState title="No funnel events recorded" description="Views, add-to-cart, checkout and purchase events chart here once shoppers generate them." />
-          ) : (
-            <ol className="rp-list" style={{ margin: -20 }} aria-label="Conversion funnel">
-              {funnelSteps.map((step, idx) => {
-                const before = idx === 0 ? null : funnelSteps[idx - 1].count;
-                const dropPct = before ? ((Math.max(0, before - step.count) / before) * 100).toFixed(1) : null;
-                return (
-                  <li key={step.key}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                      <span>{step.label}</span>
-                      <span className="rp-mono">{step.count.toLocaleString()}{dropPct && <span style={{ color: "var(--rp-danger)" }}> −{dropPct}%</span>}</span>
-                    </div>
-                    <div role="presentation" style={{ height: 8, marginTop: 8, background: "var(--rp-surface-inset)", border: "1px solid var(--rp-border)" }}>
-                      <div style={{ height: "100%", width: `${(step.count / maxFunnel) * 100}%`, background: "var(--rp-info)" }} />
-                    </div>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </SectionCard>
-      </div>
+      {section === "stock" && (
+        stock.error ? <ErrorState title="Stock unavailable" description={noBooks} />
+        : !insights ? (allOrders.error ? <ErrorState title="Stock insights unavailable" description="Orders could not be loaded, so sales pace can't be calculated." /> : <LoadingState label="Calculating…" />)
+        : (
+          <>
+            <div className="rp-kpi-grid">
+              <MetricCard label="Shelf value" value={money(insights.shelf.value)} footer={`${insights.shelf.units.toLocaleString()} print copies at retail`} />
+              <MetricCard label="Print titles" value={insights.shelf.titles} footer={`${insights.shelf.soldOut} sold out`} tone={insights.shelf.soldOut > 0 ? "danger" : undefined} />
+              <MetricCard label="Reprint soon" value={insights.reprint.length} footer={`under ${REORDER_COVER_DAYS} days of stock`} tone={insights.reprint.length > 0 ? "warn" : undefined} />
+            </div>
+            <div className="rp-split" style={SPLIT}>
+              <SectionCard flush title="Reprint watch" description={`Selling fast, under ${REORDER_COVER_DAYS} days of stock`}
+                actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("inventory")}>Open inventory</SecondaryButton>}>
+                {insights.reprint.length === 0 ? <EmptyState icon="✓" title="No reprints urgent" description="No title is on course to sell out within a month." /> : (
+                  <ul className="rp-list" aria-label="Titles to reprint">
+                    {insights.reprint.slice(0, 6).map(r => (
+                      <li key={r.id} style={ROW}>
+                        <div style={{ minWidth: 0 }}>
+                          <span style={{ overflowWrap: "anywhere", fontWeight: 600 }}>{r.title}</span>
+                          <div className="rp-hint rp-mono">{r.sold30} sold in 30 days · {r.stock} left</div>
+                        </div>
+                        <StatusBadge tone={r.stock <= 0 || (r.coverDays ?? 0) <= 7 ? "danger" : "warning"}>{r.stock <= 0 ? "Sold out" : `~${r.coverDays} days`}</StatusBadge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </SectionCard>
+
+              <SectionCard flush title="Slow-moving stock" description={`In stock, no sale in ${DORMANT_DAYS}+ days`}>
+                {insights.dormant.length === 0 ? <EmptyState icon="✓" title="Nothing dormant" description="Every title with stock has sold recently." /> : (
+                  <ul className="rp-list" aria-label="Slow-moving titles">
+                    {insights.dormant.map(r => (
+                      <li key={r.id} style={ROW}>
+                        <div style={{ minWidth: 0 }}>
+                          <span style={{ overflowWrap: "anywhere", fontWeight: 600 }}>{r.title}</span>
+                          <div className="rp-hint rp-mono">{r.lastSaleDays === null ? "Never sold" : `Last sale ${r.lastSaleDays} days ago`}</div>
+                        </div>
+                        <StatusBadge tone="neutral">{r.stock} in stock</StatusBadge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </SectionCard>
+
+              <SectionCard flush title="Running low" description={`${LOW_STOCK} units or fewer`}
+                actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("catalog")}>Manage books</SecondaryButton>}>
+                {lowStock.length === 0 ? <EmptyState icon="✓" title="Stock looks healthy" description="No published titles are at or below the low-stock threshold." /> : (
+                  <ul className="rp-list" aria-label="Low stock titles">
+                    {lowStock.map(b => (
+                      <li key={b.id} style={ROW}>
+                        <span style={{ minWidth: 0, overflowWrap: "anywhere", fontWeight: 600 }}>{b.title}</span>
+                        <StatusBadge tone={(b.stockLevel || 0) <= 0 ? "danger" : "warning"}>{(b.stockLevel || 0) <= 0 ? "Sold out" : `${b.stockLevel} left`}</StatusBadge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </SectionCard>
+            </div>
+          </>
+        )
+      )}
+
+      {section === "readers" && insights && (
+        <>
+          <div className="rp-kpi-grid">
+            <MetricCard label="Returning readers" value={`${insights.mix.returningRate.toFixed(0)}%`}
+              footer={`${insights.mix.returning} returning · ${insights.mix.fresh} new of ${insights.mix.total} buyers`} />
+            <MetricCard label="Subscribers" value={subs ? subs.total.toLocaleString() : audience.error ? "—" : "…"}
+              footer={subs ? `+${subs.added} in this period` : audience.error ? "Newsletter unavailable" : "Loading…"} />
+            <MetricCard label="Reader rating" value={reviews ? (reviews.average !== null ? `${reviews.average.toFixed(1)} / 5` : "None yet") : audience.error ? "—" : "…"}
+              footer={reviews ? `${reviews.approved} approved review${reviews.approved === 1 ? "" : "s"}` : audience.error ? "Reviews unavailable" : "Loading…"} />
+            <MetricCard label="Discounts given" value={money(insights.cur.discounts)} footer={`${insights.cur.discountRate.toFixed(1)}% of list price`} />
+          </div>
+          <div className="rp-split" style={SPLIT}>
+            <SectionCard title="Referrals & campaigns" description="All-time orders placed with a ?ref= parameter.">
+              {data?.referrals?.length > 0 ? (
+                <ol className="rp-list" style={{ margin: -20 }} aria-label="Referral sources">
+                  {data.referrals.map((ref: any) => (
+                    <BarRow key={ref.name} label={ref.name} value={`${money(ref.revenue)} · ${ref.ordersCount} sales`}
+                      share={(ref.revenue / Math.max(1, ...data.referrals.map((r: any) => r.revenue))) * 100} />
+                  ))}
+                </ol>
+              ) : <EmptyState title="No campaign traffic yet" description="Share a link ending in ?ref=name and its orders will appear here." />}
+            </SectionCard>
+
+            <SectionCard title="Conversion funnel"
+              description={funnel.view > 0 ? `${((funnel.purchase / funnel.view) * 100).toFixed(2)}% of product views end in a purchase` : "Only recorded events are shown."}>
+              {funnel.view === 0 ? (
+                <EmptyState title="No funnel events recorded" description="Views, add-to-cart, checkout and purchase events chart here once shoppers generate them." />
+              ) : (
+                <ol className="rp-list" style={{ margin: -20 }} aria-label="Conversion funnel">
+                  {funnelSteps.map((step, idx) => {
+                    const before = idx === 0 ? null : funnelSteps[idx - 1].count;
+                    const dropPct = before ? ((Math.max(0, before - step.count) / before) * 100).toFixed(1) : null;
+                    return (
+                      <BarRow key={step.key} label={step.label} color="var(--rp-info)" share={(step.count / maxFunnel) * 100}
+                        value={<>{step.count.toLocaleString()}{dropPct && <span style={{ color: "var(--rp-danger)" }}> −{dropPct}%</span>}</>} />
+                    );
+                  })}
+                </ol>
+              )}
+            </SectionCard>
+          </div>
+        </>
+      )}
     </div>
   );
 }
