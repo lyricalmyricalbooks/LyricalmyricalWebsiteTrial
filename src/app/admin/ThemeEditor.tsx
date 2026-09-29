@@ -3907,6 +3907,16 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
 
 function TranslationsPanel({ design, update }: any) {
   const copy = design.copy || {};
+  const [copyQuery, setCopyQuery] = useState("");
+  const q = copyQuery.trim().toLowerCase();
+  const visibleGroups = COPY_SCHEMA
+    .map((g) => ({
+      ...g,
+      fields: q
+        ? g.fields.filter((f) => `${g.group} ${f.label} ${f.key} ${f.default}`.toLowerCase().includes(q))
+        : g.fields,
+    }))
+    .filter((g) => g.fields.length > 0);
   const updateCopy = (key: string, value: string) =>
     update("copy", { ...copy, [key]: value });
 
@@ -3945,8 +3955,19 @@ function TranslationsPanel({ design, update }: any) {
       </Accordion>
 
       {/* Auto-generated from COPY_SCHEMA — every shopper-facing string. */}
-      {COPY_SCHEMA.map((groupDef) => (
-        <Accordion key={groupDef.group} title={groupDef.group}>
+      <div>
+        <SidebarLabel htmlFor="copy-search">Find any text on the storefront</SidebarLabel>
+        <SidebarInput
+          value={copyQuery}
+          onChange={(v: string) => setCopyQuery(v)}
+          placeholder="e.g. wishlist, checkout, cookies, 404…"
+        />
+      </div>
+      {q && visibleGroups.length === 0 && (
+        <p className="text-[10px] text-slate-500 font-bold italic">No storefront text matches “{copyQuery}”.</p>
+      )}
+      {visibleGroups.map((groupDef) => (
+        <Accordion key={groupDef.group + (q ? "-q" : "")} title={groupDef.group} defaultOpen={!!q}>
           <div className="space-y-6">
             {groupDef.fields.map((field) => (
               <div key={field.key}>
@@ -4012,6 +4033,28 @@ function AdditionalPanel({ design, update }: any) {
               label={label}
               description={desc}
               checked={(design as any)[key] ?? false}
+              onChange={(v: boolean) => update(key, v)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="p-6 bg-white/[0.03] border border-white/10 rounded-[2rem] relative overflow-hidden">
+        <SidebarLabel>Storefront elements</SidebarLabel>
+        <p className="text-[9px] text-slate-500 font-bold leading-relaxed mb-4">
+          Show or hide whole parts of the public site. All on by default.
+        </p>
+        <div className="space-y-2">
+          {[
+            { key: "showRecentlyViewed", label: "Recently viewed row", desc: "Product-page row of books the shopper looked at" },
+            { key: "showBreadcrumbs",    label: "Breadcrumbs",         desc: "Home / Collections / … trail on collection pages" },
+            { key: "showCookieBanner",   label: "Cookie banner",       desc: "Consent prompt. Keep on wherever privacy law requires it" },
+          ].map(({ key, label, desc }) => (
+            <SidebarToggle
+              key={key}
+              label={label}
+              description={desc}
+              checked={(design as any)[key] ?? true}
               onChange={(v: boolean) => update(key, v)}
             />
           ))}

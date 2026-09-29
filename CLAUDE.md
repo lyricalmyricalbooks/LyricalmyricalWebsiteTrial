@@ -214,6 +214,15 @@ nested blocks across more section types remains a follow-up):
 3. CSS-grid visual positioning with guarded coordinates and overlap;
 4. per-breakpoint layout overrides tied to the device preview toggle.
 
+**Riso Noir storefront:** the public site defaults to the Riso Press look on black with white text
+(`src/app/features/site/risoNoir.ts` → `RISO_NOIR_TOKENS`, `withRisoNoirDefault`; theme-library
+preset `lyricalmyrical-riso-noir`). `RISO_STOREFRONT_CSS` in `themeTokens.ts` must stay token-driven
+(no literal hex — `themeTokens.test.ts` enforces it). Colour triplet variables (`--fg-rgb`, `--accent-rgb`,
+…) are **comma-separated** (`255, 255, 255`) so `rgba(var(--x-rgb), a)` is valid. Every shopper-facing
+string goes through `getCopy(design, key)` with a `COPY_SCHEMA` entry (`storeCopy.coverage.test.ts`
+guards this); print-treatment knobs live in Colors › **Riso print treatment**, element toggles in
+Additional › **Storefront elements**.
+
 **Section contract:** the storefront looks up renderers by the registry `type`
 string. A registry type with **no identically named renderer renders nothing**
 ("added but doesn't show up"). Adding a section = registry schema **+** matching

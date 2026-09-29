@@ -84,6 +84,7 @@ export default function CollectionPage() {
       <TemplateSections design={settings?.design} templateId="collectionPage" books={books} />
 
       <main className="max-w-6xl mx-auto px-6 py-14">
+        {(settings?.design as any)?.showBreadcrumbs !== false && (
         <nav aria-label={getCopy(settings?.design, "breadcrumbAria")} className="mb-8 text-[10px] tracking-[0.3em] uppercase text-white/30 flex gap-2">
           <Link to="/" className="hover:text-white">{getCopy(settings?.design, "breadcrumbHome")}</Link>
           <span>/</span>
@@ -91,6 +92,7 @@ export default function CollectionPage() {
           <span>/</span>
           <span className="text-white/70">{categoryName}</span>
         </nav>
+        )}
         <h1 className="text-4xl md:text-5xl font-black tracking-tight uppercase mb-10">{categoryName}</h1>
 
         <CatalogControls

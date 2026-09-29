@@ -18,22 +18,24 @@ import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebas
 import { doc, getDoc, collection } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import { StorefrontThemeStyle } from "./features/site/StorefrontThemeStyle";
+import { getCopy } from "./features/site/storeCopy";
+import { DEFAULT_SETTINGS } from "./features/site/constants";
 
 // ─── Country selector (matches Field styling) ─────────────────────────────────
-function CountryField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function CountryField({ value, onChange, label = "Country" }: { value: string; onChange: (v: string) => void; label?: string }) {
   return (
     <div className="relative">
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        aria-label="Country"
-        className="peer w-full rounded-lg border border-slate-300 bg-white px-3.5 pb-2 pt-6 text-sm text-slate-900 outline-none transition focus:border-[#1773b0] focus:ring-1 focus:ring-[#1773b0] appearance-none cursor-pointer"
+        aria-label={label}
+        className="peer w-full rounded-lg border border-slate-300 bg-white px-3.5 pb-2 pt-6 text-sm text-slate-900 outline-none transition focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)] appearance-none cursor-pointer"
       >
         {COUNTRIES.map((c) => (
           <option key={c.code} value={c.name} className="bg-white text-slate-900">{c.name}</option>
         ))}
       </select>
-      <label className="absolute left-3.5 top-2 text-xs text-slate-500 pointer-events-none">Country</label>
+      <label className="absolute left-3.5 top-2 text-xs text-slate-500 pointer-events-none">{label}</label>
       <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-xs">▾</span>
     </div>
   );
@@ -62,7 +64,7 @@ function Field({
         inputMode={inputMode}
         required={required}
         aria-label={label}
-        className="peer w-full rounded-lg border border-slate-300 bg-white px-3.5 pb-2 pt-6 text-sm text-slate-900 outline-none transition focus:border-[#1773b0] focus:ring-1 focus:ring-[#1773b0] placeholder-transparent"
+        className="peer w-full rounded-lg border border-slate-300 bg-white px-3.5 pb-2 pt-6 text-sm text-slate-900 outline-none transition focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)] placeholder-transparent"
       />
       <label className={`absolute left-3.5 pointer-events-none transition-all duration-150
         ${focused || filled
@@ -115,6 +117,9 @@ export function Checkout() {
   const [taxRates, setTaxRates] = useState<any[]>([]);
   const [books, setBooks] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>(null);
+  // Until the saved settings arrive (or if they never do) checkout wears the Riso Noir defaults.
+  const checkoutDesign = settings?.design ?? DEFAULT_SETTINGS.design;
+  const c = (key: string, vars?: Record<string, string | number>) => getCopy(checkoutDesign, key, vars);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
   const [successOrder, setSuccessOrder] = useState<any>(null);
 
@@ -940,7 +945,7 @@ export function Checkout() {
     const isManual = successOrder?.paymentStatus === "pending";
     return (
       <div data-fm-store data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
-        <StorefrontThemeStyle design={settings?.design} />
+        <StorefrontThemeStyle design={checkoutDesign} />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.15)_0%,transparent_70%)] pointer-events-none" />
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", duration: 0.8 }}
           className="relative z-10 flex flex-col items-center max-w-md w-full">
@@ -952,7 +957,7 @@ export function Checkout() {
               ? "Order Placed"
               : (paymentConfirmed ? "Order Confirmed" : "Finalizing Payment")}
           </p>
-          <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white mb-4">Thank You</h2>
+          <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white mb-4">{c("coThanks")}</h2>
           <p className="text-white/30 text-xs font-mono mb-2 tracking-widest">ORDER #{orderNumber}</p>
 
           {isManual ? (
@@ -966,7 +971,7 @@ export function Checkout() {
               <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl flex gap-3 items-center">
                 <AlertCircle size={14} className="text-amber-400 shrink-0" />
                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider leading-relaxed">
-                  Your order is pending verification of payment. We will ship once received.
+                  {c("coPending")}
                 </p>
               </div>
             </div>
@@ -980,7 +985,7 @@ export function Checkout() {
 
           <Link to="/"
             className="flex items-center gap-3 hover:bg-violet-500 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase transition-all active:scale-95 shadow-[0_10px_40px_rgba(124,58,237,0.4)]" style={{ backgroundColor: "var(--accent)" }}>
-            Continue Exploring
+            {c("coContinue")}
           </Link>
         </motion.div>
       </div>
@@ -991,17 +996,17 @@ export function Checkout() {
   if (cart.length === 0) {
     return (
       <div data-fm-store data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
-        <StorefrontThemeStyle design={settings?.design} />
+        <StorefrontThemeStyle design={checkoutDesign} />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.08)_0%,transparent_70%)] pointer-events-none" />
         <div className="relative z-10 flex flex-col items-center">
           <div className="w-20 h-20 rounded-[1.5rem] bg-white/5 border border-white/10 flex items-center justify-center mb-8">
             <Package size={36} className="text-white/20" strokeWidth={1} />
           </div>
-          <p className="text-[9px] font-black tracking-[0.5em] text-white/20 uppercase mb-4">Empty Archive</p>
-          <h2 className="text-4xl font-black tracking-tighter uppercase italic text-white mb-12">Nothing Here</h2>
+          <p className="text-[9px] font-black tracking-[0.5em] text-white/20 uppercase mb-4">{c("coEmptyEyebrow")}</p>
+          <h2 className="text-4xl font-black tracking-tighter uppercase italic text-white mb-12">{c("coEmptyTitle")}</h2>
           <Link to="/"
             className="fm-active px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase hover:bg-white/90 transition-all active:scale-95">
-            Return to Catalog
+            {c("coEmptyButton")}
           </Link>
         </div>
       </div>
@@ -1013,17 +1018,17 @@ export function Checkout() {
   const hasPaypal = Boolean(settings?.payments?.paypal?.connected);
   const enabledManualMethods = (settings?.payments?.manualMethods || []).filter((method: any) => method.enabled);
   const paymentLabel = selectedPaymentMethod === "stripe"
-    ? "Pay securely"
+    ? c("coPay")
     : selectedPaymentMethod === "paypal"
-      ? "Continue to PayPal"
-      : "Place order";
+      ? c("coPayPal")
+      : c("coPlaceOrder");
 
   return (
     <div data-fm-store data-fm-checkout className="min-h-screen bg-white font-sans text-slate-900 selection:bg-sky-100">
-      <StorefrontThemeStyle design={settings?.design} />
+      <StorefrontThemeStyle design={checkoutDesign} />
       {settings?.payments?.testMode && (
         <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-sm font-medium text-amber-900">
-          Test mode is active. No real charges will be made.
+          {c("coTestMode")}
         </div>
       )}
 
@@ -1031,37 +1036,37 @@ export function Checkout() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
           <Link to="/" className="group flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900">
             <ChevronLeft size={17} className="transition-transform group-hover:-translate-x-0.5" />
-            Return to store
+            {c("coReturn")}
           </Link>
           <Link to="/" className="text-center text-lg font-semibold tracking-tight text-slate-950 sm:text-xl">
-            Lyricalmyrical Books
+            {c("coBrand")}
           </Link>
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <Lock size={15} aria-hidden="true" />
-            <span className="hidden sm:inline">Secure checkout</span>
+            <span className="hidden sm:inline">{c("coSecure")}</span>
           </div>
         </div>
       </header>
 
-      <TemplateSections design={settings?.design} templateId="cartPage" />
+      <TemplateSections design={checkoutDesign} templateId="cartPage" />
 
       <div className="mx-auto grid min-h-[calc(100vh-77px)] max-w-6xl grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
         <main className="px-5 py-8 sm:px-8 sm:py-12 lg:border-r lg:border-slate-200 lg:pr-14">
           <div className="mx-auto max-w-2xl space-y-10">
-            <div className="flex items-center gap-2 text-sm text-slate-500" aria-label="Checkout progress">
-              <span className="font-medium text-[#1773b0]">Information</span>
+            <div className="flex items-center gap-2 text-sm text-slate-500" aria-label={c("coProgressAria")}>
+              <span className="font-medium text-[color:var(--accent)]">{c("coStepInfo")}</span>
               <span aria-hidden="true">›</span>
-              <span>Shipping</span>
+              <span>{c("coStepShipping")}</span>
               <span aria-hidden="true">›</span>
-              <span>Payment</span>
+              <span>{c("coStepPayment")}</span>
             </div>
 
             <section>
-              <StepBadge n="1 of 3" label="Contact" />
+              <StepBadge n={c("coStepOf", { n: 1 })} label={c("coContact")} />
               {currentUser ? (
                 <div className="mb-4 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
                   <div>
-                    <p className="font-medium text-slate-900">Signed in</p>
+                    <p className="font-medium text-slate-900">{c("coSignedIn")}</p>
                     <p className="text-slate-500">{currentUser.email}</p>
                   </div>
                   <CheckCircle2 size={20} style={{ color: "var(--success)" }} />
@@ -1072,37 +1077,37 @@ export function Checkout() {
                   onClick={handleGoogleLogin}
                   className="mb-4 w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
-                  Sign in with Google
+                  {c("coGoogle")}
                 </button>
               )}
-              <Field label="Email address" type="email" value={customer.email} onChange={v => setCustomer({ ...customer, email: v })} autoComplete="email" inputMode="email" required />
-              <p className="mt-2 text-xs leading-5 text-slate-500">We’ll send your receipt and delivery updates to this email.</p>
+              <Field label={c("coEmail")} type="email" value={customer.email} onChange={v => setCustomer({ ...customer, email: v })} autoComplete="email" inputMode="email" required />
+              <p className="mt-2 text-xs leading-5 text-slate-500">{c("coEmailNote")}</p>
             </section>
 
             <section>
-              <StepBadge n="2 of 3" label="Delivery" />
+              <StepBadge n={c("coStepOf", { n: 2 })} label={c("coDelivery")} />
               <div className="space-y-3">
-                <CountryField value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v } })} />
-                <Field label="Full name" value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
-                <Field label="Address" value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
+                <CountryField label={c("coCountry")} value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v } })} />
+                <Field label={c("coName")} value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
+                <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <Field label="City" value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required />
-                  <Field label="State / province" value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" required />
-                  <Field label="ZIP / postal code" value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" required />
+                  <Field label={c("coCity")} value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required />
+                  <Field label={c("coState")} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" required />
+                  <Field label={c("coZip")} value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" required />
                 </div>
-                <Field label="Phone (optional)" type="tel" value={customer.phone} onChange={v => setCustomer({ ...customer, phone: v })} autoComplete="tel" inputMode="tel" />
+                <Field label={c("coPhone")} type="tel" value={customer.phone} onChange={v => setCustomer({ ...customer, phone: v })} autoComplete="tel" inputMode="tel" />
               </div>
             </section>
 
             <section>
               <div className="mb-5">
-                <h2 className="text-xl font-semibold tracking-tight text-slate-900">Shipping method</h2>
-                <p className="mt-1 text-sm text-slate-500">Choose the delivery speed that works for you.</p>
+                <h2 className="text-xl font-semibold tracking-tight text-slate-900">{c("coShipMethod")}</h2>
+                <p className="mt-1 text-sm text-slate-500">{c("coShipMethodNote")}</p>
               </div>
               {shippoRatesLoading ? (
                 <div className="flex items-center justify-center gap-3 py-8 rounded-lg border border-slate-200 bg-white">
-                  <Loader2 className="h-5 w-5 animate-spin text-[#1773b0]" />
-                  <span className="text-sm text-slate-500 font-medium">Calculating live shipping rates...</span>
+                  <Loader2 className="h-5 w-5 animate-spin text-[color:var(--accent)]" />
+                  <span className="text-sm text-slate-500 font-medium">{c("coRates")}</span>
                 </div>
               ) : availableRates.length > 0 ? (
                 <div className="overflow-hidden rounded-lg border border-slate-300 bg-white">
@@ -1115,7 +1120,7 @@ export function Checkout() {
                           value={rate.name}
                           checked={selectedRateName === rate.name}
                           onChange={() => setSelectedRateName(rate.name)}
-                          className="h-4 w-4 accent-[#1773b0]"
+                          className="h-4 w-4 accent-[color:var(--accent)]"
                         />
                         <div>
                           <p className="text-sm font-medium text-slate-900">{rate.name}</p>
@@ -1137,17 +1142,17 @@ export function Checkout() {
             </section>
 
             <section>
-              <StepBadge n="3 of 3" label="Payment" />
-              <p className="-mt-3 mb-4 text-sm leading-6 text-slate-500">All transactions are handled by the payment provider you select.</p>
+              <StepBadge n={c("coStepOf", { n: 3 })} label={c("coPayment")} />
+              <p className="-mt-3 mb-4 text-sm leading-6 text-slate-500">{c("coPaymentNote")}</p>
               <div className="overflow-hidden rounded-lg border border-slate-300 bg-white">
                 {hasStripe && (
                   <label className="block cursor-pointer">
                     <div className="flex items-center justify-between gap-4 bg-slate-50 px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <input type="radio" name="payment-method" checked={selectedPaymentMethod === "stripe"} onChange={() => setSelectedPaymentMethod("stripe")} className="h-4 w-4 accent-[#1773b0]" />
-                        <span className="text-sm font-medium">Credit or debit card</span>
+                        <input type="radio" name="payment-method" checked={selectedPaymentMethod === "stripe"} onChange={() => setSelectedPaymentMethod("stripe")} className="h-4 w-4 accent-[color:var(--accent)]" />
+                        <span className="text-sm font-medium">{c("coCard")}</span>
                       </div>
-                      <div className="flex items-center gap-1.5" aria-label="Accepted cards">
+                      <div className="flex items-center gap-1.5" aria-label={c("coCardsAria")}>
                         {['VISA', 'MC', 'AMEX'].map(card => <span key={card} className="rounded border border-slate-300 bg-white px-1.5 py-1 text-[9px] font-bold text-slate-600">{card}</span>)}
                       </div>
                     </div>
@@ -1162,7 +1167,7 @@ export function Checkout() {
                 {enabledManualMethods.map((method: any, index: number) => (
                   <label key={method.id} className={`flex cursor-pointer items-center justify-between gap-4 border-t border-slate-200 px-4 py-4 ${!hasStripe && index === 0 ? "border-t-0" : ""}`}>
                     <div className="flex items-center gap-3">
-                      <input type="radio" name="payment-method" checked={selectedPaymentMethod === `manual_${method.id}`} onChange={() => setSelectedPaymentMethod(`manual_${method.id}`)} className="h-4 w-4 accent-[#1773b0]" />
+                      <input type="radio" name="payment-method" checked={selectedPaymentMethod === `manual_${method.id}`} onChange={() => setSelectedPaymentMethod(`manual_${method.id}`)} className="h-4 w-4 accent-[color:var(--accent)]" />
                       <span className="text-sm font-medium">{method.name}</span>
                     </div>
                     <Building size={18} className="text-slate-400" />
@@ -1190,7 +1195,7 @@ export function Checkout() {
                 disabled={isCompleting || (!hasStripe && !hasPaypal && enabledManualMethods.length === 0)}
                 className="flex w-full items-center justify-center gap-2 rounded-lg fm-accent-bg px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isCompleting ? <><Loader2 size={18} className="animate-spin" /> Processing order…</> : <><Lock size={16} /> {paymentLabel}</>}
+                {isCompleting ? <><Loader2 size={18} className="animate-spin" /> {c("coProcessing")}</> : <><Lock size={16} /> {paymentLabel}</>}
               </button>
               <div className="mt-4 flex items-start justify-center gap-2 text-center text-xs leading-5 text-slate-500">
                 <ShieldCheck size={16} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
@@ -1199,9 +1204,9 @@ export function Checkout() {
             </div>
 
             <footer className="flex flex-wrap justify-center gap-x-5 gap-y-2 border-t border-slate-200 pt-6 text-xs text-slate-500">
-              <span>Secure payment</span>
-              <span>Order support</span>
-              <span>Privacy protected</span>
+              <span>{c("coTrust1")}</span>
+              <span>{c("coTrust2")}</span>
+              <span>{c("coTrust3")}</span>
             </footer>
           </div>
         </main>
@@ -1209,7 +1214,7 @@ export function Checkout() {
         <aside className="order-first border-b border-slate-200 bg-slate-50 px-5 py-7 sm:px-8 lg:order-none lg:border-b-0 lg:px-10 lg:py-12">
           <div className="mx-auto max-w-2xl lg:sticky lg:top-8">
             <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Order summary</h2>
+              <h2 className="text-lg font-semibold text-slate-900">{c("coSummary")}</h2>
               {/* ⚡ Bolt: Replace O(N) array iterations in render with O(1) memoized value */}
               <span className="text-sm text-slate-500">{cartCount} item{cartCount === 1 ? "" : "s"}</span>
             </div>
@@ -1240,13 +1245,13 @@ export function Checkout() {
                   value={discountCode}
                   onChange={e => setDiscountCode(e.target.value.toUpperCase())}
                   onKeyDown={e => e.key === "Enter" && applyDiscount()}
-                  placeholder="Discount code"
+                  placeholder={c("coDiscount")}
                   disabled={Boolean(appliedDiscount)}
-                  className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1773b0] focus:ring-1 focus:ring-[#1773b0] disabled:bg-slate-100"
+                  className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-10 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)] disabled:bg-slate-100"
                 />
               </div>
               {appliedDiscount ? (
-                <button type="button" onClick={removeDiscount} className="rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" aria-label="Remove discount"><X size={17} /></button>
+                <button type="button" onClick={removeDiscount} className="rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" aria-label={c("coDiscountRemove")}><X size={17} /></button>
               ) : (
                 <button type="button" onClick={applyDiscount} disabled={isApplying || !discountCode} className="rounded-lg bg-slate-700 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
                   {isApplying ? <Loader2 size={17} className="animate-spin" /> : "Apply"}
@@ -1259,20 +1264,20 @@ export function Checkout() {
             <div className="my-7 border-t border-slate-200" />
 
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between text-slate-600"><span>Subtotal</span><span className="font-medium text-slate-900">{formatPrice(cartTotal)}</span></div>
-              {discountAmount > 0 && <div className="flex justify-between" style={{ color: "var(--success)" }}><span>Discount</span><span>-{formatPrice(discountAmount)}</span></div>}
+              <div className="flex justify-between text-slate-600"><span>{c("summarySubtotal")}</span><span className="font-medium text-slate-900">{formatPrice(cartTotal)}</span></div>
+              {discountAmount > 0 && <div className="flex justify-between" style={{ color: "var(--success)" }}><span>{c("summaryDiscount")}</span><span>-{formatPrice(discountAmount)}</span></div>}
               <div className="flex justify-between text-slate-600">
                 <span>Shipping{getActiveShippingDetails()?.serviceName ? ` · ${getActiveShippingDetails()?.serviceName}` : ""}</span>
                 <span className="font-medium text-slate-900">{isFreeShipping || shippingCost === 0 ? "Free" : formatPrice(finalShipping)}</span>
               </div>
-              <div className="flex justify-between text-slate-600"><span>Estimated tax</span><span className="font-medium text-slate-900">{taxCost > 0 ? formatPrice(taxCost) : "Calculated at checkout"}</span></div>
+              <div className="flex justify-between text-slate-600"><span>{c("summaryTax")}</span><span className="font-medium text-slate-900">{taxCost > 0 ? formatPrice(taxCost) : c("coTaxLater")}</span></div>
             </div>
 
             <div className="my-6 border-t border-slate-200" />
 
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-base font-semibold text-slate-900">Total</p>
+                <p className="text-base font-semibold text-slate-900">{c("summaryTotal")}</p>
                 <p className="mt-0.5 text-xs uppercase tracking-wide text-slate-500">{currency}</p>
               </div>
               <motion.p key={finalTotal} initial={{ opacity: 0.5 }} animate={{ opacity: 1 }} className="text-2xl font-semibold tracking-tight text-slate-950">{formatPrice(finalTotal)}</motion.p>
@@ -1282,8 +1287,8 @@ export function Checkout() {
               <div className="flex items-start gap-3">
                 <Package size={18} className="mt-0.5 shrink-0 text-slate-500" />
                 <div>
-                  <p className="text-sm font-medium text-slate-900">Carefully packed and tracked</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">You’ll receive an order confirmation and shipping updates by email.</p>
+                  <p className="text-sm font-medium text-slate-900">{c("coPacked")}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">{c("coPackedNote")}</p>
                 </div>
               </div>
             </div>
@@ -1291,7 +1296,7 @@ export function Checkout() {
         </aside>
       </div>
 
-      <GlobalSections design={settings?.design} />
+      <GlobalSections design={checkoutDesign} />
     </div>
   );
 }

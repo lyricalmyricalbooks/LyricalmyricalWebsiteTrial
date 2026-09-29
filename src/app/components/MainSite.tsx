@@ -40,7 +40,7 @@ import { SearchOverlay } from "../features/site/SearchOverlay";
 // ──────────────────────────────
 const STICKER_ROTATIONS = [-2, 1.5, 2, -1, 1, -1.5];
 const STICKER_ACTIVE_COLORS = [
-  { bg: "var(--accent, #A855F7)", text: "#ffffff" },
+  { bg: "var(--accent, #e8402a)", text: "#ffffff" },
   { bg: "var(--success, #34d399)", text: "#04150f" },
   { bg: "var(--warning, #f5b942)", text: "#2b1a05" },
   { bg: "var(--danger, #fb7185)", text: "#2b0810" },

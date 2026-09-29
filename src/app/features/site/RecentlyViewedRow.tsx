@@ -14,7 +14,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
     .filter(Boolean)
     .slice(0, 6) as any[];
 
-  if (items.length === 0) return null;
+  if (items.length === 0 || (settings?.design as any)?.showRecentlyViewed === false) return null;
 
   return (
     <section className="border-t border-white/[0.06]">

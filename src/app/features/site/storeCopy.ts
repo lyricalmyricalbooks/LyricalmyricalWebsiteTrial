@@ -103,6 +103,21 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "relatedHeading", label: "Related products heading", default: "From the Archive" },
       { key: "backToCatalog", label: "Back link label", default: "Back" },
       { key: "addToBagLabel", label: "Add to bag button", default: "ADD TO BAG" },
+      { key: "bookLoading", label: "Loading text", default: "Loading" },
+      { key: "bookNotFound", label: "Not-found message", default: "Publication not found" },
+      { key: "bookReturn", label: "Not-found button", default: "Return to Archive" },
+      { key: "bookFormatLabel", label: "Format selector label", default: "Format / Edition" },
+      { key: "bookAdded", label: "Added-to-bag confirmation", default: "Added to Bag" },
+      { key: "bookShare", label: "Share button — label", default: "Share" },
+      { key: "tabDescription", label: "Accordion: Description", default: "Description" },
+      { key: "tabDetails", label: "Tab: Details", default: "Details" },
+      { key: "tabSpecs", label: "Accordion: Specifications", default: "Specifications" },
+      { key: "tabReviews", label: "Accordion: Reviews", default: "Reviews" },
+      { key: "bundleHeading", label: "Bundle heading", default: "Frequently Bought Together" },
+      { key: "ariaPrevPhoto", label: "Previous photo — screen-reader label", default: "Previous photo" },
+      { key: "ariaNextPhoto", label: "Next photo — screen-reader label", default: "Next photo" },
+      { key: "ariaQtyDown", label: "Decrease quantity — screen-reader label", default: "Decrease quantity" },
+      { key: "ariaQtyUp", label: "Increase quantity — screen-reader label", default: "Increase quantity" },
       { key: "productDescriptionLabel", label: "Designed description eyebrow", default: "ABOUT THIS EDITION" },
     ],
   },
@@ -208,7 +223,6 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "wishlistAdd", label: "Wishlist: add-to-bag button", default: "Add" },
       { key: "wishlistAddAria", label: "Heart (add) — screen-reader label", default: "Add to wishlist" },
       { key: "wishlistRemoveAria", label: "Heart (remove) — screen-reader label", default: "Remove from wishlist" },
-      { key: "soldOutLabel", label: "Sold-out label", default: "Sold Out" },
       { key: "recentlyViewedHeading", label: "Recently viewed heading", default: "Recently Viewed" },
     ],
   },
@@ -305,7 +319,71 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "accountLogisticsFee", label: "Shipping fee label", default: "Logistics Fee" },
     ],
   },
+  {
+    group: "Checkout",
+    fields: [
+      { key: "coBrand", label: "Header brand name", default: "Lyricalmyrical Books" },
+      { key: "coReturn", label: "Back link", default: "Return to store" },
+      { key: "coSecure", label: "Secure label", default: "Secure checkout" },
+      { key: "coProgressAria", label: "Progress — screen-reader label", default: "Checkout progress" },
+      { key: "coStepInfo", label: "Breadcrumb: information", default: "Information" },
+      { key: "coStepShipping", label: "Breadcrumb: shipping", default: "Shipping" },
+      { key: "coStepPayment", label: "Breadcrumb: payment", default: "Payment" },
+      { key: "coStepOf", label: "Step counter", default: "{n} of 3", hint: "Use {n} for the step number." },
+      { key: "coContact", label: "Section: contact", default: "Contact" },
+      { key: "coDelivery", label: "Section: delivery", default: "Delivery" },
+      { key: "coPayment", label: "Section: payment", default: "Payment" },
+      { key: "coSignedIn", label: "Signed-in label", default: "Signed in" },
+      { key: "coGoogle", label: "Google sign-in button", default: "Sign in with Google" },
+      { key: "coEmail", label: "Field: email", default: "Email address" },
+      { key: "coEmailNote", label: "Email note", default: "We’ll send your receipt and delivery updates to this email." },
+      { key: "coName", label: "Field: full name", default: "Full name" },
+      { key: "coAddress", label: "Field: address", default: "Address" },
+      { key: "coCountry", label: "Field: country", default: "Country" },
+      { key: "coCity", label: "Field: city", default: "City" },
+      { key: "coState", label: "Field: state", default: "State / province" },
+      { key: "coZip", label: "Field: postal code", default: "ZIP / postal code" },
+      { key: "coPhone", label: "Field: phone", default: "Phone (optional)" },
+      { key: "coShipMethod", label: "Shipping-method heading", default: "Shipping method" },
+      { key: "coShipMethodNote", label: "Shipping-method note", default: "Choose the delivery speed that works for you." },
+      { key: "coRates", label: "Loading rates text", default: "Calculating live shipping rates..." },
+      { key: "coPaymentNote", label: "Payment note", default: "All transactions are handled by the payment provider you select." },
+      { key: "coCard", label: "Card option", default: "Credit or debit card" },
+      { key: "coCardsAria", label: "Accepted cards — screen-reader label", default: "Accepted cards" },
+      { key: "coPay", label: "Pay button (card)", default: "Pay securely" },
+      { key: "coPayPal", label: "Pay button (PayPal)", default: "Continue to PayPal" },
+      { key: "coPlaceOrder", label: "Pay button (manual)", default: "Place order" },
+      { key: "coProcessing", label: "Pay button (processing)", default: "Processing order…" },
+      { key: "coTrust1", label: "Trust badge 1", default: "Secure payment" },
+      { key: "coTrust2", label: "Trust badge 2", default: "Order support" },
+      { key: "coTrust3", label: "Trust badge 3", default: "Privacy protected" },
+      { key: "coSummary", label: "Order-summary heading", default: "Order summary" },
+      { key: "coDiscount", label: "Discount placeholder", default: "Discount code" },
+      { key: "coDiscountRemove", label: "Remove discount — screen-reader label", default: "Remove discount" },
+      { key: "coTaxLater", label: "Tax placeholder", default: "Calculated at checkout" },
+      { key: "coPacked", label: "Reassurance title", default: "Carefully packed and tracked" },
+      { key: "coPackedNote", label: "Reassurance text", default: "You’ll receive an order confirmation and shipping updates by email." },
+      { key: "coTestMode", label: "Test-mode banner", default: "Test mode is active. No real charges will be made." },
+      { key: "coThanks", label: "Thank-you heading", default: "Thank You" },
+      { key: "coPending", label: "Pending-payment message", default: "Your order is pending verification of payment. We will ship once received." },
+      { key: "coContinue", label: "Thank-you button", default: "Continue Exploring" },
+      { key: "coEmptyEyebrow", label: "Empty cart eyebrow", default: "Empty Archive" },
+      { key: "coEmptyTitle", label: "Empty cart heading", default: "Nothing Here" },
+      { key: "coEmptyButton", label: "Empty cart button", default: "Return to Catalog" },
+    ],
+  },
 ];
+
+/**
+ * Legacy flat keys that are edited elsewhere in the theme editor (Text & Translations › System Labels,
+ * Products › Badges). They keep a default here but are intentionally not listed in COPY_SCHEMA, so
+ * the Content panel never shows two inputs for one string.
+ */
+export const FLAT_COPY_DEFAULTS: Record<string, string> = {
+  cartLabel: "Bag",
+  soldOutLabel: "Sold Out",
+  saleBadgeLabel: "Sale",
+};
 
 // Flat key → default lookup, derived once from the schema.
 export const DEFAULT_COPY: Record<string, string> = COPY_SCHEMA.reduce(
@@ -313,7 +391,7 @@ export const DEFAULT_COPY: Record<string, string> = COPY_SCHEMA.reduce(
     for (const f of g.fields) acc[f.key] = f.default;
     return acc;
   },
-  {} as Record<string, string>,
+  { ...FLAT_COPY_DEFAULTS } as Record<string, string>,
 );
 
 /**

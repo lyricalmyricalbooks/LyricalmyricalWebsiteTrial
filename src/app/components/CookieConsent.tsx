@@ -59,6 +59,7 @@ export function CookieConsent() {
     setDecided(true);
   };
 
+  if (design?.showCookieBanner === false) return null;
   const btn = "border-2 border-[var(--rp-outline)] px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--rp-focus)]";
   const primary = `min-w-[130px] flex-1 ${btn} bg-[var(--btn-bg)] text-[var(--btn-text)] shadow-[3px_3px_0_var(--rp-shadow-color)] transition-transform hover:-translate-y-0.5`;
   return (

@@ -349,3 +349,45 @@ export function risoGrainCss(design: StorefrontTokenInput = {}): string {
   const a = Math.min(g, 1) * 0.16;
   return `[data-fm-store]{background-image:radial-gradient(rgba(var(--fg-rgb),${a.toFixed(3)}) 1px,transparent 1.3px);background-size:6px 6px;}`;
 }
+
+/**
+ * Dark checkout for Riso themes. Checkout markup is deliberately conventional (white paper, slate
+ * text) so payment stays legible; on a dark Riso theme these remaps turn that same markup into
+ * white-on-black without touching a single class, and every colour still comes from the tokens.
+ */
+export const RISO_CHECKOUT_DARK_CSS = (() => {
+  const P = "[data-fm-checkout]";
+  const rules: string[] = [
+    `${P}.bg-white{background-color:var(--bg-color);}`,
+    `${P} .bg-white{background-color:var(--surface);}`,
+    `${P} header.bg-white{background-color:var(--bg-color);}`,
+    `${P} .bg-white\\/90{background-color:rgba(var(--surface-rgb),.9);}`,
+  ];
+  for (const fam of ["slate", "gray", "zinc", "neutral"]) {
+    for (const n of ["800", "900", "950"]) rules.push(`${P} .text-${fam}-${n}{color:rgb(var(--fg-rgb));}`);
+    for (const n of ["600", "700"]) rules.push(`${P} .text-${fam}-${n}{color:rgba(var(--fg-rgb),.8);}`);
+    for (const n of ["400", "500"]) rules.push(`${P} .text-${fam}-${n}{color:var(--muted);}`);
+    rules.push(`${P} .text-${fam}-300{color:rgba(var(--fg-rgb),.5);}`);
+    for (const n of ["100", "200", "300"]) rules.push(`${P} .border-${fam}-${n}{border-color:rgba(var(--border-rgb),.4);}`);
+    rules.push(`${P} .border-${fam}-400{border-color:rgba(var(--border-rgb),.65);}`);
+    for (const n of ["50", "100"]) rules.push(`${P} .bg-${fam}-${n}{background-color:var(--surface-2);}`);
+    for (const n of ["200", "300"]) rules.push(`${P} .bg-${fam}-${n}{background-color:rgba(var(--fg-rgb),.16);}`);
+    rules.push(`${P} .placeholder\\:text-${fam}-400::placeholder{color:var(--muted);}`);
+    rules.push(`${P} .hover\\:bg-${fam}-50:hover{background-color:var(--surface-2);}`);
+    rules.push(`${P} .hover\\:text-${fam}-900:hover{color:rgb(var(--fg-rgb));}`);
+    rules.push(`${P} .disabled\\:bg-${fam}-100:disabled{background-color:var(--surface-2);}`);
+  }
+  const tint = (hue: string, rgb: string, solid: string) => {
+    rules.push(`${P} .bg-${hue}-50,${P} .bg-${hue}-100{background-color:rgba(var(${rgb}),.14);}`);
+    rules.push(`${P} .border-${hue}-200,${P} .border-${hue}-300{border-color:rgba(var(${rgb}),.5);}`);
+    for (const n of ["600", "700", "800", "900"]) rules.push(`${P} .text-${hue}-${n}{color:var(${solid});}`);
+  };
+  tint("amber", "--warning-rgb", "--warning");
+  tint("red", "--danger-rgb", "--danger");
+  tint("rose", "--danger-rgb", "--danger");
+  tint("emerald", "--success-rgb", "--success");
+  tint("green", "--success-rgb", "--success");
+  tint("sky", "--accent-rgb", "--accent");
+  tint("blue", "--accent-rgb", "--accent");
+  return rules.join("\n");
+})();

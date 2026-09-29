@@ -134,7 +134,7 @@ export function CartDrawer() {
                     className={`h-full transition-all duration-500 ${remaining > 0 ? (drawerDark ? "" : "bg-black") : "fm-success-solid"}`}
                     style={{
                       width: `${progress}%`,
-                      ...(drawerDark && remaining > 0 ? { backgroundColor: "var(--accent, #A855F7)" } : {}),
+                      ...(drawerDark && remaining > 0 ? { backgroundColor: "var(--accent, #e8402a)" } : {}),
                     }}
                   />
                 </div>

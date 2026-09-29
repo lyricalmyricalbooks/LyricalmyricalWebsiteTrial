@@ -1,4 +1,4 @@
-import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS, hexToRgbTriplet } from "./themeTokens";
+import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, RISO_CHECKOUT_DARK_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS, hexToRgbTriplet } from "./themeTokens";
 
 /**
  * Drop-in <style> block that wires the semantic token layer onto any storefront
@@ -15,8 +15,8 @@ const fontStack = (name?: string, fallback = "system-ui, sans-serif") =>
 
 export function StorefrontThemeStyle({ design }: { design?: any }) {
   const d = design || {};
-  const bodyFont = fontStack(d.bodyFont || d.font, "system-ui, -apple-system, 'Segoe UI', sans-serif");
-  const headingFont = fontStack(d.headingFont || d.bodyFont || d.font, "Impact, 'Arial Narrow', sans-serif");
+  const bodyFont = fontStack(d.font || d.bodyFont, "system-ui, -apple-system, 'Segoe UI', sans-serif");
+  const headingFont = fontStack(d.headingFont || d.font || d.bodyFont, "Impact, 'Arial Narrow', sans-serif");
   const css = `
     [data-fm-store]{
       ${buildStorefrontTokenVars(d)}
@@ -74,5 +74,8 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
     ? `[data-fm-checkout] .bg-white{background-color:${d.surfaceRaisedColor || "#ffffff"} !important;}`
     : "";
 
-  return <style>{css}{customCss}{checkoutCss}{lightThemePaperCss}</style>;
+  // Riso on a dark canvas: turn the conventional white checkout markup into white-on-black.
+  const darkCheckoutCss = d.themeStyle === "riso" && lum >= 0.5 ? RISO_CHECKOUT_DARK_CSS : "";
+
+  return <style>{css}{customCss}{checkoutCss}{lightThemePaperCss}{darkCheckoutCss}</style>;
 }
