@@ -600,3 +600,15 @@
 @media print { [data-print="hide"] { display: none !important; } .rp-sidebar, .rp-topbar { display: none !important; } .rp { background: #fff; } .rp-page-header { margin-bottom: 8px; } }
 .rp-split { display: grid; gap: 24px; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
 @media (max-width: 1023px) { .rp-split { grid-template-columns: minmax(0, 1fr); } }
+
+/* Rich-text editor (react-quill) on Riso tokens */
+.rp-quill .ql-toolbar.ql-snow { border: var(--rp-hair) solid var(--rp-border); background: var(--rp-surface-sunken); font-family: var(--rp-font-body); }
+.rp-quill .ql-container.ql-snow { border: var(--rp-hair) solid var(--rp-border); border-top: 0; font-family: var(--rp-font-body); font-size: var(--rp-text-md); background: var(--rp-input-bg); color: var(--rp-text); }
+.rp-quill .ql-editor { min-height: 320px; line-height: 1.7; }
+.rp-quill .ql-editor.ql-blank::before { color: var(--rp-text-subtle); font-style: normal; }
+.rp-quill .ql-snow .ql-stroke { stroke: var(--rp-text-muted); }
+.rp-quill .ql-snow .ql-fill { fill: var(--rp-text-muted); }
+.rp-quill .ql-snow .ql-picker { color: var(--rp-text-muted); }
+.rp-quill .ql-toolbar button:hover .ql-stroke, .rp-quill .ql-toolbar button.ql-active .ql-stroke { stroke: var(--rp-primary-text); }
+.rp-quill .ql-toolbar button:hover .ql-fill, .rp-quill .ql-toolbar button.ql-active .ql-fill { fill: var(--rp-primary-text); }
+.rp-quill:focus-within .ql-container, .rp-quill:focus-within .ql-toolbar { border-color: var(--rp-focus); }

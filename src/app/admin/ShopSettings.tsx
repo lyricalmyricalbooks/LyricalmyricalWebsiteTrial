@@ -81,13 +81,6 @@ export function ShopSettings({
     return JSON.stringify(settings[section]) !== JSON.stringify(originalSettings[section]);
   };
 
-  if (settingsLoading) return (
-    <div className="h-96 flex flex-col items-center justify-center gap-6">
-      <div className="w-12 h-12 border-2 border-violet-500/10 border-t-violet-500 rounded-full animate-spin" />
-      <p className="text-[10px] tracking-[0.4em] text-slate-500 font-black uppercase">Retrieving System Config</p>
-    </div>
-  );
-
   // Pages tab — renders inline (same width as other settings)
   if (activeTab === "pages") {
     return (
@@ -96,6 +89,13 @@ export function ShopSettings({
       </div>
     );
   }
+
+  if (settingsLoading) return (
+    <div className="h-96 flex flex-col items-center justify-center gap-6">
+      <div className="w-12 h-12 border-2 border-violet-500/10 border-t-violet-500 rounded-full animate-spin" />
+      <p className="text-[10px] tracking-[0.4em] text-slate-500 font-black uppercase">Retrieving System Config</p>
+    </div>
+  );
 
   // Designer tab — handled by Dashboard for full-screen takeover
   if (activeTab === "designer") {
