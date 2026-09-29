@@ -24,7 +24,7 @@ import { join } from "node:path";
 // Structured data edited through dedicated Studio tabs (Sections / Menus / Text), internal
 // bookkeeping, or non-design objects that happen to share a variable name.
 const NOT_STYLE_CONTROLS = new Set([
-  "copy", "menus", "sections", "globalSections", "homepageSections", "altSections", "social", "categories",
+  "copy", "menus", "sections", "globalSections", "homepageSections", "altSections", "social", "categories", "navOrder",
   "colorSchemes", "hero", "headerLinks", "sectionPresets", "heroPage", "storefront", "productPage",
   "collectionPage", "cartPage", "page", "page404", "typeScale", "mobileOverrides", "themeLibraryPreset",
   "font", "fontSize", "data", "id", "trim", "logoUrl", "footerBadges",
