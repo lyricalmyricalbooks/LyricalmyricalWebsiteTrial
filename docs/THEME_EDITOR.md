@@ -192,6 +192,15 @@ library → verify), then check it off.
       Collection list, Featured product, Blog posts, Countdown, Contact form,
       Map, Gallery, Row, Marquee, Logo list, Collapsible, Text content,
       Custom HTML).
+- [x] "Lyricalmyrical Riso" full-app design shipped as a first-class theme:
+      warm uncoated-paper surfaces, red/blue/yellow ink tokens, hard black
+      rules, halftone texture, deliberately stepped interactions, print-style
+      card shadows, cart and checkout tokens, and matching global loading and
+      consent overlays. The preset includes the curated
+      `lyricalmyrical-riso` homepage layout (cover carousel, press marquee,
+      product grid, print-room notes, and newsletter), and the shared Riso CSS
+      is applied across the homepage and every standalone storefront surface
+      when `themeStyle` is `riso`.
 - [x] "Lyricalmyrical Punk" design shipped end-to-end (violet-on-black,
       Cormorant Garamond headings / Inter body). Four new catalog-driven
       sections: `ProductCoverCarouselSection` (hero auto-cycling book covers

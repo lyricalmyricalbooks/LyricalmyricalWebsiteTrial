@@ -14,7 +14,7 @@ import {
 } from "../features/site/selectors";
 import type { Book } from "../features/site/types";
 import { useSiteData } from "../features/site/useSiteData";
-import { buildStorefrontTokenVars, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
+import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
 import { LogoMark } from "./LogoMark";
@@ -756,6 +756,7 @@ function TypographyTokens({ design }: { design: any }) {
 }
 /* Semantic token layer: remaps white/black alpha utilities + fm-* helpers. */
 ${STOREFRONT_TOKEN_CSS}
+${design?.themeStyle === "riso" ? RISO_STOREFRONT_CSS : ""}
 `;
   if (t.typeScale) {
     const size = (steps: number) => Math.round(t.base * Math.pow(t.typeScale, steps) * 10) / 10;

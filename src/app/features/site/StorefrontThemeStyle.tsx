@@ -1,4 +1,4 @@
-import { buildStorefrontTokenVars, STOREFRONT_TOKEN_CSS, hexToRgbTriplet } from "./themeTokens";
+import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, STOREFRONT_TOKEN_CSS, hexToRgbTriplet } from "./themeTokens";
 
 /**
  * Drop-in <style> block that wires the semantic token layer onto any storefront
@@ -33,6 +33,7 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
     [data-fm-store] .custom-btn{background-color:var(--btn-bg) !important;color:var(--btn-text) !important;}
     [data-fm-store] .custom-btn:hover{background-color:var(--btn-hover-bg) !important;color:var(--btn-hover-text) !important;}
     ${STOREFRONT_TOKEN_CSS}
+    ${d.themeStyle === "riso" ? RISO_STOREFRONT_CSS : ""}
   `;
   const customCss = d.customCss ? `\n/* Custom CSS */\n${d.customCss}` : '';
 

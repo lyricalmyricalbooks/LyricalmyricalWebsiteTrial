@@ -64,22 +64,26 @@ export function CookieConsent() {
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           role="dialog"
           aria-label="Cookie consent"
-          className="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:bottom-6 md:max-w-md z-[150] bg-neutral-950/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-5 text-white"
+          className="fixed bottom-3 left-3 right-3 z-[150] overflow-hidden border-2 border-[#171B18] bg-[#F1E8D2]/95 p-5 text-[#171B18] shadow-[8px_8px_0_#285DA8] backdrop-blur-md md:bottom-7 md:left-auto md:right-8 md:max-w-[30rem] md:p-6"
         >
-          <p className="text-[10px] tracking-[0.3em] uppercase font-bold text-white/50 mb-2">
-            Cookies
+          <div className="absolute right-0 top-0 h-20 w-20 bg-[radial-gradient(#F04A3A_1px,transparent_1.5px)] bg-[length:5px_5px] opacity-60" aria-hidden="true" />
+          <p className="mb-3 inline-flex -rotate-1 border-2 border-[#171B18] bg-[#F0B93A] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.28em] shadow-[3px_3px_0_#171B18]">
+            Your privacy
           </p>
-          <p className="text-sm leading-relaxed text-white/80 mb-4">
+          <h2 className="mb-2 text-3xl font-black uppercase leading-none tracking-[-0.04em]">
+            Cookies, <span className="text-[#F04A3A] drop-shadow-[1.5px_1.5px_0_#285DA8]">your call.</span>
+          </h2>
+          <p className="mb-5 max-w-md text-sm font-medium leading-relaxed text-[#625F55]">
             We use cookies to keep the site running, measure traffic, and improve your
             experience. You can choose which categories to allow.
           </p>
 
           {showDetails && (
-            <div className="space-y-2 mb-4 text-xs text-white/70">
+            <div className="mb-5 space-y-2 border-y-2 border-[#171B18] py-4 text-xs text-[#625F55]">
               <label className="flex items-start gap-3 opacity-60">
-                <input type="checkbox" checked disabled className="mt-1 accent-white" />
+                <input type="checkbox" checked disabled className="mt-0.5 accent-[#F04A3A]" />
                 <span>
-                  <strong className="text-white">Necessary</strong> — required for the
+                  <strong className="text-[#171B18]">Necessary</strong> — required for the
                   cart and checkout to work.
                 </span>
               </label>
@@ -88,10 +92,10 @@ export function CookieConsent() {
                   type="checkbox"
                   checked={analytics}
                   onChange={e => setAnalytics(e.target.checked)}
-                  className="mt-1 accent-white"
+                  className="mt-0.5 accent-[#F04A3A]"
                 />
                 <span>
-                  <strong className="text-white">Analytics</strong> — anonymous usage
+                  <strong className="text-[#171B18]">Analytics</strong> — anonymous usage
                   statistics so we can improve the site.
                 </span>
               </label>
@@ -100,40 +104,40 @@ export function CookieConsent() {
                   type="checkbox"
                   checked={marketing}
                   onChange={e => setMarketing(e.target.checked)}
-                  className="mt-1 accent-white"
+                  className="mt-0.5 accent-[#F04A3A]"
                 />
                 <span>
-                  <strong className="text-white">Marketing</strong> — personalized
+                  <strong className="text-[#171B18]">Marketing</strong> — personalized
                   content and abandoned-cart reminders.
                 </span>
               </label>
             </div>
           )}
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2.5">
             <button
               onClick={() => decide({ analytics: true, marketing: true })}
-              className="flex-1 min-w-[120px] px-4 py-2.5 rounded-full bg-white text-black text-[10px] tracking-[0.25em] font-bold uppercase hover:bg-white/90 transition-colors"
+              className="min-w-[130px] flex-1 border-2 border-[#171B18] bg-[#F04A3A] px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-[#171B18] shadow-[3px_3px_0_#171B18] transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#285DA8]"
             >
               Accept all
             </button>
             <button
               onClick={() => decide({ analytics: false, marketing: false })}
-              className="flex-1 min-w-[120px] px-4 py-2.5 rounded-full bg-white/5 text-white text-[10px] tracking-[0.25em] font-bold uppercase border border-white/15 hover:bg-white/10 transition-colors"
+              className="min-w-[120px] flex-1 border-2 border-[#171B18] bg-[#FAF3E3] px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-[#171B18] transition-colors hover:bg-[#F0B93A] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#285DA8]"
             >
               Reject
             </button>
             {showDetails ? (
               <button
                 onClick={() => decide({ analytics, marketing })}
-                className="flex-1 min-w-[120px] px-4 py-2.5 rounded-full bg-white/5 text-white text-[10px] tracking-[0.25em] font-bold uppercase border border-white/15 hover:bg-white/10 transition-colors"
+                className="min-w-[130px] flex-1 border-2 border-[#171B18] bg-[#F04A3A] px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-[#171B18] shadow-[3px_3px_0_#171B18] transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#285DA8]"
               >
                 Save choices
               </button>
             ) : (
               <button
                 onClick={() => setShowDetails(true)}
-                className="px-3 py-2.5 text-[10px] tracking-[0.25em] uppercase text-white/50 hover:text-white transition-colors"
+                className="px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.22em] text-[#625F55] underline decoration-2 underline-offset-4 transition-colors hover:text-[#285DA8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#285DA8]"
               >
                 Customize
               </button>

@@ -276,3 +276,24 @@ ${alphaOverrideCss}
 [data-fm-store] .fm-accent-hover-border:hover{border-color:rgba(var(--accent-rgb), 0.3);}
 [data-fm-store] .fm-accent-shadow{box-shadow:0 10px 30px rgba(var(--accent-rgb), 0.25);}
 `;
+
+/** Printmaking treatment shared by every storefront surface when the Riso theme is active. */
+export const RISO_STOREFRONT_CSS = `
+[data-fm-store]{
+  background-image:radial-gradient(rgba(25,31,27,.13) .55px,transparent .7px);
+  background-size:5px 5px;
+}
+[data-fm-store] img{filter:saturate(.82) contrast(1.08);}
+[data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3{
+  text-wrap:balance;
+  text-shadow:1.5px 1.5px 0 rgba(var(--accent-2-rgb),.24);
+}
+[data-fm-store] button,[data-fm-store] a{transition-timing-function:steps(4,end);}
+[data-fm-store] .glass-card{
+  backdrop-filter:none;
+  background:rgba(var(--surface-rgb),.88);
+  box-shadow:4px 4px 0 rgba(var(--accent-2-rgb),.25);
+}
+[data-fm-store] input,[data-fm-store] select,[data-fm-store] textarea{box-shadow:none;}
+@media (prefers-reduced-motion:reduce){[data-fm-store] *{scroll-behavior:auto!important;}}
+`;
