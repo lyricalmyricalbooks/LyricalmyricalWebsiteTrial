@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, useId } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   DndContext,
@@ -313,83 +313,60 @@ const FONTS = [
 // ─────────────────────────────────────────────────────────────────────────────
 // Reusable primitives
 // ─────────────────────────────────────────────────────────────────────────────
-function SidebarLabel({ children }: { children: React.ReactNode }) {
+function SidebarLabel({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
+  const Tag: any = htmlFor ? "label" : "p";
   return (
-    <p className="text-[9px] font-black tracking-[0.3em] text-slate-500 uppercase mb-3">
+    <Tag htmlFor={htmlFor} className="rp-label" style={{ display: "block", margin: "0 0 8px" }}>
       {children}
-    </p>
+    </Tag>
   );
 }
 
 function SidebarInput({ label, value, onChange, placeholder, type = "text" }: any) {
+  const id = useId();
   return (
-    <div className="space-y-2">
-      {label && <SidebarLabel>{label}</SidebarLabel>}
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-[11px] font-bold text-slate-200 outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-800"
-      />
+    <div>
+      {label && <SidebarLabel htmlFor={id}>{label}</SidebarLabel>}
+      <input id={id} type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        className="rp-input" style={{ minHeight: 40, padding: "8px 12px", fontSize: 12 }} />
     </div>
   );
 }
 
 function SidebarSelect({ label, value, onChange, options }: { label?: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
+  const id = useId();
   return (
-    <div className="space-y-3">
-      {label && <SidebarLabel>{label}</SidebarLabel>}
-      <div className="relative group">
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-[11px] font-black text-slate-200 outline-none focus:border-violet-500/50 cursor-pointer transition-all appearance-none uppercase tracking-[0.15em] italic"
-        >
-          {options.map((o) => (
-            <option key={o.value} value={o.value} className="bg-[#0a0a0c] text-white">
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600 group-hover:text-violet-400 transition-colors">
-          <ChevronDown size={14} strokeWidth={3} />
-        </div>
-      </div>
+    <div>
+      {label && <SidebarLabel htmlFor={id}>{label}</SidebarLabel>}
+      <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className="rp-select" style={{ minHeight: 40, fontSize: 12 }}>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
     </div>
   );
 }
 
 function SidebarToggle({ label, description, checked, onChange }: any) {
+  const id = useId();
   return (
-    <div className="flex items-start justify-between gap-4 py-4 border-b border-white/5 last:border-none">
+    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, padding: "14px 0", borderBottom: "1px solid var(--rp-divider)" }}>
       <div>
-        <p className="text-[11px] font-black text-slate-200 uppercase tracking-tight italic">{label}</p>
-        {description && <p className="text-[9px] text-slate-500 mt-1 leading-relaxed font-bold">{description}</p>}
+        <p id={`${id}-l`} style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "var(--rp-text)" }}>{label}</p>
+        {description && <p id={`${id}-d`} className="rp-hint" style={{ margin: "4px 0 0" }}>{description}</p>}
       </div>
-      <button
-        onClick={() => onChange(!checked)}
-        className={`flex-shrink-0 w-10 h-5 rounded-full relative transition-all duration-500 ${checked ? "bg-violet-600 shadow-[0_0_15px_rgba(124,58,237,0.3)]" : "bg-white/10"}`}
-      >
-        <span className={`absolute top-1 w-3 h-3 bg-white rounded-full shadow transition-all duration-500 ${checked ? "left-6" : "left-1"}`} />
-      </button>
+      <button type="button" role="switch" aria-checked={!!checked} aria-labelledby={`${id}-l`} aria-describedby={description ? `${id}-d` : undefined}
+        onClick={() => onChange(!checked)} className="rp-toggle-track" style={{ flexShrink: 0 }} />
     </div>
   );
 }
 
 function SidebarRadioGroup({ options, value, onChange }: { options: { value: string; label: string }[]; value: string; onChange: (v: string) => void }) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div role="radiogroup" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(84px, 1fr))", gap: 8 }}>
       {options.map((o) => (
-        <button
-          key={o.value}
-          onClick={() => onChange(o.value)}
-          className={`py-3 px-2 rounded-xl text-[10px] font-black tracking-widest border transition-all uppercase italic ${
-            value === o.value
-              ? "bg-violet-600 border-violet-400/50 text-white shadow-xl"
-              : "bg-white/[0.03] border-white/5 text-slate-500 hover:border-white/10 hover:bg-white/[0.05]"
-          }`}
-        >
+        <button key={o.value} type="button" role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
+          className={`rp-btn rp-btn-sm ${value === o.value ? "rp-btn-ink" : "rp-btn-secondary"}`} style={{ justifyContent: "center" }}>
           {o.label}
         </button>
       ))}
@@ -414,24 +391,17 @@ function SidebarRange({
   suffix?: string;
   onChange: (v: number) => void;
 }) {
+  const id = useId();
   return (
-    <div className="group">
-      <div className="flex justify-between items-center mb-3">
-        <SidebarLabel>{label}</SidebarLabel>
-        <span className="text-[10px] text-slate-400 font-black bg-white/5 px-2 py-1 rounded-lg border border-white/5 group-hover:border-violet-500/30 group-hover:text-violet-400 transition-all italic">
-          {value}
-          {suffix}
-        </span>
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <SidebarLabel htmlFor={id}>{label}</SidebarLabel>
+        <output htmlFor={id} className="rp-mono" style={{ fontSize: 11, padding: "2px 8px", border: "1px solid var(--rp-border)", background: "var(--rp-surface-2)" }}>
+          {value}{suffix}
+        </output>
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-violet-500 h-1 bg-white/10 rounded-full appearance-none cursor-pointer hover:bg-white/20 transition-all"
-      />
+      <input id={id} type="range" min={min} max={max} step={step} value={value} aria-valuetext={`${value}${suffix}`}
+        onChange={(e) => onChange(Number(e.target.value))} style={{ width: "100%", accentColor: "var(--rp-primary)", minHeight: 24, cursor: "pointer" }} />
     </div>
   );
 }
@@ -490,33 +460,23 @@ function ContrastBadge({ background, text }: { background: string; text: string 
   const warnOnly = !passAA && passAALarge;
 
   const tone = ok
-    ? { ring: "border-emerald-500/40 bg-emerald-500/10", text: "text-emerald-300", dot: "#34d399" }
+    ? { c: "var(--rp-success)", bg: "var(--rp-success-tint)", glyph: "✓" }
     : warnOnly
-      ? { ring: "border-amber-500/40 bg-amber-500/10", text: "text-amber-300", dot: "#fbbf24" }
-      : { ring: "border-rose-500/40 bg-rose-500/10", text: "text-rose-300", dot: "#fb7185" };
+      ? { c: "var(--rp-warning)", bg: "var(--rp-warning-tint)", glyph: "⚠" }
+      : { c: "var(--rp-danger)", bg: "var(--rp-danger-tint)", glyph: "✕" };
 
   return (
-    <div className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 ${tone.ring}`}>
-      <div className="flex items-center gap-3 min-w-0">
-        <span
-          className="flex-shrink-0 w-9 h-9 rounded-lg border border-white/10 flex items-center justify-center text-[13px] font-black"
-          style={{ background, color: text }}
-        >
-          Aa
-        </span>
-        <div className="min-w-0">
-          <p className={`text-[10px] font-black uppercase tracking-widest italic ${tone.text}`}>
-            {ok ? "Readable" : warnOnly ? "Large text only" : "Hard to read"}
+    <div role="status" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "10px 12px", border: `1px solid ${tone.c}`, background: tone.bg }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        <span aria-hidden="true" style={{ flexShrink: 0, width: 36, height: 36, display: "grid", placeItems: "center", border: "1px solid var(--rp-border-strong)", fontWeight: 800, background, color: text }}>Aa</span>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ margin: 0, fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: tone.c }}>
+            {tone.glyph} {ok ? "Readable" : warnOnly ? "Large text only" : "Hard to read"}
           </p>
-          <p className="text-[9px] text-slate-500 font-bold">
-            Contrast {ratio.toFixed(2)}:1 — needs 4.5:1 for body text
-          </p>
+          <p className="rp-hint" style={{ margin: "2px 0 0" }}>Contrast {ratio.toFixed(2)}:1 — needs 4.5:1 for body text</p>
         </div>
       </div>
-      <span className={`flex-shrink-0 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest ${tone.text}`}>
-        <span className="w-2 h-2 rounded-full" style={{ background: tone.dot }} />
-        {grade}
-      </span>
+      <span className="rp-mono" style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: tone.c }}>{grade}</span>
     </div>
   );
 }
@@ -526,7 +486,8 @@ function ContrastBadge({ background, text }: { background: string; text: string 
 // ──────────────────────────────
 function ColorPicker({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   const [localValue, setLocalValue] = useState(value);
-  
+  const id = useId();
+
   useEffect(() => {
     setLocalValue(value);
   }, [value]);
@@ -546,32 +507,16 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
   };
 
   return (
-    <div className="space-y-3">
-      <SidebarLabel>{label}</SidebarLabel>
-      <div className="flex items-center gap-3 bg-white/[0.03] border border-white/10 rounded-xl p-2 shadow-inner hover:border-white/20 transition-all group">
-        <div 
-          className="w-10 h-10 rounded-lg shadow-2xl border border-white/10 relative cursor-pointer overflow-hidden flex-shrink-0"
-          style={{ background: value }}
-        >
-          <input
-            type="color"
-            value={normalizeHexForColorInput(value)}
-            onChange={(e) => onChange(e.target.value)}
-            className="absolute inset-0 opacity-0 cursor-pointer scale-150"
-          />
+    <div>
+      <SidebarLabel htmlFor={id}>{label}</SidebarLabel>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, border: "1px solid var(--rp-border)", background: "var(--rp-input-bg)", padding: 6 }}>
+        <div style={{ position: "relative", width: 40, height: 40, flexShrink: 0, border: "2px solid var(--rp-border-strong)", overflow: "hidden", background: value }}>
+          <input type="color" aria-label={`${label} — pick a colour`} value={normalizeHexForColorInput(value)} onChange={(e) => onChange(e.target.value)}
+            style={{ position: "absolute", inset: -8, width: "calc(100% + 16px)", height: "calc(100% + 16px)", opacity: 0, cursor: "pointer" }} />
         </div>
-        <div className="flex-1 min-w-0">
-          <input
-            type="text"
-            value={localValue}
-            onChange={(e) => handleTextChange(e.target.value)}
-            onBlur={handleBlur}
-            className="w-full bg-transparent border-none outline-none text-[11px] font-black text-slate-200 uppercase tracking-widest italic"
-            placeholder="#000000"
-          />
-        </div>
-        <div className="w-px h-5 bg-white/10 group-hover:bg-white/20" />
-        <span className="text-[9px] text-slate-600 font-black pr-2 uppercase tracking-tighter">HEX</span>
+        <input id={id} type="text" value={localValue} onChange={(e) => handleTextChange(e.target.value)} onBlur={handleBlur} placeholder="#000000"
+          className="rp-mono" style={{ flex: 1, minWidth: 0, border: 0, outline: "none", background: "transparent", color: "var(--rp-text)", textTransform: "uppercase", minHeight: 32 }} />
+        <span aria-hidden="true" className="rp-label" style={{ margin: 0, paddingRight: 6 }}>HEX</span>
       </div>
     </div>
   );
@@ -582,33 +527,24 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
 // ──────────────────────────────
 function Accordion({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const id = useId();
 
   return (
-    <div className="border-b border-white/5 last:border-none">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between py-6 text-left group"
-      >
-        <span className="text-[10px] font-black text-slate-400 tracking-[0.2em] group-hover:text-violet-400 transition-all uppercase italic">
-          {title}
-        </span>
-        <motion.div
-          animate={{ rotate: isOpen ? 90 : 0 }}
-          className="text-slate-600 group-hover:text-violet-400 transition-all"
-        >
-          <ChevronRight size={14} strokeWidth={3} />
-        </motion.div>
-      </button>
+    <div style={{ borderBottom: "1px solid var(--rp-divider)" }}>
+      <h4 style={{ margin: 0 }}>
+        <button type="button" onClick={() => setIsOpen(!isOpen)} aria-expanded={isOpen} aria-controls={`${id}-p`}
+          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 0", minHeight: 44, background: "none", border: 0, cursor: "pointer", textAlign: "left", color: "var(--rp-text)" }}>
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.09em", textTransform: "uppercase", fontFamily: "var(--rp-font-body)" }}>{title}</span>
+          <motion.span animate={{ rotate: isOpen ? 90 : 0 }} style={{ display: "inline-flex", color: "var(--rp-text-subtle)" }} aria-hidden="true">
+            <ChevronRight size={14} strokeWidth={3} />
+          </motion.span>
+        </button>
+      </h4>
       <AnimatePresence initial={false}>
         {isOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-            className="overflow-hidden"
-          >
-            <div className="pb-8 space-y-6">
+          <motion.div id={`${id}-p`} initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.2, 0.7, 0.2, 1] }} style={{ overflow: "hidden" }}>
+            <div className="space-y-6" style={{ paddingBottom: 24 }}>
               {children}
             </div>
           </motion.div>
@@ -695,19 +631,17 @@ function FontSelector({ value, onChange }: { value: string; onChange: (v: string
 // ─────────────────────────────────────────────────────────────────────────────
 function SectionRow({ icon, title, description, onClick }: any) {
   return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center justify-between px-6 py-6 hover:bg-white/[0.03] transition-all border-b border-white/5 text-left group relative overflow-hidden"
-    >
-      <div className="absolute inset-0 bg-gradient-to-r from-violet-600/0 via-transparent to-transparent opacity-0 group-hover:opacity-10 transition-opacity" />
-      <div className="flex items-start gap-4 relative z-10">
-        <div className="mt-1 text-slate-500 group-hover:text-violet-400 transition-all group-hover:scale-110 duration-300">{icon}</div>
-        <div>
-          <p className="text-[13px] font-black text-slate-200 group-hover:text-white transition-all uppercase italic tracking-tight">{title}</p>
-          <p className="text-[10px] text-slate-500 mt-1 leading-relaxed max-w-[200px] font-bold">{description}</p>
-        </div>
-      </div>
-      <ChevronRight size={16} className="text-slate-700 group-hover:text-violet-400 flex-shrink-0 transition-all translate-x-0 group-hover:translate-x-1" strokeWidth={3} />
+    <button type="button" onClick={onClick}
+      style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "16px 20px", minHeight: 56, background: "none", border: 0, borderBottom: "1px solid var(--rp-divider)", textAlign: "left", cursor: "pointer", color: "var(--rp-text)" }}
+      className="rp-row-hover">
+      <span style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+        <span aria-hidden="true" style={{ marginTop: 2, color: "var(--rp-text-subtle)" }}>{icon}</span>
+        <span>
+          <span style={{ display: "block", fontSize: 13, fontWeight: 700 }}>{title}</span>
+          <span className="rp-hint" style={{ display: "block", marginTop: 2, maxWidth: 220 }}>{description}</span>
+        </span>
+      </span>
+      <ChevronRight size={16} aria-hidden="true" style={{ flexShrink: 0, color: "var(--rp-text-subtle)" }} strokeWidth={3} />
     </button>
   );
 }
@@ -717,14 +651,11 @@ function SectionRow({ icon, title, description, onClick }: any) {
 // ─────────────────────────────────────────────────────────────────────────────
 function SubPanelHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
-    <div className="flex items-center gap-4 px-6 py-6 border-b border-white/5 bg-white/[0.02]">
-      <button 
-        onClick={onBack} 
-        className="w-10 h-10 flex items-center justify-center bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all hover:scale-110 active:scale-95"
-      >
-        <ChevronLeft size={18} className="text-slate-200" strokeWidth={3} />
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", borderBottom: "2px solid var(--rp-border-strong)", background: "var(--rp-surface-2)" }}>
+      <button type="button" onClick={onBack} aria-label={`Back from ${title}`} className="rp-icon-btn" style={{ border: "1px solid var(--rp-border-strong)", background: "var(--rp-surface)" }}>
+        <ChevronLeft size={18} aria-hidden="true" strokeWidth={3} />
       </button>
-      <span className="text-[12px] font-black text-white tracking-[0.2em] uppercase italic">{title}</span>
+      <h3 style={{ margin: 0, fontSize: 18, textTransform: "uppercase", fontFamily: "var(--rp-font-display)", fontWeight: 400, letterSpacing: "0.01em" }}>{title}</h3>
     </div>
   );
 }

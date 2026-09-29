@@ -612,3 +612,4 @@
 .rp-quill .ql-toolbar button:hover .ql-stroke, .rp-quill .ql-toolbar button.ql-active .ql-stroke { stroke: var(--rp-primary-text); }
 .rp-quill .ql-toolbar button:hover .ql-fill, .rp-quill .ql-toolbar button.ql-active .ql-fill { fill: var(--rp-primary-text); }
 .rp-quill:focus-within .ql-container, .rp-quill:focus-within .ql-toolbar { border-color: var(--rp-focus); }
+.rp-row-hover:hover { background: var(--rp-surface-2); }
