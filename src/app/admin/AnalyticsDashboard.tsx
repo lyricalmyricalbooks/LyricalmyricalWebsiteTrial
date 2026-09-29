@@ -1,651 +1,322 @@
-import { useState, useEffect } from "react";
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  AreaChart,
-  Area
-} from "recharts";
-import { 
-  Users, 
-  ShoppingBag, 
-  TrendingUp, 
-  DollarSign, 
-  ArrowUpRight, 
-  ArrowDownRight,
-  Database,
-  BarChart3,
-  Calendar,
-  Zap,
-  Activity,
-  Globe,
-  MoreHorizontal,
-  Loader2
-} from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { adminApi } from "./api";
-import { motion } from "motion/react";
 import toast from "react-hot-toast";
+import {
+  DataTable, EmptyState, ErrorState, GhostButton, LoadingState, MetricCard, SecondaryButton, SectionCard,
+  SectionHead, StatusBadge, Tabs, type BadgeTone, type Column,
+} from "./riso/components";
+
+type Period = "today" | "7d" | "30d";
+const money = (n: number) => `CA$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+const LOW_STOCK = 5;
+
+const getTrend = (current: number, previous: number) => {
+  if (previous === 0) return current === 0 ? "0.0%" : current > 0 ? "+100.0%" : "-100.0%";
+  const pct = ((current - previous) / previous) * 100;
+  return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+};
+const trendTone = (t: string): BadgeTone => (t.startsWith("+") ? "success" : t.startsWith("-") ? "danger" : "neutral");
 
 export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?: (tab: string) => void; onEditBook?: (book: any) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState<"Live" | "7d" | "30d">("30d");
+  const [failed, setFailed] = useState(false);
+  const [period, setPeriod] = useState<Period>("30d");
   const [chartTab, setChartTab] = useState<"traffic" | "revenue">("traffic");
-  const [chartData, setChartData] = useState<any[]>([]);
   const [fetchingBookId, setFetchingBookId] = useState<string | null>(null);
+  // Secondary panels load independently so one failure never blanks the page.
+  const [recent, setRecent] = useState<{ orders: any[] | null; error: boolean }>({ orders: null, error: false });
+  const [stock, setStock] = useState<{ books: any[] | null; error: boolean }>({ books: null, error: false });
 
   useEffect(() => {
     loadAnalytics();
+    adminApi.getOrders(50).then((o: any[]) => setRecent({ orders: o.filter(x => x.isTest !== true).slice(0, 6), error: false }))
+      .catch(() => setRecent({ orders: null, error: true }));
+    adminApi.getBooks(200).then((b: any[]) => setStock({ books: b, error: false }))
+      .catch(() => setStock({ books: null, error: true }));
   }, []);
 
-  useEffect(() => {
-    if (!data) return;
-    const last30 = data.daily || [];
-    if (period === "30d") {
-      setChartData(last30.slice(-30));
-    } else if (period === "7d") {
-      setChartData(last30.slice(-7));
-    } else if (period === "Live") {
-      // Simulate live hourly metrics based on today's progress
-      const todayDoc = last30[last30.length - 1] || { visits: 45, orders: 3, revenue: 150 };
-      const hoursData = [];
-      const baseHourVisits = [2, 1, 0, 0, 1, 2, 5, 8, 12, 15, 14, 16, 18, 17, 15, 19, 22, 25, 20, 18, 14, 10, 6, 4];
-      const totalBaseVisits = baseHourVisits.reduce((a, b) => a + b, 0);
-      const todayVisits = todayDoc.visits || 50;
-      
-      for (let hour = 0; hour < 24; hour += 2) {
-        const hourStr = `${hour.toString().padStart(2, '0')}:00`;
-        const ratio = (baseHourVisits[hour] + baseHourVisits[hour+1]) / totalBaseVisits;
-        const visits = Math.max(1, Math.round(todayVisits * ratio * (0.8 + Math.random() * 0.4)));
-        const orders = Math.random() > 0.8 ? 1 : 0;
-        const netRevenue = orders * (35 + Math.random() * 25);
-        const grossRevenue = netRevenue * 1.15;
-        hoursData.push({
-          date: hourStr,
-          visits,
-          orders,
-          netRevenue,
-          grossRevenue
-        });
-      }
-      setChartData(hoursData);
+  async function loadAnalytics() {
+    setLoading(true); setFailed(false);
+    try {
+      setData(await adminApi.getAnalytics());
+    } catch (err) {
+      console.error(err);
+      setFailed(true);
+      toast.error("Analytics could not be loaded");
+    } finally {
+      setLoading(false);
     }
-  }, [period, data]);
+  }
 
   const handleEditClick = async (id: string) => {
     if (!onEditBook) return;
     setFetchingBookId(id);
     try {
       const book = await adminApi.getBook(id);
-      if (book) {
-        onEditBook(book);
-      } else {
-        toast.error("Could not find book records");
-      }
-    } catch (err) {
+      if (book) onEditBook(book); else toast.error("Could not find book records");
+    } catch {
       toast.error("Failed to load book records");
     } finally {
       setFetchingBookId(null);
     }
   };
 
-  async function loadAnalytics() {
-    try {
-      const result = await adminApi.getAnalytics();
-      setData(result);
-    } catch (err) {
-      console.error(err);
-      toast.error("Analytics synchronization failed");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const allDaily: any[] = data?.daily || [];
+  const size = period === "30d" ? 30 : period === "7d" ? 7 : 1;
+  const currentSlice = allDaily.slice(-size);
+  const previousSlice = allDaily.slice(-size * 2, -size);
+  // Hourly data isn't recorded, so "Today" charts the last 7 days for context.
+  const chartData = period === "today" ? allDaily.slice(-7) : currentSlice;
 
-  if (loading) return (
-    <div className="h-[60vh] flex flex-col items-center justify-center space-y-8">
-       <div className="relative">
-          <div className="w-24 h-24 border-2 border-violet-500/5 border-t-violet-500 rounded-full animate-spin"></div>
-          <div className="absolute inset-0 w-24 h-24 border-2 border-cyan-500/5 border-b-cyan-500 rounded-full animate-spin-slow"></div>
-       </div>
-       <p className="text-[10px] tracking-[0.6em] text-slate-500 uppercase font-black animate-pulse">Loading Analytics...</p>
-    </div>
-  );
+  const sum = (arr: any[], f: string) => arr.reduce((a, d) => a + (d[f] || 0), 0);
+  const cur = { visits: sum(currentSlice, "visits"), orders: sum(currentSlice, "orders"), revenue: sum(currentSlice, "revenue") };
+  const prev = { visits: sum(previousSlice, "visits"), orders: sum(previousSlice, "orders"), revenue: sum(previousSlice, "revenue") };
+  const curConv = cur.visits > 0 ? (cur.orders / cur.visits) * 100 : 0;
+  const prevConv = prev.visits > 0 ? (prev.orders / prev.visits) * 100 : 0;
 
-  const allDaily = data?.daily || [];
-  
-  // Choose slice of data based on the selected period
-  let currentSlice: any[] = [];
-  let previousSlice: any[] = [];
-  
-  if (period === "30d") {
-    currentSlice = allDaily.slice(-30);
-    previousSlice = allDaily.slice(-60, -30);
-  } else if (period === "7d") {
-    currentSlice = allDaily.slice(-7);
-    previousSlice = allDaily.slice(-14, -7);
-  } else {
-    // Live: compare today with yesterday
-    currentSlice = allDaily.slice(-1);
-    previousSlice = allDaily.slice(-2, -1);
-  }
-
-  const sumField = (arr: any[], field: string) => arr.reduce((acc, d) => acc + (d[field] || 0), 0);
-
-  const curVisits = sumField(currentSlice, "visits");
-  const prevVisits = sumField(previousSlice, "visits");
-
-  const curOrders = sumField(currentSlice, "orders");
-  const prevOrders = sumField(previousSlice, "orders");
-
-  const curRevenue = sumField(currentSlice, "revenue");
-  const prevRevenue = sumField(previousSlice, "revenue");
-
-  const curConv = curVisits > 0 ? (curOrders / curVisits) * 100 : 0;
-  const prevConv = prevVisits > 0 ? (prevOrders / prevVisits) * 100 : 0;
-
-  const getTrend = (current: number, previous: number) => {
-    if (previous === 0) {
-      if (current === 0) return "0.0%";
-      return current > 0 ? "+100.0%" : "-100.0%";
-    }
-    const pct = ((current - previous) / previous) * 100;
-    const sign = pct >= 0 ? "+" : "";
-    return `${sign}${pct.toFixed(1)}%`;
-  };
-
-  const visitsTrend = getTrend(curVisits, prevVisits);
-  const ordersTrend = getTrend(curOrders, prevOrders);
-  const revTrend = getTrend(curRevenue, prevRevenue);
-  const convTrend = getTrend(curConv, prevConv);
-
-  // Funnel aggregation over currentSlice
-  const funnel = currentSlice.reduce(
-    (acc: any, d: any) => {
-      const f = d.funnel || {};
-      acc.view += f.view || 0;
-      acc.add_to_cart += f.add_to_cart || 0;
-      acc.checkout_start += f.checkout_start || 0;
-      acc.purchase += f.purchase || 0;
-      return acc;
-    },
-    { view: 0, add_to_cart: 0, checkout_start: 0, purchase: 0 },
-  );
-
-  // Fallback for visual demonstration when database doesn't have funnel actions
-  if (funnel.view === 0 && curVisits > 0) {
-    funnel.view = Math.round(curVisits * 1.5);
-    funnel.add_to_cart = Math.round(curVisits * 0.25);
-    funnel.checkout_start = Math.round(curVisits * 0.12);
-    funnel.purchase = curOrders;
-  }
-
+  // Funnel: only what was recorded — never invented.
+  const funnel = currentSlice.reduce((acc: any, d: any) => {
+    const f = d.funnel || {};
+    acc.view += f.view || 0; acc.add_to_cart += f.add_to_cart || 0;
+    acc.checkout_start += f.checkout_start || 0; acc.purchase += f.purchase || 0;
+    return acc;
+  }, { view: 0, add_to_cart: 0, checkout_start: 0, purchase: 0 });
   const funnelSteps = [
-    { key: "view", label: "Product Views", count: funnel.view },
-    { key: "add_to_cart", label: "Added to Cart", count: funnel.add_to_cart },
-    { key: "checkout_start", label: "Started Checkout", count: funnel.checkout_start },
-    { key: "purchase", label: "Completed Purchase", count: funnel.purchase },
+    { key: "view", label: "Product views", count: funnel.view },
+    { key: "add_to_cart", label: "Added to cart", count: funnel.add_to_cart },
+    { key: "checkout_start", label: "Started checkout", count: funnel.checkout_start },
+    { key: "purchase", label: "Completed purchase", count: funnel.purchase },
   ];
   const maxFunnel = Math.max(1, ...funnelSteps.map(s => s.count));
 
-  const kpis = [
-    { label: "Visitors", subLabel: "Total Visits", value: curVisits.toLocaleString(), trend: visitsTrend, icon: Users, color: "violet" },
-    { label: "Orders", subLabel: "Total Sales", value: curOrders.toLocaleString(), trend: ordersTrend, icon: ShoppingBag, color: "cyan" },
-    { label: "Conversion Rate", subLabel: "Visitor to Sale", value: `${curConv.toFixed(1)}%`, trend: convTrend, icon: Activity, color: "emerald" },
-    { label: "Total Revenue", subLabel: "Gross Sales", value: `CA$${curRevenue.toLocaleString()}`, trend: revTrend, icon: DollarSign, color: "amber" },
+  const lowStock = useMemo(
+    () => (stock.books || []).filter(b => b.status !== "draft" && (b.stockLevel || 0) <= LOW_STOCK)
+      .sort((a, b) => (a.stockLevel || 0) - (b.stockLevel || 0)).slice(0, 6),
+    [stock.books],
+  );
+
+  const chartSummary = chartData.length
+    ? `${chartTab === "traffic" ? "Visitors and sales" : "Gross and net revenue"} over ${chartData.length} day${chartData.length === 1 ? "" : "s"}: ` +
+      (chartTab === "traffic"
+        ? `${sum(chartData, "visits").toLocaleString()} visitors, ${sum(chartData, "orders").toLocaleString()} sales.`
+        : `${money(sum(chartData, "grossRevenue"))} gross, ${money(sum(chartData, "netRevenue"))} net.`)
+    : "No chart data for this period.";
+
+  const recentColumns: Column<any>[] = [
+    { key: "id", header: "Order", lead: true, render: o => <span className="rp-mono">{o.orderId}</span> },
+    { key: "cust", header: "Customer", render: o => o.customer?.name || "—" },
+    { key: "total", header: "Total", numeric: true, render: o => money(o.total) },
+    { key: "pay", header: "Payment", render: o => <StatusBadge tone={o.paymentStatus === "paid" ? "success" : "danger"}>{o.paymentStatus === "paid" ? "Paid" : "Unpaid"}</StatusBadge> },
+  ];
+
+  if (loading) return <LoadingState label="Loading overview…" />;
+  if (failed) return <ErrorState title="Analytics unavailable" description="The sales figures could not be loaded. Orders and books below may still be available." onRetry={loadAnalytics} />;
+
+  const kpis: Array<{ label: string; value: string; trend: string; sub: string; tone?: "gold" | "warn" | "danger" }> = [
+    { label: "Visitors", value: cur.visits.toLocaleString(), trend: getTrend(cur.visits, prev.visits), sub: "Total visits" },
+    { label: "Orders", value: cur.orders.toLocaleString(), trend: getTrend(cur.orders, prev.orders), sub: "Total sales" },
+    { label: "Conversion", value: `${curConv.toFixed(1)}%`, trend: getTrend(curConv, prevConv), sub: "Visitor to sale" },
+    { label: "Revenue", value: money(cur.revenue), trend: getTrend(cur.revenue, prev.revenue), sub: "Gross sales", tone: "gold" },
   ];
 
   return (
-    <div className="space-y-12 pb-32">
-      {/* App Update Summary Notice */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden bg-gradient-to-r from-violet-600/10 via-indigo-600/5 to-cyan-500/10 border border-violet-500/20 rounded-[2rem] p-8 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
-      >
-        <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/10 blur-[80px] rounded-full pointer-events-none" />
-        <div className="space-y-2 relative z-10">
-          <div className="flex items-center gap-2 text-[9px] font-black tracking-[0.4em] text-violet-400 uppercase">
-            <Zap size={12} className="text-violet-400" /> System Status & Recent Release
+    <div className="rp-stack">
+      {/* Release banner (updated on every deploy — see CLAUDE.md) */}
+      <SectionCard>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 20, justifyContent: "space-between" }}>
+          <div style={{ flex: "1 1 420px", minWidth: 0 }}>
+            <div className="rp-kicker">System status &amp; recent release</div>
+            <h3 className="rp-sec-title">Lyricalmyrical e-commerce platform updated</h3>
+            <p className="rp-page-desc" style={{ maxWidth: "none" }}>
+              The storefront, checkout, and admin dashboard were successfully updated on <strong>September 29, 2026 at 12:00 AM</strong>.
+              This release completes the Riso Press admin: the shell, Orders list and detail, and the Overview are rebuilt on the design system,
+              the remaining admin pages take its palette, and the Overview no longer shows simulated figures (the "Live" hourly chart, an
+              invented funnel and a placeholder forecast were removed — it now shows only recorded data, plus recent orders and low-stock
+              alerts). Checkout, totals, and the Stripe payment path remain untouched.
+            </p>
           </div>
-          <h3 className="text-xl font-black uppercase tracking-tight text-white italic">
-            Lyricalmyrical E-Commerce Platform Updated
-          </h3>
-          <p className="text-slate-400 text-xs font-medium max-w-2xl leading-relaxed">
-            The storefront, checkout, and admin dashboard were successfully updated on <strong>September 29, 2026 at 12:00 AM</strong>.
-            This release aligns the admin with the published Riso Press design system (newsprint and ink palette, flare accent, square outlined controls, Anton / Archivo / DM Mono type, warm-grey night mode, glyph-plus-word status badges) and rebuilds the Orders list on it: a searchable, sortable table with date-range and order-type filters, payment / fulfillment / address-verification badges, pagination, bulk fulfillment updates, CSV export, and an accessible confirmation dialog for deleting marked test orders. Order detail and the remaining admin pages follow. Checkout, totals, and the Stripe payment path remain untouched.
-          </p>
+          <div className="rp-card" style={{ padding: 14, boxShadow: "none", minWidth: 170, alignSelf: "flex-start" }}>
+            <div className="rp-label">Build status</div>
+            <div style={{ margin: "6px 0 12px" }}><StatusBadge tone="success">Deploy success</StatusBadge></div>
+            <div className="rp-label">Last code push</div>
+            <div className="rp-mono" style={{ marginTop: 6 }}>September 29, 00:00</div>
+          </div>
         </div>
-        <div className="shrink-0 relative z-10 bg-white/5 border border-white/10 rounded-2xl p-4 text-center min-w-[150px]">
-          <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Build Status</p>
-          <p className="text-xs font-bold text-emerald-400 mt-1 uppercase tracking-wider">Deploy Success</p>
-          <div className="h-px bg-white/5 my-3" />
-          <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Last Code Push</p>
-          <p className="text-[10px] font-mono text-slate-300 mt-1">September 29, 00:00</p>
+      </SectionCard>
+
+      <div>
+        <SectionHead kicker="Performance" title="Store metrics" subcopy="Compared with the previous period of the same length."
+          actions={<Tabs<Period> label="Period" value={period} onChange={setPeriod}
+            tabs={[{ id: "today", label: "Today" }, { id: "7d", label: "7 days" }, { id: "30d", label: "30 days" }]} />} />
+        <div className="rp-kpi-grid">
+          {kpis.map(k => (
+            <MetricCard key={k.label} label={k.label} value={k.value} tone={k.tone}
+              footer={<><StatusBadge tone={trendTone(k.trend)}>{k.trend}</StatusBadge> <span style={{ marginLeft: 6 }}>{k.sub}</span></>} />
+          ))}
         </div>
-      </motion.div>
-
-      {/* KPI GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-        {kpis.map((kpi, i) => (
-          <motion.div 
-            key={kpi.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="group relative bg-white/[0.02] border border-white/5 p-8 rounded-[2.5rem] overflow-hidden transition-all duration-500 hover:border-white/10 hover:bg-white/[0.04] shadow-2xl"
-          >
-            {/* Background Accent */}
-            <div className={`absolute -top-10 -right-10 w-32 h-32 blur-[80px] opacity-10 transition-all duration-700 group-hover:opacity-20 ${
-              kpi.color === 'violet' ? 'bg-violet-500' : 
-              kpi.color === 'cyan' ? 'bg-cyan-500' : 
-              kpi.color === 'emerald' ? 'bg-emerald-500' : 'bg-amber-500'
-            }`} />
-
-            <div className="flex items-center justify-between mb-6">
-              <div className={`p-4 rounded-2xl bg-white/[0.03] border border-white/5 transition-all duration-500 group-hover:scale-110 ${
-                kpi.color === 'violet' ? 'text-violet-400' : 
-                kpi.color === 'cyan' ? 'text-cyan-400' : 
-                kpi.color === 'emerald' ? 'text-emerald-400' : 'text-amber-400'
-              }`}>
-                <kpi.icon size={22} strokeWidth={1.5} />
-              </div>
-              <span className={`text-[10px] font-black tracking-widest px-3 py-1.5 rounded-full border border-white/5 ${
-                kpi.trend.startsWith('+') ? 'text-emerald-400 bg-emerald-400/5' : 'text-rose-400 bg-rose-400/5'
-              }`}>
-                {kpi.trend}
-              </span>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500 font-black">{kpi.label}</p>
-              <h4 className="text-3xl font-black tracking-tighter text-white uppercase italic">{kpi.value}</h4>
-              <p className="text-[9px] text-slate-600 font-black tracking-widest uppercase mt-1">{kpi.subLabel}</p>
-            </div>
-
-            <div className="mt-8 h-1.5 w-full bg-white/[0.03] rounded-full overflow-hidden">
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: "65%" }}
-                transition={{ duration: 1.5, delay: 0.5 + i * 0.1, ease: "circOut" }}
-                className={`h-full rounded-full ${
-                  kpi.color === 'violet' ? 'bg-gradient-to-r from-violet-600 to-violet-400' : 
-                  kpi.color === 'cyan' ? 'bg-gradient-to-r from-cyan-600 to-cyan-400' : 
-                  kpi.color === 'emerald' ? 'bg-gradient-to-r from-emerald-600 to-emerald-400' : 'bg-gradient-to-r from-amber-600 to-amber-400'
-                }`}
-              />
-            </div>
-          </motion.div>
-        ))}
       </div>
 
-      {/* MAIN CHART */}
-      <div className="bg-white/[0.01] border border-white/5 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden backdrop-blur-sm">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-violet-600/5 blur-[120px] -translate-y-1/2 translate-x-1/4" />
-        
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12 relative z-10">
-           <div>
-              <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.4em] text-slate-500 mb-3 font-black">
-                <Globe size={12} className="text-violet-400" /> Store Metrics
+      <SectionCard title={chartTab === "traffic" ? "Traffic" : "Revenue"}
+        description={period === "today" ? "Hourly data isn't recorded — showing the last 7 days for context." : chartSummary}
+        actions={<Tabs label="Chart" value={chartTab} onChange={setChartTab} tabs={[{ id: "traffic", label: "Traffic" }, { id: "revenue", label: "Revenue" }]} />}>
+        {chartData.length === 0 ? (
+          <EmptyState title="No analytics yet" description="Visits and orders will chart here once the storefront records them." />
+        ) : (
+          <>
+            <p className="rp-sr-only">{chartSummary}</p>
+            <div style={{ height: 320, width: "100%" }} role="img" aria-label={chartSummary}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ left: 0, right: 8, top: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--rp-divider)" />
+                  <XAxis dataKey="date" axisLine={false} tickLine={false} minTickGap={24}
+                    tick={{ fontSize: 11, fill: "var(--rp-text-subtle)" }}
+                    tickFormatter={(str) => { const d = new Date(str); return isNaN(d.getTime()) ? str : d.toLocaleDateString(undefined, { day: "numeric", month: "short" }); }} />
+                  <YAxis axisLine={false} tickLine={false} width={40} tick={{ fontSize: 11, fill: "var(--rp-text-subtle)" }} />
+                  <Tooltip contentStyle={{ background: "var(--rp-surface)", border: "2px solid var(--rp-border-strong)", borderRadius: 0, color: "var(--rp-text)", fontSize: 12 }} />
+                  {chartTab === "traffic" ? (
+                    <>
+                      <Area type="monotone" dataKey="visits" name="Visitors" stroke="var(--rp-primary)" strokeWidth={2.5} fill="var(--rp-primary)" fillOpacity={0.12} />
+                      <Area type="monotone" dataKey="orders" name="Sales" stroke="var(--rp-info)" strokeWidth={2.5} fill="var(--rp-info)" fillOpacity={0.1} />
+                    </>
+                  ) : (
+                    <>
+                      <Area type="monotone" dataKey="grossRevenue" name="Gross revenue (CA$)" stroke="var(--rp-warning)" strokeWidth={2.5} fill="var(--rp-warning)" fillOpacity={0.1} />
+                      <Area type="monotone" dataKey="netRevenue" name="Net revenue (CA$)" stroke="var(--rp-success)" strokeWidth={2.5} fill="var(--rp-success)" fillOpacity={0.1} />
+                    </>
+                  )}
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <details style={{ marginTop: 12 }}>
+              <summary style={{ cursor: "pointer", fontWeight: 600 }}>View chart data as a table</summary>
+              <div style={{ marginTop: 8 }}>
+                <DataTable caption="Chart data" rows={chartData} rowKey={(d: any) => String(d.date)}
+                  columns={chartTab === "traffic"
+                    ? [{ key: "d", header: "Date", render: (d: any) => String(d.date) }, { key: "v", header: "Visitors", numeric: true, render: (d: any) => d.visits || 0 }, { key: "o", header: "Sales", numeric: true, render: (d: any) => d.orders || 0 }]
+                    : [{ key: "d", header: "Date", render: (d: any) => String(d.date) }, { key: "g", header: "Gross", numeric: true, render: (d: any) => money(d.grossRevenue) }, { key: "n", header: "Net", numeric: true, render: (d: any) => money(d.netRevenue) }]} />
               </div>
-              <div className="flex items-center gap-6">
-                <button
-                  onClick={() => setChartTab("traffic")}
-                  className={`text-4xl font-black tracking-tighter uppercase italic leading-none transition-colors ${chartTab === "traffic" ? "text-white" : "text-slate-600 hover:text-slate-400"}`}
-                >
-                  Traffic
-                </button>
-                <span className="text-2xl text-slate-800">/</span>
-                <button
-                  onClick={() => setChartTab("revenue")}
-                  className={`text-4xl font-black tracking-tighter uppercase italic leading-none transition-colors ${chartTab === "revenue" ? "text-white" : "text-slate-600 hover:text-slate-400"}`}
-                >
-                  Revenue
-                </button>
-              </div>
-              <p className="text-xs text-slate-500 font-medium mt-3 max-w-lg leading-relaxed">
-                {chartTab === "traffic" 
-                  ? "Overview of visitor traffic and sales performance over the selected period." 
-                  : "Gross subtotal revenue compared with final net revenue lines."}
-              </p>
-           </div>
-           <div className="flex p-2 bg-white/[0.03] rounded-3xl border border-white/5 backdrop-blur-md">
-              {(['Live', '7d', '30d'] as const).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  className={`px-6 py-3 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all ${period === p ? 'bg-violet-600 shadow-xl text-white' : 'text-slate-500 hover:text-white'}`}
-                >
-                  {p}
-                </button>
+            </details>
+          </>
+        )}
+      </SectionCard>
+
+      <div className="rp-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" }}>
+        <SectionCard flush title="Recent orders" actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("orders")}>All orders</SecondaryButton>}>
+          {recent.error ? <ErrorState title="Orders unavailable" description="Recent orders could not be loaded." />
+            : recent.orders === null ? <LoadingState label="Loading orders…" />
+            : <DataTable caption="Recent orders" columns={recentColumns} rows={recent.orders} rowKey={o => o.id}
+                empty={<EmptyState title="No orders yet" description="New orders appear here as soon as customers check out." />} />}
+        </SectionCard>
+
+        <SectionCard flush title="Low stock" description={`${LOW_STOCK} units or fewer`}
+          actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("catalog")}>Manage books</SecondaryButton>}>
+          {stock.error ? <ErrorState title="Inventory unavailable" description="Stock levels could not be loaded." />
+            : stock.books === null ? <LoadingState label="Loading inventory…" />
+            : lowStock.length === 0 ? <EmptyState icon="✓" title="Stock looks healthy" description="No published titles are at or below the low-stock threshold." />
+            : (
+              <ul className="rp-list" aria-label="Low stock titles">
+                {lowStock.map(b => (
+                  <li key={b.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                    <span style={{ minWidth: 0, overflowWrap: "anywhere", fontWeight: 600 }}>{b.title}</span>
+                    <StatusBadge tone={(b.stockLevel || 0) <= 0 ? "danger" : "warning"}>{(b.stockLevel || 0) <= 0 ? "Sold out" : `${b.stockLevel} left`}</StatusBadge>
+                  </li>
+                ))}
+              </ul>
+            )}
+        </SectionCard>
+      </div>
+
+      <div className="rp-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" }}>
+        <SectionCard flush title="Popular books" actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("catalog")}>Manage inventory</SecondaryButton>}>
+          {data?.topSellers?.length > 0 ? (
+            <ul className="rp-list" aria-label="Best selling books">
+              {data.topSellers.map((item: any) => (
+                <li key={item.id} style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0 }}>
+                    {item.photoUrl && <img src={item.photoUrl} alt="" width={40} height={56} style={{ objectFit: "cover", border: "1px solid var(--rp-border-strong)" }} />}
+                    <div style={{ minWidth: 0 }}>
+                      <GhostButton size="sm" onClick={() => handleEditClick(item.id)} disabled={fetchingBookId === item.id}
+                        aria-label={`Edit ${item.title}`} style={{ padding: 0, textAlign: "left", whiteSpace: "normal", textTransform: "none", letterSpacing: 0, fontSize: "var(--rp-text-base)" }}>
+                        {item.title}
+                      </GhostButton>
+                      <div className="rp-hint rp-mono">{item.sold} sold</div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div className="rp-mono" style={{ fontSize: "var(--rp-text-base)" }}>{money(item.revenue)}</div>
+                    <StatusBadge tone={item.trend?.startsWith("-") ? "danger" : "success"}>{item.trend || "0%"}</StatusBadge>
+                  </div>
+                </li>
               ))}
-           </div>
-        </div>
+            </ul>
+          ) : <EmptyState title="No sales recorded yet" description="Your best sellers will rank here after the first paid orders." />}
+        </SectionCard>
 
-        <div className="h-[450px] w-full relative z-10">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={chartData}>
-              <defs>
-                <linearGradient id="colorVisits" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.2}/>
-                  <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.2}/>
-                  <stop offset="95%" stopColor="#22d3ee" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorGross" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.2}/>
-                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
-                </linearGradient>
-                <linearGradient id="colorNet" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="10 10" vertical={false} stroke="rgba(255,255,255,0.03)" />
-              <XAxis 
-                dataKey="date" 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fontSize: 10, fill: '#475569', fontWeight: 900, letterSpacing: '0.1em' }}
-                tickFormatter={(str) => {
-                  if (str && str.includes(":")) return str;
-                  const d = new Date(str);
-                  return isNaN(d.getTime()) ? str : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }).toUpperCase();
-                }}
-                dy={20}
-              />
-              <YAxis 
-                axisLine={false} 
-                tickLine={false} 
-                tick={{ fontSize: 10, fill: '#475569', fontWeight: 900 }} 
-                dx={-10}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'rgba(5, 5, 6, 0.8)', 
-                  borderRadius: '24px', 
-                  border: '1px solid rgba(255,255,255,0.1)', 
-                  boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
-                  backdropFilter: 'blur(24px)',
-                  padding: '20px',
-                  color: '#fff'
-                }}
-                itemStyle={{ fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', padding: '4px 0' }}
-                cursor={{ stroke: 'rgba(139,92,246,0.2)', strokeWidth: 2 }}
-              />
-              {chartTab === "traffic" ? (
-                <>
-                  <Area 
-                    type="monotone" 
-                    dataKey="visits" 
-                    name="Visitors"
-                    stroke="#8b5cf6" 
-                    strokeWidth={4}
-                    fillOpacity={1} 
-                    fill="url(#colorVisits)" 
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="orders" 
-                    name="Sales"
-                    stroke="#22d3ee" 
-                    strokeWidth={4}
-                    fillOpacity={1} 
-                    fill="url(#colorOrders)" 
-                  />
-                </>
-              ) : (
-                <>
-                  <Area 
-                    type="monotone" 
-                    dataKey="grossRevenue" 
-                    name="Gross Revenue (CA$)"
-                    stroke="#f59e0b" 
-                    strokeWidth={4}
-                    fillOpacity={1} 
-                    fill="url(#colorGross)" 
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="netRevenue" 
-                    name="Net Revenue (CA$)"
-                    stroke="#10b981" 
-                    strokeWidth={4}
-                    fillOpacity={1} 
-                    fill="url(#colorNet)" 
-                  />
-                </>
-              )}
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        <SectionCard flush title="Inventory categories">
+          {data?.categories?.length > 0 ? (
+            <ul className="rp-list" aria-label="Categories">
+              {data.categories.map((cat: any) => (
+                <li key={cat.name} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                  <div><strong>{cat.name}</strong><div className="rp-hint rp-mono">{cat.views.toLocaleString()} visits</div></div>
+                  <div style={{ textAlign: "right" }}>
+                    <div className="rp-mono">{money(cat.revenue)}</div>
+                    <div className="rp-hint rp-mono">{cat.sold} sold</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : <EmptyState title="No categories yet" description="Categories with visits or sales will be listed here." />}
+        </SectionCard>
       </div>
 
-      {/* PERFORMANCE TABLES */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        {/* Top Sellers */}
-        <div className="bg-white/[0.01] border border-white/5 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden group">
-           <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-6">
-              <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Best Selling Items</h3>
-              <button
-                onClick={() => setActiveTab && setActiveTab("catalog")}
-                className="text-[10px] font-black text-violet-400 hover:text-white transition-all uppercase tracking-widest border border-white/5 px-4 py-2 rounded-xl"
-              >
-                Manage Inventory
-              </button>
-           </div>
-           <div className="space-y-8">
-              {data?.topSellers?.length > 0 ? (
-                data.topSellers.map((item: any) => (
-                  <div
-                    key={item.id}
-                    onClick={() => handleEditClick(item.id)}
-                    className="flex items-center justify-between group/item hover:bg-white/[0.03] p-4 rounded-3xl transition-all duration-500 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-6">
-                       <div className="w-16 h-20 bg-slate-900 overflow-hidden rounded-2xl border border-white/5 group-hover/item:border-violet-500/50 transition-all shadow-2xl relative">
-                          <img src={item.photoUrl} className="w-full h-full object-cover brightness-75 group-hover/item:brightness-100 transition-all duration-700" />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                       </div>
-                       <div>
-                          <p className="text-base font-black text-white uppercase tracking-tight group-hover/item:text-violet-400 transition-colors leading-none flex items-center gap-2">
-                             {item.title}
-                             {fetchingBookId === item.id && <Loader2 size={12} className="animate-spin text-violet-400" />}
-                          </p>
-                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-3 bg-white/[0.03] w-fit px-3 py-1 rounded-lg border border-white/5">{item.sold} Sold</p>
-                       </div>
+      <div className="rp-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" }}>
+        <SectionCard title="Referrals & campaigns" description="Orders placed with a ?ref= parameter.">
+          {data?.referrals?.length > 0 ? (
+            <ol className="rp-list" style={{ margin: -20 }} aria-label="Referral sources">
+              {data.referrals.map((ref: any) => {
+                const max = Math.max(1, ...data.referrals.map((r: any) => r.revenue));
+                return (
+                  <li key={ref.name}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                      <strong>{ref.name}</strong>
+                      <span className="rp-mono">{money(ref.revenue)} · {ref.ordersCount} sales</span>
                     </div>
-                    <div className="text-right">
-                       <p className="text-lg font-black text-white tracking-tighter italic leading-none">CA${item.revenue.toLocaleString()}</p>
-                       <div className={`flex items-center justify-end gap-2 mt-3 font-black text-[10px] uppercase tracking-widest px-3 py-1 rounded-lg border ${
-                         item.trend?.startsWith("-") 
-                           ? "text-rose-400 bg-rose-400/5 border-rose-400/10" 
-                           : "text-emerald-400 bg-emerald-400/5 border-emerald-400/10"
-                       }`}>
-                         {item.trend?.startsWith("-") ? <ArrowDownRight size={12} /> : <TrendingUp size={12} />} {item.trend || "0%"}
-                       </div>
+                    <div role="presentation" style={{ height: 8, marginTop: 8, background: "var(--rp-surface-inset)", border: "1px solid var(--rp-border)" }}>
+                      <div style={{ height: "100%", width: `${(ref.revenue / max) * 100}%`, background: "var(--rp-primary)" }} />
                     </div>
-                  </div>
-                ))
-              ) : (
-                <div className="py-24 text-center">
-                  <div className="w-20 h-20 rounded-full bg-white/[0.02] border border-white/5 flex items-center justify-center text-slate-800 mx-auto mb-6 shadow-inner">
-                    <Database size={40} strokeWidth={0.5} />
-                  </div>
-                  <p className="text-slate-600 text-[10px] tracking-[0.5em] uppercase font-black italic">No records found.</p>
-                </div>
-              )}
-           </div>
-        </div>
+                  </li>
+                );
+              })}
+            </ol>
+          ) : <EmptyState title="No campaign traffic yet" description="Share a link ending in ?ref=name and its orders will appear here." />}
+        </SectionCard>
 
-        {/* Categories Analysis */}
-        <div className="bg-white/[0.01] border border-white/5 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden group">
-           <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-6">
-              <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Inventory Categories</h3>
-              <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Active</span>
-              </div>
-           </div>
-           <div className="space-y-8">
-              {data?.categories?.length > 0 ? (
-                data.categories.map((cat: any, index: number) => {
-                  const colors = ["violet", "cyan", "emerald", "amber"];
-                  const color = colors[index % colors.length];
-                  
-                  const icons = [BarChart3, Zap, Activity, Users];
-                  const Icon = icons[index % icons.length];
-                  
-                  const borderClass = 
-                    color === "violet" ? "group-hover/item:border-violet-500/50" :
-                    color === "cyan" ? "group-hover/item:border-cyan-500/50" :
-                    color === "emerald" ? "group-hover/item:border-emerald-500/50" :
-                    "group-hover/item:border-amber-500/50";
-                  
-                  const textClass = 
-                    color === "violet" ? "text-violet-400" :
-                    color === "cyan" ? "text-cyan-400" :
-                    color === "emerald" ? "text-emerald-400" :
-                    "text-amber-400";
-
-                  return (
-                    <div key={cat.name} className="flex items-center justify-between group/item hover:bg-white/[0.03] p-4 rounded-3xl transition-all duration-500">
-                      <div className="flex items-center gap-6">
-                         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center border border-white/5 transition-all duration-500 shadow-2xl bg-white/[0.02] ${borderClass}`}>
-                            <Icon size={24} strokeWidth={1.5} className={textClass} />
-                         </div>
-                         <div>
-                            <p className="text-base font-black text-white uppercase tracking-tight group-hover/item:text-violet-400 transition-colors leading-none">{cat.name}</p>
-                            <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] mt-3 border border-white/5 w-fit px-3 py-1 rounded-lg">{cat.views.toLocaleString()} Visits</p>
-                         </div>
-                      </div>
-                      <div className="text-right">
-                         <p className="text-lg font-black text-white tracking-tighter italic leading-none">CA${cat.revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                         <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest mt-3 bg-white/[0.03] px-3 py-1 rounded-lg border border-white/5">{cat.sold} SOLD</p>
-                      </div>
+        <SectionCard title="Conversion funnel"
+          description={funnel.view > 0 ? `${((funnel.purchase / funnel.view) * 100).toFixed(2)}% of product views end in a purchase` : "Only recorded events are shown."}>
+          {funnel.view === 0 ? (
+            <EmptyState title="No funnel events recorded" description="Views, add-to-cart, checkout and purchase events chart here once shoppers generate them." />
+          ) : (
+            <ol className="rp-list" style={{ margin: -20 }} aria-label="Conversion funnel">
+              {funnelSteps.map((step, idx) => {
+                const before = idx === 0 ? null : funnelSteps[idx - 1].count;
+                const dropPct = before ? ((Math.max(0, before - step.count) / before) * 100).toFixed(1) : null;
+                return (
+                  <li key={step.key}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                      <span>{step.label}</span>
+                      <span className="rp-mono">{step.count.toLocaleString()}{dropPct && <span style={{ color: "var(--rp-danger)" }}> −{dropPct}%</span>}</span>
                     </div>
-                  );
-                })
-              ) : (
-                <div className="py-24 text-center">
-                  <div className="w-20 h-20 rounded-full bg-white/[0.02] border border-white/5 flex items-center justify-center text-slate-800 mx-auto mb-6 shadow-inner">
-                    <Database size={40} strokeWidth={0.5} />
-                  </div>
-                  <p className="text-slate-600 text-[10px] tracking-[0.5em] uppercase font-black italic">No categories found.</p>
-                </div>
-              )}
-           </div>
-
-           <div className="mt-12 p-8 rounded-[2rem] bg-gradient-to-br from-violet-600/20 to-cyan-600/20 border border-white/10 relative overflow-hidden">
-              <div className="relative z-10">
-                <h5 className="text-sm font-black text-white uppercase tracking-widest mb-2">Sales Insights</h5>
-                <p className="text-[11px] text-slate-400 leading-relaxed max-w-xs">Forecasts suggest a steady increase in sales over the upcoming weeks.</p>
-              </div>
-              <div className="absolute -right-4 -bottom-4 opacity-10">
-                 <Activity size={100} strokeWidth={0.5} className="text-white" />
-              </div>
-           </div>
-        </div>
-      </div>
-
-      {/* Referral Campaign and Conversion Funnel */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        {/* Referral Traffic */}
-        <div className="bg-white/[0.01] border border-white/5 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden group">
-           <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-6">
-              <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Referrals & Campaigns</h3>
-              <div className="flex items-center gap-2 bg-violet-500/10 px-3 py-1.5 rounded-full border border-violet-500/20">
-                <Globe size={12} className="text-violet-400" />
-                <span className="text-[9px] font-black text-violet-400 uppercase tracking-widest">Campaign Metrics</span>
-              </div>
-           </div>
-           <div className="space-y-6">
-              {data?.referrals && data.referrals.length > 0 ? (
-                data.referrals.map((ref: any, index: number) => {
-                  const maxRevenue = Math.max(1, ...data.referrals.map((r: any) => r.revenue));
-                  const pct = (ref.revenue / maxRevenue) * 100;
-                  return (
-                    <div key={ref.name} className="space-y-2">
-                      <div className="flex justify-between items-center text-xs">
-                        <div className="flex items-center gap-3">
-                          <span className="w-5 h-5 rounded-full bg-white/5 flex items-center justify-center text-[9px] font-black text-slate-500">
-                            {index + 1}
-                          </span>
-                          <span className="font-black text-white uppercase tracking-wider">{ref.name}</span>
-                        </div>
-                        <div className="text-right flex items-center gap-3">
-                          <span className="font-mono text-white font-black text-sm">CA${ref.revenue.toFixed(2)}</span>
-                          <span className="text-[9px] text-slate-500 uppercase tracking-widest font-black font-mono">({ref.ordersCount} Sales)</span>
-                        </div>
-                      </div>
-                      <div className="h-1.5 w-full bg-white/[0.02] rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-violet-500 to-cyan-400 rounded-full"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
+                    <div role="presentation" style={{ height: 8, marginTop: 8, background: "var(--rp-surface-inset)", border: "1px solid var(--rp-border)" }}>
+                      <div style={{ height: "100%", width: `${(step.count / maxFunnel) * 100}%`, background: "var(--rp-info)" }} />
                     </div>
-                  );
-                })
-              ) : (
-                <div className="py-16 text-center space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-white/[0.02] border border-white/5 flex items-center justify-center text-slate-800 mx-auto mb-4">
-                    <Globe size={32} strokeWidth={0.5} />
-                  </div>
-                  <p className="text-slate-500 text-[10px] tracking-[0.3em] uppercase font-black">No Campaign Telemetry</p>
-                  <p className="text-[9px] text-slate-600 max-w-xs mx-auto leading-relaxed">
-                    Orders placed with a <code className="text-violet-400 font-mono">?ref=...</code> parameter will appear here.
-                  </p>
-                </div>
-              )}
-           </div>
-        </div>
-
-        {/* Conversion Funnel */}
-        <div className="bg-white/[0.01] border border-white/5 rounded-[3rem] p-10 shadow-2xl relative overflow-hidden group">
-          <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-6">
-            <h3 className="text-sm font-black tracking-[0.3em] text-white uppercase italic">Conversion Funnel</h3>
-            <span className="text-[10px] tracking-widest font-black uppercase text-slate-500 bg-white/5 border border-white/5 px-3 py-1 rounded-full">
-              {funnel.view > 0
-                ? `${((funnel.purchase / funnel.view) * 100).toFixed(2)}% Conversion`
-                : "No data"}
-            </span>
-          </div>
-          <div className="space-y-6">
-            {funnelSteps.map((step, idx) => {
-              const prev = idx === 0 ? null : funnelSteps[idx - 1].count;
-              const dropoff = prev ? Math.max(0, prev - step.count) : 0;
-              const dropPct = prev ? ((dropoff / prev) * 100).toFixed(1) : null;
-              const widthPct = (step.count / maxFunnel) * 100;
-              return (
-                <div key={step.key} className="grid grid-cols-12 items-center gap-4">
-                  <span className="col-span-4 text-[10px] tracking-widest uppercase font-black text-slate-400">
-                    {step.label}
-                  </span>
-                  <div className="col-span-5 h-2 bg-white/[0.04] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-violet-500 to-cyan-500 rounded-full transition-all duration-700"
-                      style={{ width: `${widthPct}%` }}
-                    />
-                  </div>
-                  <span className="col-span-3 text-right">
-                    <span className="text-xs font-black text-white font-mono">{step.count.toLocaleString()}</span>
-                    {dropPct && (
-                      <span className="ml-2 text-[9px] font-black tracking-widest uppercase text-rose-400/70 font-mono">
-                        −{dropPct}%
-                      </span>
-                    )}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </SectionCard>
       </div>
     </div>
   );

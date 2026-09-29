@@ -612,137 +612,162 @@
 }
 
 /*
- * Reso admin design system
- * ------------------------
- * The dashboard is a single shell whose feature pages still contain legacy
- * dark utility classes. These semantic overrides deliberately live at the
- * shell boundary so Orders, Books, Discounts, Reviews, Pages, Settings,
- * editors and dialogs all share one visual language without changing their
- * data or payment behavior.
+ * Riso Press compatibility layer (legacy admin pages only)
+ * --------------------------------------------------------
+ * Pages not yet rebuilt from src/app/admin/riso components still contain legacy
+ * dark utility classes. This block, scoped to `.admin-reso`, maps them onto the
+ * published Riso Press palette (newsprint, ink outlines, flare gold, square
+ * corners). Migrated pages never render inside `.admin-reso`; do not add rules
+ * here for new work — build it from the Riso components instead.
  */
 .admin-reso[data-admin-theme="reso"],
 .admin-reso:not([data-admin-theme]) {
-  --admin-canvas: #f6f8fb;
+  --admin-canvas: #faf6ec;
   --admin-panel: #ffffff;
-  --admin-panel-soft: #fbfcfe;
-  --admin-ink: #10182d;
-  --admin-muted: #526078;
-  --admin-line: #dce3ee;
-  --admin-purple: #6339f5;
-  --admin-purple-soft: #eee9ff;
-  --admin-cyan: #20c8e8;
+  --admin-panel-soft: #ffffff;
+  --admin-ink: #100f0d;
+  --admin-muted: #3e3a34;
+  --admin-line: rgba(16, 15, 13, 0.26);
+  --admin-purple: #e8402a;
+  --admin-purple-soft: rgba(232, 64, 42, 0.1);
+  --admin-cyan: #1b3fe0;
   background: var(--admin-canvas);
   color: var(--admin-ink);
-}
-
-.admin-reso[data-admin-theme="reso"] .admin-reso-shell {
-  background: var(--admin-canvas) !important;
-}
-
-.admin-reso[data-admin-theme="reso"] .admin-reso-sidebar {
-  background: rgba(255, 255, 255, 0.98) !important;
-  border-color: var(--admin-line) !important;
-  box-shadow: 10px 0 35px rgba(16, 24, 45, 0.025);
-}
-
-.admin-reso[data-admin-theme="reso"] .admin-reso-topbar {
-  background: rgba(255, 255, 255, 0.88) !important;
-  border-color: var(--admin-line) !important;
-  box-shadow: 0 1px 0 rgba(16, 24, 45, 0.02);
-}
-
-.admin-reso[data-admin-theme="reso"] .admin-reso-main {
-  background:
-    radial-gradient(circle at 88% 4%, rgba(99, 57, 245, 0.035), transparent 24rem),
-    var(--admin-canvas) !important;
+  font-family: "Archivo", "Helvetica Neue", system-ui, sans-serif;
 }
 
 .admin-reso[data-admin-theme="reso"] h1,
 .admin-reso[data-admin-theme="reso"] h2,
 .admin-reso[data-admin-theme="reso"] h3 {
   color: var(--admin-ink) !important;
-  letter-spacing: -0.035em;
+  font-family: "Anton", Impact, "Archivo", sans-serif;
+  font-style: normal !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.01em;
 }
+
+.admin-reso[data-admin-theme="reso"] .text-white,
+.admin-reso[data-admin-theme="reso"] .text-slate-900 { color: #100f0d !important; }
+.admin-reso[data-admin-theme="reso"] .text-slate-200,
+.admin-reso[data-admin-theme="reso"] .text-slate-300,
+.admin-reso[data-admin-theme="reso"] .text-slate-400 { color: #3e3a34 !important; }
+.admin-reso[data-admin-theme="reso"] .text-slate-500,
+.admin-reso[data-admin-theme="reso"] .text-slate-600 { color: #5f5950 !important; }
+.admin-reso[data-admin-theme="reso"] .text-violet-400,
+.admin-reso[data-admin-theme="reso"] .text-violet-500,
+.admin-reso[data-admin-theme="reso"] .text-violet-600 { color: #b4271a !important; }
+.admin-reso[data-admin-theme="reso"] .text-emerald-400,
+.admin-reso[data-admin-theme="reso"] .text-emerald-500 { color: #0a6b47 !important; }
+.admin-reso[data-admin-theme="reso"] .text-rose-400,
+.admin-reso[data-admin-theme="reso"] .text-rose-500 { color: #b4271a !important; }
+.admin-reso[data-admin-theme="reso"] .text-amber-400,
+.admin-reso[data-admin-theme="reso"] .text-amber-500 { color: #6b4600 !important; }
+.admin-reso[data-admin-theme="reso"] .text-cyan-400,
+.admin-reso[data-admin-theme="reso"] .text-cyan-500 { color: #1b3fe0 !important; }
 
 .admin-reso[data-admin-theme="reso"] .glass-card,
 .admin-reso[data-admin-theme="reso"] section[class*="border"],
 .admin-reso[data-admin-theme="reso"] article[class*="border"] {
   background: var(--admin-panel) !important;
-  border-color: var(--admin-line) !important;
-  box-shadow: 0 2px 3px rgba(16, 24, 45, 0.035), 0 16px 46px rgba(16, 24, 45, 0.035) !important;
+  border: 2px solid #100f0d !important;
+  border-radius: 4px !important;
+  box-shadow: 3px 3px 0 rgba(16, 15, 13, 0.3) !important;
+  backdrop-filter: none !important;
 }
 
-.admin-reso[data-admin-theme="reso"] .rounded-\[3rem\],
-.admin-reso[data-admin-theme="reso"] .rounded-\[2\.5rem\] {
-  border-radius: 2.5rem !important;
-}
+.admin-reso[data-admin-theme="reso"] [class*="rounded-"] { border-radius: 4px !important; }
+.admin-reso[data-admin-theme="reso"] [class*="rounded-full"] { border-radius: 999px !important; }
+.admin-reso[data-admin-theme="reso"] .glass-card [class*="rounded-"],
+.admin-reso[data-admin-theme="reso"] button[class*="rounded-"],
+.admin-reso[data-admin-theme="reso"] input[class*="rounded-"],
+.admin-reso[data-admin-theme="reso"] select[class*="rounded-"],
+.admin-reso[data-admin-theme="reso"] textarea[class*="rounded-"] { border-radius: 0 !important; }
 
 .admin-reso[data-admin-theme="reso"] input,
 .admin-reso[data-admin-theme="reso"] textarea,
 .admin-reso[data-admin-theme="reso"] select {
-  background: var(--admin-panel-soft) !important;
-  border-color: #cfd8e6 !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(16, 15, 13, 0.26) !important;
+  border-radius: 0 !important;
   color: var(--admin-ink) !important;
-  box-shadow: inset 0 1px 2px rgba(16, 24, 45, 0.025);
+  box-shadow: none;
+  font-family: "Archivo", system-ui, sans-serif;
 }
 
 .admin-reso[data-admin-theme="reso"] input:focus,
 .admin-reso[data-admin-theme="reso"] textarea:focus,
 .admin-reso[data-admin-theme="reso"] select:focus {
-  background: #fff !important;
-  border-color: rgba(99, 57, 245, 0.55) !important;
-  box-shadow: 0 0 0 4px rgba(99, 57, 245, 0.1) !important;
+  border-color: #e8402a !important;
+  box-shadow: 0 0 0 4px rgba(232, 64, 42, 0.22) !important;
+  outline: none;
 }
 
+.admin-reso[data-admin-theme="reso"] button:focus-visible,
+.admin-reso[data-admin-theme="reso"] a:focus-visible {
+  outline: 2px solid #e8402a;
+  outline-offset: 2px;
+}
+
+/* Flare primary: gold fill, ink text (never white on flare). */
 .admin-reso[data-admin-theme="reso"] button.bg-violet-600,
-.admin-reso[data-admin-theme="reso"] button.bg-violet-500 {
-  background: linear-gradient(135deg, #7848ff, var(--admin-purple)) !important;
-  border-color: transparent !important;
-  box-shadow: 0 10px 26px rgba(99, 57, 245, 0.24) !important;
+.admin-reso[data-admin-theme="reso"] button.bg-violet-500,
+.admin-reso[data-admin-theme="reso"] a.bg-violet-600 {
+  background: #e8402a !important;
+  color: #100f0d !important;
+  border: 2px solid #100f0d !important;
+  border-radius: 0 !important;
+  box-shadow: 2px 2px 0 rgba(16, 15, 13, 0.18) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 800;
 }
-
+.admin-reso[data-admin-theme="reso"] button.bg-violet-600 *,
+.admin-reso[data-admin-theme="reso"] button.bg-violet-500 * { color: #100f0d !important; }
 .admin-reso[data-admin-theme="reso"] button.bg-violet-600:hover,
 .admin-reso[data-admin-theme="reso"] button.bg-violet-500:hover {
-  background: #5329e8 !important;
-  transform: translateY(-1px);
+  background: #ff6b55 !important;
+  box-shadow: 3px 3px 0 rgba(16, 15, 13, 0.3) !important;
+}
+.admin-reso[data-admin-theme="reso"] button.bg-emerald-600,
+.admin-reso[data-admin-theme="reso"] button.bg-emerald-500 {
+  background: #0a6b47 !important;
+  color: #ffffff !important;
+  border: 2px solid #100f0d !important;
+  border-radius: 0 !important;
+}
+.admin-reso[data-admin-theme="reso"] button.bg-rose-600,
+.admin-reso[data-admin-theme="reso"] button.bg-rose-500 {
+  background: #b4271a !important;
+  color: #ffffff !important;
+  border: 2px solid #100f0d !important;
+  border-radius: 0 !important;
 }
 
 .admin-reso[data-admin-theme="reso"] table {
-  overflow: hidden;
-  border: 1px solid var(--admin-line);
-  border-radius: 1.5rem;
+  border: 2px solid #100f0d;
+  border-radius: 0;
+  box-shadow: 3px 3px 0 rgba(16, 15, 13, 0.3);
 }
-
 .admin-reso[data-admin-theme="reso"] th {
-  background: #f3f6fa !important;
-  color: #3f4e67 !important;
-  letter-spacing: 0.16em;
+  background: #100f0d !important;
+  color: #faf6ec !important;
+  letter-spacing: 0.14em;
 }
-
-.admin-reso[data-admin-theme="reso"] td {
-  border-color: #edf1f6 !important;
-}
+.admin-reso[data-admin-theme="reso"] td { border-color: rgba(16, 15, 13, 0.12) !important; }
 
 .admin-reso[data-admin-theme="reso"] .fixed[class*="inset-0"] > [class*="bg-\[\#050506\]"],
 .admin-reso[data-admin-theme="reso"] .fixed[class*="inset-0"] > [class*="bg-black"] {
   background: var(--admin-panel) !important;
   color: var(--admin-ink) !important;
+  border: 2px solid #100f0d !important;
 }
 
-.admin-reso[data-admin-theme="reso"] ::-webkit-scrollbar-track {
-  background: #eef2f7;
-}
+.admin-reso[data-admin-theme="reso"] ::-webkit-scrollbar-track { background: #f0e9da; }
+.admin-reso[data-admin-theme="reso"] ::-webkit-scrollbar-thumb { background: #d3c6ab; }
 
-.admin-reso[data-admin-theme="reso"] ::-webkit-scrollbar-thumb {
-  background: #c8d2e1;
-}
-
-@media (max-width: 767px) {
-  .admin-reso[data-admin-theme="reso"] .admin-reso-topbar {
-    padding-inline: 1rem;
-  }
-  .admin-reso[data-admin-theme="reso"] .admin-reso-main {
-    padding: 1.25rem 1rem 3rem;
+@media (prefers-reduced-motion: reduce) {
+  .admin-reso *, .admin-reso *::before, .admin-reso *::after {
+    animation-duration: 0.01ms !important; transition-duration: 0.01ms !important;
   }
 }
 
