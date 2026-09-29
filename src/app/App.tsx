@@ -25,25 +25,25 @@ const OrderTracking = lazy(() => import("./features/site/OrderTracking"));
 
 function LoadingFallback() {
   return (
-    <div className="h-screen w-full bg-[#F1E8D2] text-[#171B18] flex flex-col items-center justify-center relative overflow-hidden" aria-label="Loading Lyricalmyrical Books">
+    <div className="h-screen w-full bg-[#faf6ec] text-[#100f0d] flex flex-col items-center justify-center relative overflow-hidden" aria-label="Loading Lyricalmyrical Books">
       <div className="absolute inset-0 opacity-40 bg-[radial-gradient(rgba(23,27,24,0.2)_0.6px,transparent_0.8px)] bg-[length:5px_5px]" />
-      <div className="absolute -left-[8vw] top-[12vh] h-44 w-[62vw] -rotate-6 bg-[#F04A3A]/90 mix-blend-multiply" />
-      <div className="absolute -right-[10vw] bottom-[10vh] h-48 w-[64vw] rotate-6 bg-[#285DA8]/85 mix-blend-multiply" />
+      <div className="absolute -left-[8vw] top-[12vh] h-44 w-[62vw] -rotate-6 bg-[#e8402a]/90 mix-blend-multiply" />
+      <div className="absolute -right-[10vw] bottom-[10vh] h-48 w-[64vw] rotate-6 bg-[#1b3fe0]/85 mix-blend-multiply" />
       <motion.div
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         className="relative flex w-[min(86vw,34rem)] flex-col items-center"
       >
-        <span className="mb-7 rotate-1 border-2 border-[#171B18] bg-[#F0B93A] px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] shadow-[4px_4px_0_#171B18]">
+        <span className="mb-7 rotate-1 border-2 border-[#100f0d] bg-[#ffc93c] px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] shadow-[4px_4px_0_#100f0d]">
           Toronto · Est. independently
         </span>
-        <p className="text-center text-[clamp(3.4rem,12vw,7.5rem)] font-black uppercase leading-[0.72] tracking-[-0.075em] drop-shadow-[3px_3px_0_#F04A3A]">
-          Lyrical<span className="text-[#285DA8] mix-blend-multiply">myrical</span>
+        <p className="text-center text-[clamp(3.4rem,12vw,7.5rem)] font-black uppercase leading-[0.72] tracking-[-0.075em] drop-shadow-[3px_3px_0_#e8402a]">
+          Lyrical<span className="text-[#1b3fe0] mix-blend-multiply">myrical</span>
         </p>
         <p className="mt-5 text-[10px] font-black uppercase tracking-[0.64em]">Books / printed matter</p>
-        <div className="mt-12 h-2 w-full overflow-hidden border border-[#171B18] bg-[#FAF3E3]" aria-hidden="true">
+        <div className="mt-12 h-2 w-full overflow-hidden border border-[#100f0d] bg-[#ffffff]" aria-hidden="true">
           <motion.div
-            className="h-full w-1/3 bg-[#F04A3A]"
+            className="h-full w-1/3 bg-[#e8402a]"
             animate={{ x: ["-100%", "300%"] }}
             transition={{ duration: 1.35, repeat: Infinity, ease: "easeInOut" }}
           />

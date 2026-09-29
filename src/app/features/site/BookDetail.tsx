@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { useParams, Link, useNavigate } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
@@ -261,7 +262,7 @@ export default function BookDetail() {
       navigator.share({ title: book?.title, url: window.location.href });
     } else {
       navigator.clipboard.writeText(window.location.href);
-      alert("Link copied to clipboard.");
+      toast.success("Link copied to clipboard");
     }
   };
 
