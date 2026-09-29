@@ -1,4 +1,4 @@
-import { useState, useEffect, useId } from "react";
+import { useState, useEffect, useId, useMemo } from "react";
 import { 
   ArrowLeft,
   Search,
@@ -38,12 +38,13 @@ import {
 } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
-import { Checkbox, ConfirmDialog, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SectionHead, StatusBadge, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
+import { Checkbox, ConfirmDialog, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, MetricCard, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SectionHead, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
 import { motion, AnimatePresence } from "motion/react";
 import { ThemeEditor } from "./ThemeEditor";
 import { PagesManager } from "./PagesManager";
 import { NotificationEditor } from "./NotificationEditor";
 import { COUNTRIES, CONTINENTS, describeZoneGeography } from "../features/site/shippingZones";
+import { summarizeShipping } from "./shippingHealth";
 
 const PURPLE = "#A855F7";
 
@@ -549,6 +550,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   const [books, setBooks] = useState<any[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [editingProfile, setEditingProfile] = useState<any | null>(null);
+  const [shippingView, setShippingView] = useState<"overview" | "profiles" | "carrier">("overview");
   
   // Modals visibility
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -816,6 +818,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
 
   const money = (n: any) => `$${Number(n || 0).toFixed(2)}`;
   const shippoConnected = !!shippoConfig?.configured;
+  const shippingSummary = useMemo(() => summarizeShipping(profiles, books), [profiles, books]);
 
   // Dialogs shared by the list and editor views
   const dialogs = editingProfile ? (
@@ -906,6 +909,47 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   if (selectedProfileId === null || !editingProfile) {
     return (
       <div className="rp-stack">
+        <Tabs label="Shipping settings" value={shippingView} onChange={setShippingView} tabs={[
+          { id: "overview", label: "Overview" },
+          { id: "profiles", label: "Profiles", count: shippingSummary.profileCount },
+          { id: "carrier", label: "Carrier & labels" },
+        ]} />
+
+        {shippingView === "overview" && (
+          <>
+            <div className="rp-kpi-grid">
+              <MetricCard label="Shipping profiles" value={shippingSummary.profileCount} footer={`${shippingSummary.assignedProductCount} assigned products`} />
+              <MetricCard label="Destination coverage" value={shippingSummary.coveredCountryCount} footer={`${shippingSummary.zoneCount} zones · ${shippingSummary.rateCount} rates`} tone="gold" />
+              <MetricCard label="Configuration health" value={shippingSummary.issues.length === 0 ? "Ready" : `${shippingSummary.issues.length} issue${shippingSummary.issues.length === 1 ? "" : "s"}`} footer={shippoConnected ? "Shippo connected" : "Flat rates only"} tone={shippingSummary.issues.length === 0 ? undefined : "danger"} />
+            </div>
+            <SectionCard title="Checkout readiness" description="Resolve configuration gaps before they prevent a customer from choosing delivery.">
+              {shippingSummary.issues.length === 0 ? (
+                <div role="status" style={{ padding: 16, background: "var(--rp-success-tint)", border: "1px solid var(--rp-success)", color: "var(--rp-success)" }}>
+                  <strong>✓ Shipping configuration is ready.</strong>
+                  <p className="rp-hint" style={{ margin: "4px 0 0", color: "inherit" }}>Every profile has a zone and every zone has at least one rate.</p>
+                </div>
+              ) : (
+                <ul className="rp-list" style={{ margin: -20 }} aria-label="Shipping configuration issues">
+                  {shippingSummary.issues.map((issue) => (
+                    <li key={issue.id} style={{ padding: "14px 20px", display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between", alignItems: "center" }}>
+                      <span><strong>{issue.label}</strong><span className="rp-hint" style={{ display: "block", marginTop: 3 }}>{issue.detail}</span></span>
+                      {issue.profileId && <SecondaryButton size="sm" onClick={() => {
+                        const profile = profiles.find((item: any) => item.id === issue.profileId);
+                        if (profile) handleSelectProfile(profile);
+                      }}>Fix profile</SecondaryButton>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="rp-card-actions">
+                <SecondaryButton onClick={() => setShippingView("carrier")}>{shippoConnected ? "Manage Shippo" : "Connect Shippo"}</SecondaryButton>
+                <PrimaryButton onClick={() => setShippingView("profiles")}>Manage profiles</PrimaryButton>
+              </div>
+            </SectionCard>
+          </>
+        )}
+
+        {shippingView === "carrier" && (
         <SectionCard title="Shippo connection" description="Address verification, live carrier rates and shipping labels."
           actions={!shippoLoading && <StatusBadge tone={shippoConnected ? "success" : "warning"}>{shippoConnected ? "Connected" : "Not connected"}</StatusBadge>}>
           {!shippoLoading && !shippoConnected && (
@@ -945,7 +989,10 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
             </p>
           )}
         </SectionCard>
+        )}
 
+        {shippingView === "profiles" && (
+        <>
         <SectionHead kicker="Shipping" title="Profiles, zones & rates" subcopy="A profile is a set of zones and rates. Books use the General profile unless you assign them to another."
           actions={!isCreatingProfile && <PrimaryButton onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>} />
 
@@ -990,6 +1037,8 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
               );
             })}
           </ul>
+        )}
+        </>
         )}
         {confirmNode}
       </div>

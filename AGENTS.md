@@ -34,6 +34,9 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
   default visual system for every admin route; keep new admin surfaces inside
   that shell and build them from the Riso Press components in
   `src/app/admin/riso/` (see CLAUDE.md) rather than legacy dark utility classes so they inherit its light canvas, panels, forms, tables and dialogs.
+  Discounts use status tabs with live counts; Shipping uses Overview, Profiles,
+  and Carrier & labels tabs, with checkout-readiness diagnostics driven by
+  `shippingHealth.ts`.
 - `functions/index.js` — Cloud Functions: Stripe checkout/webhook, digital
   downloads, order emails, abandoned-cart sweep. `functions/shippingGeo.js` —
   shipping zones.

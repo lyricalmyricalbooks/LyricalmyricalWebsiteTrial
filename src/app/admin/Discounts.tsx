@@ -7,7 +7,7 @@ import { discountState as state, today } from "./discountState";
 import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState,
   MetricCard, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField,
-  Toggle, type BadgeTone, type Column,
+  Tabs, Toggle, type BadgeTone, type Column,
 } from "./riso/components";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -218,7 +218,7 @@ export function Discounts() {
   const [failed, setFailed] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState<"all" | "active" | "paused" | "expired" | "exhausted">("all");
   const [search, setSearch] = useState("");
   const [deleting, setDeleting] = useState<any | null>(null);
 
@@ -257,6 +257,10 @@ export function Discounts() {
 
   const totalRedemptions = discounts.reduce((a, d) => a + (d.usageCount || 0), 0);
   const activeCodes = discounts.filter(d => state(d).key === "active").length;
+  const statusCounts = useMemo(() => discounts.reduce((counts, discount) => {
+    counts[state(discount).key] += 1;
+    return counts;
+  }, { active: 0, paused: 0, expired: 0, exhausted: 0 }), [discounts]);
 
   const columns: Column<any>[] = [
     { key: "code", header: "Code", lead: true, render: d => (
@@ -306,15 +310,15 @@ export function Discounts() {
         </SectionCard>
       ) : (
         <>
+          <Tabs label="Discount status" value={filter} onChange={setFilter} tabs={[
+            { id: "all", label: "All", count: discounts.length },
+            { id: "active", label: "Active", count: statusCounts.active },
+            { id: "paused", label: "Paused", count: statusCounts.paused },
+            { id: "expired", label: "Expired", count: statusCounts.expired },
+            { id: "exhausted", label: "Exhausted", count: statusCounts.exhausted },
+          ]} />
           <FilterBar>
             <div className="rp-grow"><SearchField label="Search discount codes" placeholder="Search codes or descriptions…" value={search} onChange={e => setSearch(e.target.value)} /></div>
-            <SelectField label="Status" hideLabel value={filter} onChange={e => setFilter(e.target.value)}>
-              <option value="all">All statuses</option>
-              <option value="active">Active</option>
-              <option value="paused">Paused</option>
-              <option value="expired">Expired</option>
-              <option value="exhausted">Exhausted</option>
-            </SelectField>
             <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={() => { setEditing(null); setDialogOpen(true); }}>New discount</PrimaryButton>
           </FilterBar>
           <SectionCard flush title="Discount codes" description={`${rows.length} of ${discounts.length}`}>
