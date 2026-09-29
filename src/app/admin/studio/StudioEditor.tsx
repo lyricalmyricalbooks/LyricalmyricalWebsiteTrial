@@ -18,8 +18,11 @@ import {
 import { STATIC_SURFACES, STYLE_GROUPS, applyGlobalStyle, readStyle } from "./styleSchema";
 import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
+import { addSavedTheme, removeSavedTheme, type SavedTheme } from "./savedThemes";
+import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "../ThemeEditorBuilder";
 import { applyThemeKeysToSurfaces } from "../themeScope";
+import { THEME_LIBRARY, PALETTES } from "../ThemeEditor";
 
 type LeftTab = "sections" | "style" | "text" | "menus";
 type Toast = { kind: "ok" | "err"; text: string } | null;
@@ -250,6 +253,7 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
   const [busy, setBusy] = useState<null | "draft" | "publish">(null);
   const [toast, setToast] = useState<Toast>(null);
   const [copyFilter, setCopyFilter] = useState("");
+  const [savedThemes, setSavedThemes] = useState<SavedTheme[]>(() => (Array.isArray(settings?.savedThemes) ? settings.savedThemes : []));
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const designRef = useRef(design);
   designRef.current = design;
@@ -297,6 +301,33 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
     setShowGlobal(false);
     say("ok", "Noir homepage layout installed on the draft.");
   };
+  const applyLibraryTheme = (theme: any) => {
+    if (!window.confirm(`Apply the "${theme.name}" look to every page? Your sections and text are kept.`)) return;
+    const palette = PALETTES.find((p: any) => p.id === theme.palettePreset);
+    const base: Record<string, any> = {
+      ...(palette ? { palettePreset: palette.id, primaryColor: palette.accent, backgroundColor: palette.bg, textColor: palette.text } : {}),
+      themeStyle: "default",
+    };
+    for (const k of ["font", "fontSize", "cornerStyle", "buttonStyle", "animationLevel", "productCardStyle", "productHoverEffect",
+      "imageAspectRatio", "productImageLayout", "productContentPosition", "productColumnsDesktop", "productColumnsMobile",
+      "cardRadius", "productCTA", "catalogLayoutStyle", "showCatalogControls"]) if (theme[k] !== undefined) base[k] = theme[k];
+    change((d) => applyThemeKeysToSurfaces(d, { ...base, ...(theme.global || {}), themeLibraryPreset: theme.id }, surfaceIds));
+    say("ok", `“${theme.name}” applied to the draft — Publish to make it live.`);
+  };
+  const persistThemes = async (next: SavedTheme[], okText: string) => {
+    try { await adminApi.updateSettings({ savedThemes: next }); setSavedThemes(next); say("ok", okText); }
+    catch (err: any) { say("err", `Could not save themes: ${err?.message || err}`); }
+  };
+  const saveCurrentAsTheme = () => {
+    const name = window.prompt("Name this theme (it saves the whole design: style, text, menus and sections):", "");
+    if (name === null) return;
+    persistThemes(addSavedTheme(savedThemes, name, designRef.current), `Saved “${name.trim() || "Untitled theme"}” to My themes.`);
+  };
+  const applySavedTheme = (t: SavedTheme) => {
+    if (!window.confirm(`Replace the current draft with “${t.name}”? This changes sections, text and style. You can Undo (Ctrl+Z) until you save.`)) return;
+    change(() => normalizeDesign(JSON.parse(JSON.stringify(t.design)), defaults));
+    say("ok", `“${t.name}” loaded into the draft — Publish to make it live.`);
+  };
   const riso = design.themeStyle === "riso";
 
   // ── preview wiring ──
@@ -318,6 +349,12 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
     try { iframeRef.current?.contentWindow?.postMessage({ type: "THEME_UPDATE", design: designRef.current }, window.location.origin); } catch { /* ignore */ }
   }, []);
   useEffect(() => { const t = setTimeout(sendDesign, 100); return () => clearTimeout(t); }, [design, sendDesign]);
+  // Tell the preview which strings are editable copy, so double-clicking one jumps to its field.
+  const sendCopyMap = useCallback(() => {
+    const items = COPY_SCHEMA.flatMap((g) => g.fields.map((f) => ({ key: f.key, text: (designRef.current.copy?.[f.key] || DEFAULT_COPY[f.key] || "") })));
+    try { iframeRef.current?.contentWindow?.postMessage({ type: "SET_COPY_MAP", items }, window.location.origin); } catch { /* ignore */ }
+  }, []);
+  useEffect(() => { const t = setTimeout(sendCopyMap, 200); return () => clearTimeout(t); }, [design, sendCopyMap]);
 
   const onIframeLoad = () => {
     try {
@@ -339,7 +376,12 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
     const h = (e: MessageEvent) => {
       if (e.origin !== window.location.origin || !e.data) return;
       const d = e.data;
-      if (d.type === "PREVIEW_READY") { sendDesign(); highlight(selectedId); }
+      if (d.type === "PREVIEW_READY") { sendDesign(); sendCopyMap(); highlight(selectedId); }
+      if (d.type === "COPY_SELECT" && typeof d.key === "string") {
+        setLeftTab("text");
+        setCopyFilter(d.key);
+        setTimeout(() => document.querySelector<HTMLElement>(`[data-copy-key="${d.key}"] input, [data-copy-key="${d.key}"] textarea`)?.focus(), 150);
+      }
       if (d.type === "SECTION_SELECT" && d.instanceId) {
         const cur = designRef.current;
         if (getSections(cur, { kind: "global" }).some((s) => s.id === d.instanceId)) {
@@ -362,7 +404,7 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
     };
     window.addEventListener("message", h);
     return () => window.removeEventListener("message", h);
-  }, [templates, selectedId, sendDesign, highlight, change]);
+  }, [templates, selectedId, sendDesign, sendCopyMap, highlight, change]);
 
   // ── persistence ──
   const saveDraft = async () => {
@@ -532,6 +574,47 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
                 <button type="button" className={`${btnPrimary} w-full justify-center`} onClick={applyNoirLook}>Apply Riso Noir (black &amp; white)</button>
                 <button type="button" className={`${btn} w-full justify-center`} onClick={installNoirHome}>Also install the Noir homepage layout</button>
                 <button type="button" className={`${btn} w-full justify-center`} disabled={!riso} onClick={() => setStyle("themeStyle", "default")}>Turn off Riso print style</button>
+                <div className="pt-2 border-t border-neutral-200 space-y-2">
+                  <p className="text-[10px] font-black tracking-widest uppercase text-neutral-500">My themes</p>
+                  <button type="button" className={`${btn} w-full justify-center`} onClick={saveCurrentAsTheme}>Save current design as a theme…</button>
+                  {savedThemes.map((t) => (
+                    <div key={t.id} className="flex items-stretch gap-1">
+                      <button type="button" onClick={() => applySavedTheme(t)} className="flex-1 text-left border border-neutral-200 rounded-lg px-3 py-2 hover:bg-neutral-50">
+                        <span className="block text-xs font-bold">{t.name}</span>
+                        <span className="block text-[11px] text-neutral-500">Saved {new Date(t.savedAt).toLocaleDateString()}</span>
+                      </button>
+                      <button type="button" aria-label={`Delete ${t.name}`} className={iconBtn}
+                        onClick={() => { if (window.confirm(`Delete saved theme “${t.name}”?`)) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }}><Trash2 size={14} /></button>
+                    </div>
+                  ))}
+                </div>
+                <div className="pt-2 border-t border-neutral-200 space-y-2">
+                  <p className="text-[10px] font-black tracking-widest uppercase text-neutral-500">Theme library</p>
+                  {THEME_LIBRARY.map((t: any) => (
+                    <button key={t.id} type="button" onClick={() => applyLibraryTheme(t)}
+                      className="w-full text-left border border-neutral-200 rounded-lg px-3 py-2 hover:bg-neutral-50">
+                      <span className="block text-xs font-bold">{t.name}{design.themeLibraryPreset === t.id ? "  ✓ current" : ""}</span>
+                      <span className="block text-[11px] text-neutral-500">{t.mood}</span>
+                    </button>
+                  ))}
+                </div>
+              </Group>
+            )}
+
+            {leftTab === "style" && (
+              <Group title="Payment icons (footer)" hint="Pick which payment logos the footer shows. Checkout itself always offers the methods enabled in Settings › Payments.">
+                {PAYMENT_BADGE_OPTIONS.map((o) => {
+                  const cur = resolveFooterBadges(design, settings);
+                  const on = cur.includes(o.id);
+                  return (
+                    <label key={o.id} className="flex items-center gap-2 text-xs">
+                      <input type="checkbox" checked={on}
+                        onChange={() => setStyle("footerBadges", on ? cur.filter((x: string) => x !== o.id) : [...cur, o.id])} />
+                      {o.label}
+                    </label>
+                  );
+                })}
+                <button type="button" className={btn} onClick={() => setStyle("footerBadges", undefined)}>Reset to Settings › Payments</button>
               </Group>
             )}
 
@@ -553,7 +636,7 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
                     aria-label="Search text" className="w-full h-9 border border-neutral-300 rounded-lg px-3 text-xs" />
                 </div>
                 {COPY_SCHEMA.map((g) => {
-                  const fs = g.fields.filter((f) => !q || `${f.label} ${g.group} ${f.default}`.toLowerCase().includes(q));
+                  const fs = g.fields.filter((f) => !q || `${f.label} ${g.group} ${f.default} ${f.key}`.toLowerCase().includes(q));
                   if (!fs.length) return null;
                   return (
                     <Group key={g.group} title={g.group} open={Boolean(q)}>
@@ -561,7 +644,7 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
                         const val = design.copy?.[f.key] ?? "";
                         const Tag: any = f.multiline ? "textarea" : "input";
                         return (
-                          <label key={f.key} className="block">
+                          <label key={f.key} data-copy-key={f.key} className="block">
                             <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block mb-1">{f.label}</span>
                             <Tag value={val} placeholder={DEFAULT_COPY[f.key]} rows={f.multiline ? 3 : undefined}
                               onChange={(e: any) => setStyle(`copy.${f.key}`, e.target.value || undefined)}

@@ -239,6 +239,22 @@ library → verify), then check it off.
       `bg-white/N` and `border-white/N` remap silently fell back to full white/transparent.
       Triplets are now comma-separated. Also: `StorefrontThemeStyle` now sets `--body-font` /
       `--heading-font` so standalone pages (not just the homepage) follow the chosen fonts.
+- [x] **Studio parity (Shopify-style "everything editable").** `studio/styleSchema.ts` now exposes every
+      design key the public storefront reads (logo & wordmark, catalog header/filters, navigation
+      links, product page layout, badges & labels, motion/spacing/effects, checkout & cart drawer,
+      footer extras, Riso print treatment, storefront elements) and Style › Theme look lists the whole
+      `THEME_LIBRARY` with one-click apply. `studioCoverage.test.ts` scans the public source and fails
+      if a design key is read without a Studio control; `storeCopy.coverage.test.ts` does the same for
+      shopper-facing strings (now incl. reviews, checkout extras). Section-level text (sale label,
+      form thank-you, slide arrows) is section settings.
+- [x] **Studio: preview click-to-edit for storefront text, payment-icon picker, "My themes".**
+      Double-clicking any storefront string (footer, cart drawer, account, checkout…) in the Studio
+      preview is matched against the editable copy (`SET_COPY_MAP` → `COPY_SELECT` in
+      `previewBridge.ts`) and jumps to that field in Text & labels. Footer payment icons are
+      chosen in Style › Payment icons (`design.footerBadges`, falls back to Settings › Payments;
+      `resolveFooterBadges`). Style › Theme look › **My themes** saves/loads/deletes whole-design
+      copies (`settings.savedThemes`, max 10, `studio/savedThemes.ts`). Still open: recursive
+      nested blocks with drag-and-drop.
 - [x] Fixes found while verifying: token-layer selectors now also match roots that carry `data-fm-store` and `fm-page`/`fm-surface`/`text-white` on the SAME element (Account and Tracking never received the theme background before); Tracking text/placeholder contrast raised; `ProductCoverCarouselSection` text is pinned light
       over its image scrim (it was following the theme text colour), and Checkout restores
       literal paper for `bg-white` on light themes (the token layer maps `bg-white` to the

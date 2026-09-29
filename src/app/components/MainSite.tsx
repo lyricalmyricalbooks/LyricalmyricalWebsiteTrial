@@ -19,6 +19,7 @@ import { BootSplash } from "./BootSplash";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
+import { resolveFooterBadges } from "../features/site/paymentBadges";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
 import { LogoMark } from "./LogoMark";
 import { ThemeToggle } from "./theme/ThemeToggle";
@@ -453,9 +454,9 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
           {getCopy(settings?.design, "footerCopyright")}
         </p>
 
-        {settings?.payments?.footerBadges?.length > 0 && (
+        {resolveFooterBadges(d, settings).length > 0 && d?.showPaymentBadges !== false && (
           <div className="flex items-center gap-4 text-white/55 select-none">
-            {settings.payments.footerBadges.map((badgeId: string) => {
+            {resolveFooterBadges(d, settings).map((badgeId: string) => {
               const icon = PAYMENT_ICONS[badgeId];
               if (!icon) return null;
               return (

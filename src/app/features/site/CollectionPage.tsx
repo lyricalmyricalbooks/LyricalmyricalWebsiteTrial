@@ -95,6 +95,7 @@ export default function CollectionPage() {
         )}
         <h1 className="text-4xl md:text-5xl font-black tracking-tight uppercase mb-10">{categoryName}</h1>
 
+        {(settings?.design as any)?.showCatalogControls !== false && (
         <CatalogControls
           query={query}
           setQuery={setQuery}
@@ -105,6 +106,7 @@ export default function CollectionPage() {
           resultCount={items.length}
           design={settings?.design}
         />
+        )}
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
           {items.map(book => {

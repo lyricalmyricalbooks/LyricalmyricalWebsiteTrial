@@ -1124,10 +1124,10 @@ export function Checkout() {
                         />
                         <div>
                           <p className="text-sm font-medium text-slate-900">{rate.name}</p>
-                          {rate.pickup ? <p className="mt-0.5 text-xs text-slate-500">Collect in person — no delivery</p> : rate.deliveryDays && <p className="mt-0.5 text-xs text-slate-500">Estimated {rate.deliveryDays} business days</p>}
+                          {rate.pickup ? <p className="mt-0.5 text-xs text-slate-500">{c("coPickup")}</p> : rate.deliveryDays && <p className="mt-0.5 text-xs text-slate-500">{c("coEstimated", { days: rate.deliveryDays })}</p>}
                         </div>
                       </div>
-                      <span className="text-sm font-semibold text-slate-900">{rate.price === 0 ? "Free" : formatPrice(rate.price)}</span>
+                      <span className="text-sm font-semibold text-slate-900">{rate.price === 0 ? c("coFree") : formatPrice(rate.price)}</span>
                     </label>
                   ))}
                 </div>
@@ -1176,7 +1176,7 @@ export function Checkout() {
                 {!hasStripe && !hasPaypal && enabledManualMethods.length === 0 && (
                   <div className="flex items-start gap-3 px-4 py-5 text-sm text-slate-600">
                     <AlertCircle size={18} className="mt-0.5 shrink-0 text-amber-600" />
-                    No payment method is currently available. Please contact the store before placing your order.
+                    {c("coNoPayment")}
                   </div>
                 )}
               </div>
@@ -1199,7 +1199,7 @@ export function Checkout() {
               </button>
               <div className="mt-4 flex items-start justify-center gap-2 text-center text-xs leading-5 text-slate-500">
                 <ShieldCheck size={16} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
-                <p>Your payment details are submitted directly to the selected payment provider and are not stored by this shop.</p>
+                <p>{c("coPrivacyNote")}</p>
               </div>
             </div>
 
