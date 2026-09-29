@@ -15,7 +15,6 @@ import { Orders } from "./Orders";
 import { OrderDetail } from "./OrderDetail";
 import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import { ShopSettings } from "./ShopSettings";
-import { ThemeEditor } from "./ThemeEditor";
 import { StudioEditor } from "./studio/StudioEditor";
 import ReviewsModeration from "./ReviewsModeration";
 import { adminApi } from "./api";
@@ -413,24 +412,13 @@ export function Dashboard() {
               transition={{ duration: 0.4, ease: "circOut" }}
               className="fixed inset-0 z-[200] bg-black"
             >
-              {new URLSearchParams(window.location.search).get("editor") === "legacy" ? (
-                <ThemeEditor
-                  settings={settings}
-                  onSave={async (design: any, options: any) => {
-                    await saveSection("design", { design }, options);
-                  }}
-                  onExit={() => setSettingsTab("general")}
-                  appearance={appearance}
-                />
-              ) : (
-                <StudioEditor
-                  settings={settings}
-                  onExit={() => setSettingsTab("general")}
-                  onPersisted={(design: any, published: boolean) =>
-                    setSettings((prev: any) => ({ ...prev, draftDesign: design, ...(published ? { design } : {}) }))
-                  }
-                />
-              )}
+              <StudioEditor
+                settings={settings}
+                onExit={() => setSettingsTab("general")}
+                onPersisted={(design: any, published: boolean) =>
+                  setSettings((prev: any) => ({ ...prev, draftDesign: design, ...(published ? { design } : {}) }))
+                }
+              />
             </motion.div>
           </div>
         )}

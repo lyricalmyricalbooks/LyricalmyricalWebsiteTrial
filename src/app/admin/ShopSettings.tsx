@@ -41,7 +41,6 @@ import toast from "react-hot-toast";
 import { POLICY_KEYS, POLICY_TITLES, policySlug, type PolicyKey } from "../features/site/policyPages";
 import { Checkbox, ConfirmDialog, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, MetricCard, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SectionHead, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
 import { motion, AnimatePresence } from "motion/react";
-import { ThemeEditor } from "./ThemeEditor";
 import { PagesManager } from "./PagesManager";
 import { NotificationEditor } from "./NotificationEditor";
 import { COUNTRIES, CONTINENTS, describeZoneGeography } from "../features/site/shippingZones";
@@ -1796,8 +1795,7 @@ function TaxesSettings({ settings, setSettings, hasChanges, saveSection, savingS
   );
 }
 
-// DesignerSettings removed — replaced by full-screen ThemeEditor
-// The ShopSettings component now renders <ThemeEditor /> when activeTab === "designer"
+// DesignerSettings removed — the designer tab is a full-screen StudioEditor rendered by Dashboard
 
 function _DesignerSettings_REMOVED({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
   const [uploadingLogo, setUploadingLogo] = useState(false);

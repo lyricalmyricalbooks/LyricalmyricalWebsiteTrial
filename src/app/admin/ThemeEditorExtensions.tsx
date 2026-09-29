@@ -1,26 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useFocusTrap } from "../lib/useFocusTrap";
-import { usePrompt } from "./riso/components";
-import { useDraggable } from "@dnd-kit/core";
 import { SortableList, SortableRow } from "./dndSortable";
 import {
   ChevronDown,
-  ChevronRight,
   Plus,
   GripVertical,
   Copy,
   Trash2,
   Image as ImageIcon,
-  Palette as PaletteIcon,
   Upload,
-  Download,
   Eye,
   EyeOff,
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import RichTextEditor from "../components/RichTextEditor";
 import { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
-import { normalizeHexForColorInput } from "./ThemeEditorPro";
 import {
   BOX_SHADOW_OPTIONS,
   CORNER_RADIUS_OPTIONS,
@@ -29,6 +23,19 @@ import {
   SHAPE_DIVIDER_STYLES,
   IMAGE_FILTER_PRESETS,
 } from "../components/sectionStyleHelpers";
+
+function normalizeHexForColorInput(hex: string): string {
+  let clean = (hex || "").trim().toLowerCase();
+  if (clean.startsWith("#")) clean = clean.slice(1);
+  clean = clean.replace(/[^0-9a-f]/g, "");
+  if (clean.length === 3 || clean.length === 4) {
+    clean = clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
+  } else if (clean.length === 8) {
+    clean = clean.slice(0, 6);
+  }
+  if (clean.length !== 6) return "#000000";
+  return "#" + clean;
+}
 
 export { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
 
@@ -586,173 +593,6 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
 
 export function getSectionMeta(type: string): SectionTypeMeta | undefined {
   return SECTION_REGISTRY.find((s) => s.type === type);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Section Library Modal — categorized
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type SectionPreset = {
-  id: string;
-  name: string;
-  type: string;
-  settings: Record<string, any>;
-};
-
-function DraggableSectionCard({
-  meta,
-  onAdd,
-  onClose,
-}: {
-  meta: SectionTypeMeta;
-  onAdd: (type: string) => void;
-  onClose: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `lib:${meta.type}` });
-  return (
-    <button
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      style={{ opacity: isDragging ? 0.4 : 1 }}
-      onClick={() => {
-        onAdd(meta.type);
-        onClose();
-      }}
-      className="text-left p-4 bg-[var(--rp-surface)] border-2 border-[var(--rp-border)] hover:border-[var(--rp-border-strong)] hover:shadow-[var(--rp-shadow-sm)] transition-colors group min-h-[44px]"
-    >
-      <p className="text-sm font-bold uppercase tracking-tight mb-1" style={{ color: "var(--rp-text)" }}>{meta.label}</p>
-      <p className="text-xs leading-relaxed" style={{ color: "var(--rp-text-muted)" }}>{meta.description}</p>
-    </button>
-  );
-}
-
-export function NewSectionLibraryModal({
-  onAdd,
-  onClose,
-  presets = [],
-  onAddPreset,
-  onDeletePreset,
-}: {
-  onAdd: (type: string) => void;
-  onClose: () => void;
-  presets?: SectionPreset[];
-  onAddPreset?: (preset: SectionPreset) => void;
-  onDeletePreset?: (id: string) => void;
-}) {
-  const [search, setSearch] = useState("");
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef, true, onClose);
-  const categories = Array.from(new Set(SECTION_REGISTRY.map((s) => s.category)));
-  const filtered = SECTION_REGISTRY.filter(
-    (s) =>
-      !search ||
-      s.label.toLowerCase().includes(search.toLowerCase()) ||
-      s.description.toLowerCase().includes(search.toLowerCase()),
-  );
-  const filteredPresets = presets.filter(
-    (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.type.toLowerCase().includes(search.toLowerCase()),
-  );
-
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[500] bg-black/70 flex items-center justify-center p-3 sm:p-6"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ scale: 0.95, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.95, y: 20 }}
-          ref={dialogRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Section library"
-          tabIndex={-1}
-          className="bg-[var(--rp-surface)] text-[var(--rp-text)] border-2 border-[var(--rp-border-strong)] shadow-[var(--rp-shadow-pop)] w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="px-5 sm:px-8 pt-6 pb-4 border-b-2 border-[var(--rp-border-strong)] flex flex-wrap gap-3 items-center justify-between">
-            <div>
-              <p className="text-[10px] tracking-[0.3em] font-bold uppercase mb-1" style={{ color: "var(--rp-primary-text)", fontFamily: "var(--rp-font-mono)" }}>Section library</p>
-              <h3 className="text-2xl uppercase m-0" style={{ fontFamily: "var(--rp-font-display)" }}>Add a section</h3>
-            </div>
-            <input
-              aria-label="Search sections"
-              data-autofocus
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search sections…"
-              className="bg-[var(--rp-surface-2)] border-2 border-[var(--rp-border)] px-4 py-2 min-h-[44px] text-sm outline-none focus:border-[var(--rp-border-strong)] w-full sm:w-64 placeholder:text-[var(--rp-text-subtle)]" style={{ color: "var(--rp-text)" }}
-            />
-          </div>
-          <div className="overflow-y-auto p-5 sm:p-8 space-y-8">
-            {filteredPresets.length > 0 && onAddPreset && (
-              <div>
-                <p className="text-[10px] font-bold tracking-[0.3em] text-[var(--rp-warning)] uppercase mb-3">My presets</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {filteredPresets.map((preset) => (
-                    <div
-                      key={preset.id}
-                      className="relative text-left p-4 bg-[var(--rp-warning-tint)] border-2 border-[var(--rp-border)] hover:border-[var(--rp-border-strong)] transition-colors group"
-                    >
-                      <button
-                        onClick={() => {
-                          onAddPreset(preset);
-                          onClose();
-                        }}
-                        className="text-left w-full"
-                      >
-                        <p className="text-sm font-bold uppercase tracking-tight mb-1 pr-8" style={{ color: "var(--rp-text)" }}>{preset.name}</p>
-                        <p className="text-xs leading-relaxed" style={{ color: "var(--rp-text-muted)" }}>
-                          Saved {getSectionMeta(preset.type)?.label || preset.type.replace("Section", "")} with your content and styling.
-                        </p>
-                      </button>
-                      {onDeletePreset && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeletePreset(preset.id);
-                          }}
-                          title="Delete preset"
-                          aria-label={`Delete preset ${preset.name}`}
-                          className="absolute top-1 right-1 p-2.5 text-[var(--rp-text-muted)] hover:text-[var(--rp-danger)] hover:bg-[var(--rp-danger-tint)] opacity-60 group-hover:opacity-100 focus:opacity-100 transition-colors"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {categories.map((cat) => {
-              const items = filtered.filter((s) => s.category === cat);
-              if (items.length === 0) return null;
-              return (
-                <div key={cat}>
-                  <p className="text-[10px] font-bold tracking-[0.3em] uppercase mb-3" style={{ color: "var(--rp-text-muted)", fontFamily: "var(--rp-font-mono)" }}>{cat}</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {items.map((meta) => (
-                      <DraggableSectionCard
-                        key={meta.type}
-                        meta={meta}
-                        onAdd={onAdd}
-                        onClose={onClose}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
-  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2396,207 +2236,6 @@ export function SectionSettingsPanel({
           className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400 font-mono"
         />
       </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Color Schemes panel
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function ColorSchemesPanel({
-  schemes,
-  onChange,
-}: {
-  schemes: ColorScheme[];
-  onChange: (next: ColorScheme[]) => void;
-}) {
-  const list = schemes && schemes.length > 0 ? schemes : DEFAULT_COLOR_SCHEMES;
-
-  const updateScheme = (id: string, patch: Partial<ColorScheme>) => {
-    onChange(list.map((s) => (s.id === id ? { ...s, ...patch } : s)));
-  };
-
-  const addScheme = () => {
-    const id = `scheme-${Date.now().toString(36)}`;
-    onChange([...list, { id, name: `Scheme ${list.length + 1}`, background: "#ffffff", text: "#111111", accent: "#A855F7" }]);
-  };
-
-  const removeScheme = (id: string) => {
-    if (list.length <= 1) return;
-    onChange(list.filter((s) => s.id !== id));
-  };
-
-  return (
-    <div className="space-y-3">
-      <SortableList
-        items={list}
-        getId={(s) => s.id}
-        className="space-y-3"
-        onReorder={(next) => onChange(next)}
-      >
-        {list.map((scheme) => (
-          <SortableRow
-            key={scheme.id}
-            id={scheme.id}
-            className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 space-y-3"
-          >
-            {({ handleProps }) => (
-              <>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span {...handleProps} className="cursor-grab active:cursor-grabbing text-neutral-300">
-                      <GripVertical size={14} />
-                    </span>
-                    <input
-                      value={scheme.name}
-                      onChange={(e) => updateScheme(scheme.id, { name: e.target.value })}
-                      className="bg-transparent outline-none text-[12px] font-black text-white uppercase tracking-widest italic flex-1 min-w-0"
-                    />
-                  </div>
-                  <button
-                    onClick={() => removeScheme(scheme.id)}
-                    className="text-slate-600 hover:text-red-400 p-1"
-                    title="Remove"
-                    disabled={list.length <= 1}
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {(["background", "text", "accent"] as const).map((k) => (
-                    <div key={k}>
-                      <label className="text-[8px] font-black tracking-[0.25em] text-slate-500 uppercase block mb-1">{k}</label>
-                      <div className="flex items-center gap-2 bg-white/[0.04] border border-white/10 rounded-xl px-2 py-1.5">
-                        <div
-                          className="w-7 h-7 rounded-lg border border-white/10 relative overflow-hidden flex-shrink-0"
-                          style={{ background: scheme[k] }}
-                        >
-                          <input
-                            type="color"
-                            value={normalizeHexForColorInput(scheme[k])}
-                            onChange={(e) => updateScheme(scheme.id, { [k]: e.target.value })}
-                            className="absolute inset-0 opacity-0 cursor-pointer scale-150"
-                          />
-                        </div>
-                        <input
-                          value={scheme[k]}
-                          onChange={(e) => updateScheme(scheme.id, { [k]: e.target.value })}
-                          onBlur={(e) => updateScheme(scheme.id, { [k]: normalizeHexForColorInput(e.target.value) })}
-                          className="flex-1 min-w-0 bg-transparent text-[10px] font-bold text-white uppercase tracking-widest outline-none"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </SortableRow>
-        ))}
-      </SortableList>
-      <button
-        onClick={addScheme}
-        className="w-full py-3 rounded-2xl border-2 border-dashed border-white/10 hover:border-violet-500/40 hover:bg-violet-500/5 text-[10px] font-black tracking-[0.2em] text-violet-400 uppercase italic flex items-center justify-center gap-2"
-      >
-        <Plus size={12} strokeWidth={3} />
-        Add color scheme
-      </button>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Theme Import / Export buttons
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function ThemeIOButtons({
-  design,
-  onImport,
-  onDuplicate,
-}: {
-  design: any;
-  onImport: (next: any) => void;
-  onDuplicate?: (next: any) => void;
-}) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [askPrompt, promptNode] = usePrompt();
-
-  const exportTheme = () => {
-    try {
-      const blob = new Blob([JSON.stringify(design, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const stamp = new Date().toISOString().slice(0, 10);
-      a.download = `theme-${stamp}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast.error("Export failed");
-    }
-  };
-
-  const duplicateTheme = async () => {
-    const name = await askPrompt({ title: "Duplicate theme draft", label: "Draft name", defaultValue: `Copy ${new Date().toLocaleDateString()}`, confirmLabel: "Duplicate" });
-    if (!name) return;
-    const next = JSON.parse(JSON.stringify(design || {}));
-    next.themeName = name;
-    next.duplicatedFrom = design?.themeName || design?.name || "Current theme";
-    next.duplicatedAt = new Date().toISOString();
-    onDuplicate?.(next);
-  };
-
-  const importTheme = async (file: File) => {
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      if (!parsed || typeof parsed !== "object") throw new Error("invalid");
-      onImport(parsed);
-    } catch {
-      toast.error("Theme file is invalid JSON");
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-1">
-      {promptNode}
-      {onDuplicate && (
-        <button
-          type="button"
-          onClick={duplicateTheme}
-          title="Duplicate theme as draft"
-          className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all"
-        >
-          <Copy size={14} strokeWidth={2.5} />
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={exportTheme}
-        title="Export theme JSON"
-        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all"
-      >
-        <Download size={14} strokeWidth={2.5} />
-      </button>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="application/json"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) importTheme(f);
-          e.target.value = "";
-        }}
-      />
-      <button
-        type="button"
-        onClick={() => fileRef.current?.click()}
-        title="Import theme JSON"
-        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all"
-      >
-        <Upload size={14} strokeWidth={2.5} />
-      </button>
     </div>
   );
 }
