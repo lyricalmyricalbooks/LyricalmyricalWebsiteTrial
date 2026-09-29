@@ -819,17 +819,19 @@ function ThemeLibraryPanel({ design, update, presetOptions }: any) {
           <button
             key={theme.id}
             onClick={() => applyTheme(theme.id)}
-            className={`w-full rounded-2xl border p-5 text-left transition-all ${
+            aria-pressed={isActive}
+            className={`w-full border-2 p-5 text-left transition-colors ${
               isActive
-                ? "bg-violet-600/20 border-violet-500/50 shadow-[0_0_30px_rgba(124,58,237,0.18)]"
-                : "bg-white/[0.03] border-white/10 hover:border-white/30 hover:bg-white/[0.06]"
+                ? "bg-[var(--rp-primary-tint)] border-[var(--rp-border-strong)] shadow-[var(--rp-shadow-sm)]"
+                : "bg-[var(--rp-surface)] border-[var(--rp-border)] hover:border-[var(--rp-border-strong)]"
             }`}
+            style={{ color: "var(--rp-text)" }}
           >
             <div className="flex items-center justify-between gap-3 mb-2">
-              <p className="text-[11px] font-black uppercase tracking-wider text-slate-100 italic">{theme.name}</p>
-              {isActive && <Check size={14} className="text-violet-300" strokeWidth={3} />}
+              <p className="text-[12px] font-bold uppercase tracking-wider m-0">{theme.name}</p>
+              {isActive && <Check size={14} aria-hidden="true" style={{ color: "var(--rp-primary-text)" }} strokeWidth={3} />}
             </div>
-            <p className="text-[9px] text-slate-400 font-bold mb-3">{theme.mood}</p>
+            <p className="rp-hint mb-3">{theme.mood}</p>
             <div className="flex gap-1.5">
               {palette.swatches.map((swatch, i) => (
                 <span key={i} className="h-4 flex-1 rounded-full border border-black/10" style={{ background: swatch }} />
@@ -851,7 +853,7 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
     <div className="p-4 space-y-6 overflow-y-auto flex-1">
       <Accordion title="Color Palette Configuration" defaultOpen={true}>
         <div className="space-y-6">
-          <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic mb-2">
+          <p className="rp-label mb-2">
             Global theme color configuration.
           </p>
           <ColorPicker 
@@ -983,7 +985,7 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
 
       <Accordion title="Surfaces & status colors" defaultOpen={false}>
         <div className="space-y-6">
-          <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic mb-2">
+          <p className="rp-label mb-2">
             Surfaces, overlays and status colors used across the product page and
             storefront (cards, image wells, sale &amp; "added" states, wishlist, active tabs).
           </p>
@@ -1070,7 +1072,7 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
 
       <Accordion title="Checkout & Cart" defaultOpen={false}>
         <div className="space-y-6">
-          <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic mb-2">
+          <p className="rp-label mb-2">
             Optional brand accent for the checkout page and cart drawer only —
             leave blank to inherit the main theme colors above.
           </p>
@@ -1089,15 +1091,15 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
           />
           {design.checkoutBgColor && (
             <div className="space-y-2">
-              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest italic">
+              <p className="rp-label">
                 vs. order confirmation text
               </p>
               <ContrastBadge background={design.checkoutBgColor} text="#ffffff" />
-              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest italic">
+              <p className="rp-label">
                 vs. checkout form text
               </p>
               <ContrastBadge background={design.checkoutBgColor} text="#0f172a" />
-              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest italic">
+              <p className="rp-label">
                 vs. cart drawer text
               </p>
               <ContrastBadge background={design.checkoutBgColor} text="#000000" />
@@ -1112,7 +1114,7 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
             suffix="px"
             onChange={(v: number) => update("checkoutInputRadius", v)}
           />
-          <div className="pt-4 border-t border-white/5 space-y-6">
+          <div className="pt-4 border-t-2 border-[var(--rp-border)] space-y-6">
             <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic">
               Cart drawer panel — leave blank for the classic white drawer.
             </p>
@@ -1498,7 +1500,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
               value={design.navHeading || ""}
               onChange={(e) => update("navHeading", e.target.value || undefined)}
               placeholder="Store name or leave blank"
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-violet-500/50"
+              className="rp-input w-full"
             />
           </div>
           <ColorPicker
@@ -1519,7 +1521,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
             <select
               value={design.navLinkWeight || ""}
               onChange={(e) => update("navLinkWeight", e.target.value || undefined)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-violet-500/50"
+              className="rp-input w-full"
             >
               <option value="">— Inherit —</option>
               <option value="300">300 · Light</option>
@@ -1536,7 +1538,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
             <select
               value={design.navLinkTransform || ""}
               onChange={(e) => update("navLinkTransform", e.target.value || undefined)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[12px] text-white outline-none focus:border-violet-500/50"
+              className="rp-input w-full"
             >
               <option value="">— Inherit —</option>
               <option value="none">None</option>
@@ -2870,7 +2872,7 @@ function ProductsPanel({ design, update }: any) {
             />
           </div>
 
-          <div className="pt-4 border-t border-white/5 space-y-6">
+          <div className="pt-4 border-t-2 border-[var(--rp-border)] space-y-6">
             <SidebarLabel>Typography & Details</SidebarLabel>
             <div>
               <SidebarLabel>Title Size</SidebarLabel>
@@ -2909,7 +2911,7 @@ function ProductsPanel({ design, update }: any) {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-white/5 space-y-6">
+          <div className="pt-4 border-t-2 border-[var(--rp-border)] space-y-6">
             <SidebarLabel>Cover Image Effects</SidebarLabel>
             <SidebarRange
               label="Border Radius"
@@ -2951,7 +2953,7 @@ function ProductsPanel({ design, update }: any) {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-white/5 space-y-6">
+          <div className="pt-4 border-t-2 border-[var(--rp-border)] space-y-6">
             <SidebarLabel>Detail Blocks Layout</SidebarLabel>
             <SidebarRadioGroup
               value={design.productDetailsLayout || "sections"}
@@ -2964,7 +2966,7 @@ function ProductsPanel({ design, update }: any) {
             />
           </div>
 
-          <div className="pt-4 border-t border-white/5 space-y-6">
+          <div className="pt-4 border-t-2 border-[var(--rp-border)] space-y-6">
             <SidebarLabel>Call-To-Action (CTA)</SidebarLabel>
             <div>
               <SidebarLabel>Hover Animation</SidebarLabel>
@@ -3024,7 +3026,7 @@ function ProductsPanel({ design, update }: any) {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-white/5 space-y-6">
+          <div className="pt-4 border-t-2 border-[var(--rp-border)] space-y-6">
             <SidebarLabel>Trust & Bundle Settings</SidebarLabel>
             <div>
               <SidebarLabel>Trust Signals Layout</SidebarLabel>
@@ -3431,7 +3433,7 @@ function SocialPanel({ design, update }: any) {
     <div className="flex-1 flex flex-col space-y-6">
       <Accordion title="Digital Ecosystem" defaultOpen={true}>
         <div className="space-y-6">
-          <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic mb-2">
+          <p className="rp-label mb-2">
             Protocol: Link global social identifiers for archival distribution.
           </p>
 
@@ -3745,20 +3747,20 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
                       value={item.featuredImage || ""}
                       onChange={(e) => patchTop(i, { featuredImage: e.target.value })}
                       placeholder="Featured image URL (optional)"
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-[10px] font-bold text-slate-200 outline-none focus:border-violet-500/50 placeholder:text-slate-700"
+                      className="rp-input w-full"
                     />
                     <div className="grid grid-cols-2 gap-2">
                       <input
                         value={item.featuredTitle || ""}
                         onChange={(e) => patchTop(i, { featuredTitle: e.target.value })}
                         placeholder="Featured title"
-                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-[10px] font-bold text-slate-200 outline-none focus:border-violet-500/50 placeholder:text-slate-700"
+                        className="rp-input w-full"
                       />
                       <input
                         value={item.featuredLink || ""}
                         onChange={(e) => patchTop(i, { featuredLink: e.target.value })}
                         placeholder="Featured link"
-                        className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 text-[10px] font-bold text-slate-200 outline-none focus:border-violet-500/50 placeholder:text-slate-700"
+                        className="rp-input w-full"
                       />
                     </div>
                   </div>
@@ -7012,8 +7014,8 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                     <div data-tour="design-settings" className="flex-1 overflow-y-auto custom-scrollbar">
                       {/* Options header */}
                       <div className="p-8 pb-4">
-                        <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase italic mb-2 block">Theme Editor</span>
-                        <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Theme Settings</h2>
+                        <span className="rp-kicker mb-2 block">Theme Editor</span>
+                        <h2 className="rp-page-title mb-4">Theme Settings</h2>
 
                         {/* Sub-tabs to switch between sections and theme settings */}
                         {!settingsSearch && (
@@ -7183,7 +7185,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                 >
                   <div className="p-8 pb-4">
                     <span className="text-[10px] font-black tracking-[0.4em] text-cyan-500 uppercase italic mb-2 block">Content Structure</span>
-                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Site Architecture</h2>
+                    <h2 className="rp-page-title mb-4">Site Architecture</h2>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     {renderPagesPanel()}
@@ -7198,8 +7200,8 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                   className="flex-1 flex flex-col overflow-hidden"
                 >
                   <div className="p-8 pb-4">
-                    <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase italic mb-2 block">Developer Mode</span>
-                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Source Injection</h2>
+                    <span className="rp-kicker mb-2 block">Developer Mode</span>
+                    <h2 className="rp-page-title mb-4">Source Injection</h2>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     <CodePanel design={activeDesign} update={update} />
@@ -7215,7 +7217,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                 >
                   <div className="p-8 pb-4">
                     <span className="text-[10px] font-black tracking-[0.4em] text-amber-500 uppercase italic mb-2 block">Temporal Archive</span>
-                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Version History</h2>
+                    <h2 className="rp-page-title mb-4">Version History</h2>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     <VersionHistoryPanel
@@ -7247,7 +7249,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                 >
                   <div className="p-8 pb-4">
                     <span className="text-[10px] font-black tracking-[0.4em] text-blue-500 uppercase italic mb-2 block">Adaptive Layout</span>
-                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Breakpoints</h2>
+                    <h2 className="rp-page-title mb-4">Breakpoints</h2>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     <ResponsivePanel design={activeDesign} update={update} device={device} />
@@ -7263,7 +7265,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                 >
                   <div className="p-8 pb-4">
                     <span className="text-[10px] font-black tracking-[0.4em] text-emerald-500 uppercase italic mb-2 block">Search Engine</span>
-                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">SEO & Metadata</h2>
+                    <h2 className="rp-page-title mb-4">SEO & Metadata</h2>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     <SeoPanel design={activeDesign} update={update} previewMode={previewMode} />
@@ -7279,7 +7281,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                 >
                   <div className="p-8 pb-4">
                     <span className="text-[10px] font-black tracking-[0.4em] text-fuchsia-500 uppercase italic mb-2 block">Design System</span>
-                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Theme Library</h2>
+                    <h2 className="rp-page-title mb-4">Theme Library</h2>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     <ThemeLibraryPanel design={activeDesign} update={update} presetOptions={themePresetOptions} />
@@ -7294,8 +7296,8 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                   className="flex-1 flex flex-col overflow-hidden"
                 >
                   <div className="p-8 pb-4">
-                    <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase italic mb-2 block">Onboarding & Help</span>
-                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter mb-4">Editor Guide</h2>
+                    <span className="rp-kicker mb-2 block">Onboarding & Help</span>
+                    <h2 className="rp-page-title mb-4">Editor Guide</h2>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                     <GuidePanel
