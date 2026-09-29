@@ -2813,7 +2813,7 @@ function ProductsPanel({ design, update }: any) {
               ]}
             />
           </div>
-          <div className="space-y-0 border border-[var(--rp-border)] rounded-xl overflow-hidden mt-2">
+          <div className="space-y-0 border border-[var(--rp-border)] rounded-none overflow-hidden mt-2">
             <SidebarToggle
               label="Related items"
               description="Show other publications at bottom"
@@ -3081,7 +3081,7 @@ function ProductsPanel({ design, update }: any) {
       </Accordion>
 
       <Accordion title="Logic & Visibility">
-        <div className="space-y-0 border border-[var(--rp-border)] rounded-xl overflow-hidden mt-2">
+        <div className="space-y-0 border border-[var(--rp-border)] rounded-none overflow-hidden mt-2">
           <SidebarToggle
             label="Show price on hover"
             description="Reveal price on interaction."
@@ -3329,7 +3329,7 @@ function AnnouncementsPanel({ design, update }: any) {
     <div className="p-4 space-y-2 overflow-y-auto flex-1">
       <Accordion title="Status & Content" defaultOpen={true}>
         <div className="space-y-4">
-          <div className="border border-[var(--rp-border)] rounded-xl overflow-hidden">
+          <div className="border border-[var(--rp-border)] rounded-none overflow-hidden">
             <SidebarToggle
               label="Show announcement bar"
               description="Display a banner at the top of your shop"
@@ -3371,7 +3371,7 @@ function AnnouncementsPanel({ design, update }: any) {
               />
             </div>
 
-            <div className="border border-[var(--rp-border)] rounded-xl overflow-hidden">
+            <div className="border border-[var(--rp-border)] rounded-none overflow-hidden">
               <SidebarToggle
                 label="Scrolling text"
                 description="Animate the text to scroll horizontally"
@@ -3445,7 +3445,7 @@ function SocialPanel({ design, update }: any) {
           ].map(({ key, label, icon, placeholder }) => (
             <div key={key} className="group/item">
               <SidebarLabel>{label}</SidebarLabel>
-              <div className="mt-1 flex items-center gap-4 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl px-5 py-4 focus-within:border-[var(--rp-border-strong)] transition-all shadow-inner relative overflow-hidden">
+              <div className="mt-1 flex items-center gap-4 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-none px-5 py-4 focus-within:border-[var(--rp-border-strong)] transition-all relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-r from-violet-600/5 to-transparent opacity-0 group-focus-within/item:opacity-100 transition-opacity" />
                 <span className="text-slate-600 group-focus-within/item:text-violet-400 transition-colors relative z-10">{icon}</span>
                 <input
@@ -3562,7 +3562,7 @@ function TextSizingPanel({ design, update }: any) {
       </Accordion>
 
       <Accordion title="Type Specimen">
-        <div className="bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-[2.5rem] p-8 relative overflow-hidden group">
+        <div className="bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-none p-8 relative overflow-hidden group">
            <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 to-transparent pointer-events-none" />
            <p className="text-[10px] text-slate-500 mb-6 font-black uppercase tracking-[0.4em] border-b border-[var(--rp-border)] pb-4">Render Preview</p>
            <div className="space-y-4 relative z-10">
@@ -3680,7 +3680,7 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
   return (
     <div className="p-4 space-y-5 overflow-y-auto flex-1">
       {/* Header / Footer switch */}
-      <div className="flex gap-2 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl p-1.5">
+      <div className="flex gap-2 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-none p-1.5">
         {(["header", "footer"] as const).map((t) => (
           <button
             key={t}
@@ -3707,7 +3707,7 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
 
       <SortableList items={items} getId={(it) => it.id} onReorder={(next) => setItems(next)} className="space-y-4">
         {items.map((item, i) => (
-          <SortableRow key={item.id} id={item.id} className="bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl p-4 space-y-4">
+          <SortableRow key={item.id} id={item.id} className="bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-none p-4 space-y-4">
             {({ handleProps }) => (
             <>
             <div className="flex items-center justify-between">
@@ -3726,7 +3726,7 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
 
             {/* Mega menu (header only): children become link-group columns */}
             {tab === "header" && (
-              <div className="space-y-3 p-3 rounded-xl bg-white/[0.02] border border-[var(--rp-border)]">
+              <div className="space-y-3 p-3 rounded-none bg-white/[0.02] border border-[var(--rp-border)]">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Mega menu</p>
@@ -3777,7 +3777,7 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
                 className="pl-4 border-l-2 border-violet-500/20 space-y-3"
               >
                 {(item.children || []).map((child, j) => (
-                  <SortableRow key={child.id} id={child.id} className="bg-white/[0.02] border border-[var(--rp-border)] rounded-xl p-3 space-y-3">
+                  <SortableRow key={child.id} id={child.id} className="bg-white/[0.02] border border-[var(--rp-border)] rounded-none p-3 space-y-3">
                     {({ handleProps }) => (
                     <>
                     <div className="flex items-center justify-between">
@@ -3906,7 +3906,7 @@ function TranslationsPanel({ design, update }: any) {
                     onChange={(e) => updateCopy(field.key, e.target.value)}
                     rows={3}
                     placeholder={field.default}
-                    className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-xl px-4 py-3 text-[11px] font-bold text-slate-200 outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-700 resize-none"
+                    className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-none px-4 py-3 text-[11px] font-bold text-slate-200 outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-700 resize-none"
                   />
                 ) : (
                   <SidebarInput
@@ -3930,7 +3930,7 @@ function TranslationsPanel({ design, update }: any) {
 function AdditionalPanel({ design, update }: any) {
   return (
     <div className="flex-1 flex flex-col space-y-10">
-      <div className="p-6 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-[2rem] relative overflow-hidden">
+      <div className="p-6 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-none relative overflow-hidden">
         <SidebarLabel>Spacing density</SidebarLabel>
         <p className="text-[9px] text-slate-500 font-bold leading-relaxed mb-4">
           One control rescales the vertical rhythm of every section — compact for dense storefronts,
@@ -3947,7 +3947,7 @@ function AdditionalPanel({ design, update }: any) {
         />
       </div>
 
-      <div className="p-6 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-[2rem] relative overflow-hidden group">
+      <div className="p-6 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-none relative overflow-hidden group">
         <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 to-transparent pointer-events-none" />
         <div className="space-y-2 relative z-10">
           {[
@@ -3985,7 +3985,7 @@ function AdditionalPanel({ design, update }: any) {
 function CodePanel({ design, update }: any) {
   return (
     <div className="flex-1 flex flex-col space-y-8">
-      <div className="p-6 bg-violet-600/5 border border-violet-500/10 rounded-[2rem] relative overflow-hidden group">
+      <div className="p-6 bg-violet-600/5 border border-violet-500/10 rounded-none relative overflow-hidden group">
         <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
           <Code2 size={48} className="rotate-12" />
         </div>
@@ -4003,7 +4003,7 @@ function CodePanel({ design, update }: any) {
             onChange={(e) => update("customCss", e.target.value)}
             rows={8}
             placeholder=".PROTOCOL { TRANSFORMATION: SCALE(1); }"
-            className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl px-6 py-5 text-[11px] font-mono text-cyan-400 outline-none focus:border-cyan-500/50 transition-all resize-y placeholder:text-[var(--rp-text-subtle)] shadow-inner"
+            className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-none px-6 py-5 text-[11px] font-mono text-cyan-400 outline-none focus:border-cyan-500/50 transition-all resize-y placeholder:text-[var(--rp-text-subtle)]"
           />
         </div>
         
@@ -4014,7 +4014,7 @@ function CodePanel({ design, update }: any) {
             onChange={(e) => update("customHeadHtml", e.target.value)}
             rows={5}
             placeholder="<META PROTOCOL='THEME-COLOR' CONTENT='#000000' />"
-            className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl px-6 py-5 text-[11px] font-mono text-violet-400 outline-none focus:border-violet-500/50 transition-all resize-y placeholder:text-[var(--rp-text-subtle)] shadow-inner"
+            className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-none px-6 py-5 text-[11px] font-mono text-violet-400 outline-none focus:border-violet-500/50 transition-all resize-y placeholder:text-[var(--rp-text-subtle)]"
           />
         </div>
 
@@ -4025,7 +4025,7 @@ function CodePanel({ design, update }: any) {
             onChange={(e) => update("customFooterScripts", e.target.value)}
             rows={5}
             placeholder="<SCRIPT>EMIT('READY');</SCRIPT>"
-            className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl px-6 py-5 text-[11px] font-mono text-emerald-400 outline-none focus:border-emerald-500/50 transition-all resize-y placeholder:text-[var(--rp-text-subtle)] shadow-inner"
+            className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-none px-6 py-5 text-[11px] font-mono text-emerald-400 outline-none focus:border-emerald-500/50 transition-all resize-y placeholder:text-[var(--rp-text-subtle)]"
           />
         </div>
       </div>
@@ -4083,7 +4083,7 @@ function VersionHistoryPanel({
       ) : (
         <div className="space-y-2 px-1">
           {/* Current (unsaved) state */}
-          <div className="flex items-center gap-3 p-4 bg-violet-500/10 border border-violet-500/20 rounded-2xl">
+          <div className="flex items-center gap-3 p-4 bg-violet-500/10 border border-violet-500/20 rounded-none">
             <div className="w-2 h-2 rounded-full bg-violet-400 animate-pulse flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-[10px] font-black text-violet-300 uppercase tracking-tight">Current</p>
@@ -4132,7 +4132,7 @@ function VersionHistoryPanel({
       )}
 
       {previewingVersion && (
-        <div className="mx-1 p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-2xl flex items-center justify-between">
+        <div className="mx-1 p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-none flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Eye size={12} className="text-cyan-400" />
             <p className="text-[9px] font-black text-cyan-400 uppercase tracking-widest">Preview mode active</p>
