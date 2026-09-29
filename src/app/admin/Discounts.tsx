@@ -4,6 +4,7 @@ import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { CATEGORIES } from "../features/site/constants";
 import { discountState as state, today } from "./discountState";
+import { discountPerformance, duplicateDiscount } from "./discountPerformance";
 import { validateDiscountDraft } from "./discountValidation";
 import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState,
@@ -221,8 +222,12 @@ export function Discounts() {
   const [filter, setFilter] = useState<"all" | "active" | "paused" | "expired" | "exhausted">("all");
   const [search, setSearch] = useState("");
   const [deleting, setDeleting] = useState<any | null>(null);
+  const [orders, setOrders] = useState<any[]>([]);
 
   useEffect(() => { load(); }, []);
+  // Performance is best-effort: a failure here must not block managing codes.
+  useEffect(() => { adminApi.getOrders(500).then(setOrders).catch(() => {}); }, []);
+  const perf = useMemo(() => discountPerformance(orders), [orders]);
 
   async function load() {
     setLoading(true); setFailed(false);
@@ -255,6 +260,8 @@ export function Discounts() {
     });
   }, [discounts, filter, search]);
 
+  const totalGiven = useMemo(() => Array.from(perf.values()).reduce((a, p) => a + p.discountGiven, 0), [perf]);
+  const totalCodeRevenue = useMemo(() => Array.from(perf.values()).reduce((a, p) => a + p.revenue, 0), [perf]);
   const totalRedemptions = discounts.reduce((a, d) => a + (d.usageCount || 0), 0);
   const activeCodes = discounts.filter(d => state(d).key === "active").length;
   const statusCounts = useMemo(() => discounts.reduce((counts, discount) => {
@@ -281,12 +288,16 @@ export function Discounts() {
       </span>
     ) },
     { key: "used", header: "Used", numeric: true, render: d => `${d.usageCount || 0} / ${d.usageLimit ?? "∞"}` },
+    { key: "orders", header: "Orders", numeric: true, render: d => perf.get(String(d.code).toUpperCase())?.orders ?? 0 },
+    { key: "revenue", header: "Revenue", numeric: true, render: d => fmt(perf.get(String(d.code).toUpperCase())?.revenue ?? 0) },
+    { key: "given", header: "Discounted", numeric: true, render: d => fmt(perf.get(String(d.code).toUpperCase())?.discountGiven ?? 0) },
     { key: "expiry", header: "Expires", render: d => d.expiryDate ? new Date(d.expiryDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "Never" },
     { key: "status", header: "Status", render: d => { const s = state(d); return <StatusBadge tone={s.tone}>{s.label}</StatusBadge>; } },
     { key: "actions", header: "Actions", render: d => (
       <ActionMenu label={`Actions for ${d.code}`} actions={[
         { label: "Edit", onSelect: () => { setEditing(d); setDialogOpen(true); } },
         { label: d.isActive ? "Pause" : "Activate", onSelect: () => handleToggle(d) },
+        { label: "Duplicate", onSelect: () => { setEditing(duplicateDiscount(d, discounts.map(x => x.code))); setDialogOpen(true); } },
         { label: "Copy code", onSelect: () => { navigator.clipboard.writeText(d.code); toast.success("Code copied"); } },
         { label: "Delete", tone: "danger", onSelect: () => setDeleting(d) },
       ]} />
@@ -301,6 +312,8 @@ export function Discounts() {
       <div className="rp-kpi-grid">
         <MetricCard label="Active codes" value={activeCodes} footer={`${discounts.length} total`} />
         <MetricCard label="Redemptions" value={totalRedemptions.toLocaleString()} footer="Counted by the payment webhook" tone="gold" />
+        <MetricCard label="Revenue with a code" value={fmt(totalCodeRevenue)} footer="Paid orders, last 500" />
+        <MetricCard label="Discounts given" value={fmt(totalGiven)} footer="Total taken off those orders" />
       </div>
 
       {discounts.length === 0 ? (
