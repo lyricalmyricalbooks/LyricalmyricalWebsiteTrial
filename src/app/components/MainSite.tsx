@@ -1168,7 +1168,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 {showCustomPages && (pages || []).filter((p: any) => p.showInNav && p.status === "published").map((page: any) => (
                   <Link key={page.id} to={`/page/${page.slug}`} className="hover:opacity-70 transition-opacity">{page.title}</Link>
                 ))}
-                {showInformation && <button onClick={() => setShowAbout(true)} className="hover:opacity-70 transition-opacity">{getCopy(activeDesign, "navAbout")}</button>}
                 <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity">{getCopy(activeDesign, "navSearch")}</button>
                 {showSys && (
                   <Link to="/admin" className="hover:opacity-70 transition-opacity opacity-40">{getCopy(activeDesign, "navAdmin")}</Link>
