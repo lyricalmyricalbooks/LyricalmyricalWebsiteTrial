@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { useParams, Link, useNavigate } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
@@ -21,7 +22,7 @@ import ReviewsSection from "./ReviewsSection";
 import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 import { resolveLogoDesign } from "./selectors";
-import { buildStorefrontTokenVars, STOREFRONT_TOKEN_CSS } from "./themeTokens";
+import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, STOREFRONT_TOKEN_CSS } from "./themeTokens";
 
 // ── small helper ────────────────────────────────────────────────────────────
 function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
@@ -164,6 +165,7 @@ export default function BookDetail() {
       box-shadow: none !important;
     }
     ${STOREFRONT_TOKEN_CSS}
+    ${(tokenSource as any)?.themeStyle === "riso" ? RISO_STOREFRONT_CSS : ""}
   `;
 
   const bookCategories = (book as any)?.categories || (book as any)?.genres || [];
@@ -261,7 +263,7 @@ export default function BookDetail() {
       navigator.share({ title: book?.title, url: window.location.href });
     } else {
       navigator.clipboard.writeText(window.location.href);
-      alert("Link copied to clipboard.");
+      toast.success("Link copied to clipboard");
     }
   };
 
@@ -356,20 +358,21 @@ export default function BookDetail() {
           borderColor: headerBorderColor,
         }}
       >
-        <div className="max-w-8xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-8xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
           <button
             onClick={() => navigate(-1)}
             style={{ color: headerTextColor }}
-            className="flex items-center gap-2.5 opacity-60 hover:opacity-100 transition-opacity group"
+            aria-label={getCopy(settings?.design, "backToCatalog")}
+            className="flex items-center gap-2.5 opacity-60 hover:opacity-100 transition-opacity group min-w-[44px] min-h-[44px] shrink-0"
           >
             <ArrowLeft size={15} className="group-hover:-translate-x-1 transition-transform" />
-            <span className="text-[9px] font-black tracking-[0.35em] uppercase">{getCopy(settings?.design, "backToCatalog")}</span>
+            <span className="hidden sm:inline text-[9px] font-black tracking-[0.35em] uppercase">{getCopy(settings?.design, "backToCatalog")}</span>
           </button>
 
           <Link
             to="/"
             style={{ color: headerTextColor }}
-            className="text-[11px] font-black tracking-[0.3em] opacity-80 hover:opacity-100 transition-opacity"
+            className="text-[11px] font-black tracking-[0.3em] opacity-80 hover:opacity-100 transition-opacity min-w-0 overflow-hidden text-ellipsis"
           >
             <LogoMark design={logoDesign} />
           </Link>
@@ -739,7 +742,7 @@ export default function BookDetail() {
               )}
 
               {/* CTA */}
-              <div className={`flex gap-3 w-full ${
+              <div className={`flex flex-wrap sm:flex-nowrap gap-3 w-full ${
                 productCtaWidth === "auto"
                   ? (productAlignment === "center" ? "justify-center" : "justify-start")
                   : "w-full"

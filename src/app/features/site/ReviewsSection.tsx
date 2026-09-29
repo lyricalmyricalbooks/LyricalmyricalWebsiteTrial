@@ -158,21 +158,21 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
                   value={authorName}
                   onChange={e => setAuthorName(e.target.value)}
                   placeholder="Name"
-                  className="bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/30"
+                  className="bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30"
                 />
                 <input
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   placeholder="Email (optional, not published)"
-                  className="bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/30"
+                  className="bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30"
                 />
               </div>
               <input
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 placeholder="Headline (optional)"
-                className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/30"
+                className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30"
               />
               <textarea
                 required
@@ -180,7 +180,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
                 onChange={e => setBody(e.target.value)}
                 placeholder="What did you think?"
                 rows={4}
-                className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/30 resize-none"
+                className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30 resize-none"
               />
               {error && <p className="text-[11px] text-rose-400">{error}</p>}
               <button

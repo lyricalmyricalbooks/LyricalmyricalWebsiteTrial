@@ -91,6 +91,8 @@ export function Checkout() {
 
   const [isApplying, setIsApplying]     = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  // Announced inline message (replaces alert()); tone drives colour, glyph + words carry the meaning.
+  const [notice, setNotice] = useState<null | { tone: "error" | "info"; text: string }>(null);
   const [isSuccess, setIsSuccess]       = useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [orderNumber, setOrderNumber]   = useState("");
@@ -855,9 +857,10 @@ export function Checkout() {
 
   const handleCompletePurchase = async () => {
     if (!customer.name || !customer.email || !customer.address.street || !customer.address.city || !customer.address.state || !customer.address.zip) {
-      alert("Please fill in all required shipping details including city, state/province, and postal/zip code.");
+      setNotice({ tone: "error", text: "Please fill in all required shipping details, including city, state/province, and postal/zip code." });
       return;
     }
+    setNotice(null);
     setIsCompleting(true);
     try {
       // 1. Verify and Validate address using Shippo API Cloud Function
@@ -976,7 +979,7 @@ export function Checkout() {
         throw new Error("No checkout URL returned from payment server.");
       }
     } catch (err: any) {
-      alert(`Checkout failed: ${err.message}`);
+      setNotice({ tone: "error", text: `Checkout failed: ${err.message}. Your card has not been charged. Please try again.` });
       setIsCompleting(false);
     }
   };
@@ -987,7 +990,7 @@ export function Checkout() {
     const isPayPalReturn = params.get("paypal_return") === "true";
     const isSuccessReturn = params.get("success") === "true";
     if (!oid || (!isPayPalReturn && !isSuccessReturn)) {
-      if (params.get("canceled")) alert("Order payment was canceled.");
+      if (params.get("canceled")) setNotice({ tone: "info", text: "Payment was canceled. Your cart is saved — you can review it and try again." });
       return;
     }
 
@@ -1285,6 +1288,12 @@ export function Checkout() {
             </section>
 
             <div className="border-t border-slate-200 pt-6">
+              {notice && (
+                <div role={notice.tone === "error" ? "alert" : "status"} className="mb-4 rounded-lg border px-4 py-3 text-sm"
+                  style={{ borderColor: notice.tone === "error" ? "#b4271a" : "#94a3b8", color: notice.tone === "error" ? "#b4271a" : "inherit", background: notice.tone === "error" ? "rgba(232,64,42,.08)" : "transparent" }}>
+                  <span aria-hidden="true">{notice.tone === "error" ? "✕ " : "ℹ "}</span>{notice.text}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={handleCompletePurchase}

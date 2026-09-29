@@ -18,37 +18,10 @@ import ReviewsModeration from "./ReviewsModeration";
 import { adminApi } from "./api";
 import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
-  IconButton, Dialog, ToastProvider, type NavEntry,
+  IconButton, Dialog, ToastProvider, SyncChip, useOnline, type NavEntry,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog } from "./riso/shellParts";
-
-const NAV: NavEntry[] = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "orders", label: "Orders", icon: ShoppingCart },
-  { id: "catalog", label: "Books", icon: BookOpen },
-  { id: "discounts", label: "Discounts", icon: Tag },
-  { id: "reviews", label: "Reviews", icon: BadgePercent },
-  { id: "pages", label: "Pages", icon: Layers },
-  { id: "settings", label: "Settings", icon: Settings, children: [
-    { id: "general", label: "General" },
-    { id: "shipping", label: "Shipping" },
-    { id: "payments", label: "Payments" },
-    { id: "designer", label: "Design" },
-    { id: "notifications", label: "Notifications" },
-  ] },
-];
-
-const PAGE_COPY: Record<string, { title: string; description: string }> = {
-  overview: { title: "Overview", description: "Sales, orders, and catalog health at a glance." },
-  orders: { title: "Orders", description: "Review payments, fulfillment, and shipping for every order." },
-  catalog: { title: "Books", description: "Manage titles, pricing, formats, and inventory." },
-  discounts: { title: "Discounts", description: "Create and schedule discount codes and automatic offers." },
-  reviews: { title: "Reviews", description: "Moderate customer reviews before they appear on the storefront." },
-  pages: { title: "Pages", description: "Write and publish custom storefront pages." },
-  settings: { title: "Settings", description: "Store identity, shipping, payments, design, and notifications." },
-  shipping: { title: "Shipping", description: "Shipping profiles, zones, and rates." },
-  payments: { title: "Payments", description: "Payment methods and currency configuration." },
-};
+import { NAV, PAGE_COPY } from "./riso/nav";
 
 const openSite = () => {
   const adminIdx = window.location.pathname.toLowerCase().indexOf("/admin");
@@ -57,6 +30,7 @@ const openSite = () => {
 };
 
 export function Dashboard() {
+  const online = useOnline();
   console.log("Dashboard rendering...");
   const [activeTab, setActiveTab] = useState("overview");
   const [user, setUser] = useState<any>(null);
@@ -141,6 +115,8 @@ export function Dashboard() {
         }
       } else {
         setSettings((prev: any) => ({ ...prev, ...data }));
+        // Keep the "saved" baseline in step so unsaved-change state clears after a save.
+        setOriginalSettings((prev: any) => ({ ...prev, ...JSON.parse(JSON.stringify(data)) }));
       }
     } catch (err) {
       alert("Error saving settings");
@@ -235,7 +211,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === "reviews" || (activeTab === "orders" && !selectedOrder);
+  const migrated = activeTab === "reviews" || activeTab === "orders" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "pages" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -276,6 +252,7 @@ export function Dashboard() {
     <ToastProvider>
       <AppShell
         appearance={appearance}
+        overlay={<SyncChip state={online ? null : "offline"} />}
         sidebar={
           <Sidebar
             open={sidebarOpen}
@@ -437,6 +414,7 @@ export function Dashboard() {
                   await saveSection("design", { design }, options);
                 }}
                 onExit={() => setSettingsTab("general")}
+                appearance={appearance}
               />
             </motion.div>
           </div>

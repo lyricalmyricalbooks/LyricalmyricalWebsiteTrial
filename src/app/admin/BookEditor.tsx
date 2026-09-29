@@ -34,6 +34,7 @@ import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
 import { Book, Variant } from "../features/site/types";
 import { useCurrency } from "../CurrencyContext";
+import { ConfirmDialog } from "./riso/components";
 
 function SortablePhoto({ photo, index, onRemove }: { photo: any; index: number; onRemove: (id: string) => void }) {
   const {
@@ -134,6 +135,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const [authors, setAuthors] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [photoInput, setPhotoInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -383,10 +386,18 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     });
   };
 
+  const isDirty = !!initialData && JSON.stringify(formData) !== JSON.stringify(initialData);
+
+  // Warn before the tab is closed or reloaded with unsaved edits.
+  useEffect(() => {
+    if (!isDirty) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [isDirty]);
+
   const handleClose = () => {
-    if (initialData && JSON.stringify(formData) !== JSON.stringify(initialData)) {
-      if (!window.confirm("You have unsaved changes. Are you sure you want to discard them?")) return;
-    }
+    if (isDirty) { setConfirmDiscard(true); return; }
     onClose();
   };
 
@@ -394,34 +405,23 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     if (e) e.preventDefault();
     if (loading) return;
 
-    if (!formData.title.trim()) {
-      toast.error("Book title is required.");
-      return;
-    }
-
-    if (formData.retailPrice < 0) {
-      toast.error("Retail price cannot be negative.");
-      return;
-    }
-
+    // Collect every problem so the editor can list them together (not one toast at a time).
+    const problems: string[] = [];
+    if (!formData.title.trim()) problems.push("Book title is required.");
+    if (formData.retailPrice < 0) problems.push("Retail price cannot be negative.");
     if (formData.manualCurrencyOverrides) {
-      if (formData.usdPrice < 0 || formData.eurPrice < 0) {
-        toast.error("Override prices cannot be negative.");
-        return;
-      }
-      if (formData.costPrice < 0 || formData.usdCostPrice < 0 || formData.eurCostPrice < 0) {
-        toast.error("Cost prices cannot be negative.");
-        return;
-      }
-      if (formData.isOnSale && (formData.usdSalePrice < 0 || formData.eurSalePrice < 0)) {
-        toast.error("Sale prices cannot be negative.");
-        return;
-      }
+      if (formData.usdPrice < 0 || formData.eurPrice < 0) problems.push("Override prices cannot be negative.");
+      if (formData.costPrice < 0 || formData.usdCostPrice < 0 || formData.eurCostPrice < 0) problems.push("Cost prices cannot be negative.");
+      if (formData.isOnSale && (formData.usdSalePrice < 0 || formData.eurSalePrice < 0)) problems.push("Sale prices cannot be negative.");
+    }
+    setValidationErrors(problems);
+    if (problems.length) {
+      toast.error(problems.length === 1 ? problems[0] : `${problems.length} problems need fixing before this can be saved.`);
+      return;
     }
 
     setLoading(true);
     try {
-      console.log("Saving book data:", formData);
       if (book) {
         await adminApi.updateBook(book.id, formData);
         toast.success("Book updated successfully");
@@ -628,6 +628,15 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         </div>
       </header>
 
+      {validationErrors.length > 0 && (
+        <div role="alert" className="mx-10 mt-6 relative z-10 border-2 border-[#100f0d] bg-[#fdf0d2] p-4 text-[#100f0d]">
+          <strong>⚠ Fix {validationErrors.length === 1 ? "this" : "these"} before saving:</strong>
+          <ul className="mt-2 list-disc pl-5">{validationErrors.map((m) => <li key={m}>{m}</li>)}</ul>
+        </div>
+      )}
+      <ConfirmDialog open={confirmDiscard} appearance="light" title="Discard unsaved changes?" confirmLabel="Discard changes"
+        message="You have edits that haven't been saved. Closing now will lose them."
+        onConfirm={() => { setConfirmDiscard(false); onClose(); }} onCancel={() => setConfirmDiscard(false)} />
       <form className="p-10 overflow-y-auto grid grid-cols-1 lg:grid-cols-3 gap-12 relative z-10 custom-scrollbar flex-1">
         {/* Left Column: Essential Info */}
         <div className="lg:col-span-2 space-y-12">

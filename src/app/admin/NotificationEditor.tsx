@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, auth } from "../../lib/firebase";
-import { motion } from "motion/react";
-import { Mail, Globe, Save, Info, AlertCircle } from "lucide-react";
 import { functionUrl } from "../lib/functionsBase";
 import toast from "react-hot-toast";
+import {
+  LoadingState, PrimaryButton, SaveBar, SectionCard, SectionHead, SecondaryButton, StatusBadge, Tabs, TextArea, TextField, Toggle,
+} from "./riso/components";
 
 type TemplateFields = {
   subject: string;
@@ -229,6 +230,9 @@ export function NotificationEditor() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<keyof Omit<NotificationSettings, "brand">>("order_confirmation");
   const [saving, setSaving] = useState(false);
+  const [original, setOriginal] = useState("");
+  const [resendDraft, setResendDraft] = useState("");
+  const [group, setGroup] = useState<"orders" | "cart" | "account">("orders");
   
   // Test Email states
   const [testEmail, setTestEmail] = useState("");
@@ -245,7 +249,7 @@ export function NotificationEditor() {
       if (snap.exists()) {
         const dbData = snap.data() as any;
         // Merge dbData with default settings to prevent issues with missing fields
-        setData({
+        const loaded = {
           brand: { ...DEFAULT_SETTINGS.brand, ...(dbData.brand || {}) },
           order_confirmation: { ...DEFAULT_SETTINGS.order_confirmation, ...(dbData.order_confirmation || {}) },
           shipping_confirmation: { ...DEFAULT_SETTINGS.shipping_confirmation, ...(dbData.shipping_confirmation || {}) },
@@ -254,8 +258,11 @@ export function NotificationEditor() {
           order_refunded: { ...DEFAULT_SETTINGS.order_refunded, ...(dbData.order_refunded || {}) },
           customer_welcome: { ...DEFAULT_SETTINGS.customer_welcome, ...(dbData.customer_welcome || {}) },
           delivery_update: { ...DEFAULT_SETTINGS.delivery_update, ...(dbData.delivery_update || {}) }
-        });
+        };
+        setData(loaded);
+        setOriginal(JSON.stringify(loaded));
       } else {
+        setOriginal(JSON.stringify(DEFAULT_SETTINGS));
         // Pre-fill general site settings logo if available
         try {
           const generalSnap = await getDoc(doc(db, "settings", "website"));
@@ -276,6 +283,7 @@ export function NotificationEditor() {
       }
     } catch (err) {
       console.error("Failed to load notifications settings:", err);
+      setOriginal(JSON.stringify(DEFAULT_SETTINGS));
       toast.error("Failed to load email notification settings.");
     } finally {
       setLoading(false);
@@ -287,7 +295,9 @@ export function NotificationEditor() {
     try {
       const docRef = doc(db, "settings", "notifications");
       await setDoc(docRef, data);
-      toast.success("Notification templates synchronized!");
+      setOriginal(JSON.stringify(data));
+      setResendDraft("");
+      toast.success("Notification templates saved");
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Failed to save templates.");
@@ -367,270 +377,101 @@ export function NotificationEditor() {
     delivery_update: ["{{customer_name}}", "{{order_id}}", "{{status}}", "{{tracking_carrier}}", "{{tracking_number}}", "{{tracking_url}}"]
   };
 
-  if (loading) {
-    return (
-      <div className="h-96 flex flex-col items-center justify-center gap-6">
-        <div className="w-12 h-12 border-2 border-violet-500/10 border-t-violet-500 rounded-full animate-spin" />
-        <p className="text-[10px] tracking-[0.4em] text-slate-500 font-black uppercase">Retrieving Notification Schema</p>
-      </div>
-    );
-  }
+  if (loading) return <LoadingState label="Loading notification templates…" />;
 
   const currentTemplate = data[activeTab] || DEFAULT_SETTINGS[activeTab];
+  const dirty = JSON.stringify(data) !== original;
+  const GROUPS = {
+    orders: { label: "Orders", ids: ["order_confirmation", "shipping_confirmation", "delivery_update", "order_cancelled", "order_refunded"] },
+    cart: { label: "Cart", ids: ["abandoned_cart"] },
+    account: { label: "Account", ids: ["customer_welcome"] },
+  } as const;
+  const groupTabs = TABS.filter((t) => (GROUPS[group].ids as readonly string[]).includes(t.id));
+  const pickGroup = (g: "orders" | "cart" | "account") => {
+    setGroup(g);
+    setActiveTab(GROUPS[g].ids[0] as any);
+    if (!testEmail && auth.currentUser?.email) setTestEmail(auth.currentUser.email);
+  };
+  const enabled = currentTemplate.enabled !== false;
+  const subjectPreview = currentTemplate.subject.replace(/\{\{order_id\}\}/g, "LM-98241").replace(/\{\{status\}\}/g, "out for delivery");
 
   return (
-    <div className="space-y-16">
-      <header className="flex flex-col gap-2 mb-12">
-        <div className="flex justify-between items-end">
-          <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Notifications</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Visual Email & CRM Templates</p>
+    <div className="rp-stack">
+      <SectionCard title="Email branding" description="Shared by every customer and administrator email.">
+        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+          <TextField label="Brand logo URL" value={data.brand?.logoUrl || ""} placeholder="https://domain.com/logo.png" onChange={(e) => handleBrandChange("logoUrl", e.target.value)} />
+          <div className="rp-field">
+            <label className="rp-label" htmlFor="brand-color">Brand accent color</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input id="brand-color" type="color" aria-label="Pick brand accent color" value={data.brand?.brandColor || "#7C3AED"} onChange={(e) => handleBrandChange("brandColor", e.target.value)}
+                style={{ width: 48, height: 44, padding: 2, border: "1px solid var(--rp-border)", background: "var(--rp-input-bg)" }} />
+              <input className="rp-input rp-mono" aria-label="Brand accent color hex" value={data.brand?.brandColor || ""} placeholder="#7C3AED" onChange={(e) => handleBrandChange("brandColor", e.target.value)} />
+            </div>
           </div>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/40 hover:bg-violet-500 transition-all disabled:opacity-50 active:scale-95 border border-violet-400/20"
-          >
-            {saving ? 'SYNCHRONIZING...' : 'PUBLISH NOTIFICATIONS'}
-          </button>
+          <TextField label="Resend API key" type="password" value={resendDraft}
+            placeholder={data.brand?.resendApiKey ? "Stored — enter a new key to replace it" : "re_…"}
+            hint={data.brand?.resendApiKey ? "✓ A key is stored. It is never shown here." : "Optional if the RESEND_API_KEY Functions secret is set."}
+            onChange={(e) => { setResendDraft(e.target.value); if (e.target.value.trim()) handleBrandChange("resendApiKey", e.target.value.trim()); }} />
         </div>
-      </header>
+        {data.brand?.resendApiKey && (
+          <p role="alert" className="rp-hint" style={{ margin: "12px 0 0", padding: 12, background: "var(--rp-warning-tint)", color: "var(--rp-warning)", border: "1px solid var(--rp-warning)" }}>
+            ⚠ This key is saved in a settings document the storefront can read. Prefer the RESEND_API_KEY Firebase Functions secret, then rotate this key.
+          </p>
+        )}
+      </SectionCard>
 
-      {/* Brand Identity settings */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/[0.03] to-transparent pointer-events-none" />
-        <div className="relative z-10 space-y-8">
-          <div className="flex items-center gap-3 mb-4">
-            <Globe className="text-cyan-400" size={18} />
-            <h4 className="text-[10px] font-black tracking-[0.4em] uppercase text-slate-400">Global Notifications Brand Settings</h4>
+      <div>
+        <SectionHead kicker="Templates" title="Customer & admin emails" subcopy="Pick an event, edit its copy, and check the live preview." />
+        <Tabs label="Event group" value={group} onChange={pickGroup} tabs={(Object.keys(GROUPS) as Array<keyof typeof GROUPS>).map((g) => ({ id: g, label: GROUPS[g].label }))} />
+        {groupTabs.length > 1 && (
+          <div style={{ marginTop: 12 }}>
+            <Tabs label="Email template" value={activeTab as any} onChange={(id) => setActiveTab(id as any)} tabs={groupTabs.map((t) => ({ id: t.id, label: t.label })) as any} />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="space-y-3">
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-600 ml-1">Brand Logo URL</label>
-              <input
-                type="text"
-                value={data.brand?.logoUrl || ""}
-                onChange={(e) => handleBrandChange("logoUrl", e.target.value)}
-                placeholder="e.g. https://domain.com/logo.png"
-                className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-cyan-500/50"
-              />
-            </div>
-            <div className="space-y-3">
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-600 ml-1">Brand Accent Color</label>
-              <div className="flex gap-4">
-                <input
-                  type="color"
-                  value={data.brand?.brandColor || "#7C3AED"}
-                  onChange={(e) => handleBrandChange("brandColor", e.target.value)}
-                  className="w-14 h-12 bg-white/5 border border-white/10 rounded-xl p-1 outline-none cursor-pointer shrink-0"
-                />
-                <input
-                  type="text"
-                  value={data.brand?.brandColor || ""}
-                  onChange={(e) => handleBrandChange("brandColor", e.target.value)}
-                  placeholder="#7C3AED"
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-cyan-500/50 uppercase font-mono"
-                />
-              </div>
-            </div>
-            <div className="space-y-3">
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-600 ml-1">Resend API Key</label>
-              <input
-                type="password"
-                value={data.brand?.resendApiKey || ""}
-                onChange={(e) => handleBrandChange("resendApiKey", e.target.value)}
-                placeholder="re_..."
-                className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-cyan-500/50"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
+        )}
+      </div>
 
-      {/* Split-screen layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-        {/* Left Form */}
-        <section className="glass-card rounded-[3.5rem] p-12 border border-white/5 space-y-10">
-          {/* Tab buttons */}
-          <div className="flex border-b border-white/5 pb-2 gap-4 overflow-x-auto shrink-0 scrollbar-thin">
-            {TABS.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  // Auto fill test email with current user email if empty
-                  if (!testEmail && auth.currentUser?.email) {
-                    setTestEmail(auth.currentUser.email);
-                  }
-                }}
-                className={`pb-4 text-[10px] uppercase tracking-[0.2em] font-black transition-all shrink-0 ${
-                  activeTab === tab.id 
-                    ? "text-violet-400 border-b-2 border-violet-500" 
-                    : "text-slate-500 hover:text-slate-300"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+      <div className="rp-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 460px), 1fr))" }}>
+        <SectionCard title={TABS.find((t) => t.id === activeTab)?.label || "Template"}
+          actions={<StatusBadge tone={enabled ? "success" : "neutral"}>{enabled ? "Sending" : "Paused"}</StatusBadge>}>
+          <div className="rp-stack" style={{ gap: 20 }}>
+            <Toggle label="Send this email automatically" checked={enabled} onChange={() => handleToggleActive()} />
+            <TextField label="Subject line" value={currentTemplate.subject} placeholder="Subject line" onChange={(e) => handleFieldChange("subject", e.target.value)} />
+            <TextArea label="Body copy" rows={7} value={currentTemplate.body} placeholder="Write your email body here…" onChange={(e) => handleFieldChange("body", e.target.value)} />
+            <TextField label="Button text" value={currentTemplate.buttonText} placeholder="View details" hint="Leave blank to hide the button." onChange={(e) => handleFieldChange("buttonText", e.target.value)} />
+            <TextArea label="Sign-off" rows={2} value={currentTemplate.signoff} placeholder="Thanks," style={{ minHeight: 64 }} onChange={(e) => handleFieldChange("signoff", e.target.value)} />
 
-          <div className="space-y-8">
-            {/* Active Switcher */}
-            <div className="flex justify-between items-center bg-white/[0.02] border border-white/5 p-6 rounded-2xl">
-              <div>
-                <h4 className="text-xs font-black uppercase tracking-wider text-slate-355">Automated Dispatch</h4>
-                <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-black">Trigger this email automatically on state change</p>
-              </div>
-              <button
-                type="button"
-                onClick={handleToggleActive}
-                className={`w-14 h-8 rounded-full transition-all duration-300 relative border ${
-                  currentTemplate.enabled !== false 
-                    ? "bg-violet-600 border-violet-500" 
-                    : "bg-white/5 border-white/10"
-                }`}
-              >
-                <motion.div
-                  animate={{ x: currentTemplate.enabled !== false ? 26 : 4 }}
-                  className="w-5 h-5 bg-white rounded-full absolute top-1"
-                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-600 ml-1">Email Subject Line</label>
-              <input
-                type="text"
-                value={currentTemplate.subject}
-                onChange={(e) => handleFieldChange("subject", e.target.value)}
-                placeholder="Subject line"
-                className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-violet-500/50"
-              />
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-600 ml-1">Email Body Copy</label>
-              <textarea
-                rows={6}
-                value={currentTemplate.body}
-                onChange={(e) => handleFieldChange("body", e.target.value)}
-                placeholder="Write your email body here..."
-                className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-violet-500/50 resize-y min-h-[120px]"
-              />
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-600 ml-1">CTA Button Text (Leave blank to hide button)</label>
-              <input
-                type="text"
-                value={currentTemplate.buttonText}
-                onChange={(e) => handleFieldChange("buttonText", e.target.value)}
-                placeholder="View details"
-                className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-violet-500/50"
-              />
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-[9px] font-black uppercase tracking-widest text-slate-600 ml-1">Sign-off text</label>
-              <textarea
-                rows={2}
-                value={currentTemplate.signoff}
-                onChange={(e) => handleFieldChange("signoff", e.target.value)}
-                placeholder="Thanks,"
-                className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-violet-500/50 resize-y min-h-[60px]"
-              />
-            </div>
-
-            {/* Placeholders helper */}
-            <div className="p-6 bg-white/[0.02] border border-white/5 rounded-[2rem] space-y-4">
-              <div className="flex items-center gap-3">
-                <Info size={14} className="text-violet-400" />
-                <h5 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Available Placeholders</h5>
-              </div>
-              <div className="flex flex-wrap gap-2 pt-1">
-                {(placeholders[activeTab] || []).map(placeholder => (
-                  <span
-                    key={placeholder}
-                    onClick={() => {
-                      handleFieldChange("body", currentTemplate.body + " " + placeholder);
-                      toast.success(`Appended ${placeholder}`);
-                    }}
-                    className="cursor-pointer bg-white/5 hover:bg-violet-500/20 hover:text-violet-400 border border-white/5 hover:border-violet-500/30 px-3 py-1.5 rounded-lg text-[9px] font-mono text-slate-400 transition-all"
-                  >
-                    {placeholder}
-                  </span>
+            <div>
+              <div className="rp-sect">Placeholders</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {(placeholders[activeTab] || []).map((ph) => (
+                  <button key={ph} type="button" className="rp-btn rp-btn-secondary rp-btn-sm rp-mono" style={{ textTransform: "none", letterSpacing: 0, fontWeight: 500 }}
+                    onClick={() => { handleFieldChange("body", currentTemplate.body + " " + ph); toast.success(`Added ${ph}`); }}>{ph}</button>
                 ))}
               </div>
-              <p className="text-[9px] text-slate-500 italic mt-2 leading-relaxed">
-                Click any bubble to append the placeholder code directly to your email body copy.
-              </p>
+              <p className="rp-hint" style={{ margin: "8px 0 0" }}>Select a placeholder to add it to the end of the body copy.</p>
             </div>
 
-            {/* Send Test Email Card */}
-            <div className="p-8 bg-white/[0.02] border border-white/5 rounded-[2.5rem] space-y-6">
-              <div className="flex items-center gap-3">
-                <Mail size={16} className="text-violet-400" />
-                <h4 className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">Send Test Notification</h4>
+            <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
+              <div className="rp-sect">Send a test</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+                <div style={{ flex: "1 1 220px" }}>
+                  <TextField label="Send test to" type="email" value={testEmail} placeholder="admin@example.com" onChange={(e) => setTestEmail(e.target.value)} />
+                </div>
+                <SecondaryButton onClick={handleSendTestEmail} disabled={sendingTest || !testEmail}>{sendingTest ? "Sending…" : "Send test"}</SecondaryButton>
               </div>
-              <div className="flex gap-4">
-                <input
-                  type="email"
-                  value={testEmail}
-                  onChange={(e) => setTestEmail(e.target.value)}
-                  placeholder="e.g. admin@example.com"
-                  className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-xs text-white outline-none focus:border-violet-500/50"
-                />
-                <button
-                  type="button"
-                  onClick={handleSendTestEmail}
-                  disabled={sendingTest || !testEmail}
-                  className="px-8 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-2xl text-[9px] font-black tracking-widest uppercase transition-all shrink-0 active:scale-95 border border-violet-400/20"
-                >
-                  {sendingTest ? "SENDING..." : "SEND TEST"}
-                </button>
-              </div>
-              <p className="text-[9px] text-slate-500 leading-relaxed uppercase tracking-wider">
-                Send a mock email of this template to verify style rendering and variable interpolation.
-              </p>
+              <p className="rp-hint" style={{ margin: "8px 0 0" }}>Sends the last saved version of this template with sample order details. Save first to test your edits.</p>
             </div>
           </div>
-        </section>
+        </SectionCard>
 
-        {/* Right Iframe Live Preview */}
-        <section className="glass-card rounded-[3.5rem] p-12 border border-white/5 space-y-8 lg:sticky lg:top-28">
-          <div className="flex items-center justify-between pb-2 border-b border-white/5">
-            <div className="flex items-center gap-3">
-              <Mail className="text-violet-400" size={18} />
-              <h4 className="text-[10px] font-black tracking-[0.4em] uppercase text-slate-400">Live Mock Viewport</h4>
-            </div>
-            <span className="text-[8px] font-black tracking-widest text-slate-500 uppercase bg-white/5 border border-white/5 px-3 py-1 rounded-full">
-              Compiled HTML
-            </span>
-          </div>
-
-          <div className="w-full bg-[#17171A] border border-white/10 rounded-[2rem] overflow-hidden aspect-[4/5] shadow-2xl flex flex-col">
-            {/* Window title bar mockup */}
-            <div className="bg-[#212124] px-6 py-4 flex items-center justify-between border-b border-white/5 shrink-0">
-              <div className="flex gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-              </div>
-              <p className="text-[9px] font-black tracking-widest uppercase text-slate-400 max-w-[200px] truncate">
-                {currentTemplate.subject.replace(/\{\{order_id\}\}/g, "LM-98241").replace(/\{\{status\}\}/g, "out for delivery")}
-              </p>
-              <div className="w-12 h-1 bg-white/5 rounded-full" />
-            </div>
-
-            <iframe
-              srcDoc={compilePreviewHtml(activeTab, data)}
-              className="w-full flex-1 border-none bg-white rounded-b-[2rem]"
-              title="Visual template live preview"
-            />
-          </div>
-        </section>
+        <SectionCard title="Live preview" description={subjectPreview}>
+          <iframe srcDoc={compilePreviewHtml(activeTab, data)} sandbox="" title={`Preview of the ${TABS.find((t) => t.id === activeTab)?.label} email`}
+            style={{ width: "100%", height: 560, border: "2px solid var(--rp-border-strong)", background: "#fff" }} />
+        </SectionCard>
       </div>
+
+      <SaveBar dirty={dirty} saving={saving} onSave={handleSave}
+        onDiscard={() => { setData(JSON.parse(original)); setResendDraft(""); }} message="You have unsaved template changes." />
     </div>
   );
 }

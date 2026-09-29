@@ -26,10 +26,21 @@ describe("hexToRgbTriplet", () => {
   });
 });
 
+describe("STOREFRONT_TOKEN_CSS", () => {
+  it("themes roots that carry data-fm-store and the class on the same element", () => {
+    expect(STOREFRONT_TOKEN_CSS).toContain("[data-fm-store].fm-page{background-color:var(--bg-color);}");
+    expect(STOREFRONT_TOKEN_CSS).toContain("[data-fm-store].text-white{color:rgb(var(--fg-rgb));}");
+  });
+});
+
 describe("RISO_STOREFRONT_CSS", () => {
   it("keeps the print treatment scoped to storefront surfaces", () => {
     expect(RISO_STOREFRONT_CSS).toContain("[data-fm-store]");
-    expect(RISO_STOREFRONT_CSS).toContain("radial-gradient");
+    // Flat ink on newsprint: 2px ink outlines, flare focus ring, reduced motion honoured, no halftone texture.
+    expect(RISO_STOREFRONT_CSS).toContain("2px solid #100f0d");
+    expect(RISO_STOREFRONT_CSS).toContain(":focus-visible");
+    expect(RISO_STOREFRONT_CSS).toContain("prefers-reduced-motion");
+    expect(RISO_STOREFRONT_CSS).not.toContain("radial-gradient");
     expect(RISO_STOREFRONT_CSS).not.toContain("body{");
   });
 });

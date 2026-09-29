@@ -224,52 +224,75 @@ storefront. Theme data persists as `design` (live) / `draftDesign` (draft) via
 
 ### System Status & Recent Release banner
 
-The admin Analytics dashboard renders a **"System Status & Recent Release"**
-banner at the top (the "App Update Summary Notice" `motion.div` in
-`src/app/admin/AnalyticsDashboard.tsx`, ~line 203). It shows the headline
-"Lyricalmyrical E-Commerce Platform Updated", a summary of what the latest
-release shipped, the deploy date/time, a **Build Status** ("Deploy Success"),
-and the **Last Code Push** timestamp.
+The admin Overview (`src/app/admin/AnalyticsDashboard.tsx`) renders a **"System status &
+recent release"** card at the top (a `SectionCard` with kicker, headline "Lyricalmyrical
+e-commerce platform updated", a summary paragraph, the **Build Status** badge and the
+**Last Code Push** timestamp).
 
 > [!IMPORTANT]
-> **Always update this banner after each deploy.** Whenever you ship a change,
-> edit `AnalyticsDashboard.tsx` so the banner reflects the new release:
-> - the update date/time (e.g. "June 13, 2026 at 10:09 PM"),
-> - the summary paragraph listing what this release shipped,
-> - the **Last Code Push** timestamp (e.g. "June 13, 22:09").
+> **Always update this card after each deploy.** Whenever you ship a change, edit
+> `AnalyticsDashboard.tsx` so it reflects the new release: the update date/time, the
+> summary of what shipped, and the **Last Code Push** timestamp.
 >
-> Current state: updated **September 29, 2026** — Riso Press admin design system + rebuilt shell (see "Riso Press admin design system" below). Previous: **June 30, 2026 at 9:20 PM** — added three optional,
-> purely cosmetic "Checkout & Cart" theme tokens (`checkoutAccentColor`,
-> `checkoutBgColor`, `checkoutInputRadius`) editable from a new subsection in
-> `ColorsPanel` (`ThemeEditor.tsx`). They're emitted as a `[data-fm-checkout]`
-> CSS override block by `StorefrontThemeStyle.tsx` only when set, scoped via a
-> new `data-fm-checkout` attribute on `Checkout.tsx`'s three root divs and
-> `CartDrawer.tsx`'s root; checkout/payment/totals logic is untouched.
+> Current state: updated **September 29, 2026** — Riso Press admin complete for the
+> shell, Orders (list + detail), Overview (no simulated data), Books, Discounts,
+> Pages, Settings › General / Payments / Notifications; remaining admin pages take
+> the Riso palette through the compatibility layer. Storefront Riso preset aligned
+> to the published tokens (cart drawer + checkout accessibility fixes).
 
 ## Riso Press admin design system
 
-`src/app/admin/riso/` — implements the published **Riso Press design system**
-(artifact https://claude.ai/artifact/MvJwSgL7vE4vExRKaC9Gph: newsprint/ink palette, flare
-`gold` primary fill with **ink** text — never lighten it — `gold-text` for flare words,
-square corners, 2px ink outlines on objects / hairlines inside lists, flat offset
-shadows by day, warm-grey night mode, Anton/Archivo/DM Mono, status = glyph + word).
-If tokens change there, update `riso.css` to match. `riso.css` (semantic `--rp-*` tokens, light + dark, all
-`rp-*` component classes; honors reduced motion, 44px touch targets, visible
-focus, print), `components.tsx` (AppShell, Sidebar, Topbar, PageHeader,
-Breadcrumbs, SectionCard, MetricCard, Primary/Secondary/Destructive buttons,
-IconButton, TextField/TextArea/SelectField/SearchField, Toggle, Checkbox,
-StatusBadge, DataTable, FilterBar, Pagination, Tabs, Dialog/Drawer/ConfirmDialog
-with focus trap + Escape + focus restore, Toast, Empty/Loading/Error states,
-SaveBar), and `shellParts.tsx` (`GlobalSearch`, `ActivityLogDialog`).
-Migrated so far: shell (`Dashboard.tsx`), `Login`, `ReviewsModeration`, Activity
-Logs, and the Orders list (`Orders.tsx`; `Dashboard.tsx` renders migrated pages
-outside the legacy wrapper via its `migrated` flag — add new ones there). **Not yet migrated** (still on the legacy `.admin-reso`/`.admin-light`
-utility remapping, which `Dashboard.tsx` now scopes to page content only —
-never wrap `rp-*` chrome in `.admin-light`, its `aside button`/`input` rules
-will override it): Overview/Analytics, OrderDetail, BookCatalog,
-BookEditor, Discounts, PagesManager, ShopSettings, NotificationEditor, the theme
-editor, and the whole storefront. Migrate one page at a time by composing these
-components; don't touch checkout/order/webhook logic.
+`src/app/admin/riso/` implements the published **Riso Press design system**
+(artifact https://claude.ai/artifact/MvJwSgL7vE4vExRKaC9Gph): newsprint/ink palette, flare
+`gold` primary fill with **ink** text (never lighten it), `gold-text` for flare words,
+square corners, 2px ink outlines on objects and hairlines inside lists, flat offset
+shadows by day, warm-grey night mode, Anton / Archivo / DM Mono, status = glyph + word.
+If tokens change there, update `riso.css` to match.
+
+- `riso.css` — semantic `--rp-*` tokens (light + night) and every `rp-*` component
+  class; reduced motion, 44px coarse-pointer targets, visible focus, print.
+- `components.tsx` — AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, SectionCard,
+  SectionHead, MetricCard, buttons, IconButton, TextField/TextArea/SelectField/
+  SearchField, Toggle, Checkbox, StatusBadge, DataTable (row states, sticky head),
+  FilterBar, Pagination, Tabs, TabBar, Dialog/Drawer/ConfirmDialog (focus trap, Escape,
+  focus restore), `useConfirm()`, ActionMenu, Toast, SyncChip, Empty/Loading/ErrorState,
+  SaveBar. `shellParts.tsx` — GlobalSearch, ActivityLogDialog. `nav.ts` — nav config.
+- `src/app/lib/useFocusTrap.ts` — shared by admin dialogs and the storefront cart drawer.
+
+**Migrated (built from these components):** shell, Login, Reviews, Activity Logs,
+Orders list + detail, Overview, Books catalog, Discounts, Pages, Settings › General,
+Payments, Shipping (profiles/zones/rates + dialogs), Notifications (+ Inventory sync). `Dashboard.tsx` renders migrated pages
+outside the legacy wrapper via its `migrated` flag — add new ones there.
+
+**Not yet rebuilt** (still legacy markup, styled by the scoped compatibility layer in
+`theme.css` under `.admin-reso[data-admin-theme="reso"]`, which maps old dark utilities
+and violet/blue accents onto Riso tokens): Taxes/Communications
+(not in the nav), the Book editor's layout (it does have a dialog for unsaved changes,
+a `beforeunload` guard and an inline validation summary), and the theme editor's panels.
+Never wrap `rp-*` chrome in `.admin-light` — its `aside button` / `input` rules override
+it. Don't add new compat rules for new work; compose the components instead.
+
+## Verification
+
+- `npm test` (vitest, node env): includes the registry/renderer parity test, nav,
+  discount-state, order-status/CSV, cart-quantity and the **theme draft/publish
+  separation** test (Firestore mocked) — a draft/discard must never write `design`.
+- There is **no `tsconfig.json`** in the repo, so `tsc -p .` checks nothing. To type-check,
+  use a temporary tsconfig (strict off, `jsx: react-jsx`, `moduleResolution: bundler`,
+  `@types/react` installed, `include: src/**`); baseline has ~23 pre-existing errors.
+- `react`/`react-dom` are optional peer deps: a plain `npm install` leaves tests/build
+  failing; install them (`--no-save`) locally.
+- Page-level visual checks used a throwaway harness that mounts a page with mocked
+  `adminApi` data (not committed). Screenshots: `docs/screenshots/riso/`.
+
+## Security notes
+
+- **Public-readable settings hold secrets (owner decision pending).** `firestore.rules`
+  allows `read: if true` on `settings/{docId}`; Settings › Payments can write Stripe
+  **secret** keys into `settings/website`, and Notifications can write the Resend key into
+  `settings/notifications`. The UI now treats them as write-only and warns, but the stored
+  values remain publicly readable. Fix: use Functions secrets / an admin-only collection,
+  update `functions/index.js`, and rotate any key ever entered in the admin.
 
 ## Conventions & gotchas
 

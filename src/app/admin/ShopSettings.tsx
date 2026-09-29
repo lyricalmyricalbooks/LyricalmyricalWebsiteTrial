@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import { 
   ArrowLeft,
   Search,
@@ -37,6 +37,8 @@ import {
   Save
 } from "lucide-react";
 import { adminApi } from "./api";
+import toast from "react-hot-toast";
+import { Checkbox, ConfirmDialog, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SectionHead, StatusBadge, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
 import { motion, AnimatePresence } from "motion/react";
 import { ThemeEditor } from "./ThemeEditor";
 import { PagesManager } from "./PagesManager";
@@ -81,13 +83,6 @@ export function ShopSettings({
     return JSON.stringify(settings[section]) !== JSON.stringify(originalSettings[section]);
   };
 
-  if (settingsLoading) return (
-    <div className="h-96 flex flex-col items-center justify-center gap-6">
-      <div className="w-12 h-12 border-2 border-violet-500/10 border-t-violet-500 rounded-full animate-spin" />
-      <p className="text-[10px] tracking-[0.4em] text-slate-500 font-black uppercase">Retrieving System Config</p>
-    </div>
-  );
-
   // Pages tab — renders inline (same width as other settings)
   if (activeTab === "pages") {
     return (
@@ -96,6 +91,15 @@ export function ShopSettings({
       </div>
     );
   }
+
+  if (settingsLoading) return (
+    <div className="h-96 flex flex-col items-center justify-center gap-6">
+      <div className="w-12 h-12 border-2 border-violet-500/10 border-t-violet-500 rounded-full animate-spin" />
+      <p className="text-[10px] tracking-[0.4em] text-slate-500 font-black uppercase">Retrieving System Config</p>
+    </div>
+  );
+
+  if (!settings) return <ErrorState title="Settings unavailable" description="Store settings could not be loaded. Check your connection, then reload this page." />;
 
   // Designer tab — handled by Dashboard for full-screen takeover
   if (activeTab === "designer") {
@@ -113,10 +117,10 @@ export function ShopSettings({
           transition={{ duration: 0.2 }}
           className="space-y-12"
         >
-          {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
+          {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "communications" && <CommunicationsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} refreshProfiles={loadShippingProfiles} />}
-          {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
+          {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "notifications" && <NotificationEditor />}
         </motion.div>
@@ -124,225 +128,80 @@ export function ShopSettings({
     </div>
   );
 }
-function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
+function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
+  const SECTIONS = ["maintenance", "domain", "info", "location"] as const;
+  const dirty = SECTIONS.filter((k) => hasChanges(k));
+  const [confirmMaintenance, setConfirmMaintenance] = useState(false);
+  const set = (section: string, patch: any) => setSettings({ ...settings, [section]: { ...settings[section], ...patch } });
+
+  const saveAll = async () => {
+    for (const k of dirty) await saveSection(k, { [k]: settings[k] });
+    toast.success("Store settings saved");
+  };
+  const discard = () => {
+    const next = { ...settings };
+    dirty.forEach((k) => { next[k] = JSON.parse(JSON.stringify(originalSettings?.[k] ?? {})); });
+    setSettings(next);
+  };
+
+  const maintenanceOn = !!settings.maintenance?.enabled;
+  const name = settings.info?.name || "";
+  const desc = settings.info?.description || "";
+
   return (
-    <div className="space-y-16">
-      <header className="flex flex-col gap-2 mb-12">
-        <div className="flex justify-between items-end">
-          <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">General Settings</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Store Profile & Identity</p>
+    <div className="rp-stack">
+      <SectionCard title="Store status" description="What customers can do right now.">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+          <span>
+            <StatusBadge tone={maintenanceOn ? "warning" : "success"}>{maintenanceOn ? "Maintenance mode — checkout paused" : "Storefront live"}</StatusBadge>
+            {settings.domain?.custom && <span className="rp-hint" style={{ marginLeft: 12 }}>Domain: {settings.domain.custom}</span>}
+          </span>
+          <Toggle label="Maintenance mode" checked={maintenanceOn}
+            onChange={(v) => (v ? setConfirmMaintenance(true) : set("maintenance", { enabled: false }))} />
+        </div>
+        <p className="rp-hint" style={{ margin: "12px 0 0" }}>Maintenance mode disables checkout while you update the storefront. Customers see the message below.</p>
+        {maintenanceOn && (
+          <div style={{ marginTop: 16 }}>
+            <TextField label="Maintenance message" value={settings.maintenance?.message || ""}
+              placeholder="We are updating our archive. Please check back soon." onChange={(e) => set("maintenance", { message: e.target.value })} />
           </div>
-          {hasChanges('general') && (
-            <button
-              onClick={() => saveSection('general', { general: settings.general })}
-              disabled={savingSection === 'general'}
-              className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/40 hover:bg-violet-500 transition-all disabled:opacity-50 active:scale-95 border border-violet-400/20"
-            >
-              {savingSection === 'general' ? 'SYNCHRONIZING...' : 'PUBLISH CHANGES'}
-            </button>
-          )}
-        </div>
-      </header>
-      
-      {/* Maintenance Mode */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 relative overflow-hidden group">
-        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/[0.05] to-transparent pointer-events-none" />
-        <div className="flex justify-between items-start gap-12 relative z-10">
-           <div className="flex-1 space-y-6">
-              <SectionHeader 
-                title="Maintenance Mode" 
-                subtitle="Offline Mode" 
-                icon={Lock} 
-                color="amber" 
-              />
-              <p className="text-xs text-slate-400 leading-relaxed max-w-xl font-medium">
-                 Temporarily disable the checkout while making updates to the storefront.
-                 <span className="text-amber-400/80 ml-2 font-black uppercase tracking-widest text-[9px]">Customers will see a maintenance message.</span>
-              </p>
-              
-              <AnimatePresence>
-                {settings.maintenance?.enabled && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="pt-4 overflow-hidden"
-                  >
-                    <InputField 
-                      label="TRANSMISSION OVERRIDE MESSAGE"
-                      value={settings.maintenance?.message || ""}
-                      placeholder="We are updating our archive. Please check back soon."
-                      onChange={(e: any) => setSettings({...settings, maintenance: {...settings.maintenance, message: e.target.value}})}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-           </div>
-           <Switch 
-             checked={settings.maintenance?.enabled} 
-             onChange={(val) => setSettings({...settings, maintenance: {...settings.maintenance, enabled: val}})} 
-           />
-        </div>
-        
-        {hasChanges('maintenance') && (
-           <div className="mt-12 pt-10 border-t border-white/5 flex gap-4 relative z-10">
-              <button 
-                onClick={() => saveSection('maintenance', { maintenance: settings.maintenance })}
-                disabled={savingSection === 'maintenance'}
-                className="bg-amber-500 text-black px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-amber-500/20"
-              >
-                {savingSection === 'maintenance' ? 'SYNCHRONIZING...' : 'UPDATE PROTOCOL'}
-              </button>
-           </div>
         )}
-      </section>
+      </SectionCard>
 
-      {/* Shop Domain */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden group">
-        <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/[0.03] to-transparent pointer-events-none" />
-        <div className="flex justify-between items-center relative z-10">
-           <SectionHeader 
-             title="Digital Presence" 
-             subtitle="Domain & Visibility" 
-             icon={Globe} 
-             color="cyan" 
-           />
-           {hasChanges('domain') && (
-             <button 
-               onClick={() => saveSection('domain', { domain: settings.domain })}
-               disabled={savingSection === 'domain'}
-               className="bg-violet-600 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/30 hover:bg-violet-500 transition-all border border-violet-400/20"
-             >
-               {savingSection === 'domain' ? 'DEPLOYING...' : 'SAVE DOMAINS'}
-             </button>
-           )}
+      <SectionCard title="Store identity" description="Your publisher name, description and contact details.">
+        <div className="rp-stack" style={{ gap: 20 }}>
+          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+            <TextField label="Publisher name" value={name} maxLength={100} hint={`${name.length} / 100 characters`} onChange={(e) => set("info", { name: e.target.value })} />
+            <TextField label="Contact email" type="email" value={settings.info?.email || ""} placeholder="hello@lyricalmyricalbooks.com" onChange={(e) => set("info", { email: e.target.value })} />
+          </div>
+          <TextArea label="Publisher description" rows={4} value={desc} maxLength={150} hint={`${desc.length} / 150 characters — shown in search results and social previews`} onChange={(e) => set("info", { description: e.target.value })} />
         </div>
+      </SectionCard>
 
-        <div className="relative z-10">
-           <InputField 
-             label="CUSTOM DOMAIN (URL)" 
-             icon={Globe}
-             value={settings.domain?.custom || ""}
-             placeholder="www.yourdomain.com"
-             onChange={(e: any) => setSettings({...settings, domain: {...settings.domain, custom: e.target.value}})}
-           />
-           <AnimatePresence>
-             {settings.domain?.custom && (
-               <motion.p 
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="text-[10px] text-cyan-400/70 font-black mt-6 flex items-center gap-3 uppercase tracking-[0.2em] ml-2"
-               >
-                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                 Live Link Established: {settings.domain.custom}
-               </motion.p>
-             )}
-           </AnimatePresence>
+      <SectionCard title="Domain & visibility" description="Where customers find the store.">
+        <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="www.yourdomain.com"
+          hint="Adding a domain also requires updating the allowed origins for payments and sign-in — ask your developer before changing it."
+          onChange={(e) => set("domain", { custom: e.target.value })} />
+      </SectionCard>
+
+      <SectionCard title="Location" description="Main office and shipping origin.">
+        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <TextField label="Street address" value={settings.location?.street || ""} placeholder="456 Montrose Avenue" onChange={(e) => set("location", { street: e.target.value })} />
+          </div>
+          <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
+          <TextField label="State / province" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
         </div>
-      </section>
+      </SectionCard>
 
-      {/* Shop Info */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-         <div className="absolute inset-0 bg-gradient-to-tr from-violet-500/[0.03] to-transparent pointer-events-none" />
-         <div className="flex justify-between items-center relative z-10">
-            <SectionHeader 
-              title="Publisher Identity" 
-              subtitle="Brand Essence & Story" 
-              icon={Building} 
-            />
-            {hasChanges('info') && (
-              <button 
-                onClick={() => saveSection('info', { info: settings.info })}
-                disabled={savingSection === 'info'}
-                className="bg-violet-600 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/30 hover:bg-violet-500 transition-all border border-violet-400/20"
-              >
-                 {savingSection === 'info' ? 'COMMITTING...' : 'SAVE DATA'}
-              </button>
-            )}
-         </div>
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
-            <div className="space-y-2">
-               <InputField 
-                 label="PUBLISHER NAME"
-                 value={settings.info?.name || ""}
-                 onChange={(e: any) => setSettings({...settings, info: {...settings.info, name: e.target.value}})}
-               />
-               <p className="text-[9px] text-slate-600 font-black tracking-[0.3em] text-right uppercase px-2">{settings.info?.name?.length || 0} / 100 BYTES</p>
-            </div>
-            <div className="space-y-2">
-               <InputField 
-                 label="CONTACT EMAIL"
-                 icon={Mail}
-                 value={settings.info?.email || ""}
-                 placeholder="hello@lyricalmyricalbooks.com"
-                 onChange={(e: any) => setSettings({...settings, info: {...settings.info, email: e.target.value}})}
-               />
-            </div>
-            <div className="md:col-span-2 space-y-4">
-               <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">PUBLISHER DESCRIPTION</label>
-               <textarea 
-                 rows={5}
-                 className="w-full bg-white/[0.03] border border-white/10 rounded-[2.5rem] px-10 py-8 text-sm text-white outline-none focus:border-violet-500/50 focus:bg-white/[0.06] transition-all resize-none leading-relaxed font-medium shadow-inner"
-                 value={settings.info?.description || ""}
-                 onChange={e => setSettings({...settings, info: {...settings.info, description: e.target.value}})}
-               />
-               <p className="text-[9px] text-slate-600 font-black tracking-[0.3em] text-right uppercase px-2">{settings.info?.description?.length || 0} / 150 BYTES</p>
-            </div>
-         </div>
-      </section>
-
-      {/* Location */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-         <div className="absolute inset-0 bg-gradient-to-bl from-cyan-500/[0.03] to-transparent pointer-events-none" />
-         <div className="flex justify-between items-center relative z-10">
-            <SectionHeader 
-              title="Headquarters" 
-              subtitle="Main Office & Shipping Origin" 
-              icon={Building} 
-              color="cyan"
-            />
-            {hasChanges('location') && (
-              <button 
-                onClick={() => saveSection('location', { location: settings.location })}
-                disabled={savingSection === 'location'}
-                className="bg-violet-600 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/30 hover:bg-violet-500 transition-all border border-violet-400/20"
-              >
-                 {savingSection === 'location' ? 'MAPPING...' : 'SAVE LOCATION'}
-              </button>
-            )}
-         </div>
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
-            <div className="md:col-span-2">
-               <InputField 
-                 label="STREET ADDRESS"
-                 icon={Building}
-                 value={settings.location?.street || ""}
-                 placeholder="456 Montrose Avenue"
-                 onChange={(e: any) => setSettings({...settings, location: {...settings.location, street: e.target.value}})}
-               />
-            </div>
-            <div>
-               <InputField 
-                 label="CITY"
-                 value={settings.location?.city || ""} 
-                 placeholder="Toronto"
-                 onChange={(e: any) => setSettings({...settings, location: {...settings.location, city: e.target.value}})}
-               />
-            </div>
-            <div>
-               <InputField 
-                 label="STATE / PROVINCE"
-                 value={settings.location?.state || ""} 
-                 placeholder="Ontario"
-                 onChange={(e: any) => setSettings({...settings, location: {...settings.location, state: e.target.value}})}
-               />
-            </div>
-         </div>
-      </section>
-
-      {/* Inventory Sync */}
       <InventorySync lastSync={settings.inventory?.lastSync} />
+
+      <SaveBar dirty={dirty.length > 0} saving={!!savingSection} onSave={saveAll} onDiscard={discard}
+        message={`Unsaved changes in ${dirty.join(", ")}.`} />
+
+      <ConfirmDialog open={confirmMaintenance} title="Turn on maintenance mode?" confirmLabel="Pause checkout"
+        message="Customers won't be able to check out until you turn it off again. The change applies once you save."
+        onConfirm={() => { setConfirmMaintenance(false); set("maintenance", { enabled: true }); }} onCancel={() => setConfirmMaintenance(false)} />
     </div>
   );
 }
@@ -686,6 +545,7 @@ function ZoneGeographyPicker({
 }
 
 function ShippingSettings({ profiles, refreshProfiles }: any) {
+  const [askConfirm, confirmNode] = useConfirm();
   const [books, setBooks] = useState<any[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [editingProfile, setEditingProfile] = useState<any | null>(null);
@@ -783,23 +643,23 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
       refreshProfiles();
       handleSelectProfile(newProf);
     } catch {
-      alert("Error creating shipping profile");
+      toast.error("Error creating shipping profile");
     }
   };
 
   const handleDeleteProfile = async (id: string) => {
     if (id === "general-profile") {
-      alert("Cannot delete the General Shipping Profile.");
+      toast.error("Cannot delete the General Shipping Profile.");
       return;
     }
-    if (!confirm("Are you sure you want to delete this profile? All assigned products will revert to the General Profile.")) return;
+    if (!(await askConfirm({ title: "Delete this shipping profile?", message: "All assigned products will revert to the General Profile.", confirmLabel: "Delete profile" }))) return;
     try {
       await adminApi.deleteShippingProfile(id);
       refreshProfiles();
       setSelectedProfileId(null);
       setEditingProfile(null);
     } catch {
-      alert("Error deleting shipping profile");
+      toast.error("Error deleting shipping profile");
     }
   };
 
@@ -811,7 +671,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
       setSelectedProfileId(null);
       setEditingProfile(null);
     } catch {
-      alert("Error saving shipping profile");
+      toast.error("Error saving shipping profile");
     }
   };
 
@@ -832,7 +692,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
       refreshProfiles();
       setIsProductModalOpen(false);
     } catch {
-      alert("Error updating product assignments");
+      toast.error("Error updating product assignments");
     }
   };
 
@@ -854,7 +714,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
 
   const handleSaveZone = () => {
     if (!activeZone.name.trim() || activeZone.countries.length === 0) {
-      alert("Please enter a zone name and select at least one country.");
+      toast.error("Please enter a zone name and select at least one country.");
       return;
     }
 
@@ -871,8 +731,8 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
     setIsZoneModalOpen(false);
   };
 
-  const handleDeleteZone = (zoneId: string) => {
-    if (!confirm("Are you sure you want to delete this zone?")) return;
+  const handleDeleteZone = async (zoneId: string) => {
+    if (!(await askConfirm({ title: "Delete this zone?", message: "Its rates will be removed with it. Save the profile to apply.", confirmLabel: "Delete zone" }))) return;
     setEditingProfile((prev: any) => {
       const zones = (prev.zones || []).filter((z: any) => z.id !== zoneId);
       return { ...prev, zones };
@@ -900,7 +760,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
 
   const handleSaveRate = () => {
     if (!activeRate.name.trim()) {
-      alert("Please enter a shipping rate name.");
+      toast.error("Please enter a shipping rate name.");
       return;
     }
 
@@ -936,8 +796,8 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
     setIsRateModalOpen(false);
   };
 
-  const handleDeleteRate = (zoneId: string, rateId: string) => {
-    if (!confirm("Are you sure you want to delete this shipping rate?")) return;
+  const handleDeleteRate = async (zoneId: string, rateId: string) => {
+    if (!(await askConfirm({ title: "Delete this shipping rate?", message: "Save the profile to apply the change.", confirmLabel: "Delete rate" }))) return;
     setEditingProfile((prev: any) => {
       const zones = [...(prev.zones || [])];
       const zoneIdx = zones.findIndex(z => z.id === zoneId);
@@ -954,796 +814,276 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
     return books.filter((b: any) => b.shippingProfileId === profileId);
   };
 
-  // Render Dashboard Profiles List
-  if (selectedProfileId === null || !editingProfile) {
-    return (
-      <div className="space-y-12">
-        <header className="flex flex-col gap-2 mb-12">
-          <div className="flex justify-between items-end">
-            <div>
-              <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Shipping Matrix</h2>
-              <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Manage shipping profiles, zones & rates</p>
-            </div>
-            {!isCreatingProfile && (
-              <button 
-                onClick={() => setIsCreatingProfile(true)}
-                className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2 cursor-pointer transition-all active:scale-95 shadow-md shadow-violet-500/10"
-              >
-                <Plus size={14} /> CREATE PROFILE
-              </button>
-            )}
-          </div>
-        </header>
+  const money = (n: any) => `$${Number(n || 0).toFixed(2)}`;
+  const shippoConnected = !!shippoConfig?.configured;
 
-        <section className="glass-card rounded-[3rem] p-8 md:p-10 border border-white/5 bg-white/[0.01] relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.05] to-transparent pointer-events-none" />
-          <div className="relative z-10 grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
-            <div className="space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center">
-                <KeyRound size={20} />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="text-xl font-black uppercase italic text-white">Shippo Connection</h3>
-                  {!shippoLoading && (
-                    <span className={`px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border ${shippoConfig?.configured ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-amber-500/10 border-amber-500/20 text-amber-400"}`}>
-                      {shippoConfig?.configured ? "Connected" : "Not configured"}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[10px] leading-5 text-slate-500 uppercase tracking-widest mt-2 max-w-md">
-                  Save your key to the protected Firebase backend. The full key is never loaded back into this dashboard.
-                </p>
-              </div>
-              {shippoConfig?.configured && (
-                <div className="flex flex-col gap-4 pt-4 border-t border-white/5">
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                    <ShieldCheck size={14} className="text-emerald-400" />
-                    Active key ending in ••••{shippoConfig.lastFour}
-                    {shippoConfig.source === "environment" && " (Firebase secret)"}
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Enable Dynamic Shippo Rates</p>
-                      <p className="text-[8px] text-slate-500 uppercase tracking-widest">Fetch live carrier rates during checkout</p>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={shippoConfig?.dynamicRatesEnabled ?? false}
-                      onChange={async (e) => {
-                        const enabled = e.target.checked;
-                        try {
-                          await adminApi.setShippoDynamicRates(enabled);
-                          setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
-                          toast.success(enabled ? "Dynamic shipping rates enabled" : "Dynamic shipping rates disabled");
-                        } catch (err: any) {
-                          toast.error(err.message || "Failed to update Shippo settings");
-                        }
-                      }}
-                      className="w-6 h-6 rounded-lg bg-white border-slate-300 dark:border-zinc-800 text-violet-600 focus:ring-violet-500 cursor-pointer"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              <label htmlFor="shippo-api-key" className="text-[9px] font-black tracking-[0.25em] text-slate-500 uppercase px-2">
-                Shippo API Key
-              </label>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <input
-                    id="shippo-api-key"
-                    type={showShippoApiKey ? "text" : "password"}
-                    value={shippoApiKey}
-                    onChange={(event) => {
-                      setShippoApiKey(event.target.value);
-                      if (shippoMessage) setShippoMessage(null);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") handleSaveShippoApiKey();
-                    }}
-                    autoComplete="new-password"
-                    spellCheck={false}
-                    placeholder={shippoConfig?.configured ? "Paste a new key to replace the current one" : "Paste your Shippo API key"}
-                    className="w-full h-12 rounded-full border border-white/10 bg-black/20 pl-5 pr-12 text-sm text-white outline-none transition-colors placeholder:text-slate-600 focus:border-violet-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowShippoApiKey(value => !value)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
-                    aria-label={showShippoApiKey ? "Hide API key" : "Show API key"}
-                  >
-                    {showShippoApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSaveShippoApiKey}
-                  disabled={shippoSaving || !shippoApiKey.trim()}
-                  className="h-12 px-7 rounded-full bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] font-black tracking-widest flex items-center justify-center gap-2 transition-all"
-                >
-                  {shippoSaving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-                  {shippoSaving ? "SYNCING" : "SAVE & SYNC"}
-                </button>
-              </div>
-              {shippoMessage && (
-                <p className={`flex items-center gap-2 px-2 text-[10px] font-bold ${shippoMessage.type === "success" ? "text-emerald-400" : "text-red-400"}`} role="status">
-                  {shippoMessage.type === "success" ? <CheckCircle size={14} /> : <AlertCircleIcon size={14} />}
-                  {shippoMessage.text}
-                </p>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {isCreatingProfile && (
-          <section className="bg-white dark:bg-zinc-900 border border-[#EBEAEF] dark:border-zinc-800 rounded-[2.5rem] p-10 space-y-8 animate-in fade-in slide-in-from-top-4 duration-300">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-violet-50 dark:bg-violet-950/20 text-[#7C3AED] flex items-center justify-center">
-                <Package size={20} />
-              </div>
-              <div>
-                <h3 className="text-xl font-black uppercase italic leading-none text-white">New Shipping Profile</h3>
-                <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-1.5">Define a set of rules for custom items</p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <InputField 
-                label="PROFILE NAME"
-                value={newProfileName}
-                placeholder="e.g. Heavy Items, Fragile Prints..."
-                onChange={(e: any) => setNewProfileName(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-4 pt-2">
-              <button 
-                onClick={handleCreateProfile}
-                disabled={!newProfileName.trim()}
-                className="bg-violet-600 text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest hover:bg-violet-500 transition-all disabled:opacity-50"
-              >
-                CREATE PROFILE
-              </button>
-              <button 
-                onClick={() => { setIsCreatingProfile(false); setNewProfileName(""); }}
-                className="bg-slate-100 text-slate-700 px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest hover:bg-slate-200 transition-all"
-              >
-                CANCEL
-              </button>
-            </div>
-          </section>
-        )}
-
-        <div className="space-y-6">
-          {profiles.map((p: any) => {
-            const assignedBooks = getAssignedProducts(p.id);
-            const zonesCount = p.zones?.length || 0;
+  // Dialogs shared by the list and editor views
+  const dialogs = editingProfile ? (
+    <>
+      <Dialog open={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} size="lg" badge="📦" title="Assign products"
+        description={`Books that use the “${editingProfile.name}” shipping rates.`}
+        footer={<>
+          <SecondaryButton onClick={() => setIsProductModalOpen(false)}>Cancel</SecondaryButton>
+          <PrimaryButton onClick={handleSaveProducts}>Save assignments ({selectedProductIds.length})</PrimaryButton>
+        </>}>
+        <SearchField label="Search catalog" placeholder="Search catalog by title…" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} data-autofocus />
+        <ul className="rp-list" style={{ marginTop: 12, maxHeight: 360, overflowY: "auto", border: "1px solid var(--rp-border)" }} aria-label="Books">
+          {books.filter((b) => b.title.toLowerCase().includes(productSearch.toLowerCase())).map((b) => {
+            const isChecked = selectedProductIds.includes(b.id);
+            const other = b.shippingProfileId && b.shippingProfileId !== editingProfile.id
+              ? (profiles.find((pr: any) => pr.id === b.shippingProfileId)?.name || "another profile") : "";
             return (
-              <div 
-                key={p.id} 
-                className="glass-card rounded-[3rem] p-10 border border-white/5 relative overflow-hidden group hover:border-violet-500/20 transition-all flex justify-between items-center bg-white/[0.01]"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.02] to-transparent pointer-events-none" />
-                <div className="space-y-4 relative z-10">
-                  <div className="flex items-center gap-4">
-                    <h3 className="text-2xl font-black tracking-tight text-white uppercase italic">{p.name || "Untitled Profile"}</h3>
-                    {p.id === "general-profile" && (
-                      <span className="bg-violet-500/10 border border-violet-500/20 text-violet-400 px-4 py-1.5 rounded-full text-[9px] font-black tracking-widest uppercase">DEFAULT</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-8 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                    <span className="flex items-center gap-2">
-                      <Globe size={12} className="text-slate-600" /> {zonesCount} Zones
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <Package size={12} className="text-slate-600" /> {assignedBooks.length} Products Assigned
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 relative z-10">
-                  <button 
-                    onClick={() => handleSelectProfile(p)}
-                    className="bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:border-white/20 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
-                  >
-                    MANAGE RATES
-                  </button>
-                  {p.id !== "general-profile" && (
-                    <button 
-                      onClick={() => handleDeleteProfile(p.id)}
-                      aria-label="Delete shipping profile"
-                      className="p-3.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-full transition-all border border-red-500/20"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-              </div>
+              <li key={b.id} style={{ padding: "6px 12px" }}>
+                <Checkbox label={b.title} checked={isChecked}
+                  onChange={() => setSelectedProductIds((prev) => (isChecked ? prev.filter((id) => id !== b.id) : [...prev, b.id]))} />
+                {other && <p className="rp-hint" style={{ margin: "0 0 4px 28px", color: "var(--rp-warning)" }}>⚠ Currently assigned to {other}; saving moves it here.</p>}
+              </li>
             );
           })}
-        </div>
+        </ul>
+      </Dialog>
+
+      <Dialog open={isZoneModalOpen && !!activeZone} onClose={() => setIsZoneModalOpen(false)} size="lg" badge="🌍" title="Shipping zone"
+        description="Group countries and regions that share the same shipping rules."
+        footer={<>
+          <SecondaryButton onClick={() => setIsZoneModalOpen(false)}>Cancel</SecondaryButton>
+          <PrimaryButton onClick={handleSaveZone}>Save zone</PrimaryButton>
+        </>}>
+        {activeZone && (
+          <div className="rp-stack" style={{ gap: 16 }}>
+            <TextField label="Zone name" value={activeZone.name} placeholder="e.g. North America, Europe, Domestic…" data-autofocus
+              onChange={(e) => setActiveZone({ ...activeZone, name: e.target.value })} />
+            <div>
+              <div className="rp-sect">Regional presets</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {Object.keys(REGIONAL_PRESETS).map((regionName) => (
+                  <SecondaryButton key={regionName} size="sm"
+                    onClick={() => setActiveZone((prev: any) => ({ ...prev, countries: Array.from(new Set([...prev.countries, ...REGIONAL_PRESETS[regionName]])) }))}>
+                    + {regionName}
+                  </SecondaryButton>
+                ))}
+                <DestructiveButton size="sm" onClick={() => setActiveZone((prev: any) => ({ ...prev, countries: [] }))}>Clear selection</DestructiveButton>
+              </div>
+            </div>
+            <SearchField label="Search countries" placeholder="Search countries…" value={countrySearch} onChange={(e) => setCountrySearch(e.target.value)} />
+            <p className="rp-hint" role="status" style={{ margin: 0 }}>{activeZone.countries.length} countr{activeZone.countries.length === 1 ? "y" : "ies"} selected</p>
+            <div style={{ maxHeight: 280, overflowY: "auto", display: "grid", gap: 0, gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", border: "1px solid var(--rp-border)", padding: "4px 12px" }}>
+              {COUNTRIES_LIST.filter((c) => c.toLowerCase().includes(countrySearch.toLowerCase())).map((c) => (
+                <Checkbox key={c} label={c} checked={activeZone.countries.includes(c)}
+                  onChange={() => setActiveZone((prev: any) => ({ ...prev, countries: prev.countries.includes(c) ? prev.countries.filter((x: string) => x !== c) : [...prev.countries, c] }))} />
+              ))}
+            </div>
+          </div>
+        )}
+      </Dialog>
+
+      <Dialog open={isRateModalOpen && !!activeRate} onClose={() => setIsRateModalOpen(false)} badge="🚚" title="Shipping rate"
+        description="What customers pay for this delivery option."
+        footer={<>
+          <SecondaryButton onClick={() => setIsRateModalOpen(false)}>Cancel</SecondaryButton>
+          <PrimaryButton onClick={handleSaveRate}>Save rate</PrimaryButton>
+        </>}>
+        {activeRate && (
+          <div className="rp-stack" style={{ gap: 16 }}>
+            <TextField label="Rate / service name" value={activeRate.name} placeholder="e.g. Standard shipping, Express delivery" data-autofocus
+              onChange={(e) => setActiveRate({ ...activeRate, name: e.target.value })} />
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+              <TextField label="Base rate ($)" type="number" min={0} value={activeRate.base} placeholder="15.00" onChange={(e) => setActiveRate({ ...activeRate, base: e.target.value })} />
+              <TextField label="Each additional item ($)" type="number" min={0} value={activeRate.additional} placeholder="5.00" onChange={(e) => setActiveRate({ ...activeRate, additional: e.target.value })} />
+            </div>
+            <TextField label="Estimated delivery (days)" value={activeRate.deliveryDays} placeholder="e.g. 3-7, 1-2, 5-10" onChange={(e) => setActiveRate({ ...activeRate, deliveryDays: e.target.value })} />
+            <TextField label="Minimum order for this rate ($)" type="number" min={0} placeholder="e.g. 50.00 — offer this rate above $50"
+              hint="Leave blank to offer this rate on every order. Use it for free-shipping thresholds."
+              value={activeRate.minPrice !== null && activeRate.minPrice !== undefined ? activeRate.minPrice : ""}
+              onChange={(e) => setActiveRate({ ...activeRate, minPrice: e.target.value === "" ? null : e.target.value })} />
+          </div>
+        )}
+      </Dialog>
+    </>
+  ) : null;
+
+  // ─── Profiles list ──────────────────────────────────────────────────────────
+  if (selectedProfileId === null || !editingProfile) {
+    return (
+      <div className="rp-stack">
+        <SectionCard title="Shippo connection" description="Address verification, live carrier rates and shipping labels."
+          actions={!shippoLoading && <StatusBadge tone={shippoConnected ? "success" : "warning"}>{shippoConnected ? "Connected" : "Not connected"}</StatusBadge>}>
+          {!shippoLoading && !shippoConnected && (
+            <p role="alert" style={{ margin: "0 0 16px", padding: 12, background: "var(--rp-warning-tint)", border: "1px solid var(--rp-warning)", color: "var(--rp-warning)" }}>
+              ⚠ Shippo isn't connected, so customer addresses aren't verified and live carrier rates are unavailable. Flat profile rates still apply.
+            </p>
+          )}
+          {shippoConnected && (
+            <div className="rp-stack" style={{ gap: 12, marginBottom: 16 }}>
+              <p className="rp-hint" style={{ margin: 0 }}>Active key ending in <span className="rp-mono">••••{shippoConfig.lastFour}</span>{shippoConfig.source === "environment" && " (Firebase secret)"}</p>
+              <Toggle label="Live carrier rates at checkout" checked={shippoConfig?.dynamicRatesEnabled ?? false}
+                onChange={async (enabled) => {
+                  try {
+                    await adminApi.setShippoDynamicRates(enabled);
+                    setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
+                    toast.success(enabled ? "Dynamic shipping rates enabled" : "Dynamic shipping rates disabled");
+                  } catch (err: any) {
+                    toast.error(err.message || "Failed to update Shippo settings");
+                  }
+                }} />
+            </div>
+          )}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+            <div style={{ flex: "1 1 280px" }}>
+              <TextField label="Shippo API key" type={showShippoApiKey ? "text" : "password"} value={shippoApiKey} autoComplete="new-password" spellCheck={false}
+                placeholder={shippoConnected ? "Paste a new key to replace the current one" : "Paste your Shippo API key"}
+                hint="Saved to the protected backend; the full key is never loaded back into this page."
+                onChange={(e) => { setShippoApiKey(e.target.value); if (shippoMessage) setShippoMessage(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSaveShippoApiKey(); }} />
+            </div>
+            <SecondaryButton onClick={() => setShowShippoApiKey((v) => !v)} aria-pressed={showShippoApiKey}>{showShippoApiKey ? "Hide key" : "Show key"}</SecondaryButton>
+            <PrimaryButton onClick={handleSaveShippoApiKey} disabled={shippoSaving || !shippoApiKey.trim()}>{shippoSaving ? "Saving…" : "Save & sync"}</PrimaryButton>
+          </div>
+          {shippoMessage && (
+            <p role="status" style={{ margin: "12px 0 0", color: shippoMessage.type === "success" ? "var(--rp-success)" : "var(--rp-danger)", fontWeight: 600 }}>
+              {shippoMessage.type === "success" ? "✓ " : "✕ "}{shippoMessage.text}
+            </p>
+          )}
+        </SectionCard>
+
+        <SectionHead kicker="Shipping" title="Profiles, zones & rates" subcopy="A profile is a set of zones and rates. Books use the General profile unless you assign them to another."
+          actions={!isCreatingProfile && <PrimaryButton onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>} />
+
+        {isCreatingProfile && (
+          <SectionCard title="New shipping profile" description="Define a set of rules for special items, like heavy or fragile books.">
+            <TextField label="Profile name" value={newProfileName} placeholder="e.g. Heavy items, Fragile prints…" data-autofocus onChange={(e) => setNewProfileName(e.target.value)} />
+            <div className="rp-card-actions">
+              <span />
+              <span style={{ display: "flex", gap: 8 }}>
+                <SecondaryButton onClick={() => { setIsCreatingProfile(false); setNewProfileName(""); }}>Cancel</SecondaryButton>
+                <PrimaryButton onClick={handleCreateProfile} disabled={!newProfileName.trim()}>Create profile</PrimaryButton>
+              </span>
+            </div>
+          </SectionCard>
+        )}
+
+        {profiles.length === 0 ? (
+          <SectionCard><EmptyState icon="🚚" title="No shipping profiles" description="Create a profile with at least one zone and rate so customers can check out." /></SectionCard>
+        ) : (
+          <ul className="rp-stack" style={{ listStyle: "none", margin: 0, padding: 0 }} aria-label="Shipping profiles">
+            {profiles.map((p: any) => {
+              const assigned = getAssignedProducts(p.id);
+              const zonesCount = p.zones?.length || 0;
+              const noRates = zonesCount === 0 || (p.zones || []).every((z: any) => !z.rates?.length);
+              return (
+                <li key={p.id}>
+                  <SectionCard>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <h3 className="rp-card-title" style={{ display: "inline", overflowWrap: "anywhere" }}>{p.name || "Untitled profile"}</h3>{" "}
+                        {p.id === "general-profile" && <StatusBadge tone="primary">Default</StatusBadge>}{" "}
+                        {noRates && <StatusBadge tone="warning">No rates yet</StatusBadge>}
+                        <p className="rp-hint" style={{ margin: "6px 0 0" }}>{zonesCount} zone{zonesCount === 1 ? "" : "s"} · {assigned.length} product{assigned.length === 1 ? "" : "s"} assigned</p>
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <SecondaryButton onClick={() => handleSelectProfile(p)}>Manage rates</SecondaryButton>
+                        {p.id !== "general-profile" && <DestructiveButton onClick={() => handleDeleteProfile(p.id)} aria-label={`Delete ${p.name} shipping profile`}>Delete</DestructiveButton>}
+                      </div>
+                    </div>
+                  </SectionCard>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {confirmNode}
       </div>
     );
   }
 
-  // Render Profile Details Editor
+  // ─── Profile editor ─────────────────────────────────────────────────────────
   const assignedBooks = getAssignedProducts(editingProfile.id);
-  
-  return (
-    <div className="space-y-12">
-      {/* Editor Header */}
-      <header className="flex flex-col gap-2 mb-12">
-        <div className="flex justify-between items-center">
-          <button 
-            onClick={() => { setSelectedProfileId(null); setEditingProfile(null); }}
-            className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-white transition-colors uppercase cursor-pointer"
-          >
-            <ArrowLeft size={16} /> BACK TO MATRIX
-          </button>
-          
-          <div className="flex gap-4">
-            <button 
-              onClick={handleSaveProfile}
-              className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all active:scale-95 shadow-md shadow-violet-500/10"
-            >
-              SAVE PROFILE Changes
-            </button>
-          </div>
-        </div>
-        <div className="flex justify-between items-end mt-4">
-          <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">{editingProfile.name}</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Fulfillment Profile Config</p>
-          </div>
-        </div>
-      </header>
+  const zones = editingProfile.zones || [];
 
-      {/* Profile Name (Custom Profiles only) */}
+  return (
+    <div className="rp-stack">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "space-between" }}>
+        <SecondaryButton onClick={() => { setSelectedProfileId(null); setEditingProfile(null); }}>← Back to profiles</SecondaryButton>
+        <PrimaryButton onClick={handleSaveProfile}>Save profile changes</PrimaryButton>
+      </div>
+      <SectionHead kicker="Profile" title={editingProfile.name || "Untitled profile"} subcopy="Zone and rate edits are applied to the profile when you save." />
+
       {editingProfile.id !== "general-profile" && (
-        <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-6 bg-white/[0.01]">
-          <InputField 
-            label="PROFILE NAME"
-            value={editingProfile.name}
-            onChange={(e: any) => setEditingProfile({ ...editingProfile, name: e.target.value })}
-          />
-        </section>
+        <SectionCard title="Profile name">
+          <TextField label="Profile name" value={editingProfile.name} onChange={(e) => setEditingProfile({ ...editingProfile, name: e.target.value })} />
+        </SectionCard>
       )}
 
-      {/* Product Assignments */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-8 bg-white/[0.01]">
-        <div className="flex justify-between items-center pb-4 border-b border-white/5">
-          <SectionHeader 
-            title="Assigned Catalog Products" 
-            subtitle="Books associated with these rates" 
-            icon={Package} 
-            color="violet"
-          />
-          <button 
-            onClick={openProductModal}
-            className="bg-white/5 hover:bg-white/10 text-white border border-white/10 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
-          >
-            MANAGE PRODUCTS ({assignedBooks.length})
-          </button>
-        </div>
-
+      <SectionCard title="Assigned products" description="Books that use this profile's rates."
+        actions={<SecondaryButton onClick={openProductModal}>Manage products ({assignedBooks.length})</SecondaryButton>}>
         {assignedBooks.length === 0 ? (
-          <div className="h-32 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-[2rem] gap-3 bg-white/[0.01]">
-            <Package size={18} className="text-slate-650" />
-            <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">No books assigned to this profile</p>
-          </div>
+          <EmptyState icon="📦" title="No books assigned" description={editingProfile.id === "general-profile" ? "Books without another profile use these rates." : "Assign books so they use this profile's rates."} />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {assignedBooks.slice(0, 6).map((b: any) => (
-              <div key={b.id} className="flex items-center gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
-                <div className="w-10 aspect-[3/4] bg-black rounded-lg overflow-hidden border border-white/10 shrink-0">
-                  {b.photos?.[0]?.url && <img src={b.photos[0].url} className="w-full h-full object-cover" />}
-                </div>
-                <div className="overflow-hidden">
-                  <p className="text-xs font-black text-white truncate uppercase tracking-wider">{b.title}</p>
-                  <p className="text-[8px] text-slate-500 mt-1 truncate font-mono">{b.subtitle || "Single edition"}</p>
-                </div>
-              </div>
-            ))}
-            {assignedBooks.length > 6 && (
-              <div className="flex items-center justify-center p-4 bg-white/[0.02] border border-dashed border-white/5 rounded-2xl text-[9px] font-black text-slate-500 tracking-widest uppercase">
-                + {assignedBooks.length - 6} More Books
-              </div>
-            )}
-          </div>
+          <ul className="rp-list" style={{ margin: -20 }} aria-label="Assigned books">
+            {assignedBooks.slice(0, 6).map((b: any) => <li key={b.id} style={{ padding: "10px 20px", overflowWrap: "anywhere" }}>{b.title}</li>)}
+            {assignedBooks.length > 6 && <li className="rp-hint">+ {assignedBooks.length - 6} more</li>}
+          </ul>
         )}
-      </section>
+      </SectionCard>
 
-      {/* Shipping Zones */}
-      <section className="space-y-8">
-        <div className="flex justify-between items-center">
-          <SectionHeader 
-            title="Geographic Shipping Zones" 
-            subtitle="Regional rates & targets" 
-            icon={Globe} 
-            color="cyan"
-          />
-          <button 
-            onClick={() => openZoneModal()}
-            className="bg-cyan-600 hover:bg-cyan-500 text-white px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2 cursor-pointer transition-all shadow-md shadow-cyan-600/10"
-          >
-            <Plus size={14} /> ADD SHIPPING ZONE
-          </button>
-        </div>
+      <SectionHead kicker="Zones" title="Geographic shipping zones" subcopy="A zone groups countries that share the same rates."
+        actions={<PrimaryButton onClick={() => openZoneModal()}>+ Add shipping zone</PrimaryButton>} />
 
-        {(!editingProfile.zones || editingProfile.zones.length === 0) ? (
-          <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-[3rem] gap-4 bg-white/[0.01]">
-            <Globe size={32} className="text-slate-650" />
-            <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Zero active shipping zones configured</p>
+      {zones.length === 0 ? (
+        <SectionCard><EmptyState icon="🌍" title="No shipping zones" description="Customers can't check out without a zone that covers their country. Add one, then give it a rate." /></SectionCard>
+      ) : zones.map((z: any) => (
+        <SectionCard key={z.id} title={z.name} description={`${z.countries.length} countr${z.countries.length === 1 ? "y" : "ies"}`}
+          actions={
+            <span style={{ display: "flex", gap: 8 }}>
+              <SecondaryButton size="sm" onClick={() => openZoneModal(z)}>Edit zone</SecondaryButton>
+              <DestructiveButton size="sm" onClick={() => handleDeleteZone(z.id)} aria-label={`Delete zone ${z.name}`}>Delete</DestructiveButton>
+            </span>
+          }>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }} aria-label={`Countries in ${z.name}`}>
+            {z.countries.map((c: string) => <StatusBadge key={c}>{c}</StatusBadge>)}
           </div>
-        ) : (
-          <div className="space-y-8">
-            {editingProfile.zones.map((z: any) => (
-              <div key={z.id} className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-10 space-y-8 relative overflow-hidden shadow-sm">
-                <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/[0.01] to-transparent pointer-events-none" />
-                
-                {/* Zone Header */}
-                <div className="flex justify-between items-start border-b border-white/5 pb-6">
-                  <div>
-                    <h4 className="text-xl font-black text-white uppercase italic tracking-tight">{z.name}</h4>
-                    <div className="flex flex-wrap gap-2 mt-3 max-w-2xl">
-                      {z.countries.map((c: string) => (
-                        <span key={c} className="bg-white/5 border border-white/10 text-slate-400 px-3 py-1 rounded-full text-[9px] font-black tracking-wider uppercase">
-                          {c}
+          <div className="rp-sect">Rates</div>
+          {(!z.rates || z.rates.length === 0) ? (
+            <p role="alert" className="rp-hint" style={{ margin: 0, padding: 12, background: "var(--rp-warning-tint)", color: "var(--rp-warning)", border: "1px solid var(--rp-warning)" }}>
+              ⚠ No rates configured — customers in this zone won't have a way to ship.
+            </p>
+          ) : (
+            <div className="rp-table-wrap" role="region" aria-label={`Rates for ${z.name}`} tabIndex={0} style={{ boxShadow: "none" }}>
+              <table className="rp-table">
+                <caption className="rp-sr-only">Shipping rates for {z.name}</caption>
+                <thead><tr><th scope="col">Rate</th><th scope="col">Delivery</th><th scope="col" className="rp-num">Base</th><th scope="col" className="rp-num">Each additional</th><th scope="col" className="rp-num">Min order</th><th scope="col">Actions</th></tr></thead>
+                <tbody>
+                  {z.rates.map((r: any) => (
+                    <tr key={r.id}>
+                      <td className="rp-lead">{r.name}</td>
+                      <td>{r.deliveryDays || "3-7"} days</td>
+                      <td className="rp-num">{money(r.base)}</td>
+                      <td className="rp-num">+{money(r.additional)}</td>
+                      <td className="rp-num">{r.minPrice !== null && r.minPrice !== undefined ? money(r.minPrice) : "—"}</td>
+                      <td>
+                        <span style={{ display: "inline-flex", gap: 6 }}>
+                          <SecondaryButton size="sm" onClick={() => openRateModal(z.id, r)} aria-label={`Edit rate ${r.name}`}>Edit</SecondaryButton>
+                          <DestructiveButton size="sm" onClick={() => handleDeleteRate(z.id, r.id)} aria-label={`Delete rate ${r.name}`}>Delete</DestructiveButton>
                         </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => openZoneModal(z)}
-                      className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-full text-[9px] font-black tracking-widest uppercase transition-all"
-                    >
-                      EDIT ZONE
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteZone(z.id)}
-                      aria-label="Delete shipping zone"
-                      className="p-2.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 rounded-full transition-all"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Zone Rates */}
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Shipping rates for this zone</h5>
-                    <button 
-                      onClick={() => openRateModal(z.id)}
-                      className="bg-white/5 hover:bg-white/10 text-white border border-white/10 px-6 py-2 rounded-full text-[9px] font-black tracking-widest transition-all"
-                    >
-                      + ADD RATE
-                    </button>
-                  </div>
-
-                  {(!z.rates || z.rates.length === 0) ? (
-                    <div className="py-8 text-center border border-dashed border-white/5 rounded-2xl text-[9px] font-black text-slate-600 uppercase tracking-widest">
-                      No rates configured. This zone will not have active shipping.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {z.rates.map((r: any) => (
-                        <div key={r.id} className="bg-white/[0.01] border border-white/5 hover:border-violet-500/20 rounded-[2rem] p-6 flex justify-between items-start transition-all">
-                          <div className="space-y-3">
-                            <div>
-                              <p className="text-sm font-black text-white uppercase tracking-wider">{r.name}</p>
-                              <p className="text-[9px] text-slate-500 font-black tracking-widest uppercase mt-1">Delivery: {r.deliveryDays || "3-7"} Days</p>
-                            </div>
-                            <div className="flex gap-6 pt-3 border-t border-white/5">
-                              <div>
-                                <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">Base Rate</p>
-                                <p className="text-xl font-black text-white font-mono mt-1">${Number(r.base).toFixed(2)}</p>
-                              </div>
-                              <div>
-                                <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">Add. Item</p>
-                                <p className="text-xl font-black text-white font-mono mt-1">+${Number(r.additional).toFixed(2)}</p>
-                              </div>
-                              {r.minPrice !== null && r.minPrice !== undefined && (
-                                <div>
-                                  <p className="text-[8px] text-emerald-400/70 font-bold uppercase tracking-widest">Min Spend</p>
-                                  <p className="text-xl font-black text-emerald-400 font-mono mt-1">${Number(r.minPrice).toFixed(2)}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={() => openRateModal(z.id, r)}
-                              aria-label="Edit shipping rate"
-                              className="p-2 bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/10 transition-all"
-                            >
-                              <Edit size={12} />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteRate(z.id, r.id)}
-                              aria-label="Delete shipping rate"
-                              className="p-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-all"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* --- MODAL 1: PRODUCT SELECTION --- */}
-      <AnimatePresence>
-        {isProductModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="glass-card w-full max-w-2xl rounded-[3rem] p-10 border border-white/10 relative overflow-hidden bg-[#07060E] max-h-[85vh] flex flex-col"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent pointer-events-none" />
-              <div className="flex justify-between items-start pb-6 border-b border-white/5 relative z-10 shrink-0">
-                <div>
-                  <h3 className="text-2xl font-black text-white uppercase italic leading-none">Manage Products</h3>
-                  <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-2 font-bold">Select books to assign to: {editingProfile.name}</p>
-                </div>
-                <button 
-                  onClick={() => setIsProductModalOpen(false)}
-                  className="p-3 bg-white/5 text-slate-400 hover:text-white rounded-full border border-white/10 cursor-pointer"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* Search */}
-              <div className="py-6 relative z-10 shrink-0">
-                <div className="flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 shadow-inner">
-                  <Search size={16} className="text-slate-650" />
-                  <input 
-                    type="text"
-                    placeholder="Search catalog by title..."
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    className="bg-transparent border-none outline-none text-xs text-white placeholder:text-slate-600 flex-1 font-semibold"
-                  />
-                </div>
-              </div>
-
-              {/* Books List (scrollable) */}
-              <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar relative z-10 py-2">
-                {books
-                  .filter(b => b.title.toLowerCase().includes(productSearch.toLowerCase()))
-                  .map(b => {
-                    const isChecked = selectedProductIds.includes(b.id);
-                    const isOtherProfile = b.shippingProfileId && b.shippingProfileId !== editingProfile.id;
-                    const otherProfileName = isOtherProfile 
-                      ? (profiles.find((p: any) => p.id === b.shippingProfileId)?.name || "Other Profile")
-                      : "";
-                    
-                    return (
-                      <div 
-                        key={b.id} 
-                        onClick={() => {
-                          setSelectedProductIds(prev => 
-                            isChecked ? prev.filter(id => id !== b.id) : [...prev, b.id]
-                          );
-                        }}
-                        className={`flex items-center justify-between p-4 bg-white/[0.02] border rounded-2xl cursor-pointer hover:border-violet-500/20 transition-all ${
-                          isChecked ? "border-violet-500 bg-violet-500/[0.02]" : "border-white/5"
-                        }`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
-                            isChecked ? "border-violet-500 bg-violet-600 text-white" : "border-white/20"
-                          }`}>
-                            {isChecked && <Check size={12} />}
-                          </div>
-                          <div className="w-10 aspect-[3/4] bg-black rounded-lg overflow-hidden border border-white/10 shrink-0">
-                            {b.photos?.[0]?.url && <img src={b.photos[0].url} className="w-full h-full object-cover" />}
-                          </div>
-                          <div className="text-left overflow-hidden">
-                            <p className="text-xs font-black text-white truncate uppercase tracking-wider">{b.title}</p>
-                            {isOtherProfile ? (
-                              <p className="text-[8px] text-amber-500 font-bold uppercase tracking-widest mt-1">
-                                Currently assigned to: {otherProfileName}
-                              </p>
-                            ) : (
-                              <p className="text-[8px] text-slate-500 mt-1 truncate font-mono">{b.subtitle || "Single edition"}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-
-              {/* Actions */}
-              <div className="pt-6 border-t border-white/5 flex gap-4 mt-6 relative z-10 shrink-0">
-                <button 
-                  onClick={handleSaveProducts}
-                  className="bg-violet-600 hover:bg-violet-500 text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest flex-1 transition-all"
-                >
-                  SAVE PRODUCT ASSIGNMENTS
-                </button>
-                <button 
-                  onClick={() => setIsProductModalOpen(false)}
-                  className="bg-slate-100 text-slate-700 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
-                >
-                  CANCEL
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* --- MODAL 2: ZONE CONFIGURATION --- */}
-      <AnimatePresence>
-        {isZoneModalOpen && activeZone && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="glass-card w-full max-w-2xl rounded-[3rem] p-10 border border-white/10 relative overflow-hidden bg-[#07060E] max-h-[85vh] flex flex-col"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-transparent pointer-events-none" />
-              <div className="flex justify-between items-start pb-6 border-b border-white/5 relative z-10 shrink-0">
-                <div>
-                  <h3 className="text-2xl font-black text-white uppercase italic leading-none">Shipping Zone Config</h3>
-                  <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-2 font-bold">Group countries/regions for unified shipping rules</p>
-                </div>
-                <button 
-                  onClick={() => setIsZoneModalOpen(false)}
-                  className="p-3 bg-white/5 text-slate-400 hover:text-white rounded-full border border-white/10 cursor-pointer"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* Zone Name input */}
-              <div className="py-6 space-y-4 relative z-10 shrink-0">
-                <InputField 
-                  label="ZONE NAME"
-                  value={activeZone.name}
-                  placeholder="e.g. North America, Europe, Domestic..."
-                  onChange={(e: any) => setActiveZone({ ...activeZone, name: e.target.value })}
-                />
-              </div>
-
-              {/* Region Presets */}
-              <div className="pb-4 relative z-10 shrink-0 flex flex-col gap-2">
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1 mb-2">Regional Presets</label>
-                <div className="flex flex-wrap gap-3">
-                  {Object.keys(REGIONAL_PRESETS).map(regionName => (
-                    <button 
-                      key={regionName}
-                      type="button"
-                      onClick={() => {
-                        const countries = REGIONAL_PRESETS[regionName];
-                        setActiveZone((prev: any) => {
-                          const union = Array.from(new Set([...prev.countries, ...countries]));
-                          return { ...prev, countries: union };
-                        });
-                      }}
-                      className="bg-white/5 hover:bg-white/10 text-white border border-white/15 px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase transition-all"
-                    >
-                      + SELECT {regionName}
-                    </button>
+                      </td>
+                    </tr>
                   ))}
-                  <button 
-                    type="button"
-                    onClick={() => setActiveZone((prev: any) => ({ ...prev, countries: [] }))}
-                    className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/15 px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase transition-all"
-                  >
-                    CLEAR SELECTION
-                  </button>
-                </div>
-              </div>
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="rp-card-actions"><span /><SecondaryButton size="sm" onClick={() => openRateModal(z.id)}>+ Add rate</SecondaryButton></div>
+        </SectionCard>
+      ))}
 
-              {/* Search Countries */}
-              <div className="pb-4 relative z-10 shrink-0">
-                <div className="flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 shadow-inner">
-                  <Search size={16} className="text-slate-650" />
-                  <input 
-                    type="text"
-                    placeholder="Search countries..."
-                    value={countrySearch}
-                    onChange={(e) => setCountrySearch(e.target.value)}
-                    className="bg-transparent border-none outline-none text-xs text-white placeholder:text-slate-600 flex-1 font-semibold"
-                  />
-                </div>
-              </div>
-
-              {/* Countries Checkbox List */}
-              <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-3 pr-2 custom-scrollbar relative z-10 py-2">
-                {COUNTRIES_LIST
-                  .filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()))
-                  .map(c => {
-                    const isChecked = activeZone.countries.includes(c);
-                    return (
-                      <div 
-                        key={c}
-                        onClick={() => {
-                          setActiveZone((prev: any) => {
-                            const countries = isChecked 
-                              ? prev.countries.filter((x: string) => x !== c)
-                              : [...prev.countries, c];
-                            return { ...prev, countries };
-                          });
-                        }}
-                        className={`flex items-center gap-3 p-3 bg-white/[0.01] border rounded-xl cursor-pointer hover:border-cyan-500/20 transition-all ${
-                          isChecked ? "border-cyan-500 bg-cyan-500/[0.02]" : "border-white/5"
-                        }`}
-                      >
-                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
-                          isChecked ? "border-cyan-500 bg-cyan-600 text-white" : "border-white/20"
-                        }`}>
-                          {isChecked && <Check size={10} />}
-                        </div>
-                        <span className="text-xs font-semibold text-white/85 uppercase tracking-wide">{c}</span>
-                      </div>
-                    );
-                  })}
-              </div>
-
-              {/* Actions */}
-              <div className="pt-6 border-t border-white/5 flex gap-4 mt-6 relative z-10 shrink-0">
-                <button 
-                  onClick={handleSaveZone}
-                  className="bg-cyan-600 hover:bg-cyan-500 text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest flex-1 transition-all"
-                >
-                  SAVE ZONE CONFIG
-                </button>
-                <button 
-                  onClick={() => setIsZoneModalOpen(false)}
-                  className="bg-slate-100 text-slate-700 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
-                >
-                  CANCEL
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* --- MODAL 3: RATE CONFIGURATION --- */}
-      <AnimatePresence>
-        {isRateModalOpen && activeRate && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="glass-card w-full max-w-2xl rounded-[3rem] p-10 border border-white/10 relative overflow-hidden bg-[#07060E] max-h-[85vh] flex flex-col"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent pointer-events-none" />
-              
-              <div className="flex justify-between items-start pb-6 border-b border-white/5 relative z-10 shrink-0">
-                <div>
-                  <h3 className="text-2xl font-black text-white uppercase italic leading-none">Rate Setting Protocol</h3>
-                  <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-2 font-bold">Configure shipping speed and hybrid item prices</p>
-                </div>
-                <button 
-                  onClick={() => setIsRateModalOpen(false)}
-                  className="p-3 bg-white/5 text-slate-400 hover:text-white rounded-full border border-white/10 cursor-pointer"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* Rate Editor Form (scrollable) */}
-              <div className="flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar relative z-10 py-6">
-                
-                <InputField 
-                  label="RATE / SERVICE NAME"
-                  value={activeRate.name}
-                  placeholder="e.g. Standard Shipping, Express Delivery, Special Warp..."
-                  onChange={(e: any) => setActiveRate({ ...activeRate, name: e.target.value })}
-                />
-
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">BASE SHIPPING RATE (CAD)</label>
-                    <div className="flex items-center gap-6 bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 focus-within:border-emerald-500/50 focus-within:bg-white/[0.06] transition-all group shadow-inner">
-                      <span className="text-slate-500 font-mono text-sm">$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="bg-transparent border-none outline-none text-sm text-white flex-1 font-bold font-mono"
-                        value={activeRate.base}
-                        placeholder="15.00"
-                        onChange={(e: any) => setActiveRate({ ...activeRate, base: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">ADDITIONAL ITEM RATE (CAD)</label>
-                    <div className="flex items-center gap-6 bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 focus-within:border-emerald-500/50 focus-within:bg-white/[0.06] transition-all group shadow-inner">
-                      <span className="text-slate-500 font-mono text-sm">+$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="bg-transparent border-none outline-none text-sm text-white flex-1 font-bold font-mono"
-                        value={activeRate.additional}
-                        placeholder="5.00"
-                        onChange={(e: any) => setActiveRate({ ...activeRate, additional: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <InputField 
-                  label="ESTIMATED DELIVERY (DAYS)"
-                  value={activeRate.deliveryDays}
-                  placeholder="e.g. 3-7, 1-2, 5-10"
-                  onChange={(e: any) => setActiveRate({ ...activeRate, deliveryDays: e.target.value })}
-                />
-
-                {/* Price condition */}
-                <div className="space-y-4 pt-4 border-t border-white/5">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="text-xs font-black text-white uppercase tracking-wider italic">Order Price Condition</p>
-                      <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Make rate available only within cart price range (optional)</p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">MINIMUM ORDER PRICE threshold (CAD)</label>
-                    <div className="flex items-center gap-6 bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 focus-within:border-emerald-500/50 focus-within:bg-white/[0.06] transition-all group shadow-inner">
-                      <span className="text-slate-500 font-mono text-sm">$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="bg-transparent border-none outline-none text-sm text-white flex-1 font-bold font-mono"
-                        value={activeRate.minPrice !== null && activeRate.minPrice !== undefined ? activeRate.minPrice : ""}
-                        placeholder="e.g. 50.00 for free shipping above $50"
-                        onChange={(e: any) => {
-                          const val = e.target.value;
-                          setActiveRate({ ...activeRate, minPrice: val === "" ? null : val });
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Actions */}
-              <div className="pt-6 border-t border-white/5 flex gap-4 mt-6 relative z-10 shrink-0">
-                <button 
-                  onClick={handleSaveRate}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest flex-1 transition-all"
-                >
-                  SAVE RATE PROTOCOL
-                </button>
-                <button 
-                  onClick={() => setIsRateModalOpen(false)}
-                  className="bg-slate-100 text-slate-700 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
-                >
-                  CANCEL
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {dialogs}
+      {confirmNode}
     </div>
   );
 }
 
-function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
+function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
+  const [askConfirm, confirmNode] = useConfirm();
   const stripe = settings.payments?.stripe || {};
   const paypal = settings.payments?.paypal || {};
   const testMode = settings.payments?.testMode || false;
@@ -1777,9 +1117,9 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
       const res = await adminApi.saveShippoConfig(newShippoToken);
       setShippoConfig(res);
       setNewShippoToken("");
-      alert("Shippo API Token saved and synced successfully!");
+      toast.success("Shippo API Token saved and synced successfully!");
     } catch (err: any) {
-      alert(err.message || "Failed to save Shippo API Token.");
+      toast.error(err.message || "Failed to save Shippo API Token.");
     } finally {
       setSavingShippo(false);
     }
@@ -1846,7 +1186,7 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
 
   const handleSaveMethod = () => {
     if (!methodName.trim()) {
-      alert("Please enter a payment method name.");
+      toast.error("Please enter a payment method name.");
       return;
     }
 
@@ -1902,607 +1242,187 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
     });
   };
 
+  const enabledManual = manualMethods.filter((m: any) => m.enabled);
+  const dirty = hasChanges("payments");
+  const stripeLive = !!stripe.connected;
+  const paypalLive = !!paypal.connected;
+  const secretStored = !!(stripe.secretKey || stripe.testSecretKey);
+
+  const removeMethod = async (m: any) => {
+    if (!(await askConfirm({ title: "Delete this payment method?", message: `“${m.name}” will no longer be offered at checkout once you save.`, confirmLabel: "Delete method" }))) return;
+    handleDeleteMethod(m.id);
+  };
+
   return (
-    <div className="space-y-16">
-      <header className="flex flex-col gap-2 mb-12">
-        <div className="flex justify-between items-end">
-          <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Payment Gateways</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Transaction processing & payment settings</p>
-          </div>
-          {hasChanges('payments') && (
-            <button
-              onClick={() => saveSection('payments', { payments: settings.payments })}
-              disabled={savingSection === 'payments'}
-              className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/40 hover:bg-violet-500 transition-all disabled:opacity-50 border border-violet-400/20"
-            >
-              {savingSection === 'payments' ? 'SYNCHRONIZING...' : 'SAVE CHANGES'}
-            </button>
+    <div className="rp-stack">
+      <SectionCard title="Payment overview" description="What customers can pay with right now.">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <StatusBadge tone={testMode ? "warning" : "success"}>{testMode ? "Test mode — no real charges" : "Live mode"}</StatusBadge>
+          <StatusBadge tone={stripeLive ? "success" : "neutral"}>Stripe {stripeLive ? "on" : "off"}</StatusBadge>
+          <StatusBadge tone={paypalLive ? "success" : "neutral"}>PayPal {paypalLive ? "on" : "off"}</StatusBadge>
+          <StatusBadge tone={enabledManual.length ? "info" : "neutral"}>{enabledManual.length} manual method{enabledManual.length === 1 ? "" : "s"}</StatusBadge>
+          {!stripeLive && !paypalLive && enabledManual.length === 0 && <StatusBadge tone="danger">No way to pay is enabled</StatusBadge>}
+        </div>
+        <p className="rp-hint" style={{ margin: "12px 0 0" }}>
+          The amount charged is always calculated by the payment server, never in the browser. Orders are created unpaid and are marked paid only when the Stripe webhook confirms the payment.
+        </p>
+        <div className="rp-card-actions">
+          <Toggle label="Test (sandbox) mode" checked={!!testMode} onChange={updateTestMode} />
+          <span className="rp-hint">In test mode Stripe and PayPal process test charges and orders are flagged as test orders.</span>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Stripe" description="Accept credit and debit cards, Apple Pay and Google Pay."
+        actions={<SecondaryButton size="sm" onClick={() => window.open("https://dashboard.stripe.com", "_blank", "noopener")}>Stripe dashboard ↗</SecondaryButton>}>
+        <div className="rp-stack" style={{ gap: 20 }}>
+          <Toggle label="Stripe checkout" checked={!!stripe.connected} onChange={(v) => updateStripe({ connected: v })} />
+          {stripe.connected && (
+            <>
+              {secretStored && (
+                <div role="alert" style={{ padding: 16, background: "var(--rp-warning-tint)", border: "2px solid var(--rp-border-strong)" }}>
+                  <strong>⚠ Secret key stored in a readable settings document.</strong>{" "}
+                  Store settings can be read by the storefront (and anyone who requests them). Prefer the STRIPE_SECRET_KEY Firebase Functions secret, then rotate any key that was entered here.
+                </div>
+              )}
+              <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+                <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 0.75 : 1 }}>
+                  <div className="rp-sect">Live keys {!testMode && "· in use"}</div>
+                  <div className="rp-stack" style={{ gap: 12 }}>
+                    <InputField label="Publishable key" placeholder="pk_live_…" icon={Lock} value={stripe.publicKey || ""} onChange={(e: any) => updateStripe({ publicKey: e.target.value })} />
+                    <SecretField label="Secret key" placeholder="sk_live_…" stored={!!stripe.secretKey} onCommit={(v) => updateStripe({ secretKey: v })} />
+                  </div>
+                </div>
+                <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 1 : 0.75 }}>
+                  <div className="rp-sect">Test keys {testMode && "· in use"}</div>
+                  <div className="rp-stack" style={{ gap: 12 }}>
+                    <InputField label="Test publishable key" placeholder="pk_test_…" icon={Lock} value={stripe.testPublicKey || ""} onChange={(e: any) => updateStripe({ testPublicKey: e.target.value })} />
+                    <SecretField label="Test secret key" placeholder="sk_test_…" stored={!!stripe.testSecretKey} onCommit={(v) => updateStripe({ testSecretKey: v })} />
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "grid", gap: 4 }}>
+                <Toggle label="Apple Pay" checked={!!stripe.applePay} onChange={(v) => updateStripe({ applePay: v })} />
+                <Toggle label="Google Pay" checked={!!stripe.googlePay} onChange={(v) => updateStripe({ googlePay: v })} />
+              </div>
+              <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
+                <div className="rp-sect">Webhook health</div>
+                <p className="rp-hint" style={{ margin: 0 }}>
+                  Delivery status isn't reported inside this admin. Check that the <span className="rp-mono">stripeWebhook</span> endpoint shows recent successful deliveries in the Stripe Dashboard under Developers → Webhooks. If paid orders stay “unpaid”, the webhook is the first place to look.
+                </p>
+              </div>
+            </>
           )}
         </div>
-      </header>
+      </SectionCard>
 
-      {/* Global Test Mode Switcher */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 relative overflow-hidden group">
-        <div className={`absolute inset-0 bg-gradient-to-br transition-all duration-700 ${
-          testMode 
-            ? "from-amber-500/[0.05] via-transparent to-transparent" 
-            : "from-emerald-500/[0.03] via-transparent to-transparent"
-        } pointer-events-none`} />
-        
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 relative z-10">
-          <div className="flex-1 space-y-4">
-            <SectionHeader 
-              title="Store Test Mode" 
-              subtitle="Environment Settings" 
-              icon={ShieldCheck} 
-              color={testMode ? "amber" : "emerald"} 
-            />
-            <p className="text-xs text-slate-400 leading-relaxed max-w-xl font-medium">
-              Run transactions in live mode or sandbox (test) mode. In Sandbox mode, Stripe and PayPal will process test charges and orders will be flagged as <span className="text-amber-400 font-bold uppercase tracking-wider">test mode orders</span>.
-            </p>
+      <SectionCard title="PayPal" description="Let customers pay with PayPal.">
+        <div className="rp-stack" style={{ gap: 20 }}>
+          <Toggle label="PayPal checkout" checked={!!paypal.connected} onChange={(v) => updatePaypal({ connected: v })} />
+          {paypal.connected && (
+            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+              <InputField label="Live client ID" placeholder="Client ID…" icon={Lock} value={paypal.clientId || ""} onChange={(e: any) => updatePaypal({ clientId: e.target.value })} />
+              <InputField label="Test client ID" placeholder="Test client ID…" icon={Lock} value={paypal.testClientId || ""} onChange={(e: any) => updatePaypal({ testClientId: e.target.value })} />
+            </div>
+          )}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Shippo" description="Address verification, live carrier rates and shipping labels."
+        actions={<SecondaryButton size="sm" onClick={() => window.open("https://goshippo.com", "_blank", "noopener")}>Shippo ↗</SecondaryButton>}>
+        <div className="rp-stack" style={{ gap: 20 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            {loadingShippo ? <StatusBadge>Checking…</StatusBadge>
+              : <StatusBadge tone={shippoConfig?.configured ? "success" : "warning"}>{shippoConfig?.configured ? "Connected" : "Not connected — addresses are not verified"}</StatusBadge>}
+            {shippoConfig?.updatedAt && <span className="rp-hint">Last updated {new Date(shippoConfig.updatedAt).toLocaleDateString()}</span>}
           </div>
-          <div className="flex items-center gap-6">
-            <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${testMode ? "text-amber-400" : "text-emerald-400"}`}>
-              {testMode ? "Sandbox Active" : "Live Processing Active"}
-            </span>
-            <Switch 
-              checked={testMode} 
-              onChange={updateTestMode} 
-            />
+          {shippoConfig?.configured && (
+            <Toggle label="Live carrier rates at checkout (based on address and parcel weight)" checked={shippoConfig?.dynamicRatesEnabled ?? false}
+              onChange={async (enabled) => {
+                try {
+                  await adminApi.setShippoDynamicRates(enabled);
+                  setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
+                  toast.success(enabled ? "Dynamic shipping rates enabled" : "Dynamic shipping rates disabled");
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to update Shippo settings.");
+                }
+              }} />
+          )}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+            <div style={{ flex: "1 1 280px" }}>
+              <InputField label="New Shippo API token" placeholder="shippo_live_… or shippo_test_…" icon={ShieldCheck} type="password" value={newShippoToken}
+                onChange={(e: any) => setNewShippoToken(e.target.value)} hint="Sent to the server and stored with limited access. It is never shown again or exposed to the storefront." />
+            </div>
+            <PrimaryButton onClick={handleSaveShippo} disabled={savingShippo || !newShippoToken.trim()}>{savingShippo ? "Saving…" : "Save key"}</PrimaryButton>
           </div>
         </div>
-      </section>
+      </SectionCard>
 
-      {/* Stripe Card */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-         <div className="absolute top-0 right-0 p-16 opacity-5 pointer-events-none">
-            <CreditCard size={200} className="text-violet-500" />
-         </div>
-         <div className="relative z-10">
-            <div className="flex justify-between items-start mb-12">
-               <SectionHeader 
-                  title="Stripe Integration" 
-                  subtitle="Accept credit and debit card payments" 
-                  icon={ShieldCheck} 
-                  color="violet"
-               />
-               <button 
-                  onClick={() => window.open("https://dashboard.stripe.com", "_blank")}
-                  className="bg-white/5 border border-white/10 px-8 py-3 rounded-2xl text-[9px] font-black tracking-[0.2em] text-slate-300 hover:bg-white/10 transition-all flex items-center gap-3 uppercase shadow-lg cursor-pointer"
-                >
-                   STRIPE DASHBOARD <ExternalLink size={14} className="text-violet-400" />
-                </button>
-            </div>
-            
-            <div className="flex items-center gap-8 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 shadow-inner">
-               <div className="flex items-center gap-4">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Stripe Checkout Status</span>
-                  <Switch 
-                    checked={stripe.connected} 
-                    onChange={(val) => updateStripe({ connected: val })} 
-                  />
-               </div>
-               <div className="flex-1 h-1 bg-white/5 rounded-full relative overflow-hidden">
-                  <motion.div 
-                    initial={false}
-                    animate={{ width: stripe.connected ? '100%' : '0%' }}
-                    className="absolute inset-0 bg-gradient-to-r from-violet-500 to-cyan-500"
-                  />
-               </div>
-               <span className={`text-[10px] font-black uppercase tracking-[0.4em] w-24 text-right ${stripe.connected ? 'text-emerald-400' : 'text-slate-600'}`}>
-                 {stripe.connected ? 'Active' : 'Inactive'}
-               </span>
-            </div>
-
-            <AnimatePresence>
-               {stripe.connected && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    className="space-y-12 mt-12"
-                  >
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                        {/* Live Keys */}
-                        <div className={`space-y-8 p-8 bg-white/[0.01] border rounded-[2rem] transition-all ${
-                          !testMode ? "border-violet-500/20 shadow-lg shadow-violet-500/[0.02]" : "border-white/5 opacity-50"
-                        }`}>
-                           <h4 className="text-[10px] font-black tracking-[0.25em] text-white uppercase italic">Live Environment Keys</h4>
-                           <InputField 
-                              label="STRIPE PUBLISHABLE KEY" 
-                              placeholder="pk_live_..."
-                              icon={Lock}
-                              value={stripe.publicKey || ""}
-                              onChange={(e: any) => updateStripe({ publicKey: e.target.value })}
-                           />
-                           <InputField 
-                              label="STRIPE SECRET KEY" 
-                              placeholder="sk_live_..."
-                              icon={ShieldCheck}
-                              type="password"
-                              value={stripe.secretKey || ""}
-                              onChange={(e: any) => updateStripe({ secretKey: e.target.value })}
-                           />
-                        </div>
-                        
-                        {/* Test Keys */}
-                        <div className={`space-y-8 p-8 bg-white/[0.01] border rounded-[2rem] transition-all ${
-                          testMode ? "border-amber-500/20 shadow-lg shadow-amber-500/[0.02]" : "border-white/5 opacity-50"
-                        }`}>
-                           <h4 className="text-[10px] font-black tracking-[0.25em] text-white uppercase italic">Test (Sandbox) Keys</h4>
-                           <InputField 
-                              label="STRIPE TEST PUBLISHABLE KEY" 
-                              placeholder="pk_test_..."
-                              icon={Lock}
-                              value={stripe.testPublicKey || ""}
-                              onChange={(e: any) => updateStripe({ testPublicKey: e.target.value })}
-                           />
-                           <InputField 
-                              label="STRIPE TEST SECRET KEY" 
-                              placeholder="sk_test_..."
-                              icon={ShieldCheck}
-                              type="password"
-                              value={stripe.testSecretKey || ""}
-                              onChange={(e: any) => updateStripe({ testSecretKey: e.target.value })}
-                           />
-                        </div>
-                     </div>
-
-                     {/* Wallets */}
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all shadow-inner">
-                           <div className="flex items-center gap-6">
-                              <div className="w-16 h-10 bg-black text-white rounded-xl flex items-center justify-center border border-white/10 shadow-xl overflow-hidden">
-                                 <span className="text-xs font-black tracking-tighter">Pay</span>
-                              </div>
-                              <div>
-                                 <h4 className="text-sm font-black text-white uppercase tracking-widest italic">Apple Pay</h4>
-                                 <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em] mt-1">NFC enabled checkout</p>
-                              </div>
-                           </div>
-                           <Switch 
-                             checked={stripe.applePay} 
-                             onChange={(val) => updateStripe({ applePay: val })} 
-                           />
-                        </div>
-                        <div className="flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all shadow-inner">
-                           <div className="flex items-center gap-6">
-                              <div className="w-16 h-10 bg-white rounded-xl flex items-center justify-center border border-white/10 shadow-xl overflow-hidden">
-                                 <span className="text-xs font-black tracking-tighter text-blue-600 italic">GPay</span>
-                              </div>
-                              <div>
-                                 <h4 className="text-sm font-black text-white uppercase tracking-widest italic">Google Pay</h4>
-                                 <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em] mt-1">Smart wallet integration</p>
-                              </div>
-                           </div>
-                           <Switch 
-                             checked={stripe.googlePay} 
-                             onChange={(val) => updateStripe({ googlePay: val })} 
-                           />
-                        </div>
-                     </div>
-                  </motion.div>
-               )}
-            </AnimatePresence>
-         </div>
-      </section>
-
-      {/* PayPal Card */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.03] to-transparent pointer-events-none" />
-         <div className="relative z-10">
-            <div className="flex justify-between items-start mb-12">
-               <SectionHeader 
-                  title="PayPal Integration" 
-                  subtitle="Allow customers to pay via PayPal" 
-                  icon={DollarSign} 
-                  color="blue"
-               />
-            </div>
-
-            <div className="flex items-center gap-8 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 shadow-inner">
-               <div className="flex items-center gap-4">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">PayPal Integration Status</span>
-                  <Switch 
-                    checked={paypal.connected} 
-                    onChange={(val) => updatePaypal({ connected: val })} 
-                  />
-               </div>
-               <div className="flex-1 h-1 bg-white/5 rounded-full relative overflow-hidden">
-                  <motion.div 
-                    initial={false}
-                    animate={{ width: paypal.connected ? '100%' : '0%' }}
-                    className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-500"
-                  />
-               </div>
-               <span className={`text-[10px] font-black uppercase tracking-[0.4em] w-24 text-right ${paypal.connected ? 'text-emerald-400' : 'text-slate-600'}`}>
-                 {paypal.connected ? 'Active' : 'Inactive'}
-               </span>
-            </div>
-
-            <AnimatePresence>
-               {paypal.connected && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    className="mt-12 space-y-12"
-                  >
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                        {/* Live Client ID */}
-                        <div className={`space-y-6 p-8 bg-white/[0.01] border rounded-[2rem] transition-all ${
-                          !testMode ? "border-blue-500/20 shadow-lg shadow-blue-500/[0.02]" : "border-white/5 opacity-50"
-                        }`}>
-                           <h4 className="text-[10px] font-black tracking-[0.25em] text-white uppercase italic">Live Client ID</h4>
-                           <InputField 
-                              label="PAYPAL CLIENT ID" 
-                              placeholder="Client ID..."
-                              icon={Lock}
-                              value={paypal.clientId || ""}
-                              onChange={(e: any) => updatePaypal({ clientId: e.target.value })}
-                           />
-                        </div>
-                        
-                        {/* Test Client ID */}
-                        <div className={`space-y-6 p-8 bg-white/[0.01] border rounded-[2rem] transition-all ${
-                          testMode ? "border-amber-500/20 shadow-lg shadow-amber-500/[0.02]" : "border-white/5 opacity-50"
-                        }`}>
-                           <h4 className="text-[10px] font-black tracking-[0.25em] text-white uppercase italic">Test Client ID</h4>
-                           <InputField 
-                              label="PAYPAL TEST CLIENT ID" 
-                              placeholder="Test Client ID..."
-                              icon={Lock}
-                              value={paypal.testClientId || ""}
-                              onChange={(e: any) => updatePaypal({ testClientId: e.target.value })}
-                           />
-                        </div>
-                     </div>
-                  </motion.div>
-               )}
-            </AnimatePresence>
-         </div>
-      </section>
-
-      {/* Shippo Card */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-         <div className="absolute top-0 right-0 p-16 opacity-5 pointer-events-none">
-            <Truck size={200} className="text-violet-500" />
-         </div>
-         <div className="relative z-10">
-            <div className="flex justify-between items-start mb-12">
-               <SectionHeader 
-                  title="Shippo Integration" 
-                  subtitle="Configure API Token for Address Verification and Shipping Labels" 
-                  icon={Truck} 
-                  color="violet"
-               />
-               <button 
-                  onClick={() => window.open("https://goshippo.com", "_blank")}
-                  className="bg-white/5 border border-white/10 px-8 py-3 rounded-2xl text-[9px] font-black tracking-[0.2em] text-slate-300 hover:bg-white/10 transition-all flex items-center gap-3 uppercase shadow-lg cursor-pointer"
-                >
-                   SHIPPO DASHBOARD <ExternalLink size={14} className="text-violet-400" />
-                </button>
-            </div>
-            
-            <div className="space-y-8">
-               <div className="p-6 bg-white/[0.02] border border-white/5 rounded-2xl flex justify-between items-center">
-                  <div>
-                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Status</span>
-                     <p className="text-xs font-bold text-white mt-1">
-                        {loadingShippo ? (
-                           <span className="text-slate-500 uppercase tracking-widest text-[10px]">Loading status...</span>
-                        ) : shippoConfig?.configured ? (
-                           <span>
-                              Configured via <span className="text-violet-400 uppercase">{shippoConfig.source || "Secret"}</span> (Ends in <span className="font-mono text-cyan-400">****{shippoConfig.lastFour}</span>)
-                           </span>
-                        ) : (
-                           <span className="text-red-400 uppercase">Not Configured (Fallback Active)</span>
-                        )}
-                     </p>
-                  </div>
-                  {shippoConfig?.updatedAt && (
-                     <div className="text-right">
-                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Last Updated</span>
-                        <p className="text-[10px] text-slate-400 font-mono mt-1">{new Date(shippoConfig.updatedAt).toLocaleDateString()}</p>
-                     </div>
-                  )}
-               </div>
-
-               {shippoConfig?.configured && (
-                  <div className="p-6 bg-white/[0.02] border border-white/5 rounded-2xl flex justify-between items-center">
-                     <div>
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Dynamic Rates via Shippo</span>
-                        <p className="text-xs text-slate-450 mt-1">Fetch live carrier shipping rates dynamically at checkout based on address & parcel weight</p>
-                     </div>
-                     <input
-                        type="checkbox"
-                        checked={shippoConfig?.dynamicRatesEnabled ?? false}
-                        onChange={async (e) => {
-                           const enabled = e.target.checked;
-                           try {
-                              await adminApi.setShippoDynamicRates(enabled);
-                              setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
-                              alert(enabled ? "Dynamic shipping rates enabled!" : "Dynamic shipping rates disabled!");
-                           } catch (err: any) {
-                              alert(err.message || "Failed to update Shippo settings.");
-                           }
-                        }}
-                        className="w-6 h-6 rounded-lg bg-[#1E1E1F] border-white/10 text-violet-600 focus:ring-violet-500 cursor-pointer"
-                     />
-                  </div>
-               )}
-
-
-               <div className="flex gap-4 items-end">
-                  <div className="flex-1">
-                     <InputField 
-                        label="NEW SHIPPO API TOKEN" 
-                        placeholder="shippo_live_... or shippo_test_..."
-                        icon={ShieldCheck}
-                        type="password"
-                        value={newShippoToken}
-                        onChange={(e: any) => setNewShippoToken(e.target.value)}
-                     />
-                  </div>
-                  <button
-                     type="button"
-                     onClick={handleSaveShippo}
-                     disabled={savingShippo || !newShippoToken.trim()}
-                     className="bg-violet-600 hover:bg-violet-500 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.25em] uppercase transition-all disabled:opacity-30 active:scale-95 border border-violet-400/20 shadow-lg shrink-0 cursor-pointer"
-                  >
-                     {savingShippo ? "SYNCING..." : "SAVE KEY"}
-                  </button>
-               </div>
-               
-               <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em] leading-relaxed">
-                  Keys are synced securely to Firestore with limited access permissions. The storefront never exposes your API token.
-               </p>
-            </div>
-         </div>
-      </section>
-
-      {/* Manual Payment Methods Card */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
-          <SectionHeader 
-            title="Manual Payment Methods" 
-            subtitle="Alternative payment gateways" 
-            icon={Building} 
-            color="emerald"
-          />
-          
-          <div className="flex flex-wrap gap-4">
-            <button 
-              onClick={() => openAddMethod("bank")}
-              className="bg-white/5 border border-white/10 hover:bg-white/10 text-white px-5 py-3 rounded-2xl font-black text-[9px] uppercase tracking-[0.2em] transition-all flex items-center gap-2"
-            >
-              <Plus size={12} /> + e-Transfer
-            </button>
-            <button 
-              onClick={() => openAddMethod("cod")}
-              className="bg-white/5 border border-white/10 hover:bg-white/10 text-white px-5 py-3 rounded-2xl font-black text-[9px] uppercase tracking-[0.2em] transition-all flex items-center gap-2"
-            >
-              <Plus size={12} /> + COD
-            </button>
-            <button 
-              onClick={() => openAddMethod("custom")}
-              className="bg-white/5 border border-white/10 hover:bg-white/10 text-white px-5 py-3 rounded-2xl font-black text-[9px] uppercase tracking-[0.2em] transition-all flex items-center gap-2"
-            >
-              <Plus size={12} /> + Custom
-            </button>
+      <SectionCard title="Manual payment methods" description="Bank e-Transfer, cash on delivery or your own instructions."
+        actions={
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <SecondaryButton size="sm" onClick={() => openAddMethod("bank")}>+ e-Transfer</SecondaryButton>
+            <SecondaryButton size="sm" onClick={() => openAddMethod("cod")}>+ Cash on delivery</SecondaryButton>
+            <SecondaryButton size="sm" onClick={() => openAddMethod("custom")}>+ Custom</SecondaryButton>
           </div>
-        </div>
-
+        }>
         {manualMethods.length === 0 ? (
-          <div className="p-12 border border-dashed border-white/10 rounded-[2.5rem] text-center bg-white/[0.01]">
-            <p className="text-xs text-slate-500 uppercase tracking-widest font-black italic">No manual payment methods configured.</p>
-          </div>
+          <EmptyState icon="💳" title="No manual methods" description="Add an e-Transfer or cash-on-delivery option for customers who don't pay by card." />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <ul className="rp-list" style={{ margin: -20 }} aria-label="Manual payment methods">
             {manualMethods.map((method: any) => (
-              <div 
-                key={method.id}
-                className="p-8 bg-white/[0.02] border border-white/5 rounded-[2.5rem] hover:border-violet-500/20 transition-all flex flex-col justify-between gap-6"
-              >
-                <div className="flex justify-between items-start gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <h4 className="text-sm font-black text-white uppercase tracking-widest italic truncate">{method.name}</h4>
-                      <span className="px-2 py-0.5 rounded bg-violet-600/20 border border-violet-500/30 text-[8px] font-black text-violet-400 tracking-wider uppercase shrink-0">
-                        {method.type === "bank" ? "e-Transfer" : method.type === "cod" ? "COD" : "Custom"}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.15em] mt-4 line-clamp-3">
-                      {method.instructions || "No custom instructions configured."}
-                    </p>
-                  </div>
-                  
-                  <Switch 
-                    checked={method.enabled}
-                    onChange={(val) => handleToggleMethodStatus(method.id, val)}
-                  />
+              <li key={method.id} style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ minWidth: 0, flex: "1 1 260px" }}>
+                  <strong>{method.name}</strong> <StatusBadge tone={method.enabled ? "success" : "neutral"}>{method.enabled ? "Enabled" : "Off"}</StatusBadge>
+                  <p className="rp-hint" style={{ margin: "4px 0 0", overflowWrap: "anywhere" }}>{method.instructions}</p>
                 </div>
-                
-                <div className="flex gap-4 pt-4 border-t border-white/5 justify-end">
-                  <button 
-                    onClick={() => openEditMethod(method)}
-                    className="p-3 bg-white/5 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-colors"
-                    aria-label="Edit payment method"
-                    title="Edit Method"
-                  >
-                    <Edit size={14} />
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteMethod(method.id)}
-                    className="p-3 bg-red-500/5 hover:bg-red-500/10 rounded-xl text-red-400/60 hover:text-red-400 transition-colors"
-                    aria-label="Delete payment method"
-                    title="Delete Method"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <Toggle label={`${method.name} enabled`} checked={!!method.enabled} onChange={(v) => handleToggleMethodStatus(method.id, v)} />
+                  <SecondaryButton size="sm" onClick={() => openEditMethod(method)} aria-label={`Edit ${method.name}`}>Edit</SecondaryButton>
+                  <DestructiveButton size="sm" onClick={() => removeMethod(method)} aria-label={`Delete ${method.name}`}>Delete</DestructiveButton>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-      </section>
+      </SectionCard>
 
-      {/* Footer Badges Selector */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-        <SectionHeader 
-          title="Footer Payment Icons" 
-          subtitle="Display trust badges in footer" 
-          icon={CreditCard} 
-          color="violet"
-        />
-        
-        <p className="text-xs text-slate-400 leading-relaxed max-w-xl font-medium">
-          Select which payment methods will appear as monochrome icons in the footer of your storefront.
-        </p>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+      <SectionCard title="Footer payment icons" description="Monochrome icons shown in the storefront footer.">
+        <div style={{ display: "grid", gap: 4, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
           {[
-            { id: "visa", label: "Visa" },
-            { id: "mastercard", label: "Mastercard" },
-            { id: "amex", label: "American Express" },
-            { id: "paypal", label: "PayPal" },
-            { id: "applepay", label: "Apple Pay" },
-            { id: "googlepay", label: "Google Pay" },
-            { id: "afterpay", label: "Afterpay" },
-            { id: "klarna", label: "Klarna" }
-          ].map((badge) => {
-            const isChecked = footerBadges.includes(badge.id);
-            return (
-              <label 
-                key={badge.id}
-                onClick={() => {
-                  const newBadges = isChecked
-                    ? footerBadges.filter((b: string) => b !== badge.id)
-                    : [...footerBadges, badge.id];
-                  setSettings({
-                    ...settings,
-                    payments: { ...settings.payments, footerBadges: newBadges }
-                  });
-                }}
-                className={`p-6 bg-white/[0.02] border rounded-[2rem] hover:border-violet-500/20 cursor-pointer flex items-center justify-between transition-all ${
-                  isChecked ? "border-violet-500/30 bg-violet-600/[0.02]" : "border-white/5"
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
-                    isChecked ? "border-violet-500 bg-violet-600" : "border-white/10 bg-white/5"
-                  }`}>
-                    {isChecked && <Check size={12} className="text-white font-bold" />}
-                  </div>
-                  <span className="text-[10px] font-black tracking-widest text-slate-300 uppercase">{badge.label}</span>
-                </div>
-              </label>
-            );
-          })}
+            { id: "visa", label: "Visa" }, { id: "mastercard", label: "Mastercard" }, { id: "amex", label: "American Express" },
+            { id: "paypal", label: "PayPal" }, { id: "applepay", label: "Apple Pay" }, { id: "googlepay", label: "Google Pay" },
+            { id: "afterpay", label: "Afterpay" }, { id: "klarna", label: "Klarna" },
+          ].map((badge) => (
+            <Checkbox key={badge.id} label={badge.label} checked={footerBadges.includes(badge.id)}
+              onChange={() => {
+                const next = footerBadges.includes(badge.id) ? footerBadges.filter((b: string) => b !== badge.id) : [...footerBadges, badge.id];
+                setSettings({ ...settings, payments: { ...settings.payments, footerBadges: next } });
+              }} />
+          ))}
         </div>
-      </section>
+      </SectionCard>
 
-      {/* Security note */}
-      <div className="p-10 bg-amber-500/5 border border-amber-500/20 rounded-[3rem] flex gap-8 items-center shadow-2xl">
-         <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shadow-inner">
-            <Lock size={24} className="text-amber-400" />
-         </div>
-         <div className="flex-1">
-            <h4 className="text-xs font-black text-amber-500 uppercase tracking-[0.4em] mb-1 italic">Secure Encryption Active</h4>
-            <p className="text-xs text-slate-400 font-bold leading-relaxed">All payment credentials and API keys are stored securely. Client IDs and secret keys are masked for security.</p>
-         </div>
-      </div>
+      <SectionCard title="Currency" description="How prices are shown and charged.">
+        <p className="rp-hint" style={{ margin: 0 }}>Prices are set and charged in your store currency (CA$). Any currency selector on the storefront is a display convenience; the amount charged is always calculated by the payment server.</p>
+      </SectionCard>
 
-      {/* Manual Payment Edit Modal */}
-      <AnimatePresence>
-        {isManualModalOpen && (
-          <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 md:p-12">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.4, ease: "circOut" }}
-              className="w-full max-w-2xl bg-[#050506] border border-white/10 rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl relative"
-            >
-              {/* Header */}
-              <div className="p-8 border-b border-white/5 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-xl text-violet-400">
-                    <Building size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black uppercase tracking-widest text-white italic">
-                      {editingMethod ? "Edit Payment Method" : "Add Payment Method"}
-                    </h3>
-                    <p className="text-[10px] text-slate-500 font-medium tracking-wide mt-1 uppercase">
-                      {editingMethod ? "Update configured instructions" : "Setup alternative manual transaction option"}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsManualModalOpen(false)}
-                  className="p-3 bg-white/5 rounded-xl text-slate-400 hover:text-white border border-white/10 transition-all hover:bg-white/10 active:scale-95"
-                >
-                  <X size={18} />
-                </button>
-              </div>
+      <SaveBar dirty={dirty} saving={savingSection === "payments"} message="You have unsaved payment settings."
+        onSave={async () => { await saveSection("payments", { payments: settings.payments }); toast.success("Payment settings saved"); }}
+        onDiscard={() => setSettings({ ...settings, payments: JSON.parse(JSON.stringify(originalSettings?.payments ?? {})) })} />
 
-              {/* Body */}
-              <div className="flex-1 overflow-y-auto p-8 space-y-8">
-                <InputField 
-                  label="PAYMENT METHOD TITLE" 
-                  placeholder="e.g. Bank Deposit, Interac e-Transfer"
-                  icon={CreditCard}
-                  value={methodName}
-                  onChange={(e: any) => setMethodName(e.target.value)}
-                />
-                
-                <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">Payment Instructions</label>
-                  <textarea
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 outline-none focus:border-violet-500/50 focus:bg-white/[0.06] transition-all text-sm text-white font-bold placeholder:text-slate-800"
-                    rows={6}
-                    placeholder="Enter instructions for customers. e.g., send e-transfer to payment@example.com."
-                    value={methodInstructions}
-                    onChange={(e: any) => setMethodInstructions(e.target.value)}
-                  />
-                  <p className="text-[8px] text-slate-600 uppercase tracking-wider block ml-1 leading-relaxed">
-                    These instructions will be displayed to customers on the checkout confirmation page after placing their order.
-                  </p>
-                </div>
-
-                <div className="flex justify-between items-center p-8 bg-white/[0.01] border border-white/5 rounded-[2rem]">
-                  <div>
-                    <h4 className="text-xs font-black text-white uppercase tracking-widest italic">Status</h4>
-                    <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-1">Enable or disable this payment option immediately</p>
-                  </div>
-                  <Switch 
-                    checked={methodEnabled}
-                    onChange={setMethodEnabled}
-                  />
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-md flex items-center justify-end gap-4 shrink-0">
-                <button
-                  onClick={() => setIsManualModalOpen(false)}
-                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:text-white uppercase tracking-widest transition-all active:scale-95"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveMethod}
-                  className="px-8 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-violet-600/20 border border-violet-400/20"
-                >
-                  Save Method
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <Dialog open={isManualModalOpen} onClose={() => setIsManualModalOpen(false)} title={editingMethod ? "Edit payment method" : "Add payment method"} badge="💳"
+        footer={<>
+          <SecondaryButton onClick={() => setIsManualModalOpen(false)}>Cancel</SecondaryButton>
+          <PrimaryButton onClick={handleSaveMethod}>{editingMethod ? "Update method" : "Add method"}</PrimaryButton>
+        </>}>
+        <div className="rp-stack" style={{ gap: 16 }}>
+          <TextField label="Payment method title" value={methodName} placeholder="e.g. Bank deposit, Interac e-Transfer" onChange={(e) => setMethodName(e.target.value)} data-autofocus />
+          <TextArea label="Customer instructions" rows={5} value={methodInstructions} onChange={(e) => setMethodInstructions(e.target.value)}
+            placeholder="e.g. Send your e-Transfer to payments@example.com and use your order number as the message." hint="Shown to the customer after they place the order." />
+          <Toggle label="Offer this method at checkout" checked={methodEnabled} onChange={setMethodEnabled} />
+        </div>
+      </Dialog>
+      {confirmNode}
     </div>
   );
 }
@@ -2693,7 +1613,7 @@ function _DesignerSettings_REMOVED({ settings, setSettings, hasChanges, saveSect
         }
       });
     } catch (err) {
-      alert(`Error uploading ${type}`);
+      toast.error(`Error uploading ${type}`);
     } finally {
       if (type === 'logo') setUploadingLogo(false);
       else setUploadingFavicon(false);
@@ -2880,8 +1800,10 @@ function InventorySync({ lastSync }: { lastSync?: string }) {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<string | undefined>(lastSync);
+  const [confirming, setConfirming] = useState(false);
 
   const handleSync = async () => {
+    setConfirming(false);
     setSyncing(true);
     setError(null);
     setResult(null);
@@ -2889,6 +1811,7 @@ function InventorySync({ lastSync }: { lastSync?: string }) {
       const res = await adminApi.syncInventoryFromLegacy();
       setResult(res);
       setLastSyncTime(new Date().toISOString());
+      toast.success("Inventory synced");
     } catch (err: any) {
       setError(err.message || "Sync failed");
     } finally {
@@ -2898,294 +1821,114 @@ function InventorySync({ lastSync }: { lastSync?: string }) {
 
   const fmtTime = (iso?: string) => {
     if (!iso) return "Never";
-    const d = new Date(iso);
-    return d.toLocaleString("en-CA", {
-      month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
-    });
+    return new Date(iso).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
+  const columns: Column<any>[] = [
+    { key: "title", header: "Book", lead: true, render: (r) => (<div><div style={{ overflowWrap: "anywhere" }}>{r.title || "(untitled)"}</div><div className="rp-hint rp-mono">{r.slug || "no slug"}</div></div>) },
+    { key: "key", header: "Legacy key", render: (r) => <span className="rp-mono">{r.matched ? r.legacyKey : "—"}</span> },
+    { key: "stock", header: "Units", numeric: true, render: (r) => r.stock },
+    { key: "status", header: "Status", render: (r) => <StatusBadge tone={r.matched ? "success" : "warning"}>{r.matched ? "Synced" : "No match"}</StatusBadge> },
+  ];
+
   return (
-    <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden group">
-      <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
-      
-      {/* Header */}
-      <div className="flex justify-between items-start flex-wrap gap-8 relative z-10">
-        <SectionHeader 
-          title="Inventory Sync" 
-          subtitle="Real-time stock reconciliation with legacy core" 
-          icon={Database} 
-          color="violet"
-        />
-
-        <div className="flex flex-col items-end gap-4">
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className={`flex items-center gap-4 px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] transition-all border
-              ${syncing
-                ? "bg-white/5 border-white/10 text-slate-500 cursor-not-allowed"
-                : "bg-violet-600 border-violet-400/20 text-white shadow-2xl shadow-violet-600/40 hover:bg-violet-500 active:scale-95"
-              }`}
-          >
-            <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
-            {syncing ? "SYNCHRONIZING..." : "INITIATE SYNC"}
-          </button>
-          <div className="flex items-center gap-3 text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">
-            <Clock size={12} className="text-slate-600" />
-            Last Pulse: <span className="text-slate-300 ml-1">{fmtTime(lastSyncTime)}</span>
-          </div>
-        </div>
-      </div>
-
-      <p className="text-xs text-slate-400 leading-relaxed max-w-2xl font-medium relative z-10">
-        Automated bidirectional data transfer between the legacy inventory system and the modern storefront. 
-        Matching protocol utilizes unique product slugs and normalized title strings.
+    <SectionCard title="Inventory sync" description="Reconcile stock levels with the legacy inventory system."
+      actions={
+        <PrimaryButton onClick={() => setConfirming(true)} disabled={syncing}>{syncing ? "Syncing…" : "Sync inventory"}</PrimaryButton>
+      }>
+      <p className="rp-hint" style={{ margin: "0 0 16px" }}>
+        Last sync: <span className="rp-mono">{fmtTime(lastSyncTime)}</span>. Books are matched by slug and normalized title, so a book's slug must equal its legacy inventory key.
       </p>
-
-      {/* Connection info */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center bg-white/[0.02] rounded-[2.5rem] px-10 py-8 border border-white/5 relative z-10 shadow-inner">
-        <div className="space-y-3">
-          <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-600">Core Source</p>
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
-            <p className="text-[11px] font-black text-slate-300 truncate tracking-widest uppercase">lyricalmyrical-default-rtdb</p>
-          </div>
-        </div>
-        <div className="flex justify-center">
-          <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
-            <RefreshCw size={20} className="text-slate-700" />
-          </div>
-        </div>
-        <div className="space-y-3 text-right">
-          <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-600">Cloud Destination</p>
-          <p className="text-[11px] font-black text-slate-300 truncate tracking-widest uppercase">firestore / public_books</p>
-        </div>
+      <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)", display: "flex", flexWrap: "wrap", gap: 24 }}>
+        <div><div className="rp-label">Source</div><div className="rp-mono">lyricalmyrical-default-rtdb</div></div>
+        <div><div className="rp-label">Destination</div><div className="rp-mono">firestore / public_books</div></div>
       </div>
 
-      {/* Error */}
-      <AnimatePresence>
-        {error && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="flex items-start gap-6 bg-rose-500/10 border border-rose-500/20 rounded-[2rem] px-8 py-6 relative z-10"
-          >
-            <AlertCircleIcon size={20} className="text-rose-400 shrink-0 mt-1" />
-            <div>
-              <p className="text-sm font-black text-rose-400 uppercase tracking-widest mb-1 italic">Protocol Failure</p>
-              <p className="text-xs text-rose-300/70 font-medium leading-relaxed">{error}</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Results */}
-      <AnimatePresence>
-        {result && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-10 relative z-10"
-          >
-            {/* Summary chips */}
-            <div className="flex flex-wrap gap-4">
-              <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-6 py-3 rounded-2xl shadow-lg shadow-emerald-500/5">
-                <CheckCircle size={14} />
-                <span className="text-[10px] font-black tracking-[0.2em] uppercase">
-                  {result.synced} RECORDS SYNCHRONIZED
-                </span>
-              </div>
-              {result.unmatched > 0 && (
-                <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 px-6 py-3 rounded-2xl">
-                  <AlertCircleIcon size={14} />
-                  <span className="text-[10px] font-black tracking-[0.2em] uppercase">
-                    {result.unmatched} ORPHANED INSTANCES
-                  </span>
-                </div>
-              )}
-              <div className="flex items-center gap-3 bg-white/5 border border-white/10 text-slate-400 px-6 py-3 rounded-2xl">
-                <Database size={14} />
-                <span className="text-[10px] font-black tracking-[0.2em] uppercase">
-                  {result.legacyTotal} CORE ENTRIES
-                </span>
-              </div>
-            </div>
-
-            {/* Per-book table */}
-            <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] overflow-hidden shadow-inner">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-white/5 border-b border-white/5">
-                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic">Entity Designation</th>
-                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic">Legacy Key</th>
-                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic text-right">Units</th>
-                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {result.results.map((r: any, i: number) => (
-                    <tr key={r.id} className="hover:bg-white/[0.03] transition-colors group">
-                      <td className="px-10 py-6">
-                        <p className="text-sm font-black text-white uppercase tracking-tight italic mb-1">{r.title || "(NULL ENTITY)"}</p>
-                        <p className="text-[9px] text-slate-600 font-black tracking-[0.2em] uppercase">{r.slug || "NO_SLUG"}</p>
-                      </td>
-                      <td className="px-10 py-6">
-                        <code className="text-[10px] font-black text-violet-400/70 bg-violet-500/5 px-3 py-1.5 rounded-lg border border-violet-500/10 tracking-widest uppercase">
-                          {r.matched ? r.legacyKey : "ORPHAN"}
-                        </code>
-                      </td>
-                      <td className="px-10 py-6 text-right">
-                        <span className="text-lg font-black text-white font-mono">{r.stock}</span>
-                      </td>
-                      <td className="px-10 py-6 text-right">
-                        {r.matched ? (
-                          <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-4 py-1.5 rounded-full border border-emerald-500/20 text-[9px] font-black tracking-widest uppercase italic">
-                            <CheckCircle size={10} /> SYNCED
-                          </div>
-                        ) : (
-                          <div className="inline-flex items-center gap-2 bg-amber-500/10 text-amber-400 px-4 py-1.5 rounded-full border border-amber-500/20 text-[9px] font-black tracking-widest uppercase italic">
-                            <AlertCircleIcon size={10} /> MISMATCH
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {result.unmatched > 0 && (
-              <div className="p-8 bg-amber-500/[0.03] border border-amber-500/10 rounded-[2rem] flex gap-6 items-start">
-                 <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
-                    <AlertCircleIcon size={18} className="text-amber-400" />
-                 </div>
-                 <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                    <strong className="text-amber-400 uppercase tracking-widest text-[10px] font-black block mb-2">Matching Strategy Optimization:</strong>
-                    Unmatched entities require manual slug alignment with legacy inventory keys. 
-                    Target keys identified: <code className="text-white bg-white/10 px-2 py-0.5 rounded mx-1">hound</code>, <code className="text-white bg-white/10 px-2 py-0.5 rounded mx-1">altrove</code>. 
-                    Update slugs within the <span className="text-violet-400 font-bold">Catalog Engine</span>.
-                 </p>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Legacy book list (shown before any sync) */}
-      {!result && !error && !syncing && (
-        <div className="space-y-6 relative z-10 pt-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-600 ml-1">Legacy Core Registry Keys</p>
-          <div className="flex flex-wrap gap-4">
-            {["altrove", "hound", "archaeology", "sistema", "nobody", "collective", "Subverso meme"].map(k => (
-              <span key={k} className="bg-white/5 text-slate-400 px-5 py-2.5 rounded-xl text-[10px] font-black tracking-[0.2em] uppercase border border-white/5 hover:border-violet-500/30 transition-all cursor-default">
-                {k}
-              </span>
-            ))}
-          </div>
-          <p className="text-[10px] text-slate-500 mt-4 leading-relaxed font-medium ml-1">
-            Ensure storefront entity <span className="text-violet-400 font-black italic uppercase tracking-widest">Slugs</span> correspond exactly to registry keys for successful reconciliation.
-          </p>
+      {error && (
+        <div role="alert" style={{ marginTop: 16, padding: 16, background: "var(--rp-danger-tint)", color: "var(--rp-danger)", border: "2px solid var(--rp-danger)" }}>
+          <strong>✕ Sync failed.</strong> {error}
         </div>
       )}
-    </section>
+
+      {result && (
+        <div className="rp-stack" style={{ marginTop: 16 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <StatusBadge tone="success">{result.synced} records synced</StatusBadge>
+            {result.unmatched > 0 && <StatusBadge tone="warning">{result.unmatched} unmatched</StatusBadge>}
+            <StatusBadge>{result.legacyTotal} legacy entries</StatusBadge>
+          </div>
+          <DataTable caption="Inventory sync results" columns={columns} rows={result.results} rowKey={(r: any) => r.id} />
+          {result.unmatched > 0 && (
+            <p className="rp-hint" style={{ margin: 0 }}>
+              Unmatched books need their slug aligned with a legacy inventory key. Edit the slug in Books, then sync again.
+            </p>
+          )}
+        </div>
+      )}
+
+      {!result && !error && !syncing && (
+        <div style={{ marginTop: 16 }}>
+          <div className="rp-label" style={{ marginBottom: 8 }}>Known legacy keys</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {["altrove", "hound", "archaeology", "sistema", "nobody", "collective", "Subverso meme"].map((k) => <StatusBadge key={k}>{k}</StatusBadge>)}
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog open={confirming} title="Sync inventory now?" confirmLabel="Sync inventory"
+        message="This overwrites the stock level of every matched book with the legacy system's value. Unmatched books are left unchanged."
+        onConfirm={handleSync} onCancel={() => setConfirming(false)} />
+    </SectionCard>
   );
 }
 
 export function SectionHeader({ title, subtitle, icon: Icon, color = "violet" }: any) {
-  const colorMap: any = {
-    violet: { bg: "bg-violet-500/10", border: "border-violet-500/20", icon: "text-violet-400" },
-    cyan: { bg: "bg-cyan-500/10", border: "border-cyan-500/20", icon: "text-cyan-400" },
-    emerald: { bg: "bg-emerald-500/10", border: "border-emerald-500/20", icon: "text-emerald-400" },
-    amber: { bg: "bg-amber-500/10", border: "border-amber-500/20", icon: "text-amber-400" },
-    rose: { bg: "bg-rose-500/10", border: "border-rose-500/20", icon: "text-rose-400" },
-  };
-  const theme = colorMap[color] || colorMap.violet;
-
+  const tone: any = { violet: "var(--rp-primary)", cyan: "var(--rp-info)", emerald: "var(--rp-success)", amber: "var(--rp-warning)", rose: "var(--rp-danger)" };
   return (
-    <div className="flex items-center gap-6">
-      <div className={`w-14 h-14 rounded-2xl ${theme.bg} ${theme.border} border flex items-center justify-center shadow-inner`}>
-        <Icon size={24} className={theme.icon} />
+    <div className="flex items-center gap-4">
+      <div aria-hidden="true" style={{ width: 44, height: 44, display: "grid", placeItems: "center", flexShrink: 0, background: "#fff", border: "2px solid #100f0d", color: tone[color] || tone.violet, boxShadow: "2px 2px 0 rgba(16,15,13,.18)" }}>
+        {Icon && <Icon size={20} />}
       </div>
       <div>
-        <h3 className="text-2xl font-black tracking-tighter text-white uppercase italic leading-none">{title}</h3>
-        <p className="text-[10px] text-slate-500 tracking-[0.3em] uppercase mt-2 font-bold">{subtitle}</p>
+        <h3 style={{ margin: 0, fontSize: 20, lineHeight: 1.05, textTransform: "uppercase" }}>{title}</h3>
+        {subtitle && <p style={{ margin: "4px 0 0", fontSize: 11, color: "#5f5950", fontWeight: 600 }}>{subtitle}</p>}
       </div>
     </div>
   );
 }
 
-export function InputField({ label, icon: Icon, value, onChange, placeholder, type = "text", className = "" }: any) {
+export function InputField({ label, icon: Icon, value, onChange, placeholder, type = "text", className = "", hint, error }: any) {
+  const id = useId();
   return (
-    <div className={`space-y-4 ${className}`}>
-      {label && <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">{label}</label>}
-      <div className="flex items-center gap-6 bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 focus-within:border-violet-500/50 focus-within:bg-white/[0.06] transition-all group shadow-inner">
-        {Icon && <Icon size={20} className="text-slate-600 group-focus-within:text-violet-400 transition-colors" />}
-        <input
-          type={type}
-          className="bg-transparent border-none outline-none text-sm text-white flex-1 font-bold placeholder:text-slate-800"
-          value={value}
-          placeholder={placeholder}
-          onChange={onChange}
-        />
+    <div className={className} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {label && <label htmlFor={id} style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "#5f5950" }}>{label}</label>}
+      <div style={{ position: "relative" }}>
+        {Icon && <Icon size={16} aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#5f5950", pointerEvents: "none" }} />}
+        <input id={id} type={type} value={value} placeholder={placeholder} onChange={onChange}
+          aria-invalid={error ? true : undefined} aria-describedby={hint || error ? `${id}-d` : undefined}
+          style={{ width: "100%", minHeight: 44, padding: Icon ? "10px 12px 10px 38px" : "10px 12px", fontSize: 13 }} />
       </div>
+      {(hint || error) && <span id={`${id}-d`} role={error ? "alert" : undefined} style={{ fontSize: 11, color: error ? "#b4271a" : "#5f5950" }}>{error || hint}</span>}
     </div>
   );
 }
 
-export function Switch({ checked, onChange }: { checked: boolean; onChange: (val: boolean) => void }) {
+export function Switch({ checked, onChange, label = "Toggle setting" }: { checked: boolean; onChange: (val: boolean) => void; label?: string }) {
   return (
-    <button
-      onClick={() => onChange(!checked)}
-      className="relative flex items-center group outline-none"
-    >
-      <div
-        className={`w-16 h-8 rounded-full transition-all duration-500 p-1 flex items-center ${
-          checked 
-            ? "bg-violet-600 shadow-[0_0_20px_rgba(139,92,246,0.3)]" 
-            : "bg-white/5 border border-white/10"
-        }`}
-      >
-        <motion.div
-          animate={{
-            x: checked ? 32 : 0,
-            scale: checked ? 1.1 : 1,
-          }}
-          transition={{ type: "spring", stiffness: 500, damping: 30 }}
-          className={`w-6 h-6 rounded-full shadow-lg relative flex items-center justify-center ${
-            checked ? "bg-white" : "bg-slate-600"
-          }`}
-        >
-          {checked && (
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="w-1 h-1 rounded-full bg-violet-600"
-            />
-          )}
-        </motion.div>
-      </div>
-      <div className="ml-4 flex flex-col items-start text-left">
-        <span className={`text-[9px] font-black tracking-[0.2em] uppercase transition-colors duration-300 ${
-          checked ? "text-violet-400" : "text-slate-600"
-        }`}>
-          {checked ? "ACTIVE" : "OFFLINE"}
-        </span>
-        <div className="flex gap-1 mt-1">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className={`w-1 h-1 rounded-full transition-all duration-500 ${
-                checked 
-                  ? "bg-violet-400 animate-pulse" 
-                  : "bg-white/5"
-              }`}
-              style={{ animationDelay: `${i * 150}ms` }}
-            />
-          ))}
-        </div>
-      </div>
-    </button>
+    <button type="button" role="switch" aria-checked={!!checked} aria-label={label} onClick={() => onChange(!checked)}
+      className="rp-toggle-track" style={{ borderRadius: 0, background: checked ? "#e8402a" : "#e4dac5" }} />
+  );
+}
+
+/** Write-only field for secrets: never echoes the stored value back into the page. */
+export function SecretField({ label, placeholder, stored, onCommit }: { label: string; placeholder: string; stored: boolean; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState("");
+  return (
+    <div>
+      <InputField label={label} icon={Lock} type="password" value={draft} placeholder={stored ? "Stored — enter a new key to replace it" : placeholder}
+        hint={stored ? "✓ A key is stored. It is never shown here." : undefined}
+        onChange={(e: any) => { setDraft(e.target.value); if (e.target.value.trim()) onCommit(e.target.value.trim()); }} />
+    </div>
   );
 }
 

@@ -116,7 +116,7 @@ export function ActivityLogDialog({ open, onClose, appearance }: { open: boolean
       <div className="rp-filter-bar">
         <div className="rp-grow"><SearchField label="Search activity" placeholder="Search activity…" value={term} onChange={(e) => setTerm(e.target.value)} /></div>
       </div>
-      <Tabs label="Log category" value={category} onChange={setCategory}
+      <Tabs<(typeof CATEGORIES)[number]> label="Log category" value={category} onChange={setCategory}
         tabs={CATEGORIES.map((c) => ({ id: c, label: c[0].toUpperCase() + c.slice(1) }))} />
       <div style={{ marginTop: 16 }}>
         {loading ? <LoadingState label="Retrieving logs…" />

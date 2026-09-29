@@ -56,5 +56,14 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
   `
     : '';
 
-  return <style>{css}{customCss}{checkoutCss}</style>;
+  // The token layer maps `bg-white` to the theme foreground (right for dark themes). Checkout uses
+  // `bg-white` as literal paper, so on LIGHT themes (dark foreground) restore paper inside checkout.
+  const fg = (d.textColor || "#ffffff").toString();
+  const m = /^#?([0-9a-f]{6})$/i.exec(fg.trim());
+  const lum = m ? (parseInt(m[1].slice(0, 2), 16) * 0.299 + parseInt(m[1].slice(2, 4), 16) * 0.587 + parseInt(m[1].slice(4, 6), 16) * 0.114) / 255 : 1;
+  const lightThemePaperCss = lum < 0.5
+    ? `[data-fm-checkout] .bg-white{background-color:${d.surfaceRaisedColor || "#ffffff"} !important;}`
+    : "";
+
+  return <style>{css}{customCss}{checkoutCss}{lightThemePaperCss}</style>;
 }

@@ -1,18 +1,21 @@
 import {
-  createContext, useCallback, useContext, useEffect, useId, useRef, useState,
+  createContext, forwardRef, useCallback, useContext, useEffect, useId, useRef, useState,
   type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode,
   type SelectHTMLAttributes, type TextareaHTMLAttributes,
 } from "react";
-import { AlertCircle, ChevronRight, Inbox, Search, X } from "lucide-react";
+import { ChevronRight, Search, X } from "lucide-react";
 import "./riso.css";
+import { useFocusTrap } from "../../lib/useFocusTrap";
+export { useFocusTrap };
 
 const cx = (...p: Array<string | false | null | undefined>) => p.filter(Boolean).join(" ");
 
 /* ── Shell ───────────────────────────────────────────────────────────── */
 
-export function AppShell({ appearance = "light", sidebar, topbar, children, mainId = "rp-main" }: {
+export function AppShell({ appearance = "light", sidebar, topbar, children, mainId = "rp-main", overlay }: {
   appearance?: "light" | "dark";
   sidebar: ReactNode; topbar: ReactNode; children: ReactNode; mainId?: string;
+  /** Fixed-position app-level UI (e.g. SyncChip) that must inherit the shell tokens. */ overlay?: ReactNode;
 }) {
   return (
     <div className="rp" data-rp-appearance={appearance}>
@@ -26,6 +29,7 @@ export function AppShell({ appearance = "light", sidebar, topbar, children, main
           </main>
         </div>
       </div>
+      {overlay}
     </div>
   );
 }
@@ -129,11 +133,12 @@ export function PageHeader({ title, description, breadcrumbs, actions }: {
 
 /* ── Cards ───────────────────────────────────────────────────────────── */
 
-export function SectionCard({ title, description, actions, children, bodyClassName, flush }: {
+export function SectionCard({ title, description, actions, children, bodyClassName, flush, ...rest }: {
   title?: string; description?: string; actions?: ReactNode; children: ReactNode; bodyClassName?: string; flush?: boolean;
+  "data-print"?: "hide";
 }) {
   return (
-    <section className="rp-card">
+    <section className="rp-card" {...rest}>
       {(title || actions) && (
         <div className="rp-card-head">
           <div>
@@ -148,11 +153,11 @@ export function SectionCard({ title, description, actions, children, bodyClassNa
   );
 }
 
-export function MetricCard({ label, value, footer }: { label: string; value: ReactNode; footer?: ReactNode }) {
+export function MetricCard({ label, value, footer, tone }: { label: string; value: ReactNode; footer?: ReactNode; tone?: "gold" | "warn" | "danger" }) {
   return (
     <div className="rp-card rp-metric">
       <div className="rp-metric-label">{label}</div>
-      <div className="rp-metric-value">{value}</div>
+      <div className="rp-metric-value" data-tone={tone}>{value}</div>
       {footer && <div className="rp-metric-foot">{footer}</div>}
     </div>
   );
@@ -160,11 +165,11 @@ export function MetricCard({ label, value, footer }: { label: string; value: Rea
 
 /* ── Buttons ─────────────────────────────────────────────────────────── */
 
-type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { size?: "sm" | "md"; icon?: ReactNode };
+type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { size?: "sm" | "md" | "lg"; icon?: ReactNode };
 function makeButton(variant: string) {
   return function RisoButton({ size = "md", icon, className, children, type = "button", ...rest }: BtnProps) {
     return (
-      <button type={type} className={cx("rp-btn", `rp-btn-${variant}`, size === "sm" && "rp-btn-sm", className)} {...rest}>
+      <button type={type} className={cx("rp-btn", `rp-btn-${variant}`, size === "sm" && "rp-btn-sm", size === "lg" && "rp-btn-lg", className)} {...rest}>
         {icon}{children}
       </button>
     );
@@ -173,17 +178,19 @@ function makeButton(variant: string) {
 export const PrimaryButton = makeButton("primary");
 export const SecondaryButton = makeButton("secondary");
 export const GhostButton = makeButton("ghost");
+export const InkButton = makeButton("ink");
+export const OutlineButton = makeButton("gold-outline");
 export const DestructiveButton = makeButton("danger");
 export const ConfirmButton = makeButton("success");
 
-export function IconButton({ label, tone, className, children, type = "button", ...rest }:
-  ButtonHTMLAttributes<HTMLButtonElement> & { label: string; tone?: "danger" | "success" }) {
-  return (
-    <button type={type} aria-label={label} title={label} data-tone={tone} className={cx("rp-icon-btn", className)} {...rest}>
-      {children}
-    </button>
-  );
-}
+export const IconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { label: string; tone?: "danger" | "success" }>(
+  function IconButton({ label, tone, className, children, type = "button", ...rest }, ref) {
+    return (
+      <button ref={ref} type={type} aria-label={label} title={label} data-tone={tone} className={cx("rp-icon-btn", className)} {...rest}>
+        {children}
+      </button>
+    );
+  });
 
 /* ── Fields ──────────────────────────────────────────────────────────── */
 
@@ -270,20 +277,22 @@ export function StatusBadge({ tone = "neutral", children }: { tone?: BadgeTone; 
 
 /* ── Data ────────────────────────────────────────────────────────────── */
 
-export type Column<T> = { key: string; header: string; numeric?: boolean; render: (row: T) => ReactNode };
+export type Column<T> = { key: string; header: string; numeric?: boolean; lead?: boolean; render: (row: T) => ReactNode };
+export type RowState = "pending" | "failed" | "conflict";
 
-export function DataTable<T>({ columns, rows, rowKey, caption, empty }: {
+export function DataTable<T>({ columns, rows, rowKey, caption, empty, rowState, sticky }: {
   columns: Column<T>[]; rows: T[]; rowKey: (r: T) => string; caption: string; empty?: ReactNode;
+  rowState?: (r: T) => RowState | undefined; sticky?: boolean;
 }) {
   if (!rows.length && empty) return <>{empty}</>;
   return (
-    <div className="rp-table-wrap" tabIndex={0} role="region" aria-label={caption}>
+    <div className="rp-table-wrap" data-sticky={sticky || undefined} tabIndex={0} role="region" aria-label={caption}>
       <table className="rp-table">
         <caption className="rp-sr-only">{caption}</caption>
         <thead><tr>{columns.map((c) => <th key={c.key} scope="col" className={c.numeric ? "rp-num" : undefined}>{c.header}</th>)}</tr></thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={rowKey(r)}>{columns.map((c) => <td key={c.key} className={c.numeric ? "rp-num" : undefined}>{c.render(r)}</td>)}</tr>
+            <tr key={rowKey(r)} data-row-state={rowState?.(r)}>{columns.map((c) => <td key={c.key} className={cx(c.numeric && "rp-num", c.lead && "rp-lead")}>{c.render(r)}</td>)}</tr>
           ))}
         </tbody>
       </table>
@@ -332,33 +341,9 @@ export function Tabs<T extends string>({ tabs, value, onChange, label }: {
 
 /* ── Overlays ────────────────────────────────────────────────────────── */
 
-const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
-
-/** Traps Tab inside `ref`, closes on Escape, and restores focus to the opener on close. */
-export function useFocusTrap(ref: React.RefObject<HTMLElement | null>, active: boolean, onClose: () => void) {
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  useEffect(() => {
-    if (!active || !ref.current) return;
-    const node = ref.current;
-    const opener = document.activeElement as HTMLElement | null;
-    (node.querySelector<HTMLElement>("[data-autofocus]") || node.querySelector<HTMLElement>(FOCUSABLE) || node).focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.stopPropagation(); closeRef.current(); return; }
-      if (e.key !== "Tab") return;
-      const items = Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null);
-      if (!items.length) { e.preventDefault(); return; }
-      const first = items[0], last = items[items.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    };
-    node.addEventListener("keydown", onKey);
-    return () => { node.removeEventListener("keydown", onKey); opener?.focus?.(); };
-  }, [active, ref]);
-}
-
-export function Dialog({ open, onClose, title, description, footer, children, size, variant = "dialog", appearance }: {
+export function Dialog({ open, onClose, title, description, footer, footerStart, badge, children, size, variant = "dialog", appearance }: {
   open: boolean; onClose: () => void; title: string; description?: string; footer?: ReactNode;
+  /** A destructive action, alone on the far left of the footer. */ footerStart?: ReactNode; badge?: string;
   children: ReactNode; size?: "md" | "lg"; variant?: "dialog" | "drawer"; appearance?: "light" | "dark";
 }) {
   // `appearance` set = mounted outside an AppShell (owns its tokens); unset = inherits the shell's.
@@ -372,13 +357,13 @@ export function Dialog({ open, onClose, title, description, footer, children, si
       <div ref={ref} className="rp-dialog" data-size={size} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <div className="rp-dialog-head">
           <div>
-            <h2 id={titleId} className="rp-dialog-title">{title}</h2>
+            <h2 id={titleId} className="rp-dialog-title">{badge && <span className="rp-dialog-badge" aria-hidden="true">{badge}</span>}{title}</h2>
             {description && <p className="rp-card-desc">{description}</p>}
           </div>
           <IconButton label="Close dialog" onClick={onClose}><X size={18} aria-hidden /></IconButton>
         </div>
         <div className="rp-dialog-body">{children}</div>
-        {footer && <div className="rp-dialog-foot">{footer}</div>}
+        {(footer || footerStart) && <div className="rp-dialog-foot">{footerStart && <span className="rp-foot-start">{footerStart}</span>}{footer}</div>}
       </div>
     </div>
   );
@@ -404,13 +389,14 @@ export function ConfirmDialog({ open, title, message, confirmLabel = "Delete", o
 
 /* ── Toast (uses a polite live region; auto-dismiss, optional Undo) ──── */
 
-type ToastItem = { id: number; message: string; actionLabel?: string; onAction?: () => void };
-const ToastCtx = createContext<(m: string, o?: { actionLabel?: string; onAction?: () => void }) => void>(() => {});
+type ToastOpts = { actionLabel?: string; onAction?: () => void; tone?: "ok" | "warn" | "err" };
+type ToastItem = { id: number; message: string } & ToastOpts;
+const ToastCtx = createContext<(m: string, o?: ToastOpts) => void>(() => {});
 export const useRisoToast = () => useContext(ToastCtx);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
-  const push = useCallback((message: string, o?: { actionLabel?: string; onAction?: () => void }) => {
+  const push = useCallback((message: string, o?: ToastOpts) => {
     const id = Date.now() + Math.random();
     setItems((s) => [...s, { id, message, ...o }]);
     setTimeout(() => setItems((s) => s.filter((t) => t.id !== id)), o?.onAction ? 8000 : 4000);
@@ -420,7 +406,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div role="status" aria-live="polite" style={{ position: "fixed", bottom: 16, right: 16, zIndex: 500, display: "grid", gap: 8 }} className="rp">
         {items.map((t) => (
-          <div key={t.id} className="rp-toast">
+          <div key={t.id} className="rp-toast" data-tone={t.tone}>
             <span>{t.message}</span>
             {t.onAction && (
               <SecondaryButton size="sm" style={{ color: "inherit", borderColor: "currentColor" }}
@@ -440,7 +426,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 export function EmptyState({ title, description, action, icon }: { title: string; description?: string; action?: ReactNode; icon?: ReactNode }) {
   return (
     <div className="rp-state">
-      <div className="rp-state-icon">{icon || <Inbox size={24} aria-hidden />}</div>
+      <div className="rp-state-icon" aria-hidden="true">{icon || "📭"}</div>
       <h3 className="rp-state-title">{title}</h3>
       {description && <p className="rp-state-desc">{description}</p>}
       {action}
@@ -460,7 +446,7 @@ export function LoadingState({ label = "Loading…" }: { label?: string }) {
 export function ErrorState({ title = "Something went wrong", description, onRetry }: { title?: string; description?: string; onRetry?: () => void }) {
   return (
     <div className="rp-state" data-tone="danger" role="alert">
-      <div className="rp-state-icon"><AlertCircle size={24} aria-hidden /></div>
+      <div className="rp-state-icon" aria-hidden="true">⚠</div>
       <h3 className="rp-state-title">{title}</h3>
       {description && <p className="rp-state-desc">{description}</p>}
       {onRetry && <SecondaryButton onClick={onRetry}>Try again</SecondaryButton>}
@@ -481,4 +467,121 @@ export function SaveBar({ dirty, saving, onSave, onDiscard, message }: {
       </span>
     </div>
   );
+}
+
+
+/* ── SectionHead, TabBar, SyncChip ───────────────────────────────────── */
+
+export function SectionHead({ kicker, title, subcopy, actions, tone }: {
+  kicker?: string; title: string; subcopy?: string; actions?: ReactNode; tone?: "muted" | "danger";
+}) {
+  return (
+    <div className="rp-sec-head" data-tone={tone}>
+      <div>
+        {kicker && <div className="rp-kicker">{kicker}</div>}
+        <h2 className="rp-sec-title">{title}</h2>
+        {subcopy && <p className="rp-page-desc" style={{ marginTop: 6 }}>{subcopy}</p>}
+      </div>
+      {actions && <div className="rp-page-actions">{actions}</div>}
+    </div>
+  );
+}
+
+export function TabBar<T extends string>({ tabs, value, onChange, label }: {
+  tabs: Array<{ id: T; label: string }>; value: T; onChange: (id: T) => void; label: string;
+}) {
+  return (
+    <div className="rp-tab-bar" role="tablist" aria-label={label}>
+      {tabs.map((t) => (
+        <button key={t.id} type="button" role="tab" className="rp-tab-btn" aria-selected={value === t.id}
+          onClick={() => onChange(t.id)}>{t.label}</button>
+      ))}
+    </div>
+  );
+}
+
+export function useOnline() {
+  const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
+  useEffect(() => {
+    const up = () => setOnline(true), down = () => setOnline(false);
+    window.addEventListener("online", up); window.addEventListener("offline", down);
+    return () => { window.removeEventListener("online", up); window.removeEventListener("offline", down); };
+  }, []);
+  return online;
+}
+
+/** Shown only when there is something the user could not otherwise know. */
+export function SyncChip({ state, onRetry, lastSync }: { state: "offline" | "failed" | "pending" | null; onRetry?: () => void; lastSync?: string }) {
+  if (!state) return null;
+  const copy = {
+    offline: ["⚠", "You're offline", "Changes you make now aren't lost — we keep them on this device and retry when you're back online."],
+    failed: ["✕", "Some changes didn't upload", "Nothing is lost — they're saved on this device and we keep retrying."],
+    pending: ["↑", "Uploading changes", "Your latest changes are on their way to the cloud."],
+  }[state];
+  return (
+    <div className="rp-sync-chip" data-state={state} role="status" aria-live="polite">
+      <span className="rp-sync-ico" aria-hidden="true">{copy[0]}</span>
+      <div>
+        <div className="rp-sync-title">{copy[1]}</div>
+        <div className="rp-sync-detail">{copy[2]}</div>
+        {lastSync && <div className="rp-sync-meta">Last upload {lastSync}</div>}
+      </div>
+      {state === "failed" && onRetry && <PrimaryButton size="lg" onClick={onRetry}>Try again now</PrimaryButton>}
+    </div>
+  );
+}
+
+/* ── ActionMenu: keyboard-accessible overflow menu ───────────────────── */
+
+export type MenuAction = { label: string; onSelect: () => void; tone?: "danger"; icon?: ReactNode };
+
+export function ActionMenu({ label, actions }: { label: string; actions: MenuAction[] }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    wrap.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const away = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
+  const onKey = (e: React.KeyboardEvent) => {
+    const items = Array.from(wrap.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') || []);
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    if (e.key === "Escape") { setOpen(false); btn.current?.focus(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+    else if (e.key === "Tab") setOpen(false);
+  };
+  return (
+    <div className="rp-menu-wrap" ref={wrap} onKeyDown={open ? onKey : undefined}>
+      <IconButton ref={btn} label={label} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        <span aria-hidden="true" style={{ fontWeight: 800, letterSpacing: 1 }}>⋯</span>
+      </IconButton>
+      {open && (
+        <div className="rp-menu" role="menu" aria-label={label}>
+          {actions.map(a => (
+            <button key={a.label} type="button" role="menuitem" className="rp-menu-item" data-tone={a.tone}
+              onClick={() => { setOpen(false); btn.current?.focus(); a.onSelect(); }}>
+              {a.icon}{a.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Promise-based replacement for window.confirm: `if (!(await ask({...}))) return;` then render `node`. */
+export function useConfirm() {
+  const [state, setState] = useState<null | { title: string; message: string; confirmLabel?: string; resolve: (v: boolean) => void }>(null);
+  const ask = useCallback((opts: { title: string; message: string; confirmLabel?: string }) =>
+    new Promise<boolean>((resolve) => setState({ ...opts, resolve })), []);
+  const done = (v: boolean) => { state?.resolve(v); setState(null); };
+  const node = (
+    <ConfirmDialog open={!!state} title={state?.title || ""} message={state?.message || ""} confirmLabel={state?.confirmLabel}
+      onConfirm={() => done(true)} onCancel={() => done(false)} />
+  );
+  return [ask, node] as const;
 }
