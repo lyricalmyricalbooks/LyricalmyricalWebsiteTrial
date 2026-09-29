@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
-import { ConfirmDialog, DataTable, ErrorState, PrimaryButton, SaveBar, SectionCard, StatusBadge, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
+import { Checkbox, ConfirmDialog, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SecondaryButton, SectionCard, StatusBadge, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
 import { motion, AnimatePresence } from "motion/react";
 import { ThemeEditor } from "./ThemeEditor";
 import { PagesManager } from "./PagesManager";
@@ -120,7 +120,7 @@ export function ShopSettings({
           {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "communications" && <CommunicationsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} refreshProfiles={loadShippingProfiles} />}
-          {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
+          {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "notifications" && <NotificationEditor />}
         </motion.div>
@@ -1604,7 +1604,8 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   );
 }
 
-function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
+function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
+  const [askConfirm, confirmNode] = useConfirm();
   const stripe = settings.payments?.stripe || {};
   const paypal = settings.payments?.paypal || {};
   const testMode = settings.payments?.testMode || false;
@@ -1763,601 +1764,187 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
     });
   };
 
+  const enabledManual = manualMethods.filter((m: any) => m.enabled);
+  const dirty = hasChanges("payments");
+  const stripeLive = !!stripe.connected;
+  const paypalLive = !!paypal.connected;
+  const secretStored = !!(stripe.secretKey || stripe.testSecretKey);
+
+  const removeMethod = async (m: any) => {
+    if (!(await askConfirm({ title: "Delete this payment method?", message: `“${m.name}” will no longer be offered at checkout once you save.`, confirmLabel: "Delete method" }))) return;
+    handleDeleteMethod(m.id);
+  };
+
   return (
-    <div className="space-y-16">
-      <header className="flex flex-col gap-2 mb-12">
-        <div className="flex justify-between items-end">
-          <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Payment Gateways</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Transaction processing & payment settings</p>
-          </div>
-          {hasChanges('payments') && (
-            <button
-              onClick={() => saveSection('payments', { payments: settings.payments })}
-              disabled={savingSection === 'payments'}
-              className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/40 hover:bg-violet-500 transition-all disabled:opacity-50 border border-violet-400/20"
-            >
-              {savingSection === 'payments' ? 'SYNCHRONIZING...' : 'SAVE CHANGES'}
-            </button>
+    <div className="rp-stack">
+      <SectionCard title="Payment overview" description="What customers can pay with right now.">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <StatusBadge tone={testMode ? "warning" : "success"}>{testMode ? "Test mode — no real charges" : "Live mode"}</StatusBadge>
+          <StatusBadge tone={stripeLive ? "success" : "neutral"}>Stripe {stripeLive ? "on" : "off"}</StatusBadge>
+          <StatusBadge tone={paypalLive ? "success" : "neutral"}>PayPal {paypalLive ? "on" : "off"}</StatusBadge>
+          <StatusBadge tone={enabledManual.length ? "info" : "neutral"}>{enabledManual.length} manual method{enabledManual.length === 1 ? "" : "s"}</StatusBadge>
+          {!stripeLive && !paypalLive && enabledManual.length === 0 && <StatusBadge tone="danger">No way to pay is enabled</StatusBadge>}
+        </div>
+        <p className="rp-hint" style={{ margin: "12px 0 0" }}>
+          The amount charged is always calculated by the payment server, never in the browser. Orders are created unpaid and are marked paid only when the Stripe webhook confirms the payment.
+        </p>
+        <div className="rp-card-actions">
+          <Toggle label="Test (sandbox) mode" checked={!!testMode} onChange={updateTestMode} />
+          <span className="rp-hint">In test mode Stripe and PayPal process test charges and orders are flagged as test orders.</span>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Stripe" description="Accept credit and debit cards, Apple Pay and Google Pay."
+        actions={<SecondaryButton size="sm" onClick={() => window.open("https://dashboard.stripe.com", "_blank", "noopener")}>Stripe dashboard ↗</SecondaryButton>}>
+        <div className="rp-stack" style={{ gap: 20 }}>
+          <Toggle label="Stripe checkout" checked={!!stripe.connected} onChange={(v) => updateStripe({ connected: v })} />
+          {stripe.connected && (
+            <>
+              {secretStored && (
+                <div role="alert" style={{ padding: 16, background: "var(--rp-warning-tint)", border: "2px solid var(--rp-border-strong)" }}>
+                  <strong>⚠ Secret key stored in a readable settings document.</strong>{" "}
+                  Store settings can be read by the storefront (and anyone who requests them). Prefer the STRIPE_SECRET_KEY Firebase Functions secret, then rotate any key that was entered here.
+                </div>
+              )}
+              <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+                <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 0.75 : 1 }}>
+                  <div className="rp-sect">Live keys {!testMode && "· in use"}</div>
+                  <div className="rp-stack" style={{ gap: 12 }}>
+                    <InputField label="Publishable key" placeholder="pk_live_…" icon={Lock} value={stripe.publicKey || ""} onChange={(e: any) => updateStripe({ publicKey: e.target.value })} />
+                    <SecretField label="Secret key" placeholder="sk_live_…" stored={!!stripe.secretKey} onCommit={(v) => updateStripe({ secretKey: v })} />
+                  </div>
+                </div>
+                <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 1 : 0.75 }}>
+                  <div className="rp-sect">Test keys {testMode && "· in use"}</div>
+                  <div className="rp-stack" style={{ gap: 12 }}>
+                    <InputField label="Test publishable key" placeholder="pk_test_…" icon={Lock} value={stripe.testPublicKey || ""} onChange={(e: any) => updateStripe({ testPublicKey: e.target.value })} />
+                    <SecretField label="Test secret key" placeholder="sk_test_…" stored={!!stripe.testSecretKey} onCommit={(v) => updateStripe({ testSecretKey: v })} />
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "grid", gap: 4 }}>
+                <Toggle label="Apple Pay" checked={!!stripe.applePay} onChange={(v) => updateStripe({ applePay: v })} />
+                <Toggle label="Google Pay" checked={!!stripe.googlePay} onChange={(v) => updateStripe({ googlePay: v })} />
+              </div>
+              <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
+                <div className="rp-sect">Webhook health</div>
+                <p className="rp-hint" style={{ margin: 0 }}>
+                  Delivery status isn't reported inside this admin. Check that the <span className="rp-mono">stripeWebhook</span> endpoint shows recent successful deliveries in the Stripe Dashboard under Developers → Webhooks. If paid orders stay “unpaid”, the webhook is the first place to look.
+                </p>
+              </div>
+            </>
           )}
         </div>
-      </header>
+      </SectionCard>
 
-      {/* Global Test Mode Switcher */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 relative overflow-hidden group">
-        <div className={`absolute inset-0 bg-gradient-to-br transition-all duration-700 ${
-          testMode 
-            ? "from-amber-500/[0.05] via-transparent to-transparent" 
-            : "from-emerald-500/[0.03] via-transparent to-transparent"
-        } pointer-events-none`} />
-        
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 relative z-10">
-          <div className="flex-1 space-y-4">
-            <SectionHeader 
-              title="Store Test Mode" 
-              subtitle="Environment Settings" 
-              icon={ShieldCheck} 
-              color={testMode ? "amber" : "emerald"} 
-            />
-            <p className="text-xs text-slate-400 leading-relaxed max-w-xl font-medium">
-              Run transactions in live mode or sandbox (test) mode. In Sandbox mode, Stripe and PayPal will process test charges and orders will be flagged as <span className="text-amber-400 font-bold uppercase tracking-wider">test mode orders</span>.
-            </p>
+      <SectionCard title="PayPal" description="Let customers pay with PayPal.">
+        <div className="rp-stack" style={{ gap: 20 }}>
+          <Toggle label="PayPal checkout" checked={!!paypal.connected} onChange={(v) => updatePaypal({ connected: v })} />
+          {paypal.connected && (
+            <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+              <InputField label="Live client ID" placeholder="Client ID…" icon={Lock} value={paypal.clientId || ""} onChange={(e: any) => updatePaypal({ clientId: e.target.value })} />
+              <InputField label="Test client ID" placeholder="Test client ID…" icon={Lock} value={paypal.testClientId || ""} onChange={(e: any) => updatePaypal({ testClientId: e.target.value })} />
+            </div>
+          )}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Shippo" description="Address verification, live carrier rates and shipping labels."
+        actions={<SecondaryButton size="sm" onClick={() => window.open("https://goshippo.com", "_blank", "noopener")}>Shippo ↗</SecondaryButton>}>
+        <div className="rp-stack" style={{ gap: 20 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            {loadingShippo ? <StatusBadge>Checking…</StatusBadge>
+              : <StatusBadge tone={shippoConfig?.configured ? "success" : "warning"}>{shippoConfig?.configured ? "Connected" : "Not connected — addresses are not verified"}</StatusBadge>}
+            {shippoConfig?.updatedAt && <span className="rp-hint">Last updated {new Date(shippoConfig.updatedAt).toLocaleDateString()}</span>}
           </div>
-          <div className="flex items-center gap-6">
-            <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${testMode ? "text-amber-400" : "text-emerald-400"}`}>
-              {testMode ? "Sandbox Active" : "Live Processing Active"}
-            </span>
-            <Switch 
-              checked={testMode} 
-              onChange={updateTestMode} 
-            />
+          {shippoConfig?.configured && (
+            <Toggle label="Live carrier rates at checkout (based on address and parcel weight)" checked={shippoConfig?.dynamicRatesEnabled ?? false}
+              onChange={async (enabled) => {
+                try {
+                  await adminApi.setShippoDynamicRates(enabled);
+                  setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
+                  toast.success(enabled ? "Dynamic shipping rates enabled" : "Dynamic shipping rates disabled");
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to update Shippo settings.");
+                }
+              }} />
+          )}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+            <div style={{ flex: "1 1 280px" }}>
+              <InputField label="New Shippo API token" placeholder="shippo_live_… or shippo_test_…" icon={ShieldCheck} type="password" value={newShippoToken}
+                onChange={(e: any) => setNewShippoToken(e.target.value)} hint="Sent to the server and stored with limited access. It is never shown again or exposed to the storefront." />
+            </div>
+            <PrimaryButton onClick={handleSaveShippo} disabled={savingShippo || !newShippoToken.trim()}>{savingShippo ? "Saving…" : "Save key"}</PrimaryButton>
           </div>
         </div>
-      </section>
+      </SectionCard>
 
-      {/* Stripe Card */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-         <div className="absolute top-0 right-0 p-16 opacity-5 pointer-events-none">
-            <CreditCard size={200} className="text-violet-500" />
-         </div>
-         <div className="relative z-10">
-            <div className="flex justify-between items-start mb-12">
-               <SectionHeader 
-                  title="Stripe Integration" 
-                  subtitle="Accept credit and debit card payments" 
-                  icon={ShieldCheck} 
-                  color="violet"
-               />
-               <button 
-                  onClick={() => window.open("https://dashboard.stripe.com", "_blank")}
-                  className="bg-white/5 border border-white/10 px-8 py-3 rounded-2xl text-[9px] font-black tracking-[0.2em] text-slate-300 hover:bg-white/10 transition-all flex items-center gap-3 uppercase shadow-lg cursor-pointer"
-                >
-                   STRIPE DASHBOARD <ExternalLink size={14} className="text-violet-400" />
-                </button>
-            </div>
-            
-            <div className="flex items-center gap-8 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 shadow-inner">
-               <div className="flex items-center gap-4">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Stripe Checkout Status</span>
-                  <Switch 
-                    checked={stripe.connected} 
-                    onChange={(val) => updateStripe({ connected: val })} 
-                  />
-               </div>
-               <div className="flex-1 h-1 bg-white/5 rounded-full relative overflow-hidden">
-                  <motion.div 
-                    initial={false}
-                    animate={{ width: stripe.connected ? '100%' : '0%' }}
-                    className="absolute inset-0 bg-gradient-to-r from-violet-500 to-cyan-500"
-                  />
-               </div>
-               <span className={`text-[10px] font-black uppercase tracking-[0.4em] w-24 text-right ${stripe.connected ? 'text-emerald-400' : 'text-slate-600'}`}>
-                 {stripe.connected ? 'Active' : 'Inactive'}
-               </span>
-            </div>
-
-            <AnimatePresence>
-               {stripe.connected && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    className="space-y-12 mt-12"
-                  >
-                     {(stripe.secretKey || stripe.testSecretKey) && (
-                        <div role="alert" style={{ padding: 16, background: "rgba(255,201,60,.3)", border: "2px solid #100f0d", color: "#100f0d" }}>
-                           <strong>⚠ Secret key stored in a readable settings document.</strong>{" "}
-                           Store settings can be read by the storefront (and anyone who requests them). Prefer the STRIPE_SECRET_KEY Firebase Functions secret, then rotate any key that was entered here.
-                        </div>
-                     )}
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                        {/* Live Keys */}
-                        <div className={`space-y-8 p-8 bg-white/[0.01] border rounded-[2rem] transition-all ${
-                          !testMode ? "border-violet-500/20 shadow-lg shadow-violet-500/[0.02]" : "border-white/5 opacity-50"
-                        }`}>
-                           <h4 className="text-[10px] font-black tracking-[0.25em] text-white uppercase italic">Live Environment Keys</h4>
-                           <InputField 
-                              label="STRIPE PUBLISHABLE KEY" 
-                              placeholder="pk_live_..."
-                              icon={Lock}
-                              value={stripe.publicKey || ""}
-                              onChange={(e: any) => updateStripe({ publicKey: e.target.value })}
-                           />
-                           <SecretField label="STRIPE SECRET KEY" placeholder="sk_live_..." stored={!!stripe.secretKey}
-                              onCommit={(v) => updateStripe({ secretKey: v })} />
-                        </div>
-                        
-                        {/* Test Keys */}
-                        <div className={`space-y-8 p-8 bg-white/[0.01] border rounded-[2rem] transition-all ${
-                          testMode ? "border-amber-500/20 shadow-lg shadow-amber-500/[0.02]" : "border-white/5 opacity-50"
-                        }`}>
-                           <h4 className="text-[10px] font-black tracking-[0.25em] text-white uppercase italic">Test (Sandbox) Keys</h4>
-                           <InputField 
-                              label="STRIPE TEST PUBLISHABLE KEY" 
-                              placeholder="pk_test_..."
-                              icon={Lock}
-                              value={stripe.testPublicKey || ""}
-                              onChange={(e: any) => updateStripe({ testPublicKey: e.target.value })}
-                           />
-                           <SecretField label="STRIPE TEST SECRET KEY" placeholder="sk_test_..." stored={!!stripe.testSecretKey}
-                              onCommit={(v) => updateStripe({ testSecretKey: v })} />
-                        </div>
-                     </div>
-
-                     {/* Wallets */}
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all shadow-inner">
-                           <div className="flex items-center gap-6">
-                              <div className="w-16 h-10 bg-black text-white rounded-xl flex items-center justify-center border border-white/10 shadow-xl overflow-hidden">
-                                 <span className="text-xs font-black tracking-tighter">Pay</span>
-                              </div>
-                              <div>
-                                 <h4 className="text-sm font-black text-white uppercase tracking-widest italic">Apple Pay</h4>
-                                 <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em] mt-1">NFC enabled checkout</p>
-                              </div>
-                           </div>
-                           <Switch 
-                             checked={stripe.applePay} 
-                             onChange={(val) => updateStripe({ applePay: val })} 
-                           />
-                        </div>
-                        <div className="flex justify-between items-center p-10 bg-white/[0.02] rounded-[2.5rem] border border-white/5 hover:border-violet-500/30 transition-all shadow-inner">
-                           <div className="flex items-center gap-6">
-                              <div className="w-16 h-10 bg-white rounded-xl flex items-center justify-center border border-white/10 shadow-xl overflow-hidden">
-                                 <span className="text-xs font-black tracking-tighter text-blue-600 italic">GPay</span>
-                              </div>
-                              <div>
-                                 <h4 className="text-sm font-black text-white uppercase tracking-widest italic">Google Pay</h4>
-                                 <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em] mt-1">Smart wallet integration</p>
-                              </div>
-                           </div>
-                           <Switch 
-                             checked={stripe.googlePay} 
-                             onChange={(val) => updateStripe({ googlePay: val })} 
-                           />
-                        </div>
-                     </div>
-                  </motion.div>
-               )}
-            </AnimatePresence>
-         </div>
-      </section>
-
-      {/* PayPal Card */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.03] to-transparent pointer-events-none" />
-         <div className="relative z-10">
-            <div className="flex justify-between items-start mb-12">
-               <SectionHeader 
-                  title="PayPal Integration" 
-                  subtitle="Allow customers to pay via PayPal" 
-                  icon={DollarSign} 
-                  color="blue"
-               />
-            </div>
-
-            <div className="flex items-center gap-8 p-8 bg-white/[0.02] rounded-[2.5rem] border border-white/5 shadow-inner">
-               <div className="flex items-center gap-4">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">PayPal Integration Status</span>
-                  <Switch 
-                    checked={paypal.connected} 
-                    onChange={(val) => updatePaypal({ connected: val })} 
-                  />
-               </div>
-               <div className="flex-1 h-1 bg-white/5 rounded-full relative overflow-hidden">
-                  <motion.div 
-                    initial={false}
-                    animate={{ width: paypal.connected ? '100%' : '0%' }}
-                    className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-500"
-                  />
-               </div>
-               <span className={`text-[10px] font-black uppercase tracking-[0.4em] w-24 text-right ${paypal.connected ? 'text-emerald-400' : 'text-slate-600'}`}>
-                 {paypal.connected ? 'Active' : 'Inactive'}
-               </span>
-            </div>
-
-            <AnimatePresence>
-               {paypal.connected && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    className="mt-12 space-y-12"
-                  >
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                        {/* Live Client ID */}
-                        <div className={`space-y-6 p-8 bg-white/[0.01] border rounded-[2rem] transition-all ${
-                          !testMode ? "border-blue-500/20 shadow-lg shadow-blue-500/[0.02]" : "border-white/5 opacity-50"
-                        }`}>
-                           <h4 className="text-[10px] font-black tracking-[0.25em] text-white uppercase italic">Live Client ID</h4>
-                           <InputField 
-                              label="PAYPAL CLIENT ID" 
-                              placeholder="Client ID..."
-                              icon={Lock}
-                              value={paypal.clientId || ""}
-                              onChange={(e: any) => updatePaypal({ clientId: e.target.value })}
-                           />
-                        </div>
-                        
-                        {/* Test Client ID */}
-                        <div className={`space-y-6 p-8 bg-white/[0.01] border rounded-[2rem] transition-all ${
-                          testMode ? "border-amber-500/20 shadow-lg shadow-amber-500/[0.02]" : "border-white/5 opacity-50"
-                        }`}>
-                           <h4 className="text-[10px] font-black tracking-[0.25em] text-white uppercase italic">Test Client ID</h4>
-                           <InputField 
-                              label="PAYPAL TEST CLIENT ID" 
-                              placeholder="Test Client ID..."
-                              icon={Lock}
-                              value={paypal.testClientId || ""}
-                              onChange={(e: any) => updatePaypal({ testClientId: e.target.value })}
-                           />
-                        </div>
-                     </div>
-                  </motion.div>
-               )}
-            </AnimatePresence>
-         </div>
-      </section>
-
-      {/* Shippo Card */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-         <div className="absolute top-0 right-0 p-16 opacity-5 pointer-events-none">
-            <Truck size={200} className="text-violet-500" />
-         </div>
-         <div className="relative z-10">
-            <div className="flex justify-between items-start mb-12">
-               <SectionHeader 
-                  title="Shippo Integration" 
-                  subtitle="Configure API Token for Address Verification and Shipping Labels" 
-                  icon={Truck} 
-                  color="violet"
-               />
-               <button 
-                  onClick={() => window.open("https://goshippo.com", "_blank")}
-                  className="bg-white/5 border border-white/10 px-8 py-3 rounded-2xl text-[9px] font-black tracking-[0.2em] text-slate-300 hover:bg-white/10 transition-all flex items-center gap-3 uppercase shadow-lg cursor-pointer"
-                >
-                   SHIPPO DASHBOARD <ExternalLink size={14} className="text-violet-400" />
-                </button>
-            </div>
-            
-            <div className="space-y-8">
-               <div className="p-6 bg-white/[0.02] border border-white/5 rounded-2xl flex justify-between items-center">
-                  <div>
-                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Status</span>
-                     <p className="text-xs font-bold text-white mt-1">
-                        {loadingShippo ? (
-                           <span className="text-slate-500 uppercase tracking-widest text-[10px]">Loading status...</span>
-                        ) : shippoConfig?.configured ? (
-                           <span>
-                              Configured via <span className="text-violet-400 uppercase">{shippoConfig.source || "Secret"}</span> (Ends in <span className="font-mono text-cyan-400">****{shippoConfig.lastFour}</span>)
-                           </span>
-                        ) : (
-                           <span className="text-red-400 uppercase">Not Configured (Fallback Active)</span>
-                        )}
-                     </p>
-                  </div>
-                  {shippoConfig?.updatedAt && (
-                     <div className="text-right">
-                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Last Updated</span>
-                        <p className="text-[10px] text-slate-400 font-mono mt-1">{new Date(shippoConfig.updatedAt).toLocaleDateString()}</p>
-                     </div>
-                  )}
-               </div>
-
-               {shippoConfig?.configured && (
-                  <div className="p-6 bg-white/[0.02] border border-white/5 rounded-2xl flex justify-between items-center">
-                     <div>
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Dynamic Rates via Shippo</span>
-                        <p className="text-xs text-slate-450 mt-1">Fetch live carrier shipping rates dynamically at checkout based on address & parcel weight</p>
-                     </div>
-                     <input
-                        type="checkbox"
-                        checked={shippoConfig?.dynamicRatesEnabled ?? false}
-                        onChange={async (e) => {
-                           const enabled = e.target.checked;
-                           try {
-                              await adminApi.setShippoDynamicRates(enabled);
-                              setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
-                              toast.success(enabled ? "Dynamic shipping rates enabled!" : "Dynamic shipping rates disabled!");
-                           } catch (err: any) {
-                              toast.error(err.message || "Failed to update Shippo settings.");
-                           }
-                        }}
-                        className="w-6 h-6 rounded-lg bg-[#1E1E1F] border-white/10 text-violet-600 focus:ring-violet-500 cursor-pointer"
-                     />
-                  </div>
-               )}
-
-
-               <div className="flex gap-4 items-end">
-                  <div className="flex-1">
-                     <InputField 
-                        label="NEW SHIPPO API TOKEN" 
-                        placeholder="shippo_live_... or shippo_test_..."
-                        icon={ShieldCheck}
-                        type="password"
-                        value={newShippoToken}
-                        onChange={(e: any) => setNewShippoToken(e.target.value)}
-                     />
-                  </div>
-                  <button
-                     type="button"
-                     onClick={handleSaveShippo}
-                     disabled={savingShippo || !newShippoToken.trim()}
-                     className="bg-violet-600 hover:bg-violet-500 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.25em] uppercase transition-all disabled:opacity-30 active:scale-95 border border-violet-400/20 shadow-lg shrink-0 cursor-pointer"
-                  >
-                     {savingShippo ? "SYNCING..." : "SAVE KEY"}
-                  </button>
-               </div>
-               
-               <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.2em] leading-relaxed">
-                  Keys are synced securely to Firestore with limited access permissions. The storefront never exposes your API token.
-               </p>
-            </div>
-         </div>
-      </section>
-
-      {/* Manual Payment Methods Card */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
-          <SectionHeader 
-            title="Manual Payment Methods" 
-            subtitle="Alternative payment gateways" 
-            icon={Building} 
-            color="emerald"
-          />
-          
-          <div className="flex flex-wrap gap-4">
-            <button 
-              onClick={() => openAddMethod("bank")}
-              className="bg-white/5 border border-white/10 hover:bg-white/10 text-white px-5 py-3 rounded-2xl font-black text-[9px] uppercase tracking-[0.2em] transition-all flex items-center gap-2"
-            >
-              <Plus size={12} /> + e-Transfer
-            </button>
-            <button 
-              onClick={() => openAddMethod("cod")}
-              className="bg-white/5 border border-white/10 hover:bg-white/10 text-white px-5 py-3 rounded-2xl font-black text-[9px] uppercase tracking-[0.2em] transition-all flex items-center gap-2"
-            >
-              <Plus size={12} /> + COD
-            </button>
-            <button 
-              onClick={() => openAddMethod("custom")}
-              className="bg-white/5 border border-white/10 hover:bg-white/10 text-white px-5 py-3 rounded-2xl font-black text-[9px] uppercase tracking-[0.2em] transition-all flex items-center gap-2"
-            >
-              <Plus size={12} /> + Custom
-            </button>
+      <SectionCard title="Manual payment methods" description="Bank e-Transfer, cash on delivery or your own instructions."
+        actions={
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <SecondaryButton size="sm" onClick={() => openAddMethod("bank")}>+ e-Transfer</SecondaryButton>
+            <SecondaryButton size="sm" onClick={() => openAddMethod("cod")}>+ Cash on delivery</SecondaryButton>
+            <SecondaryButton size="sm" onClick={() => openAddMethod("custom")}>+ Custom</SecondaryButton>
           </div>
-        </div>
-
+        }>
         {manualMethods.length === 0 ? (
-          <div className="p-12 border border-dashed border-white/10 rounded-[2.5rem] text-center bg-white/[0.01]">
-            <p className="text-xs text-slate-500 uppercase tracking-widest font-black italic">No manual payment methods configured.</p>
-          </div>
+          <EmptyState icon="💳" title="No manual methods" description="Add an e-Transfer or cash-on-delivery option for customers who don't pay by card." />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <ul className="rp-list" style={{ margin: -20 }} aria-label="Manual payment methods">
             {manualMethods.map((method: any) => (
-              <div 
-                key={method.id}
-                className="p-8 bg-white/[0.02] border border-white/5 rounded-[2.5rem] hover:border-violet-500/20 transition-all flex flex-col justify-between gap-6"
-              >
-                <div className="flex justify-between items-start gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <h4 className="text-sm font-black text-white uppercase tracking-widest italic truncate">{method.name}</h4>
-                      <span className="px-2 py-0.5 rounded bg-violet-600/20 border border-violet-500/30 text-[8px] font-black text-violet-400 tracking-wider uppercase shrink-0">
-                        {method.type === "bank" ? "e-Transfer" : method.type === "cod" ? "COD" : "Custom"}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 uppercase font-black tracking-[0.15em] mt-4 line-clamp-3">
-                      {method.instructions || "No custom instructions configured."}
-                    </p>
-                  </div>
-                  
-                  <Switch 
-                    checked={method.enabled}
-                    onChange={(val) => handleToggleMethodStatus(method.id, val)}
-                  />
+              <li key={method.id} style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ minWidth: 0, flex: "1 1 260px" }}>
+                  <strong>{method.name}</strong> <StatusBadge tone={method.enabled ? "success" : "neutral"}>{method.enabled ? "Enabled" : "Off"}</StatusBadge>
+                  <p className="rp-hint" style={{ margin: "4px 0 0", overflowWrap: "anywhere" }}>{method.instructions}</p>
                 </div>
-                
-                <div className="flex gap-4 pt-4 border-t border-white/5 justify-end">
-                  <button 
-                    onClick={() => openEditMethod(method)}
-                    className="p-3 bg-white/5 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-colors"
-                    aria-label="Edit payment method"
-                    title="Edit Method"
-                  >
-                    <Edit size={14} />
-                  </button>
-                  <button 
-                    onClick={() => handleDeleteMethod(method.id)}
-                    className="p-3 bg-red-500/5 hover:bg-red-500/10 rounded-xl text-red-400/60 hover:text-red-400 transition-colors"
-                    aria-label="Delete payment method"
-                    title="Delete Method"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <Toggle label={`${method.name} enabled`} checked={!!method.enabled} onChange={(v) => handleToggleMethodStatus(method.id, v)} />
+                  <SecondaryButton size="sm" onClick={() => openEditMethod(method)} aria-label={`Edit ${method.name}`}>Edit</SecondaryButton>
+                  <DestructiveButton size="sm" onClick={() => removeMethod(method)} aria-label={`Delete ${method.name}`}>Delete</DestructiveButton>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-      </section>
+      </SectionCard>
 
-      {/* Footer Badges Selector */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-        <SectionHeader 
-          title="Footer Payment Icons" 
-          subtitle="Display trust badges in footer" 
-          icon={CreditCard} 
-          color="violet"
-        />
-        
-        <p className="text-xs text-slate-400 leading-relaxed max-w-xl font-medium">
-          Select which payment methods will appear as monochrome icons in the footer of your storefront.
-        </p>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+      <SectionCard title="Footer payment icons" description="Monochrome icons shown in the storefront footer.">
+        <div style={{ display: "grid", gap: 4, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
           {[
-            { id: "visa", label: "Visa" },
-            { id: "mastercard", label: "Mastercard" },
-            { id: "amex", label: "American Express" },
-            { id: "paypal", label: "PayPal" },
-            { id: "applepay", label: "Apple Pay" },
-            { id: "googlepay", label: "Google Pay" },
-            { id: "afterpay", label: "Afterpay" },
-            { id: "klarna", label: "Klarna" }
-          ].map((badge) => {
-            const isChecked = footerBadges.includes(badge.id);
-            return (
-              <label 
-                key={badge.id}
-                onClick={() => {
-                  const newBadges = isChecked
-                    ? footerBadges.filter((b: string) => b !== badge.id)
-                    : [...footerBadges, badge.id];
-                  setSettings({
-                    ...settings,
-                    payments: { ...settings.payments, footerBadges: newBadges }
-                  });
-                }}
-                className={`p-6 bg-white/[0.02] border rounded-[2rem] hover:border-violet-500/20 cursor-pointer flex items-center justify-between transition-all ${
-                  isChecked ? "border-violet-500/30 bg-violet-600/[0.02]" : "border-white/5"
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
-                    isChecked ? "border-violet-500 bg-violet-600" : "border-white/10 bg-white/5"
-                  }`}>
-                    {isChecked && <Check size={12} className="text-white font-bold" />}
-                  </div>
-                  <span className="text-[10px] font-black tracking-widest text-slate-300 uppercase">{badge.label}</span>
-                </div>
-              </label>
-            );
-          })}
+            { id: "visa", label: "Visa" }, { id: "mastercard", label: "Mastercard" }, { id: "amex", label: "American Express" },
+            { id: "paypal", label: "PayPal" }, { id: "applepay", label: "Apple Pay" }, { id: "googlepay", label: "Google Pay" },
+            { id: "afterpay", label: "Afterpay" }, { id: "klarna", label: "Klarna" },
+          ].map((badge) => (
+            <Checkbox key={badge.id} label={badge.label} checked={footerBadges.includes(badge.id)}
+              onChange={() => {
+                const next = footerBadges.includes(badge.id) ? footerBadges.filter((b: string) => b !== badge.id) : [...footerBadges, badge.id];
+                setSettings({ ...settings, payments: { ...settings.payments, footerBadges: next } });
+              }} />
+          ))}
         </div>
-      </section>
+      </SectionCard>
 
-      {/* Security note */}
-      <div className="p-10 bg-amber-500/5 border border-amber-500/20 rounded-[3rem] flex gap-8 items-center shadow-2xl">
-         <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shadow-inner">
-            <Lock size={24} className="text-amber-400" />
-         </div>
-         <div className="flex-1">
-            <h4 className="text-xs font-black text-amber-500 uppercase tracking-[0.4em] mb-1 italic">Secure Encryption Active</h4>
-            <p className="text-xs text-slate-400 font-bold leading-relaxed">All payment credentials and API keys are stored securely. Client IDs and secret keys are masked for security.</p>
-         </div>
-      </div>
+      <SectionCard title="Currency" description="How prices are shown and charged.">
+        <p className="rp-hint" style={{ margin: 0 }}>Prices are set and charged in your store currency (CA$). Any currency selector on the storefront is a display convenience; the amount charged is always calculated by the payment server.</p>
+      </SectionCard>
 
-      {/* Manual Payment Edit Modal */}
-      <AnimatePresence>
-        {isManualModalOpen && (
-          <div className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6 md:p-12">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.4, ease: "circOut" }}
-              className="w-full max-w-2xl bg-[#050506] border border-white/10 rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl relative"
-            >
-              {/* Header */}
-              <div className="p-8 border-b border-white/5 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-xl text-violet-400">
-                    <Building size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black uppercase tracking-widest text-white italic">
-                      {editingMethod ? "Edit Payment Method" : "Add Payment Method"}
-                    </h3>
-                    <p className="text-[10px] text-slate-500 font-medium tracking-wide mt-1 uppercase">
-                      {editingMethod ? "Update configured instructions" : "Setup alternative manual transaction option"}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsManualModalOpen(false)}
-                  className="p-3 bg-white/5 rounded-xl text-slate-400 hover:text-white border border-white/10 transition-all hover:bg-white/10 active:scale-95"
-                >
-                  <X size={18} />
-                </button>
-              </div>
+      <SaveBar dirty={dirty} saving={savingSection === "payments"} message="You have unsaved payment settings."
+        onSave={async () => { await saveSection("payments", { payments: settings.payments }); toast.success("Payment settings saved"); }}
+        onDiscard={() => setSettings({ ...settings, payments: JSON.parse(JSON.stringify(originalSettings?.payments ?? {})) })} />
 
-              {/* Body */}
-              <div className="flex-1 overflow-y-auto p-8 space-y-8">
-                <InputField 
-                  label="PAYMENT METHOD TITLE" 
-                  placeholder="e.g. Bank Deposit, Interac e-Transfer"
-                  icon={CreditCard}
-                  value={methodName}
-                  onChange={(e: any) => setMethodName(e.target.value)}
-                />
-                
-                <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">Payment Instructions</label>
-                  <textarea
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 outline-none focus:border-violet-500/50 focus:bg-white/[0.06] transition-all text-sm text-white font-bold placeholder:text-slate-800"
-                    rows={6}
-                    placeholder="Enter instructions for customers. e.g., send e-transfer to payment@example.com."
-                    value={methodInstructions}
-                    onChange={(e: any) => setMethodInstructions(e.target.value)}
-                  />
-                  <p className="text-[8px] text-slate-600 uppercase tracking-wider block ml-1 leading-relaxed">
-                    These instructions will be displayed to customers on the checkout confirmation page after placing their order.
-                  </p>
-                </div>
-
-                <div className="flex justify-between items-center p-8 bg-white/[0.01] border border-white/5 rounded-[2rem]">
-                  <div>
-                    <h4 className="text-xs font-black text-white uppercase tracking-widest italic">Status</h4>
-                    <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest mt-1">Enable or disable this payment option immediately</p>
-                  </div>
-                  <Switch 
-                    checked={methodEnabled}
-                    onChange={setMethodEnabled}
-                  />
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-md flex items-center justify-end gap-4 shrink-0">
-                <button
-                  onClick={() => setIsManualModalOpen(false)}
-                  className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-[9px] font-black text-slate-400 hover:text-white uppercase tracking-widest transition-all active:scale-95"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveMethod}
-                  className="px-8 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-violet-600/20 border border-violet-400/20"
-                >
-                  Save Method
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <Dialog open={isManualModalOpen} onClose={() => setIsManualModalOpen(false)} title={editingMethod ? "Edit payment method" : "Add payment method"} badge="💳"
+        footer={<>
+          <SecondaryButton onClick={() => setIsManualModalOpen(false)}>Cancel</SecondaryButton>
+          <PrimaryButton onClick={handleSaveMethod}>{editingMethod ? "Update method" : "Add method"}</PrimaryButton>
+        </>}>
+        <div className="rp-stack" style={{ gap: 16 }}>
+          <TextField label="Payment method title" value={methodName} placeholder="e.g. Bank deposit, Interac e-Transfer" onChange={(e) => setMethodName(e.target.value)} data-autofocus />
+          <TextArea label="Customer instructions" rows={5} value={methodInstructions} onChange={(e) => setMethodInstructions(e.target.value)}
+            placeholder="e.g. Send your e-Transfer to payments@example.com and use your order number as the message." hint="Shown to the customer after they place the order." />
+          <Toggle label="Offer this method at checkout" checked={methodEnabled} onChange={setMethodEnabled} />
+        </div>
+      </Dialog>
+      {confirmNode}
     </div>
   );
 }
