@@ -298,7 +298,10 @@ export const RISO_STOREFRONT_CSS = `
   text-transform:uppercase;letter-spacing:.09em;font-weight:800;
 }
 [data-fm-store] .custom-btn:hover{box-shadow:3px 3px 0 rgba(16,15,13,.3);}
-[data-fm-store] input,[data-fm-store] select,[data-fm-store] textarea{border-radius:0;box-shadow:none;}
+[data-fm-store] input,[data-fm-store] select,[data-fm-store] textarea{border-radius:0 !important;box-shadow:none;border-width:1px;}
+[data-fm-store] [class*="rounded-"]:not([class*="rounded-full"]){border-radius:0 !important;}
+[data-fm-store] .glass-card,[data-fm-store] [class*="rounded-[2"],[data-fm-store] [class*="rounded-[3"]{border-radius:4px !important;}
+[data-fm-store] [class*="shadow-"]:not([class*="shadow-none"]):not(.custom-btn){box-shadow:3px 3px 0 rgba(16,15,13,.3) !important;}
 [data-fm-store] :where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid #e8402a;outline-offset:2px;}
 @media (pointer:coarse){[data-fm-store] .custom-btn{min-height:44px;}}
 @media (prefers-reduced-motion:reduce){[data-fm-store] *{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important;}}

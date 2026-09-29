@@ -120,7 +120,7 @@ const PALETTES = [
   { id: "ocean",   label: "Deep Ocean",     bg: "#0c1a25", text: "#e2e8f0", accent: "#38bdf8", swatches: ["#0c1a25","#e2e8f0","#38bdf8"] },
 ];
 
-const THEME_LIBRARY = [
+export const THEME_LIBRARY = [
   {
     id: "lyricalmyrical-riso",
     name: "Lyricalmyrical Riso",

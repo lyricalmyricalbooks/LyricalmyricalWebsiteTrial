@@ -1201,13 +1201,15 @@ export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any
             fontSize: "clamp(2.8rem, 8vw, 6.5rem)",
             lineHeight: 0.95,
             ...hStyle(settings),
+            // Always light: this text sits on the image scrim, not on the theme background.
+            color: "#ffffff",
           }}
           data-theme-field="title"
         >
           {settings.title || "Lyricalmyrical Books"}
         </h1>
         {settings.tagline && (
-          <p className="mt-3.5 text-[15px] text-white/80 max-w-lg" style={bStyle(settings)} data-theme-field="tagline">
+          <p className="mt-3.5 text-[15px] max-w-lg" style={{ ...bStyle(settings), color: "rgba(255,255,255,0.88)" }} data-theme-field="tagline">
             {settings.tagline}
           </p>
         )}
@@ -1230,7 +1232,8 @@ export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any
               onClick={() => setActive(i)}
               aria-label={`Go to cover ${i + 1}`}
               aria-current={i === current}
-              className={`h-2 rounded-full transition-all ${i === current ? "w-5 bg-white" : "w-2 bg-white/40 hover:bg-white/70"}`}
+              className={`h-2 rounded-full transition-all ${i === current ? "w-5" : "w-2"}`}
+              style={{ backgroundColor: i === current ? "#ffffff" : "rgba(255,255,255,0.45)" }}
             />
           ))}
         </div>
