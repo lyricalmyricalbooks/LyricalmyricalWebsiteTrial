@@ -116,6 +116,12 @@ enhance it:
    (`buildPageTemplates` in `ThemeEditorExtensions.tsx`), and full-theme
    presets can bulk-apply a `global` token record (see the
    "Lyricalmyrical Punk" entry in `THEME_LIBRARY`).
+   Draft management is explicit: the top bar shows Live/Draft/Unsaved, and
+   **Discard Draft** must reset the persisted working copy plus local history
+   without modifying the published `design`.
+   Visual and feature controls expose **All pages / This page only** scope.
+   All-pages writes must update every static/dynamic template while preserving
+   its page-specific section stack.
 3. **Work the roadmap, complete a milestone end-to-end.** Pick a checklist item
    from the roadmap in `docs/THEME_EDITOR.md` (sections-everywhere, more section
    types, live-preview/UX, theme management), finish it fully, then **tick it off

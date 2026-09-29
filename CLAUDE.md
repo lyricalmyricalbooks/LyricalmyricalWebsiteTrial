@@ -134,6 +134,12 @@ section/block contract, and the Shopify-parity roadmap.
   insertion drop zones). The section library is
   unified on the registry-driven `NewSectionLibraryModal`; the legacy
   `SECTION_TEMPLATES` + `SectionLibraryModal` dead code has been removed.
+  The top bar accurately distinguishes Live, Draft, and Unsaved states; when a
+  working copy differs from the published design, **Discard Draft** provides a
+  confirmed reset that also clears local undo/redo history.
+  Visual/feature panels also expose **All pages / This page only** scope;
+  all-pages writes update every static and dynamic template without replacing
+  its section stack.
 - `src/app/admin/ThemeEditorExtensions.tsx` — the real `SECTION_REGISTRY`,
   `getSectionFields`/`getBlockFields`, `BlocksEditor`, `NewSectionLibraryModal`;
   it includes reusable commerce/content sections such as `BlogPostsSection`

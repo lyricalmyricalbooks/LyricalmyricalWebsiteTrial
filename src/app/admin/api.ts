@@ -426,6 +426,16 @@ export const adminApi = {
     await adminApi.recordAuditLog("settings", `Updated settings: ${sections.join(", ")}`);
   },
 
+  // Replace the work-in-progress theme with the currently published theme.
+  // Keeping draftDesign populated (rather than deleting it) makes subsequent
+  // editor loads deterministic and prevents an old draft from resurfacing.
+  discardThemeDraft: async (publishedDesign: any) => {
+    const docRef = doc(db, "settings", "website");
+    const draftDesign = JSON.parse(JSON.stringify(publishedDesign));
+    await setDoc(docRef, { draftDesign }, { merge: true });
+    await adminApi.recordAuditLog("settings", "Discarded unpublished theme changes");
+  },
+
   // Schedule a design to go live at a future time. The storefront applies it
   // client-side once the time passes (see useSiteData).
   schedulePublish: (design: any, at: string) => {
