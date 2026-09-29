@@ -1,5 +1,5 @@
 import {
-  createContext, useCallback, useContext, useEffect, useId, useRef, useState,
+  createContext, forwardRef, useCallback, useContext, useEffect, useId, useRef, useState,
   type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode,
   type SelectHTMLAttributes, type TextareaHTMLAttributes,
 } from "react";
@@ -181,14 +181,14 @@ export const OutlineButton = makeButton("gold-outline");
 export const DestructiveButton = makeButton("danger");
 export const ConfirmButton = makeButton("success");
 
-export function IconButton({ label, tone, className, children, type = "button", ...rest }:
-  ButtonHTMLAttributes<HTMLButtonElement> & { label: string; tone?: "danger" | "success" }) {
-  return (
-    <button type={type} aria-label={label} title={label} data-tone={tone} className={cx("rp-icon-btn", className)} {...rest}>
-      {children}
-    </button>
-  );
-}
+export const IconButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement> & { label: string; tone?: "danger" | "success" }>(
+  function IconButton({ label, tone, className, children, type = "button", ...rest }, ref) {
+    return (
+      <button ref={ref} type={type} aria-label={label} title={label} data-tone={tone} className={cx("rp-icon-btn", className)} {...rest}>
+        {children}
+      </button>
+    );
+  });
 
 /* ── Fields ──────────────────────────────────────────────────────────── */
 
@@ -550,6 +550,48 @@ export function SyncChip({ state, onRetry, lastSync }: { state: "offline" | "fai
         {lastSync && <div className="rp-sync-meta">Last upload {lastSync}</div>}
       </div>
       {state === "failed" && onRetry && <PrimaryButton size="lg" onClick={onRetry}>Try again now</PrimaryButton>}
+    </div>
+  );
+}
+
+/* ── ActionMenu: keyboard-accessible overflow menu ───────────────────── */
+
+export type MenuAction = { label: string; onSelect: () => void; tone?: "danger"; icon?: ReactNode };
+
+export function ActionMenu({ label, actions }: { label: string; actions: MenuAction[] }) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    wrap.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const away = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
+  const onKey = (e: React.KeyboardEvent) => {
+    const items = Array.from(wrap.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') || []);
+    const i = items.indexOf(document.activeElement as HTMLElement);
+    if (e.key === "Escape") { setOpen(false); btn.current?.focus(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+    else if (e.key === "Tab") setOpen(false);
+  };
+  return (
+    <div className="rp-menu-wrap" ref={wrap} onKeyDown={open ? onKey : undefined}>
+      <IconButton ref={btn} label={label} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        <span aria-hidden="true" style={{ fontWeight: 800, letterSpacing: 1 }}>⋯</span>
+      </IconButton>
+      {open && (
+        <div className="rp-menu" role="menu" aria-label={label}>
+          {actions.map(a => (
+            <button key={a.label} type="button" role="menuitem" className="rp-menu-item" data-tone={a.tone}
+              onClick={() => { setOpen(false); btn.current?.focus(); a.onSelect(); }}>
+              {a.icon}{a.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

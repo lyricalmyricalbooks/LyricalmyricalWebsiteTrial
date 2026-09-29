@@ -236,7 +236,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === "reviews" || activeTab === "orders" || activeTab === "overview" || activeTab === "analytics";
+  const migrated = activeTab === "reviews" || activeTab === "orders" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog";
   const content = (() => {
     switch (activeTab) {
       case "overview":
