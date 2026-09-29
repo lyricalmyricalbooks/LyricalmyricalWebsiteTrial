@@ -3,7 +3,7 @@ import { NAV, PAGE_COPY } from "./nav";
 
 describe("admin navigation", () => {
   it("lists the primary modules in order", () => {
-    expect(NAV.map((n) => n.id)).toEqual(["overview", "orders", "catalog", "discounts", "reviews", "pages", "settings"]);
+    expect(NAV.map((n) => n.id)).toEqual(["overview", "orders", "customers", "catalog", "discounts", "reviews", "pages", "settings"]);
   });
 
   it("has unique ids across modules and settings children", () => {
