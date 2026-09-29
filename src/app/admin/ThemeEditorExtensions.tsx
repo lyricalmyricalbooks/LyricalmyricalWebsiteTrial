@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useFocusTrap } from "../lib/useFocusTrap";
+import { usePrompt } from "./riso/components";
 import { useDraggable } from "@dnd-kit/core";
 import { SortableList, SortableRow } from "./dndSortable";
 import {
@@ -1661,7 +1662,7 @@ function BlockFieldEditor({
             const url = await uploadFile(f);
             onChange(url);
           } catch {
-            alert("Upload failed");
+            toast.error("Upload failed");
           } finally {
             setUploading(false);
           }
@@ -2518,6 +2519,7 @@ export function ThemeIOButtons({
   onDuplicate?: (next: any) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [askPrompt, promptNode] = usePrompt();
 
   const exportTheme = () => {
     try {
@@ -2530,12 +2532,12 @@ export function ThemeIOButtons({
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      alert("Export failed");
+      toast.error("Export failed");
     }
   };
 
-  const duplicateTheme = () => {
-    const name = window.prompt("Name the duplicated theme draft:", `Copy ${new Date().toLocaleDateString()}`);
+  const duplicateTheme = async () => {
+    const name = await askPrompt({ title: "Duplicate theme draft", label: "Draft name", defaultValue: `Copy ${new Date().toLocaleDateString()}`, confirmLabel: "Duplicate" });
     if (!name) return;
     const next = JSON.parse(JSON.stringify(design || {}));
     next.themeName = name;
@@ -2551,12 +2553,13 @@ export function ThemeIOButtons({
       if (!parsed || typeof parsed !== "object") throw new Error("invalid");
       onImport(parsed);
     } catch {
-      alert("Theme file is invalid JSON");
+      toast.error("Theme file is invalid JSON");
     }
   };
 
   return (
     <div className="flex items-center gap-1">
+      {promptNode}
       {onDuplicate && (
         <button
           type="button"
@@ -3217,7 +3220,7 @@ export function SectionFieldEditor({
                 const url = await uploadFile(f);
                 onChange(url);
               } catch {
-                alert("Upload failed");
+                toast.error("Upload failed");
               } finally {
                 setUploading(false);
               }

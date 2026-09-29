@@ -1028,7 +1028,7 @@ export function CommandPalette({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[1200] bg-black/70 backdrop-blur-md flex items-start justify-center pt-[12vh] px-6"
+          className="rp-modal-skin fixed inset-0 z-[1200] flex items-start justify-center pt-[12vh] px-6" style={{ background: "var(--rp-overlay)" }}
           onClick={onClose}
         >
           <motion.div
@@ -1036,7 +1036,7 @@ export function CommandPalette({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -12 }}
             transition={{ type: "spring", damping: 28, stiffness: 350 }}
-            className="w-full max-w-xl bg-[#0c0c10] border border-white/10 rounded-[2rem] shadow-[0_40px_120px_rgba(124,58,237,0.25)] overflow-hidden"
+            role="dialog" aria-modal="true" aria-label="Theme command center" className="rp-modal-panel w-full max-w-xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 px-6 py-5 border-b border-white/5">

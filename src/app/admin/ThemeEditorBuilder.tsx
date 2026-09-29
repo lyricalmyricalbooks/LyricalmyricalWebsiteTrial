@@ -176,14 +176,14 @@ export function FontBrowserModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[600] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6"
+        className="rp-modal-skin fixed inset-0 z-[600] flex items-center justify-center p-6" style={{ background: "var(--rp-overlay)" }}
         onClick={onClose}
       >
         <motion.div
           initial={{ scale: 0.96, y: 16 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.96, y: 16 }}
-          className="bg-[#0c0c0e] border border-white/10 rounded-3xl w-full max-w-3xl max-h-[88vh] overflow-hidden flex flex-col"
+          role="dialog" aria-modal="true" aria-label="Font browser" className="rp-modal-panel w-full max-w-3xl max-h-[88vh] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="px-8 pt-7 pb-4 border-b border-white/5 space-y-4">
