@@ -119,7 +119,11 @@ The payment/fulfillment backend runs on Firebase. Before taking real orders:
    and Cloud Functions automatically. Until it is set, deploy manually with
    `npx firebase-tools deploy --only firestore:rules,firestore:indexes,storage,functions`.
 3. **Stripe webhook** — in the Stripe dashboard add an endpoint for
-   `checkout.session.completed` pointing to
+   these events: `checkout.session.completed`,
+   `checkout.session.async_payment_succeeded`,
+   `checkout.session.async_payment_failed`, `checkout.session.expired`,
+   `charge.refunded` (syncs Dashboard refunds) and `charge.dispute.created`,
+   pointing to
    `https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/stripeWebhook`.
    Orders are created `unpaid` and only this webhook marks them paid,
    decrements stock, counts discount redemptions and records revenue.
