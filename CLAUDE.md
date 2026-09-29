@@ -248,7 +248,12 @@ and the **Last Code Push** timestamp.
 
 ## Riso Press admin design system
 
-`src/app/admin/riso/` — `riso.css` (semantic `--rp-*` tokens, light + dark, all
+`src/app/admin/riso/` — implements the published **Riso Press design system**
+(artifact https://claude.ai/artifact/MvJwSgL7vE4vExRKaC9Gph: newsprint/ink palette, flare
+`gold` primary fill with **ink** text — never lighten it — `gold-text` for flare words,
+square corners, 2px ink outlines on objects / hairlines inside lists, flat offset
+shadows by day, warm-grey night mode, Anton/Archivo/DM Mono, status = glyph + word).
+If tokens change there, update `riso.css` to match. `riso.css` (semantic `--rp-*` tokens, light + dark, all
 `rp-*` component classes; honors reduced motion, 44px touch targets, visible
 focus, print), `components.tsx` (AppShell, Sidebar, Topbar, PageHeader,
 Breadcrumbs, SectionCard, MetricCard, Primary/Secondary/Destructive buttons,

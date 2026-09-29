@@ -173,7 +173,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
     ) },
     { key: "order", header: "Order", render: o => (
       <button type="button" className="rp-mono" onClick={() => onSelectOrder(o)}
-        style={{ background: "none", border: 0, padding: 0, color: "var(--rp-primary)", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
+        style={{ background: "none", border: 0, padding: 0, color: "var(--rp-primary-text)", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
         aria-label={`Open order ${o.orderId}`}>{o.orderId}</button>
     ) },
     { key: "date", header: "Date", render: o => new Date(o.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) },
@@ -200,7 +200,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
   ];
 
   return (
-    <div className="rp rp-stack" style={{ background: "transparent" }}>
+    <div className="rp-stack">
       <FilterBar>
         <div className="rp-grow">
           <SearchField label="Search orders" placeholder="Search order ID or customer name…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />

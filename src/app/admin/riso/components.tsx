@@ -262,8 +262,10 @@ export function Checkbox({ label, ...rest }: { label: string } & Omit<InputHTMLA
 }
 
 export type BadgeTone = "neutral" | "primary" | "info" | "success" | "warning" | "danger";
+// Status never relies on colour alone: every badge carries a glyph AND a word.
+const BADGE_GLYPH: Record<BadgeTone, string> = { neutral: "○", primary: "●", info: "●", success: "✓", warning: "⚠", danger: "✕" };
 export function StatusBadge({ tone = "neutral", children }: { tone?: BadgeTone; children: ReactNode }) {
-  return <span className="rp-badge" data-tone={tone}>{children}</span>;
+  return <span className="rp-badge" data-tone={tone}><span aria-hidden="true">{BADGE_GLYPH[tone]}</span>{children}</span>;
 }
 
 /* ── Data ────────────────────────────────────────────────────────────── */
@@ -355,16 +357,17 @@ export function useFocusTrap(ref: React.RefObject<HTMLElement | null>, active: b
   }, [active, ref]);
 }
 
-export function Dialog({ open, onClose, title, description, footer, children, size, variant = "dialog", appearance = "light" }: {
+export function Dialog({ open, onClose, title, description, footer, children, size, variant = "dialog", appearance }: {
   open: boolean; onClose: () => void; title: string; description?: string; footer?: ReactNode;
   children: ReactNode; size?: "md" | "lg"; variant?: "dialog" | "drawer"; appearance?: "light" | "dark";
 }) {
+  // `appearance` set = mounted outside an AppShell (owns its tokens); unset = inherits the shell's.
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
   useFocusTrap(ref, open, onClose);
   if (!open) return null;
   return (
-    <div className="rp rp-dialog-root" data-variant={variant} data-rp-appearance={appearance} style={{ background: "transparent" }}>
+    <div className={appearance ? "rp rp-dialog-root" : "rp-dialog-root"} data-variant={variant} data-rp-appearance={appearance} style={appearance ? { background: "transparent" } : undefined}>
       <div className="rp-dialog-scrim" onClick={onClose} aria-hidden="true" />
       <div ref={ref} className="rp-dialog" data-size={size} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <div className="rp-dialog-head">
