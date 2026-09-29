@@ -87,7 +87,7 @@ export default function BookDetail() {
   const productTitleSize       = storefrontDesign.productTitleSize       || "large";
   const productAlignment       = storefrontDesign.productAlignment       || "left";
   const productSubtitleWeight  = storefrontDesign.productSubtitleWeight  || "light";
-  const productBorderRadius    = storefrontDesign.productBorderRadius    ?? 32;
+  const productBorderRadius    = storefrontDesign.productBorderRadius    ?? settings?.design?.productBorderRadius ?? 32;
   const productImageGlowColor  = storefrontDesign.productImageGlowColor  || primaryColor;
   const productImageShadow     = storefrontDesign.productImageShadow     || "lg";
   const productImageHoverScale  = storefrontDesign.productImageHoverScale  ?? 1.05;
