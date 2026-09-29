@@ -4068,7 +4068,7 @@ function VersionHistoryPanel({
     <div className="flex flex-col space-y-4">
       <div className="px-2">
         <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-[0.2em] italic mb-6">
-          Last {versions.length} saved states. Click to preview, restore to roll back.
+          Last {versions.length} saved states (kept between sessions). Click to preview, restore to roll back.
         </p>
       </div>
 
@@ -5465,6 +5465,24 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
 
   // ── Version History (up to 20 named snapshots) ──
   const [versionHistory, setVersionHistory] = useState<VersionEntry[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    adminApi
+      .listThemeVersions()
+      .then((rows: any[]) => {
+        if (cancelled || !rows.length) return;
+        const loaded: VersionEntry[] = rows.map((r) => ({
+          id: r.id,
+          label: r.label || (r.kind === "published" ? "Published" : "Draft"),
+          timestamp: new Date(r.createdAt),
+          design: r.design,
+        }));
+        // Keep anything saved locally this session that isn't stored yet.
+        setVersionHistory((prev) => [...prev.filter((p) => !loaded.some((l) => l.id === p.id)), ...loaded].slice(0, 30));
+      })
+      .catch((err) => console.warn("Could not load theme versions:", err));
+    return () => { cancelled = true; };
+  }, []);
   const [previewingVersion, setPreviewingVersion] = useState<string | null>(null);
   // ── Before/After compare: hold the button to flash the last-saved design ──
   const [comparing, setComparing] = useState(false);
@@ -6036,10 +6054,15 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
       const label = options.publish
         ? `Published ${now.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
         : `Draft ${now.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-      setVersionHistory((prev) => [
-        { id: crypto.randomUUID(), label, timestamp: now, design: JSON.parse(JSON.stringify(design)) },
-        ...prev,
-      ].slice(0, 20));
+      const localEntry: VersionEntry = { id: crypto.randomUUID(), label, timestamp: now, design: JSON.parse(JSON.stringify(design)) };
+      setVersionHistory((prev) => [localEntry, ...prev].slice(0, 30));
+      // Persist so history survives reloads; swap in the stored id when it lands.
+      adminApi
+        .saveThemeVersion(options.publish ? "published" : "draft", label, design)
+        .then((saved) =>
+          setVersionHistory((prev) => prev.map((v) => (v.id === localEntry.id ? { ...v, id: saved.id } : v))),
+        )
+        .catch((err) => console.warn("Could not persist theme version:", err));
 
       if (options.publish) {
         setPublishedDesign(design);
@@ -7224,13 +7247,9 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                       previewingVersion={previewingVersion}
                       onPreview={(v) => setPreviewingVersion(v?.id ?? null)}
                       onRestore={(v) => {
-                        const restoreIndex = versionHistory.findIndex((entry) => entry.id === v.id);
                         setDesign(v.design);
                         setPastDesigns([]);
                         setFutureDesigns([]);
-                        if (restoreIndex >= 0) {
-                          setVersionHistory((prev) => prev.slice(restoreIndex));
-                        }
                         setSaveStatus("unsaved");
                         setPreviewingVersion(null);
                       }}

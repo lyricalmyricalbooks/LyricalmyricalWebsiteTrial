@@ -436,6 +436,31 @@ export const adminApi = {
     await adminApi.recordAuditLog("settings", "Discarded unpublished theme changes");
   },
 
+  // ── Theme version history (persisted so it survives reloads) ──
+  THEME_VERSION_LIMIT: 30,
+
+  saveThemeVersion: async (kind: "draft" | "published", label: string, design: any) => {
+    const createdAt = new Date().toISOString();
+    const snapshot = JSON.parse(JSON.stringify(design));
+    const ref = await addDoc(collection(db, "theme-versions"), { kind, label, createdAt, design: snapshot });
+    // Best-effort pruning of anything past the retention limit.
+    try {
+      const snap = await getDocs(query(collection(db, "theme-versions"), orderBy("createdAt", "desc")));
+      const stale = snap.docs.slice(adminApi.THEME_VERSION_LIMIT);
+      await Promise.all(stale.map((d: any) => deleteDoc(doc(db, "theme-versions", d.id))));
+    } catch (err) {
+      console.warn("Could not prune theme versions:", err);
+    }
+    return { id: ref.id, kind, label, createdAt, design: snapshot };
+  },
+
+  listThemeVersions: async () => {
+    const snap = await getDocs(
+      query(collection(db, "theme-versions"), orderBy("createdAt", "desc"), limit(adminApi.THEME_VERSION_LIMIT)),
+    );
+    return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+  },
+
   // Schedule a design to go live at a future time. The storefront applies it
   // client-side once the time passes (see useSiteData).
   schedulePublish: (design: any, at: string) => {
