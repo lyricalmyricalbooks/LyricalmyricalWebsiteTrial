@@ -99,6 +99,7 @@ import {
 } from "./ThemeEditorPro";
 import { Tablet } from "lucide-react";
 import toast from "react-hot-toast";
+import { applyThemeKeysToSurfaces } from "./themeScope";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour palette presets
@@ -5434,9 +5435,9 @@ export interface ThemeEditorProps {
 }
 
 export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
-  const getInitialDesign = () => {
+  const getInitialDesign = (source?: any) => {
     const baseDesign = adminApi.getDefaultSettings().design;
-    const incomingDesign = settings?.draftDesign || settings?.design || {};
+    const incomingDesign = source ?? settings?.draftDesign ?? settings?.design ?? {};
     const mergedLegacy = { ...baseDesign, ...incomingDesign };
     const { heroPage: _legacyHeroPage, storefront: _legacyStorefront, ...surfaceBase } = mergedLegacy;
 
@@ -5458,6 +5459,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   // Local copy of just the design settings — changes here won't affect Firebase until "Publish"
   const [design, setDesign] = useState<any>(getInitialDesign);
   const [savedDesign, setSavedDesign] = useState<any>(getInitialDesign);
+  const [publishedDesign, setPublishedDesign] = useState<any>(() => getInitialDesign(settings?.design || {}));
   const [tourStep, setTourStep] = useState<number | null>(null);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [hasCheckedMobile, setHasCheckedMobile] = useState(false);
@@ -5480,6 +5482,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [settingsSearch, setSettingsSearch] = useState("");
   const [settingsSubTab, setSettingsSubTab] = useState<"sections" | "theme">("sections");
+  const [settingsScope, setSettingsScope] = useState<"all" | "page">("all");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pages, setPages] = useState<any[]>([]);
   // Static page templates + one dynamic "page:<slug>" template per published page.
@@ -5487,7 +5490,11 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [syncPreview, setSyncPreview] = useState(true);
   const [isPreviewReady, setIsPreviewReady] = useState(false);
   // "unsaved" | "draft" | "published"
-  const [saveStatus, setSaveStatus] = useState<"unsaved" | "draft" | "published">("published");
+  const [saveStatus, setSaveStatus] = useState<"unsaved" | "draft" | "published">(() =>
+    JSON.stringify(getInitialDesign()) === JSON.stringify(getInitialDesign(settings?.design || {}))
+      ? "published"
+      : "draft"
+  );
   const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
   const [showAddSection, setShowAddSection] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -5898,6 +5905,8 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   const [savingDraft, setSavingDraft] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [discardingDraft, setDiscardingDraft] = useState(false);
   // ── Scheduled publishing ──
   const [scheduledAt, setScheduledAt] = useState<string | null>(settings?.scheduledPublish?.at || null);
   const [scheduleInput, setScheduleInput] = useState("");
@@ -5925,6 +5934,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   };
 
   const hasChanges = JSON.stringify(design) !== JSON.stringify(savedDesign);
+  const hasUnpublishedChanges = JSON.stringify(design) !== JSON.stringify(publishedDesign);
   const activeDesign = design?.[designSurface] || {};
 
   // Update a single design key
@@ -5951,24 +5961,29 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     setSaveStatus("unsaved");
   }, [designSurface]);
 
-  // Bulk-write a set of design keys to the root AND both page surfaces in one
-  // history step. Full-theme presets need this: the storefront resolves
-  // `design.heroPage ?? design` / `design.storefront ?? design` object-first,
-  // so keys written only to the root are shadowed by existing surface clones.
+  // Bulk-write visual settings to the root and every page template in one
+  // history step. Page surfaces are object-first and otherwise shadow root
+  // values, so a supposedly global color/font/control must be copied into each
+  // surface (including dynamic custom-page templates) to truly be site-wide.
   const applyGlobalDesignKeys = useCallback((keys: Record<string, any>) => {
     setDesign((prev: any) => {
       setPastDesigns((prevHistory) => [...prevHistory.slice(-74), prev]);
       setFutureDesigns([]);
-      return {
-        ...prev,
-        ...keys,
-        heroPage: { ...(prev?.heroPage || {}), ...keys },
-        storefront: { ...(prev?.storefront || {}), ...keys },
-      };
+      return applyThemeKeysToSurfaces(prev, keys, pageTemplates.map(({ id }) => id));
     });
     setSaved(false);
     setSaveStatus("unsaved");
-  }, []);
+  }, [pageTemplates]);
+
+  const scopedUpdate = useCallback((key: string, value: any, isGlobal = false) => {
+    if (isGlobal) {
+      update(key, value, true);
+    } else if (settingsScope === "all") {
+      applyGlobalDesignKeys({ [key]: value });
+    } else {
+      update(key, value);
+    }
+  }, [applyGlobalDesignKeys, settingsScope, update]);
 
   // Install a curated homepage layout onto the homepage (heroPage) surface,
   // preserving the current section stack as the alternate (A/B) layout.
@@ -6063,6 +6078,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       ].slice(0, 20));
 
       if (options.publish) {
+        setPublishedDesign(design);
         setPastDesigns([]);
         setFutureDesigns([]);
         setSaveStatus("published");
@@ -6077,6 +6093,26 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
     } finally {
       setSaving(false);
       setSavingDraft(false);
+    }
+  };
+
+  const discardDraft = async () => {
+    setDiscardingDraft(true);
+    try {
+      await adminApi.discardThemeDraft(publishedDesign);
+      setDesign(publishedDesign);
+      setSavedDesign(publishedDesign);
+      setPastDesigns([]);
+      setFutureDesigns([]);
+      setPreviewingVersion(null);
+      setLastAutoSave(null);
+      setSaveStatus("published");
+      setShowDiscardModal(false);
+      toast.success("Draft discarded — the editor now matches the live theme", { id: "discard-theme-draft" });
+    } catch {
+      toast.error("Could not discard the draft", { id: "discard-theme-draft" });
+    } finally {
+      setDiscardingDraft(false);
     }
   };
 
@@ -6308,8 +6344,8 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
 
   const renderSubPanel = () => {
     switch (activeSection) {
-      case "style":         return <StylePanel design={activeDesign} update={update} presetOptions={themePresetOptions} />;
-      case "navigation":    return <NavigationPanel design={activeDesign} update={update} setActiveTab={setActiveTab} setActiveSection={setActiveSection} />;
+      case "style":         return <StylePanel design={activeDesign} update={scopedUpdate} presetOptions={themePresetOptions} />;
+      case "navigation":    return <NavigationPanel design={activeDesign} update={scopedUpdate} setActiveTab={setActiveTab} setActiveSection={setActiveSection} />;
       case "menus":         return <MenuBuilderPanel design={activeDesign} update={update} pages={pages} />;
       case "homepage":      return (
         <HomepagePanel
@@ -6332,20 +6368,20 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           onConsumeRequest={() => setPendingSectionId(null)}
         />
       );
-      case "products":      return <ProductsPanel design={activeDesign} update={update} />;
-      case "layout":        return <LayoutPanel design={activeDesign} update={update} />;
-      case "buttons":       return <ButtonsPanel design={activeDesign} update={update} />;
-      case "announcements": return <AnnouncementsPanel design={activeDesign} update={update} />;
-      case "social":        return <SocialPanel design={activeDesign} update={update} />;
-      case "textsize":      return <TextSizingPanel design={activeDesign} update={update} />;
-      case "translations":  return <TranslationsPanel design={activeDesign} update={update} />;
-      case "additional":    return <AdditionalPanel design={activeDesign} update={update} />;
-      case "colors":        return <ColorsPanel design={activeDesign} update={update} colorSchemes={(design.colorSchemes && design.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES} />;
+      case "products":      return <ProductsPanel design={activeDesign} update={scopedUpdate} />;
+      case "layout":        return <LayoutPanel design={activeDesign} update={scopedUpdate} />;
+      case "buttons":       return <ButtonsPanel design={activeDesign} update={scopedUpdate} />;
+      case "announcements": return <AnnouncementsPanel design={activeDesign} update={scopedUpdate} />;
+      case "social":        return <SocialPanel design={activeDesign} update={scopedUpdate} />;
+      case "textsize":      return <TextSizingPanel design={activeDesign} update={scopedUpdate} />;
+      case "translations":  return <TranslationsPanel design={activeDesign} update={scopedUpdate} />;
+      case "additional":    return <AdditionalPanel design={activeDesign} update={scopedUpdate} />;
+      case "colors":        return <ColorsPanel design={activeDesign} update={scopedUpdate} colorSchemes={(design.colorSchemes && design.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES} />;
       case "a11y":          return (
         <AccessibilityAuditPanel
           design={activeDesign}
           schemes={(design.colorSchemes && design.colorSchemes.length > 0) ? design.colorSchemes : DEFAULT_COLOR_SCHEMES}
-          update={update}
+          update={scopedUpdate}
           onFixSchemes={(next: ColorScheme[]) => update("colorSchemes", next, true)}
         />
       );
@@ -6364,6 +6400,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   };
 
   const currentSectionTitle = SECTIONS.find(s => s.id === activeSection)?.title || "";
+  const supportsPageScope = Boolean(activeSection && !["homepage", "globalSections", "menus"].includes(activeSection));
 
   // ── Command palette actions (Ctrl+K) ──
   const commandActions: CommandAction[] = [
@@ -6630,6 +6667,17 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
           >
             <X size={20} strokeWidth={3} />
           </button>
+
+          {hasUnpublishedChanges && (
+            <button
+              onClick={() => setShowDiscardModal(true)}
+              disabled={saving || savingDraft || discardingDraft}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[9px] font-black uppercase tracking-[0.16em] transition-all border italic bg-red-500/5 border-red-500/20 text-red-300 hover:bg-red-500/15 hover:border-red-500/40 disabled:opacity-30"
+              title="Permanently replace this draft with the published theme"
+            >
+              <Trash2 size={12} /> Discard Draft
+            </button>
+          )}
           
           <button
             onClick={() => handleSave({ publish: false })}
@@ -6664,6 +6712,50 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         onClose={() => setShowCommandPalette(false)}
         actions={commandActions}
       />
+
+      <AnimatePresence>
+        {showDiscardModal && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl" role="presentation">
+            <motion.div
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="discard-draft-title"
+              aria-describedby="discard-draft-description"
+              initial={{ opacity: 0, scale: 0.94, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 20 }}
+              className="w-full max-w-md rounded-[2.5rem] border border-red-500/20 bg-[#0c0c0e] p-10 text-center shadow-[0_0_80px_rgba(239,68,68,0.14)]"
+            >
+              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-400">
+                <AlertCircle size={28} />
+              </div>
+              <h3 id="discard-draft-title" className="mb-3 text-2xl font-black uppercase italic tracking-tight text-white">
+                Discard unpublished changes?
+              </h3>
+              <p id="discard-draft-description" className="mb-8 text-sm font-medium leading-relaxed text-slate-400">
+                This permanently replaces the working draft with the current live theme. Your published storefront will not change.
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={discardDraft}
+                  disabled={discardingDraft}
+                  autoFocus
+                  className="rounded-2xl bg-red-500 px-5 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-white transition hover:bg-red-400 disabled:opacity-50"
+                >
+                  {discardingDraft ? "Discarding…" : "Yes, discard draft"}
+                </button>
+                <button
+                  onClick={() => setShowDiscardModal(false)}
+                  disabled={discardingDraft}
+                  className="rounded-2xl px-5 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 transition hover:text-white disabled:opacity-50"
+                >
+                  Keep editing
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ── Interactive Tour Portal ── */}
       {tourStep !== null && (
@@ -6912,6 +7004,41 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
                   {activeSection ? (
                     <>
                       <SubPanelHeader title={currentSectionTitle} onBack={() => setActiveSection(null)} />
+                      {supportsPageScope && (
+                        <div className="border-b border-white/5 bg-white/[0.02] px-6 py-4">
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Apply changes to</span>
+                            <span className="text-[8px] font-bold text-slate-600">
+                              {settingsScope === "all" ? "Every storefront page" : pageTemplates.find((template) => template.id === designSurface)?.label || "This page"}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/5 bg-black/30 p-1" role="group" aria-label="Settings page scope">
+                            {([
+                              { id: "all", label: "All pages" },
+                              { id: "page", label: "This page only" },
+                            ] as const).map((scope) => (
+                              <button
+                                key={scope.id}
+                                type="button"
+                                aria-pressed={settingsScope === scope.id}
+                                onClick={() => setSettingsScope(scope.id)}
+                                className={`rounded-lg px-3 py-2 text-[9px] font-black uppercase tracking-wider transition ${
+                                  settingsScope === scope.id
+                                    ? "bg-violet-600 text-white shadow-lg"
+                                    : "text-slate-500 hover:bg-white/5 hover:text-slate-200"
+                                }`}
+                              >
+                                {scope.label}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="mt-2 text-[8px] font-medium leading-relaxed text-slate-600">
+                            {settingsScope === "all"
+                              ? "Colors, typography, controls and feature settings update every template together."
+                              : "Only the template currently shown in the preview will change."}
+                          </p>
+                        </div>
+                      )}
                       <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
                         {renderSubPanel()}
                       </div>

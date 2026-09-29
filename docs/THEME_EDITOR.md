@@ -22,6 +22,11 @@ The editor is **not** a blank slate. It already supports:
 - **Fonts** (Google Font loader + selector) and typography tokens.
 - **Contrast checking** (WCAG ratio badges) for accessibility.
 - **Draft / publish** workflow, plus **scheduled publish**.
+- A persistent **unpublished changes** state and guarded **Discard Draft** flow
+  that restores the working copy to the live theme without touching shoppers.
+- An **All pages / This page only** scope switch for visual and feature panels.
+  All-pages changes are copied to every static and dynamic template while
+  preserving each template's section stack.
 - **Section presets** (save/reuse a configured section).
 - **Live preview** via an iframe `postMessage` channel (`THEME_UPDATE`) with
   click-to-edit (the preview can request a section be opened in the editor).
@@ -91,6 +96,9 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
 - `adminApi.updateSettings({ design }, { publish })`:
   - `publish: true` → writes both `design` and `draftDesign` (goes live).
   - `publish: false`/omitted → writes only `draftDesign` (save draft).
+- `adminApi.discardThemeDraft(design)` replaces `draftDesign` with the current
+  published design. The editor clears local undo/redo state at the same time so
+  a discarded draft cannot accidentally be restored and re-saved.
 - `adminApi.schedulePublish(design, at)` stores `scheduledPublish` so the
   storefront can promote a design at a future time.
 - `design.sectionPresets` holds saved section presets.
@@ -104,10 +112,11 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
   behave exactly as before.
 - **Full-theme presets** (`THEME_LIBRARY` in `ThemeEditor.tsx`) may carry a
   `global` record; `applyThemePreset` bulk-writes those keys to the design
-  **root and both page surfaces** (heroPage/storefront) in one undo step via
-  `applyGlobalDesignKeys`. This matters because the storefront resolves
-  `design.heroPage ?? design` object-first, so surface clones shadow
-  root-only writes. A preset may also name a `homeLayoutTemplate`
+  root and **every static/dynamic page surface** in one undo step via
+  `applyGlobalDesignKeys`. The same mechanism powers the editor's **All pages**
+  setting scope for colors, typography, layout, controls, and feature toggles.
+  This matters because page surfaces resolve object-first, so surface clones
+  shadow root-only writes. A preset may also name a `homeLayoutTemplate`
   (`HOME_LAYOUT_TEMPLATES` id), offered opt-in (confirm dialog) after apply.
   Reference implementation: `lyricalmyrical-punk`.
 
@@ -216,6 +225,11 @@ library → verify), then check it off.
 ### C. Live preview & editing UX
 - [x] Inline click-to-edit routes preview clicks to the correct section/template panel and keeps the selected section highlighted.
 - [x] Device preview toggle (desktop / tablet / mobile widths).
+- [x] Visual/feature setting scope: **All pages** applies colors, typography,
+      navigation, layout, buttons, product controls, announcements, social,
+      sizing, translations, and additional settings across every static and
+      dynamic template; **This page only** keeps intentional page-level
+      overrides. Section stacks and page content are preserved.
 - [x] Undo / redo for editor changes (Ctrl+Z / Ctrl+Y).
 - [x] Reorder polish: sections, blocks, global sections, nav menu items and
       color schemes all reorder via `@dnd-kit` (pointer + keyboard) through the
@@ -299,8 +313,10 @@ Shopify/WordPress-parity improvements are:
 > for top-level items, sub-links, and mega-menu column links alike.
 
 ### D. Theme management
-- [~] Draft/publish + scheduled publish exist — bring to full Shopify parity
-      (clear "unpublished changes" state, discard-draft).
+- [x] Draft/publish + scheduled publish now include a clear Live/Draft/Unsaved
+      state, persistent unpublished-change detection, and a guarded Discard
+      Draft action that resets both Firestore and local editor history to the
+      published storefront without changing what shoppers see.
 - [x] Import/export JSON exists (`ThemeEditorPro`) plus a friendly duplicate-theme draft flow in the theme toolbar.
 - [ ] Multiple saved themes (a library of full themes, not just presets), with
       one active/published.
