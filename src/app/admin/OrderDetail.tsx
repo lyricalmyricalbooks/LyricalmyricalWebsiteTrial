@@ -215,7 +215,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
             {(Object.keys(FULFILLMENT_LABELS) as FulfillmentStatus[]).map(k => <option key={k} value={k}>{FULFILLMENT_LABELS[k]}</option>)}
           </SelectField>
         }>
-        <ol aria-label="Fulfillment progress" style={{ display: "grid", gridTemplateColumns: `repeat(${FULFILLMENT_FLOW.length}, minmax(0, 1fr))`, gap: 8, listStyle: "none", margin: 0, padding: 0 }}>
+        <ol aria-label="Fulfillment progress" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(104px, 1fr))", gap: 12, listStyle: "none", margin: 0, padding: 0 }}>
           {FULFILLMENT_FLOW.map((step, idx) => {
             const reached = idx <= currentIdx;
             return (

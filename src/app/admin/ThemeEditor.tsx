@@ -6645,7 +6645,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         </div>
 
         {/* Device switcher */}
-        <div data-tour="device-switcher" className="flex items-center gap-1 bg-white/[0.03] border border-white/5 rounded-2xl p-1.5 backdrop-blur-xl shadow-2xl">
+        <div data-tour="device-switcher" className="flex flex-wrap items-center gap-1 max-w-full bg-white/[0.03] border border-white/5 rounded-2xl p-1.5 backdrop-blur-xl shadow-2xl">
           {(["desktop", "tablet", "mobile"] as const).map((d) => (
             <button
               key={d}
@@ -6676,7 +6676,7 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
         </div>
 
         {/* Actions */}
-        <div data-tour="top-actions" className="flex items-center gap-4">
+        <div data-tour="top-actions" className="flex flex-wrap items-center gap-x-4 gap-y-2 max-w-full">
           <a
             href={(() => {
               const basePath = window.location.pathname.replace(/\/admin\/?.*$/, "").replace(/\/$/, "");
