@@ -22,9 +22,9 @@ import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
 import { addSavedTheme, removeSavedTheme, type SavedTheme } from "./savedThemes";
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
-import { HOME_LAYOUT_TEMPLATES } from "../ThemeEditorBuilder";
+import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyThemeKeysToSurfaces } from "../themeScope";
-import { THEME_LIBRARY, PALETTES } from "../ThemeEditor";
+import { THEME_LIBRARY, PALETTES } from "./themeLibrary";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages";
 type Toast = { kind: "ok" | "err"; text: string } | null;
