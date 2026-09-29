@@ -142,6 +142,13 @@ enhance it:
 When prompting this agent, naming a specific roadmap milestone gets the most
 complete result.
 
+## Storefront look (Riso Noir)
+
+The public site defaults to Riso Press on black/white with a flare accent. Keep it token-driven:
+no literal colours in `RISO_STOREFRONT_CSS`, RGB triplet variables stay comma-separated, and any new
+shopper-facing string needs a `COPY_SCHEMA` entry + `getCopy` call so it is editable in the theme
+editor (see `docs/THEME_EDITOR.md` › Riso Noir). Payment UI stays conventional and legible.
+
 ## Working rules
 
 - Match the surrounding code's style, naming, and patterns.

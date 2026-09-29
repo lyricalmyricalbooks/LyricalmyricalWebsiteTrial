@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { Search, X } from "lucide-react";
 import { useCurrency } from "../../CurrencyContext";
+import { getCopy } from "./storeCopy";
 
 type Book = any;
 
@@ -49,11 +50,14 @@ export function SearchOverlay({
   open,
   onClose,
   books,
+  design,
 }: {
   open: boolean;
   onClose: () => void;
   books: Book[];
+  design?: any;
 }) {
+  const c = (key: string, vars?: Record<string, string | number>) => getCopy(design, key, vars);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const { formatBookPrice } = useCurrency();
@@ -98,7 +102,7 @@ export function SearchOverlay({
           onClick={onClose}
           role="dialog"
           aria-modal="true"
-          aria-label="Search products"
+          aria-label={c("searchDialogAria")}
         >
           <motion.div
             initial={{ y: -20, opacity: 0 }}
@@ -114,12 +118,12 @@ export function SearchOverlay({
                 ref={inputRef}
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                placeholder="Search books, authors, categories…"
+                placeholder={c("searchPlaceholder")}
                 className="flex-1 bg-transparent outline-none text-sm text-white placeholder:text-[var(--muted)]"
               />
               <button
                 onClick={onClose}
-                aria-label="Close search"
+                aria-label={c("searchCloseAria")}
                 className="p-1.5 rounded-full hover:bg-white/10 text-white/50 hover:text-white"
               >
                 <X size={14} />
@@ -129,12 +133,12 @@ export function SearchOverlay({
             <div className="max-h-[60vh] overflow-y-auto">
               {query.trim() === "" && (
                 <p className="px-5 py-10 text-center text-[10px] tracking-[0.3em] uppercase text-white/30">
-                  Start typing to search
+                  {c("searchPrompt")}
                 </p>
               )}
               {query.trim() !== "" && results.length === 0 && (
                 <p className="px-5 py-10 text-center text-[10px] tracking-[0.3em] uppercase text-white/30">
-                  No results for “{query}”
+                  {c("searchNoResults", { query })}
                 </p>
               )}
               {results.map(b => {

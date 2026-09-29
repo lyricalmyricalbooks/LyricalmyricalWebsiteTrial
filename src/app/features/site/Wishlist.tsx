@@ -8,6 +8,7 @@ import { DEFAULT_IMAGE } from "./constants";
 import { useSEO } from "../../lib/seo";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
+import { getCopy } from "./storeCopy";
 import { GlobalSections } from "../../components/sectionRender";
 
 export default function WishlistPage() {
@@ -33,7 +34,7 @@ export default function WishlistPage() {
     return (
       <div data-fm-store className="min-h-screen fm-page text-white flex items-center justify-center">
         <StorefrontThemeStyle design={settings?.design} />
-        <p className="text-[10px] tracking-[0.4em] text-white/40 uppercase">Loading…</p>
+        <p className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "pageLoading")}</p>
       </div>
     );
   }
@@ -43,10 +44,10 @@ export default function WishlistPage() {
       <StorefrontThemeStyle design={settings?.design} />
       <header className="border-b border-white/10 px-6 py-5 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-[10px] tracking-[0.3em] text-white/50 hover:text-white uppercase">
-          <ArrowLeft size={14} /> Back
+          <ArrowLeft size={14} /> {getCopy(settings?.design, "backToCatalog")}
         </Link>
-        <span className="text-[10px] tracking-[0.4em] text-white/40 uppercase">Wishlist</span>
-        <span className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{items.length} items</span>
+        <span className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "wishlistTitle")}</span>
+        <span className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "wishlistCount", { count: items.length })}</span>
       </header>
 
       {items.length === 0 ? (
@@ -54,12 +55,12 @@ export default function WishlistPage() {
           <div className="w-16 h-16 rounded-full border border-white/10 flex items-center justify-center">
             <Heart size={20} strokeWidth={1.4} className="text-white/40" />
           </div>
-          <p className="text-white/50 text-xs tracking-[0.3em] uppercase">Your wishlist is empty</p>
+          <p className="text-white/50 text-xs tracking-[0.3em] uppercase">{getCopy(settings?.design, "wishlistEmpty")}</p>
           <Link
             to="/"
             className="border border-white/20 px-8 py-3 rounded-full text-[10px] tracking-[0.4em] uppercase hover:bg-white/5 transition-all"
           >
-            Browse the archive
+            {getCopy(settings?.design, "wishlistBrowse")}
           </Link>
         </div>
       ) : (
@@ -79,7 +80,7 @@ export default function WishlistPage() {
                     />
                     {out && (
                       <div className="absolute inset-0 bg-black/65 flex items-center justify-center">
-                        <span className="text-white/60 text-[8px] tracking-widest uppercase border border-white/20 px-3 py-1">Sold Out</span>
+                        <span className="text-white/60 text-[8px] tracking-widest uppercase border border-white/20 px-3 py-1">{getCopy(settings?.design, "soldOutLabel")}</span>
                       </div>
                     )}
                   </div>
@@ -94,11 +95,11 @@ export default function WishlistPage() {
                     disabled={out}
                     className="flex-1 flex items-center justify-center gap-2 fm-active py-2.5 rounded-full text-[9px] tracking-[0.3em] uppercase font-bold disabled:opacity-30 hover:bg-white/90 transition-all"
                   >
-                    <ShoppingBag size={11} /> Add
+                    <ShoppingBag size={11} /> {getCopy(settings?.design, "wishlistAdd")}
                   </button>
                   <button
                     onClick={() => remove(book.id)}
-                    aria-label="Remove from wishlist"
+                    aria-label={getCopy(settings?.design, "wishlistRemoveAria")}
                     className="p-2.5 rounded-full border border-white/10 text-white/40 hover:text-rose-400 hover:border-rose-400/30 transition-colors"
                   >
                     <Trash2 size={12} />

@@ -10,6 +10,7 @@ import { functionUrl } from "../../lib/functionsBase";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
+import { getCopy } from "./storeCopy";
 import { GlobalSections } from "../../components/sectionRender";
 
 export default function OrderTracking() {
@@ -132,7 +133,7 @@ export default function OrderTracking() {
         </Link>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full fm-accent-bg animate-pulse" />
-          <span className="text-[9px] font-black tracking-[0.3em] text-white/60 uppercase">Order Ledger</span>
+          <span className="text-[9px] font-black tracking-[0.3em] text-white/60 uppercase">{getCopy(settings?.design, "trackEyebrow")}</span>
         </div>
       </nav>
 
@@ -152,17 +153,17 @@ export default function OrderTracking() {
                 <div className="w-16 h-16 rounded-2xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center mb-6 mx-auto shadow-[0_0_40px_rgba(124,58,237,0.2)]">
                   <Lock size={24} className="fm-accent-text" />
                 </div>
-                <h2 className="text-3xl font-black tracking-tighter uppercase italic">Track Order</h2>
-                <p className="text-[10px] tracking-[0.2em] uppercase text-white/60 mt-2 font-bold">Secure Order Status Ledger</p>
+                <h2 className="text-3xl font-black tracking-tighter uppercase italic">{getCopy(settings?.design, "trackTitle")}</h2>
+                <p className="text-[10px] tracking-[0.2em] uppercase text-white/60 mt-2 font-bold">{getCopy(settings?.design, "trackSubtitle")}</p>
               </div>
 
               <form onSubmit={handleTrack} className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-[0.2em] block ml-1">ORDER IDENTIFIER</label>
+                  <label className="text-[9px] font-black fm-muted uppercase tracking-[0.2em] block ml-1">{getCopy(settings?.design, "trackOrderLabel")}</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. ABCD-123456"
+                    placeholder={getCopy(settings?.design, "trackOrderPlaceholder")}
                     value={orderIdInput}
                     onChange={(e) => setOrderIdInput(e.target.value)}
                     className="w-full bg-white/[0.04] border border-white/10 rounded-2xl py-4 px-6 text-sm text-white outline-none focus:border-violet-500/50 focus:bg-white/[0.07] transition-all font-mono uppercase placeholder:text-[var(--muted)]"
@@ -170,11 +171,11 @@ export default function OrderTracking() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-[0.2em] block ml-1">CUSTOMER EMAIL</label>
+                  <label className="text-[9px] font-black fm-muted uppercase tracking-[0.2em] block ml-1">{getCopy(settings?.design, "trackEmailLabel")}</label>
                   <input
                     type="email"
                     required
-                    placeholder="e.g. reader@archive.com"
+                    placeholder={getCopy(settings?.design, "trackEmailPlaceholder")}
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
                     className="w-full bg-white/[0.04] border border-white/10 rounded-2xl py-4 px-6 text-sm text-white outline-none focus:border-violet-500/50 focus:bg-white/[0.07] transition-all placeholder:text-[var(--muted)]"
@@ -194,9 +195,9 @@ export default function OrderTracking() {
                   className="w-full fm-accent-bg hover:bg-violet-500 text-white py-5 rounded-2xl text-[10px] font-black tracking-[0.4em] uppercase transition-all active:scale-[0.98] disabled:opacity-60 shadow-[0_15px_40px_rgba(124,58,237,0.3)] flex items-center justify-center gap-3"
                 >
                   {loading ? (
-                    <><Loader2 size={16} className="animate-spin" /> Querying...</>
+                    <><Loader2 size={16} className="animate-spin" /> {getCopy(settings?.design, "trackLoading")}</>
                   ) : (
-                    "Initialize Pulse"
+                    getCopy(settings?.design, "trackSubmit")
                   )}
                 </button>
               </form>
@@ -220,14 +221,14 @@ export default function OrderTracking() {
               {/* Order Header Summary */}
               <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8 backdrop-blur-sm">
                 <div>
-                  <p className="text-[10px] font-black tracking-[0.3em] fm-accent-text uppercase mb-2">ARCHIVE MATCH FOUND</p>
+                  <p className="text-[10px] font-black tracking-[0.3em] fm-accent-text uppercase mb-2">{getCopy(settings?.design, "trackFound")}</p>
                   <h2 className="text-4xl font-black tracking-tighter uppercase italic leading-none">ORDER #{order.orderId}</h2>
                   <p className="text-[10px] font-mono text-white/60 mt-3 uppercase tracking-widest flex items-center gap-3">
                     <Calendar size={12} /> Created: {new Date(order.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1.5 self-stretch md:self-auto border-t md:border-t-0 border-white/5 pt-6 md:pt-0">
-                  <span className="text-[9px] font-black fm-muted uppercase tracking-widest">Total Payable</span>
+                  <span className="text-[9px] font-black fm-muted uppercase tracking-widest">{getCopy(settings?.design, "trackTotalPayable")}</span>
                   <span className="text-3xl font-black text-white">{orderFormatPrice(order.total)}</span>
                   <span className="text-[9px] font-black fm-success-text bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg uppercase tracking-widest mt-1">
                     {order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
@@ -237,7 +238,7 @@ export default function OrderTracking() {
 
               {/* Horizontal Progress Steps */}
               <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-12 backdrop-blur-sm">
-                <h3 className="text-xs font-black tracking-[0.4em] uppercase text-white/40 mb-10 pb-4 border-b border-white/5">Transit Status Timeline</h3>
+                <h3 className="text-xs font-black tracking-[0.4em] uppercase text-white/40 mb-10 pb-4 border-b border-white/5">{getCopy(settings?.design, "trackTimeline")}</h3>
                 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-8 relative">
                   {steps.map((step, index) => {
@@ -280,8 +281,8 @@ export default function OrderTracking() {
                 return (
                   <div className="bg-gradient-to-r from-violet-950/20 to-cyan-950/20 border border-violet-500/15 rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
                     <div className="space-y-2">
-                      <p className="text-[10px] font-black tracking-[0.3em] fm-accent-text uppercase">Fulfillment Logistics</p>
-                      <h4 className="text-2xl font-black tracking-tighter uppercase italic leading-none">Carrier Assigned</h4>
+                      <p className="text-[10px] font-black tracking-[0.3em] fm-accent-text uppercase">{getCopy(settings?.design, "trackLogisticsEyebrow")}</p>
+                      <h4 className="text-2xl font-black tracking-tighter uppercase italic leading-none">{getCopy(settings?.design, "trackCarrier")}</h4>
                       <p className="text-xs font-medium fm-muted leading-relaxed max-w-md mt-2">
                         Your parcel is in transit. Tracking number: <code className="text-white bg-white/10 px-2 py-0.5 rounded font-mono">{order.trackingNumber}</code>
                         {order.trackingCarrier ? ` (${order.trackingCarrier.toUpperCase()})` : ""}
@@ -303,8 +304,8 @@ export default function OrderTracking() {
               {Object.keys(digitalItems).length > 0 && order.paymentStatus === "paid" && (
                 <div className="bg-violet-900/[0.05] border border-violet-500/20 rounded-[2.5rem] p-10 space-y-6">
                   <div className="space-y-1">
-                    <h4 className="text-xl font-black tracking-tighter text-white uppercase italic">Digital Archive Delivery</h4>
-                    <p className="text-xs font-medium fm-muted leading-relaxed">Download your secure digital purchases below. Generated download tokens expire in 24 hours.</p>
+                    <h4 className="text-xl font-black tracking-tighter text-white uppercase italic">{getCopy(settings?.design, "trackDigitalTitle")}</h4>
+                    <p className="text-xs font-medium fm-muted leading-relaxed">{getCopy(settings?.design, "trackDigitalText")}</p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
@@ -314,13 +315,13 @@ export default function OrderTracking() {
                         <div key={item.id} className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 flex justify-between items-center group/download">
                           <div className="truncate pr-4">
                             <p className="text-[10px] font-bold text-white uppercase leading-tight truncate group-hover/download:text-violet-400 transition-colors">{item.title}</p>
-                            <p className="text-[9px] fm-muted uppercase tracking-widest mt-2">Format: Digital Book</p>
+                            <p className="text-[9px] fm-muted uppercase tracking-widest mt-2">{getCopy(settings?.design, "trackDigitalFormat")}</p>
                           </div>
                           <button
                             onClick={() => handleDownload(item.id)}
                             className="fm-accent-bg hover:bg-violet-500 text-white p-3 rounded-xl transition-all shadow-lg shadow-violet-600/20 flex items-center justify-center shrink-0 active:scale-95 border border-violet-400/20"
-                            title="Download File"
-                            aria-label="Download File"
+                            title={getCopy(settings?.design, "trackDownload")}
+                            aria-label={getCopy(settings?.design, "trackDownload")}
                           >
                             <Download size={14} />
                           </button>
@@ -333,7 +334,7 @@ export default function OrderTracking() {
 
               {/* Items breakdown list */}
               <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-10">
-                <h3 className="text-xs font-black tracking-[0.4em] uppercase text-white/40 mb-8 pb-4 border-b border-white/5">Cart Items Ledger</h3>
+                <h3 className="text-xs font-black tracking-[0.4em] uppercase text-white/40 mb-8 pb-4 border-b border-white/5">{getCopy(settings?.design, "trackItems")}</h3>
                 
                 <div className="space-y-6">
                   {order.items.map((item: any, idx: number) => (
@@ -358,27 +359,27 @@ export default function OrderTracking() {
                 {/* Subtotals list */}
                 <div className="border-t border-white/5 mt-8 pt-8 space-y-4 text-sm font-bold text-white/60">
                   <div className="flex justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-[0.25em] fm-muted">Subtotal</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.25em] fm-muted">{getCopy(settings?.design, "summarySubtotal")}</span>
                     <span className="font-mono text-white/80">{orderFormatPrice(order.subtotal)}</span>
                   </div>
                   {order.discount > 0 && (
                     <div className="flex justify-between fm-success-text">
-                      <span className="text-[10px] font-black uppercase tracking-[0.25em]">Discount</span>
+                      <span className="text-[10px] font-black uppercase tracking-[0.25em]">{getCopy(settings?.design, "summaryDiscount")}</span>
                       <span className="font-mono">−{orderFormatPrice(order.discount)}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-[0.25em] fm-muted">Shipping</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.25em] fm-muted">{getCopy(settings?.design, "summaryShipping")}</span>
                     <span className="font-mono text-white/80">{order.shipping > 0 ? orderFormatPrice(order.shipping) : "FREE"}</span>
                   </div>
                   {order.tax > 0 && (
                     <div className="flex justify-between">
-                      <span className="text-[10px] font-black uppercase tracking-[0.25em] fm-muted">Estimated Tax</span>
+                      <span className="text-[10px] font-black uppercase tracking-[0.25em] fm-muted">{getCopy(settings?.design, "summaryTax")}</span>
                       <span className="font-mono text-white/80">{orderFormatPrice(order.tax)}</span>
                     </div>
                   )}
                   <div className="flex justify-between border-t border-white/5 pt-6 text-white text-base">
-                    <span className="text-[10px] font-black uppercase tracking-[0.35em] text-white/40">Total</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.35em] text-white/40">{getCopy(settings?.design, "summaryTotal")}</span>
                     <span className="font-mono text-xl font-black text-white">{orderFormatPrice(order.total)}</span>
                   </div>
                 </div>

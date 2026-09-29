@@ -1,4 +1,5 @@
 import type { Book, SiteSettings } from "./types";
+import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "./risoNoir";
 
 export const DEFAULT_IMAGE =
   "https://images.unsplash.com/photo-1763747996545-8905244bc31a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg";
@@ -29,6 +30,8 @@ export const DEFAULT_BOOKS: Book[] = [
 ];
 
 export const DEFAULT_SETTINGS: SiteSettings = {
+  // First paint (before Firestore answers) already wears the Riso Noir tokens.
+  design: { ...RISO_NOIR_TOKENS, themeLibraryPreset: RISO_NOIR_ID } as any,
   announcements: [
     { message: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA" },
   ],

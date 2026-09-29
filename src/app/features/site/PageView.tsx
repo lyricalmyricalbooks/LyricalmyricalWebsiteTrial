@@ -10,6 +10,7 @@ import { LogoMark } from "../../components/LogoMark";
 import { resolveLogoDesign } from "./selectors";
 import type { Page } from "./types";
 import { policyPageFor } from "./policyPages";
+import { getCopy } from "./storeCopy";
 
 
 export function PageView() {
@@ -80,7 +81,7 @@ export function PageView() {
       <div data-fm-store className="min-h-screen fm-page flex items-center justify-center">
         <StorefrontThemeStyle design={settings?.design} />
         <p className="text-white/40 text-[10px] tracking-[0.4em] uppercase animate-pulse">
-          Loading…
+          {getCopy(settings?.design, "pageLoading")}
         </p>
       </div>
     );
@@ -89,15 +90,16 @@ export function PageView() {
   const shown = page || policyPage;
   if (!shown) {
     return (
-      <div className="min-h-screen bg-[#fafafa] flex flex-col items-center justify-center gap-4">
-        <p className="text-6xl font-black text-neutral-100">404</p>
-        <p className="text-neutral-500 font-medium">Page not found</p>
+      <div data-fm-store className="min-h-screen fm-page text-white flex flex-col items-center justify-center gap-4">
+        <StorefrontThemeStyle design={settings?.design} />
+        <p className="text-7xl font-black text-white/30" data-theme-field="notFoundCode">{getCopy(settings?.design, "notFoundCode")}</p>
+        <p className="text-white/60 font-medium">{getCopy(settings?.design, "notFoundTitle")}</p>
         <Link
           to="/"
-          className="mt-4 flex items-center gap-2 text-xs font-bold tracking-widest text-neutral-400 hover:text-black transition-colors"
+          className="mt-4 flex items-center gap-2 text-xs font-bold tracking-widest text-white/60 hover:text-white transition-colors"
         >
           <ArrowLeft size={14} />
-          BACK TO HOME
+          {getCopy(settings?.design, "notFoundBack")}
         </Link>
       </div>
     );
@@ -130,7 +132,7 @@ export function PageView() {
           }`}
         >
           <ArrowLeft size={12} />
-          HOME
+          {getCopy(settings?.design, "pageHomeLink")}
         </Link>
       </header>
 
@@ -145,7 +147,7 @@ export function PageView() {
         className="max-w-2xl mx-auto px-6 py-16"
       >
         <p className={`text-[10px] font-bold tracking-[0.3em] uppercase mb-4 ${themed ? "opacity-50" : "text-neutral-400"}`}>
-          Page
+          {getCopy(settings?.design, "pageEyebrow")}
         </p>
         <h1 className={`text-4xl font-black tracking-tight mb-10 ${themed ? "" : "text-neutral-900"}`}>
           {shown.title}
@@ -178,7 +180,7 @@ export function PageView() {
 
       <footer className={`px-8 py-8 text-center border-t ${themed ? "border-white/10" : "border-neutral-100"}`}>
         <p className={`text-[10px] tracking-widest ${themed ? "opacity-40" : "text-neutral-300"}`}>
-          © Lyricalmyrical Books
+          {getCopy(settings?.design, "footerCopyright")}
         </p>
       </footer>
     </div>

@@ -215,6 +215,30 @@ library → verify), then check it off.
       `theme.css` fixes unreadable violet/blue active states in legacy panels.
       Draft/publish separation is covered by `admin/themeDraft.test.ts`.
       Known follow-up: the editor's panels are still legacy markup on the compat layer.
+- [x] **Riso Noir (September 2026) — full public-site Riso redesign on black.** The
+      storefront now defaults to Riso Press on black with white text and the flare
+      `#e8402a` accent (ink text on flare fills). `features/site/risoNoir.ts` holds the shared
+      `RISO_NOIR_TOKENS` record used by (a) the first `THEME_LIBRARY` preset
+      (`lyricalmyrical-riso-noir`, with a matching `HOME_LAYOUT_TEMPLATES` layout), (b) the default
+      design in `adminApi.getDefaultSettings` and `DEFAULT_SETTINGS`, and (c) `withRisoNoirDefault`,
+      which restyles saved designs that never chose a `themeStyle` or applied a library preset
+      (content, sections and menus are untouched; choosing "Standard" print style or any preset opts
+      out). `RISO_STOREFRONT_CSS` is now 100% token-driven (`--rp-outline`, `--rp-outline-w`,
+      `--rp-shadow-color`, `--rp-shadow-x`, `--rp-focus`, `--rp-card-radius`, `--rp-heading-transform`,
+      `--on-accent`) with an optional halftone (`risoGrainCss`), a legibility floor for the faint
+      `text-white/20…50` greys, explicit input borders, square pills, and `RISO_CHECKOUT_DARK_CSS`
+      (turns the conventional white checkout dark). New editable keys: `risoOutlineColor`,
+      `risoOutlineWidth`, `risoShadowColor`, `risoShadowOffset`, `risoCardRadius`,
+      `risoUppercaseHeadings`, `risoGrain`, `focusRingColor`, `showRecentlyViewed`, `showBreadcrumbs`,
+      `showCookieBanner`. `COPY_SCHEMA` grew to ~25 groups (~350 strings: header/About, cart, search &
+      filters, collection/wishlist, product page, account, order tracking, checkout, 404,
+      maintenance, loading screen, cookie banner) with a search box in Text & Translations, and
+      `storeCopy.coverage.test.ts` fails if a `getCopy(…, "key")` is used without a schema entry.
+      Bug fixed on the way: the token layer emitted space-separated triplets (`255 255 255`) but
+      consumed them as `rgba(var(--x-rgb), a)` — invalid CSS, so every `text-white/N`,
+      `bg-white/N` and `border-white/N` remap silently fell back to full white/transparent.
+      Triplets are now comma-separated. Also: `StorefrontThemeStyle` now sets `--body-font` /
+      `--heading-font` so standalone pages (not just the homepage) follow the chosen fonts.
 - [x] Fixes found while verifying: token-layer selectors now also match roots that carry `data-fm-store` and `fm-page`/`fm-surface`/`text-white` on the SAME element (Account and Tracking never received the theme background before); Tracking text/placeholder contrast raised; `ProductCoverCarouselSection` text is pinned light
       over its image scrim (it was following the theme text colour), and Checkout restores
       literal paper for `bg-white` on light themes (the token layer maps `bg-white` to the

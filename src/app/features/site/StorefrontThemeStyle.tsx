@@ -1,4 +1,4 @@
-import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, STOREFRONT_TOKEN_CSS, hexToRgbTriplet } from "./themeTokens";
+import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, RISO_CHECKOUT_DARK_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS, hexToRgbTriplet } from "./themeTokens";
 
 /**
  * Drop-in <style> block that wires the semantic token layer onto any storefront
@@ -10,30 +10,39 @@ import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, STOREFRONT_TOKEN_CSS, he
  * cart drawer, …). The homepage uses MainSite's richer TypographyTokens, which
  * injects the same token layer.
  */
+const fontStack = (name?: string, fallback = "system-ui, sans-serif") =>
+  name ? `'${String(name).replace(/'/g, "")}', ${fallback}` : fallback;
+
 export function StorefrontThemeStyle({ design }: { design?: any }) {
   const d = design || {};
+  const bodyFont = fontStack(d.font || d.bodyFont, "system-ui, -apple-system, 'Segoe UI', sans-serif");
+  const headingFont = fontStack(d.headingFont || d.font || d.bodyFont, "Impact, 'Arial Narrow', sans-serif");
   const css = `
     [data-fm-store]{
       ${buildStorefrontTokenVars(d)}
-      --bg-color:${d.backgroundColor || "#050508"};
+      --bg-color:${d.backgroundColor || "#000000"};
       --text-color:${d.textColor || "#ffffff"};
-      --link-hover-color:${d.linkColorHover || "#F61515"};
-      --border-color:${d.borderColor || "rgba(255,255,255,0.05)"};
-      --btn-bg:${d.buttonColor || d.primaryColor || "#A855F7"};
-      --btn-text:${d.buttonTextColor || "#000000"};
-      --btn-hover-bg:${d.buttonHoverBgColor || "#C1BBBB"};
-      --btn-hover-text:${d.buttonHoverTextColor || "#FFFFFF"};
-      --badge-text-primary:${d.badgeTextPrimary || "#000000"};
-      --badge-bg-primary:${d.badgeBgPrimary || "#F63737"};
+      --link-hover-color:${d.linkColorHover || "#ff6b55"};
+      --border-color:${d.borderColor || "rgba(255,255,255,0.22)"};
+      --btn-bg:${d.buttonColor || d.primaryColor || "#e8402a"};
+      --btn-text:${d.buttonTextColor || "#100f0d"};
+      --btn-hover-bg:${d.buttonHoverBgColor || "#ff6b55"};
+      --btn-hover-text:${d.buttonHoverTextColor || "#100f0d"};
+      --badge-text-primary:${d.badgeTextPrimary || "#100f0d"};
+      --badge-bg-primary:${d.badgeBgPrimary || "#e8402a"};
       --badge-text-secondary:${d.badgeTextSecondary || "#000000"};
       --badge-bg-secondary:${d.badgeBgSecondary || "#E0E0E0"};
       --low-inventory-color:${d.lowInventoryColor || "#056FFA"};
+      --body-font:${bodyFont};
+      --heading-font:${headingFont};
     }
+    [data-fm-store]{font-family:var(--body-font);}
+    [data-fm-store] :where(h1,h2,h3,h4,h5,h6){font-family:var(--heading-font);${d.headingWeight ? `font-weight:${d.headingWeight};` : ""}}
     [data-fm-store] a:hover{color:var(--link-hover-color);}
     [data-fm-store] .custom-btn{background-color:var(--btn-bg) !important;color:var(--btn-text) !important;}
     [data-fm-store] .custom-btn:hover{background-color:var(--btn-hover-bg) !important;color:var(--btn-hover-text) !important;}
     ${STOREFRONT_TOKEN_CSS}
-    ${d.themeStyle === "riso" ? RISO_STOREFRONT_CSS : ""}
+    ${d.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(d) : ""}
   `;
   const customCss = d.customCss ? `\n/* Custom CSS */\n${d.customCss}` : '';
 
@@ -65,5 +74,8 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
     ? `[data-fm-checkout] .bg-white{background-color:${d.surfaceRaisedColor || "#ffffff"} !important;}`
     : "";
 
-  return <style>{css}{customCss}{checkoutCss}{lightThemePaperCss}</style>;
+  // Riso on a dark canvas: turn the conventional white checkout markup into white-on-black.
+  const darkCheckoutCss = d.themeStyle === "riso" && lum >= 0.5 ? RISO_CHECKOUT_DARK_CSS : "";
+
+  return <style>{css}{customCss}{checkoutCss}{lightThemePaperCss}{darkCheckoutCss}</style>;
 }

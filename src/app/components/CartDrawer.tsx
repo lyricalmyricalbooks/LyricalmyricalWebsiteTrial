@@ -98,8 +98,8 @@ export function CartDrawer() {
             data-fm-checkout
             initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 h-screen w-full max-w-md shadow-2xl z-[70] flex flex-col pt-24"
-            style={{ backgroundColor: drawerBg, color: drawerText }}
+            className="fixed right-0 top-0 h-screen w-full max-w-md z-[70] flex flex-col pt-24"
+            style={{ backgroundColor: drawerBg, color: drawerText, borderLeft: drawerDark ? "var(--rp-outline-w, 2px) solid var(--rp-outline, currentColor)" : undefined, boxShadow: drawerDark ? "-6px 0 0 var(--rp-shadow-color, transparent)" : "0 25px 50px -12px rgba(0,0,0,.25)" }}
           >
             <StorefrontThemeStyle design={design} />
             <div className="px-8 pb-4 flex justify-between items-center" style={{ backgroundColor: drawerBg }}>
@@ -107,11 +107,11 @@ export function CartDrawer() {
                 <h3 className="text-2xl font-light tracking-tight" style={headingFontFamily ? { fontFamily: headingFontFamily } : undefined}>
                   {getCopy(design, "cartTitle")}
                 </h3>
-                <p className="text-[10px] tracking-widest text-neutral-400 uppercase mt-1" style={mutedStyle}>{cart.length} unique entries</p>
+                <p className="text-[10px] tracking-widest text-neutral-400 uppercase mt-1" style={mutedStyle}>{getCopy(design, "cartCountLabel", { count: cart.length })}</p>
               </div>
               <button
                 onClick={() => setIsCartOpen(false)}
-                aria-label="Close cart"
+                aria-label={getCopy(design, "cartCloseAria")}
                 className={`p-3 -m-1 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full transition-colors ${drawerDark ? "hover:bg-white/10" : "hover:bg-neutral-50"}`}
               >
                 <X size={20} />
@@ -124,9 +124,9 @@ export function CartDrawer() {
                 <div className="flex items-center gap-2 text-[10px] tracking-widest text-neutral-500 uppercase mb-2" style={mutedStyle}>
                   <Truck size={12} />
                   {remaining > 0 ? (
-                    <span>{formatPrice(remaining)} away from free shipping</span>
+                    <span>{getCopy(design, "cartFreeShipAway", { amount: formatPrice(remaining) })}</span>
                   ) : (
-                    <span style={{ color: "var(--success)" }}>You qualify for free shipping</span>
+                    <span style={{ color: "var(--success)" }}>{getCopy(design, "cartFreeShipQualified")}</span>
                   )}
                 </div>
                 <div className="h-1 bg-neutral-100 rounded-full overflow-hidden" style={surfaceStyle}>
@@ -134,7 +134,7 @@ export function CartDrawer() {
                     className={`h-full transition-all duration-500 ${remaining > 0 ? (drawerDark ? "" : "bg-black") : "fm-success-solid"}`}
                     style={{
                       width: `${progress}%`,
-                      ...(drawerDark && remaining > 0 ? { backgroundColor: "var(--accent, #A855F7)" } : {}),
+                      ...(drawerDark && remaining > 0 ? { backgroundColor: "var(--accent, #e8402a)" } : {}),
                     }}
                   />
                 </div>
@@ -165,7 +165,7 @@ export function CartDrawer() {
                               <span className="text-[11px] font-bold w-6 text-center" aria-live="polite" aria-atomic="true">{item.quantity}</span>
                               <button onClick={() => updateQuantity(item.id, item.variantId, 1)} disabled={atLimit} aria-label={`Increase quantity of ${item.title}`} className="hover:text-neutral-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center disabled:opacity-30"><PlusIcon size={12} /></button>
                             </div>
-                            {atLimit && <p className="text-[9px] tracking-widest uppercase mt-1" role="status" style={{ color: "var(--low-inventory-color, #b4271a)" }}>Only {item.stockLimit} available</p>}
+                            {atLimit && <p className="text-[9px] tracking-widest uppercase mt-1" role="status" style={{ color: "var(--low-inventory-color, #b4271a)" }}>{getCopy(design, "cartOnlyAvailable", { count: item.stockLimit as number })}</p>}
                           </div>
                         );
                       })()}
@@ -191,7 +191,7 @@ export function CartDrawer() {
                      className="mt-2 px-6 py-3 min-h-[44px] text-[10px] tracking-[.3em] font-bold uppercase border"
                      style={{ borderColor: buttonBg, color: drawerText }}
                    >
-                     Continue shopping
+                     {getCopy(design, "cartContinue")}
                    </button>
                 </div>
               )}
@@ -199,7 +199,7 @@ export function CartDrawer() {
               {/* Complete your Collection recommendation card */}
               {cart.length > 0 && recommendedBook && (
                 <div className="pt-6 border-t border-neutral-100 mt-8" style={borderStyle}>
-                  <p className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase mb-4" style={mutedStyle}>Complete your collection</p>
+                  <p className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase mb-4" style={mutedStyle}>{getCopy(design, "cartUpsellHeading")}</p>
                   <div className="flex gap-6 bg-neutral-50 p-4 rounded-2xl group/rec relative" style={surfaceStyle}>
                     <div className="w-16 aspect-[3/4] bg-neutral-200 overflow-hidden flex-shrink-0" style={surfaceStyle}>
                       <img
@@ -225,7 +225,7 @@ export function CartDrawer() {
                           borderRadius: buttonRadius,
                         }}
                       >
-                        + Add to Bag
+                        {getCopy(design, "cartUpsellAdd")}
                       </button>
                     </div>
                   </div>

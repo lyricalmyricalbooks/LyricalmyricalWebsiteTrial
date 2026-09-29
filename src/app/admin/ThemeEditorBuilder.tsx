@@ -891,6 +891,18 @@ export type HomeLayoutTemplate = {
 
 export const HOME_LAYOUT_TEMPLATES: HomeLayoutTemplate[] = [
   {
+    id: "lyricalmyrical-riso-noir",
+    name: "Lyricalmyrical Riso Noir",
+    description: "Black-and-white print-shop homepage: cover carousel, flare marquee, product grid, print-room notes and newsletter.",
+    sections: [
+      { type: "ProductCoverCarouselSection", settings: { title: "Books for looking / books for keeping", tagline: "Independent photography and art publishing from Toronto." } },
+      { type: "MarqueeSection", settings: { text: "SMALL RUNS  /  LOUD INK  /  INDEPENDENT PUBLISHING", separator: "✦", speed: 28, fontSize: 13, bold: true, fontWeight: 900, letterSpacing: 0.18, uppercase: true, background: "#e8402a", color: "#100f0d" } },
+      { type: "ProductShowcaseGridSection", settings: { title: "Fresh off the press" } },
+      { type: "StaffNotesTableSection", settings: { title: "From the print room", backgroundColor: "#0d0d0d" } },
+      { type: "NewsletterSection", settings: { title: "Ink in your inbox", description: "New books, studio notes and edition alerts. No filler." } },
+    ],
+  },
+  {
     id: "lyricalmyrical-riso",
     name: "Lyricalmyrical Riso",
     description: "A print-led storefront with a bold cover carousel, overprint-colored marquee, catalog grid and editorial notes.",

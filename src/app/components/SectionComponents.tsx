@@ -254,7 +254,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
           {settings.eyebrow && (
             <p
               className="text-[10px] tracking-[0.3em] font-bold uppercase mb-4"
-              style={{ color: settings.eyebrowColor || settings.accentColor || "var(--accent, #A855F7)" }}
+              style={{ color: settings.eyebrowColor || settings.accentColor || "var(--accent, #e8402a)" }}
               data-theme-field="eyebrow"
             >
               {settings.eyebrow}
@@ -290,7 +290,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
               className={`px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase ${
                 settings.hoverEffect ? hoverEffectClassName(settings.hoverEffect) : "hover:scale-105 transition-transform"
               }`}
-              style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
+              style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
             >
               <span data-theme-field="ctaText">{settings.ctaText || "Explore"}</span>
             </MagneticButton>
@@ -638,7 +638,7 @@ export function ImageWithTextSection({ settings, enableAnimations }: any) {
                 <a
                   href={settings.ctaUrl || "#"}
                   className="inline-block px-7 py-3 rounded-full text-[10px] font-bold tracking-[0.3em] uppercase"
-                  style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
+                  style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
                 >
                   <span data-theme-field="ctaText">{settings.ctaText}</span>
                 </a>
@@ -1067,7 +1067,7 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
                 magnetic={!!settings.btnMagnetic}
                 onClick={() => onProductClick?.(target)}
                 className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
-                style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
+                style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
               >
                 {settings.ctaText || "View product"}
               </MagneticButton>
@@ -1195,7 +1195,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
                     {settings.showBadges !== false && onSale && (
                       <span
                         className="absolute top-3 right-3 rounded-full px-4 py-3 text-[10px] font-black"
-                        style={{ background: settings.badgeColor || "#f63737", color: settings.badgeTextColor || "#000000" }}
+                        style={{ background: settings.badgeColor || "var(--badge-bg-primary, #e8402a)", color: settings.badgeTextColor || "var(--badge-text-primary, #100f0d)" }}
                       >
                         On sale
                       </span>
@@ -1308,7 +1308,7 @@ export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any
             magnetic={!!settings.btnMagnetic}
             onClick={onCtaClick}
             className="mt-6 px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
-            style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #ffffff)", ...btnS(settings) }}
+            style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #ffffff)", ...btnS(settings) }}
           >
             <span data-theme-field="ctaText">{settings.ctaText}</span>
           </MagneticButton>
@@ -1365,7 +1365,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
           {(settings.eyebrow || settings.title) && (
             <div className="mb-8">
               {settings.eyebrow && (
-                <p className="text-[10px] tracking-[0.3em] font-bold uppercase mb-2" style={{ color: "var(--accent, #A855F7)" }} data-theme-field="eyebrow">
+                <p className="text-[10px] tracking-[0.3em] font-bold uppercase mb-2" style={{ color: "var(--accent, #e8402a)" }} data-theme-field="eyebrow">
                   {settings.eyebrow}
                 </p>
               )}
@@ -1438,7 +1438,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                             ? "opacity-40 cursor-not-allowed border-white/20 bg-black/60 text-white/60"
                             : "border-white/30 bg-black/70 text-white hover:border-transparent"
                         }`}
-                        onMouseEnter={(e: any) => { if (!soldOut) e.currentTarget.style.backgroundColor = "var(--accent, #A855F7)"; }}
+                        onMouseEnter={(e: any) => { if (!soldOut) e.currentTarget.style.backgroundColor = "var(--accent, #e8402a)"; }}
                         onMouseLeave={(e: any) => { e.currentTarget.style.backgroundColor = ""; }}
                       >
                         +
@@ -1542,7 +1542,7 @@ export function StaffNotesTableSection({ settings, books, onProductClick, enable
 
 function shadeColor(hex: string, amount: number): string {
   const m = /^#?([a-f\d]{6})$/i.exec(hex || "");
-  if (!m) return hex || "#A855F7";
+  if (!m) return hex || "#e8402a";
   const num = parseInt(m[1], 16);
   const clamp = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
   const r = clamp(((num >> 16) & 255) + amount);
@@ -1552,7 +1552,7 @@ function shadeColor(hex: string, amount: number): string {
 }
 
 function EphemeraObject({ item }: { item: any }) {
-  const color = item.color || "#A855F7";
+  const color = item.color || "#e8402a";
   const rotation = `rotate(${Math.max(-12, Math.min(12, item.rotation ?? -3))}deg)`;
   const shadow = "0 10px 24px rgba(0,0,0,0.4)";
   switch (item.kind) {
@@ -1782,7 +1782,7 @@ export function CountdownSection({ settings, enableAnimations }: any) {
             <a
               href={settings.ctaUrl || "#"}
               className="inline-block mt-10 px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
-              style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
+              style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
             >
               <span data-theme-field="ctaText">{settings.ctaText}</span>
             </a>
@@ -1827,7 +1827,7 @@ export function ContactFormSection({ settings, enableAnimations }: any) {
               <button
                 type="submit"
                 className="w-full py-4 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
-                style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #A855F7)", color: "var(--btn-text, #000000)", ...btnS(settings) }}
+                style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
               >
                 <span data-theme-field="buttonLabel">{settings.buttonLabel || "Send message"}</span>
               </button>
@@ -1904,8 +1904,8 @@ function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
 
   if (kind === "button") {
     const buttonStyle = {
-      backgroundColor: block.accentColor || accentFallback || "var(--btn-bg, #A855F7)",
-      color: "var(--btn-text, #000000)",
+      backgroundColor: block.accentColor || accentFallback || "var(--btn-bg, #e8402a)",
+      color: "var(--btn-text, #100f0d)",
       ...(settings ? btnS(settings) : {}),
     };
     if (Array.isArray(block.buttons) && block.buttons.length > 0) {

@@ -1,4 +1,5 @@
 import { Search, X } from "lucide-react";
+import { getCopy } from "./storeCopy";
 
 export type SortKey = "newest" | "price_asc" | "price_desc" | "title_az" | "title_za";
 
@@ -73,6 +74,7 @@ export function CatalogControls({
   inStockOnly,
   setInStockOnly,
   resultCount,
+  design,
 }: {
   query: string;
   setQuery: (v: string) => void;
@@ -81,7 +83,9 @@ export function CatalogControls({
   inStockOnly: boolean;
   setInStockOnly: (v: boolean) => void;
   resultCount: number;
+  design?: any;
 }) {
+  const c = (key: string, vars?: Record<string, string | number>) => getCopy(design, key, vars);
   return (
     <div className="mb-10 space-y-4">
       <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
@@ -90,14 +94,14 @@ export function CatalogControls({
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
-            placeholder="Search by title, author, category…"
+            placeholder={c("filterSearchPlaceholder")}
             className="w-full bg-white/[0.04] border border-white/10 rounded-full py-3 pl-11 pr-10 text-xs text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30 transition-all"
           />
           {query && (
             <button
               onClick={() => setQuery("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-white/10"
-              aria-label="Clear search"
+              aria-label={c("filterClearAria")}
             >
               <X size={12} className="text-white/40" />
             </button>
@@ -112,7 +116,7 @@ export function CatalogControls({
           >
             {SORT_OPTIONS.map(o => (
               <option key={o.key} value={o.key} className="fm-surface-2">
-                {o.label}
+                {c("sort_" + o.key) || o.label}
               </option>
             ))}
           </select>
@@ -124,11 +128,11 @@ export function CatalogControls({
                 : "bg-white/[0.04] text-white/60 border-white/10 hover:border-white/30"
             }`}
           >
-            In stock
+            {c("filterInStock")}
           </button>
         </div>
       </div>
-      <p className="text-[10px] tracking-widest uppercase text-white/30">{resultCount} results</p>
+      <p className="text-[10px] tracking-widest uppercase text-white/30">{c("filterResults", { count: resultCount })}</p>
     </div>
   );
 }

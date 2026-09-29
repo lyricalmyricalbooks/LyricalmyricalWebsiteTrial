@@ -3,26 +3,27 @@ import {
   hexToRgbTriplet,
   buildStorefrontTokenVars,
   RISO_STOREFRONT_CSS,
+  risoGrainCss,
   STOREFRONT_TOKEN_CSS,
 } from "./themeTokens";
 
 describe("hexToRgbTriplet", () => {
   it("parses 6-digit hex", () => {
-    expect(hexToRgbTriplet("#A855F7")).toBe("168 85 247");
+    expect(hexToRgbTriplet("#A855F7")).toBe("168, 85, 247");
   });
 
   it("parses 3-digit shorthand hex", () => {
-    expect(hexToRgbTriplet("#fff")).toBe("255 255 255");
+    expect(hexToRgbTriplet("#fff")).toBe("255, 255, 255");
   });
 
   it("parses rgb()/rgba()", () => {
-    expect(hexToRgbTriplet("rgba(255, 255, 255, 0.05)")).toBe("255 255 255");
-    expect(hexToRgbTriplet("rgb(10 20 30)")).toBe("10 20 30");
+    expect(hexToRgbTriplet("rgba(255, 255, 255, 0.05)")).toBe("255, 255, 255");
+    expect(hexToRgbTriplet("rgb(10 20 30)")).toBe("10, 20, 30");
   });
 
   it("falls back on invalid input", () => {
-    expect(hexToRgbTriplet(undefined)).toBe("255 255 255");
-    expect(hexToRgbTriplet("not-a-color", "0 0 0")).toBe("0 0 0");
+    expect(hexToRgbTriplet(undefined)).toBe("255, 255, 255");
+    expect(hexToRgbTriplet("not-a-color", "0, 0, 0")).toBe("0, 0, 0");
   });
 });
 
@@ -37,7 +38,9 @@ describe("RISO_STOREFRONT_CSS", () => {
   it("keeps the print treatment scoped to storefront surfaces", () => {
     expect(RISO_STOREFRONT_CSS).toContain("[data-fm-store]");
     // Flat ink on newsprint: 2px ink outlines, flare focus ring, reduced motion honoured, no halftone texture.
-    expect(RISO_STOREFRONT_CSS).toContain("2px solid #100f0d");
+    expect(RISO_STOREFRONT_CSS).toContain("solid var(--rp-outline)");
+    // Everything is a token: no literal ink/flare colours, so it works on black or paper.
+    expect(RISO_STOREFRONT_CSS).not.toMatch(/#[0-9a-f]{6}/i);
     expect(RISO_STOREFRONT_CSS).toContain(":focus-visible");
     expect(RISO_STOREFRONT_CSS).toContain("prefers-reduced-motion");
     expect(RISO_STOREFRONT_CSS).not.toContain("radial-gradient");
@@ -48,7 +51,7 @@ describe("RISO_STOREFRONT_CSS", () => {
 describe("buildStorefrontTokenVars", () => {
   it("emits defaults when design is empty (preserves current dark look)", () => {
     const css = buildStorefrontTokenVars({});
-    expect(css).toContain("--fg-rgb: 255 255 255;");
+    expect(css).toContain("--fg-rgb: 255, 255, 255;");
     expect(css).toContain("--surface: #0a0a0a;");
     expect(css).toContain("--success: #34d399;");
     expect(css).toContain("--favorite: #fb7185;");
@@ -56,7 +59,7 @@ describe("buildStorefrontTokenVars", () => {
 
   it("derives the foreground triplet from textColor", () => {
     const css = buildStorefrontTokenVars({ textColor: "#111111" });
-    expect(css).toContain("--fg-rgb: 17 17 17;");
+    expect(css).toContain("--fg-rgb: 17, 17, 17;");
   });
 
   it("defaults active-control colors to text/background when unset", () => {
@@ -66,10 +69,10 @@ describe("buildStorefrontTokenVars", () => {
   });
 
   it("border tint defaults to the foreground, follows borderColor when set", () => {
-    expect(buildStorefrontTokenVars({ textColor: "#111111" })).toContain("--border-rgb: 17 17 17;");
-    expect(buildStorefrontTokenVars({ surfaceColor: "#123456", surfaceRaisedColor: "#abcdef" })).toContain("--surface-rgb: 18 52 86;");
-    expect(buildStorefrontTokenVars({ surfaceColor: "#123456", surfaceRaisedColor: "#abcdef" })).toContain("--surface-2-rgb: 171 205 239;");
-    expect(buildStorefrontTokenVars({ borderColor: "#B1B1AA" })).toContain("--border-rgb: 177 177 170;");
+    expect(buildStorefrontTokenVars({ textColor: "#111111" })).toContain("--border-rgb: 17, 17, 17;");
+    expect(buildStorefrontTokenVars({ surfaceColor: "#123456", surfaceRaisedColor: "#abcdef" })).toContain("--surface-rgb: 18, 52, 86;");
+    expect(buildStorefrontTokenVars({ surfaceColor: "#123456", surfaceRaisedColor: "#abcdef" })).toContain("--surface-2-rgb: 171, 205, 239;");
+    expect(buildStorefrontTokenVars({ borderColor: "#B1B1AA" })).toContain("--border-rgb: 177, 177, 170;");
   });
 
   it("honors explicit overrides", () => {
@@ -115,5 +118,30 @@ describe("STOREFRONT_TOKEN_CSS", () => {
     expect(STOREFRONT_TOKEN_CSS).toContain(".fm-surface{background-color:var(--surface);}");
     expect(STOREFRONT_TOKEN_CSS).toContain(".fm-success-solid{");
     expect(STOREFRONT_TOKEN_CSS).toContain(".fm-favorite-active{");
+  });
+});
+
+describe("Riso tokens", () => {
+  it("defaults outline to the foreground and is fully overridable", () => {
+    const d = buildStorefrontTokenVars({ textColor: "#ffffff" });
+    expect(d).toContain("--rp-outline: #ffffff;");
+    expect(d).toContain("--rp-outline-w: 2px;");
+    expect(d).toContain("--rp-shadow-x: 3px;");
+    expect(d).toContain("--rp-heading-transform: uppercase;");
+    const o = buildStorefrontTokenVars({
+      risoOutlineColor: "#e8402a", risoOutlineWidth: 4, risoShadowOffset: 0, risoShadowColor: "#fff",
+      focusRingColor: "#0f0", risoUppercaseHeadings: false, buttonTextColor: "#111",
+    });
+    expect(o).toContain("--rp-outline: #e8402a;");
+    expect(o).toContain("--rp-outline-w: 4px;");
+    expect(o).toContain("--rp-shadow-x: 0px;");
+    expect(o).toContain("--rp-shadow-color: #fff;");
+    expect(o).toContain("--rp-focus: #0f0;");
+    expect(o).toContain("--rp-heading-transform: none;");
+    expect(o).toContain("--on-accent: #111;");
+  });
+  it("halftone grain is opt-in", () => {
+    expect(risoGrainCss({})).toBe("");
+    expect(risoGrainCss({ risoGrain: 0.5 })).toContain("radial-gradient");
   });
 });

@@ -7,6 +7,7 @@ import { Toaster } from "react-hot-toast";
 import { CartDrawer } from "./components/CartDrawer";
 import { CookieConsent } from "./components/CookieConsent";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
+import { BootSplash } from "./components/BootSplash";
 
 // import.meta.env.BASE_URL is the Vite `base` config (e.g. "/LyricalmyricalWebsiteTrial/").
 // Strip the trailing slash so React Router treats it as a basename.
@@ -22,37 +23,6 @@ const WishlistPage = lazy(() => import("./features/site/Wishlist"));
 const CollectionPage = lazy(() => import("./features/site/CollectionPage"));
 const AccountPage = lazy(() => import("./features/site/Account"));
 const OrderTracking = lazy(() => import("./features/site/OrderTracking"));
-
-function LoadingFallback() {
-  return (
-    <div className="h-screen w-full bg-[#faf6ec] text-[#100f0d] flex flex-col items-center justify-center relative overflow-hidden" aria-label="Loading Lyricalmyrical Books">
-      <div className="absolute inset-0 opacity-40 bg-[radial-gradient(rgba(23,27,24,0.2)_0.6px,transparent_0.8px)] bg-[length:5px_5px]" />
-      <div className="absolute -left-[8vw] top-[12vh] h-44 w-[62vw] -rotate-6 bg-[#e8402a]/90 mix-blend-multiply" />
-      <div className="absolute -right-[10vw] bottom-[10vh] h-48 w-[64vw] rotate-6 bg-[#1b3fe0]/85 mix-blend-multiply" />
-      <motion.div
-        initial={{ opacity: 0, y: 18 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative flex w-[min(86vw,34rem)] flex-col items-center"
-      >
-        <span className="mb-7 rotate-1 border-2 border-[#100f0d] bg-[#ffc93c] px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] shadow-[4px_4px_0_#100f0d]">
-          Toronto · Est. independently
-        </span>
-        <p className="text-center text-[clamp(3.4rem,12vw,7.5rem)] font-black uppercase leading-[0.72] tracking-[-0.075em] drop-shadow-[3px_3px_0_#e8402a]">
-          Lyrical<span className="text-[#1b3fe0] mix-blend-multiply">myrical</span>
-        </p>
-        <p className="mt-5 text-[10px] font-black uppercase tracking-[0.64em]">Books / printed matter</p>
-        <div className="mt-12 h-2 w-full overflow-hidden border border-[#100f0d] bg-[#ffffff]" aria-hidden="true">
-          <motion.div
-            className="h-full w-1/3 bg-[#e8402a]"
-            animate={{ x: ["-100%", "300%"] }}
-            transition={{ duration: 1.35, repeat: Infinity, ease: "easeInOut" }}
-          />
-        </div>
-        <span className="mt-3 self-start text-[9px] font-black uppercase tracking-[0.32em]">Pulling the first print</span>
-      </motion.div>
-    </div>
-  );
-}
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState(0);
@@ -111,7 +81,7 @@ export default function App() {
           <BrowserRouter basename={ROUTER_BASENAME}>
           <CartDrawer />
           <CookieConsent />
-          <Suspense fallback={<LoadingFallback />}>
+          <Suspense fallback={<BootSplash />}>
                 <Toaster 
                   position="top-center" 
                   toastOptions={{

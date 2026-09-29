@@ -22,7 +22,7 @@ import ReviewsSection from "./ReviewsSection";
 import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 import { resolveLogoDesign } from "./selectors";
-import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, STOREFRONT_TOKEN_CSS } from "./themeTokens";
+import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "./themeTokens";
 
 // ── small helper ────────────────────────────────────────────────────────────
 function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
@@ -45,7 +45,7 @@ export default function BookDetail() {
   const { addToCart, setIsCartOpen, cartCount } = useCart();
   const { formatPrice, formatBookPrice, getBookPrice } = useCurrency();
 
-  const primaryColor  = settings?.design?.primaryColor || "#A855F7";
+  const primaryColor  = settings?.design?.primaryColor || "#e8402a";
   const font          = settings?.design?.font || "Inter";
   const logoDesign    = resolveLogoDesign(settings?.design?.storefront, [settings?.design?.heroPage, settings?.design]);
 
@@ -87,7 +87,7 @@ export default function BookDetail() {
   const productTitleSize       = storefrontDesign.productTitleSize       || "large";
   const productAlignment       = storefrontDesign.productAlignment       || "left";
   const productSubtitleWeight  = storefrontDesign.productSubtitleWeight  || "light";
-  const productBorderRadius    = storefrontDesign.productBorderRadius    ?? 32;
+  const productBorderRadius    = storefrontDesign.productBorderRadius    ?? settings?.design?.productBorderRadius ?? 32;
   const productImageGlowColor  = storefrontDesign.productImageGlowColor  || primaryColor;
   const productImageShadow     = storefrontDesign.productImageShadow     || "lg";
   const productImageHoverScale  = storefrontDesign.productImageHoverScale  ?? 1.05;
@@ -111,7 +111,7 @@ export default function BookDetail() {
     setOpenAccordions(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const buttonBg = storefrontDesign?.buttonColor || settings?.design?.buttonColor || settings?.design?.primaryColor || "#A855F7";
+  const buttonBg = storefrontDesign?.buttonColor || settings?.design?.buttonColor || settings?.design?.primaryColor || "#e8402a";
   const buttonText = storefrontDesign?.buttonTextColor || settings?.design?.buttonTextColor || "#000000";
   const buttonRadius = Math.max(0, Math.min(999, storefrontDesign?.buttonRadius ?? settings?.design?.buttonRadius ?? 999));
   const buttonStyle = storefrontDesign?.buttonStyle || settings?.design?.buttonStyle || "solid";
@@ -165,7 +165,7 @@ export default function BookDetail() {
       box-shadow: none !important;
     }
     ${STOREFRONT_TOKEN_CSS}
-    ${(tokenSource as any)?.themeStyle === "riso" ? RISO_STOREFRONT_CSS : ""}
+    ${(tokenSource as any)?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(tokenSource as any) : ""}
   `;
 
   const bookCategories = (book as any)?.categories || (book as any)?.genres || [];
@@ -290,7 +290,7 @@ export default function BookDetail() {
           >
             <Package size={20} className="text-white/50" />
           </motion.div>
-          <p className="text-white/30 text-[9px] font-black tracking-[0.5em] uppercase">Loading</p>
+          <p className="text-white/30 text-[9px] font-black tracking-[0.5em] uppercase">{getCopy(settings?.design, "bookLoading")}</p>
         </div>
       </div>
     );
@@ -308,7 +308,7 @@ export default function BookDetail() {
         }}
       >
         <Package size={48} strokeWidth={1} style={{ color: `${storefrontText}33` }} />
-        <p className="text-sm tracking-[0.3em] uppercase" style={{ color: `${storefrontText}80` }}>Publication not found</p>
+        <p className="text-sm tracking-[0.3em] uppercase" style={{ color: `${storefrontText}80` }}>{getCopy(settings?.design, "bookNotFound")}</p>
         <Link
           to="/"
           className="text-[10px] font-black tracking-[0.4em] px-8 py-3 transition-all uppercase custom-btn"
@@ -319,7 +319,7 @@ export default function BookDetail() {
             borderRadius: buttonRadius,
           } as React.CSSProperties}
         >
-          Return to Archive
+          {getCopy(settings?.design, "bookReturn")}
         </Link>
       </div>
     );
@@ -461,7 +461,7 @@ export default function BookDetail() {
                             borderColor: `${badgeTextSecondary}33`,
                           }}
                         >
-                          Sold Out
+                          {getCopy(settings?.design, "soldOutLabel")}
                         </span>
                       </div>
                     )}
@@ -476,7 +476,7 @@ export default function BookDetail() {
                             color: badgeTextPrimary,
                           }}
                         >
-                          Sale
+                          {getCopy(settings?.design, "saleBadgeLabel")}
                         </span>
                       </div>
                     )}
@@ -502,7 +502,7 @@ export default function BookDetail() {
                         <button
                           onClick={() => setActivePhoto(p => Math.max(0, p - 1))}
                           disabled={activePhoto === 0}
-                          aria-label="Previous photo"
+                          aria-label={getCopy(settings?.design, "ariaPrevPhoto")}
                           className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all disabled:opacity-20"
                         >
                           <ChevronLeft size={16} />
@@ -510,7 +510,7 @@ export default function BookDetail() {
                         <button
                           onClick={() => setActivePhoto(p => Math.min(photos.length - 1, p + 1))}
                           disabled={activePhoto === photos.length - 1}
-                          aria-label="Next photo"
+                          aria-label={getCopy(settings?.design, "ariaNextPhoto")}
                           className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all disabled:opacity-20"
                         >
                           <ChevronRight size={16} />
@@ -569,7 +569,7 @@ export default function BookDetail() {
                               borderColor: `${badgeTextSecondary}33`,
                             }}
                           >
-                            Sold Out
+                            {getCopy(settings?.design, "soldOutLabel")}
                           </span>
                         </div>
                       )}
@@ -591,7 +591,7 @@ export default function BookDetail() {
                               borderColor: `${badgeTextSecondary}33`,
                             }}
                           >
-                            Sold Out
+                            {getCopy(settings?.design, "soldOutLabel")}
                           </span>
                         </div>
                       )}
@@ -666,7 +666,7 @@ export default function BookDetail() {
                   <div className={`w-full fm-surface border border-white/10 rounded-2xl p-6 md:p-8 ${
                     productAlignment === "center" ? "text-center" : "text-left"
                   }`}>
-                    <p className="text-[9px] font-black tracking-[0.3em] uppercase mb-4" style={{ color: "var(--accent, #A855F7)" }}>
+                    <p className="text-[9px] font-black tracking-[0.3em] uppercase mb-4" style={{ color: "var(--accent, #e8402a)" }}>
                       {getCopy(settings?.design, "productDescriptionLabel")}
                     </p>
                     <p
@@ -714,7 +714,7 @@ export default function BookDetail() {
               {/* Variant Selector */}
               {book.variants && book.variants.length > 0 && (
                 <div className={`space-y-3 w-full flex flex-col ${productAlignment === "center" ? "items-center" : "items-start"}`}>
-                  <label className="text-[9px] tracking-[0.35em] text-white/40 uppercase font-black">Format / Edition</label>
+                  <label className="text-[9px] tracking-[0.35em] text-white/40 uppercase font-black">{getCopy(settings?.design, "bookFormatLabel")}</label>
                   <div className={`flex flex-wrap gap-2.5 ${productAlignment === "center" ? "justify-center" : "justify-start"}`}>
                     {book.variants.map((v: any) => {
                       const isSelected = selectedVariant?.id === v.id;
@@ -752,7 +752,7 @@ export default function BookDetail() {
                     <button
                       type="button"
                       onClick={() => setQty((q) => Math.max(1, q - 1))}
-                      aria-label="Decrease quantity"
+                      aria-label={getCopy(settings?.design, "ariaQtyDown")}
                       disabled={qty <= 1}
                       className="w-10 h-10 rounded-full flex items-center justify-center text-lg leading-none hover:bg-white/10 transition-colors disabled:opacity-30"
                     >
@@ -765,7 +765,7 @@ export default function BookDetail() {
                         const max = stockLevel !== 999 ? stockLevel : 99;
                         return Math.min(max, q + 1);
                       })}
-                      aria-label="Increase quantity"
+                      aria-label={getCopy(settings?.design, "ariaQtyUp")}
                       disabled={stockLevel !== 999 && qty >= stockLevel}
                       className="w-10 h-10 rounded-full flex items-center justify-center text-lg leading-none hover:bg-white/10 transition-colors disabled:opacity-30"
                     >
@@ -819,7 +819,7 @@ export default function BookDetail() {
                   {isOutOfStock ? (
                     "Sold Out"
                   ) : added ? (
-                    <><Check size={14} strokeWidth={3} /> Added to Bag</>
+                    <><Check size={14} strokeWidth={3} /> {getCopy(settings?.design, "bookAdded")}</>
                   ) : (
                     <><ShoppingBag size={14} /> {storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel") || "Add to Bag"}</>
                   )}
@@ -843,7 +843,7 @@ export default function BookDetail() {
                   <button
                     onClick={handleShare}
                     className="w-16 h-16 rounded-2xl border border-white/[0.08] flex items-center justify-center hover:bg-white/[0.06] hover:border-white/20 transition-all"
-                    title="Share"
+                    title={getCopy(settings?.design, "bookShare")}
                   >
                     <Share2 size={15} className="text-white/40" />
                   </button>
@@ -890,7 +890,7 @@ export default function BookDetail() {
                           : "text-white/50 hover:text-white"
                       }`}
                     >
-                      Description
+                      {getCopy(settings?.design, "tabDescription")}
                     </button>
                     {showSpecs !== false && (
                       <button
@@ -902,7 +902,7 @@ export default function BookDetail() {
                             : "text-white/50 hover:text-white"
                         }`}
                       >
-                        Details
+                        {getCopy(settings?.design, "tabDetails")}
                       </button>
                     )}
                     <button
@@ -914,7 +914,7 @@ export default function BookDetail() {
                           : "text-white/50 hover:text-white"
                       }`}
                     >
-                      Reviews
+                      {getCopy(settings?.design, "tabReviews")}
                     </button>
                   </div>
                   <div className="pt-2 min-h-[120px]">
@@ -973,7 +973,7 @@ export default function BookDetail() {
                       onClick={() => toggleAccordion("description")}
                       className="w-full flex items-center justify-between px-6 py-4.5 text-[10px] font-black tracking-widest uppercase text-white/70 hover:text-white"
                     >
-                      <span>Description</span>
+                      <span>{getCopy(settings?.design, "tabDescription")}</span>
                       <ChevronDown size={14} className={`transition-transform duration-300 ${openAccordions.description ? "rotate-180" : ""}`} />
                     </button>
                     <AnimatePresence initial={false}>
@@ -1001,7 +1001,7 @@ export default function BookDetail() {
                         onClick={() => toggleAccordion("specs")}
                         className="w-full flex items-center justify-between px-6 py-4.5 text-[10px] font-black tracking-widest uppercase text-white/70 hover:text-white"
                       >
-                        <span>Specifications</span>
+                        <span>{getCopy(settings?.design, "tabSpecs")}</span>
                         <ChevronDown size={14} className={`transition-transform duration-300 ${openAccordions.specs ? "rotate-180" : ""}`} />
                       </button>
                       <AnimatePresence initial={false}>
@@ -1036,7 +1036,7 @@ export default function BookDetail() {
                       onClick={() => toggleAccordion("reviews")}
                       className="w-full flex items-center justify-between px-6 py-4.5 text-[10px] font-black tracking-widest uppercase text-white/70 hover:text-white"
                     >
-                      <span>Reviews</span>
+                      <span>{getCopy(settings?.design, "tabReviews")}</span>
                       <ChevronDown size={14} className={`transition-transform duration-300 ${openAccordions.reviews ? "rotate-180" : ""}`} />
                     </button>
                     <AnimatePresence initial={false}>
@@ -1061,7 +1061,7 @@ export default function BookDetail() {
               {/* Frequently Bought Together Widget */}
               {showBundleWidget !== false && bundleBook && (
                 <div className="mt-8 pt-8 border-t border-white/5 space-y-6">
-                  <h4 className="text-[10px] font-black tracking-[0.3em] uppercase text-white/40">Frequently Bought Together</h4>
+                  <h4 className="text-[10px] font-black tracking-[0.3em] uppercase text-white/40">{getCopy(settings?.design, "bundleHeading")}</h4>
                   <div className={`flex flex-col sm:flex-row items-center gap-6 rounded-3xl p-6 relative overflow-hidden group/bundle transition-all duration-300 ${
                     productBundleLayout === "glassmorphic"
                       ? "bg-white/[0.01] backdrop-blur-xl border border-white/10 fm-accent-hover-border"
@@ -1154,7 +1154,7 @@ export default function BookDetail() {
                                   borderColor: `${badgeTextSecondary}33`,
                                 }}
                               >
-                                Sold Out
+                                {getCopy(settings?.design, "soldOutLabel")}
                               </span>
                             </div>
                           )}
