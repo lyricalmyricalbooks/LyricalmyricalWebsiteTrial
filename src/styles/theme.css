@@ -931,6 +931,19 @@
 .admin-reso[data-admin-theme="reso"] [class~="bg-violet-600"] *, .admin-reso[data-admin-theme="reso"] [class~="bg-violet-500"] *, .admin-reso[data-admin-theme="reso"] [class~="from-violet-600"] * { color: #100f0d !important; }
 .admin-reso[data-admin-theme="reso"] [class~="bg-blue-600"] *, .admin-reso[data-admin-theme="reso"] [class~="bg-blue-700"] * { color: #ffffff !important; }
 
+/* Ink chrome bars inside legacy pages keep light-on-ink text. */
+.admin-reso[data-admin-theme="reso"] [class~="bg-[#1E1E1F]"] h3,
+.admin-reso[data-admin-theme="reso"] [class~="bg-[#1E1E1F]"] .text-white { color: #faf6ec !important; }
+.admin-reso[data-admin-theme="reso"] [class~="bg-[#1E1E1F]"] button[class*="text-slate"],
+.admin-reso[data-admin-theme="reso"] [class~="bg-[#1E1E1F]"] button[class*="text-white"] { color: rgba(250, 246, 236, 0.85) !important; }
+
+/* Stray arbitrary purple fills/text from earlier admin designs → flare. */
+.admin-reso[data-admin-theme="reso"] [class~="bg-[#7C3AED]"], .admin-reso[data-admin-theme="reso"] [class~="bg-[#6D28D9]"], .admin-reso[data-admin-theme="reso"] [class~="bg-[#A855F7]"] {
+  background-color: #e8402a !important; color: #100f0d !important; border: 2px solid #100f0d !important; border-radius: 0 !important;
+}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-[#6D28D9]"]:hover, .admin-reso[data-admin-theme="reso"] [class~="hover:bg-[#7C3AED]"]:hover { background-color: #ff6b55 !important; }
+.admin-reso[data-admin-theme="reso"] [class~="text-[#7C3AED]"] { color: #b4271a !important; }
+
 /* Shadow and spacing scale utilities */
 [data-fm-store] .shadow-card {
   box-shadow: var(--card-shadow);
