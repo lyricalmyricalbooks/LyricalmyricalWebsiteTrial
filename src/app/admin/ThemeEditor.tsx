@@ -877,12 +877,12 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
                 update("headerBg", undefined);
                 update("headerColor", undefined);
               }}
-              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2 text-[10px] font-bold text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all uppercase tracking-wider mb-4"
+              className="rp-btn rp-btn-secondary rp-btn-sm w-full"
             >
               Reset header to page defaults
             </button>
           )}
-          <div className="border-t border-neutral-100 pt-4" />
+          <div className="border-t-2 border-[var(--rp-border)] pt-4" />
           <ColorPicker
             label="Background"
             value={design.backgroundColor || "#000000"}
@@ -976,7 +976,7 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
               update("backgroundColor", currentPalette.bg);
               update("textColor", currentPalette.text);
             }}
-            className="w-full bg-white/5 border border-white/5 rounded-[2rem] py-5 text-[10px] font-black text-slate-500 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all uppercase tracking-[0.2em] italic mt-4"
+            className="rp-btn rp-btn-secondary w-full"
           >
             Restore Palette Defaults
           </button>
@@ -1004,7 +1004,7 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
             value={design.overlayColor || "#000000"}
             onChange={(val) => update("overlayColor", val)}
           />
-          <div className="border-t border-neutral-100 pt-4" />
+          <div className="border-t-2 border-[var(--rp-border)] pt-4" />
           <ColorPicker
             label="Success / savings"
             value={design.successColor || "#34d399"}
@@ -1040,7 +1040,7 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
             value={design.mutedTextColor || "#94a3b8"}
             onChange={(val) => update("mutedTextColor", val)}
           />
-          <div className="border-t border-neutral-100 pt-4" />
+          <div className="border-t-2 border-[var(--rp-border)] pt-4" />
           <ColorPicker
             label="Active control background"
             value={design.activeControlBg || design.textColor || "#ffffff"}
@@ -1062,7 +1062,7 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
                  "dangerColor", "mutedTextColor", "activeControlBg", "activeControlText"]
                   .forEach((k) => update(k, undefined));
               }}
-              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2 text-[10px] font-bold text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all uppercase tracking-wider"
+              className="rp-btn rp-btn-secondary rp-btn-sm w-full"
             >
               Reset surfaces &amp; status to defaults
             </button>
@@ -1115,7 +1115,7 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
             onChange={(v: number) => update("checkoutInputRadius", v)}
           />
           <div className="pt-4 border-t-2 border-[var(--rp-border)] space-y-6">
-            <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic">
+            <p className="rp-label">
               Cart drawer panel — leave blank for the classic white drawer.
             </p>
             <ColorPicker
@@ -1166,7 +1166,7 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
                 update("cartDrawerBorder", undefined);
                 update("cartDrawerGrayscaleThumbs", undefined);
               }}
-              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2 text-[10px] font-bold text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 transition-all uppercase tracking-wider"
+              className="rp-btn rp-btn-secondary rp-btn-sm w-full"
             >
               Reset checkout &amp; cart to main theme
             </button>
@@ -1730,7 +1730,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
     return (
       <div className="flex flex-col h-full">
         {/* Header + Content/Design tabs */}
-        <div className="border-b border-neutral-100 bg-white sticky top-0 z-20">
+        <div className="border-b-2 border-[var(--rp-border-strong)] bg-[var(--rp-surface)] sticky top-0 z-20">
           <div className="px-4 pt-4 pb-2 flex items-center gap-3">
             <button
               onClick={() => { setActiveSectionId(null); setEditTab("content"); }}
@@ -1787,7 +1787,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
 
               {/* Blocks editor (only sections with blocks) */}
               {getBlockFields(section.type).length > 0 && (
-                <div className="pt-4 border-t border-neutral-100">
+                <div className="pt-4 border-t-2 border-[var(--rp-border)]">
                   <BlocksEditor
                     sectionType={section.type}
                     settings={section.settings}
@@ -1819,7 +1819,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                   settings: JSON.parse(JSON.stringify(section.settings || {})),
                 });
               }}
-              className="w-full py-3 text-amber-600 text-[10px] font-bold tracking-widest border border-amber-200 bg-amber-50/50 rounded-2xl hover:bg-amber-50 transition-colors"
+              className="rp-btn rp-btn-secondary w-full"
             >
               SAVE AS REUSABLE PRESET
             </button>
@@ -1831,19 +1831,19 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                 copySectionToClipboard(section);
                 alert("Section copied — use “Paste section” on any page template.");
               }}
-              className="py-3 text-neutral-700 text-[10px] font-bold tracking-widest border border-neutral-200 rounded-2xl hover:bg-neutral-50 transition-colors"
+              className="rp-btn rp-btn-secondary"
             >
               COPY
             </button>
             <button
               onClick={(e) => duplicateSection(section.id, e)}
-              className="py-3 text-neutral-700 text-[10px] font-bold tracking-widest border border-neutral-200 rounded-2xl hover:bg-neutral-50 transition-colors"
+              className="rp-btn rp-btn-secondary"
             >
               DUPLICATE
             </button>
             <button
               onClick={() => removeSection(section.id)}
-              className="py-3 text-red-500 text-[10px] font-bold tracking-widest border-2 border-red-50 rounded-2xl hover:bg-red-50 transition-colors"
+              className="rp-btn rp-btn-danger"
             >
               DELETE
             </button>
@@ -1875,13 +1875,13 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
       <div className="border border-neutral-100 bg-neutral-50/50 rounded-2xl overflow-hidden mb-4">
         <button 
           onClick={() => setExpandedSection(expandedSection === "hero-legacy" ? null : "hero-legacy")}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-neutral-100 transition-colors"
+          className="w-full px-4 py-3 flex items-center justify-between rp-row-hover"
         >
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white rounded-lg shadow-sm text-blue-600">
               <Layout size={14} />
             </div>
-            <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-tight">Main Hero Settings</span>
+            <span className="text-[12px] font-bold uppercase tracking-tight">Main Hero Settings</span>
           </div>
           <ChevronRight size={14} className={`text-neutral-400 transition-transform ${expandedSection === "hero-legacy" ? "rotate-90" : ""}`} />
         </button>
@@ -1930,13 +1930,13 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
       <div className="border border-neutral-100 bg-neutral-50/50 rounded-2xl overflow-hidden">
         <button
           onClick={() => setExpandedSection(expandedSection === "layout-templates" ? null : "layout-templates")}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-neutral-100 transition-colors"
+          className="w-full px-4 py-3 flex items-center justify-between rp-row-hover"
         >
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white rounded-lg shadow-sm text-violet-600">
               <LayoutTemplate size={14} />
             </div>
-            <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-tight">Start from a template</span>
+            <span className="text-[12px] font-bold uppercase tracking-tight">Start from a template</span>
           </div>
           <ChevronRight size={14} className={`text-neutral-400 transition-transform ${expandedSection === "layout-templates" ? "rotate-90" : ""}`} />
         </button>
