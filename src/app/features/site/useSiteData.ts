@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { adminApi } from "../../admin/api";
 import { DEFAULT_BOOKS, DEFAULT_SETTINGS, SITE_CACHE_KEY } from "./constants";
 import type { Book, SiteSettings, Page } from "./types";
+import { RISO_NOIR_TOKENS, withRisoNoirDefault } from "./risoNoir";
 
 type CachePayload = {
   books: Book[];
@@ -149,4 +150,15 @@ export function useSiteData() {
   }, []);
 
   return { books, settings, pages, loading };
+}
+
+/**
+ * Design for chrome that renders outside the site-data pipeline (boot splash, cookie banner).
+ * Reads the session cache written by useSiteData — no extra Firestore reads — and falls back
+ * to the Riso Noir defaults on a first-ever visit.
+ */
+export function readCachedDesign(): Record<string, any> {
+  const design = readCache()?.settings?.design as Record<string, any> | undefined;
+  const base = design && typeof design === "object" ? design : RISO_NOIR_TOKENS;
+  return withRisoNoirDefault(base) || RISO_NOIR_TOKENS;
 }

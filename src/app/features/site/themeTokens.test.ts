@@ -3,6 +3,7 @@ import {
   hexToRgbTriplet,
   buildStorefrontTokenVars,
   RISO_STOREFRONT_CSS,
+  risoGrainCss,
   STOREFRONT_TOKEN_CSS,
 } from "./themeTokens";
 
@@ -37,7 +38,9 @@ describe("RISO_STOREFRONT_CSS", () => {
   it("keeps the print treatment scoped to storefront surfaces", () => {
     expect(RISO_STOREFRONT_CSS).toContain("[data-fm-store]");
     // Flat ink on newsprint: 2px ink outlines, flare focus ring, reduced motion honoured, no halftone texture.
-    expect(RISO_STOREFRONT_CSS).toContain("2px solid #100f0d");
+    expect(RISO_STOREFRONT_CSS).toContain("solid var(--rp-outline)");
+    // Everything is a token: no literal ink/flare colours, so it works on black or paper.
+    expect(RISO_STOREFRONT_CSS).not.toMatch(/#[0-9a-f]{6}/i);
     expect(RISO_STOREFRONT_CSS).toContain(":focus-visible");
     expect(RISO_STOREFRONT_CSS).toContain("prefers-reduced-motion");
     expect(RISO_STOREFRONT_CSS).not.toContain("radial-gradient");
@@ -115,5 +118,30 @@ describe("STOREFRONT_TOKEN_CSS", () => {
     expect(STOREFRONT_TOKEN_CSS).toContain(".fm-surface{background-color:var(--surface);}");
     expect(STOREFRONT_TOKEN_CSS).toContain(".fm-success-solid{");
     expect(STOREFRONT_TOKEN_CSS).toContain(".fm-favorite-active{");
+  });
+});
+
+describe("Riso tokens", () => {
+  it("defaults outline to the foreground and is fully overridable", () => {
+    const d = buildStorefrontTokenVars({ textColor: "#ffffff" });
+    expect(d).toContain("--rp-outline: #ffffff;");
+    expect(d).toContain("--rp-outline-w: 2px;");
+    expect(d).toContain("--rp-shadow-x: 3px;");
+    expect(d).toContain("--rp-heading-transform: uppercase;");
+    const o = buildStorefrontTokenVars({
+      risoOutlineColor: "#e8402a", risoOutlineWidth: 4, risoShadowOffset: 0, risoShadowColor: "#fff",
+      focusRingColor: "#0f0", risoUppercaseHeadings: false, buttonTextColor: "#111",
+    });
+    expect(o).toContain("--rp-outline: #e8402a;");
+    expect(o).toContain("--rp-outline-w: 4px;");
+    expect(o).toContain("--rp-shadow-x: 0px;");
+    expect(o).toContain("--rp-shadow-color: #fff;");
+    expect(o).toContain("--rp-focus: #0f0;");
+    expect(o).toContain("--rp-heading-transform: none;");
+    expect(o).toContain("--on-accent: #111;");
+  });
+  it("halftone grain is opt-in", () => {
+    expect(risoGrainCss({})).toBe("");
+    expect(risoGrainCss({ risoGrain: 0.5 })).toContain("radial-gradient");
   });
 });

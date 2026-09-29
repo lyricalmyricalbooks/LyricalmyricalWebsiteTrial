@@ -15,8 +15,10 @@ import {
 } from "../features/site/selectors";
 import type { Book } from "../features/site/types";
 import { useSiteData } from "../features/site/useSiteData";
-import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
+import { BootSplash } from "./BootSplash";
+import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
+import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
 import { LogoMark } from "./LogoMark";
 import { ThemeToggle } from "./theme/ThemeToggle";
@@ -85,26 +87,28 @@ function SkeletonImage({ src, alt, className, style }: { src: string; alt: strin
 // ──────────────────────────────
 // Maintenance splash
 // ──────────────────────────────
-function MaintenancePage({ message }: { message?: string }) {
+function MaintenancePage({ message, design }: { message?: string; design?: any }) {
   const debug = typeof window !== "undefined" && window.location.search.includes("debug=true");
   const adminPath = debug ? "/admin?debug=true" : "/admin";
+  const c = (key: string) => getCopy(design, key);
 
   return (
-    <div className="h-screen bg-[#030213] text-white flex flex-col items-center justify-center gap-6 text-center px-6">
-      <div className="w-16 h-16 rounded-full border border-white/20 flex items-center justify-center mb-4">
-        <span className="text-lg">🔧</span>
-      </div>
-      <h1 className="text-2xl font-light tracking-widest uppercase">Under Maintenance</h1>
-      <p className="text-white/50 text-sm max-w-sm leading-relaxed">
-        {message || "We are updating our archive. Please check back soon."}
+    <div data-fm-store className="fm-page min-h-screen text-white flex flex-col items-center justify-center gap-6 text-center px-6">
+      <StorefrontThemeStyle design={design} />
+      <span className="rotate-1 border-2 border-[var(--rp-outline)] bg-[var(--accent)] px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] text-[var(--on-accent)] shadow-[4px_4px_0_var(--rp-shadow-color)]">
+        {c("maintenanceTag")}
+      </span>
+      <h1 className="text-5xl md:text-7xl uppercase leading-none">{c("maintenanceTitle")}</h1>
+      <p className="text-white/60 text-sm max-w-sm leading-relaxed">
+        {message || c("maintenanceMessage")}
       </p>
       <div className="mt-4 flex flex-col items-center gap-6">
-        <p className="text-[9px] tracking-[0.4em] text-white/20 uppercase">Lyricalmyrical Books · Toronto</p>
-        <Link 
-          to={adminPath} 
-          className="px-5 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] tracking-[0.2em] uppercase font-bold text-white/40 hover:text-white transition-all duration-300 shadow-lg active:scale-95"
+        <p className="text-[9px] tracking-[0.4em] text-white/40 uppercase">{c("maintenanceFooter")}</p>
+        <Link
+          to={adminPath}
+          className="px-5 py-2.5 border-2 border-[var(--rp-outline)] text-[9px] tracking-[0.2em] uppercase font-bold text-white/60 hover:text-white hover:bg-white/10 transition-colors"
         >
-          Admin Console
+          {c("maintenanceAdmin")}
         </Link>
       </div>
     </div>
@@ -134,8 +138,8 @@ function AboutPanel({ settings, pages, onClose }: { settings: any; pages: any[];
         className="relative z-10 w-full max-w-md fm-surface border-l border-white/10 h-full overflow-y-auto flex flex-col"
       >
         <div className="flex justify-between items-center px-8 py-6 border-b border-white/10">
-          <span className="text-[10px] tracking-[0.5em] text-white/40 uppercase">Information</span>
-          <button onClick={onClose} aria-label="Close information" className="p-2 hover:bg-white/5 rounded-full transition-colors">
+          <span className="text-[10px] tracking-[0.5em] text-white/40 uppercase">{getCopy(settings?.design, "aboutTitle")}</span>
+          <button onClick={onClose} aria-label={getCopy(settings?.design, "aboutCloseAria")} className="p-2 hover:bg-white/5 rounded-full transition-colors">
             <X size={18} className="text-white/60" />
           </button>
         </div>
@@ -147,19 +151,19 @@ function AboutPanel({ settings, pages, onClose }: { settings: any; pages: any[];
             </h2>
             <p className="text-white/50 text-sm leading-relaxed">
               {settings?.info?.description || 
-                "An independent publishing house based in Toronto, Canada. We specialize in contemporary photography and fine art books — curating rare editions, limited ephemera, and a growing archive of visual culture."}
+                getCopy(settings?.design, "aboutIntro")}
             </p>
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-[9px] tracking-[0.5em] text-white/30 uppercase">Our Mission</h3>
+            <h3 className="text-[9px] tracking-[0.5em] text-white/30 uppercase">{getCopy(settings?.design, "aboutMissionHeading")}</h3>
             <p className="text-white/50 text-sm leading-relaxed">
-              We believe photography is literature. Each book in our archive is a document — a record of vision, place, and time. We publish work that endures.
+              {getCopy(settings?.design, "aboutMission")}
             </p>
           </div>
 
           <div className="space-y-3">
-            <h3 className="text-[9px] tracking-[0.5em] text-white/30 uppercase">Contact</h3>
+            <h3 className="text-[9px] tracking-[0.5em] text-white/30 uppercase">{getCopy(settings?.design, "aboutContactHeading")}</h3>
             {(settings?.info?.email || "lyricalmyricalbooks@gmail.com") && (
               <a
                 href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
@@ -177,7 +181,7 @@ function AboutPanel({ settings, pages, onClose }: { settings: any; pages: any[];
           </div>
 
           <div className="space-y-3">
-            <h3 className="text-[9px] tracking-[0.5em] text-white/30 uppercase">Follow</h3>
+            <h3 className="text-[9px] tracking-[0.5em] text-white/30 uppercase">{getCopy(settings?.design, "aboutFollowHeading")}</h3>
             <a
               href="https://www.instagram.com/lyricalmyricalbooks"
               target="_blank"
@@ -199,7 +203,7 @@ function AboutPanel({ settings, pages, onClose }: { settings: any; pages: any[];
           </div>
 
           <div className="pt-6 border-t border-white/10 space-y-2 text-[10px] text-white/30 font-medium">
-            <Link to="/" className="block hover:text-white transition-colors">SHOP ALL</Link>
+            <Link to="/" className="block hover:text-white transition-colors">{getCopy(settings?.design, "aboutShopAll")}</Link>
             {navPages.map(page => (
               <Link 
                 key={page.id} 
@@ -211,7 +215,7 @@ function AboutPanel({ settings, pages, onClose }: { settings: any; pages: any[];
               </Link>
             ))}
             {settings?.policies?.shipping && (
-              <p className="cursor-default">Shipping Policy available</p>
+              <p className="cursor-default">{getCopy(settings?.design, "aboutShippingNote")}</p>
             )}
           </div>
         </div>
@@ -234,7 +238,7 @@ function Newsletter({ design }: { design?: any }) {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   const buttonBg = design?.buttonColor || design?.primaryColor || "#ffffff";
-  const buttonText = design?.buttonTextColor || "#000000";
+  const buttonText = design?.buttonTextColor || "#100f0d";
   const buttonRadius = Math.max(0, Math.min(999, design?.buttonRadius ?? 999));
   const buttonStyle = design?.buttonStyle || "solid";
   const buttonUppercase = design?.buttonUppercase ?? true;
@@ -371,10 +375,10 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
   const headingFontFamily = d?.headingFont ? `'${d.headingFont}', serif` : undefined;
   return (
     <footer
-      className="border-t border-white/10 bg-black/40 backdrop-blur-xl"
+      className="border-t-2 border-white/30 bg-black/40"
       style={d?.footerBg ? { backgroundColor: d.footerBg } : undefined}
     >
-      <div className={`max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 ${fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/40`}>
+      <div className={`max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 ${fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/70`}>
         {/* Col 1: Brand */}
         <div className="space-y-4">
           {d?.wordmarkStyle === "two-part" ? (
@@ -382,7 +386,7 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
               {d.wordmarkPrimary || "Lyricalmyrical"} <span className="opacity-60">{d.wordmarkSecondary || "Books"}</span>
             </p>
           ) : (
-            <p className="text-white font-bold tracking-widest text-xs">LYRICALMYRICAL BOOKS</p>
+            <p className="text-white font-bold tracking-widest text-xs">{getCopy(settings?.design, "footerWordmark")}</p>
           )}
           <p className="leading-relaxed max-w-xs">
             {settings?.info?.description || getCopy(settings?.design, "footerAbout")}
@@ -391,14 +395,14 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
 
         {/* Col 2: Navigation */}
         <div className="space-y-3">
-          <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerNavHeading")}</p>
+          <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerNavHeading")}</p>
           {settings?.design?.menus?.footer?.length > 0 ? (
             <FooterMenu items={settings.design.menus.footer} />
           ) : (
             <>
-              <button onClick={onAboutOpen} className="block hover:text-white transition-colors">About</button>
-              <Link to="/" className="block hover:text-white transition-colors">Shop</Link>
-              <Link to="/track" className="block hover:text-white transition-colors">Track Order</Link>
+              <button onClick={onAboutOpen} className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkAbout")}</button>
+              <Link to="/" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkShop")}</Link>
+              <Link to="/track" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkTrack")}</Link>
               {navPages.map(page => (
                 <Link
                   key={page.id}
@@ -408,12 +412,12 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
                   {page.title}
                 </Link>
               ))}
-              <a href="https://www.instagram.com/lyricalmyricalbooks" target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">Instagram</a>
+              <a href={settings?.design?.social?.instagram || "https://www.instagram.com/lyricalmyricalbooks"} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkInstagram")}</a>
               <a
                 href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
                 className="block hover:text-white transition-colors"
               >
-                Contact
+                {getCopy(settings?.design, "footerLinkContact")}
               </a>
             </>
           )}
@@ -421,7 +425,7 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
 
         {/* Col 3: Policies / Info */}
         <div className="space-y-3">
-          <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLegalHeading")}</p>
+          <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLegalHeading")}</p>
           {POLICY_KEYS.filter((k) => (settings?.policies as any)?.[k]?.trim()).map((k) => (
             <p key={k}><Link to={`/page/${policySlug(k)}`} className="hover:text-white transition-colors">{POLICY_TITLES[k]}</Link></p>
           ))}
@@ -431,7 +435,7 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
         {/* Col 4: Location (4-column layout only) */}
         {fourCol && (
           <div className="space-y-3">
-            <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLocationHeading")}</p>
+            <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLocationHeading")}</p>
             <p>{getCopy(settings?.design, "footerLocation")}</p>
             <a
               href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
@@ -444,13 +448,13 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
       </div>
 
       {/* Bottom bar */}
-      <div className="border-t border-white/5 max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
-        <p className="text-[9px] tracking-widest text-white/20 uppercase">
+      <div className="border-t border-white/20 max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+        <p className="text-[9px] tracking-widest text-white/55 uppercase">
           {getCopy(settings?.design, "footerCopyright")}
         </p>
 
         {settings?.payments?.footerBadges?.length > 0 && (
-          <div className="flex items-center gap-4 text-white/20 select-none">
+          <div className="flex items-center gap-4 text-white/55 select-none">
             {settings.payments.footerBadges.map((badgeId: string) => {
               const icon = PAYMENT_ICONS[badgeId];
               if (!icon) return null;
@@ -465,16 +469,16 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
 
         <div className="flex gap-4">
           <a
-            href="https://www.instagram.com/lyricalmyricalbooks"
+            href={settings?.design?.social?.instagram || "https://www.instagram.com/lyricalmyricalbooks"}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-white/20 hover:text-white transition-colors"
+            className="text-white/55 hover:text-white transition-colors"
           >
             <Instagram size={14} />
           </a>
           <a
             href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
-            className="text-white/20 hover:text-white transition-colors"
+            className="text-white/55 hover:text-white transition-colors"
           >
             <Mail size={14} />
           </a>
@@ -515,7 +519,7 @@ function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive:
   const rotateMs = hero.rotateMs || 5000;
 
   const carouselButtonBg = design?.buttonColor || design?.primaryColor || "#ffffff";
-  const carouselButtonText = design?.buttonTextColor || "#000000";
+  const carouselButtonText = design?.buttonTextColor || "#100f0d";
   const carouselButtonRadius = Math.max(0, Math.min(999, design?.buttonRadius ?? 999));
   const carouselButtonStyle = design?.buttonStyle || "solid";
   const carouselButtonUppercase = design?.buttonUppercase ?? true;
@@ -604,14 +608,14 @@ function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive:
           <button
             onClick={() => setActiveSlideIndex((prev) => (prev - 1 + slides.length) % slides.length)}
             className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full border border-white/20 bg-black/30 flex items-center justify-center hover:bg-black/50"
-            aria-label="Previous slide"
+            aria-label={getCopy(design, "ariaPrevSlide")}
           >
             <ChevronLeft size={16} />
           </button>
           <button
             onClick={() => setActiveSlideIndex((prev) => (prev + 1) % slides.length)}
             className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full border border-white/20 bg-black/30 flex items-center justify-center hover:bg-black/50"
-            aria-label="Next slide"
+            aria-label={getCopy(design, "ariaNextSlide")}
           >
             <ChevronRight size={16} />
           </button>
@@ -715,8 +719,8 @@ function TypographyTokens({ design }: { design: any }) {
   const t = resolveTypography(design);
   // Global button colors — every CTA reads these vars unless a section
   // overrides its own accent.
-  const btnBg = design?.buttonColor || design?.primaryColor || "#A855F7";
-  const btnText = design?.buttonTextColor || "#000000";
+  const btnBg = design?.buttonColor || design?.primaryColor || "#e8402a";
+  const btnText = design?.buttonTextColor || "#100f0d";
   let css = `
 [data-fm-store]{
   font-family:'${t.body}',sans-serif;
@@ -726,9 +730,9 @@ function TypographyTokens({ design }: { design: any }) {
   ${buildStorefrontTokenVars(design)}
   --btn-bg:${btnBg};
   --btn-text:${btnText};
-  --bg-color:${design?.backgroundColor || "#030213"};
+  --bg-color:${design?.backgroundColor || "#000000"};
   --text-color:${design?.textColor || "#ffffff"};
-  --link-hover-color:${design?.linkColorHover || "#F61515"};
+  --link-hover-color:${design?.linkColorHover || "#ff6b55"};
   --border-color:${design?.borderColor || "rgba(255,255,255,0.05)"};
   --btn-hover-bg:${design?.buttonHoverBgColor || "#C1BBBB"};
   --btn-hover-text:${design?.buttonHoverTextColor || "#FFFFFF"};
@@ -757,7 +761,7 @@ function TypographyTokens({ design }: { design: any }) {
 }
 /* Semantic token layer: remaps white/black alpha utilities + fm-* helpers. */
 ${STOREFRONT_TOKEN_CSS}
-${design?.themeStyle === "riso" ? RISO_STOREFRONT_CSS : ""}
+${design?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(design) : ""}
 `;
   if (t.typeScale) {
     const size = (steps: number) => Math.round(t.base * Math.pow(t.typeScale, steps) * 10) / 10;
@@ -952,11 +956,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showSys = showCatalog
     ? (storefrontHeaderLinks.showSys ?? true)
     : (heroHeaderLinks.showSys ?? true);
-  const storefrontBg = storefrontDesign?.backgroundColor || "#050505";
+  const storefrontBg = storefrontDesign?.backgroundColor || "#000000";
   const storefrontText = storefrontDesign?.textColor || "#ffffff";
-  const storefrontAccent = storefrontDesign?.primaryColor || "#ffffff";
+  const storefrontAccent = storefrontDesign?.primaryColor || "#e8402a";
   const storefrontButtonBg = storefrontDesign?.buttonColor || storefrontAccent;
-  const storefrontButtonText = storefrontDesign?.buttonTextColor || "#000000";
+  const storefrontButtonText = storefrontDesign?.buttonTextColor || "#100f0d";
   const storefrontMaxWidth = Math.max(900, Math.min(1600, storefrontDesign?.containerWidth ?? 1200));
   // Default legacy storefronts into the requested photo-reference design. The
   // previous implementation only changed sites after a merchant manually applied
@@ -984,9 +988,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontButtonUppercase = storefrontDesign?.buttonUppercase ?? true;
   const storefrontButtonShadow = storefrontDesign?.buttonShadow ?? true;
 
-  const heroAccent = heroDesign?.primaryColor || "#ffffff";
+  const heroAccent = heroDesign?.primaryColor || "#e8402a";
   const heroButtonBg = heroDesign?.buttonColor || heroAccent;
-  const heroButtonText = heroDesign?.buttonTextColor || "#000000";
+  const heroButtonText = heroDesign?.buttonTextColor || "#100f0d";
   const heroButtonRadius = Math.max(0, Math.min(999, heroDesign?.buttonRadius ?? 999));
   const heroButtonStyle = heroDesign?.buttonStyle || "solid";
   const heroButtonUppercase = heroDesign?.buttonUppercase ?? true;
@@ -1055,23 +1059,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   if (loading) {
     return (
-      <div className="h-screen w-full bg-[#030213] flex flex-col items-center justify-center relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-tr from-purple-900/20 via-transparent to-blue-900/20" />
-        <motion.div 
-          animate={{ scale: [1, 1.05, 1], opacity: [0.5, 1, 0.5] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          className="w-16 h-16 rounded-full bg-white/5 backdrop-blur-md border border-white/10 flex items-center justify-center shadow-[0_0_40px_rgba(255,255,255,0.1)]"
-        >
-          <span className="text-white text-[10px] tracking-widest font-bold">F✶M</span>
-        </motion.div>
-        <p className="mt-8 text-[10px] tracking-[0.4em] text-white/50 uppercase font-medium">Curating Archive</p>
-      </div>
+      <BootSplash />
     );
   }
 
   // Maintenance mode gate
   if (settings?.maintenance?.enabled) {
-    return <MaintenancePage message={settings.maintenance.message} />;
+    return <MaintenancePage message={settings.maintenance.message} design={activeDesign} />;
   }
 
   if (showCatalog) {
@@ -1091,8 +1085,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               data-section="announcements"
               className="overflow-hidden py-2.5 sticky top-0 z-[60]"
               style={{
-                backgroundColor: storefrontDesign?.announcementBg || "#000000",
-                color: storefrontDesign?.announcementColor || "#ffffff",
+                backgroundColor: storefrontDesign?.announcementBg || "#e8402a",
+                color: storefrontDesign?.announcementColor || "#100f0d",
               }}
             >
               <div
@@ -1116,8 +1110,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               data-section="announcements"
               className="text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]"
               style={{
-                backgroundColor: storefrontDesign?.announcementBg || "#000000",
-                color: storefrontDesign?.announcementColor || "#ffffff",
+                backgroundColor: storefrontDesign?.announcementBg || "#e8402a",
+                color: storefrontDesign?.announcementColor || "#100f0d",
               }}
             >
               {announcementMsg}
@@ -1146,7 +1140,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 {showBag && catalogCartPlacement === "top-right" && (
                   <button
                     onClick={() => setIsCartOpen(true)}
-                    aria-label="Open cart"
+                    aria-label={getCopy(activeDesign, "ariaCart")}
                     className="flex items-center gap-2 pt-1 text-lg md:text-2xl font-black leading-none hover:opacity-70 transition-opacity"
                     style={{ color: headerTextColor }}
                   >
@@ -1173,10 +1167,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 {showCustomPages && (pages || []).filter((p: any) => p.showInNav && p.status === "published").map((page: any) => (
                   <Link key={page.id} to={`/page/${page.slug}`} className="hover:opacity-70 transition-opacity">{page.title}</Link>
                 ))}
-                {showInformation && <button onClick={() => setShowAbout(true)} className="hover:opacity-70 transition-opacity">About</button>}
-                <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity">Search</button>
+                {showInformation && <button onClick={() => setShowAbout(true)} className="hover:opacity-70 transition-opacity">{getCopy(activeDesign, "navAbout")}</button>}
+                <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity">{getCopy(activeDesign, "navSearch")}</button>
                 {showSys && (
-                  <Link to="/admin" className="hover:opacity-70 transition-opacity opacity-40">Admin</Link>
+                  <Link to="/admin" className="hover:opacity-70 transition-opacity opacity-40">{getCopy(activeDesign, "navAdmin")}</Link>
                 )}
                 {showBag && catalogCartPlacement === "nav-end" && (
                   <button onClick={() => setIsCartOpen(true)} className="hover:opacity-70 transition-opacity">
@@ -1303,7 +1297,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               )}
               <button
                 onClick={() => setSearchOpen(true)}
-                aria-label="Search"
+                aria-label={getCopy(activeDesign, "ariaSearch")}
                 style={{ color: headerTextColor }}
                 className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-all opacity-50 hover:opacity-100"
               >
@@ -1311,7 +1305,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               </button>
               <Link
                 to="/wishlist"
-                aria-label="Wishlist"
+                aria-label={getCopy(activeDesign, "ariaWishlist")}
                 style={{ color: headerTextColor }}
                 className="relative hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-all opacity-50 hover:opacity-100"
               >
@@ -1324,7 +1318,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               </Link>
               <Link
                 to="/account"
-                aria-label="Account"
+                aria-label={getCopy(activeDesign, "ariaAccount")}
                 style={{ color: headerTextColor }}
                 className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-all opacity-50 hover:opacity-100"
               >
@@ -1611,7 +1605,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         <Newsletter design={settings?.design} />
         <SiteFooter settings={settings} pages={pages} onAboutOpen={() => setShowAbout(true)} />
         {(storefrontDesign?.showPoweredBy ?? false) && (
-          <p className="text-center pb-8 text-[9px] tracking-[0.3em] uppercase opacity-50">Powered by Lyricalmyrical</p>
+          <p className="text-center pb-8 text-[9px] tracking-[0.3em] uppercase opacity-50">{getCopy(activeDesign, "poweredBy")}</p>
         )}
 
         {/* About panel */}
@@ -1633,7 +1627,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       className="min-h-screen w-full overflow-x-hidden relative selection:bg-white selection:text-black font-sans"
       style={{ 
         fontFamily: `'${resolveTypography(heroDesign).body}', sans-serif`,
-        backgroundColor: heroDesign?.backgroundColor || "#030213",
+        backgroundColor: heroDesign?.backgroundColor || "#000000",
         color: heroDesign?.textColor || "#ffffff"
       }}
     >
@@ -1742,7 +1736,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
           <button
             onClick={() => setSearchOpen(true)}
-            aria-label="Search"
+            aria-label={getCopy(activeDesign, "ariaSearch")}
             style={{ color: homeHeaderTextColor }}
             className="hidden sm:flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-all opacity-70 hover:opacity-100"
           >

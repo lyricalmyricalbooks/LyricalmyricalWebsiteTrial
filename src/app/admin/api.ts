@@ -29,6 +29,7 @@ import { legacyDb, legacyAuth } from "../../lib/legacyFirebase";
 import { ref as dbRef, get as dbGet } from "firebase/database";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { CATEGORIES } from "../features/site/constants";
+import { RISO_NOIR_ID, RISO_NOIR_TOKENS, withRisoNoirDefault } from "../features/site/risoNoir";
 import type { Book, Page, SiteSettings } from "../features/site/types";
 
 export const adminApi = {
@@ -399,7 +400,11 @@ export const adminApi = {
     }
     
     // Merge snap data with defaults to ensure new fields are present
-    return { ...defaultSettings, ...snap.data() };
+    const merged: any = { ...defaultSettings, ...snap.data() };
+    // Older designs never chose a themeStyle: render them in Riso Noir (content untouched).
+    if (merged.design) merged.design = withRisoNoirDefault(merged.design);
+    if (merged.draftDesign) merged.draftDesign = withRisoNoirDefault(merged.draftDesign);
+    return merged;
   },
 
   updateSettings: async (settings: any, options: { publish?: boolean } = {}) => {
@@ -533,8 +538,8 @@ export const adminApi = {
       rates: []
     },
     design: {
-      primaryColor: "#A855F7",
-      font: "Inter",
+      primaryColor: "#e8402a",
+      font: "Archivo",
       palettePreset: "dark",
       categories: CATEGORIES,
       // Navigation & Layout
@@ -635,7 +640,10 @@ export const adminApi = {
             ctaLink: "/shop"
           }
         ]
-      }
+      },
+      // Riso Noir last so its tokens win over the legacy literals above.
+      ...RISO_NOIR_TOKENS,
+      themeLibraryPreset: RISO_NOIR_ID,
     }
   }),
 

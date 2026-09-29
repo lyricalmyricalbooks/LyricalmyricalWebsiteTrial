@@ -101,6 +101,7 @@ import {
 import { Tablet } from "lucide-react";
 import toast from "react-hot-toast";
 import { applyThemeKeysToSurfaces } from "./themeScope";
+import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../features/site/risoNoir";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour palette presets
@@ -123,8 +124,20 @@ const PALETTES = [
 
 export const THEME_LIBRARY = [
   {
+    id: RISO_NOIR_ID,
+    name: "Lyricalmyrical Riso Noir",
+    mood: "Riso Press on black: white ink, flare-red accent, square outlined objects and flat offset shadows",
+    palettePreset: "dark",
+    font: "Archivo", fontSize: "md", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "minimal",
+    productCardStyle: "editorial", productHoverEffect: "lift", imageAspectRatio: "3:4", productImageLayout: "grid",
+    productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 0, productCTA: "ADD TO BAG",
+    catalogLayoutStyle: "reference", showCatalogControls: true,
+    homeLayoutTemplate: RISO_NOIR_ID,
+    global: RISO_NOIR_TOKENS,
+  },
+  {
     id: "lyricalmyrical-riso",
-    name: "Lyricalmyrical Riso",
+    name: "Lyricalmyrical Riso (Paper)",
     mood: "Riso Press: flat ink on newsprint, flare-red accent, square outlined objects and offset shadows",
     palettePreset: "warm",
     font: "Archivo", fontSize: "md", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "minimal",
@@ -278,6 +291,8 @@ const applyThemePreset = (
   ].forEach((key) => {
     if (Object.prototype.hasOwnProperty.call(theme, key)) update(key, theme[key]);
   });
+  // Presets without a style of their own must clear a previously applied Riso treatment.
+  if (!theme.global || theme.global.themeStyle === undefined) update("themeStyle", "default");
   if (theme.global) {
     // Surface objects shadow root keys on the storefront (`design.heroPage ?? design`),
     // so full-theme token sets must land on the root and both surfaces.
@@ -1069,6 +1084,34 @@ function ColorsPanel({ design, update, colorSchemes = [] }: { design: any; updat
               Reset surfaces &amp; status to defaults
             </button>
           )}
+        </div>
+      </Accordion>
+
+      <Accordion title="Riso print treatment" defaultOpen={false}>
+        <div className="space-y-6">
+          <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic mb-2">
+            Outlines, offset shadows, focus ring and texture of the Riso Press look. Turn the
+            print style off for the plain storefront.
+          </p>
+          <SidebarSelect
+            label="Print style"
+            value={design.themeStyle === "riso" ? "riso" : "default"}
+            onChange={(v: string) => update("themeStyle", v)}
+            options={[{ value: "riso", label: "Riso Press (outlined, flat shadows)" }, { value: "default", label: "Standard" }]}
+          />
+          <ColorPicker label="Outline color" value={design.risoOutlineColor || design.textColor || "#ffffff"} onChange={(val) => update("risoOutlineColor", val)} />
+          <SidebarRange label="Outline width" value={design.risoOutlineWidth ?? 2} min={0} max={6} step={1} suffix="px" onChange={(v: number) => update("risoOutlineWidth", v)} />
+          <ColorPicker label="Offset shadow color" value={design.risoShadowColor || ""} onChange={(val) => update("risoShadowColor", val)} />
+          <SidebarRange label="Offset shadow distance" value={design.risoShadowOffset ?? 3} min={0} max={12} step={1} suffix="px" onChange={(v: number) => update("risoShadowOffset", v)} />
+          <SidebarRange label="Card corner radius" value={design.risoCardRadius ?? 4} min={0} max={24} step={1} suffix="px" onChange={(v: number) => update("risoCardRadius", v)} />
+          <ColorPicker label="Keyboard focus ring" value={design.focusRingColor || design.primaryColor || "#e8402a"} onChange={(val) => update("focusRingColor", val)} />
+          <SidebarToggle
+            label="Uppercase headings"
+            description="Set h1–h3 in capitals (Riso Press default)"
+            checked={design.risoUppercaseHeadings !== false}
+            onChange={(v: boolean) => update("risoUppercaseHeadings", v)}
+          />
+          <SidebarRange label="Halftone texture" value={design.risoGrain ?? 0} min={0} max={1} step={0.05} onChange={(v: number) => update("risoGrain", v)} />
         </div>
       </Accordion>
 

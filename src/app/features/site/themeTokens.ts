@@ -153,6 +153,15 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
     `--on-success: ${onSuccess};`,
     `--muted: ${muted};`,
     `--muted-rgb: ${hexToRgbTriplet(muted, "148 163 184")};`,
+    // Riso Press print treatment — every literal is an editable design key.
+    `--rp-outline: ${design?.risoOutlineColor || fg};`,
+    `--rp-outline-w: ${Number.isFinite(Number(design?.risoOutlineWidth)) && design?.risoOutlineWidth !== "" && design?.risoOutlineWidth != null ? Number(design.risoOutlineWidth) : 2}px;`,
+    `--rp-shadow-color: ${design?.risoShadowColor || `rgba(${fgTriplet.replace(/ /g, ",")},0.3)`};`,
+    `--rp-shadow-x: ${Number.isFinite(Number(design?.risoShadowOffset)) && design?.risoShadowOffset != null && design?.risoShadowOffset !== "" ? Number(design.risoShadowOffset) : 3}px;`,
+    `--rp-focus: ${design?.focusRingColor || accent};`,
+    `--rp-card-radius: ${Number.isFinite(Number(design?.risoCardRadius)) && design?.risoCardRadius != null && design?.risoCardRadius !== "" ? Number(design.risoCardRadius) : 4}px;`,
+    `--rp-heading-transform: ${design?.risoUppercaseHeadings === false ? "none" : "uppercase"};`,
+    `--on-accent: ${design?.buttonTextColor || "#100f0d"};`,
     `--card-shadow: ${cardShadow};`,
     `--card-shadow-hover: ${cardShadowHover};`,
     `--section-padding: ${spacing.section};`,
@@ -291,25 +300,37 @@ ${alphaOverrideCss}
  * (payment clarity always outranks decoration — inputs stay conventional).
  */
 export const RISO_STOREFRONT_CSS = `
-[data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3{text-wrap:balance;text-transform:uppercase;letter-spacing:.01em;font-weight:400;}
+[data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3{text-wrap:balance;text-transform:var(--rp-heading-transform,uppercase);letter-spacing:.01em;font-weight:400;}
 [data-fm-store] button,[data-fm-store] a{transition-timing-function:cubic-bezier(.2,.7,.2,1);}
 [data-fm-store] .glass-card{
   backdrop-filter:none;
-  background:var(--surface-raised,#fff);
-  border:2px solid #100f0d;
-  border-radius:4px;
-  box-shadow:3px 3px 0 rgba(16,15,13,.3);
+  background:var(--surface-2,var(--surface));
+  border:var(--rp-outline-w) solid var(--rp-outline);
+  border-radius:var(--rp-card-radius);
+  box-shadow:var(--rp-shadow-x) var(--rp-shadow-x) 0 var(--rp-shadow-color);
 }
 [data-fm-store] .custom-btn,[data-fm-store] button.custom-btn{
-  border:2px solid #100f0d;border-radius:0;box-shadow:2px 2px 0 rgba(16,15,13,.18);
+  border:var(--rp-outline-w) solid var(--rp-outline);border-radius:0;box-shadow:2px 2px 0 var(--rp-shadow-color);
   text-transform:uppercase;letter-spacing:.09em;font-weight:800;
 }
-[data-fm-store] .custom-btn:hover{box-shadow:3px 3px 0 rgba(16,15,13,.3);}
-[data-fm-store] input,[data-fm-store] select,[data-fm-store] textarea{border-radius:0 !important;box-shadow:none;border-width:1px;}
+[data-fm-store] .custom-btn:hover{box-shadow:var(--rp-shadow-x) var(--rp-shadow-x) 0 var(--rp-shadow-color);}
+[data-fm-store] input,[data-fm-store] select,[data-fm-store] textarea{border-radius:0 !important;box-shadow:none;border:1px solid rgba(var(--border-rgb),.7);}
 [data-fm-store] [class*="rounded-"]:not([class*="rounded-full"]){border-radius:0 !important;}
-[data-fm-store] .glass-card,[data-fm-store] [class*="rounded-[2"],[data-fm-store] [class*="rounded-[3"]{border-radius:4px !important;}
-[data-fm-store] [class*="shadow-"]:not([class*="shadow-none"]):not(.custom-btn){box-shadow:3px 3px 0 rgba(16,15,13,.3) !important;}
-[data-fm-store] :where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid #e8402a;outline-offset:2px;}
+[data-fm-store] .glass-card,[data-fm-store] [class*="rounded-[2"],[data-fm-store] [class*="rounded-[3"]{border-radius:var(--rp-card-radius) !important;}
+[data-fm-store] [class*="shadow-"]:not([class*="shadow-none"]):not(.custom-btn){box-shadow:var(--rp-shadow-x) var(--rp-shadow-x) 0 var(--rp-shadow-color) !important;}
+[data-fm-store] :where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--rp-focus);outline-offset:2px;}
+[data-fm-store] ::selection{background:var(--accent);color:var(--on-accent);}
 @media (pointer:coarse){[data-fm-store] .custom-btn{min-height:44px;}}
 @media (prefers-reduced-motion:reduce){[data-fm-store] *{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important;}}
 `;
+
+/**
+ * Optional halftone dot texture (design.risoGrain, 0–1, default 0 = off). Kept out of
+ * RISO_STOREFRONT_CSS so the base treatment stays flat; only emitted when a merchant opts in.
+ */
+export function risoGrainCss(design: StorefrontTokenInput = {}): string {
+  const g = Number(design?.risoGrain);
+  if (!Number.isFinite(g) || g <= 0) return "";
+  const a = Math.min(g, 1) * 0.16;
+  return `[data-fm-store]{background-image:radial-gradient(rgba(var(--fg-rgb),${a.toFixed(3)}) 1px,transparent 1.3px);background-size:6px 6px;}`;
+}

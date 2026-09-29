@@ -22,7 +22,7 @@ import ReviewsSection from "./ReviewsSection";
 import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 import { resolveLogoDesign } from "./selectors";
-import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, STOREFRONT_TOKEN_CSS } from "./themeTokens";
+import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "./themeTokens";
 
 // ── small helper ────────────────────────────────────────────────────────────
 function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
@@ -165,7 +165,7 @@ export default function BookDetail() {
       box-shadow: none !important;
     }
     ${STOREFRONT_TOKEN_CSS}
-    ${(tokenSource as any)?.themeStyle === "riso" ? RISO_STOREFRONT_CSS : ""}
+    ${(tokenSource as any)?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(tokenSource as any) : ""}
   `;
 
   const bookCategories = (book as any)?.categories || (book as any)?.genres || [];
