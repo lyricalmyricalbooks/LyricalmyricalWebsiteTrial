@@ -17,6 +17,9 @@ import {
 } from "./studioModel";
 import { STATIC_SURFACES, STYLE_GROUPS, applyGlobalStyle, readStyle } from "./styleSchema";
 import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
+import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
+import { HOME_LAYOUT_TEMPLATES } from "../ThemeEditorBuilder";
+import { applyThemeKeysToSurfaces } from "../themeScope";
 
 type LeftTab = "sections" | "style" | "text" | "menus";
 type Toast = { kind: "ok" | "err"; text: string } | null;
@@ -279,6 +282,22 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
   const setList = (fn: (l: Section[]) => Section[]) => change((d) => setSections(d, target, fn(getSections(d, target))));
   const patchSelected = (patch: Record<string, any>) => selectedId && setList((l) => patchSectionSettings(l, selectedId, patch));
   const setStyle = (path: string, value: any) => change((d) => applyGlobalStyle(d, path, value, surfaceIds));
+  const applyNoirLook = () => {
+    if (!window.confirm("Apply the Riso Noir look (black background, white text, flare accent) to every page? Your sections and text are kept.")) return;
+    change((d) => applyThemeKeysToSurfaces(d, { ...RISO_NOIR_TOKENS, themeLibraryPreset: RISO_NOIR_ID }, surfaceIds));
+    say("ok", "Riso Noir applied to the draft — Publish to make it live.");
+  };
+  const installNoirHome = () => {
+    const tpl = HOME_LAYOUT_TEMPLATES.find((t) => t.id === RISO_NOIR_ID);
+    if (!tpl) return;
+    if (!window.confirm("Replace the Homepage sections with the Riso Noir layout? You can Undo (Ctrl+Z) until you save.")) return;
+    change((d) => setSections(d, { kind: "template", id: "heroPage" }, tpl.sections.map((s) =>
+      makeSection(s.type, { ...(getSectionMeta(s.type)?.defaults || {}), ...(s.settings || {}) }))));
+    setTemplateId("heroPage");
+    setShowGlobal(false);
+    say("ok", "Noir homepage layout installed on the draft.");
+  };
+  const riso = design.themeStyle === "riso";
 
   // ── preview wiring ──
   const previewUrl = useMemo(() => {
@@ -507,8 +526,17 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
               </div>
             )}
 
+            {leftTab === "style" && (
+              <Group title="Theme look" open
+                hint={`Current look: ${design.themeLibraryPreset === RISO_NOIR_ID ? "Riso Noir" : riso ? "Riso Press" : "Standard / custom"}. One click sets every color, font and print detail below; you can still change each one afterwards.`}>
+                <button type="button" className={`${btnPrimary} w-full justify-center`} onClick={applyNoirLook}>Apply Riso Noir (black &amp; white)</button>
+                <button type="button" className={`${btn} w-full justify-center`} onClick={installNoirHome}>Also install the Noir homepage layout</button>
+                <button type="button" className={`${btn} w-full justify-center`} disabled={!riso} onClick={() => setStyle("themeStyle", "default")}>Turn off Riso print style</button>
+              </Group>
+            )}
+
             {leftTab === "style" && STYLE_GROUPS.map((g, gi) => (
-              <Group key={g.id} title={g.title} hint={g.hint} open={gi === 0}>
+              <Group key={g.id} title={g.title} hint={g.hint} open={false}>
                 {g.fields.map((f) => (
                   <SectionFieldEditor key={f.key} field={f as any}
                     value={readStyle(design, f.key) ?? readStyle(defaults, f.key)}

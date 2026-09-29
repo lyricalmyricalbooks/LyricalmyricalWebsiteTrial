@@ -48,6 +48,8 @@ export const RISO_NOIR_TOKENS: Record<string, any> = {
   showCategoryChips: true, categoryChipShowCounts: true, catalogHeading: "Printed matter",
   productBorderRadius: 0, cardRadius: 0, showCatalogCount: true, showQtyStepper: true,
   productDescriptionStyle: "designed",
+  // Optional storefront elements (all on).
+  showRecentlyViewed: true, showBreadcrumbs: true, showCookieBanner: true,
 };
 
 /** Surfaces that resolve their own design object before falling back to the root. */
