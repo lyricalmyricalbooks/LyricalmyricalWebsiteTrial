@@ -36,4 +36,9 @@ describe("SECTION_REGISTRY ↔ SectionComponents parity", () => {
       expect(rendererNames.has(t)).toBe(true);
     }
   });
+
+  it("includes the responsive image banner in both registry and renderers", () => {
+    expect(registryTypes).toContain("ImageBannerSection");
+    expect(rendererNames.has("ImageBannerSection")).toBe(true);
+  });
 });

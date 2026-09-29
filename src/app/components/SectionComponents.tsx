@@ -318,6 +318,96 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
 }
 
 // ──────────────────────────────
+// IMAGE BANNER
+// ──────────────────────────────
+
+const BANNER_HEIGHTS: Record<string, string> = {
+  small: "min-h-[360px] md:min-h-[420px]",
+  medium: "min-h-[480px] md:min-h-[560px]",
+  large: "min-h-[580px] md:min-h-[720px]",
+  full: "min-h-screen",
+};
+
+const BANNER_POSITIONS: Record<string, string> = {
+  "top-left": "items-start justify-start",
+  "top-center": "items-start justify-center",
+  "top-right": "items-start justify-end",
+  "center-left": "items-center justify-start",
+  "center-center": "items-center justify-center",
+  "center-right": "items-center justify-end",
+  "bottom-left": "items-end justify-start",
+  "bottom-center": "items-end justify-center",
+  "bottom-right": "items-end justify-end",
+};
+
+function followBannerLink(url: string | undefined, fallback?: () => void) {
+  if (!url) return fallback?.();
+  if (/^https?:\/\//i.test(url)) return window.open(url, "_blank", "noopener");
+  const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+  window.location.assign(url.startsWith("/") ? base + url : url);
+}
+
+export function ImageBannerSection({ settings, onCtaClick, enableAnimations }: any) {
+  const position = BANNER_POSITIONS[settings.contentPosition] || BANNER_POSITIONS["center-center"];
+  const textAlign = settings.textAlign || "center";
+  const textAlignClass = textAlign === "left" ? "text-left" : textAlign === "right" ? "text-right" : "text-center";
+  const imageAlt = settings.imageAlt || "";
+  return (
+    <section
+      className={`relative flex overflow-hidden ${BANNER_HEIGHTS[settings.height] || BANNER_HEIGHTS.large}`}
+      style={{ backgroundColor: settings.backgroundColor || "#171717" }}
+    >
+      {settings.imageUrl ? (
+        <>
+          <div className={settings.mobileImageUrl ? "absolute inset-0 hidden md:block" : "absolute inset-0"}>
+            <StyledImage src={settings.imageUrl} alt={imageAlt} settings={settings} fieldKey="imageUrl" loading="lazy" decoding="async" />
+          </div>
+          {settings.mobileImageUrl && (
+            <div className="absolute inset-0 md:hidden">
+              <StyledImage src={settings.mobileImageUrl} alt={imageAlt} settings={settings} fieldKey="mobileImageUrl" loading="lazy" decoding="async" />
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="absolute inset-0 grid place-items-center text-xs font-bold uppercase tracking-[0.25em] text-white/40">
+          Add a banner image
+        </div>
+      )}
+      <div className="absolute inset-0" style={{ backgroundColor: "#000", opacity: settings.overlayOpacity ?? 0.4 }} />
+      <div className={`relative z-10 flex w-full p-6 md:p-12 ${position}`}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className={`max-w-2xl ${textAlignClass} text-white`}>
+            {settings.eyebrow && (
+              <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: settings.accentColor || "currentColor" }} data-theme-field="eyebrow">
+                {settings.eyebrow}
+              </p>
+            )}
+            <h2 className="text-4xl font-black leading-none tracking-tight md:text-6xl" style={hStyle(settings)} data-theme-field="title">
+              {settings.title || "Stories worth keeping"}
+            </h2>
+            {settings.body && <p className="mt-5 text-base leading-relaxed text-white/80 md:text-lg" style={bStyle(settings)} data-theme-field="body">{settings.body}</p>}
+            {(settings.ctaText || settings.secondaryCtaText) && (
+              <div className={`mt-8 flex flex-wrap gap-3 ${textAlign === "left" ? "justify-start" : textAlign === "right" ? "justify-end" : "justify-center"}`}>
+                {settings.ctaText && (
+                  <button type="button" onClick={() => followBannerLink(settings.ctaUrl, onCtaClick)} className="min-h-11 px-7 py-3 text-[10px] font-bold uppercase tracking-[0.2em]" style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #fff)", color: "var(--btn-text, #000)", ...btnS(settings) }}>
+                    <span data-theme-field="ctaText">{settings.ctaText}</span>
+                  </button>
+                )}
+                {settings.secondaryCtaText && (
+                  <button type="button" onClick={() => followBannerLink(settings.secondaryCtaUrl)} className="min-h-11 border border-white/70 px-7 py-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white hover:bg-white/10">
+                    <span data-theme-field="secondaryCtaText">{settings.secondaryCtaText}</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </AnimationContainer>
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
 // FEATURE GRID
 // ──────────────────────────────
 
