@@ -216,7 +216,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           </h3>
           <p className="text-slate-400 text-xs font-medium max-w-2xl leading-relaxed">
             The storefront, checkout, and admin dashboard were successfully updated on <strong>September 29, 2026 at 12:00 AM</strong>.
-            This release introduces the Riso Press application design system (reusable AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, buttons, fields, badges, tables, tabs, dialogs, toasts, and state components) and rebuilds the admin frame with a functional global search, an accessible mobile drawer, an administrator menu, and a redesigned Activity Logs dialog with category filters and search. The sign-in screen and Reviews moderation (bulk actions, confirmation, undo) now use the new components. Remaining admin pages are migrated in follow-up releases. Checkout, totals, and the Stripe payment path remain untouched.
+            This release rebuilds the Orders list on the Riso Press design system: a searchable, sortable table with date-range and order-type filters, payment / fulfillment / address-verification badges, pagination, bulk fulfillment updates, CSV export, and an accessible confirmation dialog for deleting marked test orders. Order detail and the remaining admin pages follow. Checkout, totals, and the Stripe payment path remain untouched.
           </p>
         </div>
         <div className="shrink-0 relative z-10 bg-white/5 border border-white/10 rounded-2xl p-4 text-center min-w-[150px]">

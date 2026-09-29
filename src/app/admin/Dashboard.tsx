@@ -234,6 +234,8 @@ export function Dashboard() {
     })),
   ];
 
+  // Pages fully built from Riso components render outside the legacy compatibility layer.
+  const migrated = activeTab === "reviews" || (activeTab === "orders" && !selectedOrder);
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -362,7 +364,7 @@ export function Dashboard() {
           }
         />
         {/* Feature pages still use legacy utility classes; scope the compatibility layer to them only. */}
-        <div {...legacyProps} style={{ background: "transparent", minHeight: 480 }}>
+        <div {...(migrated ? {} : legacyProps)} style={{ background: "transparent", minHeight: 480 }}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab + (selectedOrder ? "-detail" : "") + settingsTab}
