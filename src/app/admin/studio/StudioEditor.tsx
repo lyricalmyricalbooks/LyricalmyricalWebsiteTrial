@@ -8,6 +8,7 @@ import {
   SECTION_REGISTRY, SectionFieldEditor, SectionSettingsPanel, BlocksEditor, buildPageTemplates,
   getBlockFields, getSectionFields, getSectionMeta, DEFAULT_COLOR_SCHEMES,
 } from "../ThemeEditorExtensions";
+import { CATEGORIES } from "../../features/site/constants";
 import { COPY_SCHEMA, DEFAULT_COPY } from "../../features/site/storeCopy";
 import { MENU_LINK_TYPES, newMenuItem, type MenuItem } from "../../features/site/storeMenu";
 import {
@@ -16,6 +17,7 @@ import {
   type Section, type SectionTarget,
 } from "./studioModel";
 import { STATIC_SURFACES, STYLE_GROUPS, applyGlobalStyle, readStyle } from "./styleSchema";
+import { StudioPages } from "./StudioPages";
 import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
 import { addSavedTheme, removeSavedTheme, type SavedTheme } from "./savedThemes";
@@ -24,7 +26,7 @@ import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY, PALETTES } from "./themeLibrary";
 
-type LeftTab = "sections" | "style" | "text" | "menus";
+type LeftTab = "sections" | "style" | "text" | "menus" | "pages";
 type Toast = { kind: "ok" | "err"; text: string } | null;
 
 const DEVICE_W = { desktop: "100%", tablet: "820px", mobile: "390px" } as const;
@@ -149,6 +151,43 @@ function MenuRow({ item, pages, depth, onChange, onRemove, onMove }: {
           <button className="text-xs font-bold text-blue-700 hover:underline" onClick={() => setKids([...kids, newMenuItem()])}>+ Add sub-link</button>
         </>
       )}
+    </div>
+  );
+}
+
+// ── Shop categories (the category bar in the storefront header) ───────────
+function CategoriesPanel({ design, onChange }: { design: any; onChange: (cats: any[]) => void }) {
+  const raw: any[] = Array.isArray(design.categories) ? design.categories : [...CATEGORIES];
+  const cats = raw.map((c, i) => (typeof c === "string" ? { id: `cat-${i}`, name: c, description: "", showInNav: true } : c));
+  const patch = (i: number, p: Record<string, any>) => onChange(cats.map((c, j) => (j === i ? { ...c, ...p } : c)));
+  const move = (i: number, d: number) => {
+    const j = i + d;
+    if (j < 0 || j >= cats.length) return;
+    const c = [...cats]; [c[i], c[j]] = [c[j], c[i]]; onChange(c);
+  };
+  return (
+    <div className="p-4 space-y-3 border-b border-neutral-200">
+      <div>
+        <p className="text-sm font-bold">Shop categories</p>
+        <p className="text-xs text-neutral-500">The names in the shop's category bar (Publications, Ephemera…). Rename, hide, reorder or delete them here.</p>
+      </div>
+      {cats.map((c, i) => (
+        <div key={c.id || i} className="border border-neutral-200 rounded-lg p-2 space-y-2 bg-white">
+          <div className="flex items-center gap-1">
+            <input value={c.name} onChange={(e) => patch(i, { name: e.target.value })} aria-label="Category name" placeholder="Category name"
+              className="flex-1 min-w-0 border border-neutral-200 rounded-md px-2 h-8 text-xs" />
+            <button className={iconBtn} onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move category up"><ChevronUp size={14} /></button>
+            <button className={iconBtn} onClick={() => move(i, 1)} disabled={i === cats.length - 1} aria-label="Move category down"><ChevronDown size={14} /></button>
+            <button className={iconBtn} aria-label="Delete category"
+              onClick={() => { if (window.confirm(`Delete the "${c.name || "Untitled"}" category? Books keep their data; you can re-add it later.`)) onChange(cats.filter((_, j) => j !== i)); }}><Trash2 size={14} /></button>
+          </div>
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={c.showInNav !== false} onChange={(e) => patch(i, { showInNav: e.target.checked })} />
+            Show in the shop menu
+          </label>
+        </div>
+      ))}
+      <button className={btn} onClick={() => onChange([...cats, { id: `cat-${Date.now()}`, name: "NEW CATEGORY", description: "", showInNav: true }])}><Plus size={14} /> Add category</button>
     </div>
   );
 }
@@ -485,7 +524,7 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
     if (selectedId === id) setSelectedId(null);
   };
 
-  const sidebarTabs: [LeftTab, string][] = [["sections", "Sections"], ["style", "Style"], ["text", "Text & labels"], ["menus", "Menus"]];
+  const sidebarTabs: [LeftTab, string][] = [["sections", "Sections"], ["style", "Style"], ["text", "Text & labels"], ["menus", "Menus"], ["pages", "Pages"]];
   const q = copyFilter.trim().toLowerCase();
 
   return (
@@ -531,7 +570,7 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
       <div className="flex-1 flex min-h-0">
         {/* left column */}
         <nav className="w-[320px] shrink-0 bg-white border-r border-neutral-200 flex flex-col min-h-0" aria-label="Editor panels">
-          <div className="grid grid-cols-4 border-b" role="tablist">
+          <div className="grid grid-cols-5 border-b" role="tablist">
             {sidebarTabs.map(([id, label]) => (
               <button key={id} role="tab" aria-selected={leftTab === id} onClick={() => setLeftTab(id)}
                 className={`py-3 text-[11px] font-bold leading-tight px-1 ${leftTab === id ? "border-b-2 border-neutral-900" : "text-neutral-500 hover:bg-neutral-50"}`}>{label}</button>
@@ -660,7 +699,17 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
               </div>
             )}
 
-            {leftTab === "menus" && <MenusPanel design={design} pages={pages} onChange={(m) => setStyle("menus", m)} />}
+            {leftTab === "pages" && (
+              <StudioPages pages={pages} setPages={setPages} say={say}
+                onEditSections={(slug) => { setShowGlobal(false); setTemplateId(`page:${slug}`); setSelectedId(null); setLeftTab("sections"); }} />
+            )}
+
+            {leftTab === "menus" && (
+              <>
+                <CategoriesPanel design={design} onChange={(c) => setStyle("categories", c)} />
+                <MenusPanel design={design} pages={pages} onChange={(m) => setStyle("menus", m)} />
+              </>
+            )}
           </div>
         </nav>
 

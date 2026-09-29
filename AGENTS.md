@@ -98,6 +98,8 @@ Bring general best-practices, grounded in what this repo already does:
 
 ## Theme editor — go all the way to Shopify parity
 
+> The **Studio editor** (`src/app/admin/studio/StudioEditor.tsx`) is the default Design editor users see; put every new design feature there first. `ThemeEditor.tsx` is legacy (`?editor=legacy`). See CLAUDE.md › Theme editor.
+
 The `/admin` theme editor is the most-requested area to "make as good as
 Shopify." It is **already large and capable** (~11k lines: sections/blocks,
 drag-and-drop, color schemes, fonts, draft/publish, live preview). The failure

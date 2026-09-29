@@ -64,7 +64,7 @@ export function GlobalSearch({ destinations, onOpenBook }: {
         else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
         else if (e.key === "Enter") { e.preventDefault(); choose(results[active]); }
       }}>
-      <SearchField label="Search books and admin pages" placeholder="Search books, pages…" value={q}
+      <SearchField label="Search books and admin screens" placeholder="Search books, screens…" value={q}
         role="combobox" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list"
         aria-activedescendant={showList && results[active] ? `${listId}-${active}` : undefined}
         onFocus={() => { setOpen(true); ensureBooks(); }}
