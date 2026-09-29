@@ -344,7 +344,11 @@ Shopify/WordPress-parity improvements are:
 - [x] Import/export JSON exists (`ThemeEditorPro`) plus a friendly duplicate-theme draft flow in the theme toolbar.
 - [ ] Multiple saved themes (a library of full themes, not just presets), with
       one active/published.
-- [ ] Version history / restore previous published versions.
+- [x] Version history / restore previous published versions: every Save Draft / Publish
+      writes a snapshot to the admin-only `theme-versions` Firestore collection
+      (`adminApi.saveThemeVersion`/`listThemeVersions`, last 30 kept, pruned on save),
+      loaded on editor open so history survives reloads. Restore loads a snapshot
+      into the working copy as an unsaved change; nothing goes live until Publish.
 
 ### E. Visual layout & responsive engine (Fluid Engine / Wix Studio)
 - [ ] Nested blocks (block-in-block) in the schema, `BlocksEditor`, and

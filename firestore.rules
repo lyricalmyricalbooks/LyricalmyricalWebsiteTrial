@@ -52,6 +52,9 @@ service cloud.firestore {
         && request.resource.data.items.size() <= 50);
       allow update, delete: if isAdmin();
     }
+    match /theme-versions/{versionId} {
+      allow read, write: if isAdmin();
+    }
     match /audit-log/{logId} {
       allow read, write: if isAdmin();
     }

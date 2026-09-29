@@ -234,7 +234,7 @@ e-commerce platform updated", a summary paragraph, the **Build Status** badge an
 > `AnalyticsDashboard.tsx` so it reflects the new release: the update date/time, the
 > summary of what shipped, and the **Last Code Push** timestamp.
 >
-> Current state: updated **September 29, 2026 at 5:10 AM UTC** — Riso Press admin complete for the
+> Current state: updated **September 29, 2026 at 12:40 PM UTC** (theme editor version history now persisted in `theme-versions`) — Riso Press admin complete for the
 > shell, Orders (list + detail), Overview (no simulated data), Books, Discounts,
 > Pages, Settings › General / Payments / Notifications; remaining admin pages take
 > the Riso palette through the compatibility layer. Storefront Riso preset aligned
