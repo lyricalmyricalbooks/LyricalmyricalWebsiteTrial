@@ -25,9 +25,9 @@ Captured at 1440px (desktop) and 375px (mobile) from the built app and a mock-da
 | admin-settings-notifications | [desktop](admin-settings-notifications-desktop.jpg) | [mobile](admin-settings-notifications-mobile.jpg) |
 | admin-settings-payments | [desktop](admin-settings-payments-desktop.jpg) | [mobile](admin-settings-payments-mobile.jpg) |
 | admin-settings-shipping | [desktop](admin-settings-shipping-desktop.jpg) | [mobile](admin-settings-shipping-mobile.jpg) |
+| admin-settings-shipping-profile | [desktop](admin-settings-shipping-profile-desktop.jpg) | [mobile](admin-settings-shipping-profile-mobile.jpg) |
 | admin-shell | [desktop](admin-shell-desktop.jpg) | [mobile](admin-shell-mobile.jpg) |
 | admin-shell-menu | [desktop](admin-shell-menu-desktop.jpg) | — |
-| admin-shell-mobile-drawer | [image](admin-shell-mobile-drawer.jpg) | — |
 | admin-theme-editor | [desktop](admin-theme-editor-desktop.jpg) | [mobile](admin-theme-editor-mobile.jpg) |
 | store-account | [desktop](store-account-desktop.jpg) | [mobile](store-account-mobile.jpg) |
 | store-cart | [desktop](store-cart-desktop.jpg) | [mobile](store-cart-mobile.jpg) |

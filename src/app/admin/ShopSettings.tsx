@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
-import { Checkbox, ConfirmDialog, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SecondaryButton, SectionCard, StatusBadge, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
+import { Checkbox, ConfirmDialog, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SectionHead, StatusBadge, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
 import { motion, AnimatePresence } from "motion/react";
 import { ThemeEditor } from "./ThemeEditor";
 import { PagesManager } from "./PagesManager";
@@ -814,791 +814,269 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
     return books.filter((b: any) => b.shippingProfileId === profileId);
   };
 
-  // Render Dashboard Profiles List
-  if (selectedProfileId === null || !editingProfile) {
-    return (
-      <div className="space-y-12">
-        <header className="flex flex-col gap-2 mb-12">
-          <div className="flex justify-between items-end">
-            <div>
-              <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">Shipping Matrix</h2>
-              <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Manage shipping profiles, zones & rates</p>
-            </div>
-            {!isCreatingProfile && (
-              <button 
-                onClick={() => setIsCreatingProfile(true)}
-                className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2 cursor-pointer transition-all active:scale-95 shadow-md shadow-violet-500/10"
-              >
-                <Plus size={14} /> CREATE PROFILE
-              </button>
-            )}
-          </div>
-        </header>
+  const money = (n: any) => `$${Number(n || 0).toFixed(2)}`;
+  const shippoConnected = !!shippoConfig?.configured;
 
-        <section className="glass-card rounded-[3rem] p-8 md:p-10 border border-white/5 bg-white/[0.01] relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.05] to-transparent pointer-events-none" />
-          <div className="relative z-10 grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
-            <div className="space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center">
-                <KeyRound size={20} />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="text-xl font-black uppercase italic text-white">Shippo Connection</h3>
-                  {!shippoLoading && (
-                    <span className={`px-3 py-1 rounded-full text-[8px] font-black tracking-widest uppercase border ${shippoConfig?.configured ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-amber-500/10 border-amber-500/20 text-amber-400"}`}>
-                      {shippoConfig?.configured ? "Connected" : "Not configured"}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[10px] leading-5 text-slate-500 uppercase tracking-widest mt-2 max-w-md">
-                  Save your key to the protected Firebase backend. The full key is never loaded back into this dashboard.
-                </p>
-              </div>
-              {shippoConfig?.configured && (
-                <div className="flex flex-col gap-4 pt-4 border-t border-white/5">
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                    <ShieldCheck size={14} className="text-emerald-400" />
-                    Active key ending in ••••{shippoConfig.lastFour}
-                    {shippoConfig.source === "environment" && " (Firebase secret)"}
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Enable Dynamic Shippo Rates</p>
-                      <p className="text-[8px] text-slate-500 uppercase tracking-widest">Fetch live carrier rates during checkout</p>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={shippoConfig?.dynamicRatesEnabled ?? false}
-                      onChange={async (e) => {
-                        const enabled = e.target.checked;
-                        try {
-                          await adminApi.setShippoDynamicRates(enabled);
-                          setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
-                          toast.success(enabled ? "Dynamic shipping rates enabled" : "Dynamic shipping rates disabled");
-                        } catch (err: any) {
-                          toast.error(err.message || "Failed to update Shippo settings");
-                        }
-                      }}
-                      className="w-6 h-6 rounded-lg bg-white border-slate-300 dark:border-zinc-800 text-violet-600 focus:ring-violet-500 cursor-pointer"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              <label htmlFor="shippo-api-key" className="text-[9px] font-black tracking-[0.25em] text-slate-500 uppercase px-2">
-                Shippo API Key
-              </label>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1">
-                  <input
-                    id="shippo-api-key"
-                    type={showShippoApiKey ? "text" : "password"}
-                    value={shippoApiKey}
-                    onChange={(event) => {
-                      setShippoApiKey(event.target.value);
-                      if (shippoMessage) setShippoMessage(null);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") handleSaveShippoApiKey();
-                    }}
-                    autoComplete="new-password"
-                    spellCheck={false}
-                    placeholder={shippoConfig?.configured ? "Paste a new key to replace the current one" : "Paste your Shippo API key"}
-                    className="w-full h-12 rounded-full border border-white/10 bg-black/20 pl-5 pr-12 text-sm text-white outline-none transition-colors placeholder:text-slate-600 focus:border-violet-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowShippoApiKey(value => !value)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
-                    aria-label={showShippoApiKey ? "Hide API key" : "Show API key"}
-                  >
-                    {showShippoApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSaveShippoApiKey}
-                  disabled={shippoSaving || !shippoApiKey.trim()}
-                  className="h-12 px-7 rounded-full bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[10px] font-black tracking-widest flex items-center justify-center gap-2 transition-all"
-                >
-                  {shippoSaving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
-                  {shippoSaving ? "SYNCING" : "SAVE & SYNC"}
-                </button>
-              </div>
-              {shippoMessage && (
-                <p className={`flex items-center gap-2 px-2 text-[10px] font-bold ${shippoMessage.type === "success" ? "text-emerald-400" : "text-red-400"}`} role="status">
-                  {shippoMessage.type === "success" ? <CheckCircle size={14} /> : <AlertCircleIcon size={14} />}
-                  {shippoMessage.text}
-                </p>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {isCreatingProfile && (
-          <section className="bg-white dark:bg-zinc-900 border border-[#EBEAEF] dark:border-zinc-800 rounded-[2.5rem] p-10 space-y-8 animate-in fade-in slide-in-from-top-4 duration-300">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-violet-50 dark:bg-violet-950/20 text-[#7C3AED] flex items-center justify-center">
-                <Package size={20} />
-              </div>
-              <div>
-                <h3 className="text-xl font-black uppercase italic leading-none text-white">New Shipping Profile</h3>
-                <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-1.5">Define a set of rules for custom items</p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <InputField 
-                label="PROFILE NAME"
-                value={newProfileName}
-                placeholder="e.g. Heavy Items, Fragile Prints..."
-                onChange={(e: any) => setNewProfileName(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-4 pt-2">
-              <button 
-                onClick={handleCreateProfile}
-                disabled={!newProfileName.trim()}
-                className="bg-violet-600 text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest hover:bg-violet-500 transition-all disabled:opacity-50"
-              >
-                CREATE PROFILE
-              </button>
-              <button 
-                onClick={() => { setIsCreatingProfile(false); setNewProfileName(""); }}
-                className="bg-slate-100 text-slate-700 px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest hover:bg-slate-200 transition-all"
-              >
-                CANCEL
-              </button>
-            </div>
-          </section>
-        )}
-
-        <div className="space-y-6">
-          {profiles.map((p: any) => {
-            const assignedBooks = getAssignedProducts(p.id);
-            const zonesCount = p.zones?.length || 0;
+  // Dialogs shared by the list and editor views
+  const dialogs = editingProfile ? (
+    <>
+      <Dialog open={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} size="lg" badge="📦" title="Assign products"
+        description={`Books that use the “${editingProfile.name}” shipping rates.`}
+        footer={<>
+          <SecondaryButton onClick={() => setIsProductModalOpen(false)}>Cancel</SecondaryButton>
+          <PrimaryButton onClick={handleSaveProducts}>Save assignments ({selectedProductIds.length})</PrimaryButton>
+        </>}>
+        <SearchField label="Search catalog" placeholder="Search catalog by title…" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} data-autofocus />
+        <ul className="rp-list" style={{ marginTop: 12, maxHeight: 360, overflowY: "auto", border: "1px solid var(--rp-border)" }} aria-label="Books">
+          {books.filter((b) => b.title.toLowerCase().includes(productSearch.toLowerCase())).map((b) => {
+            const isChecked = selectedProductIds.includes(b.id);
+            const other = b.shippingProfileId && b.shippingProfileId !== editingProfile.id
+              ? (profiles.find((pr: any) => pr.id === b.shippingProfileId)?.name || "another profile") : "";
             return (
-              <div 
-                key={p.id} 
-                className="glass-card rounded-[3rem] p-10 border border-white/5 relative overflow-hidden group hover:border-violet-500/20 transition-all flex justify-between items-center bg-white/[0.01]"
-              >
-                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.02] to-transparent pointer-events-none" />
-                <div className="space-y-4 relative z-10">
-                  <div className="flex items-center gap-4">
-                    <h3 className="text-2xl font-black tracking-tight text-white uppercase italic">{p.name || "Untitled Profile"}</h3>
-                    {p.id === "general-profile" && (
-                      <span className="bg-violet-500/10 border border-violet-500/20 text-violet-400 px-4 py-1.5 rounded-full text-[9px] font-black tracking-widest uppercase">DEFAULT</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-8 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                    <span className="flex items-center gap-2">
-                      <Globe size={12} className="text-slate-600" /> {zonesCount} Zones
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <Package size={12} className="text-slate-600" /> {assignedBooks.length} Products Assigned
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 relative z-10">
-                  <button 
-                    onClick={() => handleSelectProfile(p)}
-                    className="bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:border-white/20 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
-                  >
-                    MANAGE RATES
-                  </button>
-                  {p.id !== "general-profile" && (
-                    <button 
-                      onClick={() => handleDeleteProfile(p.id)}
-                      aria-label="Delete shipping profile"
-                      className="p-3.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-full transition-all border border-red-500/20"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-              </div>
+              <li key={b.id} style={{ padding: "6px 12px" }}>
+                <Checkbox label={b.title} checked={isChecked}
+                  onChange={() => setSelectedProductIds((prev) => (isChecked ? prev.filter((id) => id !== b.id) : [...prev, b.id]))} />
+                {other && <p className="rp-hint" style={{ margin: "0 0 4px 28px", color: "var(--rp-warning)" }}>⚠ Currently assigned to {other}; saving moves it here.</p>}
+              </li>
             );
           })}
-        </div>
+        </ul>
+      </Dialog>
+
+      <Dialog open={isZoneModalOpen && !!activeZone} onClose={() => setIsZoneModalOpen(false)} size="lg" badge="🌍" title="Shipping zone"
+        description="Group countries and regions that share the same shipping rules."
+        footer={<>
+          <SecondaryButton onClick={() => setIsZoneModalOpen(false)}>Cancel</SecondaryButton>
+          <PrimaryButton onClick={handleSaveZone}>Save zone</PrimaryButton>
+        </>}>
+        {activeZone && (
+          <div className="rp-stack" style={{ gap: 16 }}>
+            <TextField label="Zone name" value={activeZone.name} placeholder="e.g. North America, Europe, Domestic…" data-autofocus
+              onChange={(e) => setActiveZone({ ...activeZone, name: e.target.value })} />
+            <div>
+              <div className="rp-sect">Regional presets</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {Object.keys(REGIONAL_PRESETS).map((regionName) => (
+                  <SecondaryButton key={regionName} size="sm"
+                    onClick={() => setActiveZone((prev: any) => ({ ...prev, countries: Array.from(new Set([...prev.countries, ...REGIONAL_PRESETS[regionName]])) }))}>
+                    + {regionName}
+                  </SecondaryButton>
+                ))}
+                <DestructiveButton size="sm" onClick={() => setActiveZone((prev: any) => ({ ...prev, countries: [] }))}>Clear selection</DestructiveButton>
+              </div>
+            </div>
+            <SearchField label="Search countries" placeholder="Search countries…" value={countrySearch} onChange={(e) => setCountrySearch(e.target.value)} />
+            <p className="rp-hint" role="status" style={{ margin: 0 }}>{activeZone.countries.length} countr{activeZone.countries.length === 1 ? "y" : "ies"} selected</p>
+            <div style={{ maxHeight: 280, overflowY: "auto", display: "grid", gap: 0, gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", border: "1px solid var(--rp-border)", padding: "4px 12px" }}>
+              {COUNTRIES_LIST.filter((c) => c.toLowerCase().includes(countrySearch.toLowerCase())).map((c) => (
+                <Checkbox key={c} label={c} checked={activeZone.countries.includes(c)}
+                  onChange={() => setActiveZone((prev: any) => ({ ...prev, countries: prev.countries.includes(c) ? prev.countries.filter((x: string) => x !== c) : [...prev.countries, c] }))} />
+              ))}
+            </div>
+          </div>
+        )}
+      </Dialog>
+
+      <Dialog open={isRateModalOpen && !!activeRate} onClose={() => setIsRateModalOpen(false)} badge="🚚" title="Shipping rate"
+        description="What customers pay for this delivery option."
+        footer={<>
+          <SecondaryButton onClick={() => setIsRateModalOpen(false)}>Cancel</SecondaryButton>
+          <PrimaryButton onClick={handleSaveRate}>Save rate</PrimaryButton>
+        </>}>
+        {activeRate && (
+          <div className="rp-stack" style={{ gap: 16 }}>
+            <TextField label="Rate / service name" value={activeRate.name} placeholder="e.g. Standard shipping, Express delivery" data-autofocus
+              onChange={(e) => setActiveRate({ ...activeRate, name: e.target.value })} />
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+              <TextField label="Base rate ($)" type="number" min={0} value={activeRate.base} placeholder="15.00" onChange={(e) => setActiveRate({ ...activeRate, base: e.target.value })} />
+              <TextField label="Each additional item ($)" type="number" min={0} value={activeRate.additional} placeholder="5.00" onChange={(e) => setActiveRate({ ...activeRate, additional: e.target.value })} />
+            </div>
+            <TextField label="Estimated delivery (days)" value={activeRate.deliveryDays} placeholder="e.g. 3-7, 1-2, 5-10" onChange={(e) => setActiveRate({ ...activeRate, deliveryDays: e.target.value })} />
+            <TextField label="Minimum order for this rate ($)" type="number" min={0} placeholder="e.g. 50.00 — offer this rate above $50"
+              hint="Leave blank to offer this rate on every order. Use it for free-shipping thresholds."
+              value={activeRate.minPrice !== null && activeRate.minPrice !== undefined ? activeRate.minPrice : ""}
+              onChange={(e) => setActiveRate({ ...activeRate, minPrice: e.target.value === "" ? null : e.target.value })} />
+          </div>
+        )}
+      </Dialog>
+    </>
+  ) : null;
+
+  // ─── Profiles list ──────────────────────────────────────────────────────────
+  if (selectedProfileId === null || !editingProfile) {
+    return (
+      <div className="rp-stack">
+        <SectionCard title="Shippo connection" description="Address verification, live carrier rates and shipping labels."
+          actions={!shippoLoading && <StatusBadge tone={shippoConnected ? "success" : "warning"}>{shippoConnected ? "Connected" : "Not connected"}</StatusBadge>}>
+          {!shippoLoading && !shippoConnected && (
+            <p role="alert" style={{ margin: "0 0 16px", padding: 12, background: "var(--rp-warning-tint)", border: "1px solid var(--rp-warning)", color: "var(--rp-warning)" }}>
+              ⚠ Shippo isn't connected, so customer addresses aren't verified and live carrier rates are unavailable. Flat profile rates still apply.
+            </p>
+          )}
+          {shippoConnected && (
+            <div className="rp-stack" style={{ gap: 12, marginBottom: 16 }}>
+              <p className="rp-hint" style={{ margin: 0 }}>Active key ending in <span className="rp-mono">••••{shippoConfig.lastFour}</span>{shippoConfig.source === "environment" && " (Firebase secret)"}</p>
+              <Toggle label="Live carrier rates at checkout" checked={shippoConfig?.dynamicRatesEnabled ?? false}
+                onChange={async (enabled) => {
+                  try {
+                    await adminApi.setShippoDynamicRates(enabled);
+                    setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
+                    toast.success(enabled ? "Dynamic shipping rates enabled" : "Dynamic shipping rates disabled");
+                  } catch (err: any) {
+                    toast.error(err.message || "Failed to update Shippo settings");
+                  }
+                }} />
+            </div>
+          )}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
+            <div style={{ flex: "1 1 280px" }}>
+              <TextField label="Shippo API key" type={showShippoApiKey ? "text" : "password"} value={shippoApiKey} autoComplete="new-password" spellCheck={false}
+                placeholder={shippoConnected ? "Paste a new key to replace the current one" : "Paste your Shippo API key"}
+                hint="Saved to the protected backend; the full key is never loaded back into this page."
+                onChange={(e) => { setShippoApiKey(e.target.value); if (shippoMessage) setShippoMessage(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSaveShippoApiKey(); }} />
+            </div>
+            <SecondaryButton onClick={() => setShowShippoApiKey((v) => !v)} aria-pressed={showShippoApiKey}>{showShippoApiKey ? "Hide key" : "Show key"}</SecondaryButton>
+            <PrimaryButton onClick={handleSaveShippoApiKey} disabled={shippoSaving || !shippoApiKey.trim()}>{shippoSaving ? "Saving…" : "Save & sync"}</PrimaryButton>
+          </div>
+          {shippoMessage && (
+            <p role="status" style={{ margin: "12px 0 0", color: shippoMessage.type === "success" ? "var(--rp-success)" : "var(--rp-danger)", fontWeight: 600 }}>
+              {shippoMessage.type === "success" ? "✓ " : "✕ "}{shippoMessage.text}
+            </p>
+          )}
+        </SectionCard>
+
+        <SectionHead kicker="Shipping" title="Profiles, zones & rates" subcopy="A profile is a set of zones and rates. Books use the General profile unless you assign them to another."
+          actions={!isCreatingProfile && <PrimaryButton onClick={() => setIsCreatingProfile(true)}>+ Create profile</PrimaryButton>} />
+
+        {isCreatingProfile && (
+          <SectionCard title="New shipping profile" description="Define a set of rules for special items, like heavy or fragile books.">
+            <TextField label="Profile name" value={newProfileName} placeholder="e.g. Heavy items, Fragile prints…" data-autofocus onChange={(e) => setNewProfileName(e.target.value)} />
+            <div className="rp-card-actions">
+              <span />
+              <span style={{ display: "flex", gap: 8 }}>
+                <SecondaryButton onClick={() => { setIsCreatingProfile(false); setNewProfileName(""); }}>Cancel</SecondaryButton>
+                <PrimaryButton onClick={handleCreateProfile} disabled={!newProfileName.trim()}>Create profile</PrimaryButton>
+              </span>
+            </div>
+          </SectionCard>
+        )}
+
+        {profiles.length === 0 ? (
+          <SectionCard><EmptyState icon="🚚" title="No shipping profiles" description="Create a profile with at least one zone and rate so customers can check out." /></SectionCard>
+        ) : (
+          <ul className="rp-stack" style={{ listStyle: "none", margin: 0, padding: 0 }} aria-label="Shipping profiles">
+            {profiles.map((p: any) => {
+              const assigned = getAssignedProducts(p.id);
+              const zonesCount = p.zones?.length || 0;
+              const noRates = zonesCount === 0 || (p.zones || []).every((z: any) => !z.rates?.length);
+              return (
+                <li key={p.id}>
+                  <SectionCard>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <h3 className="rp-card-title" style={{ display: "inline", overflowWrap: "anywhere" }}>{p.name || "Untitled profile"}</h3>{" "}
+                        {p.id === "general-profile" && <StatusBadge tone="primary">Default</StatusBadge>}{" "}
+                        {noRates && <StatusBadge tone="warning">No rates yet</StatusBadge>}
+                        <p className="rp-hint" style={{ margin: "6px 0 0" }}>{zonesCount} zone{zonesCount === 1 ? "" : "s"} · {assigned.length} product{assigned.length === 1 ? "" : "s"} assigned</p>
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <SecondaryButton onClick={() => handleSelectProfile(p)}>Manage rates</SecondaryButton>
+                        {p.id !== "general-profile" && <DestructiveButton onClick={() => handleDeleteProfile(p.id)} aria-label={`Delete ${p.name} shipping profile`}>Delete</DestructiveButton>}
+                      </div>
+                    </div>
+                  </SectionCard>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {confirmNode}
       </div>
     );
   }
 
-  // Render Profile Details Editor
+  // ─── Profile editor ─────────────────────────────────────────────────────────
   const assignedBooks = getAssignedProducts(editingProfile.id);
-  
-  return (
-    <div className="space-y-12">
-      {/* Editor Header */}
-      <header className="flex flex-col gap-2 mb-12">
-        <div className="flex justify-between items-center">
-          <button 
-            onClick={() => { setSelectedProfileId(null); setEditingProfile(null); }}
-            className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-white transition-colors uppercase cursor-pointer"
-          >
-            <ArrowLeft size={16} /> BACK TO MATRIX
-          </button>
-          
-          <div className="flex gap-4">
-            <button 
-              onClick={handleSaveProfile}
-              className="bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all active:scale-95 shadow-md shadow-violet-500/10"
-            >
-              SAVE PROFILE Changes
-            </button>
-          </div>
-        </div>
-        <div className="flex justify-between items-end mt-4">
-          <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">{editingProfile.name}</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Fulfillment Profile Config</p>
-          </div>
-        </div>
-      </header>
+  const zones = editingProfile.zones || [];
 
-      {/* Profile Name (Custom Profiles only) */}
+  return (
+    <div className="rp-stack">
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "space-between" }}>
+        <SecondaryButton onClick={() => { setSelectedProfileId(null); setEditingProfile(null); }}>← Back to profiles</SecondaryButton>
+        <PrimaryButton onClick={handleSaveProfile}>Save profile changes</PrimaryButton>
+      </div>
+      <SectionHead kicker="Profile" title={editingProfile.name || "Untitled profile"} subcopy="Zone and rate edits are applied to the profile when you save." />
+
       {editingProfile.id !== "general-profile" && (
-        <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-6 bg-white/[0.01]">
-          <InputField 
-            label="PROFILE NAME"
-            value={editingProfile.name}
-            onChange={(e: any) => setEditingProfile({ ...editingProfile, name: e.target.value })}
-          />
-        </section>
+        <SectionCard title="Profile name">
+          <TextField label="Profile name" value={editingProfile.name} onChange={(e) => setEditingProfile({ ...editingProfile, name: e.target.value })} />
+        </SectionCard>
       )}
 
-      {/* Product Assignments */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-8 bg-white/[0.01]">
-        <div className="flex justify-between items-center pb-4 border-b border-white/5">
-          <SectionHeader 
-            title="Assigned Catalog Products" 
-            subtitle="Books associated with these rates" 
-            icon={Package} 
-            color="violet"
-          />
-          <button 
-            onClick={openProductModal}
-            className="bg-white/5 hover:bg-white/10 text-white border border-white/10 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
-          >
-            MANAGE PRODUCTS ({assignedBooks.length})
-          </button>
-        </div>
-
+      <SectionCard title="Assigned products" description="Books that use this profile's rates."
+        actions={<SecondaryButton onClick={openProductModal}>Manage products ({assignedBooks.length})</SecondaryButton>}>
         {assignedBooks.length === 0 ? (
-          <div className="h-32 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-[2rem] gap-3 bg-white/[0.01]">
-            <Package size={18} className="text-slate-650" />
-            <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">No books assigned to this profile</p>
-          </div>
+          <EmptyState icon="📦" title="No books assigned" description={editingProfile.id === "general-profile" ? "Books without another profile use these rates." : "Assign books so they use this profile's rates."} />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {assignedBooks.slice(0, 6).map((b: any) => (
-              <div key={b.id} className="flex items-center gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
-                <div className="w-10 aspect-[3/4] bg-black rounded-lg overflow-hidden border border-white/10 shrink-0">
-                  {b.photos?.[0]?.url && <img src={b.photos[0].url} className="w-full h-full object-cover" />}
-                </div>
-                <div className="overflow-hidden">
-                  <p className="text-xs font-black text-white truncate uppercase tracking-wider">{b.title}</p>
-                  <p className="text-[8px] text-slate-500 mt-1 truncate font-mono">{b.subtitle || "Single edition"}</p>
-                </div>
-              </div>
-            ))}
-            {assignedBooks.length > 6 && (
-              <div className="flex items-center justify-center p-4 bg-white/[0.02] border border-dashed border-white/5 rounded-2xl text-[9px] font-black text-slate-500 tracking-widest uppercase">
-                + {assignedBooks.length - 6} More Books
-              </div>
-            )}
-          </div>
+          <ul className="rp-list" style={{ margin: -20 }} aria-label="Assigned books">
+            {assignedBooks.slice(0, 6).map((b: any) => <li key={b.id} style={{ padding: "10px 20px", overflowWrap: "anywhere" }}>{b.title}</li>)}
+            {assignedBooks.length > 6 && <li className="rp-hint">+ {assignedBooks.length - 6} more</li>}
+          </ul>
         )}
-      </section>
+      </SectionCard>
 
-      {/* Shipping Zones */}
-      <section className="space-y-8">
-        <div className="flex justify-between items-center">
-          <SectionHeader 
-            title="Geographic Shipping Zones" 
-            subtitle="Regional rates & targets" 
-            icon={Globe} 
-            color="cyan"
-          />
-          <button 
-            onClick={() => openZoneModal()}
-            className="bg-cyan-600 hover:bg-cyan-500 text-white px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2 cursor-pointer transition-all shadow-md shadow-cyan-600/10"
-          >
-            <Plus size={14} /> ADD SHIPPING ZONE
-          </button>
-        </div>
+      <SectionHead kicker="Zones" title="Geographic shipping zones" subcopy="A zone groups countries that share the same rates."
+        actions={<PrimaryButton onClick={() => openZoneModal()}>+ Add shipping zone</PrimaryButton>} />
 
-        {(!editingProfile.zones || editingProfile.zones.length === 0) ? (
-          <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-[3rem] gap-4 bg-white/[0.01]">
-            <Globe size={32} className="text-slate-650" />
-            <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Zero active shipping zones configured</p>
+      {zones.length === 0 ? (
+        <SectionCard><EmptyState icon="🌍" title="No shipping zones" description="Customers can't check out without a zone that covers their country. Add one, then give it a rate." /></SectionCard>
+      ) : zones.map((z: any) => (
+        <SectionCard key={z.id} title={z.name} description={`${z.countries.length} countr${z.countries.length === 1 ? "y" : "ies"}`}
+          actions={
+            <span style={{ display: "flex", gap: 8 }}>
+              <SecondaryButton size="sm" onClick={() => openZoneModal(z)}>Edit zone</SecondaryButton>
+              <DestructiveButton size="sm" onClick={() => handleDeleteZone(z.id)} aria-label={`Delete zone ${z.name}`}>Delete</DestructiveButton>
+            </span>
+          }>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }} aria-label={`Countries in ${z.name}`}>
+            {z.countries.map((c: string) => <StatusBadge key={c}>{c}</StatusBadge>)}
           </div>
-        ) : (
-          <div className="space-y-8">
-            {editingProfile.zones.map((z: any) => (
-              <div key={z.id} className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-10 space-y-8 relative overflow-hidden shadow-sm">
-                <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/[0.01] to-transparent pointer-events-none" />
-                
-                {/* Zone Header */}
-                <div className="flex justify-between items-start border-b border-white/5 pb-6">
-                  <div>
-                    <h4 className="text-xl font-black text-white uppercase italic tracking-tight">{z.name}</h4>
-                    <div className="flex flex-wrap gap-2 mt-3 max-w-2xl">
-                      {z.countries.map((c: string) => (
-                        <span key={c} className="bg-white/5 border border-white/10 text-slate-400 px-3 py-1 rounded-full text-[9px] font-black tracking-wider uppercase">
-                          {c}
+          <div className="rp-sect">Rates</div>
+          {(!z.rates || z.rates.length === 0) ? (
+            <p role="alert" className="rp-hint" style={{ margin: 0, padding: 12, background: "var(--rp-warning-tint)", color: "var(--rp-warning)", border: "1px solid var(--rp-warning)" }}>
+              ⚠ No rates configured — customers in this zone won't have a way to ship.
+            </p>
+          ) : (
+            <div className="rp-table-wrap" role="region" aria-label={`Rates for ${z.name}`} tabIndex={0} style={{ boxShadow: "none" }}>
+              <table className="rp-table">
+                <caption className="rp-sr-only">Shipping rates for {z.name}</caption>
+                <thead><tr><th scope="col">Rate</th><th scope="col">Delivery</th><th scope="col" className="rp-num">Base</th><th scope="col" className="rp-num">Each additional</th><th scope="col" className="rp-num">Min order</th><th scope="col">Actions</th></tr></thead>
+                <tbody>
+                  {z.rates.map((r: any) => (
+                    <tr key={r.id}>
+                      <td className="rp-lead">{r.name}</td>
+                      <td>{r.deliveryDays || "3-7"} days</td>
+                      <td className="rp-num">{money(r.base)}</td>
+                      <td className="rp-num">+{money(r.additional)}</td>
+                      <td className="rp-num">{r.minPrice !== null && r.minPrice !== undefined ? money(r.minPrice) : "—"}</td>
+                      <td>
+                        <span style={{ display: "inline-flex", gap: 6 }}>
+                          <SecondaryButton size="sm" onClick={() => openRateModal(z.id, r)} aria-label={`Edit rate ${r.name}`}>Edit</SecondaryButton>
+                          <DestructiveButton size="sm" onClick={() => handleDeleteRate(z.id, r.id)} aria-label={`Delete rate ${r.name}`}>Delete</DestructiveButton>
                         </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button 
-                      onClick={() => openZoneModal(z)}
-                      className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-full text-[9px] font-black tracking-widest uppercase transition-all"
-                    >
-                      EDIT ZONE
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteZone(z.id)}
-                      aria-label="Delete shipping zone"
-                      className="p-2.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 rounded-full transition-all"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Zone Rates */}
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Shipping rates for this zone</h5>
-                    <button 
-                      onClick={() => openRateModal(z.id)}
-                      className="bg-white/5 hover:bg-white/10 text-white border border-white/10 px-6 py-2 rounded-full text-[9px] font-black tracking-widest transition-all"
-                    >
-                      + ADD RATE
-                    </button>
-                  </div>
-
-                  {(!z.rates || z.rates.length === 0) ? (
-                    <div className="py-8 text-center border border-dashed border-white/5 rounded-2xl text-[9px] font-black text-slate-600 uppercase tracking-widest">
-                      No rates configured. This zone will not have active shipping.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {z.rates.map((r: any) => (
-                        <div key={r.id} className="bg-white/[0.01] border border-white/5 hover:border-violet-500/20 rounded-[2rem] p-6 flex justify-between items-start transition-all">
-                          <div className="space-y-3">
-                            <div>
-                              <p className="text-sm font-black text-white uppercase tracking-wider">{r.name}</p>
-                              <p className="text-[9px] text-slate-500 font-black tracking-widest uppercase mt-1">Delivery: {r.deliveryDays || "3-7"} Days</p>
-                            </div>
-                            <div className="flex gap-6 pt-3 border-t border-white/5">
-                              <div>
-                                <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">Base Rate</p>
-                                <p className="text-xl font-black text-white font-mono mt-1">${Number(r.base).toFixed(2)}</p>
-                              </div>
-                              <div>
-                                <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">Add. Item</p>
-                                <p className="text-xl font-black text-white font-mono mt-1">+${Number(r.additional).toFixed(2)}</p>
-                              </div>
-                              {r.minPrice !== null && r.minPrice !== undefined && (
-                                <div>
-                                  <p className="text-[8px] text-emerald-400/70 font-bold uppercase tracking-widest">Min Spend</p>
-                                  <p className="text-xl font-black text-emerald-400 font-mono mt-1">${Number(r.minPrice).toFixed(2)}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={() => openRateModal(z.id, r)}
-                              aria-label="Edit shipping rate"
-                              className="p-2 bg-white/5 hover:bg-white/10 text-white rounded-xl border border-white/10 transition-all"
-                            >
-                              <Edit size={12} />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteRate(z.id, r.id)}
-                              aria-label="Delete shipping rate"
-                              className="p-2 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-xl border border-red-500/20 transition-all"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* --- MODAL 1: PRODUCT SELECTION --- */}
-      <AnimatePresence>
-        {isProductModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="glass-card w-full max-w-2xl rounded-[3rem] p-10 border border-white/10 relative overflow-hidden bg-[#07060E] max-h-[85vh] flex flex-col"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent pointer-events-none" />
-              <div className="flex justify-between items-start pb-6 border-b border-white/5 relative z-10 shrink-0">
-                <div>
-                  <h3 className="text-2xl font-black text-white uppercase italic leading-none">Manage Products</h3>
-                  <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-2 font-bold">Select books to assign to: {editingProfile.name}</p>
-                </div>
-                <button 
-                  onClick={() => setIsProductModalOpen(false)}
-                  className="p-3 bg-white/5 text-slate-400 hover:text-white rounded-full border border-white/10 cursor-pointer"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* Search */}
-              <div className="py-6 relative z-10 shrink-0">
-                <div className="flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 shadow-inner">
-                  <Search size={16} className="text-slate-650" />
-                  <input 
-                    type="text"
-                    placeholder="Search catalog by title..."
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    className="bg-transparent border-none outline-none text-xs text-white placeholder:text-slate-600 flex-1 font-semibold"
-                  />
-                </div>
-              </div>
-
-              {/* Books List (scrollable) */}
-              <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar relative z-10 py-2">
-                {books
-                  .filter(b => b.title.toLowerCase().includes(productSearch.toLowerCase()))
-                  .map(b => {
-                    const isChecked = selectedProductIds.includes(b.id);
-                    const isOtherProfile = b.shippingProfileId && b.shippingProfileId !== editingProfile.id;
-                    const otherProfileName = isOtherProfile 
-                      ? (profiles.find((p: any) => p.id === b.shippingProfileId)?.name || "Other Profile")
-                      : "";
-                    
-                    return (
-                      <div 
-                        key={b.id} 
-                        onClick={() => {
-                          setSelectedProductIds(prev => 
-                            isChecked ? prev.filter(id => id !== b.id) : [...prev, b.id]
-                          );
-                        }}
-                        className={`flex items-center justify-between p-4 bg-white/[0.02] border rounded-2xl cursor-pointer hover:border-violet-500/20 transition-all ${
-                          isChecked ? "border-violet-500 bg-violet-500/[0.02]" : "border-white/5"
-                        }`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
-                            isChecked ? "border-violet-500 bg-violet-600 text-white" : "border-white/20"
-                          }`}>
-                            {isChecked && <Check size={12} />}
-                          </div>
-                          <div className="w-10 aspect-[3/4] bg-black rounded-lg overflow-hidden border border-white/10 shrink-0">
-                            {b.photos?.[0]?.url && <img src={b.photos[0].url} className="w-full h-full object-cover" />}
-                          </div>
-                          <div className="text-left overflow-hidden">
-                            <p className="text-xs font-black text-white truncate uppercase tracking-wider">{b.title}</p>
-                            {isOtherProfile ? (
-                              <p className="text-[8px] text-amber-500 font-bold uppercase tracking-widest mt-1">
-                                Currently assigned to: {otherProfileName}
-                              </p>
-                            ) : (
-                              <p className="text-[8px] text-slate-500 mt-1 truncate font-mono">{b.subtitle || "Single edition"}</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-
-              {/* Actions */}
-              <div className="pt-6 border-t border-white/5 flex gap-4 mt-6 relative z-10 shrink-0">
-                <button 
-                  onClick={handleSaveProducts}
-                  className="bg-violet-600 hover:bg-violet-500 text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest flex-1 transition-all"
-                >
-                  SAVE PRODUCT ASSIGNMENTS
-                </button>
-                <button 
-                  onClick={() => setIsProductModalOpen(false)}
-                  className="bg-slate-100 text-slate-700 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
-                >
-                  CANCEL
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* --- MODAL 2: ZONE CONFIGURATION --- */}
-      <AnimatePresence>
-        {isZoneModalOpen && activeZone && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="glass-card w-full max-w-2xl rounded-[3rem] p-10 border border-white/10 relative overflow-hidden bg-[#07060E] max-h-[85vh] flex flex-col"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-transparent pointer-events-none" />
-              <div className="flex justify-between items-start pb-6 border-b border-white/5 relative z-10 shrink-0">
-                <div>
-                  <h3 className="text-2xl font-black text-white uppercase italic leading-none">Shipping Zone Config</h3>
-                  <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-2 font-bold">Group countries/regions for unified shipping rules</p>
-                </div>
-                <button 
-                  onClick={() => setIsZoneModalOpen(false)}
-                  className="p-3 bg-white/5 text-slate-400 hover:text-white rounded-full border border-white/10 cursor-pointer"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* Zone Name input */}
-              <div className="py-6 space-y-4 relative z-10 shrink-0">
-                <InputField 
-                  label="ZONE NAME"
-                  value={activeZone.name}
-                  placeholder="e.g. North America, Europe, Domestic..."
-                  onChange={(e: any) => setActiveZone({ ...activeZone, name: e.target.value })}
-                />
-              </div>
-
-              {/* Region Presets */}
-              <div className="pb-4 relative z-10 shrink-0 flex flex-col gap-2">
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1 mb-2">Regional Presets</label>
-                <div className="flex flex-wrap gap-3">
-                  {Object.keys(REGIONAL_PRESETS).map(regionName => (
-                    <button 
-                      key={regionName}
-                      type="button"
-                      onClick={() => {
-                        const countries = REGIONAL_PRESETS[regionName];
-                        setActiveZone((prev: any) => {
-                          const union = Array.from(new Set([...prev.countries, ...countries]));
-                          return { ...prev, countries: union };
-                        });
-                      }}
-                      className="bg-white/5 hover:bg-white/10 text-white border border-white/15 px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase transition-all"
-                    >
-                      + SELECT {regionName}
-                    </button>
+                      </td>
+                    </tr>
                   ))}
-                  <button 
-                    type="button"
-                    onClick={() => setActiveZone((prev: any) => ({ ...prev, countries: [] }))}
-                    className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/15 px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase transition-all"
-                  >
-                    CLEAR SELECTION
-                  </button>
-                </div>
-              </div>
+                </tbody>
+              </table>
+            </div>
+          )}
+          <div className="rp-card-actions"><span /><SecondaryButton size="sm" onClick={() => openRateModal(z.id)}>+ Add rate</SecondaryButton></div>
+        </SectionCard>
+      ))}
 
-              {/* Search Countries */}
-              <div className="pb-4 relative z-10 shrink-0">
-                <div className="flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 shadow-inner">
-                  <Search size={16} className="text-slate-650" />
-                  <input 
-                    type="text"
-                    placeholder="Search countries..."
-                    value={countrySearch}
-                    onChange={(e) => setCountrySearch(e.target.value)}
-                    className="bg-transparent border-none outline-none text-xs text-white placeholder:text-slate-600 flex-1 font-semibold"
-                  />
-                </div>
-              </div>
-
-              {/* Countries Checkbox List */}
-              <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-3 pr-2 custom-scrollbar relative z-10 py-2">
-                {COUNTRIES_LIST
-                  .filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()))
-                  .map(c => {
-                    const isChecked = activeZone.countries.includes(c);
-                    return (
-                      <div 
-                        key={c}
-                        onClick={() => {
-                          setActiveZone((prev: any) => {
-                            const countries = isChecked 
-                              ? prev.countries.filter((x: string) => x !== c)
-                              : [...prev.countries, c];
-                            return { ...prev, countries };
-                          });
-                        }}
-                        className={`flex items-center gap-3 p-3 bg-white/[0.01] border rounded-xl cursor-pointer hover:border-cyan-500/20 transition-all ${
-                          isChecked ? "border-cyan-500 bg-cyan-500/[0.02]" : "border-white/5"
-                        }`}
-                      >
-                        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
-                          isChecked ? "border-cyan-500 bg-cyan-600 text-white" : "border-white/20"
-                        }`}>
-                          {isChecked && <Check size={10} />}
-                        </div>
-                        <span className="text-xs font-semibold text-white/85 uppercase tracking-wide">{c}</span>
-                      </div>
-                    );
-                  })}
-              </div>
-
-              {/* Actions */}
-              <div className="pt-6 border-t border-white/5 flex gap-4 mt-6 relative z-10 shrink-0">
-                <button 
-                  onClick={handleSaveZone}
-                  className="bg-cyan-600 hover:bg-cyan-500 text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest flex-1 transition-all"
-                >
-                  SAVE ZONE CONFIG
-                </button>
-                <button 
-                  onClick={() => setIsZoneModalOpen(false)}
-                  className="bg-slate-100 text-slate-700 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
-                >
-                  CANCEL
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* --- MODAL 3: RATE CONFIGURATION --- */}
-      <AnimatePresence>
-        {isRateModalOpen && activeRate && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-6">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="glass-card w-full max-w-2xl rounded-[3rem] p-10 border border-white/10 relative overflow-hidden bg-[#07060E] max-h-[85vh] flex flex-col"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent pointer-events-none" />
-              
-              <div className="flex justify-between items-start pb-6 border-b border-white/5 relative z-10 shrink-0">
-                <div>
-                  <h3 className="text-2xl font-black text-white uppercase italic leading-none">Rate Setting Protocol</h3>
-                  <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-2 font-bold">Configure shipping speed and hybrid item prices</p>
-                </div>
-                <button 
-                  onClick={() => setIsRateModalOpen(false)}
-                  className="p-3 bg-white/5 text-slate-400 hover:text-white rounded-full border border-white/10 cursor-pointer"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* Rate Editor Form (scrollable) */}
-              <div className="flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar relative z-10 py-6">
-                
-                <InputField 
-                  label="RATE / SERVICE NAME"
-                  value={activeRate.name}
-                  placeholder="e.g. Standard Shipping, Express Delivery, Special Warp..."
-                  onChange={(e: any) => setActiveRate({ ...activeRate, name: e.target.value })}
-                />
-
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">BASE SHIPPING RATE (CAD)</label>
-                    <div className="flex items-center gap-6 bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 focus-within:border-emerald-500/50 focus-within:bg-white/[0.06] transition-all group shadow-inner">
-                      <span className="text-slate-500 font-mono text-sm">$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="bg-transparent border-none outline-none text-sm text-white flex-1 font-bold font-mono"
-                        value={activeRate.base}
-                        placeholder="15.00"
-                        onChange={(e: any) => setActiveRate({ ...activeRate, base: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">ADDITIONAL ITEM RATE (CAD)</label>
-                    <div className="flex items-center gap-6 bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 focus-within:border-emerald-500/50 focus-within:bg-white/[0.06] transition-all group shadow-inner">
-                      <span className="text-slate-500 font-mono text-sm">+$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="bg-transparent border-none outline-none text-sm text-white flex-1 font-bold font-mono"
-                        value={activeRate.additional}
-                        placeholder="5.00"
-                        onChange={(e: any) => setActiveRate({ ...activeRate, additional: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <InputField 
-                  label="ESTIMATED DELIVERY (DAYS)"
-                  value={activeRate.deliveryDays}
-                  placeholder="e.g. 3-7, 1-2, 5-10"
-                  onChange={(e: any) => setActiveRate({ ...activeRate, deliveryDays: e.target.value })}
-                />
-
-                {/* Price condition */}
-                <div className="space-y-4 pt-4 border-t border-white/5">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="text-xs font-black text-white uppercase tracking-wider italic">Order Price Condition</p>
-                      <p className="text-[9px] text-slate-500 uppercase tracking-widest mt-1">Make rate available only within cart price range (optional)</p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">MINIMUM ORDER PRICE threshold (CAD)</label>
-                    <div className="flex items-center gap-6 bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 focus-within:border-emerald-500/50 focus-within:bg-white/[0.06] transition-all group shadow-inner">
-                      <span className="text-slate-500 font-mono text-sm">$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="bg-transparent border-none outline-none text-sm text-white flex-1 font-bold font-mono"
-                        value={activeRate.minPrice !== null && activeRate.minPrice !== undefined ? activeRate.minPrice : ""}
-                        placeholder="e.g. 50.00 for free shipping above $50"
-                        onChange={(e: any) => {
-                          const val = e.target.value;
-                          setActiveRate({ ...activeRate, minPrice: val === "" ? null : val });
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Actions */}
-              <div className="pt-6 border-t border-white/5 flex gap-4 mt-6 relative z-10 shrink-0">
-                <button 
-                  onClick={handleSaveRate}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-10 py-3.5 rounded-full text-[10px] font-black tracking-widest flex-1 transition-all"
-                >
-                  SAVE RATE PROTOCOL
-                </button>
-                <button 
-                  onClick={() => setIsRateModalOpen(false)}
-                  className="bg-slate-100 text-slate-700 px-8 py-3.5 rounded-full text-[10px] font-black tracking-widest transition-all"
-                >
-                  CANCEL
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {dialogs}
       {confirmNode}
     </div>
   );

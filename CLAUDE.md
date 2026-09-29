@@ -261,12 +261,12 @@ If tokens change there, update `riso.css` to match.
 
 **Migrated (built from these components):** shell, Login, Reviews, Activity Logs,
 Orders list + detail, Overview, Books catalog, Discounts, Pages, Settings › General,
-Payments, Notifications (+ Inventory sync). `Dashboard.tsx` renders migrated pages
+Payments, Shipping (profiles/zones/rates + dialogs), Notifications (+ Inventory sync). `Dashboard.tsx` renders migrated pages
 outside the legacy wrapper via its `migrated` flag — add new ones there.
 
 **Not yet rebuilt** (still legacy markup, styled by the scoped compatibility layer in
 `theme.css` under `.admin-reso[data-admin-theme="reso"]`, which maps old dark utilities
-and violet/blue accents onto Riso tokens): Settings › Shipping, Taxes/Communications
+and violet/blue accents onto Riso tokens): Taxes/Communications
 (not in the nav), the Book editor's layout (it does have a dialog for unsaved changes,
 a `beforeunload` guard and an inline validation summary), and the theme editor's panels.
 Never wrap `rp-*` chrome in `.admin-light` — its `aside button` / `input` rules override
