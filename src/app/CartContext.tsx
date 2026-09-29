@@ -38,25 +38,48 @@ export function nextCartQuantity(existingQty: number, requested: number, stockLi
   return typeof stockLimit === "number" && stockLimit !== 999 ? Math.min(next, stockLimit) : next;
 }
 
+/**
+ * Validates a cart restored from storage: drops anything that isn't a line with
+ * an id, a finite non-negative price and a positive whole quantity, so a stale
+ * or tampered `fm_cart` can never put NaN into totals. Exported for tests.
+ */
+export function sanitizeCart(raw: unknown): CartItem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CartItem[] = [];
+  for (const line of raw) {
+    if (!line || typeof line !== "object") continue;
+    const i = line as any;
+    const price = Number(i.price);
+    const quantity = Math.floor(Number(i.quantity));
+    if (typeof i.id !== "string" || !i.id) continue;
+    if (!Number.isFinite(price) || price < 0 || !Number.isFinite(quantity) || quantity < 1) continue;
+    out.push({ ...i, price, quantity, title: String(i.title ?? ""), photoUrl: String(i.photoUrl ?? "") });
+  }
+  return out;
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Load from local storage
   useEffect(() => {
-    const saved = localStorage.getItem("fm_cart");
-    if (saved) {
-      try {
-        setCart(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse cart", e);
-      }
+    try {
+      const saved = localStorage.getItem("fm_cart");
+      if (saved) setCart(sanitizeCart(JSON.parse(saved)));
+    } catch (e) {
+      // Storage blocked (private mode) or corrupt JSON: start with an empty bag.
+      console.error("Failed to restore cart", e);
     }
   }, []);
 
   // Save to local storage
   useEffect(() => {
-    localStorage.setItem("fm_cart", JSON.stringify(cart));
+    try {
+      localStorage.setItem("fm_cart", JSON.stringify(cart));
+    } catch {
+      // Quota exceeded / storage unavailable: the in-memory cart still works.
+    }
   }, [cart]);
 
   const addToCart = (product: any, variant?: any, quantity: number = 1) => {

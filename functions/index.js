@@ -896,6 +896,10 @@ exports.createStripeCheckoutSession = onRequest(
         const unitPrice = variant
           ? Number(variant.price)
           : (book.isOnSale && book.salePrice ? Number(book.salePrice) : Number(book.retailPrice));
+        if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+          res.status(400).json({ error: `"${item.title}" is temporarily unavailable for purchase (pricing error).` });
+          return;
+        }
         items.push({
           ...item,
           price: unitPrice,
