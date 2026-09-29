@@ -69,13 +69,16 @@ export function Dashboard() {
   const [logsLoading, setLogsLoading] = useState(false);
 
   const [adminTheme, setAdminTheme] = useState(() => {
-    return localStorage.getItem("adminTheme") || "dark";
+    // Reso is the admin's primary design, not an optional storefront skin.
+    // A versioned preference moves existing installs off the legacy dark UI
+    // once while still letting an administrator deliberately choose dark mode.
+    return localStorage.getItem("adminThemeReso") || "light";
   });
 
   const toggleTheme = () => {
     const newTheme = adminTheme === "dark" ? "light" : "dark";
     setAdminTheme(newTheme);
-    localStorage.setItem("adminTheme", newTheme);
+    localStorage.setItem("adminThemeReso", newTheme);
   };
 
   async function loadLogs() {
@@ -166,10 +169,13 @@ export function Dashboard() {
 
   if (loading) {
     return (
-      <div className="h-screen bg-black flex items-center justify-center">
+      <div className="admin-reso h-screen bg-[#f6f8fb] flex items-center justify-center">
         <div className="flex flex-col items-center gap-6">
-          <div className="w-16 h-16 border-4 border-violet-500/10 border-t-violet-500 rounded-full animate-spin" />
-          <p className="text-white text-[10px] tracking-[0.6em] font-black animate-pulse">LOADING ADMIN DASHBOARD</p>
+          <div className="relative h-14 w-14 rounded-2xl bg-[#6339f5] shadow-[0_10px_28px_rgba(99,57,245,.3)] flex items-center justify-center">
+            <BookOpen className="text-white" size={24} />
+            <span className="absolute -inset-2 rounded-[1.25rem] border-2 border-[#6339f5]/20 animate-ping" />
+          </div>
+          <p className="text-[#526078] text-[10px] tracking-[0.42em] font-black animate-pulse">OPENING PUBLISHING HOUSE</p>
         </div>
       </div>
     );
@@ -211,8 +217,8 @@ export function Dashboard() {
   ];
 
   return (
-    <div className={adminTheme === "light" ? "admin-light" : ""}>
-    <div className={`flex h-screen overflow-hidden font-manrope antialiased selection:bg-violet-500/30 ${adminTheme === "light" ? "bg-[#f8fafc] text-slate-900" : "bg-[#050506] text-white"}`}>
+    <div className={`${adminTheme === "light" ? "admin-light" : ""} admin-reso`} data-admin-theme={adminTheme === "light" ? "reso" : "dark"}>
+    <div className={`admin-reso-shell flex h-screen overflow-hidden font-manrope antialiased selection:bg-violet-500/30 ${adminTheme === "light" ? "bg-[#f6f8fb] text-slate-900" : "bg-[#050506] text-white"}`}>
       {/* Sidebar Overlay */}
       <AnimatePresence>
         {sidebarOpen && (
@@ -227,7 +233,7 @@ export function Dashboard() {
       </AnimatePresence>
 
       {/* Sidebar */}
-      <aside className={`fixed lg:static inset-y-0 left-0 w-72 bg-black/40 backdrop-blur-2xl border-r border-white/5 flex flex-col z-[70] transform transition-all duration-500 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      <aside className={`admin-reso-sidebar fixed lg:static inset-y-0 left-0 w-[260px] bg-black/40 backdrop-blur-2xl border-r border-white/5 flex flex-col z-[70] transform transition-all duration-500 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="p-8 flex items-center gap-3.5 mb-8 border-b border-white/5">
           <div className="relative group shrink-0">
             <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 to-indigo-600 rounded-xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
@@ -338,7 +344,7 @@ export function Dashboard() {
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-cyan-600/5 blur-[120px] rounded-full -ml-64 -mb-64 pointer-events-none" />
 
         {/* TopNavBar */}
-        <header className="h-20 flex items-center justify-between px-10 bg-black/20 backdrop-blur-2xl border-b border-white/5 shrink-0 z-50">
+        <header className="admin-reso-topbar h-[68px] flex items-center justify-between px-6 lg:px-9 bg-black/20 backdrop-blur-2xl border-b border-white/5 shrink-0 z-50">
           <div className="flex items-center gap-10">
             <button 
               onClick={() => setSidebarOpen(true)}
@@ -409,7 +415,7 @@ export function Dashboard() {
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-10 relative scroll-smooth custom-scrollbar">
+        <main className="admin-reso-main flex-1 overflow-y-auto px-5 py-8 md:px-10 lg:px-14 relative scroll-smooth custom-scrollbar">
           <div className="max-w-[1400px] mx-auto pb-20">
                 <header className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
                   <div>

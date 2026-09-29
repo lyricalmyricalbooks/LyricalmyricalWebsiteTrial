@@ -30,6 +30,9 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
   checkout, account, reviews, search).
 - `src/app/admin/` — admin dashboard (catalog, orders, discounts, reviews,
   pages, theme editor, analytics). `admin/api.ts` holds Firestore calls.
+  The shared `admin-reso` shell in `Dashboard.tsx` and `theme.css` is the
+  default visual system for every admin route; keep new admin surfaces inside
+  that shell so they inherit its light canvas, panels, forms, tables and dialogs.
 - `functions/index.js` — Cloud Functions: Stripe checkout/webhook, digital
   downloads, order emails, abandoned-cart sweep. `functions/shippingGeo.js` —
   shipping zones.

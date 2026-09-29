@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   hexToRgbTriplet,
   buildStorefrontTokenVars,
+  RISO_STOREFRONT_CSS,
   STOREFRONT_TOKEN_CSS,
 } from "./themeTokens";
 
@@ -22,6 +23,14 @@ describe("hexToRgbTriplet", () => {
   it("falls back on invalid input", () => {
     expect(hexToRgbTriplet(undefined)).toBe("255 255 255");
     expect(hexToRgbTriplet("not-a-color", "0 0 0")).toBe("0 0 0");
+  });
+});
+
+describe("RISO_STOREFRONT_CSS", () => {
+  it("keeps the print treatment scoped to storefront surfaces", () => {
+    expect(RISO_STOREFRONT_CSS).toContain("[data-fm-store]");
+    expect(RISO_STOREFRONT_CSS).toContain("radial-gradient");
+    expect(RISO_STOREFRONT_CSS).not.toContain("body{");
   });
 });
 

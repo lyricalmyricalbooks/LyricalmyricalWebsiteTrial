@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { Lock, ArrowRight, Settings } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { adminApi } from "./api";
 
 interface LoginProps {
@@ -26,25 +26,28 @@ export function Login({ onLogin }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4 font-sans">
+    <div className="admin-reso min-h-screen bg-[#f6f8fb] flex items-center justify-center p-4 font-sans text-[#10182d] relative overflow-hidden">
+      <div className="absolute -top-40 -right-32 h-96 w-96 rounded-full bg-violet-200/40 blur-3xl" aria-hidden="true" />
+      <div className="absolute -bottom-48 -left-28 h-96 w-96 rounded-full bg-cyan-100/60 blur-3xl" aria-hidden="true" />
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="max-w-md w-full"
       >
         <div className="text-center mb-12">
-          <h1 className="text-4xl text-white tracking-[0.3em] font-light italic mb-2">F✶M</h1>
-          <p className="text-[10px] tracking-[0.4em] text-white/40 uppercase">Internal Console</p>
+          <div className="mx-auto mb-6 h-14 w-14 rounded-2xl bg-[#6339f5] text-white shadow-[0_10px_30px_rgba(99,57,245,.3)] flex items-center justify-center"><BookOpen size={25} /></div>
+          <h1 className="text-3xl tracking-[-0.04em] font-black italic uppercase mb-2">Lyrical <span className="text-[#6339f5]">Myrical</span></h1>
+          <p className="text-[9px] tracking-[0.4em] text-[#526078] uppercase font-black">Publishing House · Admin</p>
         </div>
 
-        <div className="bg-neutral-900/50 backdrop-blur-xl p-10 rounded-3xl border border-white/5 shadow-2xl">
+        <div className="bg-white p-10 rounded-[2.5rem] border border-[#dce3ee] shadow-[0_18px_60px_rgba(25,39,70,.08)]">
           <div className="mb-8 text-center">
-            <label className="block text-[10px] tracking-[.2em] text-white/40 uppercase mb-8">Identity Verification Required</label>
+            <label className="block text-[10px] tracking-[.2em] text-[#526078] uppercase mb-8 font-black">Identity verification required</label>
             
             <button
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full bg-white text-black rounded-2xl py-4 flex items-center justify-center gap-4 text-[10px] tracking-[0.3em] font-bold hover:bg-neutral-200 transition-all disabled:opacity-50"
+              className="w-full bg-[#6339f5] text-white rounded-2xl py-4 flex items-center justify-center gap-4 text-[10px] tracking-[0.25em] font-black hover:bg-[#5329e8] shadow-[0_10px_24px_rgba(99,57,245,.24)] transition-all disabled:opacity-50"
             >
               {loading ? (
                 "AUTHENTICATING..."
@@ -66,7 +69,7 @@ export function Login({ onLogin }: LoginProps) {
         </div>
 
         <div className="mt-12 text-center">
-          <p className="text-white/20 text-[9px] tracking-[0.3em] uppercase">Private System — Authorized Access Only</p>
+          <p className="text-[#78859a] text-[9px] tracking-[0.3em] uppercase font-bold">Private system — authorized access only</p>
         </div>
       </motion.div>
     </div>
