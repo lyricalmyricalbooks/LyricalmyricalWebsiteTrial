@@ -115,7 +115,7 @@ export function SearchOverlay({
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 placeholder="Search books, authors, categories…"
-                className="flex-1 bg-transparent outline-none text-sm text-white placeholder:text-white/30"
+                className="flex-1 bg-transparent outline-none text-sm text-white placeholder:text-[var(--muted)]"
               />
               <button
                 onClick={onClose}

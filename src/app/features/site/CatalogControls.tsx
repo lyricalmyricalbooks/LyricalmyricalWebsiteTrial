@@ -91,7 +91,7 @@ export function CatalogControls({
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search by title, author, category…"
-            className="w-full bg-white/[0.04] border border-white/10 rounded-full py-3 pl-11 pr-10 text-xs text-white placeholder:text-white/30 outline-none focus:border-white/30 transition-all"
+            className="w-full bg-white/[0.04] border border-white/10 rounded-full py-3 pl-11 pr-10 text-xs text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30 transition-all"
           />
           {query && (
             <button
