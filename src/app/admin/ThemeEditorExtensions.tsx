@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useFocusTrap } from "../lib/useFocusTrap";
 import { useDraggable } from "@dnd-kit/core";
 import { SortableList, SortableRow } from "./dndSortable";
 import {
@@ -595,10 +596,10 @@ function DraggableSectionCard({
         onAdd(meta.type);
         onClose();
       }}
-      className="text-left p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-violet-500/40 hover:bg-violet-500/5 transition-all group"
+      className="text-left p-4 bg-[var(--rp-surface)] border-2 border-[var(--rp-border)] hover:border-[var(--rp-border-strong)] hover:shadow-[var(--rp-shadow-sm)] transition-colors group min-h-[44px]"
     >
-      <p className="text-white text-sm font-black uppercase tracking-tight italic mb-1">{meta.label}</p>
-      <p className="text-slate-400 text-xs leading-relaxed">{meta.description}</p>
+      <p className="text-sm font-bold uppercase tracking-tight mb-1" style={{ color: "var(--rp-text)" }}>{meta.label}</p>
+      <p className="text-xs leading-relaxed" style={{ color: "var(--rp-text-muted)" }}>{meta.description}</p>
     </button>
   );
 }
@@ -617,6 +618,8 @@ export function NewSectionLibraryModal({
   onDeletePreset?: (id: string) => void;
 }) {
   const [search, setSearch] = useState("");
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, onClose);
   const categories = Array.from(new Set(SECTION_REGISTRY.map((s) => s.category)));
   const filtered = SECTION_REGISTRY.filter(
     (s) =>
@@ -634,37 +637,44 @@ export function NewSectionLibraryModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[500] bg-black/80 backdrop-blur-xl flex items-center justify-center p-6"
+        className="fixed inset-0 z-[500] bg-black/70 flex items-center justify-center p-3 sm:p-6"
         onClick={onClose}
       >
         <motion.div
           initial={{ scale: 0.95, y: 20 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.95, y: 20 }}
-          className="bg-[#0c0c0e] border border-white/10 rounded-3xl w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col"
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Section library"
+          tabIndex={-1}
+          className="bg-[var(--rp-surface)] text-[var(--rp-text)] border-2 border-[var(--rp-border-strong)] shadow-[var(--rp-shadow-pop)] w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="px-8 pt-8 pb-4 border-b border-white/5 flex items-center justify-between">
+          <div className="px-5 sm:px-8 pt-6 pb-4 border-b-2 border-[var(--rp-border-strong)] flex flex-wrap gap-3 items-center justify-between">
             <div>
-              <p className="text-[10px] tracking-[0.4em] font-black text-violet-400 uppercase italic mb-1">Section Library</p>
-              <h3 className="text-2xl font-black text-white tracking-tighter uppercase italic">Add a section</h3>
+              <p className="text-[10px] tracking-[0.3em] font-bold uppercase mb-1" style={{ color: "var(--rp-primary-text)", fontFamily: "var(--rp-font-mono)" }}>Section library</p>
+              <h3 className="text-2xl uppercase m-0" style={{ fontFamily: "var(--rp-font-display)" }}>Add a section</h3>
             </div>
             <input
+              aria-label="Search sections"
+              data-autofocus
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search sections…"
-              className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none focus:border-violet-500/50 w-64"
+              className="bg-[var(--rp-surface-2)] border-2 border-[var(--rp-border)] px-4 py-2 min-h-[44px] text-sm outline-none focus:border-[var(--rp-border-strong)] w-full sm:w-64 placeholder:text-[var(--rp-text-subtle)]" style={{ color: "var(--rp-text)" }}
             />
           </div>
-          <div className="overflow-y-auto p-8 space-y-8">
+          <div className="overflow-y-auto p-5 sm:p-8 space-y-8">
             {filteredPresets.length > 0 && onAddPreset && (
               <div>
-                <p className="text-[10px] font-black tracking-[0.3em] text-amber-400 uppercase italic mb-3">My Presets</p>
+                <p className="text-[10px] font-bold tracking-[0.3em] text-[var(--rp-warning)] uppercase mb-3">My presets</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {filteredPresets.map((preset) => (
                     <div
                       key={preset.id}
-                      className="relative text-left p-4 rounded-2xl bg-amber-500/[0.04] border border-amber-500/20 hover:border-amber-400/50 transition-all group"
+                      className="relative text-left p-4 bg-[var(--rp-warning-tint)] border-2 border-[var(--rp-border)] hover:border-[var(--rp-border-strong)] transition-colors group"
                     >
                       <button
                         onClick={() => {
@@ -673,8 +683,8 @@ export function NewSectionLibraryModal({
                         }}
                         className="text-left w-full"
                       >
-                        <p className="text-white text-sm font-black uppercase tracking-tight italic mb-1 pr-6">{preset.name}</p>
-                        <p className="text-slate-400 text-xs leading-relaxed">
+                        <p className="text-sm font-bold uppercase tracking-tight mb-1 pr-8" style={{ color: "var(--rp-text)" }}>{preset.name}</p>
+                        <p className="text-xs leading-relaxed" style={{ color: "var(--rp-text-muted)" }}>
                           Saved {getSectionMeta(preset.type)?.label || preset.type.replace("Section", "")} with your content and styling.
                         </p>
                       </button>
@@ -685,7 +695,8 @@ export function NewSectionLibraryModal({
                             onDeletePreset(preset.id);
                           }}
                           title="Delete preset"
-                          className="absolute top-3 right-3 p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                          aria-label={`Delete preset ${preset.name}`}
+                          className="absolute top-1 right-1 p-2.5 text-[var(--rp-text-muted)] hover:text-[var(--rp-danger)] hover:bg-[var(--rp-danger-tint)] opacity-60 group-hover:opacity-100 focus:opacity-100 transition-colors"
                         >
                           <Trash2 size={12} />
                         </button>
@@ -700,7 +711,7 @@ export function NewSectionLibraryModal({
               if (items.length === 0) return null;
               return (
                 <div key={cat}>
-                  <p className="text-[10px] font-black tracking-[0.3em] text-slate-500 uppercase italic mb-3">{cat}</p>
+                  <p className="text-[10px] font-bold tracking-[0.3em] uppercase mb-3" style={{ color: "var(--rp-text-muted)", fontFamily: "var(--rp-font-mono)" }}>{cat}</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {items.map((meta) => (
                       <DraggableSectionCard

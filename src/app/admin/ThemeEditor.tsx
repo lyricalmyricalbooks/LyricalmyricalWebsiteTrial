@@ -5395,9 +5395,10 @@ export interface ThemeEditorProps {
   settings: any;
   onSave: (design: any, options?: any) => Promise<void>;
   onExit: () => void;
+  appearance?: "light" | "dark";
 }
 
-export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
+export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: ThemeEditorProps) {
   const getInitialDesign = (source?: any) => {
     const baseDesign = adminApi.getDefaultSettings().design;
     const incomingDesign = source ?? settings?.draftDesign ?? settings?.design ?? {};
@@ -6442,21 +6443,21 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   ];
 
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col bg-[#050506] text-white overflow-hidden" style={{ fontFamily: "'Outfit', sans-serif" }}>
+    <div className="rp fixed inset-0 z-[200] flex flex-col overflow-hidden" data-rp-appearance={appearance} style={{ fontFamily: "var(--rp-font-body)", background: "var(--rp-canvas)", color: "var(--rp-text)" }}>
       {/* ── Top bar ── */}
-      <div className={`transition-all duration-500 ease-in-out flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-6 flex-shrink-0 border-b border-white/5 z-50 ${isFullscreen ? "h-0 opacity-0 overflow-hidden border-none pointer-events-none" : "min-h-20 py-2 bg-black/40 backdrop-blur-3xl"}`}>
+      <div className={`transition-all duration-500 ease-in-out flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-6 flex-shrink-0 border-b-2 border-[var(--rp-border-strong)] z-50 ${isFullscreen ? "h-0 opacity-0 overflow-hidden border-none pointer-events-none" : "min-h-20 py-2 bg-[var(--rp-surface)]"}`}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <div className="flex flex-col">
-            <span className="text-[10px] font-black tracking-[0.4em] text-violet-400 uppercase italic">Architectural Core</span>
+            <span className="text-[10px] font-bold tracking-[0.3em] uppercase" style={{ color: "var(--rp-primary-text)", fontFamily: "var(--rp-font-mono)" }}>Theme Editor</span>
             <div className="flex items-center gap-3">
-              <span className="text-xl font-black tracking-tighter text-white uppercase italic whitespace-nowrap">Theme Editor</span>
+              <h1 className="text-2xl uppercase whitespace-nowrap m-0" style={{ fontFamily: "var(--rp-font-display)", letterSpacing: ".02em" }}>Design studio</h1>
               {/* Save status badge */}
-              <span className={`flex items-center gap-1.5 text-[8px] font-black tracking-widest px-3 py-1 rounded-full border uppercase italic transition-all ${
+              <span className={`flex items-center gap-1.5 text-[8px] font-black tracking-widest px-3 py-1 border-2 uppercase transition-all ${
                 saveStatus === "unsaved"
-                  ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                  ? "bg-[var(--rp-warning-tint)] text-[var(--rp-warning)] border-[var(--rp-warning)]"
                   : saveStatus === "draft"
-                  ? "bg-sky-500/10 text-sky-400 border-sky-500/20"
-                  : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                  ? "bg-[var(--rp-info-tint)] text-[var(--rp-info)] border-[var(--rp-info)]"
+                  : "bg-[var(--rp-success-tint)] text-[var(--rp-success)] border-[var(--rp-success)]"
               }`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${
                   saveStatus === "unsaved" ? "bg-amber-400 animate-pulse" :
@@ -6920,11 +6921,10 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
       {/* ── Body ── */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* ── Left sidebar ── */}
-        <div className={`transition-all duration-500 ease-in-out flex flex-col border-r border-white/5 flex-shrink-0 z-10 relative overflow-hidden bg-black/20 backdrop-blur-3xl ${isFullscreen ? "w-0 opacity-0 border-none pointer-events-none" : "w-[380px]"}`}>
-          <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
+        <div className={`transition-all duration-500 ease-in-out flex flex-col border-r-2 flex-shrink-0 z-10 relative overflow-hidden ${isFullscreen ? "w-0 opacity-0 border-none pointer-events-none" : "w-[380px] max-w-[100vw]"}`} style={{ background: "var(--rp-surface)", color: "var(--rp-text)", borderColor: "var(--rp-border-strong)" }}>
           
           {/* Tab nav — compact pill grid so every label stays readable */}
-          <div data-tour="tabs" className="grid grid-cols-4 gap-1.5 p-3 border-b border-white/5 bg-black/20 backdrop-blur-xl relative z-10">
+          <div data-tour="tabs" role="tablist" aria-label="Theme editor sections" className="grid grid-cols-4 gap-1.5 p-3 border-b-2 border-[var(--rp-border-strong)] bg-[var(--rp-surface)] relative z-10">
             {(
               [
                 { id: "settings",   icon: <Settings size={13} />,       label: "Design" },
@@ -6939,11 +6939,13 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
             ).map((tab) => (
               <button
                 key={tab.id}
+                role="tab"
+                aria-selected={activeTab === tab.id}
                 onClick={() => { setActiveTab(tab.id); setActiveSection(null); }}
-                className={`flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-xl text-[9px] font-bold tracking-[0.04em] uppercase transition-all border ${
+                className={`flex items-center justify-center gap-1.5 px-2 py-2.5 min-h-[44px] text-[10px] font-bold tracking-[0.06em] uppercase transition-colors border-2 ${
                   activeTab === tab.id
-                    ? "bg-violet-600/20 text-violet-300 border-violet-500/40 shadow-[0_0_14px_rgba(124,58,237,0.15)]"
-                    : "text-slate-500 border-transparent hover:text-slate-300 hover:bg-white/[0.04]"
+                    ? "bg-[var(--rp-primary)] text-[var(--rp-on-primary)] border-[var(--rp-border-strong)]"
+                    : "text-[var(--rp-text-muted)] border-transparent hover:bg-[var(--rp-surface-2)]"
                 }`}
               >
                 {tab.icon}

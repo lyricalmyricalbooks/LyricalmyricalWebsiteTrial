@@ -414,6 +414,7 @@ export function Dashboard() {
                   await saveSection("design", { design }, options);
                 }}
                 onExit={() => setSettingsTab("general")}
+                appearance={appearance}
               />
             </motion.div>
           </div>

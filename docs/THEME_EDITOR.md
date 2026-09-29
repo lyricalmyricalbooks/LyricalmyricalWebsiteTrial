@@ -492,3 +492,7 @@ Our renderers must stay shallow.
 - `npm run build` should succeed; run `npm test` (Vitest) for any touched logic.
 - Respect existing guardrails in `CLAUDE.md` / `AGENTS.md` (sub-path routing,
   Firestore rules, accessibility).
+
+## Riso chrome (Phase 5 complete)
+
+The editor root is now `.rp` and follows the admin appearance (`appearance` prop from `Dashboard`). Top bar (Design studio heading, Live/Draft/Unsaved badge on `--rp-*` status tints), the tab strip (`role="tablist"`, 44px targets, flare active tab), left panel surface, shared primitives, and the section library (`role="dialog"`, focus trap, Escape, labelled search and delete controls) all use Riso tokens. Deeper panel bodies still carry legacy utility classes under the `.admin-reso` compat layer; migrate them panel by panel.
