@@ -9,14 +9,17 @@ import { TemplateSections, GlobalSections } from "../../components/sectionRender
 import { LogoMark } from "../../components/LogoMark";
 import { resolveLogoDesign } from "./selectors";
 import type { Page } from "./types";
+import { policyPageFor } from "./policyPages";
 
 
 export function PageView() {
   const { slug } = useParams<{ slug: string }>();
-  const { settings, books } = useSiteData();
+  const { settings, books, loading: siteLoading } = useSiteData();
   const [page, setPage] = useState<Page | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  // Store policies (Settings › General) are served as synthetic pages at /page/policy-<key>.
+  const policyPage = policyPageFor(slug, (settings as any)?.policies);
 
   useEffect(() => {
     if (!slug) return;
@@ -71,7 +74,8 @@ export function PageView() {
   const themedText = d?.textColor || "#f3f1ee";
   const logoDesign = resolveLogoDesign(rawDesign.storefront, [rawDesign.heroPage, rawDesign]);
 
-  if (loading) {
+  const isPolicySlug = /^policy-/.test(slug || "");
+  if (loading || (isPolicySlug && siteLoading && !page)) {
     return (
       <div data-fm-store className="min-h-screen fm-page flex items-center justify-center">
         <StorefrontThemeStyle design={settings?.design} />
@@ -82,7 +86,8 @@ export function PageView() {
     );
   }
 
-  if (notFound || !page) {
+  const shown = page || policyPage;
+  if (!shown) {
     return (
       <div className="min-h-screen bg-[#fafafa] flex flex-col items-center justify-center gap-4">
         <p className="text-6xl font-black text-neutral-100">404</p>
@@ -143,7 +148,7 @@ export function PageView() {
           Page
         </p>
         <h1 className={`text-4xl font-black tracking-tight mb-10 ${themed ? "" : "text-neutral-900"}`}>
-          {page.title}
+          {shown.title}
         </h1>
 
         <div
@@ -164,7 +169,7 @@ export function PageView() {
                 [&_blockquote]:border-l-4 [&_blockquote]:border-neutral-100 [&_blockquote]:pl-6 [&_blockquote]:italic [&_blockquote]:text-neutral-500 [&_blockquote]:my-8
                 [&_em]:italic`
           }
-          dangerouslySetInnerHTML={{ __html: page.body || "" }}
+          dangerouslySetInnerHTML={{ __html: shown.body || "" }}
         />
       </motion.main>
       )}
