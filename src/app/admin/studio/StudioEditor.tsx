@@ -376,6 +376,7 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
     const h = (e: MessageEvent) => {
       if (e.origin !== window.location.origin || !e.data) return;
       const d = e.data;
+      if (d.type === "PREVIEW_ERROR") say("err", `The preview hit an error: ${String(d.message).slice(0, 200)}`);
       if (d.type === "PREVIEW_READY") { sendDesign(); sendCopyMap(); highlight(selectedId); }
       if (d.type === "COPY_SELECT" && typeof d.key === "string") {
         setLeftTab("text");
