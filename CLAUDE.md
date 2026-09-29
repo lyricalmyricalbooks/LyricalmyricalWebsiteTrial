@@ -257,10 +257,11 @@ StatusBadge, DataTable, FilterBar, Pagination, Tabs, Dialog/Drawer/ConfirmDialog
 with focus trap + Escape + focus restore, Toast, Empty/Loading/Error states,
 SaveBar), and `shellParts.tsx` (`GlobalSearch`, `ActivityLogDialog`).
 Migrated so far: shell (`Dashboard.tsx`), `Login`, `ReviewsModeration`, Activity
-Logs. **Not yet migrated** (still on the legacy `.admin-reso`/`.admin-light`
+Logs, and the Orders list (`Orders.tsx`; `Dashboard.tsx` renders migrated pages
+outside the legacy wrapper via its `migrated` flag — add new ones there). **Not yet migrated** (still on the legacy `.admin-reso`/`.admin-light`
 utility remapping, which `Dashboard.tsx` now scopes to page content only —
 never wrap `rp-*` chrome in `.admin-light`, its `aside button`/`input` rules
-will override it): Overview/Analytics, Orders, OrderDetail, BookCatalog,
+will override it): Overview/Analytics, OrderDetail, BookCatalog,
 BookEditor, Discounts, PagesManager, ShopSettings, NotificationEditor, the theme
 editor, and the whole storefront. Migrate one page at a time by composing these
 components; don't touch checkout/order/webhook logic.

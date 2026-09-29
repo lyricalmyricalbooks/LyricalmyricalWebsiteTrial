@@ -1,25 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
-import { 
-  Search, 
-  Grid, 
-  List as ListIcon, 
-  ChevronRight, 
-  Package, 
-  DollarSign, 
-  Upload,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  MoreVertical,
-  ExternalLink,
-  Users,
-  Trash2
-} from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
 import { adminApi } from "./api";
-import { motion, AnimatePresence } from "motion/react";
 import toast from "react-hot-toast";
 import { orderApi, FULFILLMENT_LABELS, type FulfillmentStatus } from "../lib/commerce";
-import { Download, CheckSquare, Square } from "lucide-react";
+import {
+  Checkbox, ConfirmDialog, DataTable, DestructiveButton, EmptyState, ErrorState, FilterBar, LoadingState,
+  Pagination, PrimaryButton, SearchField, SectionCard, SecondaryButton, SelectField, StatusBadge, Tabs,
+  type BadgeTone, type Column,
+} from "./riso/components";
 
 // ⚡ Bolt: Cache lowercased search strings using a WeakMap to prevent
 // O(N) string memory allocations and redundant .toLowerCase() calls on every keystroke.
@@ -33,6 +21,11 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
   const [searchQuery, setSearchQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<FulfillmentStatus>("processing");
+  const [failed, setFailed] = useState(false);
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<"newest" | "oldest" | "total-desc" | "total-asc">("newest");
+  const [range, setRange] = useState<"all" | "7" | "30" | "90">("all");
+  const [confirmDeleteTests, setConfirmDeleteTests] = useState(false);
   const [orderType, setOrderType] = useState<"production" | "test" | "all">("production");
 
   const ordersMap = useMemo(() => new Map(orders.map(o => [o.id, o])), [orders]);
@@ -68,13 +61,18 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
     toast.success(`Exported ${list.length} order${list.length === 1 ? "" : "s"}`);
   };
 
-  const handleBulkDeleteTests = async () => {
+  const requestDeleteTests = () => {
     const ids = Array.from(selected);
     if (!ids.length || !ids.every(id => ordersMap.get(id)?.isTest === true)) {
       toast.error("Bulk deletion is limited to marked test orders");
       return;
     }
-    if (!window.confirm(`Permanently delete ${ids.length} marked test order${ids.length === 1 ? "" : "s"}?`)) return;
+    setConfirmDeleteTests(true);
+  };
+
+  const handleBulkDeleteTests = async () => {
+    const ids = Array.from(selected);
+    setConfirmDeleteTests(false);
     try {
       const result = await adminApi.deleteTestOrders(ids);
       toast.success(`Deleted ${result.deleted} test order${result.deleted === 1 ? "" : "s"}`);
@@ -102,12 +100,14 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
   }, []);
 
   async function loadOrders() {
+    setFailed(false);
     try {
       const data = await adminApi.getOrders();
       setOrders(data);
     } catch (err) {
       console.error("Failed to load orders", err);
-      toast.error("Registry access denied");
+      setFailed(true);
+      toast.error("Orders could not be loaded");
     } finally {
       setLoading(false);
     }
@@ -130,6 +130,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
         (orderType === "production" && o.isTest !== true);
 
       if (!matchesTab || !matchesOrderType) return false;
+      if (range !== "all" && Date.now() - new Date(o.createdAt).getTime() > Number(range) * 86400000) return false;
 
       if (q) {
         let haystack = orderSearchCache.get(o);
@@ -143,232 +144,124 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
       }
 
       return true;
+    }).sort((a, b) => {
+      if (sort === "total-desc") return (b.total || 0) - (a.total || 0);
+      if (sort === "total-asc") return (a.total || 0) - (b.total || 0);
+      const d = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return sort === "oldest" ? d : -d;
     });
-  }, [orders, activeTab, searchQuery, orderType]);
+  }, [orders, activeTab, searchQuery, orderType, range, sort]);
+
+  const PAGE_SIZE = 25;
+  const pageCount = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
+  const pageRows = filteredOrders.slice((Math.min(page, pageCount) - 1) * PAGE_SIZE, Math.min(page, pageCount) * PAGE_SIZE);
+  useEffect(() => setPage(1), [activeTab, searchQuery, orderType, range, sort]);
+
+  const fulfillmentOf = (o: any): FulfillmentStatus =>
+    (o.fulfillmentStatus || (o.status === "completed" ? "delivered" : o.paymentStatus === "paid" ? "paid" : "pending_payment")) as FulfillmentStatus;
+  const fulfillmentTone = (f: FulfillmentStatus): BadgeTone =>
+    f === "delivered" ? "success" : f === "shipped" || f === "out_for_delivery" ? "info" : f === "cancelled" || f === "refunded" ? "danger" : f === "processing" ? "primary" : "warning";
+
+  const allSelected = pageRows.length > 0 && pageRows.every(o => selected.has(o.id));
+  const selectedArr = Array.from(selected);
+  const allTestSelection = selectedArr.length > 0 && selectedArr.every(id => ordersMap.get(id)?.isTest === true);
+  const noTestSelection = !selectedArr.some(id => ordersMap.get(id)?.isTest === true);
+
+  const columns: Column<any>[] = [
+    { key: "sel", header: "Select", render: o => (
+      <Checkbox label="" aria-label={`Select order ${o.orderId}`} checked={selected.has(o.id)} onChange={() => toggleSelect(o.id)} />
+    ) },
+    { key: "order", header: "Order", render: o => (
+      <button type="button" className="rp-mono" onClick={() => onSelectOrder(o)}
+        style={{ background: "none", border: 0, padding: 0, color: "var(--rp-primary)", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
+        aria-label={`Open order ${o.orderId}`}>{o.orderId}</button>
+    ) },
+    { key: "date", header: "Date", render: o => new Date(o.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) },
+    { key: "customer", header: "Customer", render: o => (
+      <div style={{ maxWidth: 240, overflowWrap: "anywhere" }}>
+        <div style={{ fontWeight: 600 }}>{o.customer?.name || "—"}</div>
+        <div className="rp-hint">{o.customer?.email}</div>
+      </div>
+    ) },
+    { key: "items", header: "Items", numeric: true, render: o => o.items?.length || 0 },
+    { key: "total", header: "Total", numeric: true, render: o => `CA$${Number(o.total || 0).toFixed(2)}` },
+    { key: "payment", header: "Payment", render: o => (
+      <StatusBadge tone={o.paymentStatus === "paid" ? "success" : "danger"}>{o.paymentStatus === "paid" ? "Paid" : "Unpaid"}</StatusBadge>
+    ) },
+    { key: "fulfillment", header: "Fulfillment", render: o => (
+      <StatusBadge tone={fulfillmentTone(fulfillmentOf(o))}>{FULFILLMENT_LABELS[fulfillmentOf(o)]}</StatusBadge>
+    ) },
+    { key: "address", header: "Address", render: o => (
+      o.addressVerified === false ? <StatusBadge tone="warning">Check address</StatusBadge>
+        : o.addressVerified === true ? <StatusBadge tone="success">Verified</StatusBadge>
+        : <StatusBadge>Unchecked</StatusBadge>
+    ) },
+    { key: "flags", header: "Type", render: o => o.isTest === true ? <StatusBadge tone="danger">Test</StatusBadge> : null },
+  ];
 
   return (
-    <div className="space-y-12 pb-32">
-      <div className="flex flex-col xl:flex-row gap-8 items-center justify-between">
-        <div className="relative w-full xl:w-[500px] group">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-violet-400 transition-colors" size={20} />
-          <input 
-            type="text"
-            placeholder="Search Order ID, Customer, or Registry Email..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/[0.03] border border-white/5 rounded-3xl py-5 pl-14 pr-6 text-sm text-white focus:border-violet-500/50 focus:bg-white/[0.07] outline-none transition-all shadow-2xl tracking-wide placeholder:text-slate-600 backdrop-blur-md"
-          />
+    <div className="rp rp-stack" style={{ background: "transparent" }}>
+      <FilterBar>
+        <div className="rp-grow">
+          <SearchField label="Search orders" placeholder="Search order ID or customer name…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
         </div>
+        <SelectField label="Order type" hideLabel value={orderType}
+          onChange={e => { setOrderType(e.target.value as any); setSelected(new Set()); }}>
+          <option value="production">Production orders</option>
+          <option value="test">Test orders</option>
+          <option value="all">All orders</option>
+        </SelectField>
+        <SelectField label="Date range" hideLabel value={range} onChange={e => setRange(e.target.value as any)}>
+          <option value="all">Any date</option>
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </SelectField>
+        <SelectField label="Sort orders" hideLabel value={sort} onChange={e => setSort(e.target.value as any)}>
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="total-desc">Total: high to low</option>
+          <option value="total-asc">Total: low to high</option>
+        </SelectField>
+        <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={handleExportCsv}>Export CSV</SecondaryButton>
+      </FilterBar>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleExportCsv}
-            className="flex items-center gap-2 bg-white/[0.04] border border-white/10 hover:bg-white/[0.08] text-slate-300 px-5 py-3 rounded-2xl text-[10px] tracking-[0.3em] font-black uppercase transition-all"
-          >
-            <Download size={14} /> Export CSV
-          </button>
-          <select
-            aria-label="Filter test orders"
-            value={orderType}
-            onChange={e => {
-              setOrderType(e.target.value as "production" | "test" | "all");
-              setSelected(new Set());
-            }}
-            className="bg-white/[0.04] border border-white/10 rounded-2xl px-5 py-3 text-[10px] tracking-[0.2em] font-black uppercase text-slate-300 outline-none"
-          >
-            <option value="production" className="bg-[#0A0A0B]">Production orders</option>
-            <option value="test" className="bg-[#0A0A0B]">Test orders</option>
-            <option value="all" className="bg-[#0A0A0B]">All orders</option>
-          </select>
-        </div>
+      <Tabs label="Order status" value={activeTab} onChange={setActiveTab}
+        tabs={["Open", "Completed", "All orders"].map(t => ({ id: t, label: t }))} />
 
-        <div className="flex bg-white/[0.03] rounded-[2.5rem] p-2 border border-white/5 backdrop-blur-md">
-           {["Open", "Completed", "All orders"].map(tab => (
-             <button
-               key={tab}
-               onClick={() => setActiveTab(tab)}
-               className={`px-10 py-3.5 rounded-3xl text-[10px] tracking-[0.3em] font-black transition-all ${
-                 activeTab === tab ? 'bg-violet-600 text-white shadow-[0_10px_20px_rgba(124,58,237,0.3)]' : 'text-slate-500 hover:text-slate-300'
-               }`}
-             >
-               {tab.toUpperCase()}
-             </button>
-           ))}
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="h-[60vh] flex flex-col items-center justify-center space-y-8">
-           <div className="relative">
-              <div className="w-24 h-24 border-2 border-violet-500/5 border-t-violet-500 rounded-full animate-spin"></div>
-              <div className="absolute inset-0 w-24 h-24 border-2 border-cyan-500/5 border-b-cyan-500 rounded-full animate-spin-slow"></div>
-           </div>
-           <p className="text-[10px] tracking-[0.6em] text-slate-500 uppercase font-black animate-pulse">Decrypting Transaction Ledger...</p>
-        </div>
-      ) : filteredOrders.length === 0 ? (
-        <div className="h-[50vh] flex flex-col items-center justify-center bg-white/[0.01] rounded-[4rem] border border-white/5 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-violet-600/5 blur-[120px] -translate-y-1/2 translate-x-1/2" />
-          <div className="p-10 bg-white/[0.02] rounded-full border border-white/5 text-slate-800 mb-8 shadow-inner group-hover:scale-110 transition-transform duration-700">
-            <Package size={64} strokeWidth={0.5} />
-          </div>
-          <h3 className="text-3xl font-black text-white mb-3 uppercase tracking-tighter italic">Void Detected</h3>
-          <p className="text-[10px] tracking-[0.4em] text-slate-500 uppercase mb-12 font-black">No transactions identified in this spectral range</p>
-        </div>
-      ) : (
-        <>
-          {/* Selection / bulk action bar */}
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-6 p-5 bg-white/[0.02] border border-white/5 rounded-2xl">
-            <button
-              onClick={() => selectAllFiltered(filteredOrders.map(o => o.id))}
-              className="flex items-center gap-3 text-[10px] font-black tracking-widest text-slate-400 hover:text-white uppercase"
-            >
-              {filteredOrders.every(o => selected.has(o.id)) ? <CheckSquare size={14} /> : <Square size={14} />}
-              {selected.size > 0 ? `${selected.size} selected` : "Select all"}
-            </button>
-            {selected.size > 0 && (
-              <div className="flex items-center gap-3">
-                {Array.from(selected).every(id => ordersMap.get(id)?.isTest === true) && (
-                  <button
-                    onClick={handleBulkDeleteTests}
-                    className="flex items-center gap-2 bg-rose-600 hover:bg-rose-500 text-white px-5 py-2 rounded-xl text-[10px] tracking-widest font-black uppercase transition-colors"
-                  >
-                    <Trash2 size={13} /> Delete tests
-                  </button>
-                )}
-                {!Array.from(selected).some(id => ordersMap.get(id)?.isTest === true) && (
-                  <>
-                <select
-                  value={bulkStatus}
-                  onChange={e => setBulkStatus(e.target.value as FulfillmentStatus)}
-                  className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[10px] tracking-widest uppercase text-white outline-none cursor-pointer"
-                >
-                  {(Object.keys(FULFILLMENT_LABELS) as FulfillmentStatus[]).map(k => (
-                    <option key={k} value={k} className="bg-[#0A0A0B]">{FULFILLMENT_LABELS[k]}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={handleBulkUpdate}
-                  className="bg-violet-600 hover:bg-violet-500 text-white px-5 py-2 rounded-xl text-[10px] tracking-widest font-black uppercase transition-colors"
-                >
-                  Apply to {selected.size}
-                </button>
-                  </>
-                )}
-                <button
-                  onClick={() => setSelected(new Set())}
-                  className="text-[10px] font-black tracking-widest text-slate-500 hover:text-white uppercase"
-                >
-                  Clear
-                </button>
-              </div>
+      <SectionCard flush title="Orders" description={`${filteredOrders.length} order${filteredOrders.length === 1 ? "" : "s"} · totals are shown as recorded by the payment webhook`}
+        actions={filteredOrders.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <Checkbox label={selected.size > 0 ? `${selected.size} selected` : "Select page"} checked={allSelected}
+              onChange={() => selectAllFiltered(pageRows.map(o => o.id))} />
+            {allTestSelection && (
+              <DestructiveButton size="sm" icon={<Trash2 size={14} aria-hidden />} onClick={requestDeleteTests}>Delete tests</DestructiveButton>
             )}
+            {selected.size > 0 && noTestSelection && (
+              <>
+                <SelectField label="Set fulfillment status" hideLabel value={bulkStatus} onChange={e => setBulkStatus(e.target.value as FulfillmentStatus)}>
+                  {(Object.keys(FULFILLMENT_LABELS) as FulfillmentStatus[]).map(k => <option key={k} value={k}>{FULFILLMENT_LABELS[k]}</option>)}
+                </SelectField>
+                <PrimaryButton size="sm" onClick={handleBulkUpdate}>Apply to {selected.size}</PrimaryButton>
+              </>
+            )}
+            {selected.size > 0 && <SecondaryButton size="sm" onClick={() => setSelected(new Set())}>Clear</SecondaryButton>}
           </div>
+        )}>
+        {loading ? <LoadingState label="Loading orders…" />
+          : failed ? <ErrorState description="Orders could not be loaded. Check your connection and permissions." onRetry={() => { setLoading(true); loadOrders(); }} />
+          : (
+            <>
+              <DataTable caption="Orders" columns={columns} rows={pageRows} rowKey={o => o.id}
+                empty={<EmptyState title="No orders found" description="No orders match these filters. Try widening the date range or clearing the search." />} />
+              {filteredOrders.length > PAGE_SIZE && <Pagination page={Math.min(page, pageCount)} pageCount={pageCount} onPage={setPage} />}
+            </>
+          )}
+      </SectionCard>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-10">
-          {filteredOrders.map((order, i) => (
-            <motion.div
-              key={order.id}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05, ease: "easeOut" }}
-              onClick={() => onSelectOrder(order)}
-              className="group relative bg-white/[0.02] border border-white/5 rounded-[3rem] overflow-hidden cursor-pointer transition-all duration-700 hover:border-violet-500/30 hover:-translate-y-2 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.8)] flex flex-col"
-            >
-              <button
-                onClick={(e) => { e.stopPropagation(); toggleSelect(order.id); }}
-                aria-label="Select order"
-                className={`absolute top-4 right-4 z-20 w-9 h-9 rounded-xl flex items-center justify-center backdrop-blur-md border transition-colors ${
-                  selected.has(order.id)
-                    ? "bg-violet-500 border-violet-400 text-white"
-                    : "bg-black/40 border-white/10 text-white/60 hover:text-white"
-                }`}
-              >
-                {selected.has(order.id) ? <CheckSquare size={14} /> : <Square size={14} />}
-              </button>
-              <div className="aspect-[16/10] bg-slate-950 relative overflow-hidden">
-                <img 
-                  src={order.items?.[0]?.photoUrl || "https://images.unsplash.com/photo-1544377193-33dcf4d68fb5?auto=format"} 
-                  className="w-full h-full object-cover grayscale opacity-60 transition-all duration-1000 group-hover:scale-110 group-hover:rotate-1 group-hover:grayscale-0 group-hover:opacity-100"
-                />
-                
-                {/* Status Overlay */}
-                <div className="absolute top-6 left-6 z-10 flex gap-2">
-                   {order.isTest === true && (
-                     <span className="text-[8px] font-black tracking-[0.2em] px-4 py-2 rounded-xl bg-rose-600 text-white border border-rose-300 shadow-2xl">
-                       TEST ORDER
-                     </span>
-                   )}
-                   <span className={`text-[8px] font-black tracking-[0.2em] px-4 py-2 rounded-xl backdrop-blur-3xl border shadow-2xl flex items-center gap-2 ${
-                     order.status === 'open' 
-                       ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' 
-                       : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                   }`}>
-                     <div className={`w-1 h-1 rounded-full animate-pulse ${order.status === 'open' ? 'bg-amber-400' : 'bg-emerald-400'}`} />
-                     {order.status.toUpperCase()}
-                   </span>
-                </div>
-
-                <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent">
-                   <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500 mb-1">Dispatch Code</span>
-                        <h4 className="text-2xl font-black tracking-tighter text-white uppercase italic">{order.orderId}</h4>
-                      </div>
-                      <div className="p-3 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-xl group-hover:bg-violet-600 group-hover:border-violet-400 transition-all duration-500">
-                        <ExternalLink size={18} className="text-white" />
-                      </div>
-                   </div>
-                </div>
-              </div>
-
-              <div className="p-8 space-y-8 flex-1 flex flex-col justify-between">
-                <div className="space-y-6">
-                  <div className="flex items-center gap-5">
-                    <div className="w-12 h-12 rounded-2xl bg-white/[0.03] border border-white/5 flex items-center justify-center text-slate-500">
-                      <Users size={20} strokeWidth={1.5} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-black text-white uppercase tracking-tight leading-none mb-2">{order.customer?.name}</p>
-                      <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest leading-none truncate max-w-[150px]">{order.customer?.email}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between bg-white/[0.02] p-4 rounded-2xl border border-white/5">
-                     <div className="flex flex-col">
-                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 mb-1">Economic Flow</span>
-                        <span className="text-lg font-black text-white tracking-tighter">CA${order.total?.toFixed(2)}</span>
-                     </div>
-                     <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 block mb-1">Payload</span>
-                          <span className="text-xs font-black text-slate-400 uppercase">{order.items?.length || 0} Artifacts</span>
-                        </div>
-                     </div>
-                  </div>
-                </div>
-
-                <div className="pt-6 border-t border-white/5 flex items-center justify-between">
-                   <div className="flex items-center gap-3 text-slate-500">
-                      <Clock size={14} />
-                      <span className="text-[10px] font-black tracking-[0.2em] uppercase">{new Date(order.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-                   </div>
-                   <div className="flex items-center gap-3">
-                      {order.paymentStatus === 'paid' ? (
-                        <CheckCircle2 size={16} className="text-emerald-500" />
-                      ) : (
-                        <AlertCircle size={16} className="text-rose-500" />
-                      )}
-                      <span className={`text-[10px] font-black tracking-widest uppercase ${order.paymentStatus === 'paid' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                        {order.paymentStatus === 'paid' ? 'Authenticated' : 'Pending'}
-                      </span>
-                   </div>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-        </>
-      )}
+      <ConfirmDialog open={confirmDeleteTests} title="Delete test orders?" confirmLabel="Delete test orders"
+        message={`Permanently delete ${selected.size} marked test order${selected.size === 1 ? "" : "s"}? Production orders can never be deleted here.`}
+        onConfirm={handleBulkDeleteTests} onCancel={() => setConfirmDeleteTests(false)} />
     </div>
   );
 }
