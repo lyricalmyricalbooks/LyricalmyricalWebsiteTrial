@@ -9,7 +9,10 @@ import {
   ExternalLink,
   ChevronRight,
   Plus,
-  Loader2
+  Loader2,
+  Copy,
+  RefreshCw,
+  GripVertical
 } from "lucide-react";
 import { motion } from "motion/react";
 import toast from "react-hot-toast";
@@ -34,46 +37,26 @@ import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
 import { Book, Variant } from "../features/site/types";
 import { useCurrency } from "../CurrencyContext";
-import { ConfirmDialog } from "./riso/components";
+import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs } from "./riso/components";
 
-function SortablePhoto({ photo, index, onRemove }: { photo: any; index: number; onRemove: (id: string) => void }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: photo.id });
+type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "organize" | "seo";
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 2 : 1,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
+function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover }: {
+  photo: any; index: number; onRemove: (id: string) => void; onAlt: (id: string, alt: string) => void; onMakeCover: (id: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: photo.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 2 : 1, opacity: isDragging ? 0.6 : 1 };
   return (
-    <div 
-      ref={setNodeRef} 
-      style={style} 
-      {...attributes} 
-      {...listeners} 
-      className="relative aspect-[3/4] bg-slate-100 rounded-3xl overflow-hidden group border border-slate-200 cursor-grab active:cursor-grabbing hover:border-violet-500/30 transition-all duration-500 shadow-sm"
-    >
-      <img src={photo.url} className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" />
-      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-end p-4">
-        <button 
-          type="button" 
-          onPointerDown={(e) => e.stopPropagation()} 
-          onClick={(e) => { e.stopPropagation(); onRemove(photo.id); }} 
-          className="w-full py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all text-[9px] font-black tracking-widest shadow-md cursor-pointer"
-        >
-          Remove Image
-        </button>
+    <div ref={setNodeRef} style={style} className="be-photo">
+      <div className="be-photo-img">
+        <img src={photo.url} alt={photo.altText || ""} />
+        <span className="be-photo-badge">{index === 0 ? "Cover" : `Image ${index + 1}`}</span>
+        <button type="button" ref={setActivatorNodeRef} {...attributes} {...listeners} className="be-photo-grip" aria-label={`Reorder image ${index + 1}`}><GripVertical size={16} aria-hidden /></button>
       </div>
-      <div className="absolute top-3 left-3 px-2 py-1 bg-slate-900/80 backdrop-blur-md text-[8px] text-white rounded-full font-black tracking-[0.1em]">
-        Image {index + 1}
+      <input className="rp-input" aria-label={`Alt text for image ${index + 1}`} placeholder="Alt text" value={photo.altText || ""} onChange={(e) => onAlt(photo.id, e.target.value)} />
+      <div className="be-photo-actions">
+        {index !== 0 && <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onMakeCover(photo.id)}>Make cover</button>}
+        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => onRemove(photo.id)}><Trash2 size={13} aria-hidden /> Remove</button>
       </div>
     </div>
   );
@@ -143,6 +126,10 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const [initialData, setInitialData] = useState<any>(null);
   const [uploadingDigital, setUploadingDigital] = useState(false);
   const digitalFileInputRef = useRef<HTMLInputElement>(null);
+  const [tab, setTab] = useState<BookTab>("details");
+  const [dragOver, setDragOver] = useState(false);
+  const [tagInput, setTagInput] = useState("");
+  const saveRef = useRef<() => void>(() => {});
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -439,6 +426,13 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     }
   };
 
+  saveRef.current = () => { handleSave(); };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); saveRef.current(); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const addPhoto = () => {
     if (!photoInput) return;
     if (formData.photos.length >= 10) {
@@ -452,28 +446,18 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     setPhotoInput("");
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (formData.photos.length >= 10) {
-      toast.error("Maximum 10 photos allowed");
-      return;
-    }
-
+  const uploadFiles = async (files: FileList | null) => {
+    const list = Array.from(files || []).filter((f) => f.type.startsWith("image/"));
+    if (!list.length) return;
+    const room = 10 - (formData.photos?.length || 0);
+    if (room <= 0) { toast.error("Maximum 10 photos allowed"); return; }
+    if (list.length > room) toast(`Only ${room} more image${room === 1 ? "" : "s"} fit — extra files skipped.`);
     setUploading(true);
     try {
-      const fileName = `${Date.now()}-${file.name}`;
-      const url = await adminApi.uploadFile(file, `products/${fileName}`);
-      
-      setFormData((prev: any) => ({
-        ...prev,
-        photos: [...prev.photos, { 
-          url, 
-          id: Math.random().toString(36).substr(2, 9),
-          altText: file.name
-        }]
-      }));
+      for (const file of list.slice(0, room)) {
+        const url = await adminApi.uploadFile(file, `products/${Date.now()}-${file.name}`);
+        setFormData((prev: any) => ({ ...prev, photos: [...prev.photos, { url, id: Math.random().toString(36).substr(2, 9), altText: file.name.replace(/\.[^.]+$/, "") }] }));
+      }
     } catch (err: any) {
       console.error("Upload error:", err);
       toast.error("Failed to upload image. Please try again.");
@@ -481,6 +465,21 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
+  };
+
+  const commitTags = () => {
+    const newTags = tagInput.split(",").map((t) => t.trim()).filter(Boolean);
+    if (!newTags.length) { setTagInput(""); return; }
+    setFormData((prev: any) => ({ ...prev, tags: Array.from(new Set([...(prev.tags || []), ...newTags])) }));
+    setTagInput("");
+  };
+
+  const duplicateVariant = (id: string) => {
+    setFormData((prev: any) => {
+      const src = (prev.variants || []).find((v: any) => v.id === id);
+      if (!src) return prev;
+      return { ...prev, variants: [...prev.variants, { ...src, id: crypto.randomUUID(), name: src.name ? `${src.name} (copy)` : "", sku: src.sku ? `${src.sku}-2` : "" }] };
+    });
   };
 
   const handleDigitalUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -572,14 +571,65 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     });
   };
 
+  const set = (name: string, value: any) => setFormData((prev: any) => ({ ...prev, [name]: value }));
+  const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const num = (n: any) => Number(n) || 0;
+  const fmt = (n: any) => num(n).toFixed(2);
+  const overrides = !!formData.manualCurrencyOverrides;
+  const hasVariants = (formData.variants || []).length > 0;
+  const isDigital = ["E-book (PDF)", "E-book (EPUB)", "Audiobook"].includes(formData.format);
+  const activePrice = formData.isOnSale && num(formData.salePrice) > 0 ? num(formData.salePrice) : num(formData.retailPrice);
+  const marginPct = activePrice > 0 ? ((activePrice - num(formData.costPrice)) / activePrice) * 100 : 0;
+  const salePct = formData.isOnSale && num(formData.retailPrice) > 0 ? Math.round((1 - num(formData.salePrice) / num(formData.retailPrice)) * 100) : 0;
+  const cover = formData.photos?.[0]?.url as string | undefined;
+  const isbnDigits = String(formData.isbn || "").replace(/[^0-9Xx]/g, "");
+  const isbnWarn = isbnDigits && ![10, 13].includes(isbnDigits.length) ? "ISBNs are 10 or 13 characters long." : undefined;
+  const lowStock = formData.trackInventory && !hasVariants && num(formData.stockLevel) <= 3;
+
+  const checklist = [
+    { label: "Title", ok: !!formData.title?.trim(), tab: "details" as BookTab },
+    { label: "Description", ok: (formData.description || "").trim().length >= 40, tab: "details" as BookTab },
+    { label: "Cover image", ok: (formData.photos || []).length > 0, tab: "media" as BookTab },
+    { label: "Price above $0", ok: num(formData.retailPrice) > 0 || (formData.variants || []).some((v: any) => num(v.price) > 0), tab: "pricing" as BookTab },
+    { label: "ISBN or SKU", ok: !!(formData.isbn || formData.sku), tab: "details" as BookTab },
+    { label: "Category", ok: (formData.categories || []).length > 0, tab: "organize" as BookTab },
+    { label: "Search description", ok: !!formData.metaDescription, tab: "seo" as BookTab },
+  ];
+  const doneCount = checklist.filter((c) => c.ok).length;
+  const tabIssues: Record<BookTab, number> = { details: 0, media: 0, pricing: 0, inventory: 0, editions: 0, organize: 0, seo: 0 };
+  checklist.filter((c) => !c.ok).forEach((c) => { tabIssues[c.tab] += 1; });
+  const tabs: Array<{ id: BookTab; label: string; count?: number }> = [
+    { id: "details", label: "Details", count: tabIssues.details || undefined },
+    { id: "media", label: "Images", count: (formData.photos || []).length },
+    { id: "pricing", label: "Pricing", count: tabIssues.pricing || undefined },
+    { id: "inventory", label: "Inventory & shipping" },
+    { id: "editions", label: "Editions", count: (formData.variants || []).length },
+    { id: "organize", label: "Categories & tags", count: tabIssues.organize || undefined },
+    { id: "seo", label: "Search (SEO)", count: tabIssues.seo || undefined },
+  ];
+  const statusTone = formData.status === "published" ? "success" : formData.status === "archived" ? "neutral" : "warning";
+
+  const money = (label: string, name: string, symbol: string, opts: { disabled?: boolean; hint?: string } = {}) => (
+    <div className="be-money">
+      <span className="be-money-sym" aria-hidden>{symbol}</span>
+      <TextField label={label} type="number" min={0} step="0.01" name={name} value={formData[name] ?? 0}
+        onChange={handleChange} disabled={opts.disabled} hint={opts.hint} />
+    </div>
+  );
+
+  const stockBadge = (n: number) => (n <= 0 ? <StatusBadge tone="danger">Out of stock</StatusBadge> : n <= 3 ? <StatusBadge tone="warning">Low: {n}</StatusBadge> : <StatusBadge tone="success">{n} in stock</StatusBadge>);
+
   return (
     <div className="book-editor-riso w-full h-full flex flex-col relative overflow-hidden">
       <header className="rp-dialog-head be-head shrink-0">
         <div className="flex items-center gap-4">
           <button type="button" onClick={handleClose} className="rp-icon-btn" aria-label="Close book editor"><ArrowLeft size={18} aria-hidden /></button>
-          <div>
-            <h2 className="rp-dialog-title">{book ? "Edit book" : "New book"}</h2>
-            {book && <span className="be-id">Product ID: {book.id}</span>}
+          <div className="be-title-block">
+            <h2 className="rp-dialog-title">{formData.title?.trim() || (book ? "Edit book" : "New book")}</h2>
+            <span className="be-id">
+              {book ? `Product ID: ${book.id}` : "New book"} · <StatusBadge tone={statusTone as any}>{formData.status}</StatusBadge>
+              {isDirty && <span className="be-dirty"> · Unsaved changes</span>}
+            </span>
           </div>
         </div>
         <div className="be-actions">
@@ -595,7 +645,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             </a>
           )}
           <button type="button" onClick={handleClose} className="rp-btn rp-btn-ghost rp-btn-sm">Cancel</button>
-          <button type="button" onClick={handleSave} disabled={loading} className="rp-btn rp-btn-primary rp-btn-sm">
+          <button type="button" onClick={() => handleSave()} disabled={loading} className="rp-btn rp-btn-primary rp-btn-sm" title="Ctrl/⌘ + S">
             {loading ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Saving…</> : <><Save size={14} aria-hidden /> Save book</>}
           </button>
         </div>
@@ -610,866 +660,286 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       <ConfirmDialog open={confirmDiscard} appearance="light" title="Discard unsaved changes?" confirmLabel="Discard changes"
         message="You have edits that haven't been saved. Closing now will lose them."
         onConfirm={() => { setConfirmDiscard(false); onClose(); }} onCancel={() => setConfirmDiscard(false)} />
-      <form className="rp-dialog-body be-form grid grid-cols-1 gap-8 relative z-10 custom-scrollbar flex-1">
-        {/* Left Column: Essential Info */}
-        <div className="lg:col-span-2 space-y-12">
-          <section className="bg-white border border-[#EBEAEF] rounded-[2rem] p-8 shadow-sm space-y-8 relative overflow-hidden text-slate-800">
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.01] to-transparent pointer-events-none" />
-            <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-400 uppercase mb-8 pb-4 border-b border-slate-100">Book Details</h4>
-              <div className="space-y-8">
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Book Title</label>
-                  <input 
-                    name="title" 
-                    value={formData.title} 
-                    onChange={handleChange}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm text-slate-900 focus:border-violet-500/50 focus:bg-white outline-none transition-all font-bold placeholder:text-slate-400"
-                    placeholder="e.g. Find Still Catches Me Shifted"
-                    required
-                  />
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Author / Contributors</label>
-                    <input 
-                      name="subtitle" 
-                      value={formData.subtitle} 
-                      onChange={handleChange}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-violet-500/50 focus:bg-white outline-none transition-all font-semibold placeholder:text-slate-400"
-                      placeholder="e.g. Zoe Moss, Lucia Bellemare..."
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Web Link Address (URL Slug)</label>
-                    <div className="relative">
-                      <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] font-mono">/books/</div>
-                      <input 
-                        name="slug" 
-                        value={formData.slug} 
-                        onChange={handleChange}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-20 pr-6 text-xs text-violet-600 focus:border-violet-500/50 focus:bg-white outline-none transition-all font-mono"
-                        placeholder="the-book-slug"
-                      />
+
+      <div className="be-tabbar shrink-0">
+        <Tabs label="Book editor sections" tabs={tabs} value={tab} onChange={setTab} />
+      </div>
+
+      <div className="be-body custom-scrollbar flex-1">
+        <form className="be-main" onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+          {tab === "details" && (
+            <>
+              <SectionCard title="Book details" description="The essentials shoppers see first.">
+                <div className="be-grid">
+                  <div className="be-span-2"><TextField label="Book title" name="title" value={formData.title} onChange={handleChange} placeholder="e.g. Find Still Catches Me Shifted" required /></div>
+                  <SelectField label="Author (linked profile)" name="authorId" value={formData.authorId || ""} onChange={handleChange} hint="Optional. Links this book to an author page.">
+                    <option value="">— None —</option>
+                    {authors.map((a: any) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </SelectField>
+                  <TextField label="Author / contributors (display)" name="subtitle" value={formData.subtitle} onChange={handleChange} placeholder="e.g. Zoe Moss, Lucia Bellemare" />
+                  <div className="be-span-2">
+                    <TextField label="Web address (URL slug)" name="slug" value={formData.slug} onChange={handleChange} placeholder="the-book-slug"
+                      hint={`/books/${formData.slug || "your-book"}`} />
+                    <div className="be-inline-actions">
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => set("slug", slugify(formData.title || ""))}><RefreshCw size={13} aria-hidden /> Regenerate from title</button>
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}${import.meta.env.BASE_URL}#/books/${formData.slug}`); toast.success("Link copied"); }} disabled={!formData.slug}><Copy size={13} aria-hidden /> Copy link</button>
                     </div>
                   </div>
+                  <div className="be-span-2">
+                    <TextArea label="Description" name="description" value={formData.description} onChange={handleChange} rows={9}
+                      placeholder="Blurb, contents, notes on the edition…" hint={`${(formData.description || "").trim().split(/\s+/).filter(Boolean).length} words`} />
+                  </div>
                 </div>
-
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Description</label>
-                  <textarea 
-                    name="description" 
-                    value={formData.description} 
-                    onChange={handleChange}
-                    rows={8}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-3xl py-6 px-8 text-xs text-slate-800 focus:border-violet-500/50 focus:bg-white outline-none transition-all leading-relaxed custom-scrollbar placeholder:text-slate-400"
-                    placeholder="Enter book description, blurb, and additional notes..."
-                  />
+              </SectionCard>
+              <SectionCard title="Publishing details" description="Bibliographic data used on the product page and in search.">
+                <div className="be-grid be-grid-3">
+                  <TextField label="ISBN" name="isbn" value={formData.isbn} onChange={handleChange} placeholder="978-0-…" error={isbnWarn} />
+                  <TextField label="SKU" name="sku" value={formData.sku} onChange={handleChange} placeholder="LM-2024-…" />
+                  <TextField label="Barcode / UPC" name="barcode" value={formData.barcode || ""} onChange={handleChange} placeholder="0-00000-00000-0" />
+                  <SelectField label="Format" name="format" value={formData.format} onChange={handleChange}>
+                    {["Paperback", "Hardcover", "Special Edition", "Box Set", "Zine", "E-book (PDF)", "E-book (EPUB)", "Audiobook"].map((f) => <option key={f}>{f}</option>)}
+                  </SelectField>
+                  <TextField label="Publisher" name="publisher" value={formData.publisher || ""} onChange={handleChange} placeholder="Lyricalmyrical Books" />
+                  <TextField label="Edition" name="edition" value={formData.edition || ""} onChange={handleChange} placeholder="First Edition" />
+                  <TextField label="Publication date" type="date" name="publishDate" value={formData.publishDate || ""} onChange={handleChange} />
+                  <TextField label="Page count" type="number" min={0} name="pageCount" value={formData.pageCount ?? 0} onChange={handleChange} />
+                  <TextField label="Language" name="language" value={formData.language || ""} onChange={handleChange} placeholder="English" />
+                  <TextField label="Dimensions" name="dimensions" value={formData.dimensions || ""} onChange={handleChange} placeholder="6 x 9 in" />
+                  <TextField label="Weight" name="weight" value={formData.weight || ""} onChange={handleChange} placeholder="450 g" hint="Used for weight-based shipping." />
                 </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="bg-white border border-[#EBEAEF] rounded-[2rem] p-8 shadow-sm space-y-8 relative overflow-hidden text-slate-800">
-            <div className="absolute inset-0 bg-gradient-to-bl from-cyan-500/[0.01] to-transparent pointer-events-none" />
-            <div className="relative z-10">
-               <h4 className="text-xs font-black tracking-[0.4em] text-slate-400 uppercase mb-8 pb-4 border-b border-slate-100">Publishing Details</h4>
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-3">
-                     <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">ISBN</label>
-                     <input 
-                       name="isbn" 
-                       value={formData.isbn} 
-                       onChange={handleChange} 
-                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-semibold" 
-                       placeholder="978-0-..."
-                     />
-                  </div>
-                  <div className="space-y-3">
-                     <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">SKU</label>
-                     <input 
-                       name="sku" 
-                       value={formData.sku} 
-                       onChange={handleChange} 
-                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-semibold" 
-                       placeholder="LM-2024-..."
-                     />
-                  </div>
-                  <div className="space-y-3">
-                     <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Format</label>
-                     <select
-                       name="format"
-                       value={formData.format}
-                       onChange={handleChange}
-                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all appearance-none cursor-pointer font-semibold"
-                     >
-                       <option>Paperback</option>
-                       <option>Hardcover</option>
-                       <option>Special Edition</option>
-                       <option>Box Set</option>
-                       <option>Zine</option>
-                       <option>E-book (PDF)</option>
-                       <option>E-book (EPUB)</option>
-                       <option>Audiobook</option>
-                     </select>
-                  </div>
-               </div>
-
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Publisher</label>
-                    <input
-                      name="publisher"
-                      value={formData.publisher || ""}
-                      onChange={handleChange}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-semibold"
-                      placeholder="Lyrical Myrical Press"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Publication Date</label>
-                    <input
-                      type="date"
-                      name="publishDate"
-                      value={formData.publishDate || ""}
-                      onChange={handleChange}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-semibold"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Edition</label>
-                    <input
-                      name="edition"
-                      value={formData.edition || ""}
-                      onChange={handleChange}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-semibold"
-                      placeholder="First Edition"
-                    />
-                  </div>
-               </div>
-
-               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Page Count</label>
-                    <input
-                      type="number"
-                      min={0}
-                      name="pageCount"
-                      value={formData.pageCount ?? 0}
-                      onChange={handleChange}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-semibold"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Language</label>
-                    <input
-                      name="language"
-                      value={formData.language || ""}
-                      onChange={handleChange}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-semibold"
-                      placeholder="English"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Dimensions</label>
-                    <input
-                      name="dimensions"
-                      value={formData.dimensions || ""}
-                      onChange={handleChange}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-semibold"
-                      placeholder="6 x 9 in"
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Barcode / UPC</label>
-                    <input
-                      name="barcode"
-                      value={formData.barcode || ""}
-                      onChange={handleChange}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-semibold"
-                      placeholder="0-00000-00000-0"
-                    />
-                  </div>
-               </div>
-
-               <div className="pt-8 border-t border-slate-100 mt-8">
-                 <div className="flex justify-between items-center mb-6">
-                   <div>
-                     <h5 className="text-[10px] font-black tracking-widest text-slate-400 uppercase">Editions & Pricing</h5>
-                     <p className="text-[8px] text-slate-500 mt-1 uppercase tracking-widest">Multi-format management</p>
-                   </div>
-                   <button 
-                     type="button" 
-                     onClick={addVariant} 
-                     className="bg-slate-50 border border-slate-200 px-5 py-2.5 rounded-xl text-[9px] font-black text-slate-700 flex items-center gap-2.5 hover:bg-slate-100 transition-all shadow-sm cursor-pointer"
-                   >
-                     <Plus size={14} className="text-cyan-500" /> 
-                     Add Edition
-                   </button>
-                 </div>
-                 <div className="space-y-6">
-                    {formData.variants.map((v: Variant) => (
-                      <div key={v.id} className="bg-slate-50 border border-slate-200 p-8 rounded-[2rem] relative group hover:border-cyan-500/30 transition-all shadow-sm space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <div className="space-y-3">
-                            <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Edition Name</label>
-                            <input 
-                              placeholder="e.g. Signed Collector's Copy" 
-                              value={v.name} 
-                              onChange={(e) => updateVariant(v.id, "name", e.target.value)}
-                              className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-6 text-[11px] text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-bold"
-                            />
-                          </div>
-                          <div className="space-y-3">
-                            <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">SKU</label>
-                            <input 
-                              placeholder="SKU-..." 
-                              value={v.sku || ""} 
-                              onChange={(e) => updateVariant(v.id, "sku", e.target.value)}
-                              className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-6 text-[11px] text-cyan-600 focus:border-cyan-500/50 outline-none transition-all font-mono"
-                            />
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-3">
-                              <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Stock</label>
-                              <input 
-                                type="number" 
-                                value={v.stock} 
-                                onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))}
-                                className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-6 text-[11px] text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-bold"
-                              />
-                            </div>
-                            <div className="space-y-3">
-                              <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Weight</label>
-                              <input 
-                                placeholder="0.5kg" 
-                                value={v.weight || ""} 
-                                onChange={(e) => updateVariant(v.id, "weight", e.target.value)}
-                                className="w-full bg-white border border-slate-200 rounded-2xl py-4 px-6 text-[11px] text-slate-700 focus:border-cyan-500/50 outline-none transition-all"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-slate-200/60">
-                          <div className="space-y-3">
-                             <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Price (CAD)</label>
-                             <div className="relative">
-                                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">$</span>
-                                <input 
-                                  type="number" 
-                                  value={v.price} 
-                                  onChange={(e) => updateVariant(v.id, "price", Number(e.target.value))}
-                                  className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-10 pr-6 text-[11px] text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-bold"
-                                />
-                             </div>
-                          </div>
-                          <div className="space-y-3">
-                             <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Price (USD)</label>
-                             <div className="relative">
-                                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">$</span>
-                                <input 
-                                  type="number" 
-                                  disabled={!formData.manualCurrencyOverrides}
-                                  value={(v as any).usdPrice ?? 0} 
-                                  onChange={(e) => updateVariant(v.id, "usdPrice", Number(e.target.value))}
-                                  className={`w-full bg-white border border-slate-200 rounded-2xl py-4 pl-10 pr-6 text-[11px] text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`}
-                                />
-                             </div>
-                          </div>
-                          <div className="space-y-3">
-                             <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Price (EUR)</label>
-                             <div className="relative">
-                                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">€</span>
-                                <input 
-                                  type="number" 
-                                  disabled={!formData.manualCurrencyOverrides}
-                                  value={(v as any).eurPrice ?? 0} 
-                                  onChange={(e) => updateVariant(v.id, "eurPrice", Number(e.target.value))}
-                                  className={`w-full bg-white border border-slate-200 rounded-2xl py-4 pl-10 pr-6 text-[11px] text-slate-900 focus:border-cyan-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`}
-                                />
-                             </div>
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200/60 items-center">
-                          <div className="space-y-3">
-                            <label className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] ml-1">Edition Image Selection</label>
-                            <div className="flex gap-4 items-center">
-                              {v.photoUrl && (
-                                <img
-                                  src={v.photoUrl}
-                                  alt="Variant Preview"
-                                  className="w-10 h-12 object-cover rounded-lg border border-slate-200 bg-white"
-                                />
-                              )}
-                              <div className="flex-1 space-y-2">
-                                <select
-                                  value={v.photoUrl || ""}
-                                  onChange={(e) => updateVariant(v.id, "photoUrl", e.target.value)}
-                                  className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 text-[11px] text-slate-700 focus:border-cyan-500/50 outline-none transition-all font-bold"
-                                >
-                                  <option value="">-- No variant image --</option>
-                                  {(formData.photos || []).map((p: any, idx: number) => (
-                                    <option key={p.id || idx} value={p.url}>
-                                      Photo {idx + 1} ({p.altText || "No Alt"})
-                                    </option>
-                                  ))}
-                                </select>
-                                <input
-                                  placeholder="Manual URL Override..."
-                                  value={v.photoUrl || ""}
-                                  onChange={(e) => updateVariant(v.id, "photoUrl", e.target.value)}
-                                  className="w-full bg-white border border-slate-200 rounded-xl py-2 px-3 text-[10px] text-slate-700 focus:border-cyan-500/50 outline-none transition-all"
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <button 
-                          type="button" 
-                          onClick={() => removeVariant(v.id)} 
-                          className="absolute -right-3 -top-3 p-2.5 bg-red-50 text-red-500 rounded-full hover:bg-red-500 hover:text-white transition-all border border-red-200 opacity-0 group-hover:opacity-100 shadow-md z-10 cursor-pointer flex items-center justify-center"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    ))}
-                    {formData.variants.length === 0 && (
-                      <div className="h-28 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-[2rem] gap-3 group hover:border-cyan-500/20 transition-all bg-slate-50/50">
-                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:text-cyan-500 transition-colors">
-                          <Plus size={16} />
-                        </div>
-                        <p className="text-[9px] text-slate-500 font-black uppercase tracking-[0.2em]">No special editions defined. Base pricing and stock will apply.</p>
-                      </div>
-                    )}
-                  </div>
-               </div>
-            </div>
-          </section>
-
-          {/* Section: Digital Asset Delivery (Conditional) */}
-          {["E-book (PDF)", "E-book (EPUB)", "Audiobook"].includes(formData.format) && (
-            <section className="bg-violet-50/40 rounded-[2rem] p-8 border border-violet-100 space-y-6 relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.01] to-transparent pointer-events-none" />
-              <div className="relative z-10">
-                <h4 className="text-xs font-black tracking-[0.4em] text-violet-600 uppercase mb-4 pb-4 border-b border-violet-100">Secure Digital File</h4>
-                <div className="space-y-6">
-                  <p className="text-[9px] text-slate-500 leading-relaxed uppercase tracking-wider">
-                    Upload the primary digital book file here. This file is stored securely and delivered to paying customers.
-                  </p>
-                  {formData.digitalFileName ? (
-                    <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                      <div className="space-y-1">
-                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Active Digital File</p>
-                        <p className="text-xs font-mono text-violet-600 font-bold truncate max-w-[200px]">{formData.digitalFileName}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setFormData((prev: any) => ({ ...prev, digitalFileName: "", digitalFileUrl: "" }))}
-                        className="p-2.5 bg-red-50 hover:bg-red-500 hover:text-white text-red-500 rounded-xl transition-all border border-red-100 shadow-sm cursor-pointer"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      <input
-                        type="file"
-                        ref={digitalFileInputRef}
-                        onChange={handleDigitalUpload}
-                        accept={formData.format.includes("PDF") ? ".pdf" : formData.format.includes("EPUB") ? ".epub" : ".mp3,.m4a,.zip"}
-                        className="hidden"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => digitalFileInputRef.current?.click()}
-                        disabled={uploadingDigital}
-                        className="w-full h-28 flex flex-col items-center justify-center border-2 border-dashed border-violet-200 rounded-2xl gap-3 bg-white hover:bg-violet-50/50 transition-all group cursor-pointer"
-                      >
-                        {uploadingDigital ? (
-                          <Loader2 size={20} className="animate-spin text-violet-500" />
-                        ) : (
-                          <Upload size={20} className="text-slate-400 group-hover:text-violet-500 transition-colors" />
-                        )}
-                        <span className="text-[8px] text-slate-500 font-black uppercase tracking-[0.2em] group-hover:text-violet-600 transition-colors">
-                          {uploadingDigital ? "UPLOADING FILE..." : "UPLOAD DIGITAL BOOK FILE"}
-                        </span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
+              </SectionCard>
+            </>
           )}
 
-          <section className="bg-white border border-[#EBEAEF] rounded-[2rem] p-8 shadow-sm space-y-8 relative overflow-hidden text-slate-800">
-            <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/[0.01] to-transparent pointer-events-none" />
-            <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-400 uppercase mb-8 pb-4 border-b border-slate-100">Categories</h4>
-              <div className="flex flex-wrap gap-4">
-                {Array.from(new Set([...categories, "Photography", "Contemporary", "Artist Book", "Zine", "Archive"])).map(cat => {
-                  const isSelected = Array.isArray(formData.categories) && formData.categories.includes(cat);
-                  return (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => toggleCategory(cat)}
-                      className={`px-6 py-3 rounded-xl text-[10px] font-black tracking-widest transition-all border cursor-pointer ${
-                        isSelected
-                          ? "bg-emerald-50 text-emerald-600 border-emerald-200 shadow-sm"
-                          : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
-                      }`}
-                    >
-                      {String(cat).toUpperCase()}
-                    </button>
-                  );
+          {tab === "media" && (
+            <SectionCard title="Book images" description="Drag the ⠿ handle to reorder. The first image is the cover shown in the shop and search."
+              actions={<button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || formData.photos.length >= 10}><Upload size={14} aria-hidden /> Upload images</button>}>
+              <div className={`be-drop ${dragOver ? "is-over" : ""}`}
+                onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragOver(true); } }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => { e.preventDefault(); setDragOver(false); uploadFiles(e.dataTransfer.files); }}>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <div className="be-photos">
+                    <SortableContext items={formData.photos.map((p: any) => p.id)} strategy={rectSortingStrategy}>
+                      {formData.photos.map((photo: any, i: number) => (
+                        <SortablePhoto key={photo.id} photo={photo} index={i} onRemove={removePhoto}
+                          onAlt={(id, alt) => setFormData((prev: any) => ({ ...prev, photos: prev.photos.map((p: any) => (p.id === id ? { ...p, altText: alt } : p)) }))}
+                          onMakeCover={(id) => setFormData((prev: any) => { const p = prev.photos.find((x: any) => x.id === id); return { ...prev, photos: [p, ...prev.photos.filter((x: any) => x.id !== id)] }; })} />
+                      ))}
+                    </SortableContext>
+                    {formData.photos.length < 10 && (
+                      <button type="button" className="be-photo-add" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                        {uploading ? <Loader2 size={22} className="animate-spin" aria-hidden /> : <Upload size={22} aria-hidden />}
+                        <span>{uploading ? "Uploading…" : "Add or drop images"}</span>
+                      </button>
+                    )}
+                  </div>
+                </DndContext>
+              </div>
+              <input type="file" ref={fileInputRef} multiple onChange={(e) => uploadFiles(e.target.files)} accept="image/*" className="hidden" />
+              <p className="be-note">{formData.photos.length}/10 images. Add alt text so the cover is described to screen readers and search engines.</p>
+              <div className="be-url-row">
+                <TextField label="Add image from URL" value={photoInput} onChange={(e) => setPhotoInput(e.target.value)} placeholder="https://…/cover.jpg"
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPhoto(); } }} />
+                <button type="button" onClick={addPhoto} className="rp-btn rp-btn-secondary"><Plus size={16} aria-hidden /> Add</button>
+              </div>
+            </SectionCard>
+          )}
+
+          {tab === "pricing" && (
+            <>
+              <SectionCard title="Price" description="Enter the CAD price. USD and EUR follow the live exchange rate unless you override them.">
+                <div className="be-toggles"><Toggle label="Override USD & EUR prices manually" checked={overrides} onChange={(v) => set("manualCurrencyOverrides", v)} /></div>
+                <div className="be-grid be-grid-3">
+                  {money("Price (CAD)", "retailPrice", "$")}
+                  {money("Price (USD)", "usdPrice", "$", { disabled: !overrides })}
+                  {money("Price (EUR)", "eurPrice", "€", { disabled: !overrides })}
+                  {money("Cost (CAD)", "costPrice", "$", { hint: "What it costs you to print/acquire." })}
+                  {money("Cost (USD)", "usdCostPrice", "$", { disabled: !overrides })}
+                  {money("Cost (EUR)", "eurCostPrice", "€", { disabled: !overrides })}
+                </div>
+                <div className="be-stats">
+                  <div><span>Profit / copy</span><strong>${fmt(activePrice - num(formData.costPrice))}</strong></div>
+                  <div><span>Margin</span><strong>{activePrice > 0 ? `${marginPct.toFixed(0)}%` : "—"}</strong></div>
+                  <div><span>Charge tax</span><Toggle label="Charge sales tax" checked={!!formData.chargeTax} onChange={(v) => set("chargeTax", v)} /></div>
+                </div>
+                {activePrice > 0 && num(formData.costPrice) > activePrice && <p className="be-warn" role="status">⚠ Cost is higher than the selling price — you'd lose money on each copy.</p>}
+              </SectionCard>
+              <SectionCard title="Sale pricing" description="Show a struck-through original price with a discounted one.">
+                <Toggle label="This book is on sale" checked={!!formData.isOnSale} onChange={(v) => set("isOnSale", v)} />
+                {formData.isOnSale && (
+                  <>
+                    <div className="be-grid be-grid-3 mt-4">
+                      {money("Sale (CAD)", "salePrice", "$")}
+                      {money("Sale (USD)", "usdSalePrice", "$", { disabled: !overrides })}
+                      {money("Sale (EUR)", "eurSalePrice", "€", { disabled: !overrides })}
+                    </div>
+                    <div className="be-inline-actions">
+                      {[10, 20, 30, 50].map((p) => (
+                        <button key={p} type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => set("salePrice", Number((num(formData.retailPrice) * (1 - p / 100)).toFixed(2)))}>{p}% off</button>
+                      ))}
+                      {salePct > 0 && <StatusBadge tone="success">{salePct}% off</StatusBadge>}
+                    </div>
+                    {num(formData.salePrice) >= num(formData.retailPrice) && <p className="be-warn" role="status">⚠ The sale price isn't lower than the regular price.</p>}
+                  </>
+                )}
+              </SectionCard>
+            </>
+          )}
+
+          {tab === "inventory" && (
+            <>
+              <SectionCard title="Inventory" description={hasVariants ? "Stock is totalled from your editions." : "Track how many copies you have."}>
+                <div className="be-toggles">
+                  <Toggle label="Track inventory (decrement stock on each sale)" checked={!!formData.trackInventory} onChange={(v) => set("trackInventory", v)} />
+                  {formData.trackInventory && <Toggle label="Allow backorders when out of stock" checked={!!formData.allowBackorder} onChange={(v) => set("allowBackorder", v)} />}
+                </div>
+                <div className="be-grid be-grid-3">
+                  <TextField label={`Stock level${hasVariants ? " (from editions)" : ""}`} type="number" name="stockLevel" value={formData.stockLevel} onChange={handleChange} disabled={hasVariants} />
+                  <div className="be-stock-status">{formData.trackInventory && stockBadge(num(formData.stockLevel))}</div>
+                </div>
+                {lowStock && <p className="be-warn" role="status">⚠ Low stock. Consider reprinting or turning on backorders.</p>}
+              </SectionCard>
+              <SectionCard title="Shipping & visibility">
+                <div className="be-grid">
+                  <SelectField label="Shipping profile" name="shippingProfileId" value={formData.shippingProfileId} onChange={handleChange}>
+                    {shippingProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </SelectField>
+                  <SelectField label="Status" name="status" value={formData.status} onChange={handleChange} hint="Only Published books appear in the shop.">
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                    <option value="archived">Archived</option>
+                  </SelectField>
+                  <TextField label="Schedule publish date" type="date" name="scheduleDate" value={formData.scheduleDate || ""} onChange={handleChange} hint="Optional. Leave blank to publish when you save." />
+                  <div className="be-toggles be-self-end"><Toggle label="Featured on the homepage" checked={!!formData.isFeatured} onChange={(v) => set("isFeatured", v)} /></div>
+                </div>
+              </SectionCard>
+              {isDigital && (
+                <SectionCard title="Secure digital file" description="Stored securely and delivered to paying customers only.">
+                  {formData.digitalFileName ? (
+                    <div className="be-file">
+                      <div><span className="be-label-xs">Active file</span><code>{formData.digitalFileName}</code></div>
+                      <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => setFormData((prev: any) => ({ ...prev, digitalFileName: "", digitalFileUrl: "" }))}><Trash2 size={14} aria-hidden /> Remove</button>
+                    </div>
+                  ) : (
+                    <>
+                      <input type="file" ref={digitalFileInputRef} onChange={handleDigitalUpload} accept={formData.format.includes("PDF") ? ".pdf" : formData.format.includes("EPUB") ? ".epub" : ".mp3,.m4a,.zip"} className="hidden" />
+                      <button type="button" className="be-photo-add be-wide" onClick={() => digitalFileInputRef.current?.click()} disabled={uploadingDigital}>
+                        {uploadingDigital ? <Loader2 size={22} className="animate-spin" aria-hidden /> : <Upload size={22} aria-hidden />}
+                        <span>{uploadingDigital ? "Uploading…" : "Upload digital book file"}</span>
+                      </button>
+                    </>
+                  )}
+                </SectionCard>
+              )}
+            </>
+          )}
+
+          {tab === "editions" && (
+            <SectionCard title="Editions & pricing" description="Sell multiple formats or special editions of the same book. Base price and stock are replaced by these."
+              actions={<button type="button" onClick={addVariant} className="rp-btn rp-btn-primary rp-btn-sm"><Plus size={14} aria-hidden /> Add edition</button>}>
+              {!hasVariants && <p className="be-note">No special editions. The base price and stock on the Pricing and Inventory tabs apply.</p>}
+              <div className="be-variants">
+                {(formData.variants || []).map((v: Variant, i: number) => (
+                  <fieldset key={v.id} className="be-variant">
+                    <legend>Edition {i + 1}{v.name ? ` — ${v.name}` : ""}</legend>
+                    <div className="be-variant-tools">
+                      {stockBadge(num(v.stock))}
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => duplicateVariant(v.id)}><Copy size={13} aria-hidden /> Duplicate</button>
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => removeVariant(v.id)} aria-label={`Remove edition ${v.name || i + 1}`}><Trash2 size={13} aria-hidden /> Remove</button>
+                    </div>
+                    <div className="be-grid be-grid-4">
+                      <div className="be-span-2"><TextField label="Edition name" placeholder="e.g. Signed Collector's Copy" value={v.name} onChange={(e) => updateVariant(v.id, "name", e.target.value)} /></div>
+                      <TextField label="SKU" value={v.sku || ""} onChange={(e) => updateVariant(v.id, "sku", e.target.value)} />
+                      <TextField label="Weight" placeholder="0.5 kg" value={v.weight || ""} onChange={(e) => updateVariant(v.id, "weight", e.target.value)} />
+                      <TextField label="Price (CAD)" type="number" min={0} step="0.01" value={v.price} onChange={(e) => updateVariant(v.id, "price", Number(e.target.value))} />
+                      <TextField label="Price (USD)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).usdPrice ?? 0} onChange={(e) => updateVariant(v.id, "usdPrice", Number(e.target.value))} />
+                      <TextField label="Price (EUR)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).eurPrice ?? 0} onChange={(e) => updateVariant(v.id, "eurPrice", Number(e.target.value))} />
+                      <TextField label="Stock" type="number" min={0} value={v.stock} onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))} />
+                    </div>
+                    <div className="be-variant-img">
+                      {v.photoUrl && <img src={v.photoUrl} alt="" />}
+                      <SelectField label="Edition image" value={v.photoUrl || ""} onChange={(e) => updateVariant(v.id, "photoUrl", e.target.value)}>
+                        <option value="">— Use the main image —</option>
+                        {(formData.photos || []).map((p: any, idx: number) => <option key={p.id || idx} value={p.url}>Image {idx + 1}{p.altText ? ` (${p.altText})` : ""}</option>)}
+                      </SelectField>
+                    </div>
+                  </fieldset>
+                ))}
+              </div>
+            </SectionCard>
+          )}
+
+          {tab === "organize" && (
+            <SectionCard title="Categories & tags" description="Categories build the shop menus. Tags power search.">
+              <div className="be-chips" role="group" aria-label="Categories">
+                {Array.from(new Set([...categories, ...(formData.categories || []), "Photography", "Contemporary", "Artist Book", "Zine", "Archive"])).map((cat) => {
+                  const on = (formData.categories || []).includes(cat);
+                  return <button key={cat} type="button" aria-pressed={on} className={`be-chip ${on ? "is-on" : ""}`} onClick={() => toggleCategory(cat)}>{on ? "✓ " : ""}{cat}</button>;
                 })}
               </div>
-
-              <div className="mt-8 pt-6 border-t border-slate-100 space-y-4">
-                <div>
-                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Tags</label>
-                  <p className="text-[8px] text-slate-400 uppercase tracking-widest mt-1 ml-1">Searchable keywords. Comma-separated.</p>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  {(Array.isArray(formData.tags) ? formData.tags : []).map((tag: string) => (
-                    <span key={tag} className="inline-flex items-center gap-2 pl-3 pr-1.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[10px] font-black text-emerald-600 tracking-widest">
-                      {tag.toUpperCase()}
-                      <button
-                        type="button"
-                        onClick={() => setFormData((prev: any) => ({ ...prev, tags: (prev.tags || []).filter((t: string) => t !== tag) }))}
-                        className="w-4 h-4 rounded-md flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-all cursor-pointer"
-                        aria-label={`Remove tag ${tag}`}
-                      >
-                        <X size={10} />
-                      </button>
+              <div className="be-tags">
+                <span className="be-label-xs">Tags</span>
+                <div className="be-chips">
+                  {(formData.tags || []).map((tag: string) => (
+                    <span key={tag} className="be-tag">{tag}
+                      <button type="button" aria-label={`Remove tag ${tag}`} onClick={() => setFormData((prev: any) => ({ ...prev, tags: (prev.tags || []).filter((t: string) => t !== tag) }))}><X size={12} aria-hidden /></button>
                     </span>
                   ))}
                 </div>
-                <input
-                  type="text"
-                  placeholder="Type a tag and press Enter or comma..."
-                  onKeyDown={(e) => {
-                    const target = e.target as HTMLInputElement;
-                    if ((e.key === "Enter" || e.key === ",") && target.value.trim()) {
-                      e.preventDefault();
-                      const newTags = target.value.split(",").map(t => t.trim()).filter(Boolean);
-                      setFormData((prev: any) => {
-                        const existing = Array.isArray(prev.tags) ? prev.tags : [];
-                        const merged = Array.from(new Set([...existing, ...newTags]));
-                        return { ...prev, tags: merged };
-                      });
-                      target.value = "";
-                    }
-                  }}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-800 focus:border-emerald-500/50 outline-none transition-all font-semibold"
-                />
+                <TextField label="Add tags" hideLabel placeholder="Type a tag, press Enter or comma" value={tagInput} onChange={(e) => setTagInput(e.target.value)}
+                  onBlur={commitTags}
+                  onKeyDown={(e) => { if ((e.key === "Enter" || e.key === ",") && tagInput.trim()) { e.preventDefault(); commitTags(); } }} />
               </div>
-            </div>
-          </section>
+            </SectionCard>
+          )}
 
-          <section className="bg-white border border-[#EBEAEF] rounded-[2rem] p-8 shadow-sm space-y-8 relative overflow-hidden text-slate-800">
-            <div className="absolute inset-0 bg-gradient-to-tr from-sky-500/[0.01] to-transparent pointer-events-none" />
-            <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-400 uppercase mb-8 pb-4 border-b border-slate-100">Search Engine Listing (SEO)</h4>
-              <div className="space-y-8">
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Meta Title</label>
-                  <input
-                    name="metaTitle"
-                    value={formData.metaTitle || ""}
-                    onChange={handleChange}
-                    maxLength={70}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-sky-500/50 outline-none transition-all font-semibold"
-                    placeholder={formData.title || "Search engine title"}
-                  />
-                  <p className="text-[8px] text-slate-400 uppercase tracking-widest ml-1">{(formData.metaTitle || "").length}/70 characters</p>
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Meta Description</label>
-                  <textarea
-                    name="metaDescription"
-                    value={formData.metaDescription || ""}
-                    onChange={handleChange}
-                    rows={3}
-                    maxLength={160}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-3xl py-4 px-6 text-xs text-slate-800 focus:border-sky-500/50 outline-none transition-all leading-relaxed placeholder:text-slate-400 font-semibold"
-                    placeholder="Short summary that appears in search results"
-                  />
-                  <p className="text-[8px] text-slate-400 uppercase tracking-widest ml-1">{(formData.metaDescription || "").length}/160 characters</p>
-                </div>
-
-                <div className="p-6 bg-slate-50 border border-slate-150 rounded-2xl space-y-2">
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.3em]">Search Listing Preview</p>
-                  <p className="text-sky-600 text-xs font-mono truncate">/books/{formData.slug || "your-book"}</p>
-                  <p className="text-slate-900 text-sm font-bold truncate">{formData.metaTitle || formData.title || "Your book title"}</p>
-                  <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">{formData.metaDescription || formData.description || "Your book description will appear here."}</p>
-                </div>
+          {tab === "seo" && (
+            <SectionCard title="Search engine listing" description="How this book appears on Google. Leave blank to use the title and description.">
+              <div className="be-grid">
+                <div className="be-span-2"><TextField label="Meta title" name="metaTitle" value={formData.metaTitle || ""} onChange={handleChange} maxLength={70} placeholder={formData.title || "Search engine title"} hint={`${(formData.metaTitle || "").length}/70`} /></div>
+                <div className="be-span-2"><TextArea label="Meta description" name="metaDescription" value={formData.metaDescription || ""} onChange={handleChange} rows={3} maxLength={160} placeholder="Short summary shown in search results" hint={`${(formData.metaDescription || "").length}/160`} /></div>
               </div>
-            </div>
-          </section>
-        </div>
-
-        {/* Right Column: Imagery & Commerce */}
-        <div className="space-y-12">
-          <section className="bg-white border border-[#EBEAEF] rounded-[2rem] p-8 shadow-sm space-y-8 relative overflow-hidden text-slate-800">
-            <div className="absolute inset-0 bg-gradient-to-b from-violet-500/[0.01] to-transparent pointer-events-none" />
-            <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-400 uppercase mb-8 pb-4 border-b border-slate-100">Book Cover Images</h4>
-              
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <div className="grid grid-cols-2 gap-4 mb-8">
-                  <SortableContext items={formData.photos.map((p: any) => p.id)} strategy={rectSortingStrategy}>
-                    {formData.photos.map((photo: any, i: number) => (
-                      <SortablePhoto key={photo.id} photo={photo} index={i} onRemove={removePhoto} />
-                    ))}
-                  </SortableContext>
-                  
-                  {formData.photos.length < 10 && (
-                    <button 
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploading}
-                      className="aspect-[3/4] border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-4 text-slate-400 hover:border-violet-500/30 hover:bg-violet-50/50 hover:text-slate-600 transition-all disabled:opacity-50 group cursor-pointer"
-                    >
-                      {uploading ? (
-                        <div className="flex flex-col items-center gap-2">
-                           <div className="w-6 h-6 border-2 border-slate-250 border-t-violet-500 rounded-full animate-spin" />
-                           <span className="text-[8px] tracking-[0.2em] font-black uppercase">Ingesting...</span>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
-                            <Upload size={18} className="text-violet-500" />
-                          </div>
-                          <span className="text-[8px] tracking-[0.2em] font-black uppercase">Upload Cover</span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              </DndContext>
-
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileUpload} 
-                accept="image/*" 
-                className="hidden" 
-              />
-
-              <div className="space-y-4">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Add Image from URL</label>
-                <div className="flex gap-4">
-                  <input 
-                    type="text" 
-                    value={photoInput} 
-                    onChange={(e) => setPhotoInput(e.target.value)}
-                    placeholder="https://cloud.assets.com/img.jpg"
-                    className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-800 focus:border-violet-500/50 outline-none transition-all font-mono font-semibold"
-                  />
-                  <button 
-                    type="button" 
-                    onClick={addPhoto}
-                    className="p-4 bg-slate-50 border border-slate-200 rounded-2xl hover:bg-slate-100 text-violet-500 transition-all cursor-pointer shadow-sm flex items-center justify-center"
-                  >
-                    <Plus size={18} />
-                  </button>
-                </div>
-                <p className="text-[8px] text-slate-400 uppercase tracking-widest text-center mt-2">Supports web URLs and direct image links</p>
+              <div className="be-serp" aria-label="Search listing preview">
+                <span className="be-label-xs">Preview</span>
+                <p className="be-serp-url">lyricalmyrical.com › books › {formData.slug || "your-book"}</p>
+                <p className="be-serp-title">{formData.metaTitle || formData.title || "Your book title"}</p>
+                <p className="be-serp-desc">{formData.metaDescription || formData.description || "Your book description will appear here."}</p>
               </div>
+            </SectionCard>
+          )}
+        </form>
+
+        <aside className="be-rail" aria-label="Book summary">
+          <div className="be-rail-card">
+            <div className="be-rail-cover">{cover ? <img src={cover} alt={formData.photos?.[0]?.altText || ""} /> : <span>No cover yet</span>}</div>
+            <p className="be-rail-title">{formData.title?.trim() || "Untitled book"}</p>
+            <p className="be-rail-sub">{formData.subtitle || "—"}</p>
+            <div className="be-rail-price">
+              {formData.isOnSale && num(formData.salePrice) > 0 && <s>${fmt(formData.retailPrice)}</s>}
+              <strong>${fmt(activePrice)}</strong> <span>CAD</span>
             </div>
-          </section>
-
-          <section className="bg-white border border-[#EBEAEF] rounded-[2rem] p-8 shadow-sm space-y-8 relative overflow-hidden text-slate-800">
-            <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/[0.01] to-transparent pointer-events-none" />
-            <div className="relative z-10">
-              <h4 className="text-xs font-black tracking-[0.4em] text-slate-400 uppercase mb-8 pb-4 border-b border-slate-100">Pricing & Inventory</h4>
-              <div className="space-y-8">
-                
-                {/* Manual Pricing Overrides Toggle */}
-                <div className="space-y-4 p-5 bg-slate-50 border border-slate-200 rounded-2xl">
-                   <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em] block">Override Pricing</label>
-                        <p className="text-[8px] text-slate-500 uppercase tracking-widest">Manually enter USD & EUR values</p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        name="manualCurrencyOverrides"
-                        checked={formData.manualCurrencyOverrides}
-                        onChange={handleChange}
-                        className="w-6 h-6 rounded-lg bg-white border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
-                      />
-                   </div>
-                </div>
-
-                {/* Base Retail Price Grid */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-3">
-                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Price (CAD)</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
-                      <input
-                        type="number"
-                        name="retailPrice"
-                        min={0}
-                        step="0.01"
-                        value={formData.retailPrice ?? 0}
-                        onChange={handleChange}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Price (USD)</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
-                      <input
-                        type="number"
-                        name="usdPrice"
-                        min={0}
-                        step="0.01"
-                        disabled={!formData.manualCurrencyOverrides}
-                        value={formData.usdPrice ?? 0}
-                        onChange={handleChange}
-                        className={`w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Price (EUR)</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">€</span>
-                      <input
-                        type="number"
-                        name="eurPrice"
-                        min={0}
-                        step="0.01"
-                        disabled={!formData.manualCurrencyOverrides}
-                        value={formData.eurPrice ?? 0}
-                        onChange={handleChange}
-                        className={`w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Base Cost Price Grid */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-3">
-                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Cost (CAD)</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
-                      <input
-                        type="number"
-                        name="costPrice"
-                        min={0}
-                        step="0.01"
-                        value={formData.costPrice ?? 0}
-                        onChange={handleChange}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Cost (USD)</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
-                      <input
-                        type="number"
-                        name="usdCostPrice"
-                        min={0}
-                        step="0.01"
-                        disabled={!formData.manualCurrencyOverrides}
-                        value={formData.usdCostPrice ?? 0}
-                        onChange={handleChange}
-                        className={`w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Cost (EUR)</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">€</span>
-                      <input
-                        type="number"
-                        name="eurCostPrice"
-                        min={0}
-                        step="0.01"
-                        disabled={!formData.manualCurrencyOverrides}
-                        value={formData.eurCostPrice ?? 0}
-                        onChange={handleChange}
-                        className={`w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">
-                      Stock Level {formData.variants?.length > 0 && "(Editions)"}
-                    </label>
-                    <input 
-                      type="number" 
-                      name="stockLevel" 
-                      value={formData.stockLevel} 
-                      onChange={handleChange} 
-                      disabled={formData.variants?.length > 0}
-                      className={`w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-sm text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${formData.variants?.length > 0 ? 'opacity-50 cursor-not-allowed bg-slate-100' : ''}`} 
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-4 p-5 bg-slate-50 border border-slate-200 rounded-2xl">
-                   <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em] block">Charge Tax</label>
-                        <p className="text-[8px] text-slate-500 uppercase tracking-widest">Apply sales tax at checkout</p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        name="chargeTax"
-                        checked={!!formData.chargeTax}
-                        onChange={handleChange}
-                        className="w-6 h-6 rounded-lg bg-white border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
-                      />
-                   </div>
-                </div>
-
-                <div className="space-y-4 p-5 bg-slate-50 border border-slate-200 rounded-2xl">
-                   <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em] block">Track Inventory</label>
-                        <p className="text-[8px] text-slate-500 uppercase tracking-widest">Decrement stock on each sale</p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        name="trackInventory"
-                        checked={!!formData.trackInventory}
-                        onChange={handleChange}
-                        className="w-6 h-6 rounded-lg bg-white border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
-                      />
-                   </div>
-                   {formData.trackInventory && (
-                     <div className="flex items-center justify-between mt-5 pt-5 border-t border-slate-200">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em] block">Allow Backorders</label>
-                          <p className="text-[8px] text-slate-500 uppercase tracking-widest">Continue selling when out of stock</p>
-                        </div>
-                        <input
-                          type="checkbox"
-                          name="allowBackorder"
-                          checked={!!formData.allowBackorder}
-                          onChange={handleChange}
-                          className="w-6 h-6 rounded-lg bg-white border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
-                        />
-                     </div>
-                   )}
-                </div>
-
-                {/* On Sale Section */}
-                <div className="space-y-4 p-5 bg-slate-50 border border-slate-200 rounded-2xl">
-                   <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-700 uppercase tracking-[0.2em] block">On Sale</label>
-                        <p className="text-[8px] text-slate-500 uppercase tracking-widest">Toggle promotional pricing</p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        name="isOnSale"
-                        checked={formData.isOnSale}
-                        onChange={handleChange}
-                        className="w-6 h-6 rounded-lg bg-white border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
-                      />
-                   </div>
-                   {formData.isOnSale && (
-                     <div className="grid grid-cols-3 gap-4 mt-5 pt-5 border-t border-slate-200 animate-in slide-in-from-top-4 duration-300">
-                       <div className="space-y-3">
-                         <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Sale (CAD)</label>
-                         <div className="relative">
-                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
-                           <input 
-                             type="number" 
-                             name="salePrice" 
-                             value={formData.salePrice} 
-                             onChange={handleChange} 
-                             className="w-full bg-white border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold" 
-                           />
-                         </div>
-                       </div>
-                       <div className="space-y-3">
-                         <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Sale (USD)</label>
-                         <div className="relative">
-                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
-                           <input 
-                             type="number" 
-                             name="usdSalePrice" 
-                             disabled={!formData.manualCurrencyOverrides}
-                             value={formData.usdSalePrice} 
-                             onChange={handleChange} 
-                             className={`w-full bg-white border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`} 
-                           />
-                         </div>
-                       </div>
-                       <div className="space-y-3">
-                         <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.1em] block ml-1">Sale (EUR)</label>
-                         <div className="relative">
-                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs">€</span>
-                           <input 
-                             type="number" 
-                             name="eurSalePrice" 
-                             disabled={!formData.manualCurrencyOverrides}
-                             value={formData.eurSalePrice} 
-                             onChange={handleChange} 
-                             className={`w-full bg-white border border-slate-200 rounded-2xl py-4 pl-8 pr-4 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all font-mono font-bold ${!formData.manualCurrencyOverrides ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`} 
-                           />
-                         </div>
-                       </div>
-                     </div>
-                   )}
-                </div>
-
-                <div className="grid grid-cols-1 gap-6">
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Shipping Profile</label>
-                    <select 
-                      name="shippingProfileId" 
-                      value={formData.shippingProfileId} 
-                      onChange={handleChange} 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xs text-slate-900 focus:border-amber-500/50 outline-none transition-all appearance-none cursor-pointer font-semibold"
-                    >
-                      {shippingProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] block ml-1">Status</label>
-                    <select 
-                      name="status" 
-                      value={formData.status} 
-                      onChange={handleChange} 
-                      className={`w-full border rounded-2xl py-4 px-6 text-xs font-black tracking-widest outline-none transition-all appearance-none cursor-pointer ${
-                        formData.status === 'published' 
-                          ? 'bg-emerald-55 text-emerald-600 border-emerald-200' 
-                          : 'bg-slate-50 border-slate-200 text-slate-600'
-                      }`}
-                    >
-                      <option value="draft">Draft</option>
-                      <option value="published">Published</option>
-                      <option value="archived">Archived</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-      </form>
+            <div className="be-rail-row"><span>Format</span><b>{formData.format}</b></div>
+            <div className="be-rail-row"><span>Stock</span><b>{formData.trackInventory ? num(formData.stockLevel) : "Not tracked"}</b></div>
+            <SelectField label="Status" name="status" value={formData.status} onChange={handleChange}>
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="archived">Archived</option>
+            </SelectField>
+          </div>
+          <div className="be-rail-card">
+            <p className="be-rail-head">Ready to publish · {doneCount}/{checklist.length}</p>
+            <div className="be-progress" role="progressbar" aria-valuemin={0} aria-valuemax={checklist.length} aria-valuenow={doneCount}><span style={{ width: `${(doneCount / checklist.length) * 100}%` }} /></div>
+            <ul className="be-check">
+              {checklist.map((c) => (
+                <li key={c.label} className={c.ok ? "is-ok" : ""}>
+                  <button type="button" onClick={() => setTab(c.tab)}><span aria-hidden>{c.ok ? "✓" : "○"}</span> {c.label}{!c.ok && <em className="rp-sr-only"> (missing)</em>}</button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
