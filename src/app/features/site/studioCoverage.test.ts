@@ -16,3 +16,39 @@ describe("Studio covers the default look", () => {
     expect(missing).toEqual([]);
   });
 });
+
+// ── Scan: every design key the public storefront reads must be editable in Studio ─────────────
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+
+// Structured data edited through dedicated Studio tabs (Sections / Menus / Text), internal
+// bookkeeping, or non-design objects that happen to share a variable name.
+const NOT_STYLE_CONTROLS = new Set([
+  "copy", "menus", "sections", "globalSections", "homepageSections", "altSections", "social", "categories",
+  "colorSchemes", "hero", "headerLinks", "sectionPresets", "heroPage", "storefront", "productPage",
+  "collectionPage", "cartPage", "page", "page404", "typeScale", "mobileOverrides", "themeLibraryPreset",
+  "font", "fontSize", "data", "id", "trim", "logoUrl",
+]);
+
+function publicSources(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) { if (name !== "admin") publicSources(full, out); }
+    else if (/\.tsx?$/.test(name) && !/\.test\./.test(name)) out.push(full);
+  }
+  return out;
+}
+
+describe("Studio covers every design key the storefront reads", () => {
+  it("has no storefront design key without a Style control", () => {
+    const controlled = new Set(STYLE_GROUPS.flatMap((g) => g.fields.map((f) => f.key.split(".")[0])));
+    const re = /\b(?:design|Design|tokenSource|activeDesign|storefrontDesign|heroDesign|rawDesign|logoDesign)\??\.([a-z][A-Za-z0-9]+)/g;
+    const missing = new Set<string>();
+    for (const file of publicSources(join(__dirname, "..", ".."))) {
+      for (const m of readFileSync(file, "utf8").matchAll(re)) {
+        if (!controlled.has(m[1]) && !NOT_STYLE_CONTROLS.has(m[1]) && !m[1].startsWith("page")) missing.add(m[1]);
+      }
+    }
+    expect([...missing].sort()).toEqual([]);
+  });
+});

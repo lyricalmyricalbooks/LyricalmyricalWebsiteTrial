@@ -20,6 +20,7 @@ import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
 import { HOME_LAYOUT_TEMPLATES } from "../ThemeEditorBuilder";
 import { applyThemeKeysToSurfaces } from "../themeScope";
+import { THEME_LIBRARY, PALETTES } from "../ThemeEditor";
 
 type LeftTab = "sections" | "style" | "text" | "menus";
 type Toast = { kind: "ok" | "err"; text: string } | null;
@@ -297,6 +298,19 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
     setShowGlobal(false);
     say("ok", "Noir homepage layout installed on the draft.");
   };
+  const applyLibraryTheme = (theme: any) => {
+    if (!window.confirm(`Apply the "${theme.name}" look to every page? Your sections and text are kept.`)) return;
+    const palette = PALETTES.find((p: any) => p.id === theme.palettePreset);
+    const base: Record<string, any> = {
+      ...(palette ? { palettePreset: palette.id, primaryColor: palette.accent, backgroundColor: palette.bg, textColor: palette.text } : {}),
+      themeStyle: "default",
+    };
+    for (const k of ["font", "fontSize", "cornerStyle", "buttonStyle", "animationLevel", "productCardStyle", "productHoverEffect",
+      "imageAspectRatio", "productImageLayout", "productContentPosition", "productColumnsDesktop", "productColumnsMobile",
+      "cardRadius", "productCTA", "catalogLayoutStyle", "showCatalogControls"]) if (theme[k] !== undefined) base[k] = theme[k];
+    change((d) => applyThemeKeysToSurfaces(d, { ...base, ...(theme.global || {}), themeLibraryPreset: theme.id }, surfaceIds));
+    say("ok", `“${theme.name}” applied to the draft — Publish to make it live.`);
+  };
   const riso = design.themeStyle === "riso";
 
   // ── preview wiring ──
@@ -532,6 +546,16 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
                 <button type="button" className={`${btnPrimary} w-full justify-center`} onClick={applyNoirLook}>Apply Riso Noir (black &amp; white)</button>
                 <button type="button" className={`${btn} w-full justify-center`} onClick={installNoirHome}>Also install the Noir homepage layout</button>
                 <button type="button" className={`${btn} w-full justify-center`} disabled={!riso} onClick={() => setStyle("themeStyle", "default")}>Turn off Riso print style</button>
+                <div className="pt-2 border-t border-neutral-200 space-y-2">
+                  <p className="text-[10px] font-black tracking-widest uppercase text-neutral-500">Theme library</p>
+                  {THEME_LIBRARY.map((t: any) => (
+                    <button key={t.id} type="button" onClick={() => applyLibraryTheme(t)}
+                      className="w-full text-left border border-neutral-200 rounded-lg px-3 py-2 hover:bg-neutral-50">
+                      <span className="block text-xs font-bold">{t.name}{design.themeLibraryPreset === t.id ? "  ✓ current" : ""}</span>
+                      <span className="block text-[11px] text-neutral-500">{t.mood}</span>
+                    </button>
+                  ))}
+                </div>
               </Group>
             )}
 

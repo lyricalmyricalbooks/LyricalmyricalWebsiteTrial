@@ -834,14 +834,14 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
         <>
           <button
             onClick={() => setActive((a) => (a - 1 + slides.length) % slides.length)}
-            aria-label="Previous slide"
+            aria-label={settings.prevAria || "Previous slide"}
             className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center backdrop-blur hover:bg-white/20"
           >
             <ChevronLeft size={18} />
           </button>
           <button
             onClick={() => setActive((a) => (a + 1) % slides.length)}
-            aria-label="Next slide"
+            aria-label={settings.nextAria || "Next slide"}
             className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center backdrop-blur hover:bg-white/20"
           >
             <ChevronRight size={18} />
@@ -1197,7 +1197,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
                         className="absolute top-3 right-3 rounded-full px-4 py-3 text-[10px] font-black"
                         style={{ background: settings.badgeColor || "var(--badge-bg-primary, #e8402a)", color: settings.badgeTextColor || "var(--badge-text-primary, #100f0d)" }}
                       >
-                        On sale
+                        {settings.saleLabel || "On sale"}
                       </span>
                     )}
                   </div>
@@ -1815,7 +1815,7 @@ export function ContactFormSection({ settings, enableAnimations }: any) {
             )}
           </div>
           {submitted ? (
-            <div className="text-center text-white/80 py-12">Thanks — we'll be in touch.</div>
+            <div className="text-center text-white/80 py-12" data-theme-field="successMessage">{settings.successMessage || "Thanks — we'll be in touch."}</div>
           ) : (
             <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }}>
               <input type="text" required placeholder="Name" className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />

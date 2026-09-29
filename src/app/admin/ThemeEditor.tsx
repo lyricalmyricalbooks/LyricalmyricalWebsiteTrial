@@ -106,7 +106,7 @@ import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../features/site/risoNoir";
 // ─────────────────────────────────────────────────────────────────────────────
 // Colour palette presets
 // ─────────────────────────────────────────────────────────────────────────────
-const PALETTES = [
+export const PALETTES = [
   { id: "punk",    label: "Punk Violet",    bg: "#0a0910", text: "#f3f1ee", accent: "#A855F7", swatches: ["#0a0910","#f3f1ee","#A855F7"] },
   { id: "dark",    label: "Midnight Black", bg: "#030213", text: "#ffffff", accent: "#A855F7", swatches: ["#030213","#ffffff","#A855F7"] },
   { id: "light",   label: "Gallery White",  bg: "#f8f7f4", text: "#111111", accent: "#000000", swatches: ["#f8f7f4","#111111","#000000"] },

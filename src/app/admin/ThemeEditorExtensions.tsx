@@ -2831,6 +2831,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     ] },
     { key: "showPrices", label: "Show prices", kind: "toggle" },
     { key: "showBadges", label: "Show sale/new badges", kind: "toggle" },
+    { key: "saleLabel", label: "Sale badge text", kind: "text" },
   ],
 
   BlogPostsSection: [
@@ -2859,6 +2860,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "title", label: "Title", kind: "text" },
     { key: "subtitle", label: "Subtitle", kind: "text" },
     { key: "buttonLabel", label: "Button label", kind: "text" },
+    { key: "successMessage", label: "Thank-you message", kind: "text" },
     { key: "showPhone", label: "Show phone field", kind: "toggle" },
     { key: "accentColor", label: "Accent", kind: "color" },
   ],

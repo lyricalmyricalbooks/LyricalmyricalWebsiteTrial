@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Star, Loader2, CheckCircle2 } from "lucide-react";
 import { reviewsApi, type Review } from "../../lib/reviews";
+import { useSiteData } from "./useSiteData";
+import { getCopy } from "./storeCopy";
 
 function Stars({ value, onChange, size = 16 }: { value: number; onChange?: (v: number) => void; size?: number }) {
   const interactive = !!onChange;
@@ -27,22 +29,26 @@ function Stars({ value, onChange, size = 16 }: { value: number; onChange?: (v: n
 }
 
 export function ReviewsSummary({ count, average }: { count: number; average: number }) {
+  const { settings } = useSiteData();
+  const c = (k: string, v?: Record<string, string | number>) => getCopy(settings?.design, k, v);
   if (!count) {
     return (
-      <p className="text-[9px] font-black tracking-widest text-white/30 uppercase">No reviews yet</p>
+      <p className="text-[9px] font-black tracking-widest text-white/30 uppercase">{c("reviewsNone")}</p>
     );
   }
   return (
     <div className="flex items-center gap-3">
       <Stars value={Math.round(average)} size={14} />
       <span className="text-[10px] font-black tracking-widest text-white/60 uppercase">
-        {average.toFixed(1)} · {count} review{count === 1 ? "" : "s"}
+        {average.toFixed(1)} · {c(count === 1 ? "reviewsCountOne" : "reviewsCountMany", { count })}
       </span>
     </div>
   );
 }
 
 export default function ReviewsSection({ bookId, hideHeader = false }: { bookId: string; hideHeader?: boolean }) {
+  const { settings } = useSiteData();
+  const c = (k: string, v?: Record<string, string | number>) => getCopy(settings?.design, k, v);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -111,16 +117,16 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
         {!hideHeader && (
           <header className="flex items-center justify-between mb-10">
             <div>
-              <p className="text-[9px] font-black tracking-[0.4em] uppercase text-white/30 mb-2">Customer Reviews</p>
+              <p className="text-[9px] font-black tracking-[0.4em] uppercase text-white/30 mb-2">{c("reviewsHeading")}</p>
               <ReviewsSummary count={aggregate.count} average={aggregate.average} />
             </div>
           </header>
         )}
 
         {loading ? (
-          <p className="text-[10px] tracking-widest text-white/30 uppercase">Loading reviews…</p>
+          <p className="text-[10px] tracking-widest text-white/30 uppercase">{c("reviewsLoading")}</p>
         ) : reviews.length === 0 ? (
-          <p className="text-white/40 text-sm mb-12">Be the first to share your thoughts on this book.</p>
+          <p className="text-white/40 text-sm mb-12">{c("reviewsEmpty")}</p>
         ) : (
           <ul className="space-y-8 mb-16">
             {reviews.map(r => (
@@ -136,7 +142,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
                 <p className="text-[10px] tracking-widest text-white/40 uppercase">— {r.authorName}</p>
                 {r.reply?.body && (
                   <div className="mt-4 border-l-2 border-white/20 pl-3">
-                    <p className="text-[10px] tracking-widest text-white/50 uppercase mb-1">Reply from Lyricalmyrical Books</p>
+                    <p className="text-[10px] tracking-widest text-white/50 uppercase mb-1">{c("reviewsReply")}</p>
                     <p className="text-white/70 text-sm leading-relaxed">{r.reply.body}</p>
                   </div>
                 )}
@@ -149,13 +155,13 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
           {submitted ? (
             <div className="flex items-center gap-3 text-sm" style={{ color: "var(--success)" }}>
               <CheckCircle2 size={18} />
-              <span>Thanks — your review has been submitted for moderation.</span>
+              <span>{c("reviewsThanks")}</span>
             </div>
           ) : (
             <form onSubmit={submit} className="space-y-5">
-              <h3 className="text-lg font-bold tracking-tight">Write a review</h3>
+              <h3 className="text-lg font-bold tracking-tight">{c("reviewsWrite")}</h3>
               <div className="flex items-center gap-3">
-                <span className="text-[10px] tracking-widest uppercase text-white/40">Your rating</span>
+                <span className="text-[10px] tracking-widest uppercase text-white/40">{c("reviewsRating")}</span>
                 <Stars value={rating} onChange={setRating} />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -163,28 +169,28 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
                   required
                   value={authorName}
                   onChange={e => setAuthorName(e.target.value)}
-                  placeholder="Name"
+                  placeholder={c("reviewsName")}
                   className="bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30"
                 />
                 <input
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="Email (optional, not published)"
+                  placeholder={c("reviewsEmail")}
                   className="bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30"
                 />
               </div>
               <input
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                placeholder="Headline (optional)"
+                placeholder={c("reviewsHeadline")}
                 className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30"
               />
               <textarea
                 required
                 value={body}
                 onChange={e => setBody(e.target.value)}
-                placeholder="What did you think?"
+                placeholder={c("reviewsBody")}
                 rows={4}
                 className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30 resize-none"
               />
@@ -195,10 +201,10 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
                 className="fm-active px-8 py-3 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase hover:bg-white/90 transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 {submitting ? <Loader2 size={12} className="animate-spin" /> : null}
-                Submit Review
+                {c("reviewsSubmit")}
               </button>
               <p className="text-[9px] tracking-widest text-white/30 uppercase">
-                Reviews are moderated before appearing.
+                {c("reviewsModerated")}
               </p>
             </form>
           )}

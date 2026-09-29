@@ -129,7 +129,7 @@ export default function OrderTracking() {
       <nav className="relative z-10 px-8 py-6 flex items-center justify-between border-b border-white/5 backdrop-blur-xl bg-black/20">
         <Link to="/" className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-white transition-colors group uppercase">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-          Back to Store
+          {getCopy(settings?.design, "trackBack")}
         </Link>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full fm-accent-bg animate-pulse" />

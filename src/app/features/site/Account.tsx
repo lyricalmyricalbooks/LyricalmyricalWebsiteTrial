@@ -574,7 +574,7 @@ export default function AccountPage() {
                   onClick={() => setIsEditingAddress(false)}
                   className="px-6 py-4 text-[9px] font-black tracking-widest fm-muted hover:text-white uppercase"
                 >
-                  Cancel
+                  {getCopy(settings?.design, "accountCancel")}
                 </button>
               </div>
             </form>
