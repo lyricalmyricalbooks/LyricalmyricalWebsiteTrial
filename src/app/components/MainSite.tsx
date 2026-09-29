@@ -729,11 +729,18 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const navOrder = activeDesign?.navOrder || storefrontDesign?.navOrder || legacyDesign?.navOrder;
   const navItems = useMemo(() => buildNavItems(categories, pages || [], navOrder), [categories, pages, navOrder]);
 
+  // "Skip straight to the shop": the homepage shows the catalog. Remember when we forced
+  // it, so switching the setting back (e.g. live in the Studio preview) returns to Home.
+  const forcedCatalog = useRef(false);
   useEffect(() => {
     if (legacyDesign?.showHero === false && !showCatalog) {
+      forcedCatalog.current = true;
       setShowCatalog(true);
+    } else if (legacyDesign?.showHero !== false && showCatalog && forcedCatalog.current && !isCatalogPreview) {
+      forcedCatalog.current = false;
+      setShowCatalog(false);
     }
-  }, [legacyDesign?.showHero, showCatalog, setShowCatalog]);
+  }, [legacyDesign?.showHero, showCatalog, setShowCatalog, isCatalogPreview]);
 
   const [activeCategory, setActiveCategory] = useState<any>(categories[0]);
 

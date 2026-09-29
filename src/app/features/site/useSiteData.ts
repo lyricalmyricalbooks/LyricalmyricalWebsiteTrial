@@ -60,8 +60,9 @@ export function useSiteData() {
         const isPreview = typeof window !== 'undefined' && window.location.search.includes('preview=true');
         const safeSettings = (settingsResponse || DEFAULT_SETTINGS) as any;
         
-        if (isPreview && safeSettings.draftDesign) {
-          safeSettings.design = (window as any).__studioPreviewDesign || safeSettings.draftDesign;
+        // Never let the late Firestore load overwrite what the Studio has already sent.
+        if (isPreview) {
+          safeSettings.design = (window as any).__studioPreviewDesign || safeSettings.draftDesign || safeSettings.design;
         }
 
         // Scheduled publishing: once the scheduled time passes, shoppers see
