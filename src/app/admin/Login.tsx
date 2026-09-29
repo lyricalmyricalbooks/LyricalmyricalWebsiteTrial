@@ -31,7 +31,7 @@ export function Login({ onLogin }: LoginProps) {
         <div className="rp-card rp-login-card">
           <div style={{ textAlign: "center", marginBottom: 28 }}>
             <span className="rp-brand-mark" style={{ margin: "0 auto 16px", width: 52, height: 52 }}><BookOpen size={24} aria-hidden /></span>
-            <h1 className="rp-page-title" style={{ fontSize: "2.5rem" }}>Lyrical<span style={{ color: "var(--rp-primary)" }}>myrical</span></h1>
+            <h1 className="rp-page-title" style={{ fontSize: "2.5rem" }}>Lyrical<span style={{ color: "var(--rp-primary-text)" }}>myrical</span></h1>
             <p className="rp-wordmark-sub">Publishing House · Admin</p>
           </div>
           <p className="rp-card-desc" style={{ textAlign: "center", marginBottom: 20 }}>

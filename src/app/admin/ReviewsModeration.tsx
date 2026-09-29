@@ -136,5 +136,5 @@ function Queue() {
 
 export default function ReviewsModeration() {
   // Own provider: keeps the module usable wherever it is mounted.
-  return <ToastProvider><div className="rp" style={{ background: "transparent" }}><Queue /></div></ToastProvider>;
+  return <ToastProvider><Queue /></ToastProvider>;
 }
