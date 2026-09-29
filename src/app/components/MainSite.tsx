@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon, ShoppingCart } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router";
+import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyPages";
 import { useCart } from "../CartContext";
 import { CATEGORIES, DEFAULT_IMAGE } from "../features/site/constants";
 import {
@@ -421,9 +422,9 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
         {/* Col 3: Policies / Info */}
         <div className="space-y-3">
           <p className="text-white/20 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLegalHeading")}</p>
-          {settings?.policies?.shipping && <p className="hover:text-white cursor-default transition-colors">Shipping Policy</p>}
-          {settings?.policies?.returns && <p className="hover:text-white cursor-default transition-colors">Returns Policy</p>}
-          {settings?.policies?.privacy && <p className="hover:text-white cursor-default transition-colors">Privacy Policy</p>}
+          {POLICY_KEYS.filter((k) => (settings?.policies as any)?.[k]?.trim()).map((k) => (
+            <p key={k}><Link to={`/page/${policySlug(k)}`} className="hover:text-white transition-colors">{POLICY_TITLES[k]}</Link></p>
+          ))}
           {!fourCol && <p className="mt-6">{getCopy(settings?.design, "footerLocation")}</p>}
         </div>
 
