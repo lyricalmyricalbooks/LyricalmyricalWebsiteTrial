@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router";
 import { useCart } from "../CartContext";
@@ -6,6 +6,7 @@ import { useSiteData } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
 import { useCurrency } from "../CurrencyContext";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
+import { useFocusTrap } from "../lib/useFocusTrap";
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
 
 export function CartDrawer() {
@@ -13,6 +14,9 @@ export function CartDrawer() {
   const navigate = useNavigate();
   const { books, settings } = useSiteData();
   const { formatPrice } = useCurrency();
+  const drawerRef = useRef<HTMLDivElement>(null);
+  // Dialog behaviour: focus moves in, Tab is contained, Escape closes, focus returns to the opener.
+  useFocusTrap(drawerRef, isCartOpen, () => setIsCartOpen(false));
 
   // ⚡ Bolt: Cache books by ID for O(1) lookups during cart iteration
   // Measured impact: Eliminates O(N*M) complexity when finding cart item categories.
@@ -81,9 +85,15 @@ export function CartDrawer() {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setIsCartOpen(false)}
+            aria-hidden="true"
             className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60]"
           />
           <motion.div
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={getCopy(design, "cartTitle")}
+            tabIndex={-1}
             data-fm-store
             data-fm-checkout
             initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
@@ -102,7 +112,7 @@ export function CartDrawer() {
               <button
                 onClick={() => setIsCartOpen(false)}
                 aria-label="Close cart"
-                className={`p-2 rounded-full transition-colors ${drawerDark ? "hover:bg-white/10" : "hover:bg-neutral-50"}`}
+                className={`p-3 -m-1 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full transition-colors ${drawerDark ? "hover:bg-white/10" : "hover:bg-neutral-50"}`}
               >
                 <X size={20} />
               </button>
@@ -146,15 +156,23 @@ export function CartDrawer() {
                       <p className="text-[10px] text-neutral-400" style={mutedStyle}>{formatPrice(item.price)}</p>
                     </div>
                     <div className="flex items-center justify-between mt-4">
-                      <div className="flex items-center gap-4 bg-neutral-50 px-3 py-1.5 rounded-full" style={surfaceStyle}>
-                        <button onClick={() => updateQuantity(item.id, item.variantId, -1)} aria-label="Decrease quantity" className="hover:text-neutral-400 transition-colors"><Minus size={12} /></button>
-                        <span className="text-[10px] font-bold w-4 text-center">{item.quantity}</span>
-                        <button onClick={() => updateQuantity(item.id, item.variantId, 1)} aria-label="Increase quantity" className="hover:text-neutral-400 transition-colors"><PlusIcon size={12} /></button>
-                      </div>
+                      {(() => {
+                        const atLimit = typeof item.stockLimit === "number" && item.stockLimit !== 999 && item.quantity >= item.stockLimit;
+                        return (
+                          <div>
+                            <div className="flex items-center gap-1 bg-neutral-50 px-1 rounded-full" style={surfaceStyle} role="group" aria-label={`Quantity for ${item.title}`}>
+                              <button onClick={() => updateQuantity(item.id, item.variantId, -1)} disabled={item.quantity <= 1} aria-label={`Decrease quantity of ${item.title}`} className="hover:text-neutral-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center disabled:opacity-30"><Minus size={12} /></button>
+                              <span className="text-[11px] font-bold w-6 text-center" aria-live="polite" aria-atomic="true">{item.quantity}</span>
+                              <button onClick={() => updateQuantity(item.id, item.variantId, 1)} disabled={atLimit} aria-label={`Increase quantity of ${item.title}`} className="hover:text-neutral-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center disabled:opacity-30"><PlusIcon size={12} /></button>
+                            </div>
+                            {atLimit && <p className="text-[9px] tracking-widest uppercase mt-1" role="status" style={{ color: "var(--low-inventory-color, #b4271a)" }}>Only {item.stockLimit} available</p>}
+                          </div>
+                        );
+                      })()}
                       <button
                         onClick={() => removeFromCart(item.id, item.variantId)}
-                        aria-label="Remove item from cart"
-                        className={`transition-colors ${drawerDark ? "text-white/40 hover:text-white" : "text-neutral-300 hover:text-black"}`}
+                        aria-label={`Remove ${item.title} from cart`}
+                        className={`min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors ${drawerDark ? "text-white/40 hover:text-white" : "text-neutral-300 hover:text-black"}`}
                       >
                         <Trash2 size={12} />
                       </button>
@@ -168,6 +186,13 @@ export function CartDrawer() {
                       <ShoppingBag size={24} className={drawerDark ? "text-white/30" : "text-neutral-200"} />
                    </div>
                    <p className="text-[10px] tracking-[.3em] text-neutral-300 uppercase italic" style={mutedStyle}>{getCopy(design, "cartEmpty")}</p>
+                   <button
+                     onClick={() => { setIsCartOpen(false); navigate("/"); }}
+                     className="mt-2 px-6 py-3 min-h-[44px] text-[10px] tracking-[.3em] font-bold uppercase border"
+                     style={{ borderColor: buttonBg, color: drawerText }}
+                   >
+                     Continue shopping
+                   </button>
                 </div>
               )}
 
