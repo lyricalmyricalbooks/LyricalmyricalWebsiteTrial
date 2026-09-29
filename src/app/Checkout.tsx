@@ -11,7 +11,8 @@ import { abandonedCartApi, funnelApi } from "./lib/commerce";
 import { functionUrl } from "./lib/functionsBase";
 import { useSEO } from "./lib/seo";
 import { useCurrency } from "./CurrencyContext";
-import { COUNTRIES, matchShippingZone } from "./features/site/shippingZones";
+import { COUNTRIES } from "./features/site/shippingZones";
+import { quoteShipping, parseWeightGrams } from "./features/site/shippingEngine";
 import { TemplateSections, GlobalSections } from "./components/sectionRender";
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, getDoc, collection } from "firebase/firestore";
@@ -469,142 +470,29 @@ export function Checkout() {
       setShippingCost(0);
       return;
     }
-    const country = (customer.address.country || "United States").trim().toLowerCase();
-    
-    const profileItemsMap: Record<string, typeof cart> = {};
-    cart.forEach(item => {
-      const pid = item.shippingProfileId || "general-profile";
-      if (!profileItemsMap[pid]) profileItemsMap[pid] = [];
-      profileItemsMap[pid].push(item);
-    });
-
-    // ⚡ Bolt: Cache shipping profiles in a Map to eliminate O(N) array lookups per item
-    const profilesMap = new Map<string, any>();
-    shippingProfiles.forEach((p) => profilesMap.set(p.id, p));
-
-    const generalProfile = profilesMap.get("general-profile");
-    const fallbackProfile = shippingProfiles[0];
-
-    const profileRates: Record<string, any[]> = {};
-    
-    Object.entries(profileItemsMap).forEach(([pid, items]) => {
-      let profile = profilesMap.get(pid);
-      if (!profile && pid !== "general-profile") {
-        profile = generalProfile;
-      }
-      if (!profile) {
-        profile = fallbackProfile;
-      }
-
-      if (!profile || !profile.zones || profile.zones.length === 0) {
-        profileRates[pid] = [{
-          name: profile?.serviceName || "Standard Shipping",
-          base: Number(profile?.base || 15),
-          additional: Number(profile?.additional || 5),
-          deliveryDays: profile?.deliveryDays || "3-7",
-          minPrice: profile?.freeThreshold ? Number(profile.freeThreshold) : null
-        }];
-        return;
-      }
-
-      // ⚡ Bolt: Use existing optimized matchShippingZone (O(1) Map lookups)
-      // instead of repeatedly creating string allocations for every zone mapping comparison.
-      let matchedZone = matchShippingZone(country, profile.zones);
-
-      if (!matchedZone) {
-        matchedZone = profile.zones[0];
-      }
-
-      if (matchedZone && matchedZone.rates) {
-        const eligibleRates = matchedZone.rates.filter((r: any) => {
-          const minP = r.minPrice !== null && r.minPrice !== undefined ? Number(r.minPrice) : null;
-          const maxP = r.maxPrice !== null && r.maxPrice !== undefined ? Number(r.maxPrice) : null;
-          if (minP !== null && cartTotal < minP) return false;
-          if (maxP !== null && cartTotal > maxP) return false;
-          return true;
-        });
-        profileRates[pid] = eligibleRates;
-      } else {
-        profileRates[pid] = [];
-      }
-    });
-
-    const allRateNamesSet = new Set<string>();
-    Object.values(profileRates).forEach(rates => {
-      rates.forEach(r => allRateNamesSet.add(r.name));
-    });
-    const uniqueRateNames = Array.from(allRateNamesSet);
-
-    if (uniqueRateNames.length === 0) {
-      setAvailableRates([]);
-      setShippingCost(0);
-      return;
-    }
-
-    // ⚡ Bolt: Pre-compute rate lookups to eliminate O(N*M) nested iterations and repeated array sorting
-    const profileRatesLookup = new Map<string, Map<string, any>>();
-    const profileFallbackRate = new Map<string, any>();
-
-    Object.entries(profileRates).forEach(([pid, rates]) => {
-      const ratesMap = new Map<string, any>();
-      rates.forEach((r: any) => ratesMap.set(r.name, r));
-      profileRatesLookup.set(pid, ratesMap);
-
-      if (rates.length > 0) {
-        profileFallbackRate.set(pid, [...rates].sort((a, b) => Number(a.base) - Number(b.base))[0]);
-      }
-    });
-
-    const combinedRates = uniqueRateNames.map(rateName => {
-      let highestBase = 0;
-      let totalAdditional = 0;
-      let maxDeliveryDays = "3-7";
-      let hasDelDays = false;
-
-      cart.forEach((item, i) => {
-        const pid = item.shippingProfileId || "general-profile";
-
-        const ratesMap = profileRatesLookup.get(pid);
-        let matchedRate = ratesMap?.get(rateName);
-
-        if (!matchedRate) {
-          matchedRate = profileFallbackRate.get(pid);
-        }
-
-        const base = matchedRate ? Number(matchedRate.base) : 15;
-        const additional = matchedRate ? Number(matchedRate.additional) : 5;
-        if (matchedRate?.deliveryDays) {
-          maxDeliveryDays = matchedRate.deliveryDays;
-          hasDelDays = true;
-        }
-
-        if (i === 0) {
-          highestBase = base;
-          totalAdditional += additional * (item.quantity - 1);
-        } else {
-          if (base > highestBase) {
-            totalAdditional += highestBase;
-            highestBase = base;
-            totalAdditional += additional * (item.quantity - 1);
-          } else {
-            totalAdditional += additional * item.quantity;
-          }
-        }
-      });
-
+    // Same engine the server uses to charge the order (parity-tested); weights
+    // come from the catalog so weight-based rates quote identically.
+    const items = cart.map((item) => {
+      const book: any = booksMap.get(item.id);
+      const variant = item.variantId ? (book?.variants || []).find((v: any) => v.id === item.variantId) : null;
       return {
-        name: rateName,
-        price: highestBase + totalAdditional,
-        deliveryDays: hasDelDays ? maxDeliveryDays : undefined
+        price: item.price,
+        quantity: item.quantity,
+        shippingProfileId: item.shippingProfileId || null,
+        weightGrams: parseWeightGrams(variant?.weight) ?? parseWeightGrams(book?.weight),
       };
     });
-
-    setAvailableRates(combinedRates);
+    const quotes = quoteShipping(items, { country: customer.address.country || "Canada" }, shippingProfiles);
+    setAvailableRates(quotes.map((q) => ({ name: q.name, price: q.price, deliveryDays: q.deliveryDays, pickup: q.type === "pickup" })));
   };
 
   useEffect(() => {
     const addr = customer.address;
-    if (!addr.street?.trim() || !addr.city?.trim() || !addr.state?.trim() || !addr.zip?.trim() || cart.length === 0) {
+    // Zone/rate profiles are what the server charges, so show exactly those.
+    // Live carrier quotes are only a fallback for stores with no zone setup,
+    // because the charged amount must equal the amount displayed.
+    const hasConfiguredZones = shippingProfiles.some((p) => Array.isArray(p.zones) && p.zones.length > 0);
+    if (hasConfiguredZones || !addr.street?.trim() || !addr.city?.trim() || !addr.state?.trim() || !addr.zip?.trim() || cart.length === 0) {
       calculateStaticProfileRates();
       return;
     }
@@ -1231,7 +1119,7 @@ export function Checkout() {
                         />
                         <div>
                           <p className="text-sm font-medium text-slate-900">{rate.name}</p>
-                          {rate.deliveryDays && <p className="mt-0.5 text-xs text-slate-500">Estimated {rate.deliveryDays} business days</p>}
+                          {rate.pickup ? <p className="mt-0.5 text-xs text-slate-500">Collect in person — no delivery</p> : rate.deliveryDays && <p className="mt-0.5 text-xs text-slate-500">Estimated {rate.deliveryDays} business days</p>}
                         </div>
                       </div>
                       <span className="text-sm font-semibold text-slate-900">{rate.price === 0 ? "Free" : formatPrice(rate.price)}</span>
@@ -1241,7 +1129,9 @@ export function Checkout() {
               ) : (
                 <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
                   <Truck size={18} className="mt-0.5 shrink-0 text-slate-400" />
-                  Enter your delivery address to see available shipping methods.
+                  {cart.length > 0 && shippingProfiles.some((p) => Array.isArray(p.zones) && p.zones.length > 0) && customer.address.country
+                    ? `We don't currently offer shipping for this order to ${customer.address.country}. Try another country or contact us for a custom quote.`
+                    : "Enter your delivery address to see available shipping methods."}
                 </div>
               )}
             </section>

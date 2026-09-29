@@ -47,3 +47,23 @@ describe("shipping safety diagnostics", () => {
     expect(ids.some(id => id.endsWith(":name"))).toBe(true);
   });
 });
+
+import { describeRatePrice, describeRateConditions, rateIssues, starterZones } from "./shippingHealth";
+describe("rate descriptions", () => {
+  it("describes each pricing type", () => {
+    expect(describeRatePrice({ base: 15, additional: 5 })).toBe("$15.00 + $5.00 per extra");
+    expect(describeRatePrice({ type: "order", base: 9, freeOver: 60 })).toBe("$9.00 per order · free over $60.00");
+    expect(describeRatePrice({ type: "weight", base: 5, perKg: 7 })).toBe("$5.00 + $7.00/kg");
+    expect(describeRatePrice({ type: "pickup" })).toBe("Free pickup");
+  });
+  it("describes conditions and flags impossible ranges", () => {
+    expect(describeRateConditions({ minPrice: 50, maxWeight: 2000 })).toBe("order ≥ $50.00 · weight ≤ 2000g");
+    expect(describeRateConditions({})).toBe("");
+    expect(rateIssues({ minPrice: 100, maxPrice: 10 })).toHaveLength(1);
+  });
+  it("starter zones cover the world with a rate each", () => {
+    let n = 0; const zones = starterZones(() => `id${n++}`);
+    expect(zones.every((z: any) => z.rates.length > 0)).toBe(true);
+    expect(zones.some((z: any) => z.restOfWorld)).toBe(true);
+  });
+});
