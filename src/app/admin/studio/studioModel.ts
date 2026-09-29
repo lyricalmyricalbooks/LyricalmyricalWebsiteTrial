@@ -45,7 +45,7 @@ export function normalizeDesign(incoming: any, defaults: any = {}) {
   const inc = incoming || {};
   const merged = { ...defaults, ...inc };
   const { heroPage: _h, storefront: _s, ...surfaceBase } = merged;
-  return {
+  const normalized: any = {
     ...merged,
     heroPage: {
       ...surfaceBase,
@@ -58,6 +58,20 @@ export function normalizeDesign(incoming: any, defaults: any = {}) {
       ...(inc.storefront || {}),
     },
   };
+  const identify = (sections: any[]) => sections.map((section, index) => {
+    const id = section.id || `legacy-section-${index}`;
+    const settings = { ...(section.settings || {}) };
+    for (const key of ["items", "slides", "blocks"]) {
+      if (Array.isArray(settings[key])) settings[key] = settings[key].map((block: any, i: number) =>
+        block && typeof block === "object" ? { ...block, id: block.id || `${id}-${key}-${i}` } : block);
+    }
+    return { ...section, id, settings };
+  });
+  if (Array.isArray(normalized.globalSections)) normalized.globalSections = identify(normalized.globalSections);
+  for (const key of Object.keys(normalized)) {
+    if (Array.isArray(normalized[key]?.sections)) normalized[key] = { ...normalized[key], sections: identify(normalized[key].sections) };
+  }
+  return normalized;
 }
 
 export function targetKey(t: SectionTarget) {
