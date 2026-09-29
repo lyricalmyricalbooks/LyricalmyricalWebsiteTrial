@@ -1135,6 +1135,18 @@ export const adminApi = {
     };
   },
 
+  // Audience signals for the Overview (admin-only reads per firestore.rules).
+  getAudienceSnapshot: async () => {
+    const [reviewsSnap, subsSnap] = await Promise.all([
+      getDocs(query(collection(db, "reviews"), orderBy("createdAt", "desc"), limit(200))),
+      getDocs(query(collection(db, "newsletter"), limit(2000))),
+    ]);
+    return {
+      reviews: reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+      subscribers: subsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+    };
+  },
+
   seedAnalyticsData: async () => {
     const batch: any[] = [];
     for (let i = 30; i >= 0; i--) {
