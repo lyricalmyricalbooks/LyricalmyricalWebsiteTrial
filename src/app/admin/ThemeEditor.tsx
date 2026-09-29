@@ -6513,12 +6513,12 @@ export function ThemeEditor({ settings, onSave, onExit }: ThemeEditorProps) {
   return (
     <div className="fixed inset-0 z-[200] flex flex-col bg-[#050506] text-white overflow-hidden" style={{ fontFamily: "'Outfit', sans-serif" }}>
       {/* ── Top bar ── */}
-      <div className={`transition-all duration-500 ease-in-out flex items-center justify-between px-8 flex-shrink-0 border-b border-white/5 z-50 ${isFullscreen ? "h-0 opacity-0 overflow-hidden border-none pointer-events-none" : "h-20 bg-black/40 backdrop-blur-3xl"}`}>
-        <div className="flex items-center gap-6">
+      <div className={`transition-all duration-500 ease-in-out flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-6 flex-shrink-0 border-b border-white/5 z-50 ${isFullscreen ? "h-0 opacity-0 overflow-hidden border-none pointer-events-none" : "min-h-20 py-2 bg-black/40 backdrop-blur-3xl"}`}>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <div className="flex flex-col">
             <span className="text-[10px] font-black tracking-[0.4em] text-violet-400 uppercase italic">Architectural Core</span>
             <div className="flex items-center gap-3">
-              <span className="text-xl font-black tracking-tighter text-white uppercase italic">Theme Editor</span>
+              <span className="text-xl font-black tracking-tighter text-white uppercase italic whitespace-nowrap">Theme Editor</span>
               {/* Save status badge */}
               <span className={`flex items-center gap-1.5 text-[8px] font-black tracking-widest px-3 py-1 rounded-full border uppercase italic transition-all ${
                 saveStatus === "unsaved"

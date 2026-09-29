@@ -3,6 +3,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { CATEGORIES } from "../features/site/constants";
+import { discountState as state, today } from "./discountState";
 import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, EmptyState, ErrorState, FilterBar, IconButton, LoadingState,
   MetricCard, PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, TextArea, TextField,
@@ -12,7 +13,6 @@ import {
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 const fmt = (n: number | null | undefined) => (n != null && n !== ("" as any) ? `$${Number(n).toFixed(2)}` : "—");
-const today = () => new Date().toISOString().split("T")[0];
 
 const TYPE_OPTIONS = [
   { id: "percentage", label: "Percentage", desc: "e.g. 20% off" },
@@ -28,12 +28,6 @@ const EMPTY: any = {
   allowedEmailDomains: "", allowedCustomerEmails: "", description: "", buyQuantity: 1, getQuantity: 1,
   getDiscountValue: 100, tiers: [{ minSpend: 0, value: 0, type: "percentage" }],
 };
-
-function state(d: any): { key: "active" | "paused" | "expired" | "exhausted"; tone: BadgeTone; label: string } {
-  if (d.expiryDate && d.expiryDate < today()) return { key: "expired", tone: "danger", label: "Expired" };
-  if (d.usageLimit && (d.usageCount || 0) >= d.usageLimit) return { key: "exhausted", tone: "warning", label: "Exhausted" };
-  return d.isActive ? { key: "active", tone: "success", label: "Active" } : { key: "paused", tone: "neutral", label: "Paused" };
-}
 
 function valueLabel(d: any) {
   switch (d.type) {

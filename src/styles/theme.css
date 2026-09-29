@@ -771,6 +771,166 @@
   }
 }
 
+
+/* Accent remap for legacy admin utilities (generated from classes in use): violet/indigo → flare, cyan/blue → press blue. */
+.admin-reso[data-admin-theme="reso"] [class~="accent-blue-600"]{accent-color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="accent-violet-500"]{accent-color:#e8402a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-blue-100"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-blue-50"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-blue-50\/40"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-blue-50\/50"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-blue-500\/10"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-blue-600"]{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-cyan-400"]{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-cyan-50"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-cyan-500"]{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-cyan-500\/10"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-cyan-600"]{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-cyan-600\/10"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-cyan-950\/30"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-sky-400"]{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-sky-500\/10"]{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-100"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-400"]{background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-50"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-50\/40"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-500"]{background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-500\/10"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-500\/20"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-600"]{background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-600\/10"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-600\/15"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-600\/20"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-600\/5"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-950\/20"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-950\/30"]{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-blue-100"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-blue-200"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-blue-400"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-blue-500"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-blue-500\/20"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-blue-500\/30"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-blue-600"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-cyan-400"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-cyan-500"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-cyan-500\/20"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-cyan-500\/30"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-fuchsia-500\/30"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-sky-500\/20"]{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-100"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-200"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-400"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-400\/20"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-400\/50"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-500"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-500\/10"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-500\/20"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-500\/30"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-500\/40"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-500\/50"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-600"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="border-violet-900"]{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="focus:border-blue-400"]:focus{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="focus:border-cyan-500\/50"]:focus{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="focus:border-sky-500\/50"]:focus{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="focus:border-violet-500"]:focus{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="focus:border-violet-500\/50"]:focus{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="focus:ring-violet-500"]:focus{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-blue-500"]{background-image:none !important;background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-cyan-500"]{background-image:none !important;background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-cyan-500\/10"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-cyan-600\/5"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-fuchsia-600\/20"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-purple-400"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-sky-500"]{background-image:none !important;background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-violet-500"]{background-image:none !important;background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-violet-500\/10"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-violet-600"]{background-image:none !important;background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-violet-600\/0"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-violet-600\/10"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-violet-600\/20"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="from-violet-600\/5"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-blue-50"]:hover{background-color:#dee4fd !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-blue-700"]:hover{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-cyan-500"]:hover{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-cyan-600"]:hover{background-color:#1b3fe0 !important;color:#ffffff !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-purple-600"]:hover{background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-50\/40"]:hover{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-50\/50"]:hover{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-500"]:hover{background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-500\/20"]:hover{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-500\/5"]:hover{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-600"]:hover{background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-600\/20"]:hover{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:bg-violet-600\/25"]:hover{background-color:rgba(232,64,42,.1) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-blue-200"]:hover{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-blue-300"]:hover{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-blue-400"]:hover{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-cyan-300"]:hover{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-cyan-500\/20"]:hover{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-cyan-500\/30"]:hover{border-color:rgba(27,63,224,.5) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-fuchsia-400\/50"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-violet-300"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-violet-400"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-violet-400\/50"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-violet-500\/20"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-violet-500\/30"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-violet-500\/40"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:border-violet-500\/50"]:hover{border-color:rgba(232,64,42,.45) !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:from-violet-500"]:hover{background-image:none !important;background-color:#e8402a !important;color:#100f0d !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:shadow-blue-500\/5"]:hover{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:text-blue-500"]:hover{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:text-blue-600"]:hover{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:text-violet-300"]:hover{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="hover:to-indigo-500"]:hover{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="ring-violet-500\/0"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="ring-violet-500\/30"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="ring-violet-500\/5"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-blue-100"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-blue-200"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-blue-500"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-blue-500\/10"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-blue-500\/20"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-blue-500\/5"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-cyan-600\/10"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-purple-200"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-violet-500"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-violet-500\/10"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-violet-500\/30"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-violet-600\/20"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-violet-600\/30"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="shadow-violet-600\/40"]{box-shadow:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-blue-400"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-blue-500"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-blue-600"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-blue-700"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-cyan-300"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-cyan-400"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-cyan-500"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-cyan-600"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-cyan-700"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-fuchsia-300"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-fuchsia-500"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-purple-500"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-sky-400"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-sky-600"]{color:#1b3fe0 !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-violet-300"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-violet-400"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-violet-500"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-violet-500\/50"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-violet-600"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="text-violet-700"]{color:#b4271a !important;}
+.admin-reso[data-admin-theme="reso"] [class~="to-blue-500"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="to-cyan-500"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="to-cyan-600\/10"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="to-fuchsia-600\/20"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="to-indigo-500"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="to-indigo-600"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="to-violet-600\/20"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="via-violet-600\/5"]{background-image:none !important;}
+.admin-reso[data-admin-theme="reso"] [class~="bg-violet-600"] *, .admin-reso[data-admin-theme="reso"] [class~="bg-violet-500"] *, .admin-reso[data-admin-theme="reso"] [class~="from-violet-600"] * { color: #100f0d !important; }
+.admin-reso[data-admin-theme="reso"] [class~="bg-blue-600"] *, .admin-reso[data-admin-theme="reso"] [class~="bg-blue-700"] * { color: #ffffff !important; }
+
 /* Shadow and spacing scale utilities */
 [data-fm-store] .shadow-card {
   box-shadow: var(--card-shadow);
