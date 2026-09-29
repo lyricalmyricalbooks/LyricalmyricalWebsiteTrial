@@ -94,3 +94,18 @@ describe("overview insights", () => {
     expect(newsletterSummary([{ subscribedAt: ago(2) }, { subscribedAt: ago(90) }], NOW - 30 * 86_400_000)).toEqual({ total: 2, added: 1 });
   });
 });
+
+import { bestSellers } from "./overviewInsights";
+describe("bestSellers", () => {
+  it("ranks titles by revenue with share and ignores empty lines", () => {
+    const orders = [
+      { items: [{ id: "a", title: "A", quantity: 2, price: 10 }, { id: "b", title: "B", quantity: 1, price: 5 }] },
+      { items: [{ id: "b", title: "B", quantity: 1, price: 5 }, { quantity: 3, price: 9 }, { id: "z", quantity: 0, price: 9 }] },
+    ];
+    const r = bestSellers(orders, 5);
+    expect(r.map(x => x.id)).toEqual(["a", "b"]);
+    expect(r[0]).toMatchObject({ units: 2, revenue: 20 });
+    expect(Math.round(r[0].share)).toBe(67);
+    expect(bestSellers(orders, 1)).toHaveLength(1);
+  });
+});
