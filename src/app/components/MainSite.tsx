@@ -1218,6 +1218,24 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     </button>
                   );
                 })}
+                {showCustomPages && (pages || [])
+                  .filter((p: any) => p.showInNav && p.status === "published")
+                  .map((page: any, pageIdx: number) => {
+                    const stickers = storefrontDesign?.navStyle === "stickers";
+                    return (
+                      <Link
+                        key={page.id}
+                        to={`/page/${page.slug}`}
+                        style={{
+                          color: headerTextColor,
+                          ...(stickers ? stickerPillStyle(storefrontDesign, categories.length + pageIdx) : {}),
+                        }}
+                        className={`text-[10px] tracking-[0.2em] font-medium transition-all opacity-40 hover:opacity-80 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
+                      >
+                        {page.title}
+                      </Link>
+                    );
+                  })}
               </nav>
             </div>
 
@@ -1249,36 +1267,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               {showCustomPages && (
                 storefrontDesign?.menus?.header?.length > 0 ? (
                   <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={storefrontDesign.menus.header} /></div>
-                ) : (
-                <nav className="hidden lg:flex items-center gap-6 mr-2" style={{ color: headerTextColor }}>
-                  {pages.some((p:any) => p.showInNav && p.status === "published") && (
-                    <span className="text-[10px] tracking-[0.3em] font-bold opacity-25 uppercase select-none mr-2">
-                      {storefrontDesign?.navHeading || "INFO"}
-                    </span>
-                  )}
-                  {(pages || [])
-                    .filter((p: any) => p.showInNav && p.status === "published")
-                    .map((page: any, pageIdx: number) => (
-                      <Link
-                        key={page.id}
-                        to={`/page/${page.slug}`}
-                        className={`opacity-40 hover:opacity-100 transition-opacity whitespace-nowrap ${
-                          storefrontDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
-                        }`}
-                        style={{
-                          fontSize: storefrontDesign?.navLinkSize ? `${storefrontDesign.navLinkSize}px` : "10px",
-                          letterSpacing: storefrontDesign?.navLinkSpacing != null ? `${storefrontDesign.navLinkSpacing}em` : "0.2em",
-                          fontWeight: storefrontDesign?.navLinkWeight || undefined,
-                          textTransform: (storefrontDesign?.navLinkTransform as any) || "uppercase",
-                          ...(storefrontDesign?.navLinkColor && { color: storefrontDesign.navLinkColor }),
-                          ...(storefrontDesign?.navStyle === "stickers" ? stickerPillStyle(storefrontDesign, pageIdx + 2) : {}),
-                        }}
-                      >
-                        {page.title}
-                      </Link>
-                    ))}
-                </nav>
-                )
+                ) : null
               )}
 
               {showInformation && (
