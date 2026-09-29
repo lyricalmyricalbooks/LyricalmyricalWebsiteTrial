@@ -42,7 +42,6 @@ import { POLICY_KEYS, POLICY_TITLES, policySlug, type PolicyKey } from "../featu
 import { Checkbox, ConfirmDialog, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, MetricCard, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SectionHead, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
 import { motion, AnimatePresence } from "motion/react";
 import { ThemeEditor } from "./ThemeEditor";
-import { PagesManager } from "./PagesManager";
 import { NotificationEditor } from "./NotificationEditor";
 import { COUNTRIES, CONTINENTS, describeZoneGeography } from "../features/site/shippingZones";
 import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPES, starterZones } from "./shippingHealth";
@@ -86,15 +85,6 @@ export function ShopSettings({
     if (!settings || !originalSettings) return false;
     return JSON.stringify(settings[section]) !== JSON.stringify(originalSettings[section]);
   };
-
-  // Pages tab — renders inline (same width as other settings)
-  if (activeTab === "pages") {
-    return (
-      <div className="max-w-5xl mx-auto pb-32">
-        <PagesManager />
-      </div>
-    );
-  }
 
   if (settingsLoading) return (
     <div className="h-96 flex flex-col items-center justify-center gap-6">

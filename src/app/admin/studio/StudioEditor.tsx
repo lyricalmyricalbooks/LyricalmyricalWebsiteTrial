@@ -17,6 +17,7 @@ import {
   type Section, type SectionTarget,
 } from "./studioModel";
 import { STATIC_SURFACES, STYLE_GROUPS, applyGlobalStyle, readStyle } from "./styleSchema";
+import { StudioPages } from "./StudioPages";
 import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
 import { addSavedTheme, removeSavedTheme, type SavedTheme } from "./savedThemes";
@@ -25,7 +26,7 @@ import { HOME_LAYOUT_TEMPLATES } from "../ThemeEditorBuilder";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY, PALETTES } from "../ThemeEditor";
 
-type LeftTab = "sections" | "style" | "text" | "menus";
+type LeftTab = "sections" | "style" | "text" | "menus" | "pages";
 type Toast = { kind: "ok" | "err"; text: string } | null;
 
 const DEVICE_W = { desktop: "100%", tablet: "820px", mobile: "390px" } as const;
@@ -523,7 +524,7 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
     if (selectedId === id) setSelectedId(null);
   };
 
-  const sidebarTabs: [LeftTab, string][] = [["sections", "Sections"], ["style", "Style"], ["text", "Text & labels"], ["menus", "Menus"]];
+  const sidebarTabs: [LeftTab, string][] = [["sections", "Sections"], ["style", "Style"], ["text", "Text & labels"], ["menus", "Menus"], ["pages", "Pages"]];
   const q = copyFilter.trim().toLowerCase();
 
   return (
@@ -569,7 +570,7 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
       <div className="flex-1 flex min-h-0">
         {/* left column */}
         <nav className="w-[320px] shrink-0 bg-white border-r border-neutral-200 flex flex-col min-h-0" aria-label="Editor panels">
-          <div className="grid grid-cols-4 border-b" role="tablist">
+          <div className="grid grid-cols-5 border-b" role="tablist">
             {sidebarTabs.map(([id, label]) => (
               <button key={id} role="tab" aria-selected={leftTab === id} onClick={() => setLeftTab(id)}
                 className={`py-3 text-[11px] font-bold leading-tight px-1 ${leftTab === id ? "border-b-2 border-neutral-900" : "text-neutral-500 hover:bg-neutral-50"}`}>{label}</button>
@@ -696,6 +697,11 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
                   );
                 })}
               </div>
+            )}
+
+            {leftTab === "pages" && (
+              <StudioPages pages={pages} setPages={setPages} say={say}
+                onEditSections={(slug) => { setShowGlobal(false); setTemplateId(`page:${slug}`); setSelectedId(null); setLeftTab("sections"); }} />
             )}
 
             {leftTab === "menus" && (
