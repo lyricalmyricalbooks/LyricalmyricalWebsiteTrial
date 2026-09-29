@@ -1175,7 +1175,7 @@ function normalizeListFieldValue(
  *    renders one labeled input per itemFields entry, value is a
  *    Record<string, string>[].
  */
-function BlockListFieldEditor({
+export function BlockListFieldEditor({
   field,
   value,
   onChange,
@@ -1345,7 +1345,7 @@ function BlockListFieldEditor({
   );
 }
 
-function BlockFieldEditor({
+export function BlockFieldEditor({
   field,
   value,
   onChange,
