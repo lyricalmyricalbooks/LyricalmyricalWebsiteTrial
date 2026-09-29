@@ -6,6 +6,10 @@ import {
   DataTable, EmptyState, ErrorState, GhostButton, LoadingState, MetricCard, SecondaryButton, SectionCard,
   SectionHead, StatusBadge, Tabs, type BadgeTone, type Column,
 } from "./riso/components";
+import {
+  change, customerMix, dormantStock, formatMix, newsletterSummary, reprintWatch, reviewSummary,
+  splitPeriods, stockValue, titleStock, toFulfil, topCountries, totals, REORDER_COVER_DAYS, DORMANT_DAYS,
+} from "./overviewInsights";
 
 type Period = "today" | "7d" | "30d";
 const money = (n: number) => `CA$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -28,14 +32,44 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   // Secondary panels load independently so one failure never blanks the page.
   const [recent, setRecent] = useState<{ orders: any[] | null; error: boolean }>({ orders: null, error: false });
   const [stock, setStock] = useState<{ books: any[] | null; error: boolean }>({ books: null, error: false });
+  const [allOrders, setAllOrders] = useState<{ orders: any[] | null; error: boolean }>({ orders: null, error: false });
+  const [audience, setAudience] = useState<{ data: { reviews: any[]; subscribers: any[] } | null; error: boolean }>({ data: null, error: false });
 
   useEffect(() => {
     loadAnalytics();
-    adminApi.getOrders(50).then((o: any[]) => setRecent({ orders: o.filter(x => x.isTest !== true).slice(0, 6), error: false }))
-      .catch(() => setRecent({ orders: null, error: true }));
+    adminApi.getOrders(500).then((o: any[]) => {
+      setAllOrders({ orders: o, error: false });
+      setRecent({ orders: o.filter(x => x.isTest !== true).slice(0, 6), error: false });
+    }).catch(() => { setRecent({ orders: null, error: true }); setAllOrders({ orders: null, error: true }); });
     adminApi.getBooks(200).then((b: any[]) => setStock({ books: b, error: false }))
       .catch(() => setStock({ books: null, error: true }));
+    adminApi.getAudienceSnapshot().then((data: any) => setAudience({ data, error: false }))
+      .catch(() => setAudience({ data: null, error: true }));
   }, []);
+
+  // Publisher insights come from real paid, non-test orders only.
+  const days = period === "30d" ? 30 : period === "7d" ? 7 : 1;
+  const insights = useMemo(() => {
+    if (!allOrders.orders) return null;
+    const p = splitPeriods(allOrders.orders, days);
+    const cur = totals(p.current);
+    const prev = totals(p.previous);
+    const books = stock.books || [];
+    const rows = titleStock(p.paid, books);
+    return {
+      cur, prev,
+      mix: customerMix(p.paid, p.current, p.start),
+      countries: topCountries(p.current),
+      formats: formatMix(p.current, books),
+      shelf: stockValue(books),
+      reprint: reprintWatch(rows).slice(0, 5),
+      dormant: dormantStock(rows).slice(0, 5),
+      fulfil: toFulfil(allOrders.orders),
+      start: p.start,
+    };
+  }, [allOrders.orders, stock.books, days]);
+  const pct = (v: number | null) => (v === null ? "new" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`);
+  const pctTone = (v: number | null): BadgeTone => (v === null || v > 0 ? "success" : v < 0 ? "danger" : "neutral");
 
   async function loadAnalytics() {
     setLoading(true); setFailed(false);
@@ -130,8 +164,10 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             <div className="rp-kicker">System status &amp; recent release</div>
             <h3 className="rp-sec-title">Lyricalmyrical e-commerce platform updated</h3>
             <p className="rp-page-desc" style={{ maxWidth: "none" }}>
-              The storefront, checkout, and admin dashboard were successfully updated on <strong>September 29, 2026 at 6:04 PM UTC</strong>.
-              This release makes shipping server-authoritative and far more flexible (flat, per-order, weight, percentage, free and pickup rates, conditions, handling fees, a rate tester), and earlier moved the Book editor and theme-editor pop-ups (publish, discard, confirmations, prompts, font browser, command palette) onto Riso dialogs, and completes the Riso Press redesign of the admin: the shell, Orders (list and detail), this Overview, Books,
+              The storefront, checkout, and admin dashboard were successfully updated on <strong>September 29, 2026 at 7:30 PM UTC</strong>.
+              This release revamps the Overview for publishers: a "Needs your attention" desk (orders to ship, reviews to moderate, reprint watch, sold-out titles),
+              publisher insights (net revenue, average order, books sold, returning readers, discounts given, shelf value, subscribers, reader rating),
+              reprint and slow-moving stock lists, top destinations and a print-vs-digital format mix — all computed from paid, non-test orders only. Earlier, it made shipping server-authoritative and far more flexible (flat, per-order, weight, percentage, free and pickup rates, conditions, handling fees, a rate tester), and earlier moved the Book editor and theme-editor pop-ups (publish, discard, confirmations, prompts, font browser, command palette) onto Riso dialogs, and completes the Riso Press redesign of the admin: the shell, Orders (list and detail), this Overview, Books,
               Discounts, Pages, and Settings (General, Payments, Shipping, Notifications) now use the design system; the theme editor top bar, tabs and section library do too, and the remaining pages take
               its palette. The Overview no longer shows simulated figures and adds recent orders and low-stock alerts. The storefront Riso
               preset matches the published tokens, and the cart drawer and checkout messages are accessible (dialog focus, stock limits,
@@ -144,7 +180,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             <div className="rp-label">Build status</div>
             <div style={{ margin: "6px 0 12px" }}><StatusBadge tone="success">Deploy success</StatusBadge></div>
             <div className="rp-label">Last code push</div>
-            <div className="rp-mono" style={{ marginTop: 6 }}>September 29, 18:04 UTC</div>
+            <div className="rp-mono" style={{ marginTop: 6 }}>September 29, 19:30 UTC</div>
           </div>
         </div>
       </SectionCard>
@@ -160,6 +196,124 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           ))}
         </div>
       </div>
+
+      {/* Publisher desk: what needs doing today */}
+      <div>
+        <SectionHead kicker="Publisher desk" title="Needs your attention" subcopy="Live counts from paid orders, your catalog and reader reviews." />
+        {allOrders.error && stock.error ? <ErrorState title="Publisher desk unavailable" description="Orders and books could not be loaded." /> : (
+          <div className="rp-kpi-grid">
+            <MetricCard label="Orders to ship" value={insights ? insights.fulfil.length : "…"} tone={insights && insights.fulfil.length > 0 ? "gold" : undefined}
+              footer={insights ? (insights.fulfil.length ? <>Oldest waiting {insights.fulfil[0].ageDays} day{insights.fulfil[0].ageDays === 1 ? "" : "s"} <SecondaryButton size="sm" onClick={() => setActiveTab?.("orders")}>Open orders</SecondaryButton></> : "All paid orders are shipped") : "Loading…"} />
+            <MetricCard label="Reviews to moderate" value={audience.data ? reviewSummary(audience.data.reviews).pending : audience.error ? "—" : "…"}
+              tone={audience.data && reviewSummary(audience.data.reviews).pending > 0 ? "warn" : undefined}
+              footer={audience.data ? <SecondaryButton size="sm" onClick={() => setActiveTab?.("reviews")}>Open reviews</SecondaryButton> : audience.error ? "Reviews unavailable" : "Loading…"} />
+            <MetricCard label="Reprint watch" value={insights ? insights.reprint.length : "…"} tone={insights && insights.reprint.length > 0 ? "danger" : undefined}
+              footer={insights ? `Titles with under ${REORDER_COVER_DAYS} days of stock at their current pace` : "Loading…"} />
+            <MetricCard label="Sold-out titles" value={insights ? insights.shelf.soldOut : "…"} tone={insights && insights.shelf.soldOut > 0 ? "danger" : undefined}
+              footer={insights ? `of ${insights.shelf.titles} print titles` : "Loading…"} />
+          </div>
+        )}
+      </div>
+
+      {/* Publisher insights: sales quality, readers, and the shelf */}
+      <div>
+        <SectionHead kicker="Publisher insights" title="Sales quality &amp; readers"
+          subcopy={`Paid orders only, ${period === "today" ? "today" : `last ${days} days`} vs the previous period.`} />
+        {allOrders.error ? <ErrorState title="Insights unavailable" description="Orders could not be loaded, so publisher insights can't be calculated." />
+          : !insights ? <LoadingState label="Calculating insights…" /> : (
+          <div className="rp-kpi-grid">
+            <MetricCard label="Net revenue" value={money(insights.cur.revenue)} tone="gold"
+              footer={<><StatusBadge tone={pctTone(change(insights.cur.revenue, insights.prev.revenue))}>{pct(change(insights.cur.revenue, insights.prev.revenue))}</StatusBadge> <span style={{ marginLeft: 6 }}>Incl. shipping &amp; tax</span></>} />
+            <MetricCard label="Average order" value={money(insights.cur.aov)}
+              footer={<><StatusBadge tone={pctTone(change(insights.cur.aov, insights.prev.aov))}>{pct(change(insights.cur.aov, insights.prev.aov))}</StatusBadge> <span style={{ marginLeft: 6 }}>Per paid order</span></>} />
+            <MetricCard label="Books sold" value={insights.cur.units.toLocaleString()}
+              footer={<><StatusBadge tone={pctTone(change(insights.cur.units, insights.prev.units))}>{pct(change(insights.cur.units, insights.prev.units))}</StatusBadge> <span style={{ marginLeft: 6 }}>Copies &amp; downloads</span></>} />
+            <MetricCard label="Returning readers" value={`${insights.mix.returningRate.toFixed(0)}%`}
+              footer={`${insights.mix.returning} returning · ${insights.mix.fresh} new of ${insights.mix.total} buyers`} />
+            <MetricCard label="Discounts given" value={money(insights.cur.discounts)}
+              footer={`${insights.cur.discountRate.toFixed(1)}% of list price`} />
+            <MetricCard label="Shelf value" value={money(insights.shelf.value)}
+              footer={`${insights.shelf.units.toLocaleString()} print copies at retail`} />
+            <MetricCard label="Subscribers" value={audience.data ? newsletterSummary(audience.data.subscribers, insights.start).total.toLocaleString() : audience.error ? "—" : "…"}
+              footer={audience.data ? `+${newsletterSummary(audience.data.subscribers, insights.start).added} this period` : audience.error ? "Newsletter unavailable" : "Loading…"} />
+            <MetricCard label="Reader rating" value={audience.data && reviewSummary(audience.data.reviews).average !== null ? `${(reviewSummary(audience.data.reviews).average as number).toFixed(1)} / 5` : audience.error ? "—" : audience.data ? "None yet" : "…"}
+              footer={audience.data ? `${reviewSummary(audience.data.reviews).approved} approved reviews` : "Loading…"} />
+          </div>
+        )}
+      </div>
+
+      {insights && (
+        <div className="rp-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" }}>
+          <SectionCard flush title="Reprint watch" description={`Selling fast, under ${REORDER_COVER_DAYS} days of stock`}
+            actions={<SecondaryButton size="sm" onClick={() => setActiveTab?.("catalog")}>Manage books</SecondaryButton>}>
+            {insights.reprint.length === 0 ? <EmptyState icon="✓" title="No reprints urgent" description="No title is on course to sell out within a month." /> : (
+              <ul className="rp-list" aria-label="Titles to reprint">
+                {insights.reprint.map(r => (
+                  <li key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <span style={{ overflowWrap: "anywhere", fontWeight: 600 }}>{r.title}</span>
+                      <div className="rp-hint rp-mono">{r.sold30} sold in 30 days · {r.stock} left</div>
+                    </div>
+                    <StatusBadge tone={r.coverDays! <= 7 ? "danger" : "warning"}>{r.stock <= 0 ? "Sold out" : `~${r.coverDays} days`}</StatusBadge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+
+          <SectionCard flush title="Slow-moving stock" description={`In stock, no sale in ${DORMANT_DAYS}+ days`}>
+            {insights.dormant.length === 0 ? <EmptyState icon="✓" title="Nothing dormant" description="Every title with stock has sold recently." /> : (
+              <ul className="rp-list" aria-label="Slow-moving titles">
+                {insights.dormant.map(r => (
+                  <li key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <span style={{ overflowWrap: "anywhere", fontWeight: 600 }}>{r.title}</span>
+                      <div className="rp-hint rp-mono">{r.lastSaleDays === null ? "Never sold" : `Last sale ${r.lastSaleDays} days ago`}</div>
+                    </div>
+                    <StatusBadge tone="neutral">{r.stock} in stock</StatusBadge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+        </div>
+      )}
+
+      {insights && (
+        <div className="rp-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" }}>
+          <SectionCard flush title="Where readers are" description="Top destinations by revenue">
+            {insights.countries.length === 0 ? <EmptyState title="No orders in this period" description="Countries appear once paid orders arrive." /> : (
+              <ul className="rp-list" aria-label="Top countries">
+                {insights.countries.map(c => (
+                  <li key={c.country} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <strong>{c.country}</strong>
+                    <span className="rp-mono">{money(c.revenue)} · {c.orders} order{c.orders === 1 ? "" : "s"}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+
+          <SectionCard flush title="Format mix"
+            description={insights.formats.total > 0 ? `${insights.formats.printShare.toFixed(0)}% print · ${insights.formats.digitalShare.toFixed(0)}% digital` : "Revenue by book format"}>
+            {insights.formats.formats.length === 0 ? <EmptyState title="No sales in this period" description="Print vs digital revenue shows here once books sell." /> : (
+              <ul className="rp-list" aria-label="Revenue by format">
+                {insights.formats.formats.map(f => (
+                  <li key={f.format}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                      <strong>{f.format}</strong>
+                      <span className="rp-mono">{money(f.revenue)} · {f.units} sold</span>
+                    </div>
+                    <div role="presentation" style={{ height: 8, marginTop: 8, background: "var(--rp-surface-inset)", border: "1px solid var(--rp-border)" }}>
+                      <div style={{ height: "100%", width: `${insights.formats.total ? (f.revenue / insights.formats.total) * 100 : 0}%`, background: "var(--rp-primary)" }} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+        </div>
+      )}
 
       <SectionCard title={chartTab === "traffic" ? "Traffic" : "Revenue"}
         description={period === "today" ? "Hourly data isn't recorded — showing the last 7 days for context." : chartSummary}
