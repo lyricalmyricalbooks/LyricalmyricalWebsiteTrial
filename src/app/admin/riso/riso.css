@@ -613,3 +613,22 @@
 .rp-quill .ql-toolbar button:hover .ql-fill, .rp-quill .ql-toolbar button.ql-active .ql-fill { fill: var(--rp-primary-text); }
 .rp-quill:focus-within .ql-container, .rp-quill:focus-within .ql-toolbar { border-color: var(--rp-focus); }
 .rp-row-hover:hover { background: var(--rp-surface-2); }
+
+/* ── Theme editor panel bodies ───────────────────────────────────────────
+   The editor's ~7k lines of panel markup still carry legacy utilities. Scoped
+   to the editor root (data-te) so they take the Riso look: square corners,
+   ink text ramp and ink borders, without touching the live preview iframe or
+   circular controls (rounded-full). Migrate panels to rp-* components over time. */
+.rp[data-te][data-te] :is(.rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-\[2rem\], .rounded-\[2\.5rem\]) { border-radius: 0; }
+.rp[data-te][data-te] :is(.text-slate-400, .text-slate-500, .text-slate-600, .text-neutral-400, .text-neutral-500, .text-neutral-600) { color: var(--rp-text-muted); }
+.rp[data-te][data-te] :is(.text-slate-700, .text-slate-800, .text-slate-900, .text-neutral-700, .text-neutral-800) { color: var(--rp-text); }
+.rp[data-te][data-te] :is(.border-white\/5, .border-white\/10, .border-black\/5, .border-black\/10) { border-color: var(--rp-border); }
+.rp[data-te][data-te] :is(input, select, textarea):focus-visible,
+.rp[data-te][data-te] button:focus-visible { outline: 2px solid var(--rp-primary); outline-offset: 2px; }
+.rp[data-te][data-te] .italic { font-style: normal; }
+/* Accent remap inside the editor: violet/indigo/blue/cyan/sky → flare (fills) and
+   flare-text (type), so no legacy blue survives in panel bodies. */
+.rp[data-te][data-te] :is([class*="text-violet-"], [class*="text-indigo-"], [class*="text-blue-"], [class*="text-cyan-"], [class*="text-sky-"]) { color: var(--rp-primary-text); }
+.rp[data-te][data-te] :is([class*="border-violet-"], [class*="border-indigo-"], [class*="border-blue-"], [class*="border-cyan-"], [class*="border-sky-"]) { border-color: var(--rp-border-strong); }
+.rp[data-te][data-te] :is([class*="bg-violet-"], [class*="bg-indigo-"], [class*="bg-blue-"], [class*="bg-cyan-"], [class*="bg-sky-"]):is([class*="-500/"], [class*="-600/"], [class*="-400/"]) { background-color: var(--rp-primary-tint); }
+.rp[data-te][data-te] :is(.bg-violet-600, .bg-violet-500, .bg-indigo-600, .bg-blue-600, .bg-blue-500, .bg-cyan-600, .bg-sky-500) { background-color: var(--rp-primary); color: var(--rp-on-primary); }
