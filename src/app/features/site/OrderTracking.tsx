@@ -132,7 +132,7 @@ export default function OrderTracking() {
         </Link>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full fm-accent-bg animate-pulse" />
-          <span className="text-[9px] font-black tracking-[0.3em] text-white/30 uppercase">Order Ledger</span>
+          <span className="text-[9px] font-black tracking-[0.3em] text-white/60 uppercase">Order Ledger</span>
         </div>
       </nav>
 
@@ -153,7 +153,7 @@ export default function OrderTracking() {
                   <Lock size={24} className="fm-accent-text" />
                 </div>
                 <h2 className="text-3xl font-black tracking-tighter uppercase italic">Track Order</h2>
-                <p className="text-[10px] tracking-[0.2em] uppercase text-white/30 mt-2 font-bold">Secure Order Status Ledger</p>
+                <p className="text-[10px] tracking-[0.2em] uppercase text-white/60 mt-2 font-bold">Secure Order Status Ledger</p>
               </div>
 
               <form onSubmit={handleTrack} className="space-y-6">
@@ -165,7 +165,7 @@ export default function OrderTracking() {
                     placeholder="e.g. ABCD-123456"
                     value={orderIdInput}
                     onChange={(e) => setOrderIdInput(e.target.value)}
-                    className="w-full bg-white/[0.04] border border-white/10 rounded-2xl py-4 px-6 text-sm text-white outline-none focus:border-violet-500/50 focus:bg-white/[0.07] transition-all font-mono uppercase placeholder:text-white/10"
+                    className="w-full bg-white/[0.04] border border-white/10 rounded-2xl py-4 px-6 text-sm text-white outline-none focus:border-violet-500/50 focus:bg-white/[0.07] transition-all font-mono uppercase placeholder:text-[var(--muted)]"
                   />
                 </div>
 
@@ -177,7 +177,7 @@ export default function OrderTracking() {
                     placeholder="e.g. reader@archive.com"
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
-                    className="w-full bg-white/[0.04] border border-white/10 rounded-2xl py-4 px-6 text-sm text-white outline-none focus:border-violet-500/50 focus:bg-white/[0.07] transition-all placeholder:text-white/10"
+                    className="w-full bg-white/[0.04] border border-white/10 rounded-2xl py-4 px-6 text-sm text-white outline-none focus:border-violet-500/50 focus:bg-white/[0.07] transition-all placeholder:text-[var(--muted)]"
                   />
                 </div>
 
@@ -212,7 +212,7 @@ export default function OrderTracking() {
               {/* Reset button */}
               <button 
                 onClick={() => setOrder(null)} 
-                className="flex items-center gap-2 text-[9px] font-black tracking-[0.25em] text-white/30 hover:text-white uppercase transition-colors"
+                className="flex items-center gap-2 text-[9px] font-black tracking-[0.25em] text-white/60 hover:text-white uppercase transition-colors"
               >
                 <ArrowLeft size={12} /> Track Another Order
               </button>
@@ -222,7 +222,7 @@ export default function OrderTracking() {
                 <div>
                   <p className="text-[10px] font-black tracking-[0.3em] fm-accent-text uppercase mb-2">ARCHIVE MATCH FOUND</p>
                   <h2 className="text-4xl font-black tracking-tighter uppercase italic leading-none">ORDER #{order.orderId}</h2>
-                  <p className="text-[10px] font-mono text-white/30 mt-3 uppercase tracking-widest flex items-center gap-3">
+                  <p className="text-[10px] font-mono text-white/60 mt-3 uppercase tracking-widest flex items-center gap-3">
                     <Calendar size={12} /> Created: {new Date(order.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
                   </p>
                 </div>
@@ -249,14 +249,14 @@ export default function OrderTracking() {
                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 border
                           ${isCompleted 
                             ? "bg-violet-500/20 border-violet-500/40 fm-accent-text shadow-[0_0_30px_rgba(124,58,237,0.25)]" 
-                            : "bg-white/[0.03] border-white/10 text-white/20"
+                            : "bg-white/[0.03] border-white/10 text-white/50"
                           }
                           ${isActive ? "ring-2 ring-violet-500 ring-offset-4 ring-offset-[#050506]" : ""}
                         `}>
                           <StepIcon size={18} />
                         </div>
                         <div>
-                          <p className={`text-xs font-black uppercase tracking-wider ${isCompleted ? "text-white" : "text-white/20"}`}>{step.label}</p>
+                          <p className={`text-xs font-black uppercase tracking-wider ${isCompleted ? "text-white" : "text-white/50"}`}>{step.label}</p>
                           <p className={`text-[10px] mt-1 font-medium ${isCompleted ? "fm-muted" : "text-white/10"}`}>{step.desc}</p>
                         </div>
                       </div>

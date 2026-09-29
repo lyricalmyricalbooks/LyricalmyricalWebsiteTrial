@@ -212,7 +212,7 @@ library → verify), then check it off.
       `theme.css` fixes unreadable violet/blue active states in legacy panels.
       Draft/publish separation is covered by `admin/themeDraft.test.ts`.
       Known follow-up: the editor's panels are still legacy markup on the compat layer.
-- [x] Fixes found while verifying: `ProductCoverCarouselSection` text is pinned light
+- [x] Fixes found while verifying: token-layer selectors now also match roots that carry `data-fm-store` and `fm-page`/`fm-surface`/`text-white` on the SAME element (Account and Tracking never received the theme background before); Tracking text/placeholder contrast raised; `ProductCoverCarouselSection` text is pinned light
       over its image scrim (it was following the theme text colour), and Checkout restores
       literal paper for `bg-white` on light themes (the token layer maps `bg-white` to the
       foreground, which turned checkout fields black).

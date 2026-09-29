@@ -26,6 +26,13 @@ describe("hexToRgbTriplet", () => {
   });
 });
 
+describe("STOREFRONT_TOKEN_CSS", () => {
+  it("themes roots that carry data-fm-store and the class on the same element", () => {
+    expect(STOREFRONT_TOKEN_CSS).toContain("[data-fm-store].fm-page{background-color:var(--bg-color);}");
+    expect(STOREFRONT_TOKEN_CSS).toContain("[data-fm-store].text-white{color:rgb(var(--fg-rgb));}");
+  });
+});
+
 describe("RISO_STOREFRONT_CSS", () => {
   it("keeps the print treatment scoped to storefront surfaces", () => {
     expect(RISO_STOREFRONT_CSS).toContain("[data-fm-store]");

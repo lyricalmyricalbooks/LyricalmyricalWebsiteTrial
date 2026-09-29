@@ -256,6 +256,10 @@ const alphaOverrideCss = [
 /**
  * Static stylesheet that wires the Tailwind alpha utilities + a few semantic
  * helper classes onto the token layer. Inject once per storefront surface.
+ *
+ * The `[data-fm-store].fm-page` / `.fm-surface` / `.text-white` rules exist because roots such as
+ * Account, Tracking and the Checkout states carry `data-fm-store` AND the class on the SAME element,
+ * which the descendant selectors never match. Every line must stay scoped (see themeTokens.test.ts).
  */
 export const STOREFRONT_TOKEN_CSS = `
 ${alphaOverrideCss}
@@ -263,6 +267,9 @@ ${alphaOverrideCss}
 [data-fm-store] .bg-white{background-color:rgb(var(--fg-rgb));}
 [data-fm-store] .border-white{border-color:rgb(var(--border-rgb));}
 [data-fm-store] .fm-page{background-color:var(--bg-color);}
+[data-fm-store].fm-page{background-color:var(--bg-color);}
+[data-fm-store].fm-surface{background-color:var(--surface);}
+[data-fm-store].text-white{color:rgb(var(--fg-rgb));}
 [data-fm-store] .fm-muted{color:var(--muted);}
 [data-fm-store] .fm-accent-text{color:var(--accent);}
 [data-fm-store] .fm-accent-bg{background-color:var(--accent);}
