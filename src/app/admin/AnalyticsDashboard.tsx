@@ -7,11 +7,12 @@ import {
   SectionHead, StatusBadge, Tabs, type BadgeTone, type Column,
 } from "./riso/components";
 import {
-  change, customerMix, dormantStock, formatMix, newsletterSummary, reprintWatch, reviewSummary,
+  bestSellers, change, customerMix, dormantStock, formatMix, newsletterSummary, reprintWatch, reviewSummary,
   splitPeriods, stockValue, titleStock, toFulfil, topCountries, totals, REORDER_COVER_DAYS, DORMANT_DAYS,
 } from "./overviewInsights";
 
-type Period = "today" | "7d" | "30d";
+type Period = "today" | "7d" | "30d" | "90d" | "365d";
+const PERIOD_DAYS: Record<Period, number> = { today: 1, "7d": 7, "30d": 30, "90d": 90, "365d": 365 };
 const money = (n: number) => `CA$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 const LOW_STOCK = 5;
 
@@ -48,7 +49,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   }, []);
 
   // Publisher insights come from real paid, non-test orders only.
-  const days = period === "30d" ? 30 : period === "7d" ? 7 : 1;
+  const days = PERIOD_DAYS[period];
   const insights = useMemo(() => {
     if (!allOrders.orders) return null;
     const p = splitPeriods(allOrders.orders, days);
@@ -60,6 +61,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       cur, prev,
       mix: customerMix(p.paid, p.current, p.start),
       countries: topCountries(p.current),
+      best: bestSellers(p.current, 5),
       formats: formatMix(p.current, books),
       shelf: stockValue(books),
       reprint: reprintWatch(rows).slice(0, 5),
@@ -98,7 +100,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   };
 
   const allDaily: any[] = data?.daily || [];
-  const size = period === "30d" ? 30 : period === "7d" ? 7 : 1;
+  const size = PERIOD_DAYS[period];
   const currentSlice = allDaily.slice(-size);
   const previousSlice = allDaily.slice(-size * 2, -size);
   // Hourly data isn't recorded, so "Today" charts the last 7 days for context.
@@ -164,8 +166,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             <div className="rp-kicker">System status &amp; recent release</div>
             <h3 className="rp-sec-title">Lyricalmyrical e-commerce platform updated</h3>
             <p className="rp-page-desc" style={{ maxWidth: "none" }}>
-              The storefront, checkout, and admin dashboard were successfully updated on <strong>September 29, 2026 at 11:00 PM UTC</strong>.
-              This release adds Pages duplicate, draft/published tabs, menu ordering and an SEO checklist, plus Reviews rating stats, search, rating filter, book titles and public owner replies, plus Books bulk price change with preview, feature/unfeature and CSV export, plus Discounts performance (orders, revenue and amount discounted per code) and a Duplicate action, plus Orders work queues ("To ship", "Unpaid") and refund reasons, fixes the refund "Restock items" checkbox being ignored, and adds an Inventory page (low-stock and reprint alerts, inline stock edits, CSV export) and a Customers page (segments, lifetime value, repeat rate, order history, CSV export), and earlier revamped the Overview for publishers: a "Needs your attention" desk (orders to ship, reviews to moderate, reprint watch, sold-out titles),
+              The storefront, checkout, and admin dashboard were successfully updated on <strong>September 29, 2026 at 11:30 PM UTC</strong>.
+              This release adds Overview 90-day and 1-year ranges and a Best sellers list, plus Pages duplicate, draft/published tabs, menu ordering and an SEO checklist, plus Reviews rating stats, search, rating filter, book titles and public owner replies, plus Books bulk price change with preview, feature/unfeature and CSV export, plus Discounts performance (orders, revenue and amount discounted per code) and a Duplicate action, plus Orders work queues ("To ship", "Unpaid") and refund reasons, fixes the refund "Restock items" checkbox being ignored, and adds an Inventory page (low-stock and reprint alerts, inline stock edits, CSV export) and a Customers page (segments, lifetime value, repeat rate, order history, CSV export), and earlier revamped the Overview for publishers: a "Needs your attention" desk (orders to ship, reviews to moderate, reprint watch, sold-out titles),
               publisher insights (net revenue, average order, books sold, returning readers, discounts given, shelf value, subscribers, reader rating),
               reprint and slow-moving stock lists, top destinations and a print-vs-digital format mix — all computed from paid, non-test orders only. Earlier, it made shipping server-authoritative and far more flexible (flat, per-order, weight, percentage, free and pickup rates, conditions, handling fees, a rate tester), and earlier moved the Book editor and theme-editor pop-ups (publish, discard, confirmations, prompts, font browser, command palette) onto Riso dialogs, and completes the Riso Press redesign of the admin: the shell, Orders (list and detail), this Overview, Books,
               Discounts, Pages, and Settings (General, Payments, Shipping, Notifications) now use the design system; the theme editor top bar, tabs and section library do too, and the remaining pages take
@@ -180,7 +182,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             <div className="rp-label">Build status</div>
             <div style={{ margin: "6px 0 12px" }}><StatusBadge tone="success">Deploy success</StatusBadge></div>
             <div className="rp-label">Last code push</div>
-            <div className="rp-mono" style={{ marginTop: 6 }}>September 29, 23:00 UTC</div>
+            <div className="rp-mono" style={{ marginTop: 6 }}>September 29, 23:30 UTC</div>
           </div>
         </div>
       </SectionCard>
@@ -188,7 +190,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       <div>
         <SectionHead kicker="Performance" title="Store metrics" subcopy="Compared with the previous period of the same length."
           actions={<Tabs<Period> label="Period" value={period} onChange={setPeriod}
-            tabs={[{ id: "today", label: "Today" }, { id: "7d", label: "7 days" }, { id: "30d", label: "30 days" }]} />} />
+            tabs={[{ id: "today", label: "Today" }, { id: "7d", label: "7 days" }, { id: "30d", label: "30 days" }, { id: "90d", label: "90 days" }, { id: "365d", label: "1 year" }]} />} />
         <div className="rp-kpi-grid">
           {kpis.map(k => (
             <MetricCard key={k.label} label={k.label} value={k.value} tone={k.tone}
@@ -281,6 +283,19 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
 
       {insights && (
         <div className="rp-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))" }}>
+          <SectionCard flush title="Best sellers" description="Top titles by revenue in this period">
+            {insights.best.length === 0 ? <EmptyState title="No sales in this period" description="Your top titles appear once paid orders arrive." /> : (
+              <ul className="rp-list" aria-label="Best selling titles">
+                {insights.best.map((b, i) => (
+                  <li key={b.id} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <span style={{ overflowWrap: "anywhere" }}><span className="rp-mono">{i + 1}.</span> <strong>{b.title}</strong></span>
+                    <span className="rp-mono" style={{ whiteSpace: "nowrap" }}>{money(b.revenue)} · {b.units} sold · {b.share.toFixed(0)}%</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+
           <SectionCard flush title="Where readers are" description="Top destinations by revenue">
             {insights.countries.length === 0 ? <EmptyState title="No orders in this period" description="Countries appear once paid orders arrive." /> : (
               <ul className="rp-list" aria-label="Top countries">
