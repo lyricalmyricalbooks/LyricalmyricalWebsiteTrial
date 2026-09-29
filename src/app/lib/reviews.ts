@@ -22,6 +22,8 @@ export type Review = {
   body: string;
   status: "pending" | "approved" | "rejected";
   createdAt: string;
+  /** Public reply from the store owner (admin-written). */
+  reply?: { body: string; at: string };
 };
 
 export const reviewsApi = {
@@ -52,6 +54,11 @@ export const reviewsApi = {
 
   setStatus: async (id: string, status: Review["status"]) => {
     await updateDoc(doc(db, "reviews", id), { status });
+  },
+
+  setReply: async (id: string, body: string) => {
+    const text = body.trim().slice(0, 1000);
+    await updateDoc(doc(db, "reviews", id), { reply: text ? { body: text, at: new Date().toISOString() } : null });
   },
 
   remove: async (id: string) => {
