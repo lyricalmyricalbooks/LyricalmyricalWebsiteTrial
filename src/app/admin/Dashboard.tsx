@@ -413,6 +413,7 @@ export function Dashboard() {
               className="fixed inset-0 z-[200] bg-black"
             >
               <StudioEditor
+                  appearance={appearance}
                 settings={settings}
                 onExit={() => setSettingsTab("general")}
                 onPersisted={(design: any, published: boolean) =>

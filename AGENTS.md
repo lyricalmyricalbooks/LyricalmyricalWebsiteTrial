@@ -106,6 +106,11 @@ drag-and-drop, color schemes, fonts, draft/publish, live preview). The failure
 mode here is **stopping after one small increment**. Don't. When asked to
 enhance it:
 
+The default Settings → Design experience is `studio/StudioEditor.tsx`: its
+section/block outline, inspector, Edit/Browse preview and draft workflow are
+the primary editing surfaces. Keep the legacy `ThemeEditor.tsx` contracts in
+sync where shared registry controls or renderers change.
+
 1. **Read `docs/THEME_EDITOR.md` first**, plus the whole section/block system —
    `ThemeEditor.tsx`, `ThemeEditorExtensions.tsx` (the `SECTION_REGISTRY`),
    `SectionComponents.tsx` (renderers), and the `(Sections as any)[section.type]`

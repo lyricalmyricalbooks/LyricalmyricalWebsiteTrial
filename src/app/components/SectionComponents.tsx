@@ -783,12 +783,24 @@ export function MulticolumnSection({ settings, enableAnimations }: any) {
 export function SlideshowSection({ settings, enableAnimations }: any) {
   const slides = visibleBlocks(settings.slides || settings.items || settings.blocks || []);
   const [active, setActive] = useState(0);
+  const [inspecting, setInspecting] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("preview") !== "true") return;
+    const select = (event: Event) => {
+      const id = (event as CustomEvent).detail?.blockId;
+      const index = slides.findIndex((slide: any) => slide.id === id);
+      if (index >= 0) { setActive(index); setInspecting(true); }
+    };
+    const mode = (event: Event) => setInspecting((event as CustomEvent).detail === "edit");
+    window.addEventListener("studio:selection", select); window.addEventListener("studio:mode", mode);
+    return () => { window.removeEventListener("studio:selection", select); window.removeEventListener("studio:mode", mode); };
+  }, [slides]);
 
   useEffect(() => {
-    if (!settings.autoplay || slides.length <= 1) return;
+    if (inspecting || !settings.autoplay || slides.length <= 1) return;
     const t = setInterval(() => setActive((a) => (a + 1) % slides.length), Math.max(2000, settings.autoplaySpeed || 5000));
     return () => clearInterval(t);
-  }, [slides.length, settings.autoplay, settings.autoplaySpeed]);
+  }, [slides.length, settings.autoplay, settings.autoplaySpeed, inspecting]);
 
   if (slides.length === 0) {
     return (

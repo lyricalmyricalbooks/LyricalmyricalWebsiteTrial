@@ -1377,7 +1377,7 @@ export function BlockFieldEditor({
     return (
       <div>
         {labelEl}
-        <input
+        <input aria-label={field.label}
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
           className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
@@ -1390,7 +1390,7 @@ export function BlockFieldEditor({
     return (
       <div>
         {labelEl}
-        <textarea
+        <textarea aria-label={field.label}
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
           rows={field.rows || 3}
@@ -1404,7 +1404,7 @@ export function BlockFieldEditor({
     return (
       <div>
         {labelEl}
-        <textarea
+        <textarea aria-label={field.label}
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
           rows={5}
@@ -1421,14 +1421,14 @@ export function BlockFieldEditor({
         {labelEl}
         <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
           <div className="w-7 h-7 rounded-lg border border-neutral-200 relative overflow-hidden" style={{ background: value || "#000" }}>
-            <input
+            <input aria-label={field.label}
               type="color"
               value={value || "#000000"}
               onChange={(e) => onChange(e.target.value)}
               className="absolute inset-0 opacity-0 cursor-pointer scale-150"
             />
           </div>
-          <input
+          <input aria-label={field.label}
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             className="flex-1 bg-transparent outline-none text-[11px] font-bold uppercase"
@@ -1442,7 +1442,7 @@ export function BlockFieldEditor({
     return (
       <div>
         {labelEl}
-        <input
+        <input aria-label={field.label}
           type="number"
           value={value ?? ""}
           min={field.min}
@@ -1459,7 +1459,7 @@ export function BlockFieldEditor({
     return (
       <div>
         {labelEl}
-        <select
+        <select aria-label={field.label}
           value={value || field.options[0]?.value || ""}
           onChange={(e) => onChange(e.target.value)}
           className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
@@ -1483,13 +1483,13 @@ export function BlockFieldEditor({
           <img src={value} className="w-full h-full object-cover" alt="" />
         </div>
       )}
-      <input
+      <input aria-label={field.label}
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         placeholder="https://… or upload"
         className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400 mb-1.5"
       />
-      <input
+      <input aria-label={field.label}
         ref={fileInputRef}
         type="file"
         accept="image/*"
@@ -2692,7 +2692,7 @@ export function SectionFieldEditor({
       return (
         <div>
           {labelEl}
-          <input
+          <input aria-label={field.label}
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
@@ -2704,7 +2704,7 @@ export function SectionFieldEditor({
       return (
         <div>
           {labelEl}
-          <textarea
+          <textarea aria-label={field.label}
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             rows={field.kind === "html" ? 6 : (field as any).rows || 3}
@@ -2735,14 +2735,14 @@ export function SectionFieldEditor({
               className="w-7 h-7 rounded-lg border border-neutral-200 relative overflow-hidden"
               style={{ background: value || "#000" }}
             >
-              <input
+              <input aria-label={field.label}
                 type="color"
                 value={normalizeHexForColorInput(value || "#000000")}
                 onChange={(e) => onChange(e.target.value)}
                 className="absolute inset-0 opacity-0 cursor-pointer scale-150"
               />
             </div>
-            <input
+            <input aria-label={field.label}
               value={value || ""}
               onChange={(e) => onChange(e.target.value)}
               onBlur={(e) => onChange(normalizeHexForColorInput(e.target.value))}
@@ -2755,7 +2755,7 @@ export function SectionFieldEditor({
       return (
         <div>
           {labelEl}
-          <input
+          <input aria-label={field.label}
             type="number"
             value={value ?? ""}
             min={field.min}
@@ -2777,7 +2777,7 @@ export function SectionFieldEditor({
               {field.suffix || ""}
             </span>
           </div>
-          <input
+          <input aria-label={field.label}
             type="range"
             min={field.min}
             max={field.max}
@@ -2793,7 +2793,7 @@ export function SectionFieldEditor({
       return (
         <div>
           {labelEl}
-          <select
+          <select aria-label={field.label}
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
@@ -2825,7 +2825,7 @@ export function SectionFieldEditor({
       return (
         <div>
           {labelEl}
-          <input
+          <input aria-label={field.label}
             type="datetime-local"
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
@@ -2842,13 +2842,13 @@ export function SectionFieldEditor({
               <img src={value} className="w-full h-full object-cover" alt="" />
             </div>
           )}
-          <input
+          <input aria-label={field.label}
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             placeholder="https://… or upload"
             className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400 mb-1.5"
           />
-          <input
+          <input aria-label={field.label}
             ref={fileInputRef}
             type="file"
             accept="image/*"

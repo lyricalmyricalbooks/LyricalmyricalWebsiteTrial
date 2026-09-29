@@ -532,10 +532,10 @@ function useThemePreview(initialDesign: any) {
   useEffect(() => {
     // 1. Listen for iframe messages (legacy/standard)
     const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
+      if (!isPreview || event.origin !== window.location.origin || (window.parent !== window && event.source !== window.parent)) return;
       if (event.data && event.data.type === "THEME_UPDATE") {
         setDesignOverride(event.data.design);
-        if (isPreview) window.parent.postMessage({ type: "PREVIEW_READY" }, window.location.origin);
+
       }
     };
 
@@ -706,10 +706,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   
   const legacyDesign = activeDesign;
   const heroDesign = legacyDesign.heroPage && Object.keys(legacyDesign.heroPage).length > 0
-    ? legacyDesign.heroPage
+    ? { ...legacyDesign, ...legacyDesign.heroPage }
     : legacyDesign;
   const storefrontDesign = legacyDesign.storefront && Object.keys(legacyDesign.storefront).length > 0
-    ? legacyDesign.storefront
+    ? { ...legacyDesign, ...legacyDesign.storefront }
     : legacyDesign;
   const heroLogoDesign = resolveLogoDesign(legacyDesign.heroPage, [legacyDesign]);
   const storefrontLogoDesign = resolveLogoDesign(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
