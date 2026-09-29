@@ -201,6 +201,21 @@ library → verify), then check it off.
       product grid, print-room notes, and newsletter), and the shared Riso CSS
       is applied across the homepage and every standalone storefront surface
       when `themeStyle` is `riso`.
+- [x] **Riso Press alignment (September 2026).** The "Lyricalmyrical Riso" preset now
+      uses the published Riso Press design-system tokens (newsprint `#faf6ec`, ink
+      `#100f0d`, flare `#e8402a` with ink text, press blue `#1b3fe0`, Anton / Archivo,
+      square outlined objects, flat offset shadows, ink footer/announcement) and
+      `RISO_STOREFRONT_CSS` mirrors it (2px ink outlines, flare focus ring, reduced
+      motion, 44px coarse-pointer targets; halftone texture removed). `BookDetail` now
+      loads the Riso CSS too. Editor chrome: the top bar wraps so Publish / Save Draft
+      stay reachable below ~1500px and at 375px; a generated accent remap in
+      `theme.css` fixes unreadable violet/blue active states in legacy panels.
+      Draft/publish separation is covered by `admin/themeDraft.test.ts`.
+      Known follow-up: the editor's panels are still legacy markup on the compat layer.
+- [x] Fixes found while verifying: `ProductCoverCarouselSection` text is pinned light
+      over its image scrim (it was following the theme text colour), and Checkout restores
+      literal paper for `bg-white` on light themes (the token layer maps `bg-white` to the
+      foreground, which turned checkout fields black).
 - [x] "Lyricalmyrical Punk" design shipped end-to-end (violet-on-black,
       Cormorant Garamond headings / Inter body). Four new catalog-driven
       sections: `ProductCoverCarouselSection` (hero auto-cycling book covers

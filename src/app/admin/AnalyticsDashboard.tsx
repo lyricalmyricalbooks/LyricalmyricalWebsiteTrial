@@ -131,10 +131,12 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             <h3 className="rp-sec-title">Lyricalmyrical e-commerce platform updated</h3>
             <p className="rp-page-desc" style={{ maxWidth: "none" }}>
               The storefront, checkout, and admin dashboard were successfully updated on <strong>September 29, 2026 at 12:00 AM</strong>.
-              This release completes the Riso Press admin: the shell, Orders list and detail, and the Overview are rebuilt on the design system,
-              the remaining admin pages take its palette, and the Overview no longer shows simulated figures (the "Live" hourly chart, an
-              invented funnel and a placeholder forecast were removed — it now shows only recorded data, plus recent orders and low-stock
-              alerts). Checkout, totals, and the Stripe payment path remain untouched.
+              This release completes the Riso Press redesign of the admin: the shell, Orders (list and detail), this Overview, Books,
+              Discounts, Pages, and Settings for General, Payments and Notifications now use the design system, and the remaining pages take
+              its palette. The Overview no longer shows simulated figures and adds recent orders and low-stock alerts. The storefront Riso
+              preset matches the published tokens, and the cart drawer and checkout messages are accessible (dialog focus, stock limits,
+              inline errors instead of alerts). Stripe and Resend secret fields are write-only in Settings. Checkout, totals, and the
+              Stripe payment path remain untouched.
             </p>
           </div>
           <div className="rp-card" style={{ padding: 14, boxShadow: "none", minWidth: 170, alignSelf: "flex-start" }}>
