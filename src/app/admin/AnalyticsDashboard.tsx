@@ -130,9 +130,9 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             <div className="rp-kicker">System status &amp; recent release</div>
             <h3 className="rp-sec-title">Lyricalmyrical e-commerce platform updated</h3>
             <p className="rp-page-desc" style={{ maxWidth: "none" }}>
-              The storefront, checkout, and admin dashboard were successfully updated on <strong>September 29, 2026 at 12:00 AM</strong>.
+              The storefront, checkout, and admin dashboard were successfully updated on <strong>September 29, 2026 at 5:10 AM UTC</strong>.
               This release completes the Riso Press redesign of the admin: the shell, Orders (list and detail), this Overview, Books,
-              Discounts, Pages, and Settings for General, Payments and Notifications now use the design system, and the remaining pages take
+              Discounts, Pages, and Settings (General, Payments, Shipping, Notifications) now use the design system; the theme editor top bar, tabs and section library do too, and the remaining pages take
               its palette. The Overview no longer shows simulated figures and adds recent orders and low-stock alerts. The storefront Riso
               preset matches the published tokens, and the cart drawer and checkout messages are accessible (dialog focus, stock limits,
               inline errors instead of alerts). Stripe and Resend secret fields are write-only in Settings. Checkout, totals, and the
@@ -143,7 +143,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
             <div className="rp-label">Build status</div>
             <div style={{ margin: "6px 0 12px" }}><StatusBadge tone="success">Deploy success</StatusBadge></div>
             <div className="rp-label">Last code push</div>
-            <div className="rp-mono" style={{ marginTop: 6 }}>September 29, 00:00</div>
+            <div className="rp-mono" style={{ marginTop: 6 }}>September 29, 05:10 UTC</div>
           </div>
         </div>
       </SectionCard>
