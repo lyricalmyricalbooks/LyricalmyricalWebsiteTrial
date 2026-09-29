@@ -43,10 +43,12 @@ export const RISO_NOIR_TOKENS: Record<string, any> = {
   cartDrawerSurface: "#0d0d0d", cartDrawerBorder: "#ffffff", pageChromeStyle: "theme",
   navStyle: "default", wordmarkStyle: "two-part", enterArchiveLabel: "Browse books",
   wordmarkPrimary: "Lyricalmyrical", wordmarkSecondary: "Books", wordmarkSecondaryMuted: false,
-  wordmarkSize: 1.8, wordmarkWeight: 400,
+  wordmarkSize: 1.8, wordmarkWeight: 400, logoColor: "#ffffff",
   // Catalog.
-  showCategoryChips: true, categoryChipShowCounts: true, catalogHeading: "Printed matter",
-  productBorderRadius: 0, cardRadius: 0, showCatalogCount: true, showQtyStepper: true,
+  // Clean grid by default: no heading, category chips, search/sort bar or result count (all switchable on).
+  showCategoryChips: false, categoryChipShowCounts: true, catalogHeading: "",
+  showCatalogControls: false, showCatalogCount: false,
+  productBorderRadius: 0, cardRadius: 0, showQtyStepper: true,
   productDescriptionStyle: "designed",
   // Optional storefront elements (all on).
   showRecentlyViewed: true, showBreadcrumbs: true, showCookieBanner: true,
