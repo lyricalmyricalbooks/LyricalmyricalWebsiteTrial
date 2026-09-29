@@ -595,3 +595,16 @@ export function ActionMenu({ label, actions }: { label: string; actions: MenuAct
     </div>
   );
 }
+
+/** Promise-based replacement for window.confirm: `if (!(await ask({...}))) return;` then render `node`. */
+export function useConfirm() {
+  const [state, setState] = useState<null | { title: string; message: string; confirmLabel?: string; resolve: (v: boolean) => void }>(null);
+  const ask = useCallback((opts: { title: string; message: string; confirmLabel?: string }) =>
+    new Promise<boolean>((resolve) => setState({ ...opts, resolve })), []);
+  const done = (v: boolean) => { state?.resolve(v); setState(null); };
+  const node = (
+    <ConfirmDialog open={!!state} title={state?.title || ""} message={state?.message || ""} confirmLabel={state?.confirmLabel}
+      onConfirm={() => done(true)} onCancel={() => done(false)} />
+  );
+  return [ask, node] as const;
+}

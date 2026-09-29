@@ -142,6 +142,8 @@ export function Dashboard() {
         }
       } else {
         setSettings((prev: any) => ({ ...prev, ...data }));
+        // Keep the "saved" baseline in step so unsaved-change state clears after a save.
+        setOriginalSettings((prev: any) => ({ ...prev, ...JSON.parse(JSON.stringify(data)) }));
       }
     } catch (err) {
       alert("Error saving settings");
@@ -236,7 +238,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === "reviews" || activeTab === "orders" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "pages";
+  const migrated = activeTab === "reviews" || activeTab === "orders" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "pages" || (activeTab === "settings" && settingsTab === "general");
   const content = (() => {
     switch (activeTab) {
       case "overview":

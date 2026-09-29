@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import { 
   ArrowLeft,
   Search,
@@ -37,6 +37,8 @@ import {
   Save
 } from "lucide-react";
 import { adminApi } from "./api";
+import toast from "react-hot-toast";
+import { ConfirmDialog, DataTable, ErrorState, PrimaryButton, SaveBar, SectionCard, StatusBadge, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
 import { motion, AnimatePresence } from "motion/react";
 import { ThemeEditor } from "./ThemeEditor";
 import { PagesManager } from "./PagesManager";
@@ -97,6 +99,8 @@ export function ShopSettings({
     </div>
   );
 
+  if (!settings) return <ErrorState title="Settings unavailable" description="Store settings could not be loaded. Check your connection, then reload this page." />;
+
   // Designer tab — handled by Dashboard for full-screen takeover
   if (activeTab === "designer") {
     return null;
@@ -113,7 +117,7 @@ export function ShopSettings({
           transition={{ duration: 0.2 }}
           className="space-y-12"
         >
-          {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
+          {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "communications" && <CommunicationsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} refreshProfiles={loadShippingProfiles} />}
           {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
@@ -124,225 +128,80 @@ export function ShopSettings({
     </div>
   );
 }
-function GeneralSettings({ settings, setSettings, hasChanges, saveSection, savingSection }: any) {
+function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
+  const SECTIONS = ["maintenance", "domain", "info", "location"] as const;
+  const dirty = SECTIONS.filter((k) => hasChanges(k));
+  const [confirmMaintenance, setConfirmMaintenance] = useState(false);
+  const set = (section: string, patch: any) => setSettings({ ...settings, [section]: { ...settings[section], ...patch } });
+
+  const saveAll = async () => {
+    for (const k of dirty) await saveSection(k, { [k]: settings[k] });
+    toast.success("Store settings saved");
+  };
+  const discard = () => {
+    const next = { ...settings };
+    dirty.forEach((k) => { next[k] = JSON.parse(JSON.stringify(originalSettings?.[k] ?? {})); });
+    setSettings(next);
+  };
+
+  const maintenanceOn = !!settings.maintenance?.enabled;
+  const name = settings.info?.name || "";
+  const desc = settings.info?.description || "";
+
   return (
-    <div className="space-y-16">
-      <header className="flex flex-col gap-2 mb-12">
-        <div className="flex justify-between items-end">
-          <div>
-            <h2 className="text-5xl font-black tracking-tighter text-white uppercase italic leading-none">General Settings</h2>
-            <p className="text-xs text-slate-400 tracking-[0.3em] uppercase mt-4 font-bold">Store Profile & Identity</p>
+    <div className="rp-stack">
+      <SectionCard title="Store status" description="What customers can do right now.">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+          <span>
+            <StatusBadge tone={maintenanceOn ? "warning" : "success"}>{maintenanceOn ? "Maintenance mode — checkout paused" : "Storefront live"}</StatusBadge>
+            {settings.domain?.custom && <span className="rp-hint" style={{ marginLeft: 12 }}>Domain: {settings.domain.custom}</span>}
+          </span>
+          <Toggle label="Maintenance mode" checked={maintenanceOn}
+            onChange={(v) => (v ? setConfirmMaintenance(true) : set("maintenance", { enabled: false }))} />
+        </div>
+        <p className="rp-hint" style={{ margin: "12px 0 0" }}>Maintenance mode disables checkout while you update the storefront. Customers see the message below.</p>
+        {maintenanceOn && (
+          <div style={{ marginTop: 16 }}>
+            <TextField label="Maintenance message" value={settings.maintenance?.message || ""}
+              placeholder="We are updating our archive. Please check back soon." onChange={(e) => set("maintenance", { message: e.target.value })} />
           </div>
-          {hasChanges('general') && (
-            <button
-              onClick={() => saveSection('general', { general: settings.general })}
-              disabled={savingSection === 'general'}
-              className="bg-violet-600 text-white px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/40 hover:bg-violet-500 transition-all disabled:opacity-50 active:scale-95 border border-violet-400/20"
-            >
-              {savingSection === 'general' ? 'SYNCHRONIZING...' : 'PUBLISH CHANGES'}
-            </button>
-          )}
-        </div>
-      </header>
-      
-      {/* Maintenance Mode */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 relative overflow-hidden group">
-        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/[0.05] to-transparent pointer-events-none" />
-        <div className="flex justify-between items-start gap-12 relative z-10">
-           <div className="flex-1 space-y-6">
-              <SectionHeader 
-                title="Maintenance Mode" 
-                subtitle="Offline Mode" 
-                icon={Lock} 
-                color="amber" 
-              />
-              <p className="text-xs text-slate-400 leading-relaxed max-w-xl font-medium">
-                 Temporarily disable the checkout while making updates to the storefront.
-                 <span className="text-amber-400/80 ml-2 font-black uppercase tracking-widest text-[9px]">Customers will see a maintenance message.</span>
-              </p>
-              
-              <AnimatePresence>
-                {settings.maintenance?.enabled && (
-                  <motion.div 
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="pt-4 overflow-hidden"
-                  >
-                    <InputField 
-                      label="TRANSMISSION OVERRIDE MESSAGE"
-                      value={settings.maintenance?.message || ""}
-                      placeholder="We are updating our archive. Please check back soon."
-                      onChange={(e: any) => setSettings({...settings, maintenance: {...settings.maintenance, message: e.target.value}})}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-           </div>
-           <Switch 
-             checked={settings.maintenance?.enabled} 
-             onChange={(val) => setSettings({...settings, maintenance: {...settings.maintenance, enabled: val}})} 
-           />
-        </div>
-        
-        {hasChanges('maintenance') && (
-           <div className="mt-12 pt-10 border-t border-white/5 flex gap-4 relative z-10">
-              <button 
-                onClick={() => saveSection('maintenance', { maintenance: settings.maintenance })}
-                disabled={savingSection === 'maintenance'}
-                className="bg-amber-500 text-black px-12 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-amber-500/20"
-              >
-                {savingSection === 'maintenance' ? 'SYNCHRONIZING...' : 'UPDATE PROTOCOL'}
-              </button>
-           </div>
         )}
-      </section>
+      </SectionCard>
 
-      {/* Shop Domain */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden group">
-        <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/[0.03] to-transparent pointer-events-none" />
-        <div className="flex justify-between items-center relative z-10">
-           <SectionHeader 
-             title="Digital Presence" 
-             subtitle="Domain & Visibility" 
-             icon={Globe} 
-             color="cyan" 
-           />
-           {hasChanges('domain') && (
-             <button 
-               onClick={() => saveSection('domain', { domain: settings.domain })}
-               disabled={savingSection === 'domain'}
-               className="bg-violet-600 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/30 hover:bg-violet-500 transition-all border border-violet-400/20"
-             >
-               {savingSection === 'domain' ? 'DEPLOYING...' : 'SAVE DOMAINS'}
-             </button>
-           )}
+      <SectionCard title="Store identity" description="Your publisher name, description and contact details.">
+        <div className="rp-stack" style={{ gap: 20 }}>
+          <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+            <TextField label="Publisher name" value={name} maxLength={100} hint={`${name.length} / 100 characters`} onChange={(e) => set("info", { name: e.target.value })} />
+            <TextField label="Contact email" type="email" value={settings.info?.email || ""} placeholder="hello@lyricalmyricalbooks.com" onChange={(e) => set("info", { email: e.target.value })} />
+          </div>
+          <TextArea label="Publisher description" rows={4} value={desc} maxLength={150} hint={`${desc.length} / 150 characters — shown in search results and social previews`} onChange={(e) => set("info", { description: e.target.value })} />
         </div>
+      </SectionCard>
 
-        <div className="relative z-10">
-           <InputField 
-             label="CUSTOM DOMAIN (URL)" 
-             icon={Globe}
-             value={settings.domain?.custom || ""}
-             placeholder="www.yourdomain.com"
-             onChange={(e: any) => setSettings({...settings, domain: {...settings.domain, custom: e.target.value}})}
-           />
-           <AnimatePresence>
-             {settings.domain?.custom && (
-               <motion.p 
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="text-[10px] text-cyan-400/70 font-black mt-6 flex items-center gap-3 uppercase tracking-[0.2em] ml-2"
-               >
-                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                 Live Link Established: {settings.domain.custom}
-               </motion.p>
-             )}
-           </AnimatePresence>
+      <SectionCard title="Domain & visibility" description="Where customers find the store.">
+        <TextField label="Custom domain" value={settings.domain?.custom || ""} placeholder="www.yourdomain.com"
+          hint="Adding a domain also requires updating the allowed origins for payments and sign-in — ask your developer before changing it."
+          onChange={(e) => set("domain", { custom: e.target.value })} />
+      </SectionCard>
+
+      <SectionCard title="Location" description="Main office and shipping origin.">
+        <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <TextField label="Street address" value={settings.location?.street || ""} placeholder="456 Montrose Avenue" onChange={(e) => set("location", { street: e.target.value })} />
+          </div>
+          <TextField label="City" value={settings.location?.city || ""} placeholder="Toronto" onChange={(e) => set("location", { city: e.target.value })} />
+          <TextField label="State / province" value={settings.location?.state || ""} placeholder="Ontario" onChange={(e) => set("location", { state: e.target.value })} />
         </div>
-      </section>
+      </SectionCard>
 
-      {/* Shop Info */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-         <div className="absolute inset-0 bg-gradient-to-tr from-violet-500/[0.03] to-transparent pointer-events-none" />
-         <div className="flex justify-between items-center relative z-10">
-            <SectionHeader 
-              title="Publisher Identity" 
-              subtitle="Brand Essence & Story" 
-              icon={Building} 
-            />
-            {hasChanges('info') && (
-              <button 
-                onClick={() => saveSection('info', { info: settings.info })}
-                disabled={savingSection === 'info'}
-                className="bg-violet-600 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/30 hover:bg-violet-500 transition-all border border-violet-400/20"
-              >
-                 {savingSection === 'info' ? 'COMMITTING...' : 'SAVE DATA'}
-              </button>
-            )}
-         </div>
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
-            <div className="space-y-2">
-               <InputField 
-                 label="PUBLISHER NAME"
-                 value={settings.info?.name || ""}
-                 onChange={(e: any) => setSettings({...settings, info: {...settings.info, name: e.target.value}})}
-               />
-               <p className="text-[9px] text-slate-600 font-black tracking-[0.3em] text-right uppercase px-2">{settings.info?.name?.length || 0} / 100 BYTES</p>
-            </div>
-            <div className="space-y-2">
-               <InputField 
-                 label="CONTACT EMAIL"
-                 icon={Mail}
-                 value={settings.info?.email || ""}
-                 placeholder="hello@lyricalmyricalbooks.com"
-                 onChange={(e: any) => setSettings({...settings, info: {...settings.info, email: e.target.value}})}
-               />
-            </div>
-            <div className="md:col-span-2 space-y-4">
-               <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">PUBLISHER DESCRIPTION</label>
-               <textarea 
-                 rows={5}
-                 className="w-full bg-white/[0.03] border border-white/10 rounded-[2.5rem] px-10 py-8 text-sm text-white outline-none focus:border-violet-500/50 focus:bg-white/[0.06] transition-all resize-none leading-relaxed font-medium shadow-inner"
-                 value={settings.info?.description || ""}
-                 onChange={e => setSettings({...settings, info: {...settings.info, description: e.target.value}})}
-               />
-               <p className="text-[9px] text-slate-600 font-black tracking-[0.3em] text-right uppercase px-2">{settings.info?.description?.length || 0} / 150 BYTES</p>
-            </div>
-         </div>
-      </section>
-
-      {/* Location */}
-      <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden">
-         <div className="absolute inset-0 bg-gradient-to-bl from-cyan-500/[0.03] to-transparent pointer-events-none" />
-         <div className="flex justify-between items-center relative z-10">
-            <SectionHeader 
-              title="Headquarters" 
-              subtitle="Main Office & Shipping Origin" 
-              icon={Building} 
-              color="cyan"
-            />
-            {hasChanges('location') && (
-              <button 
-                onClick={() => saveSection('location', { location: settings.location })}
-                disabled={savingSection === 'location'}
-                className="bg-violet-600 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] shadow-2xl shadow-violet-600/30 hover:bg-violet-500 transition-all border border-violet-400/20"
-              >
-                 {savingSection === 'location' ? 'MAPPING...' : 'SAVE LOCATION'}
-              </button>
-            )}
-         </div>
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
-            <div className="md:col-span-2">
-               <InputField 
-                 label="STREET ADDRESS"
-                 icon={Building}
-                 value={settings.location?.street || ""}
-                 placeholder="456 Montrose Avenue"
-                 onChange={(e: any) => setSettings({...settings, location: {...settings.location, street: e.target.value}})}
-               />
-            </div>
-            <div>
-               <InputField 
-                 label="CITY"
-                 value={settings.location?.city || ""} 
-                 placeholder="Toronto"
-                 onChange={(e: any) => setSettings({...settings, location: {...settings.location, city: e.target.value}})}
-               />
-            </div>
-            <div>
-               <InputField 
-                 label="STATE / PROVINCE"
-                 value={settings.location?.state || ""} 
-                 placeholder="Ontario"
-                 onChange={(e: any) => setSettings({...settings, location: {...settings.location, state: e.target.value}})}
-               />
-            </div>
-         </div>
-      </section>
-
-      {/* Inventory Sync */}
       <InventorySync lastSync={settings.inventory?.lastSync} />
+
+      <SaveBar dirty={dirty.length > 0} saving={!!savingSection} onSave={saveAll} onDiscard={discard}
+        message={`Unsaved changes in ${dirty.join(", ")}.`} />
+
+      <ConfirmDialog open={confirmMaintenance} title="Turn on maintenance mode?" confirmLabel="Pause checkout"
+        message="Customers won't be able to check out until you turn it off again. The change applies once you save."
+        onConfirm={() => { setConfirmMaintenance(false); set("maintenance", { enabled: true }); }} onCancel={() => setConfirmMaintenance(false)} />
     </div>
   );
 }
@@ -686,6 +545,7 @@ function ZoneGeographyPicker({
 }
 
 function ShippingSettings({ profiles, refreshProfiles }: any) {
+  const [askConfirm, confirmNode] = useConfirm();
   const [books, setBooks] = useState<any[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [editingProfile, setEditingProfile] = useState<any | null>(null);
@@ -783,23 +643,23 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
       refreshProfiles();
       handleSelectProfile(newProf);
     } catch {
-      alert("Error creating shipping profile");
+      toast.error("Error creating shipping profile");
     }
   };
 
   const handleDeleteProfile = async (id: string) => {
     if (id === "general-profile") {
-      alert("Cannot delete the General Shipping Profile.");
+      toast.error("Cannot delete the General Shipping Profile.");
       return;
     }
-    if (!confirm("Are you sure you want to delete this profile? All assigned products will revert to the General Profile.")) return;
+    if (!(await askConfirm({ title: "Delete this shipping profile?", message: "All assigned products will revert to the General Profile.", confirmLabel: "Delete profile" }))) return;
     try {
       await adminApi.deleteShippingProfile(id);
       refreshProfiles();
       setSelectedProfileId(null);
       setEditingProfile(null);
     } catch {
-      alert("Error deleting shipping profile");
+      toast.error("Error deleting shipping profile");
     }
   };
 
@@ -811,7 +671,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
       setSelectedProfileId(null);
       setEditingProfile(null);
     } catch {
-      alert("Error saving shipping profile");
+      toast.error("Error saving shipping profile");
     }
   };
 
@@ -832,7 +692,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
       refreshProfiles();
       setIsProductModalOpen(false);
     } catch {
-      alert("Error updating product assignments");
+      toast.error("Error updating product assignments");
     }
   };
 
@@ -854,7 +714,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
 
   const handleSaveZone = () => {
     if (!activeZone.name.trim() || activeZone.countries.length === 0) {
-      alert("Please enter a zone name and select at least one country.");
+      toast.error("Please enter a zone name and select at least one country.");
       return;
     }
 
@@ -871,8 +731,8 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
     setIsZoneModalOpen(false);
   };
 
-  const handleDeleteZone = (zoneId: string) => {
-    if (!confirm("Are you sure you want to delete this zone?")) return;
+  const handleDeleteZone = async (zoneId: string) => {
+    if (!(await askConfirm({ title: "Delete this zone?", message: "Its rates will be removed with it. Save the profile to apply.", confirmLabel: "Delete zone" }))) return;
     setEditingProfile((prev: any) => {
       const zones = (prev.zones || []).filter((z: any) => z.id !== zoneId);
       return { ...prev, zones };
@@ -900,7 +760,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
 
   const handleSaveRate = () => {
     if (!activeRate.name.trim()) {
-      alert("Please enter a shipping rate name.");
+      toast.error("Please enter a shipping rate name.");
       return;
     }
 
@@ -936,8 +796,8 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
     setIsRateModalOpen(false);
   };
 
-  const handleDeleteRate = (zoneId: string, rateId: string) => {
-    if (!confirm("Are you sure you want to delete this shipping rate?")) return;
+  const handleDeleteRate = async (zoneId: string, rateId: string) => {
+    if (!(await askConfirm({ title: "Delete this shipping rate?", message: "Save the profile to apply the change.", confirmLabel: "Delete rate" }))) return;
     setEditingProfile((prev: any) => {
       const zones = [...(prev.zones || [])];
       const zoneIdx = zones.findIndex(z => z.id === zoneId);
@@ -1739,6 +1599,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
           </div>
         )}
       </AnimatePresence>
+      {confirmNode}
     </div>
   );
 }
@@ -1777,9 +1638,9 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
       const res = await adminApi.saveShippoConfig(newShippoToken);
       setShippoConfig(res);
       setNewShippoToken("");
-      alert("Shippo API Token saved and synced successfully!");
+      toast.success("Shippo API Token saved and synced successfully!");
     } catch (err: any) {
-      alert(err.message || "Failed to save Shippo API Token.");
+      toast.error(err.message || "Failed to save Shippo API Token.");
     } finally {
       setSavingShippo(false);
     }
@@ -1846,7 +1707,7 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
 
   const handleSaveMethod = () => {
     if (!methodName.trim()) {
-      alert("Please enter a payment method name.");
+      toast.error("Please enter a payment method name.");
       return;
     }
 
@@ -2003,6 +1864,12 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                     exit={{ opacity: 0, y: 20 }}
                     className="space-y-12 mt-12"
                   >
+                     {(stripe.secretKey || stripe.testSecretKey) && (
+                        <div role="alert" style={{ padding: 16, background: "rgba(255,201,60,.3)", border: "2px solid #100f0d", color: "#100f0d" }}>
+                           <strong>⚠ Secret key stored in a readable settings document.</strong>{" "}
+                           Store settings can be read by the storefront (and anyone who requests them). Prefer the STRIPE_SECRET_KEY Firebase Functions secret, then rotate any key that was entered here.
+                        </div>
+                     )}
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                         {/* Live Keys */}
                         <div className={`space-y-8 p-8 bg-white/[0.01] border rounded-[2rem] transition-all ${
@@ -2016,14 +1883,8 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                               value={stripe.publicKey || ""}
                               onChange={(e: any) => updateStripe({ publicKey: e.target.value })}
                            />
-                           <InputField 
-                              label="STRIPE SECRET KEY" 
-                              placeholder="sk_live_..."
-                              icon={ShieldCheck}
-                              type="password"
-                              value={stripe.secretKey || ""}
-                              onChange={(e: any) => updateStripe({ secretKey: e.target.value })}
-                           />
+                           <SecretField label="STRIPE SECRET KEY" placeholder="sk_live_..." stored={!!stripe.secretKey}
+                              onCommit={(v) => updateStripe({ secretKey: v })} />
                         </div>
                         
                         {/* Test Keys */}
@@ -2038,14 +1899,8 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                               value={stripe.testPublicKey || ""}
                               onChange={(e: any) => updateStripe({ testPublicKey: e.target.value })}
                            />
-                           <InputField 
-                              label="STRIPE TEST SECRET KEY" 
-                              placeholder="sk_test_..."
-                              icon={ShieldCheck}
-                              type="password"
-                              value={stripe.testSecretKey || ""}
-                              onChange={(e: any) => updateStripe({ testSecretKey: e.target.value })}
-                           />
+                           <SecretField label="STRIPE TEST SECRET KEY" placeholder="sk_test_..." stored={!!stripe.testSecretKey}
+                              onCommit={(v) => updateStripe({ testSecretKey: v })} />
                         </div>
                      </div>
 
@@ -2223,9 +2078,9 @@ function PaymentsSettings({ settings, setSettings, hasChanges, saveSection, savi
                            try {
                               await adminApi.setShippoDynamicRates(enabled);
                               setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
-                              alert(enabled ? "Dynamic shipping rates enabled!" : "Dynamic shipping rates disabled!");
+                              toast.success(enabled ? "Dynamic shipping rates enabled!" : "Dynamic shipping rates disabled!");
                            } catch (err: any) {
-                              alert(err.message || "Failed to update Shippo settings.");
+                              toast.error(err.message || "Failed to update Shippo settings.");
                            }
                         }}
                         className="w-6 h-6 rounded-lg bg-[#1E1E1F] border-white/10 text-violet-600 focus:ring-violet-500 cursor-pointer"
@@ -2693,7 +2548,7 @@ function _DesignerSettings_REMOVED({ settings, setSettings, hasChanges, saveSect
         }
       });
     } catch (err) {
-      alert(`Error uploading ${type}`);
+      toast.error(`Error uploading ${type}`);
     } finally {
       if (type === 'logo') setUploadingLogo(false);
       else setUploadingFavicon(false);
@@ -2880,8 +2735,10 @@ function InventorySync({ lastSync }: { lastSync?: string }) {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<string | undefined>(lastSync);
+  const [confirming, setConfirming] = useState(false);
 
   const handleSync = async () => {
+    setConfirming(false);
     setSyncing(true);
     setError(null);
     setResult(null);
@@ -2889,6 +2746,7 @@ function InventorySync({ lastSync }: { lastSync?: string }) {
       const res = await adminApi.syncInventoryFromLegacy();
       setResult(res);
       setLastSyncTime(new Date().toISOString());
+      toast.success("Inventory synced");
     } catch (err: any) {
       setError(err.message || "Sync failed");
     } finally {
@@ -2898,294 +2756,114 @@ function InventorySync({ lastSync }: { lastSync?: string }) {
 
   const fmtTime = (iso?: string) => {
     if (!iso) return "Never";
-    const d = new Date(iso);
-    return d.toLocaleString("en-CA", {
-      month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
-    });
+    return new Date(iso).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   };
 
+  const columns: Column<any>[] = [
+    { key: "title", header: "Book", lead: true, render: (r) => (<div><div style={{ overflowWrap: "anywhere" }}>{r.title || "(untitled)"}</div><div className="rp-hint rp-mono">{r.slug || "no slug"}</div></div>) },
+    { key: "key", header: "Legacy key", render: (r) => <span className="rp-mono">{r.matched ? r.legacyKey : "—"}</span> },
+    { key: "stock", header: "Units", numeric: true, render: (r) => r.stock },
+    { key: "status", header: "Status", render: (r) => <StatusBadge tone={r.matched ? "success" : "warning"}>{r.matched ? "Synced" : "No match"}</StatusBadge> },
+  ];
+
   return (
-    <section className="glass-card rounded-[3rem] p-12 border border-white/5 space-y-12 relative overflow-hidden group">
-      <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] to-transparent pointer-events-none" />
-      
-      {/* Header */}
-      <div className="flex justify-between items-start flex-wrap gap-8 relative z-10">
-        <SectionHeader 
-          title="Inventory Sync" 
-          subtitle="Real-time stock reconciliation with legacy core" 
-          icon={Database} 
-          color="violet"
-        />
-
-        <div className="flex flex-col items-end gap-4">
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className={`flex items-center gap-4 px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] transition-all border
-              ${syncing
-                ? "bg-white/5 border-white/10 text-slate-500 cursor-not-allowed"
-                : "bg-violet-600 border-violet-400/20 text-white shadow-2xl shadow-violet-600/40 hover:bg-violet-500 active:scale-95"
-              }`}
-          >
-            <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
-            {syncing ? "SYNCHRONIZING..." : "INITIATE SYNC"}
-          </button>
-          <div className="flex items-center gap-3 text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">
-            <Clock size={12} className="text-slate-600" />
-            Last Pulse: <span className="text-slate-300 ml-1">{fmtTime(lastSyncTime)}</span>
-          </div>
-        </div>
-      </div>
-
-      <p className="text-xs text-slate-400 leading-relaxed max-w-2xl font-medium relative z-10">
-        Automated bidirectional data transfer between the legacy inventory system and the modern storefront. 
-        Matching protocol utilizes unique product slugs and normalized title strings.
+    <SectionCard title="Inventory sync" description="Reconcile stock levels with the legacy inventory system."
+      actions={
+        <PrimaryButton onClick={() => setConfirming(true)} disabled={syncing}>{syncing ? "Syncing…" : "Sync inventory"}</PrimaryButton>
+      }>
+      <p className="rp-hint" style={{ margin: "0 0 16px" }}>
+        Last sync: <span className="rp-mono">{fmtTime(lastSyncTime)}</span>. Books are matched by slug and normalized title, so a book's slug must equal its legacy inventory key.
       </p>
-
-      {/* Connection info */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center bg-white/[0.02] rounded-[2.5rem] px-10 py-8 border border-white/5 relative z-10 shadow-inner">
-        <div className="space-y-3">
-          <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-600">Core Source</p>
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
-            <p className="text-[11px] font-black text-slate-300 truncate tracking-widest uppercase">lyricalmyrical-default-rtdb</p>
-          </div>
-        </div>
-        <div className="flex justify-center">
-          <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
-            <RefreshCw size={20} className="text-slate-700" />
-          </div>
-        </div>
-        <div className="space-y-3 text-right">
-          <p className="text-[9px] font-black uppercase tracking-[0.4em] text-slate-600">Cloud Destination</p>
-          <p className="text-[11px] font-black text-slate-300 truncate tracking-widest uppercase">firestore / public_books</p>
-        </div>
+      <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)", display: "flex", flexWrap: "wrap", gap: 24 }}>
+        <div><div className="rp-label">Source</div><div className="rp-mono">lyricalmyrical-default-rtdb</div></div>
+        <div><div className="rp-label">Destination</div><div className="rp-mono">firestore / public_books</div></div>
       </div>
 
-      {/* Error */}
-      <AnimatePresence>
-        {error && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="flex items-start gap-6 bg-rose-500/10 border border-rose-500/20 rounded-[2rem] px-8 py-6 relative z-10"
-          >
-            <AlertCircleIcon size={20} className="text-rose-400 shrink-0 mt-1" />
-            <div>
-              <p className="text-sm font-black text-rose-400 uppercase tracking-widest mb-1 italic">Protocol Failure</p>
-              <p className="text-xs text-rose-300/70 font-medium leading-relaxed">{error}</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Results */}
-      <AnimatePresence>
-        {result && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-10 relative z-10"
-          >
-            {/* Summary chips */}
-            <div className="flex flex-wrap gap-4">
-              <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-6 py-3 rounded-2xl shadow-lg shadow-emerald-500/5">
-                <CheckCircle size={14} />
-                <span className="text-[10px] font-black tracking-[0.2em] uppercase">
-                  {result.synced} RECORDS SYNCHRONIZED
-                </span>
-              </div>
-              {result.unmatched > 0 && (
-                <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 px-6 py-3 rounded-2xl">
-                  <AlertCircleIcon size={14} />
-                  <span className="text-[10px] font-black tracking-[0.2em] uppercase">
-                    {result.unmatched} ORPHANED INSTANCES
-                  </span>
-                </div>
-              )}
-              <div className="flex items-center gap-3 bg-white/5 border border-white/10 text-slate-400 px-6 py-3 rounded-2xl">
-                <Database size={14} />
-                <span className="text-[10px] font-black tracking-[0.2em] uppercase">
-                  {result.legacyTotal} CORE ENTRIES
-                </span>
-              </div>
-            </div>
-
-            {/* Per-book table */}
-            <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] overflow-hidden shadow-inner">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-white/5 border-b border-white/5">
-                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic">Entity Designation</th>
-                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic">Legacy Key</th>
-                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic text-right">Units</th>
-                    <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 italic text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {result.results.map((r: any, i: number) => (
-                    <tr key={r.id} className="hover:bg-white/[0.03] transition-colors group">
-                      <td className="px-10 py-6">
-                        <p className="text-sm font-black text-white uppercase tracking-tight italic mb-1">{r.title || "(NULL ENTITY)"}</p>
-                        <p className="text-[9px] text-slate-600 font-black tracking-[0.2em] uppercase">{r.slug || "NO_SLUG"}</p>
-                      </td>
-                      <td className="px-10 py-6">
-                        <code className="text-[10px] font-black text-violet-400/70 bg-violet-500/5 px-3 py-1.5 rounded-lg border border-violet-500/10 tracking-widest uppercase">
-                          {r.matched ? r.legacyKey : "ORPHAN"}
-                        </code>
-                      </td>
-                      <td className="px-10 py-6 text-right">
-                        <span className="text-lg font-black text-white font-mono">{r.stock}</span>
-                      </td>
-                      <td className="px-10 py-6 text-right">
-                        {r.matched ? (
-                          <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-4 py-1.5 rounded-full border border-emerald-500/20 text-[9px] font-black tracking-widest uppercase italic">
-                            <CheckCircle size={10} /> SYNCED
-                          </div>
-                        ) : (
-                          <div className="inline-flex items-center gap-2 bg-amber-500/10 text-amber-400 px-4 py-1.5 rounded-full border border-amber-500/20 text-[9px] font-black tracking-widest uppercase italic">
-                            <AlertCircleIcon size={10} /> MISMATCH
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {result.unmatched > 0 && (
-              <div className="p-8 bg-amber-500/[0.03] border border-amber-500/10 rounded-[2rem] flex gap-6 items-start">
-                 <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
-                    <AlertCircleIcon size={18} className="text-amber-400" />
-                 </div>
-                 <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                    <strong className="text-amber-400 uppercase tracking-widest text-[10px] font-black block mb-2">Matching Strategy Optimization:</strong>
-                    Unmatched entities require manual slug alignment with legacy inventory keys. 
-                    Target keys identified: <code className="text-white bg-white/10 px-2 py-0.5 rounded mx-1">hound</code>, <code className="text-white bg-white/10 px-2 py-0.5 rounded mx-1">altrove</code>. 
-                    Update slugs within the <span className="text-violet-400 font-bold">Catalog Engine</span>.
-                 </p>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Legacy book list (shown before any sync) */}
-      {!result && !error && !syncing && (
-        <div className="space-y-6 relative z-10 pt-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-600 ml-1">Legacy Core Registry Keys</p>
-          <div className="flex flex-wrap gap-4">
-            {["altrove", "hound", "archaeology", "sistema", "nobody", "collective", "Subverso meme"].map(k => (
-              <span key={k} className="bg-white/5 text-slate-400 px-5 py-2.5 rounded-xl text-[10px] font-black tracking-[0.2em] uppercase border border-white/5 hover:border-violet-500/30 transition-all cursor-default">
-                {k}
-              </span>
-            ))}
-          </div>
-          <p className="text-[10px] text-slate-500 mt-4 leading-relaxed font-medium ml-1">
-            Ensure storefront entity <span className="text-violet-400 font-black italic uppercase tracking-widest">Slugs</span> correspond exactly to registry keys for successful reconciliation.
-          </p>
+      {error && (
+        <div role="alert" style={{ marginTop: 16, padding: 16, background: "var(--rp-danger-tint)", color: "var(--rp-danger)", border: "2px solid var(--rp-danger)" }}>
+          <strong>✕ Sync failed.</strong> {error}
         </div>
       )}
-    </section>
+
+      {result && (
+        <div className="rp-stack" style={{ marginTop: 16 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <StatusBadge tone="success">{result.synced} records synced</StatusBadge>
+            {result.unmatched > 0 && <StatusBadge tone="warning">{result.unmatched} unmatched</StatusBadge>}
+            <StatusBadge>{result.legacyTotal} legacy entries</StatusBadge>
+          </div>
+          <DataTable caption="Inventory sync results" columns={columns} rows={result.results} rowKey={(r: any) => r.id} />
+          {result.unmatched > 0 && (
+            <p className="rp-hint" style={{ margin: 0 }}>
+              Unmatched books need their slug aligned with a legacy inventory key. Edit the slug in Books, then sync again.
+            </p>
+          )}
+        </div>
+      )}
+
+      {!result && !error && !syncing && (
+        <div style={{ marginTop: 16 }}>
+          <div className="rp-label" style={{ marginBottom: 8 }}>Known legacy keys</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {["altrove", "hound", "archaeology", "sistema", "nobody", "collective", "Subverso meme"].map((k) => <StatusBadge key={k}>{k}</StatusBadge>)}
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog open={confirming} title="Sync inventory now?" confirmLabel="Sync inventory"
+        message="This overwrites the stock level of every matched book with the legacy system's value. Unmatched books are left unchanged."
+        onConfirm={handleSync} onCancel={() => setConfirming(false)} />
+    </SectionCard>
   );
 }
 
 export function SectionHeader({ title, subtitle, icon: Icon, color = "violet" }: any) {
-  const colorMap: any = {
-    violet: { bg: "bg-violet-500/10", border: "border-violet-500/20", icon: "text-violet-400" },
-    cyan: { bg: "bg-cyan-500/10", border: "border-cyan-500/20", icon: "text-cyan-400" },
-    emerald: { bg: "bg-emerald-500/10", border: "border-emerald-500/20", icon: "text-emerald-400" },
-    amber: { bg: "bg-amber-500/10", border: "border-amber-500/20", icon: "text-amber-400" },
-    rose: { bg: "bg-rose-500/10", border: "border-rose-500/20", icon: "text-rose-400" },
-  };
-  const theme = colorMap[color] || colorMap.violet;
-
+  const tone: any = { violet: "var(--rp-primary)", cyan: "var(--rp-info)", emerald: "var(--rp-success)", amber: "var(--rp-warning)", rose: "var(--rp-danger)" };
   return (
-    <div className="flex items-center gap-6">
-      <div className={`w-14 h-14 rounded-2xl ${theme.bg} ${theme.border} border flex items-center justify-center shadow-inner`}>
-        <Icon size={24} className={theme.icon} />
+    <div className="flex items-center gap-4">
+      <div aria-hidden="true" style={{ width: 44, height: 44, display: "grid", placeItems: "center", flexShrink: 0, background: "#fff", border: "2px solid #100f0d", color: tone[color] || tone.violet, boxShadow: "2px 2px 0 rgba(16,15,13,.18)" }}>
+        {Icon && <Icon size={20} />}
       </div>
       <div>
-        <h3 className="text-2xl font-black tracking-tighter text-white uppercase italic leading-none">{title}</h3>
-        <p className="text-[10px] text-slate-500 tracking-[0.3em] uppercase mt-2 font-bold">{subtitle}</p>
+        <h3 style={{ margin: 0, fontSize: 20, lineHeight: 1.05, textTransform: "uppercase" }}>{title}</h3>
+        {subtitle && <p style={{ margin: "4px 0 0", fontSize: 11, color: "#5f5950", fontWeight: 600 }}>{subtitle}</p>}
       </div>
     </div>
   );
 }
 
-export function InputField({ label, icon: Icon, value, onChange, placeholder, type = "text", className = "" }: any) {
+export function InputField({ label, icon: Icon, value, onChange, placeholder, type = "text", className = "", hint, error }: any) {
+  const id = useId();
   return (
-    <div className={`space-y-4 ${className}`}>
-      {label && <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block ml-1">{label}</label>}
-      <div className="flex items-center gap-6 bg-white/[0.03] border border-white/10 rounded-[2rem] px-8 py-5 focus-within:border-violet-500/50 focus-within:bg-white/[0.06] transition-all group shadow-inner">
-        {Icon && <Icon size={20} className="text-slate-600 group-focus-within:text-violet-400 transition-colors" />}
-        <input
-          type={type}
-          className="bg-transparent border-none outline-none text-sm text-white flex-1 font-bold placeholder:text-slate-800"
-          value={value}
-          placeholder={placeholder}
-          onChange={onChange}
-        />
+    <div className={className} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {label && <label htmlFor={id} style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase", color: "#5f5950" }}>{label}</label>}
+      <div style={{ position: "relative" }}>
+        {Icon && <Icon size={16} aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#5f5950", pointerEvents: "none" }} />}
+        <input id={id} type={type} value={value} placeholder={placeholder} onChange={onChange}
+          aria-invalid={error ? true : undefined} aria-describedby={hint || error ? `${id}-d` : undefined}
+          style={{ width: "100%", minHeight: 44, padding: Icon ? "10px 12px 10px 38px" : "10px 12px", fontSize: 13 }} />
       </div>
+      {(hint || error) && <span id={`${id}-d`} role={error ? "alert" : undefined} style={{ fontSize: 11, color: error ? "#b4271a" : "#5f5950" }}>{error || hint}</span>}
     </div>
   );
 }
 
-export function Switch({ checked, onChange }: { checked: boolean; onChange: (val: boolean) => void }) {
+export function Switch({ checked, onChange, label = "Toggle setting" }: { checked: boolean; onChange: (val: boolean) => void; label?: string }) {
   return (
-    <button
-      onClick={() => onChange(!checked)}
-      className="relative flex items-center group outline-none"
-    >
-      <div
-        className={`w-16 h-8 rounded-full transition-all duration-500 p-1 flex items-center ${
-          checked 
-            ? "bg-violet-600 shadow-[0_0_20px_rgba(139,92,246,0.3)]" 
-            : "bg-white/5 border border-white/10"
-        }`}
-      >
-        <motion.div
-          animate={{
-            x: checked ? 32 : 0,
-            scale: checked ? 1.1 : 1,
-          }}
-          transition={{ type: "spring", stiffness: 500, damping: 30 }}
-          className={`w-6 h-6 rounded-full shadow-lg relative flex items-center justify-center ${
-            checked ? "bg-white" : "bg-slate-600"
-          }`}
-        >
-          {checked && (
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="w-1 h-1 rounded-full bg-violet-600"
-            />
-          )}
-        </motion.div>
-      </div>
-      <div className="ml-4 flex flex-col items-start text-left">
-        <span className={`text-[9px] font-black tracking-[0.2em] uppercase transition-colors duration-300 ${
-          checked ? "text-violet-400" : "text-slate-600"
-        }`}>
-          {checked ? "ACTIVE" : "OFFLINE"}
-        </span>
-        <div className="flex gap-1 mt-1">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className={`w-1 h-1 rounded-full transition-all duration-500 ${
-                checked 
-                  ? "bg-violet-400 animate-pulse" 
-                  : "bg-white/5"
-              }`}
-              style={{ animationDelay: `${i * 150}ms` }}
-            />
-          ))}
-        </div>
-      </div>
-    </button>
+    <button type="button" role="switch" aria-checked={!!checked} aria-label={label} onClick={() => onChange(!checked)}
+      className="rp-toggle-track" style={{ borderRadius: 0, background: checked ? "#e8402a" : "#e4dac5" }} />
+  );
+}
+
+/** Write-only field for secrets: never echoes the stored value back into the page. */
+export function SecretField({ label, placeholder, stored, onCommit }: { label: string; placeholder: string; stored: boolean; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState("");
+  return (
+    <div>
+      <InputField label={label} icon={Lock} type="password" value={draft} placeholder={stored ? "Stored — enter a new key to replace it" : placeholder}
+        hint={stored ? "✓ A key is stored. It is never shown here." : undefined}
+        onChange={(e: any) => { setDraft(e.target.value); if (e.target.value.trim()) onCommit(e.target.value.trim()); }} />
+    </div>
   );
 }
 
