@@ -38,13 +38,14 @@ import {
 } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
-import { Checkbox, ConfirmDialog, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, MetricCard, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SectionHead, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
+import { Checkbox, ConfirmDialog, DataTable, DestructiveButton, Dialog, EmptyState, ErrorState, MetricCard, PrimaryButton, SaveBar, SearchField, SecondaryButton, SectionCard, SectionHead, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle, useConfirm, type Column } from "./riso/components";
 import { motion, AnimatePresence } from "motion/react";
 import { ThemeEditor } from "./ThemeEditor";
 import { PagesManager } from "./PagesManager";
 import { NotificationEditor } from "./NotificationEditor";
 import { COUNTRIES, CONTINENTS, describeZoneGeography } from "../features/site/shippingZones";
-import { summarizeShipping } from "./shippingHealth";
+import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPES, starterZones } from "./shippingHealth";
+import { quoteShipping } from "../features/site/shippingEngine";
 import { paymentHealth } from "./paymentHealth";
 
 const PURPLE = "#A855F7";
@@ -546,6 +547,68 @@ function ZoneGeographyPicker({
   );
 }
 
+function RateTester({ profile }: { profile: any }) {
+  const [country, setCountry] = useState("Canada");
+  const [total, setTotal] = useState("40");
+  const [count, setCount] = useState("2");
+  const [grams, setGrams] = useState("");
+  const qty = Math.max(1, Number(count) || 1);
+  const each = (Number(total) || 0) / qty;
+  const quotes = useMemo(() => quoteShipping(
+    [{ price: each, quantity: qty, shippingProfileId: profile.id, weightGrams: grams === "" ? null : (Number(grams) || 0) / qty }],
+    { country }, [profile]), [profile, country, each, qty, grams]);
+  return (
+    <SectionCard title="Test this profile" description="See exactly what a customer would be offered — using your unsaved edits.">
+      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", marginBottom: 12 }}>
+        <SelectField label="Destination" value={country} onChange={(e) => setCountry(e.target.value)}>
+          {COUNTRIES.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
+        </SelectField>
+        <TextField label="Order total ($)" type="number" min={0} value={total} onChange={(e) => setTotal(e.target.value)} />
+        <TextField label="Books in cart" type="number" min={1} value={count} onChange={(e) => setCount(e.target.value)} />
+        <TextField label="Total weight (g)" type="number" min={0} placeholder="auto" value={grams} onChange={(e) => setGrams(e.target.value)} />
+      </div>
+      {quotes.length === 0 ? (
+        <p role="status" className="rp-hint" style={{ margin: 0, padding: 12, background: "var(--rp-warning-tint)", border: "1px solid var(--rp-warning)" }}>
+          ⚠ Nothing would be offered — this customer could not check out.
+        </p>
+      ) : (
+        <ul className="rp-list" aria-label="Quotes a customer would see" style={{ margin: 0 }}>
+          {quotes.map((q) => (
+            <li key={q.id + q.name} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", gap: 12 }}>
+              <span><strong>{q.name}</strong>{q.deliveryDays ? <span className="rp-hint"> · {q.type === "pickup" ? "ready in" : ""} {q.deliveryDays} days</span> : null}</span>
+              <span className="rp-mono">{q.price === 0 ? "Free" : `$${q.price.toFixed(2)}`}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </SectionCard>
+  );
+}
+
+const numOrNull = (v: any) => (v === "" || v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Math.max(0, Number(v)));
+function normalizeRate(r: any) {
+  const type = r.type || "flat";
+  return {
+    ...r,
+    name: String(r.name || "").trim(),
+    type,
+    enabled: r.enabled !== false,
+    base: type === "free" || type === "pickup" ? 0 : Math.max(0, Number(r.base) || 0),
+    additional: type === "flat" ? Math.max(0, Number(r.additional) || 0) : 0,
+    perKg: type === "weight" ? Math.max(0, Number(r.perKg) || 0) : 0,
+    percent: type === "percent" ? Math.max(0, Number(r.percent) || 0) : 0,
+    handlingFee: numOrNull(r.handlingFee) ?? 0,
+    freeOver: numOrNull(r.freeOver),
+    minPrice: numOrNull(r.minPrice),
+    maxPrice: numOrNull(r.maxPrice),
+    minWeight: numOrNull(r.minWeight),
+    maxWeight: numOrNull(r.maxWeight),
+    minItems: numOrNull(r.minItems),
+    maxItems: numOrNull(r.maxItems),
+    note: String(r.note || "").trim(),
+  };
+}
+
 function ShippingSettings({ profiles, refreshProfiles }: any) {
   const [askConfirm, confirmNode] = useConfirm();
   const [books, setBooks] = useState<any[]>([]);
@@ -754,6 +817,8 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
         base: 15,
         additional: 5,
         deliveryDays: "3-7",
+        type: "flat",
+        enabled: true,
         minPrice: null,
         maxPrice: null
       });
@@ -776,21 +841,8 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
       const rates = [...(zone.rates || [])];
       const rateIdx = rates.findIndex(r => r.id === activeRate.id);
 
-      if (rateIdx > -1) {
-        rates[rateIdx] = {
-          ...activeRate,
-          base: Number(activeRate.base) || 0,
-          additional: Number(activeRate.additional) || 0,
-          minPrice: activeRate.minPrice !== "" && activeRate.minPrice !== null ? Number(activeRate.minPrice) : null
-        };
-      } else {
-        rates.push({
-          ...activeRate,
-          base: Number(activeRate.base) || 0,
-          additional: Number(activeRate.additional) || 0,
-          minPrice: activeRate.minPrice !== "" && activeRate.minPrice !== null ? Number(activeRate.minPrice) : null
-        });
-      }
+      const cleaned = normalizeRate(activeRate);
+      if (rateIdx > -1) rates[rateIdx] = cleaned; else rates.push(cleaned);
 
       zone.rates = rates;
       zones[zoneIdx] = zone;
@@ -811,6 +863,30 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
       zones[zoneIdx] = zone;
       return { ...prev, zones };
     });
+  };
+
+  const newId = () => (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+  const handleDuplicateRate = (zoneId: string, rate: any) => {
+    setEditingProfile((prev: any) => {
+      const zones = (prev.zones || []).map((z: any) => z.id !== zoneId ? z
+        : { ...z, rates: [...(z.rates || []), { ...JSON.parse(JSON.stringify(rate)), id: newId(), name: `${rate.name} (copy)` }] });
+      return { ...prev, zones };
+    });
+    toast.success("Rate copied — edit the copy, then save the profile.");
+  };
+  const handleDuplicateZone = (zone: any) => {
+    setEditingProfile((prev: any) => ({
+      ...prev,
+      zones: [...(prev.zones || []), {
+        ...JSON.parse(JSON.stringify(zone)), id: newId(), name: `${zone.name} (copy)`, countries: [], continents: [], restOfWorld: false,
+        rates: (zone.rates || []).map((r: any) => ({ ...JSON.parse(JSON.stringify(r)), id: newId() })),
+      }],
+    }));
+    toast.success("Zone copied with its rates — pick its countries, then save the profile.");
+  };
+  const handleAddStarterZones = () => {
+    setEditingProfile((prev: any) => ({ ...prev, zones: [...(prev.zones || []), ...starterZones(newId)] }));
+    toast.success("Starter zones added — adjust the prices, then save the profile.");
   };
 
   const getAssignedProducts = (profileId: string) => {
@@ -887,21 +963,47 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
           <SecondaryButton onClick={() => setIsRateModalOpen(false)}>Cancel</SecondaryButton>
           <PrimaryButton onClick={handleSaveRate}>Save rate</PrimaryButton>
         </>}>
-        {activeRate && (
+        {activeRate && (() => {
+          const t = activeRate.type || "flat";
+          const set = (k: string, v: any) => setActiveRate({ ...activeRate, [k]: v });
+          const grid = { display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" } as const;
+          const priced = t !== "free" && t !== "pickup";
+          return (
           <div className="rp-stack" style={{ gap: 16 }}>
             <TextField label="Rate / service name" value={activeRate.name} placeholder="e.g. Standard shipping, Express delivery" data-autofocus
-              onChange={(e) => setActiveRate({ ...activeRate, name: e.target.value })} />
-            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
-              <TextField label="Base rate ($)" type="number" min={0} value={activeRate.base} placeholder="15.00" onChange={(e) => setActiveRate({ ...activeRate, base: e.target.value })} />
-              <TextField label="Each additional item ($)" type="number" min={0} value={activeRate.additional} placeholder="5.00" onChange={(e) => setActiveRate({ ...activeRate, additional: e.target.value })} />
+              onChange={(e) => set("name", e.target.value)} />
+            <SelectField label="How is this rate priced?" value={t} onChange={(e) => set("type", e.target.value)}
+              hint={RATE_TYPES.find((x) => x.id === t)?.help}>
+              {RATE_TYPES.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+            </SelectField>
+            {priced && (
+              <div style={grid}>
+                <TextField label="Base rate ($)" type="number" min={0} step="0.01" value={activeRate.base} placeholder="15.00" onChange={(e) => set("base", e.target.value)} />
+                {t === "flat" && <TextField label="Each additional item ($)" type="number" min={0} step="0.01" value={activeRate.additional} placeholder="5.00" onChange={(e) => set("additional", e.target.value)} />}
+                {t === "weight" && <TextField label="Per kg ($)" type="number" min={0} step="0.01" value={activeRate.perKg ?? ""} placeholder="8.00" onChange={(e) => set("perKg", e.target.value)} />}
+                {t === "percent" && <TextField label="% of book subtotal" type="number" min={0} step="0.1" value={activeRate.percent ?? ""} placeholder="10" onChange={(e) => set("percent", e.target.value)} />}
+                <TextField label="Handling fee ($)" type="number" min={0} step="0.01" value={activeRate.handlingFee ?? ""} placeholder="0.00" hint="Added once per order." onChange={(e) => set("handlingFee", e.target.value)} />
+              </div>
+            )}
+            <div style={grid}>
+              <TextField label={t === "pickup" ? "Ready in (days)" : "Estimated delivery (days)"} value={activeRate.deliveryDays || ""} placeholder="e.g. 3-7, 1-2, 5-10" onChange={(e) => set("deliveryDays", e.target.value)} />
+              {priced && <TextField label="Free when order reaches ($)" type="number" min={0} step="0.01" value={activeRate.freeOver ?? ""} placeholder="e.g. 75.00" hint="This rate becomes free at or above this total." onChange={(e) => set("freeOver", e.target.value)} />}
             </div>
-            <TextField label="Estimated delivery (days)" value={activeRate.deliveryDays} placeholder="e.g. 3-7, 1-2, 5-10" onChange={(e) => setActiveRate({ ...activeRate, deliveryDays: e.target.value })} />
-            <TextField label="Minimum order for this rate ($)" type="number" min={0} placeholder="e.g. 50.00 — offer this rate above $50"
-              hint="Leave blank to offer this rate on every order. Use it for free-shipping thresholds."
-              value={activeRate.minPrice !== null && activeRate.minPrice !== undefined ? activeRate.minPrice : ""}
-              onChange={(e) => setActiveRate({ ...activeRate, minPrice: e.target.value === "" ? null : e.target.value })} />
+            <fieldset style={{ border: "var(--rp-hair) solid var(--rp-divider)", padding: 12, margin: 0 }}>
+              <legend className="rp-label" style={{ padding: "0 6px" }}>Only offer this rate when… (leave blank for always)</legend>
+              <div style={grid}>
+                <TextField label="Order total at least ($)" type="number" min={0} value={activeRate.minPrice ?? ""} onChange={(e) => set("minPrice", e.target.value)} />
+                <TextField label="Order total at most ($)" type="number" min={0} value={activeRate.maxPrice ?? ""} onChange={(e) => set("maxPrice", e.target.value)} />
+                <TextField label="Cart weight at least (g)" type="number" min={0} value={activeRate.minWeight ?? ""} onChange={(e) => set("minWeight", e.target.value)} />
+                <TextField label="Cart weight at most (g)" type="number" min={0} value={activeRate.maxWeight ?? ""} onChange={(e) => set("maxWeight", e.target.value)} />
+                <TextField label="Items in cart at least" type="number" min={0} value={activeRate.minItems ?? ""} onChange={(e) => set("minItems", e.target.value)} />
+                <TextField label="Items in cart at most" type="number" min={0} value={activeRate.maxItems ?? ""} onChange={(e) => set("maxItems", e.target.value)} />
+              </div>
+            </fieldset>
+            <Toggle label="Rate is active (customers can choose it)" checked={activeRate.enabled !== false} onChange={(v: boolean) => set("enabled", v)} />
           </div>
-        )}
+          );
+        })()}
       </Dialog>
     </>
   ) : null;
@@ -1076,8 +1178,27 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
         )}
       </SectionCard>
 
+      <SectionCard title="Profile rules" description="Apply to every rate in this profile.">
+        <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+          <TextField label="Free shipping over ($)" type="number" min={0} step="0.01" placeholder="e.g. 100.00"
+            hint="Every rate in this profile becomes free at or above this order total."
+            value={editingProfile.freeShippingOver ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, freeShippingOver: e.target.value === "" ? null : Number(e.target.value) })} />
+          <TextField label="Handling / packing fee ($)" type="number" min={0} step="0.01" placeholder="0.00"
+            hint="Added once per order for items in this profile."
+            value={editingProfile.handlingFee ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, handlingFee: e.target.value === "" ? null : Number(e.target.value) })} />
+          <TextField label="Assumed weight per book (g)" type="number" min={0} placeholder="e.g. 350"
+            hint="Used for weight-based rates when a book has no weight set."
+            value={editingProfile.defaultItemWeightG ?? ""} onChange={(e) => setEditingProfile({ ...editingProfile, defaultItemWeightG: e.target.value === "" ? null : Number(e.target.value) })} />
+        </div>
+      </SectionCard>
+
+      <RateTester profile={editingProfile} />
+
       <SectionHead kicker="Zones" title="Geographic shipping zones" subcopy="A zone groups countries that share the same rates."
-        actions={<PrimaryButton onClick={() => openZoneModal()}>+ Add shipping zone</PrimaryButton>} />
+        actions={<span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {zones.length === 0 && <SecondaryButton onClick={handleAddStarterZones}>Add starter zones</SecondaryButton>}
+          <PrimaryButton onClick={() => openZoneModal()}>+ Add shipping zone</PrimaryButton>
+        </span>} />
 
       {zones.length === 0 ? (
         <SectionCard><EmptyState icon="🌍" title="No shipping zones" description="Customers can't check out without a zone that covers their country. Add one, then give it a rate." /></SectionCard>
@@ -1086,6 +1207,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
           actions={
             <span style={{ display: "flex", gap: 8 }}>
               <SecondaryButton size="sm" onClick={() => openZoneModal(z)}>Edit zone</SecondaryButton>
+              <SecondaryButton size="sm" onClick={() => handleDuplicateZone(z)} aria-label={`Duplicate zone ${z.name}`}>Copy</SecondaryButton>
               <DestructiveButton size="sm" onClick={() => handleDeleteZone(z.id)} aria-label={`Delete zone ${z.name}`}>Delete</DestructiveButton>
             </span>
           }>
@@ -1101,18 +1223,18 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
             <div className="rp-table-wrap" role="region" aria-label={`Rates for ${z.name}`} tabIndex={0} style={{ boxShadow: "none" }}>
               <table className="rp-table">
                 <caption className="rp-sr-only">Shipping rates for {z.name}</caption>
-                <thead><tr><th scope="col">Rate</th><th scope="col">Delivery</th><th scope="col" className="rp-num">Base</th><th scope="col" className="rp-num">Each additional</th><th scope="col" className="rp-num">Min order</th><th scope="col">Actions</th></tr></thead>
+                <thead><tr><th scope="col">Rate</th><th scope="col">Pricing</th><th scope="col">Offered when</th><th scope="col">Delivery</th><th scope="col">Actions</th></tr></thead>
                 <tbody>
                   {z.rates.map((r: any) => (
-                    <tr key={r.id}>
-                      <td className="rp-lead">{r.name}</td>
-                      <td>{r.deliveryDays || "3-7"} days</td>
-                      <td className="rp-num">{money(r.base)}</td>
-                      <td className="rp-num">+{money(r.additional)}</td>
-                      <td className="rp-num">{r.minPrice !== null && r.minPrice !== undefined ? money(r.minPrice) : "—"}</td>
+                    <tr key={r.id} style={r.enabled === false ? { opacity: 0.55 } : undefined}>
+                      <td className="rp-lead">{r.name}{r.enabled === false && <> <StatusBadge>Off</StatusBadge></>}</td>
+                      <td>{describeRatePrice(r)}</td>
+                      <td>{describeRateConditions(r) || "Always"}</td>
+                      <td>{r.type === "pickup" ? "Pickup" : `${r.deliveryDays || "—"} days`}</td>
                       <td>
-                        <span style={{ display: "inline-flex", gap: 6 }}>
+                        <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
                           <SecondaryButton size="sm" onClick={() => openRateModal(z.id, r)} aria-label={`Edit rate ${r.name}`}>Edit</SecondaryButton>
+                          <SecondaryButton size="sm" onClick={() => handleDuplicateRate(z.id, r)} aria-label={`Duplicate rate ${r.name}`}>Copy</SecondaryButton>
                           <DestructiveButton size="sm" onClick={() => handleDeleteRate(z.id, r.id)} aria-label={`Delete rate ${r.name}`}>Delete</DestructiveButton>
                         </span>
                       </td>

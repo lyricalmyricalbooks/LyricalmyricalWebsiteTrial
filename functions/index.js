@@ -18,6 +18,7 @@ const crypto = require("crypto");
 const { Resend } = require("resend");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
+const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -571,6 +572,28 @@ async function paypalRequest(config, path, options = {}) {
   return data;
 }
 
+// Server-authoritative shipping: quotes every configured rate for the cart and
+// charges the one the customer selected (order.shippingMethod), else the
+// cheapest. Profiles without zones keep the legacy flat calculation. Returns
+// { cost, method } or throws when the destination can't be served.
+function resolveShipping(items, order, profiles, freeShipping) {
+  const address = order.customer && order.customer.address;
+  const hasZones = profiles.some((p) => Array.isArray(p.zones) && p.zones.length);
+  if (!hasZones) {
+    return { cost: freeShipping ? 0 : calculateShipping(items, address, profiles), method: order.shippingMethod || null };
+  }
+  const quotes = quoteShipping(items, address, profiles, { freeAll: !!freeShipping });
+  const picked = pickQuote(quotes, order.shippingMethod);
+  if (!picked) {
+    throw new Error(`We don't currently ship these items to ${(address && address.country) || "that destination"}. Please contact us for a custom quote.`);
+  }
+  return { cost: picked.price, method: picked.name };
+}
+
+function itemWeightGrams(book, variant) {
+  return parseWeightGrams(variant && variant.weight) ?? parseWeightGrams(book.weight);
+}
+
 async function recalculateOrder(orderRef, order, checkoutCurrency) {
   const booksById = {};
   const items = [];
@@ -590,7 +613,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
     const price = variant
       ? Number(variant.price)
       : (book.isOnSale && book.salePrice ? Number(book.salePrice) : Number(book.retailPrice));
-    items.push({ ...requested, quantity, price, shippingProfileId: book.shippingProfileId || null });
+    items.push({ ...requested, quantity, price, shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant) });
   }
   if (!items.length) throw new Error("Order has no items.");
 
@@ -605,8 +628,8 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
   }
   const profilesSnap = await db.collection("shipping-profiles").get();
   const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  let shipping = calculateShipping(items, order.customer.address, profiles);
-  if (appliedDiscount?.type === "freeship") shipping = 0;
+  const shipResult = resolveShipping(items, order, profiles, appliedDiscount?.type === "freeship");
+  const shipping = shipResult.cost;
 
   const settingsDoc = await db.collection("settings").doc("website").get();
   const settings = settingsDoc.data() || {};
@@ -619,6 +642,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
   const update = {
     items: items.map(({ shippingProfileId, ...item }) => item), subtotal, discount, appliedDiscount,
     shipping, tax, total, checkoutCurrency: checkoutCurrency.toUpperCase(), exchangeRate,
+    ...(shipResult.method ? { shippingMethod: shipResult.method } : {}),
     updatedAt: new Date().toISOString(),
   };
   await orderRef.update(update);
@@ -877,6 +901,7 @@ exports.createStripeCheckoutSession = onRequest(
           price: unitPrice,
           quantity: Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1))),
           shippingProfileId: book.shippingProfileId || null,
+          weightGrams: itemWeightGrams(book, variant),
         });
       }
 
@@ -906,9 +931,15 @@ exports.createStripeCheckoutSession = onRequest(
       // 3. Dynamic Shipping Calculation (free when a freeship code applies)
       const profilesSnap = await db.collection("shipping-profiles").get();
       const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      let shippingCost = calculateShipping(items, order.customer.address, profiles);
-      if (appliedDiscount && appliedDiscount.type === "freeship") {
-        shippingCost = 0;
+      let shippingCost;
+      let shippingMethodCharged;
+      try {
+        const shipResult = resolveShipping(items, order, profiles, appliedDiscount && appliedDiscount.type === "freeship");
+        shippingCost = shipResult.cost;
+        shippingMethodCharged = shipResult.method;
+      } catch (shipErr) {
+        res.status(400).json({ error: shipErr.message });
+        return;
       }
 
       // 4. Dynamic Tax Calculation (region-aware: state/province before country)
@@ -957,6 +988,7 @@ exports.createStripeCheckoutSession = onRequest(
         discount: discountAmount,
         appliedDiscount: appliedDiscount,
         shipping: shippingCost,
+        ...(shippingMethodCharged ? { shippingMethod: shippingMethodCharged } : {}),
         tax: taxCost,
         total: finalTotal,
         checkoutCurrency: checkoutCurrency.toUpperCase(),

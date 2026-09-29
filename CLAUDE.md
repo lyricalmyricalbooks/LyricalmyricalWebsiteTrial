@@ -126,6 +126,18 @@ npm run logs
 Secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`,
 `SHIPPO_API_TOKEN`) are stored as Firebase Functions secrets, not in the repo.
 
+## Shipping engine
+
+`functions/shippingEngine.js` (server, authoritative) and `src/app/features/site/shippingEngine.ts`
+(display mirror) turn profiles → zones → rates into checkout quotes; `shippingEngine.parity.test.ts`
+keeps them identical, so change both together. Rate `type`: flat | order | weight | percent | free |
+pickup, plus conditions (order total / cart grams / item count), `freeOver`, `handlingFee`; profiles
+add `freeShippingOver`, `handlingFee`, `defaultItemWeightG`. The server charges the quote matching
+the customer's `shippingMethod` (else cheapest) and rejects unservable destinations; profiles with no
+zones fall back to legacy flat `calculateShipping`. Live Shippo quotes are shown only when no zones
+exist (charged = displayed). Admin UI: Settings › Shipping › profile editor (Profile rules, Test this
+profile, rate dialog).
+
 ## Theme editor
 
 A large (~11k-line) Shopify-style theme editor under `/admin`. **Read
