@@ -10,6 +10,7 @@ import { funnelApi } from "../../lib/commerce";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { getCopy } from "./storeCopy";
+import { bookInCategory, categoryNames, catName } from "./navItems";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -25,21 +26,20 @@ export default function CollectionPage() {
   const [inStockOnly, setInStockOnly] = useState(false);
 
   const categories = settings?.design?.categories || [];
-  const categoryName = useMemo(() => {
-    const list = (categories || []).map((c: any) => (typeof c === "string" ? c : c.name));
-    return list.find((n: string) => slugify(n) === slug) || (slug || "").toUpperCase();
-  }, [categories, slug]);
+  // A collection URL keeps working after a category is renamed: match the slug
+  // against the current name and any earlier name.
+  const category = useMemo(
+    () =>
+      (categories || []).find((c: any) => categoryNames(c).some((n: string) => slugify(n) === slug)) ||
+      (slug || "").toUpperCase(),
+    [categories, slug],
+  );
+  const categoryName = catName(category);
 
   const items = useMemo(() => {
-    const base = books.filter(
-      b =>
-        b.status === "published" &&
-        ((b.categories || []).includes(categoryName) ||
-          (b as any).genres?.includes(categoryName) ||
-          categoryName === "PUBLICATIONS"),
-    );
+    const base = books.filter(b => b.status === "published" && bookInCategory(b, category));
     return applyCatalogControls(base, query, sort, inStockOnly, [0, Infinity]);
-  }, [books, categoryName, query, sort, inStockOnly]);
+  }, [books, category, query, sort, inStockOnly]);
 
   useSEO({
     title: `${categoryName} Collection`,

@@ -18,6 +18,7 @@ import { useSiteData } from "../features/site/useSiteData";
 import { BootSplash } from "./BootSplash";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
+import { buildNavItems } from "../features/site/navItems";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { resolveFooterBadges } from "../features/site/paymentBadges";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
@@ -724,6 +725,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     }
     return cat;
   }), [rawCategories]);
+  // Categories and in-menu pages share one header bar; Studio › Menus › Header bar order sets the sequence.
+  const navOrder = activeDesign?.navOrder || storefrontDesign?.navOrder || legacyDesign?.navOrder;
+  const navItems = useMemo(() => buildNavItems(categories, pages || [], navOrder), [categories, pages, navOrder]);
 
   useEffect(() => {
     if (legacyDesign?.showHero === false && !showCatalog) {
@@ -828,9 +832,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const heroHeaderLinks = heroDesign?.headerLinks || {};
   const storefrontHeaderLinks = storefrontDesign?.headerLinks || {};
   const showEnterArchive = heroHeaderLinks.showEnterArchive ?? true;
-  const showCustomPages = showCatalog
-    ? (storefrontHeaderLinks.showCustomPages ?? true)
-    : (heroHeaderLinks.showCustomPages ?? true);
   const showBag = showCatalog
     ? (storefrontHeaderLinks.showBag ?? true)
     : (heroHeaderLinks.showBag ?? true);
@@ -1045,7 +1046,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     </button>
                   );
                 })}
-                {showCustomPages && (pages || []).filter((p: any) => p.showInNav && p.status === "published").map((page: any) => (
+                {(pages || []).filter((p: any) => p.showInNav && p.status === "published").map((page: any) => (
                   <Link key={page.id} to={`/page/${page.slug}`} className="hover:opacity-70 transition-opacity">{page.title}</Link>
                 ))}
                 <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity">{getCopy(activeDesign, "navSearch")}</button>
@@ -1075,17 +1076,32 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               )}
               
               <nav className={`hidden md:flex ${storefrontDesign?.navStyle === "stickers" ? "gap-2 items-center" : "gap-6"}`}>
-                {categories.filter((c: any) => c.showInNav !== false).map((cat: any, catIdx: number) => {
-                  const catName = typeof cat === "string" ? cat : cat.name;
-                  const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === catName;
+                {navItems.map((item, itemIdx) => {
                   const stickers = storefrontDesign?.navStyle === "stickers";
+                  if (item.kind === "page") {
+                    return (
+                      <Link
+                        key={item.key}
+                        to={`/page/${item.page.slug}`}
+                        style={{
+                          color: headerTextColor,
+                          ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx) : {}),
+                        }}
+                        className={`text-[10px] tracking-[0.2em] font-medium uppercase transition-all opacity-40 hover:opacity-80 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  }
+                  const cat = item.category;
+                  const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === item.label;
                   return (
                     <button
-                      key={catName}
+                      key={item.key}
                       onClick={() => setActiveCategory(cat)}
                       style={{
                         color: headerTextColor,
-                        ...(stickers ? stickerPillStyle(storefrontDesign, catIdx, isActive) : {}),
+                        ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx, isActive) : {}),
                       }}
                       className={`text-[10px] tracking-[0.2em] font-medium transition-all ${
                         stickers ? "fm-sticker-pill" : ""
@@ -1094,28 +1110,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       }`}
                       aria-current={isActive ? "true" : undefined}
                     >
-                      {catName}
+                      {item.label}
                     </button>
                   );
                 })}
-                {showCustomPages && (pages || [])
-                  .filter((p: any) => p.showInNav && p.status === "published")
-                  .map((page: any, pageIdx: number) => {
-                    const stickers = storefrontDesign?.navStyle === "stickers";
-                    return (
-                      <Link
-                        key={page.id}
-                        to={`/page/${page.slug}`}
-                        style={{
-                          color: headerTextColor,
-                          ...(stickers ? stickerPillStyle(storefrontDesign, categories.length + pageIdx) : {}),
-                        }}
-                        className={`text-[10px] tracking-[0.2em] font-medium transition-all opacity-40 hover:opacity-80 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
-                      >
-                        {page.title}
-                      </Link>
-                    );
-                  })}
               </nav>
             </div>
 
@@ -1144,10 +1142,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 </button>
               )}
 
-              {showCustomPages && (
-                storefrontDesign?.menus?.header?.length > 0 ? (
-                  <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={storefrontDesign.menus.header} /></div>
-                ) : null
+              {storefrontDesign?.menus?.header?.length > 0 && (
+                <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={storefrontDesign.menus.header} /></div>
               )}
 
               <button
@@ -1267,6 +1263,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   </button>
                 );
               })}
+              {navItems.filter((i) => i.kind === "page").map((i: any) => (
+                <Link
+                  key={i.key}
+                  to={`/page/${i.page.slug}`}
+                  className="rounded-full border border-white/10 fm-muted hover:border-white/40 px-4 py-2 text-[11px] font-bold tracking-[0.06em] uppercase transition-colors"
+                >
+                  {i.label}
+                </Link>
+              ))}
             </div>
           )}
 
@@ -1540,7 +1545,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
           
           {/* Custom Pages in Home Header */}
-          {showCustomPages && (
+          {(
             heroDesign?.menus?.header?.length > 0 ? (
               <div style={{ color: homeHeaderTextColor }}><StoreMenu items={heroDesign.menus.header} /></div>
             ) : (

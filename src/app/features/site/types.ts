@@ -100,8 +100,6 @@ export type SiteSettings = {
       categories?: string[];
       headerLinks?: {
         showEnterArchive?: boolean;
-        showInformation?: boolean;
-        showCustomPages?: boolean;
         showBag?: boolean;
         showSys?: boolean;
       };
