@@ -1154,11 +1154,53 @@ exports.stripeWebhook = onRequest(
       return;
     }
 
-    if (event.type === "checkout.session.completed") {
+    // Stripe-side outcomes that never mark an order paid: record them on the
+    // order timeline so the admin can see what happened.
+    const noteOnOrder = async (orderId, message, extra = {}) => {
+      if (!orderId) return;
+      const ref = db.collection("orders").doc(orderId);
+      await db.runTransaction(async t => {
+        const snap = await t.get(ref);
+        if (!snap.exists) return;
+        const now = new Date().toISOString();
+        t.update(ref, {
+          ...extra,
+          updatedAt: now,
+          activity: [...(snap.data().activity || []), { type: "event", message, createdAt: now }],
+        });
+      });
+    };
+
+    try {
+      if (event.type === "checkout.session.expired") {
+        await noteOnOrder(event.data.object.client_reference_id, "Stripe Checkout session expired without payment.");
+      } else if (event.type === "checkout.session.async_payment_failed") {
+        await noteOnOrder(event.data.object.client_reference_id, "Delayed payment failed (Stripe).", { paymentStatus: "failed" });
+      } else if (event.type === "charge.dispute.created") {
+        const dispute = event.data.object;
+        const piId = typeof dispute.payment_intent === "string" ? dispute.payment_intent : dispute.payment_intent?.id;
+        if (piId) {
+          const snap = await db.collection("orders").where("stripePaymentIntentId", "==", piId).limit(1).get();
+          if (!snap.empty) {
+            await noteOnOrder(snap.docs[0].id,
+              `Stripe dispute opened (${(dispute.amount / 100).toFixed(2)} ${(dispute.currency || "").toUpperCase()}, reason: ${dispute.reason || "unknown"}). Respond in the Stripe Dashboard before the evidence deadline.`,
+              { disputeStatus: dispute.status || "needs_response", disputeId: dispute.id });
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`Failed to record ${event.type}:`, err);
+      res.status(500).send(`Webhook failure: ${err.message}`);
+      return;
+    }
+
+    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
       const session = event.data.object;
       const orderId = session.client_reference_id;
+      // completed can fire before delayed methods settle; only paid sessions count.
+      const settled = session.payment_status === "paid" || session.payment_status === "no_payment_required";
 
-      if (orderId) {
+      if (orderId && settled) {
         try {
           const orderRef = db.collection("orders").doc(orderId);
           let paidTotal = null;
