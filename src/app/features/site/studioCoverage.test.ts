@@ -27,7 +27,7 @@ const NOT_STYLE_CONTROLS = new Set([
   "copy", "menus", "sections", "globalSections", "homepageSections", "altSections", "social", "categories",
   "colorSchemes", "hero", "headerLinks", "sectionPresets", "heroPage", "storefront", "productPage",
   "collectionPage", "cartPage", "page", "page404", "typeScale", "mobileOverrides", "themeLibraryPreset",
-  "font", "fontSize", "data", "id", "trim", "logoUrl",
+  "font", "fontSize", "data", "id", "trim", "logoUrl", "footerBadges",
 ]);
 
 function publicSources(dir: string, out: string[] = []): string[] {

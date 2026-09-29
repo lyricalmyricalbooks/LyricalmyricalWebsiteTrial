@@ -129,7 +129,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "footerLayout", label: "Footer columns", kind: "select", options: [{ value: "3col", label: "3 columns" }, { value: "4col", label: "4 columns (with location)" }] },
       { key: "footerBg", label: "Footer background", kind: "color" },
       { key: "showSocialInFooter", label: "Show social links", kind: "toggle" },
-      { key: "showPaymentBadges", label: "Show payment-method icons", kind: "toggle" },
+      { key: "showPaymentBadges", label: "Show payment-method icons row", kind: "toggle" },
       { key: "showPoweredBy", label: "Show “Powered by” line", kind: "toggle" },
       { key: "social.instagram", label: "Instagram URL", kind: "text" },
       { key: "social.twitter", label: "X / Twitter URL", kind: "text" },
