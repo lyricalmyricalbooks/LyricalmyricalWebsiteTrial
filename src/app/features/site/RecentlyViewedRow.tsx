@@ -2,10 +2,11 @@ import { Link } from "react-router";
 import { useRecentlyViewed } from "../../lib/recentlyViewed";
 import { useSiteData } from "./useSiteData";
 import { DEFAULT_IMAGE } from "./constants";
+import { getCopy } from "./storeCopy";
 
 export default function RecentlyViewedRow({ excludeId }: { excludeId?: string }) {
   const { ids } = useRecentlyViewed();
-  const { books } = useSiteData();
+  const { books, settings } = useSiteData();
 
   const items = ids
     .filter(id => id !== excludeId)
@@ -20,7 +21,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
       <div className="max-w-8xl mx-auto px-6 py-14">
         <div className="flex items-center gap-6 mb-8">
           <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">
-            Recently Viewed
+            {getCopy(settings?.design, "recentlyViewedHeading")}
           </h2>
           <div className="flex-1 h-px bg-white/[0.06]" />
         </div>

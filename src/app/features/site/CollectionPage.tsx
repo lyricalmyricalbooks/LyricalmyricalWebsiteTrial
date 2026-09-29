@@ -9,6 +9,7 @@ import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
+import { getCopy } from "./storeCopy";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -62,7 +63,7 @@ export default function CollectionPage() {
     return (
       <div data-fm-store className="min-h-screen fm-page text-white flex items-center justify-center">
         <StorefrontThemeStyle design={settings?.design} />
-        <p className="text-[10px] tracking-[0.4em] text-white/40 uppercase">Loading…</p>
+        <p className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "pageLoading")}</p>
       </div>
     );
   }
@@ -72,21 +73,21 @@ export default function CollectionPage() {
       <StorefrontThemeStyle design={settings?.design} />
       <header className="border-b border-white/10 px-6 py-5 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-[10px] tracking-[0.3em] text-white/50 hover:text-white uppercase">
-          <ArrowLeft size={14} /> Archive
+          <ArrowLeft size={14} /> {getCopy(settings?.design, "collectionBack")}
         </Link>
-        <span className="text-[10px] tracking-[0.4em] text-white/40 uppercase">Collection</span>
+        <span className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "collectionEyebrow")}</span>
         <Link to="/wishlist" className="text-[10px] tracking-[0.3em] text-white/50 hover:text-white uppercase">
-          Wishlist
+          {getCopy(settings?.design, "wishlistTitle")}
         </Link>
       </header>
 
       <TemplateSections design={settings?.design} templateId="collectionPage" books={books} />
 
       <main className="max-w-6xl mx-auto px-6 py-14">
-        <nav aria-label="Breadcrumb" className="mb-8 text-[10px] tracking-[0.3em] uppercase text-white/30 flex gap-2">
-          <Link to="/" className="hover:text-white">Home</Link>
+        <nav aria-label={getCopy(settings?.design, "breadcrumbAria")} className="mb-8 text-[10px] tracking-[0.3em] uppercase text-white/30 flex gap-2">
+          <Link to="/" className="hover:text-white">{getCopy(settings?.design, "breadcrumbHome")}</Link>
           <span>/</span>
-          <span>Collections</span>
+          <span>{getCopy(settings?.design, "breadcrumbCollections")}</span>
           <span>/</span>
           <span className="text-white/70">{categoryName}</span>
         </nav>
@@ -100,6 +101,7 @@ export default function CollectionPage() {
           inStockOnly={inStockOnly}
           setInStockOnly={setInStockOnly}
           resultCount={items.length}
+          design={settings?.design}
         />
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
@@ -111,7 +113,7 @@ export default function CollectionPage() {
               <article key={book.id} className="group relative">
                 <button
                   onClick={() => toggle(book.id)}
-                  aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
+                  aria-label={wished ? getCopy(settings?.design, "wishlistRemoveAria") : getCopy(settings?.design, "wishlistAddAria")}
                   className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center transition-colors ${
                     wished ? "fm-favorite-active border" : "bg-black/40 text-white/60 border border-white/10 hover:text-white"
                   }`}
@@ -127,7 +129,7 @@ export default function CollectionPage() {
                     />
                     {out && (
                       <div className="absolute inset-0 bg-black/65 flex items-center justify-center">
-                        <span className="text-white/60 text-[8px] tracking-widest uppercase border border-white/20 px-3 py-1">Sold Out</span>
+                        <span className="text-white/60 text-[8px] tracking-widest uppercase border border-white/20 px-3 py-1">{getCopy(settings?.design, "soldOutLabel")}</span>
                       </div>
                     )}
                   </div>
@@ -143,7 +145,7 @@ export default function CollectionPage() {
 
         {items.length === 0 && (
           <p className="py-20 text-center text-[10px] tracking-[0.4em] text-white/30 uppercase">
-            No publications match these filters.
+            {getCopy(settings?.design, "catalogEmpty")}
           </p>
         )}
       </main>

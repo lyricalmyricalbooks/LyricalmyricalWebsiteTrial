@@ -299,7 +299,14 @@ ${alphaOverrideCss}
  * flat offset shadows, one flare focus ring. Mirrors the published design system
  * (payment clarity always outranks decoration — inputs stay conventional).
  */
+// Riso Press legibility floor: the storefront's faint `text-white/20…50` greys were tuned for a
+// glassy dark UI. Print-style pages need real contrast, so lift them (still theme-driven).
+const RISO_TEXT_FLOOR = ([["20", 0.55], ["25", 0.55], ["30", 0.55], ["40", 0.65], ["50", 0.72]] as const)
+  .map(([n, a]) => `[data-fm-store] .text-white\\/${n}{color:rgba(var(--fg-rgb),${a});}`)
+  .join("\n");
+
 export const RISO_STOREFRONT_CSS = `
+${RISO_TEXT_FLOOR}
 [data-fm-store] h1,[data-fm-store] h2,[data-fm-store] h3{text-wrap:balance;text-transform:var(--rp-heading-transform,uppercase);letter-spacing:.01em;font-weight:400;}
 [data-fm-store] button,[data-fm-store] a{transition-timing-function:cubic-bezier(.2,.7,.2,1);}
 [data-fm-store] .glass-card{
@@ -319,6 +326,7 @@ export const RISO_STOREFRONT_CSS = `
 [data-fm-store] .glass-card,[data-fm-store] [class*="rounded-[2"],[data-fm-store] [class*="rounded-[3"]{border-radius:var(--rp-card-radius) !important;}
 [data-fm-store] [class*="shadow-"]:not([class*="shadow-none"]):not(.custom-btn){box-shadow:var(--rp-shadow-x) var(--rp-shadow-x) 0 var(--rp-shadow-color) !important;}
 [data-fm-store] :where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--rp-focus);outline-offset:2px;}
+[data-fm-store] .fm-accent-bg,[data-fm-store] .fm-success-solid{color:var(--on-accent);}
 [data-fm-store] ::selection{background:var(--accent);color:var(--on-accent);}
 @media (pointer:coarse){[data-fm-store] .custom-btn{min-height:44px;}}
 @media (prefers-reduced-motion:reduce){[data-fm-store] *{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important;}}

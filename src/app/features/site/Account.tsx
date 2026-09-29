@@ -29,6 +29,7 @@ import {
 import { useSEO } from "../../lib/seo";
 import { useWishlist } from "../../lib/wishlist";
 import { useSiteData } from "./useSiteData";
+import { getCopy } from "./storeCopy";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { GlobalSections } from "../../components/sectionRender";
 import { adminApi } from "../../admin/api";
@@ -345,18 +346,18 @@ export default function AccountPage() {
             <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 mx-auto">
               <UserIcon size={28} style={{ color: "var(--accent)" }} strokeWidth={1.5} />
             </div>
-            <h1 className="text-3xl font-black tracking-tight uppercase italic leading-none">Customer Account</h1>
-            <p className="text-[10px] tracking-[0.2em] text-white/30 uppercase mt-3 font-bold">Lyricalmyrical Books Ledger</p>
+            <h1 className="text-3xl font-black tracking-tight uppercase italic leading-none">{getCopy(settings?.design, "accountTitle")}</h1>
+            <p className="text-[10px] tracking-[0.2em] text-white/30 uppercase mt-3 font-bold">{getCopy(settings?.design, "accountSubtitle")}</p>
           </div>
 
           <form onSubmit={handleSendMagicLink} className="space-y-4">
             <div className="space-y-2">
-              <label className="text-[9px] font-black fm-muted uppercase tracking-widest block ml-1">Passwordless Sign In</label>
+              <label className="text-[9px] font-black fm-muted uppercase tracking-widest block ml-1">{getCopy(settings?.design, "accountSignInLabel")}</label>
               <div className="relative">
                 <input
                   type="email"
                   required
-                  placeholder="name@example.com"
+                  placeholder={getCopy(settings?.design, "accountEmailPlaceholder")}
                   value={emailLinkInput}
                   onChange={(e) => setEmailLinkInput(e.target.value)}
                   className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-xs text-white outline-none focus:border-violet-500/30 focus:bg-white/[0.05] transition-all"
@@ -370,13 +371,13 @@ export default function AccountPage() {
               disabled={sendingLink}
               className="w-full bg-white/5 border border-white/10 hover:bg-white/10 text-white py-4 rounded-2xl text-[9px] font-black tracking-[0.3em] uppercase transition-all flex items-center justify-center gap-2"
             >
-              {sendingLink ? <Loader2 size={12} className="animate-spin" /> : "Send Magic Link"}
+              {sendingLink ? <Loader2 size={12} className="animate-spin" /> : getCopy(settings?.design, "accountMagicLink")}
             </button>
           </form>
 
           <div className="relative flex py-2 items-center">
             <div className="flex-grow border-t border-white/5"></div>
-            <span className="flex-shrink mx-4 text-[9px] font-black tracking-widest text-white/20 uppercase">OR</span>
+            <span className="flex-shrink mx-4 text-[9px] font-black tracking-widest text-white/20 uppercase">{getCopy(settings?.design, "accountOr")}</span>
             <div className="flex-grow border-t border-white/5"></div>
           </div>
 
@@ -384,12 +385,12 @@ export default function AccountPage() {
             onClick={handleGoogleSignIn}
             className="w-full fm-active py-4.5 rounded-2xl text-[9px] font-black tracking-[0.3em] uppercase hover:bg-white/90 transition-all flex items-center justify-center gap-2 shadow-xl shadow-white/5"
           >
-            Continue with Google
+            {getCopy(settings?.design, "accountGoogle")}
           </button>
 
           <div className="text-center pt-2">
             <Link to="/" className="text-[9px] tracking-[0.3em] text-white/40 hover:text-white uppercase transition-colors">
-              Back to Storefront
+              {getCopy(settings?.design, "accountBackToStore")}
             </Link>
           </div>
         </div>
@@ -406,14 +407,14 @@ export default function AccountPage() {
 
       <header className="border-b border-white/5 px-8 py-6 flex items-center justify-between backdrop-blur-xl relative z-20" style={{ backgroundColor: "rgba(var(--overlay-rgb), 0.2)" }}>
         <Link to="/" className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-white transition-colors group uppercase">
-          <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> Storefront
+          <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> {getCopy(settings?.design, "accountStorefront")}
         </Link>
-        <span className="text-[9px] font-black tracking-[0.4em] text-white/30 uppercase">Vault Portal</span>
+        <span className="text-[9px] font-black tracking-[0.4em] text-white/30 uppercase">{getCopy(settings?.design, "accountPortal")}</span>
         <button
           onClick={() => signOut(auth)}
           className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-rose-400 transition-colors uppercase"
         >
-          <LogOut size={14} /> Sign out
+          <LogOut size={14} /> {getCopy(settings?.design, "accountSignOut")}
         </button>
       </header>
 
@@ -429,7 +430,7 @@ export default function AccountPage() {
             </div>
           )}
           <div>
-            <h1 className="text-3xl font-black tracking-tighter uppercase italic">{user.displayName || profile?.name || "Customer Account"}</h1>
+            <h1 className="text-3xl font-black tracking-tighter uppercase italic">{user.displayName || profile?.name || getCopy(settings?.design, "accountTitle")}</h1>
             <p className="text-[10px] tracking-widest uppercase fm-muted font-mono mt-1">{user.email}</p>
           </div>
         </section>
@@ -439,16 +440,16 @@ export default function AccountPage() {
           <Link to="/wishlist" className="glass-card border border-white/5 rounded-[2rem] p-8 hover:bg-white/[0.02] transition-colors flex flex-col gap-3 group">
             <Heart size={20} className="text-rose-400 group-hover:scale-110 transition-transform" />
             <div>
-              <p className="text-[9px] font-black tracking-widest uppercase fm-muted">Wishlist Ledger</p>
-              <p className="text-3xl font-black tracking-tight mt-1">{wishlistCount} Saved</p>
+              <p className="text-[9px] font-black tracking-widest uppercase fm-muted">{getCopy(settings?.design, "accountWishlist")}</p>
+              <p className="text-3xl font-black tracking-tight mt-1">{getCopy(settings?.design, "accountSaved", { count: wishlistCount })}</p>
             </div>
           </Link>
 
           <div className="glass-card border border-white/5 rounded-[2rem] p-8 flex flex-col gap-3">
             <Package size={20} style={{ color: "var(--accent)" }} />
             <div>
-              <p className="text-[9px] font-black tracking-widest uppercase fm-muted">Order Logs</p>
-              <p className="text-3xl font-black tracking-tight mt-1">{orders.length} Transacted</p>
+              <p className="text-[9px] font-black tracking-widest uppercase fm-muted">{getCopy(settings?.design, "accountOrders")}</p>
+              <p className="text-3xl font-black tracking-tight mt-1">{getCopy(settings?.design, "accountTransacted", { count: orders.length })}</p>
             </div>
           </div>
 
@@ -457,11 +458,11 @@ export default function AccountPage() {
             <MapPin size={20} className="text-cyan-400" />
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-[9px] font-black tracking-widest uppercase fm-muted">Shipping Vector</p>
+                <p className="text-[9px] font-black tracking-widest uppercase fm-muted">{getCopy(settings?.design, "accountShipping")}</p>
                 <p className="text-[11px] font-bold text-white/75 leading-relaxed mt-2 uppercase tracking-wide">
                   {profile?.defaultAddress?.city
                     ? `${profile.defaultAddress.city}, ${profile.defaultAddress.country}`
-                    : "Unconfigured"}
+                    : getCopy(settings?.design, "accountUnconfigured")}
                 </p>
               </div>
               <button 
@@ -478,14 +479,14 @@ export default function AccountPage() {
         {isEditingAddress && (
           <section className="glass-card border border-white/5 rounded-[2.5rem] p-10 animate-in fade-in slide-in-from-top-4 duration-300">
             <div className="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
-              <h3 className="text-xs font-black tracking-[0.4em] uppercase text-cyan-400">Configure Shipping Vector</h3>
-              <button onClick={() => setIsEditingAddress(false)} className="text-[9px] font-black tracking-widest fm-muted hover:text-white uppercase">ABORT</button>
+              <h3 className="text-xs font-black tracking-[0.4em] uppercase text-cyan-400">{getCopy(settings?.design, "accountAddressTitle")}</h3>
+              <button onClick={() => setIsEditingAddress(false)} className="text-[9px] font-black tracking-widest fm-muted hover:text-white uppercase">{getCopy(settings?.design, "accountAbort")}</button>
             </div>
 
             <form onSubmit={handleSaveAddress} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Full Legal Name</label>
+                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldName")}</label>
                   <input
                     type="text"
                     required
@@ -495,23 +496,23 @@ export default function AccountPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Contact Phone</label>
+                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldPhone")}</label>
                   <input
                     type="text"
                     value={addressForm.phone}
                     onChange={(e) => setAddressForm({ ...addressForm, phone: e.target.value })}
-                    placeholder="e.g. 647 123 4567"
+                    placeholder={getCopy(settings?.design, "accountPhonePlaceholder")}
                     className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-xs text-white outline-none focus:border-cyan-500/50 transition-all font-mono"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Street Address</label>
+                <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldStreet")}</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. 456 Montrose Ave"
+                  placeholder={getCopy(settings?.design, "accountStreetPlaceholder")}
                   value={addressForm.street}
                   onChange={(e) => setAddressForm({ ...addressForm, street: e.target.value })}
                   className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 px-6 text-xs text-white outline-none focus:border-cyan-500/50 transition-all"
@@ -520,7 +521,7 @@ export default function AccountPage() {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="space-y-2 col-span-2 md:col-span-1">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">City</label>
+                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldCity")}</label>
                   <input
                     type="text"
                     required
@@ -530,7 +531,7 @@ export default function AccountPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">State / Province</label>
+                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldState")}</label>
                   <input
                     type="text"
                     required
@@ -540,7 +541,7 @@ export default function AccountPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Postal Code</label>
+                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldZip")}</label>
                   <input
                     type="text"
                     required
@@ -550,7 +551,7 @@ export default function AccountPage() {
                   />
                 </div>
                 <div className="space-y-2 col-span-2 md:col-span-1">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">Country</label>
+                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldCountry")}</label>
                   <input
                     type="text"
                     required
@@ -566,7 +567,7 @@ export default function AccountPage() {
                   type="submit"
                   className="bg-cyan-600 hover:bg-cyan-500 text-white px-8 py-4 rounded-xl text-[9px] font-black tracking-[0.3em] uppercase transition-all shadow-lg shadow-cyan-600/10"
                 >
-                  Save Vector Details
+                  {getCopy(settings?.design, "accountSaveAddress")}
                 </button>
                 <button
                   type="button"
@@ -582,16 +583,16 @@ export default function AccountPage() {
 
         {/* Order History Details View */}
         <section className="glass-card border border-white/5 rounded-[2.5rem] p-10">
-          <h2 className="text-xs font-black tracking-[0.5em] text-white/30 uppercase mb-8">Purchase History Log</h2>
+          <h2 className="text-xs font-black tracking-[0.5em] text-white/30 uppercase mb-8">{getCopy(settings?.design, "accountHistory")}</h2>
           {loadingData ? (
             <div className="py-20 flex flex-col items-center justify-center space-y-4">
               <Loader2 className="animate-spin" style={{ color: "var(--accent)" }} size={24} />
-              <p className="text-[9px] font-black tracking-[0.3em] fm-muted uppercase">Accessing transaction logs...</p>
+              <p className="text-[9px] font-black tracking-[0.3em] fm-muted uppercase">{getCopy(settings?.design, "accountHistoryLoading")}</p>
             </div>
           ) : orders.length === 0 ? (
             <div className="py-16 text-center space-y-3">
               <Package size={32} className="mx-auto fm-muted" strokeWidth={1.2} />
-              <p className="text-white/40 text-xs font-bold tracking-widest uppercase">No transaction entries found</p>
+              <p className="text-white/40 text-xs font-bold tracking-widest uppercase">{getCopy(settings?.design, "accountHistoryEmpty")}</p>
             </div>
           ) : (
             <ul className="space-y-6">
@@ -690,8 +691,8 @@ export default function AccountPage() {
                             style={{ backgroundColor: "rgba(var(--accent-rgb), 0.08)", borderColor: "rgba(var(--accent-rgb), 0.2)" }}
                           >
                             <div>
-                              <h4 className="text-xs font-black tracking-[0.3em] uppercase" style={{ color: "var(--accent)" }}>Digital Archive Access</h4>
-                              <p className="text-[10px] fm-muted mt-1 leading-relaxed">Download your digital secure purchases. Tokens refresh automatically.</p>
+                              <h4 className="text-xs font-black tracking-[0.3em] uppercase" style={{ color: "var(--accent)" }}>{getCopy(settings?.design, "accountDigitalTitle")}</h4>
+                              <p className="text-[10px] fm-muted mt-1 leading-relaxed">{getCopy(settings?.design, "accountDigitalText")}</p>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {o.items.map((item: any) => {
@@ -700,14 +701,14 @@ export default function AccountPage() {
                                   <div key={item.id} className="fm-surface-2 border border-white/5 rounded-xl p-4 flex justify-between items-center">
                                     <div className="truncate pr-4">
                                       <p className="text-[10px] font-bold text-white uppercase truncate">{item.title}</p>
-                                      <p className="text-[8px] fm-muted uppercase tracking-widest mt-1">E-Book File</p>
+                                      <p className="text-[8px] fm-muted uppercase tracking-widest mt-1">{getCopy(settings?.design, "accountEbook")}</p>
                                     </div>
                                     <button
                                       onClick={() => handleDownloadDigitalAsset(o, item.id)}
                                       className="text-white p-2.5 rounded-lg transition-all flex items-center justify-center shrink-0 active:scale-95"
                                       style={{ backgroundColor: "var(--accent)" }}
-                                      title="Download E-Book"
-                                      aria-label="Download E-Book"
+                                      title={getCopy(settings?.design, "accountDownload")}
+                                      aria-label={getCopy(settings?.design, "accountDownload")}
                                     >
                                       <Download size={12} />
                                     </button>
@@ -720,7 +721,7 @@ export default function AccountPage() {
 
                         {/* Line items details */}
                         <div className="space-y-4">
-                          <h4 className="text-[9px] font-black tracking-widest fm-muted uppercase">Items Breakdown</h4>
+                          <h4 className="text-[9px] font-black tracking-widest fm-muted uppercase">{getCopy(settings?.design, "accountItems")}</h4>
                           <div className="space-y-3">
                             {o.items?.map((item: any, idx: number) => (
                               <div key={idx} className="flex gap-4 items-center">
@@ -740,7 +741,7 @@ export default function AccountPage() {
                         {o.trackingNumber && (
                           <div className="bg-cyan-950/20 border border-cyan-500/15 p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                             <div>
-                              <p className="text-[9px] font-black tracking-[0.3em] text-cyan-400 uppercase">Dispatch Logistics</p>
+                              <p className="text-[9px] font-black tracking-[0.3em] text-cyan-400 uppercase">{getCopy(settings?.design, "accountDispatch")}</p>
                               <p className="text-xs font-mono fm-muted mt-2">
                                 Carrier: {o.trackingCarrier} <span className="mx-2 fm-muted">|</span> Code: {o.trackingNumber}
                               </p>
@@ -759,7 +760,7 @@ export default function AccountPage() {
                         {/* Order breakdown summary */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-white/5 text-[11px] fm-muted">
                           <div className="space-y-1">
-                            <p className="text-[9px] font-black tracking-widest fm-muted uppercase">Shipping Address</p>
+                            <p className="text-[9px] font-black tracking-widest fm-muted uppercase">{getCopy(settings?.design, "accountShipTo")}</p>
                             <p className="text-xs text-white/60 font-bold uppercase leading-relaxed mt-1">
                               {o.customer?.name}<br/>
                               {o.customer?.address?.street}<br/>
@@ -770,27 +771,27 @@ export default function AccountPage() {
 
                           <div className="space-y-3 font-semibold fm-muted">
                             <div className="flex justify-between">
-                              <span className="uppercase text-[9px] tracking-widest fm-muted">Subtotal</span>
+                              <span className="uppercase text-[9px] tracking-widest fm-muted">{getCopy(settings?.design, "summarySubtotal")}</span>
                               <span className="font-mono text-white/80">CA${o.subtotal?.toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="uppercase text-[9px] tracking-widest fm-muted">Logistics Fee</span>
+                              <span className="uppercase text-[9px] tracking-widest fm-muted">{getCopy(settings?.design, "accountLogisticsFee")}</span>
                               <span className="font-mono text-white/80">CA${o.shipping?.toFixed(2)}</span>
                             </div>
                             {o.discount > 0 && (
                               <div className="flex justify-between fm-success-text">
-                                <span className="uppercase text-[9px] tracking-widest">Discount</span>
+                                <span className="uppercase text-[9px] tracking-widest">{getCopy(settings?.design, "summaryDiscount")}</span>
                                 <span className="font-mono">-CA${o.discount?.toFixed(2)}</span>
                               </div>
                             )}
                             {o.tax > 0 && (
                               <div className="flex justify-between">
-                                <span className="uppercase text-[9px] tracking-widest fm-muted">Estimated Tax</span>
+                                <span className="uppercase text-[9px] tracking-widest fm-muted">{getCopy(settings?.design, "summaryTax")}</span>
                                 <span className="font-mono text-white/80">CA${o.tax?.toFixed(2)}</span>
                               </div>
                             )}
                             <div className="flex justify-between border-t border-white/5 pt-3 text-white font-black">
-                              <span className="uppercase text-[9px] tracking-widest text-white/30">Total</span>
+                              <span className="uppercase text-[9px] tracking-widest text-white/30">{getCopy(settings?.design, "summaryTotal")}</span>
                               <span className="font-mono text-base">CA${o.total?.toFixed(2)}</span>
                             </div>
                           </div>

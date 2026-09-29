@@ -1453,6 +1453,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               inStockOnly={inStockOnly}
               setInStockOnly={setInStockOnly}
               resultCount={filteredItems.length}
+              design={storefrontDesign}
             />
           )}
 
@@ -1613,7 +1614,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           {showAbout && <AboutPanel settings={settings} pages={pages} onClose={() => setShowAbout(false)} />}
         </AnimatePresence>
 
-        <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} />
+        <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} design={activeDesign} />
       </div>
     );
   }
@@ -1842,7 +1843,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         {showAbout && <AboutPanel settings={settings} pages={pages} onClose={() => setShowAbout(false)} />}
       </AnimatePresence>
 
-      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} />
+      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} design={activeDesign} />
     </div>
   );
 }
