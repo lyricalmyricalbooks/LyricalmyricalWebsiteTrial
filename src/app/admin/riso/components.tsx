@@ -131,11 +131,12 @@ export function PageHeader({ title, description, breadcrumbs, actions }: {
 
 /* ── Cards ───────────────────────────────────────────────────────────── */
 
-export function SectionCard({ title, description, actions, children, bodyClassName, flush }: {
+export function SectionCard({ title, description, actions, children, bodyClassName, flush, ...rest }: {
   title?: string; description?: string; actions?: ReactNode; children: ReactNode; bodyClassName?: string; flush?: boolean;
+  "data-print"?: "hide";
 }) {
   return (
-    <section className="rp-card">
+    <section className="rp-card" {...rest}>
       {(title || actions) && (
         <div className="rp-card-head">
           <div>
