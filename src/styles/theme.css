@@ -965,7 +965,9 @@
 [data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-900,
 [data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-900 *,
 [data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-700,
-[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-700 * {
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-700 *,
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-red-600,
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-red-600 * {
   color: #ffffff !important;
 }
 [data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-900 svg,
