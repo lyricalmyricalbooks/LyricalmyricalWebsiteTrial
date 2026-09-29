@@ -53,6 +53,9 @@ src/
     admin/                  Admin dashboard (route /admin/*) — catalog, orders,
                             discounts, reviews moderation, pages, theme editor,
                             analytics, shop settings. `api.ts` = Firestore calls.
+                            `Dashboard.tsx` owns the default Reso admin shell;
+                            shared cross-page styling lives under `.admin-reso`
+                            in `src/styles/theme.css`.
     components/             MainSite, CartDrawer, shared components, ui/ (shadcn)
     features/site/          Storefront pages: BookDetail, CollectionPage,
                             Wishlist, Account, OrderTracking, Search, Reviews,
