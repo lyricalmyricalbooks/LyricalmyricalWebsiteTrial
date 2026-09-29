@@ -371,28 +371,28 @@ export function Dashboard() {
       {/* Book Editor Takeover */}
       <AnimatePresence>
         {showEditor && (
-          <div {...legacyProps} style={{ background: "transparent" }}>
-            <div className="fixed inset-0 z-[300] bg-[#F9F8FA] w-screen h-screen flex flex-col">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.25 }}
-                className="w-full h-full flex flex-col"
-              >
-                <BookEditor
-                  book={editingBook}
-                  onClose={() => setShowEditor(false)}
-                  onSave={() => {
-                    setShowEditor(false);
-                    if (activeTab === "catalog") {
-                      setCatalogRefreshKey(prev => prev + 1);
-                    }
-                    loadStats();
-                  }}
-                />
-              </motion.div>
-            </div>
+          <div className="rp rp-dialog-root rp-editor-root" data-variant="drawer" data-rp-appearance={appearance} style={{ background: "transparent" }}>
+            <div className="rp-dialog-scrim" aria-hidden="true" />
+            <motion.div
+              initial={{ opacity: 0, x: 32 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 32 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="rp-dialog rp-editor-panel"
+              role="dialog" aria-modal="true" aria-label={editingBook ? "Edit book" : "New book"}
+            >
+              <BookEditor
+                book={editingBook}
+                onClose={() => setShowEditor(false)}
+                onSave={() => {
+                  setShowEditor(false);
+                  if (activeTab === "catalog") {
+                    setCatalogRefreshKey(prev => prev + 1);
+                  }
+                  loadStats();
+                }}
+              />
+            </motion.div>
           </div>
         )}
       </AnimatePresence>

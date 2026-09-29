@@ -573,63 +573,36 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   };
 
   return (
-    <div className="bg-[#F9F8FA] w-full h-full flex flex-col text-slate-800 relative overflow-hidden">
-      {/* Background Soft Glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[300px] bg-violet-100 blur-[100px] pointer-events-none opacity-40" />
-      
-      {/* Header */}
-      <header className="px-10 py-6 border-b border-slate-800 flex justify-between items-center bg-[#1E1E1F] text-white sticky top-0 z-20 shrink-0">
-        <div className="flex items-center gap-6">
-          <button 
-            type="button"
-            onClick={handleClose} 
-            className="p-3 bg-white text-[#1E1E1F] rounded-full hover:bg-slate-100 transition-all flex items-center justify-center shadow-md cursor-pointer border border-slate-200"
-          >
-            <ArrowLeft size={18} />
-          </button>
+    <div className="book-editor-riso w-full h-full flex flex-col relative overflow-hidden">
+      <header className="rp-dialog-head be-head shrink-0">
+        <div className="flex items-center gap-4">
+          <button type="button" onClick={handleClose} className="rp-icon-btn" aria-label="Close book editor"><ArrowLeft size={18} aria-hidden /></button>
           <div>
-            <h3 className="text-2xl font-black tracking-tighter text-white uppercase">{book ? "Edit Book" : "New Book"}</h3>
-            {book && (
-              <div className="flex items-center gap-3 mt-1">
-                <span className="text-[9px] font-black text-violet-400 uppercase tracking-[0.3em]">
-                  Product ID: {book.id}
-                </span>
-              </div>
-            )}
+            <h2 className="rp-dialog-title">{book ? "Edit book" : "New book"}</h2>
+            {book && <span className="be-id">Product ID: {book.id}</span>}
           </div>
         </div>
-        <div className="flex gap-6 items-center">
+        <div className="be-actions">
           {book && (book.slug || formData.slug) && (
             <a
               href={`/#/books/${book.slug || formData.slug}?preview=true`}
               target="_blank"
               rel="noreferrer"
               title={book.slug && book.slug !== formData.slug ? "Opens with the last-saved slug. Save to update the live URL." : "Opens the public page in a new tab. Edits broadcast live."}
-              className="px-6 py-3.5 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black tracking-[0.2em] text-slate-300 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2"
+              className="rp-btn rp-btn-secondary rp-btn-sm"
             >
-              <ExternalLink size={14} className="text-violet-400" />
-              PREVIEW PAGE
+              <ExternalLink size={14} aria-hidden /> Preview page
             </a>
           )}
-          <button 
-            type="button" 
-            onClick={handleClose} 
-            className="px-6 py-3.5 text-[10px] font-black tracking-[0.2em] text-slate-400 hover:text-red-400 transition-all cursor-pointer"
-          >
-            CANCEL
-          </button>
-          <button 
-            onClick={handleSave}
-            disabled={loading}
-            className="flex items-center gap-3 bg-violet-600 text-white px-8 py-3.5 rounded-xl text-[10px] font-black tracking-[0.2em] hover:bg-violet-500 active:scale-95 transition-all shadow-lg shadow-violet-600/20 disabled:opacity-50 cursor-pointer"
-          >
-            {loading ? <><Loader2 size={14} className="animate-spin" /> SAVING...</> : <><Save size={14} /> SAVE BOOK</>}
+          <button type="button" onClick={handleClose} className="rp-btn rp-btn-ghost rp-btn-sm">Cancel</button>
+          <button type="button" onClick={handleSave} disabled={loading} className="rp-btn rp-btn-primary rp-btn-sm">
+            {loading ? <><Loader2 size={14} className="animate-spin" aria-hidden /> Saving…</> : <><Save size={14} aria-hidden /> Save book</>}
           </button>
         </div>
       </header>
 
       {validationErrors.length > 0 && (
-        <div role="alert" className="mx-10 mt-6 relative z-10 border-2 border-[#100f0d] bg-[#fdf0d2] p-4 text-[#100f0d]">
+        <div role="alert" className="be-alert">
           <strong>⚠ Fix {validationErrors.length === 1 ? "this" : "these"} before saving:</strong>
           <ul className="mt-2 list-disc pl-5">{validationErrors.map((m) => <li key={m}>{m}</li>)}</ul>
         </div>
@@ -637,7 +610,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       <ConfirmDialog open={confirmDiscard} appearance="light" title="Discard unsaved changes?" confirmLabel="Discard changes"
         message="You have edits that haven't been saved. Closing now will lose them."
         onConfirm={() => { setConfirmDiscard(false); onClose(); }} onCancel={() => setConfirmDiscard(false)} />
-      <form className="p-10 overflow-y-auto grid grid-cols-1 lg:grid-cols-3 gap-12 relative z-10 custom-scrollbar flex-1">
+      <form className="rp-dialog-body be-form grid grid-cols-1 gap-8 relative z-10 custom-scrollbar flex-1">
         {/* Left Column: Essential Info */}
         <div className="lg:col-span-2 space-y-12">
           <section className="bg-white border border-[#EBEAEF] rounded-[2rem] p-8 shadow-sm space-y-8 relative overflow-hidden text-slate-800">

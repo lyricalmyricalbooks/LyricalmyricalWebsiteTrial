@@ -585,3 +585,26 @@ export function useConfirm() {
   );
   return [ask, node] as const;
 }
+
+/* ── usePrompt: Riso replacement for window.prompt (returns string | null) ── */
+export function usePrompt() {
+  const [state, setState] = useState<null | { title: string; label: string; value: string; confirmLabel?: string; resolve: (v: string | null) => void }>(null);
+  const ask = useCallback((opts: { title: string; label: string; defaultValue?: string; confirmLabel?: string }) =>
+    new Promise<string | null>((resolve) => setState({ title: opts.title, label: opts.label, value: opts.defaultValue || "", confirmLabel: opts.confirmLabel, resolve })), []);
+  const done = (v: string | null) => { state?.resolve(v); setState(null); };
+  const node = (
+    <Dialog open={!!state} onClose={() => done(null)} title={state?.title || ""}
+      footer={<>
+        <SecondaryButton onClick={() => done(null)}>Cancel</SecondaryButton>
+        <PrimaryButton onClick={() => done(state?.value ?? "")}>{state?.confirmLabel || "Save"}</PrimaryButton>
+      </>}>
+      <div className="rp-field">
+        <label className="rp-label" htmlFor="rp-prompt-input">{state?.label}</label>
+        <input id="rp-prompt-input" className="rp-input" data-autofocus value={state?.value || ""}
+          onChange={(e) => setState((s) => (s ? { ...s, value: e.target.value } : s))}
+          onKeyDown={(e) => { if (e.key === "Enter") done(state?.value ?? ""); }} />
+      </div>
+    </Dialog>
+  );
+  return [ask, node] as const;
+}

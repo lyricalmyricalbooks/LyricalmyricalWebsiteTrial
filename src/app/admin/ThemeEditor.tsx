@@ -8,6 +8,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { Dialog, PrimaryButton, SecondaryButton, DestructiveButton, useConfirm, usePrompt } from "./riso/components";
 import { InsertionDropZone, SortableRow, SortableList, useListSensors } from "./dndSortable";
 import {
   ChevronRight,
@@ -224,6 +225,8 @@ interface ApplyThemePresetOptions {
   applyGlobal?: (keys: Record<string, any>) => void;
   /** Installs a HOME_LAYOUT_TEMPLATES stack onto the homepage surface (used for `theme.homeLayoutTemplate`). */
   installHomepageLayout?: (templateId: string) => void;
+  /** Riso confirm dialog (from useConfirm); falls back to no install if absent. */
+  askConfirm?: (o: { title: string; message: string; confirmLabel?: string }) => Promise<boolean>;
 }
 
 const applyThemePreset = (
@@ -287,10 +290,11 @@ const applyThemePreset = (
   update("themeLibraryPreset", theme.id);
   toast.success(`Applied "${theme.name}" theme preset!`, { icon: "✨" });
   if (theme.homeLayoutTemplate && opts?.installHomepageLayout) {
-    setTimeout(() => {
-      if (confirm(`Also install the "${theme.name}" homepage layout? Your current Homepage sections are kept as the alternate (A/B) layout.`)) {
-        opts.installHomepageLayout!(theme.homeLayoutTemplate);
-      }
+    setTimeout(async () => {
+      const ok = opts.askConfirm
+        ? await opts.askConfirm({ title: "Install homepage layout?", message: `Also install the "${theme.name}" homepage layout? Your current Homepage sections are kept as the alternate (A/B) layout.`, confirmLabel: "Install layout" })
+        : false;
+      if (ok) opts.installHomepageLayout!(theme.homeLayoutTemplate);
     }, 100);
   }
 };
@@ -1560,6 +1564,8 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
 }
 
 function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, onConsumeRequest, sectionPresets = [], onSavePreset, onDeletePreset }: any) {
+  const [askConfirm, confirmNode] = useConfirm();
+  const [askPrompt, promptNode] = usePrompt();
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [editTab, setEditTab] = useState<"content" | "design">("content");
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
@@ -1714,7 +1720,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
       const url = await adminApi.uploadFile(file, `sections/${sectionId}_${Date.now()}`);
       updateSectionSettings(sectionId, { imageUrl: url });
     } catch {
-      alert("Error uploading image");
+      toast.error("Error uploading image");
     }
   };
 
@@ -1807,8 +1813,8 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
 
           {onSavePreset && (
             <button
-              onClick={() => {
-                const name = window.prompt("Name this preset:", section.settings?.title || section.type.replace("Section", ""));
+              onClick={async () => {
+                const name = await askPrompt({ title: "Save section preset", label: "Preset name", defaultValue: section.settings?.title || section.type.replace("Section", ""), confirmLabel: "Save preset" });
                 if (!name) return;
                 onSavePreset({
                   id: crypto.randomUUID(),
@@ -1827,7 +1833,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
             <button
               onClick={() => {
                 copySectionToClipboard(section);
-                alert("Section copied — use “Paste section” on any page template.");
+                toast.success("Section copied — use “Paste section” on any page template.");
               }}
               className="py-3 text-neutral-700 text-[10px] font-bold tracking-widest border border-neutral-200 rounded-2xl hover:bg-neutral-50 transition-colors"
             >
@@ -1853,6 +1859,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
 
   return (
     <div className="p-4 space-y-4 overflow-y-auto flex-1 h-full">
+      {confirmNode}{promptNode}
       <div className="flex items-center justify-between mb-4 mt-2">
         <div>
           <h2 className="text-[14px] font-black tracking-tight text-neutral-800 uppercase">Home Layout</h2>
@@ -1946,8 +1953,8 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
             {HOME_LAYOUT_TEMPLATES.map((tpl) => (
               <button
                 key={tpl.id}
-                onClick={() => {
-                  if (!confirm(`Apply "${tpl.name}"? Your current ${sections.length}-section layout will be saved as the alternate layout.`)) return;
+                onClick={async () => {
+                  if (!(await askConfirm({ title: "Apply layout?", message: `Apply "${tpl.name}"? Your current ${sections.length}-section layout will be saved as the alternate layout.`, confirmLabel: "Apply layout" }))) return;
                   update("altSections", JSON.parse(JSON.stringify(sections)));
                   updateSections(buildTemplateSections(tpl));
                 }}
@@ -2248,6 +2255,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
 }
 
 function PagesPanel({ pages, setPages, design, update }: any) {
+  const [askConfirm, confirmNode] = useConfirm();
   const [editingPage, setEditingPage] = useState<any | null>(null);
   const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null);
 
@@ -2272,7 +2280,7 @@ function PagesPanel({ pages, setPages, design, update }: any) {
   };
 
   const deletePage = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this page?")) return;
+    if (!(await askConfirm({ title: "Delete page?", message: "Are you sure you want to delete this page?", confirmLabel: "Delete page" }))) return;
     await adminApi.deletePage(id);
     setPages(pages.filter((p: any) => p.id !== id));
     if (editingPage?.id === id) setEditingPage(null);
@@ -2281,6 +2289,7 @@ function PagesPanel({ pages, setPages, design, update }: any) {
   if (editingPage) {
     return (
       <div className="flex-1 flex flex-col bg-black overflow-hidden">
+        {confirmNode}
         <SubPanelHeader 
           title={`Edit Page: ${editingPage.title}`} 
           onBack={() => setEditingPage(null)} 
@@ -2326,7 +2335,7 @@ function PagesPanel({ pages, setPages, design, update }: any) {
           <div className="p-8 bg-red-500/5 border border-red-500/10 rounded-[2rem] space-y-4">
             <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest italic">Danger Protocol</h4>
             <button
-              onClick={() => { if(confirm("Confirm page deletion?")) deletePage(editingPage.id); }}
+              onClick={() => deletePage(editingPage.id)}
               className="rp-btn rp-btn-danger w-full"
             >
               Terminate Page
@@ -2409,8 +2418,8 @@ function PagesPanel({ pages, setPages, design, update }: any) {
           <div className="p-8 bg-red-500/5 border border-red-500/10 rounded-[2rem] space-y-4">
             <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest italic">Removal Protocol</h4>
             <button
-              onClick={() => {
-                if (confirm("Terminate this category?")) {
+              onClick={async () => {
+                if (await askConfirm({ title: "Remove category?", message: "Remove this category from the menu? You can re-add it later.", confirmLabel: "Remove category" })) {
                   const newCats = categories.filter((_: any, i: number) => i !== editingCategoryIndex);
                   update("categories", newCats, true);
                   setEditingCategoryIndex(null);
@@ -2428,6 +2437,7 @@ function PagesPanel({ pages, setPages, design, update }: any) {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden space-y-8">
+      {confirmNode}
       {/* Navigation Categories Section */}
       <div className="p-8 bg-white/[0.02] border-b border-white/5">
         <div className="flex items-center justify-between mb-8">
@@ -5399,6 +5409,7 @@ export interface ThemeEditorProps {
 }
 
 export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: ThemeEditorProps) {
+  const [askThemeConfirm, themeConfirmNode] = useConfirm();
   const getInitialDesign = (source?: any) => {
     const baseDesign = adminApi.getDefaultSettings().design;
     const incomingDesign = source ?? settings?.draftDesign ?? settings?.design ?? {};
@@ -5902,7 +5913,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
       setShowPublishModal(false);
       setScheduleInput("");
     } catch {
-      alert("Could not schedule the publish");
+      toast.error("Could not schedule the publish");
     }
   };
 
@@ -5911,7 +5922,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
       await adminApi.cancelScheduledPublish();
       setScheduledAt(null);
     } catch {
-      alert("Could not cancel the scheduled publish");
+      toast.error("Could not cancel the scheduled publish");
     }
   };
 
@@ -5994,8 +6005,8 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
   }, []);
 
   const themePresetOptions = useMemo(
-    () => ({ applyGlobal: applyGlobalDesignKeys, installHomepageLayout }),
-    [applyGlobalDesignKeys, installHomepageLayout],
+    () => ({ applyGlobal: applyGlobalDesignKeys, installHomepageLayout, askConfirm: askThemeConfirm }),
+    [applyGlobalDesignKeys, installHomepageLayout, askThemeConfirm],
   );
 
   const undo = () => {
@@ -6076,7 +6087,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch {
-      alert("Error saving design");
+      toast.error("Error saving design");
     } finally {
       setSaving(false);
       setSavingDraft(false);
@@ -6700,49 +6711,16 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
         actions={commandActions}
       />
 
-      <AnimatePresence>
-        {showDiscardModal && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl" role="presentation">
-            <motion.div
-              role="alertdialog"
-              aria-modal="true"
-              aria-labelledby="discard-draft-title"
-              aria-describedby="discard-draft-description"
-              initial={{ opacity: 0, scale: 0.94, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.94, y: 20 }}
-              className="w-full max-w-md rounded-[2.5rem] border border-red-500/20 bg-[#0c0c0e] p-10 text-center shadow-[0_0_80px_rgba(239,68,68,0.14)]"
-            >
-              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-400">
-                <AlertCircle size={28} />
-              </div>
-              <h3 id="discard-draft-title" className="mb-3 text-2xl font-black uppercase italic tracking-tight text-white">
-                Discard unpublished changes?
-              </h3>
-              <p id="discard-draft-description" className="mb-8 text-sm font-medium leading-relaxed text-slate-400">
-                This permanently replaces the working draft with the current live theme. Your published storefront will not change.
-              </p>
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={discardDraft}
-                  disabled={discardingDraft}
-                  autoFocus
-                  className="rounded-2xl bg-red-500 px-5 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-white transition hover:bg-red-400 disabled:opacity-50"
-                >
-                  {discardingDraft ? "Discarding…" : "Yes, discard draft"}
-                </button>
-                <button
-                  onClick={() => setShowDiscardModal(false)}
-                  disabled={discardingDraft}
-                  className="rounded-2xl px-5 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 transition hover:text-white disabled:opacity-50"
-                >
-                  Keep editing
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {themeConfirmNode}
+      <Dialog open={showDiscardModal} onClose={() => { if (!discardingDraft) setShowDiscardModal(false); }} title="Discard unpublished changes?" badge="⚠"
+        footer={<>
+          <SecondaryButton data-autofocus onClick={() => setShowDiscardModal(false)} disabled={discardingDraft}>Keep editing</SecondaryButton>
+          <DestructiveButton onClick={discardDraft} disabled={discardingDraft}>{discardingDraft ? "Discarding…" : "Yes, discard draft"}</DestructiveButton>
+        </>}>
+        <p className="rp-card-desc" style={{ margin: 0, fontSize: "var(--rp-text-base)" }}>
+          This permanently replaces the working draft with the current live theme. Your published storefront will not change.
+        </p>
+      </Dialog>
 
       {/* ── Interactive Tour Portal ── */}
       {tourStep !== null && (
@@ -6870,76 +6848,29 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
         </div>
       )}
 
-      {/* Publish Confirmation Modal */}
-      <AnimatePresence>
-        {showPublishModal && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 30 }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="bg-[#0c0c0e] border border-white/10 rounded-[3rem] shadow-[0_0_100px_rgba(124,58,237,0.2)] w-full max-w-lg overflow-hidden relative"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-violet-600/10 via-transparent to-cyan-600/10 pointer-events-none" />
-              <div className="p-16 text-center relative z-10">
-                <div className="w-24 h-24 bg-violet-600/10 border border-violet-500/20 rounded-[2.5rem] flex items-center justify-center mx-auto mb-10 text-violet-400 rotate-12 group-hover:rotate-0 transition-transform duration-700">
-                  <Globe size={40} strokeWidth={2.5} />
-                </div>
-                <h3 className="text-4xl font-black text-white tracking-tighter uppercase italic mb-4">Deploy Changes?</h3>
-                <p className="text-slate-400 text-[14px] leading-relaxed mb-12 max-w-sm mx-auto font-medium">
-                  The current design protocol will be synchronized with the live storefront edge nodes.
-                </p>
-
-                <div className="flex flex-col gap-4">
-                  <button
-                    onClick={async () => {
-                      setShowPublishModal(false);
-                      await handleSave({ publish: true });
-                    }}
-                    className="w-full bg-white text-black py-5 rounded-2xl text-[12px] font-black tracking-[0.3em] uppercase italic hover:bg-slate-200 transition-all active:scale-[0.98] shadow-2xl"
-                  >
-                    Publish Now
-                  </button>
-
-                  {/* Schedule for later */}
-                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 space-y-3 text-left">
-                    <p className="text-[9px] font-black tracking-[0.3em] text-amber-400 uppercase italic flex items-center gap-2">
-                      <Clock size={11} /> Or schedule for later
-                    </p>
-                    <div className="flex gap-2">
-                      <input
-                        type="datetime-local"
-                        value={scheduleInput}
-                        min={new Date(Date.now() + 5 * 60_000).toISOString().slice(0, 16)}
-                        onChange={(e) => setScheduleInput(e.target.value)}
-                        className="flex-1 bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2.5 text-[11px] font-bold text-slate-200 outline-none focus:border-amber-500/50 [color-scheme:dark]"
-                      />
-                      <button
-                        onClick={schedulePublish}
-                        disabled={!scheduleInput}
-                        className="px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest bg-amber-500/15 border border-amber-500/30 text-amber-300 hover:bg-amber-500/25 transition-all disabled:opacity-30"
-                      >
-                        Schedule
-                      </button>
-                    </div>
-                    <p className="text-[8px] text-slate-600 font-bold leading-relaxed">
-                      The current design goes live automatically at this time — shoppers see it the moment it passes.
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() => setShowPublishModal(false)}
-                    className="rp-btn rp-btn-ghost w-full"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </motion.div>
+      <Dialog open={showPublishModal} onClose={() => setShowPublishModal(false)} title="Publish changes?" badge="🌐"
+        description="The current design goes live on the storefront the moment you publish."
+        footer={<>
+          <SecondaryButton onClick={() => setShowPublishModal(false)}>Cancel</SecondaryButton>
+          <PrimaryButton data-autofocus onClick={async () => { setShowPublishModal(false); await handleSave({ publish: true }); }}>Publish now</PrimaryButton>
+        </>}>
+        <div className="rp-field">
+          <label className="rp-label" htmlFor="te-schedule-at"><Clock size={12} aria-hidden style={{ display: "inline", marginRight: 6 }} />Or schedule for later</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              id="te-schedule-at"
+              type="datetime-local"
+              className="rp-input"
+              style={{ flex: 1 }}
+              value={scheduleInput}
+              min={new Date(Date.now() + 5 * 60_000).toISOString().slice(0, 16)}
+              onChange={(e) => setScheduleInput(e.target.value)}
+            />
+            <SecondaryButton onClick={schedulePublish} disabled={!scheduleInput}>Schedule</SecondaryButton>
           </div>
-        )}
-      </AnimatePresence>
+          <p className="rp-card-desc" style={{ margin: 0 }}>The design goes live automatically at this time — shoppers see it the moment it passes.</p>
+        </div>
+      </Dialog>
 
       {/* ── Body ── */}
       <div className="flex flex-1 overflow-hidden relative">
@@ -7420,7 +7351,7 @@ function SidebarAssetUpload({ value, onChange, label, type }: any) {
       const url = await adminApi.uploadBrandAsset(file, type);
       onChange(url);
     } catch {
-      alert("Upload failed");
+      toast.error("Upload failed");
     } finally {
       setUploading(false);
     }

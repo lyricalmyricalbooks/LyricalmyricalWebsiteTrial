@@ -632,3 +632,56 @@
 .rp[data-te][data-te] :is([class*="border-violet-"], [class*="border-indigo-"], [class*="border-blue-"], [class*="border-cyan-"], [class*="border-sky-"]) { border-color: var(--rp-border-strong); }
 .rp[data-te][data-te] :is([class*="bg-violet-"], [class*="bg-indigo-"], [class*="bg-blue-"], [class*="bg-cyan-"], [class*="bg-sky-"]):is([class*="-500/"], [class*="-600/"], [class*="-400/"]) { background-color: var(--rp-primary-tint); }
 .rp[data-te][data-te] :is(.bg-violet-600, .bg-violet-500, .bg-indigo-600, .bg-blue-600, .bg-blue-500, .bg-cyan-600, .bg-sky-500) { background-color: var(--rp-primary); color: var(--rp-on-primary); }
+
+/* ── Book editor panel (Riso drawer; replaces the old dark full-screen takeover) ── */
+.rp-editor-root { z-index: 300; }
+.rp-editor-panel { width: min(100%, 980px) !important; padding: 0; overflow: hidden; }
+.rp-editor-root[data-variant="drawer"] .rp-editor-panel { width: min(100%, 980px); }
+.book-editor-riso { background: var(--rp-canvas); color: var(--rp-text); font-family: var(--rp-font-body); min-height: 0; flex: 1; }
+.book-editor-riso .be-head { background: var(--rp-surface); align-items: center; flex-wrap: wrap; }
+.book-editor-riso .be-id { font-family: var(--rp-font-mono); font-size: var(--rp-text-xs); color: var(--rp-text-subtle); letter-spacing: .06em; text-transform: uppercase; }
+.book-editor-riso .be-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.book-editor-riso .be-alert { margin: 16px 22px 0; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-warning-tint, #fdf0d2); padding: 12px 14px; color: var(--rp-text); }
+.book-editor-riso .be-form { padding: 20px 22px; background: var(--rp-canvas); }
+.book-editor-riso .be-form > * { grid-column: 1 / -1 !important; }
+/* Cards → flat Riso objects */
+.book-editor-riso section { background: var(--rp-surface) !important; border: var(--rp-stroke) solid var(--rp-border-strong) !important; border-radius: var(--rp-radius-lg) !important; box-shadow: var(--rp-shadow-sm) !important; padding: 20px !important; color: var(--rp-text) !important; }
+.book-editor-riso section > div[class*="bg-gradient"] { display: none; }
+.book-editor-riso h4 { font-family: var(--rp-font-display); font-style: italic; font-weight: 600; font-size: var(--rp-text-lg) !important; letter-spacing: 0 !important; text-transform: none !important; color: var(--rp-text) !important; border-bottom: var(--rp-hair) solid var(--rp-divider) !important; padding-bottom: 10px !important; margin-bottom: 16px !important; }
+.book-editor-riso label { font-size: var(--rp-text-sm) !important; font-weight: 700 !important; letter-spacing: .04em !important; color: var(--rp-text) !important; margin-left: 0 !important; }
+/* Inputs */
+.book-editor-riso input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), .book-editor-riso textarea, .book-editor-riso select {
+  background: var(--rp-surface) !important; color: var(--rp-text) !important; border: var(--rp-stroke) solid var(--rp-border-strong) !important; border-radius: var(--rp-radius) !important;
+  padding: 10px 12px !important; font-size: var(--rp-text-base) !important; min-height: 44px; font-weight: 500 !important;
+}
+.book-editor-riso textarea { padding: 12px !important; }
+.book-editor-riso input.font-mono, .book-editor-riso input[class*="text-violet"] { color: var(--rp-primary-text) !important; }
+.book-editor-riso input:focus, .book-editor-riso textarea:focus, .book-editor-riso select:focus, .book-editor-riso button:focus-visible, .book-editor-riso a:focus-visible { outline: 3px solid var(--rp-primary); outline-offset: 2px; }
+.book-editor-riso ::placeholder { color: var(--rp-text-faint); }
+/* Legacy accent colours → Riso tokens */
+.book-editor-riso [class*="text-violet"], .book-editor-riso [class*="text-cyan"], .book-editor-riso [class*="text-sky"], .book-editor-riso [class*="text-emerald"], .book-editor-riso [class*="text-amber"] { color: var(--rp-primary-text) !important; }
+.book-editor-riso [class*="text-slate"] { color: var(--rp-text-subtle) !important; }
+.book-editor-riso [class*="bg-violet-6"], .book-editor-riso [class*="bg-violet-5"] { background: var(--rp-primary) !important; color: var(--rp-on-primary, #100f0d) !important; border: var(--rp-stroke) solid var(--rp-border-strong); }
+.book-editor-riso [class*="bg-slate-50"], .book-editor-riso [class*="bg-violet-50"], .book-editor-riso [class*="bg-violet-100"] { background: var(--rp-surface-2) !important; }
+.book-editor-riso [class*="rounded-2xl"], .book-editor-riso [class*="rounded-3xl"], .book-editor-riso [class*="rounded-[2rem]"], .book-editor-riso [class*="rounded-xl"] { border-radius: var(--rp-radius) !important; }
+.book-editor-riso [class*="border-slate"], .book-editor-riso [class*="border-[#EBEAEF]"] { border-color: var(--rp-border) !important; }
+.book-editor-riso [class*="shadow-"] { box-shadow: none !important; }
+.book-editor-riso button:not(.rp-btn):not(.rp-icon-btn) { font-family: var(--rp-font-body); }
+@media (max-width: 640px) { .rp-editor-panel { width: 100% !important; } }
+
+/* ── Legacy theme-editor pop-ups (font browser, command palette) skinned as Riso dialogs ── */
+.rp-modal-panel { background: var(--rp-surface); color: var(--rp-text); border: var(--rp-stroke) solid var(--rp-border-strong); border-radius: var(--rp-radius-lg); box-shadow: var(--rp-shadow-lg); font-family: var(--rp-font-body); }
+.rp-modal-skin h3 { font-family: var(--rp-font-display); font-style: italic; font-weight: 600; letter-spacing: 0 !important; text-transform: none !important; color: var(--rp-text) !important; }
+.rp-modal-skin [class*="text-white"] { color: var(--rp-text) !important; }
+.rp-modal-skin [class*="text-slate"], .rp-modal-skin [class*="text-neutral"] { color: var(--rp-text-subtle) !important; }
+.rp-modal-skin [class*="text-violet"], .rp-modal-skin [class*="text-amber"] { color: var(--rp-primary-text) !important; }
+.rp-modal-skin [class*="border-white"], .rp-modal-skin [class*="border-amber"], .rp-modal-skin [class*="border-violet"] { border-color: var(--rp-divider) !important; }
+.rp-modal-skin [class*="bg-white/"], .rp-modal-skin [class*="bg-amber-500/"], .rp-modal-skin [class*="bg-violet-500/"] { background: var(--rp-surface-2) !important; }
+.rp-modal-skin [class*="bg-violet-600"] { background: var(--rp-primary) !important; color: var(--rp-on-primary, #100f0d) !important; }
+.rp-modal-skin [class*="bg-violet-600/"] { background: var(--rp-primary-tint) !important; color: var(--rp-text) !important; }
+.rp-modal-skin [class*="rounded-"] { border-radius: var(--rp-radius) !important; }
+.rp-modal-skin input { background: var(--rp-surface) !important; color: var(--rp-text) !important; border: var(--rp-stroke) solid var(--rp-border-strong) !important; }
+.rp-modal-skin ::placeholder { color: var(--rp-text-faint) !important; }
+.rp-modal-skin button:hover:not(:disabled) { border-color: var(--rp-border-strong) !important; }
+.rp-modal-skin button:focus-visible, .rp-modal-skin input:focus-visible { outline: 3px solid var(--rp-primary); outline-offset: 2px; }
+.rp-modal-skin kbd { background: var(--rp-surface-2) !important; color: var(--rp-text) !important; border: var(--rp-hair) solid var(--rp-border-strong) !important; }
