@@ -9,6 +9,7 @@ import {
   getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, DEFAULT_COLOR_SCHEMES,
 } from "../ThemeEditorExtensions";
 import { CATEGORIES } from "../../features/site/constants";
+import { buildNavItems, moveNavItem, renameCategory } from "../../features/site/navItems";
 import { COPY_SCHEMA, DEFAULT_COPY } from "../../features/site/storeCopy";
 import { MENU_LINK_TYPES, newMenuItem, type MenuItem } from "../../features/site/storeMenu";
 import {
@@ -175,13 +176,12 @@ function CategoriesPanel({ design, onChange }: { design: any; onChange: (cats: a
     <div className="p-4 space-y-3 border-b border-neutral-200">
       <div>
         <p className="text-sm font-bold">Shop categories</p>
-        <p className="text-xs text-neutral-500">The names in the shop's category bar (Publications, Ephemera…). Rename, hide, reorder or delete them here.</p>
+        <p className="text-xs text-neutral-500">The names in the shop's category bar (Publications, Ephemera…). Rename, hide, reorder or delete them here. Renaming keeps every book that was filed under the old name.</p>
       </div>
       {cats.map((c, i) => (
         <div key={c.id || i} className="border border-neutral-200 rounded-lg p-2 space-y-2 bg-white">
           <div className="flex items-center gap-1">
-            <input value={c.name} onChange={(e) => patch(i, { name: e.target.value })} aria-label="Category name" placeholder="Category name"
-              className="flex-1 min-w-0 border border-neutral-200 rounded-md px-2 h-8 text-xs" />
+            <CategoryNameInput name={c.name} onCommit={(v) => onChange(renameCategory(cats, i, v))} />
             <button className={iconBtn} onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move category up"><ChevronUp size={14} /></button>
             <button className={iconBtn} onClick={() => move(i, 1)} disabled={i === cats.length - 1} aria-label="Move category down"><ChevronDown size={14} /></button>
             <button className={iconBtn} aria-label="Delete category"
@@ -194,6 +194,43 @@ function CategoriesPanel({ design, onChange }: { design: any; onChange: (cats: a
         </div>
       ))}
       <button className={btn} onClick={() => onChange([...cats, { id: `cat-${Date.now()}`, name: "NEW CATEGORY", description: "", showInNav: true }])}><Plus size={14} /> Add category</button>
+    </div>
+  );
+}
+
+// Edits locally and commits on blur/Enter, so a rename is recorded once (not per keystroke).
+function CategoryNameInput({ name, onCommit }: { name: string; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState(name);
+  useEffect(() => setDraft(name), [name]);
+  const done = () => { if (draft.trim() && draft.trim() !== name) onCommit(draft); else setDraft(name); };
+  return (
+    <input value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={done}
+      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setDraft(name); (e.target as HTMLInputElement).blur(); } }}
+      aria-label="Category name" placeholder="Category name"
+      className="flex-1 min-w-0 border border-neutral-200 rounded-md px-2 h-8 text-xs" />
+  );
+}
+
+// ── Header bar order (categories + in-menu pages, one sequence) ────────────
+function NavOrderPanel({ design, pages, onChange }: { design: any; pages: any[]; onChange: (order: string[]) => void }) {
+  const raw: any[] = Array.isArray(design.categories) ? design.categories : [...CATEGORIES];
+  const cats = raw.map((c, i) => (typeof c === "string" ? { id: `cat-${i}`, name: c, description: "", showInNav: true } : c));
+  const items = buildNavItems(cats, pages, design.navOrder);
+  return (
+    <div className="p-4 space-y-3 border-b border-neutral-200">
+      <div>
+        <p className="text-sm font-bold">Header bar order</p>
+        <p className="text-xs text-neutral-500">Categories and pages share one bar across the top of the shop. Use the arrows to put them in any order. New pages are added at the end.</p>
+      </div>
+      {items.length === 0 && <p className="text-xs text-neutral-400">Nothing is set to show in the header yet.</p>}
+      {items.map((it, i) => (
+        <div key={it.key} className="flex items-center gap-1 border border-neutral-200 rounded-lg px-2 py-1 bg-white">
+          <span className="flex-1 min-w-0 truncate text-xs font-bold uppercase">{it.label}</span>
+          <span className="text-[10px] uppercase tracking-wider text-neutral-400">{it.kind === "page" ? "Page" : "Category"}</span>
+          <button className={iconBtn} onClick={() => onChange(moveNavItem(items, i, -1))} disabled={i === 0} aria-label={`Move ${it.label} earlier`}><ChevronUp size={14} /></button>
+          <button className={iconBtn} onClick={() => onChange(moveNavItem(items, i, 1))} disabled={i === items.length - 1} aria-label={`Move ${it.label} later`}><ChevronDown size={14} /></button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -674,6 +711,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             {leftTab === "menus" && (
               <>
                 <CategoriesPanel design={design} onChange={(c) => setStyle("categories", c)} />
+                <NavOrderPanel design={design} pages={pages} onChange={(o) => setStyle("navOrder", o)} />
                 <MenusPanel design={design} pages={pages} onChange={(m) => setStyle("menus", m)} />
               </>
             )}

@@ -604,8 +604,6 @@ export const adminApi = {
       navHeading: "INFO",
       headerLinks: {
         showEnterArchive: true,
-        showInformation: true,
-        showCustomPages: true,
         showBag: true,
         showSys: true,
       },

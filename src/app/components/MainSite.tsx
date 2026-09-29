@@ -18,6 +18,7 @@ import { useSiteData } from "../features/site/useSiteData";
 import { BootSplash } from "./BootSplash";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
+import { buildNavItems } from "../features/site/navItems";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { resolveFooterBadges } from "../features/site/paymentBadges";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
@@ -113,121 +114,6 @@ function MaintenancePage({ message, design }: { message?: string; design?: any }
         </Link>
       </div>
     </div>
-  );
-}
-
-// ──────────────────────────────
-// About panel
-// ──────────────────────────────
-function AboutPanel({ settings, pages, onClose }: { settings: any; pages: any[]; onClose: () => void }) {
-  const navPages = (pages || []).filter(p => p.showInNav && p.status === "published");
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] flex justify-end"
-      onClick={onClose}
-    >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <motion.aside
-        initial={{ x: "100%" }}
-        animate={{ x: 0 }}
-        exit={{ x: "100%" }}
-        transition={{ type: "spring", stiffness: 300, damping: 35 }}
-        onClick={(e) => e.stopPropagation()}
-        className="relative z-10 w-full max-w-md fm-surface border-l border-white/10 h-full overflow-y-auto flex flex-col"
-      >
-        <div className="flex justify-between items-center px-8 py-6 border-b border-white/10">
-          <span className="text-[10px] tracking-[0.5em] text-white/40 uppercase">{getCopy(settings?.design, "aboutTitle")}</span>
-          <button onClick={onClose} aria-label={getCopy(settings?.design, "aboutCloseAria")} className="p-2 hover:bg-white/5 rounded-full transition-colors">
-            <X size={18} className="text-white/60" />
-          </button>
-        </div>
-
-        <div className="flex-1 px-8 py-10 space-y-10">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight mb-4">
-              {settings?.info?.name || "Lyricalmyrical Books"}
-            </h2>
-            <p className="text-white/50 text-sm leading-relaxed">
-              {settings?.info?.description || 
-                getCopy(settings?.design, "aboutIntro")}
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="text-[9px] tracking-[0.5em] text-white/30 uppercase">{getCopy(settings?.design, "aboutMissionHeading")}</h3>
-            <p className="text-white/50 text-sm leading-relaxed">
-              {getCopy(settings?.design, "aboutMission")}
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="text-[9px] tracking-[0.5em] text-white/30 uppercase">{getCopy(settings?.design, "aboutContactHeading")}</h3>
-            {(settings?.info?.email || "lyricalmyricalbooks@gmail.com") && (
-              <a
-                href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
-                className="flex items-center gap-3 text-sm text-white/60 hover:text-white transition-colors"
-              >
-                <Mail size={14} />
-                {settings?.info?.email || "lyricalmyricalbooks@gmail.com"}
-              </a>
-            )}
-            {settings?.location?.city && (
-              <p className="text-sm text-white/40">
-                {settings.location.city}, {settings.location.state || settings.location.country}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="text-[9px] tracking-[0.5em] text-white/30 uppercase">{getCopy(settings?.design, "aboutFollowHeading")}</h3>
-            <a
-              href="https://www.instagram.com/lyricalmyricalbooks"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 text-sm text-white/60 hover:text-white transition-colors"
-            >
-              <Instagram size={14} />
-              @lyricalmyricalbooks
-            </a>
-            <a
-              href="https://www.instagram.com/julninja"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 text-sm text-white/60 hover:text-white transition-colors"
-            >
-              <Instagram size={14} />
-              @julninja (founder)
-            </a>
-          </div>
-
-          <div className="pt-6 border-t border-white/10 space-y-2 text-[10px] text-white/30 font-medium">
-            <Link to="/" className="block hover:text-white transition-colors">{getCopy(settings?.design, "aboutShopAll")}</Link>
-            {navPages.map(page => (
-              <Link 
-                key={page.id} 
-                to={`/page/${page.slug}`} 
-                onClick={onClose}
-                className="block hover:text-white transition-colors uppercase"
-              >
-                {page.title}
-              </Link>
-            ))}
-            {settings?.policies?.shipping && (
-              <p className="cursor-default">{getCopy(settings?.design, "aboutShippingNote")}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="px-8 py-6 border-t border-white/10">
-          <p className="text-[9px] tracking-widest text-white/20 uppercase">
-            © {new Date().getFullYear()} Lyricalmyrical Books
-          </p>
-        </div>
-      </motion.aside>
-    </motion.div>
   );
 }
 
@@ -368,7 +254,7 @@ const PAYMENT_ICONS: Record<string, React.ReactNode> = {
 // ──────────────────────────────
 // Full footer
 // ──────────────────────────────
-function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: any[]; onAboutOpen: () => void }) {
+function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
   const navPages = (pages || []).filter(p => p.showInNav && p.status === "published");
   const rawDesign = settings?.design || {};
   const d = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? rawDesign.storefront : rawDesign;
@@ -401,7 +287,6 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
             <FooterMenu items={settings.design.menus.footer} />
           ) : (
             <>
-              <button onClick={onAboutOpen} className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkAbout")}</button>
               <Link to="/" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkShop")}</Link>
               <Link to="/track" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkTrack")}</Link>
               {navPages.map(page => (
@@ -840,6 +725,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     }
     return cat;
   }), [rawCategories]);
+  // Categories and in-menu pages share one header bar; Studio › Menus › Header bar order sets the sequence.
+  const navOrder = activeDesign?.navOrder || storefrontDesign?.navOrder || legacyDesign?.navOrder;
+  const navItems = useMemo(() => buildNavItems(categories, pages || [], navOrder), [categories, pages, navOrder]);
 
   useEffect(() => {
     if (legacyDesign?.showHero === false && !showCatalog) {
@@ -862,7 +750,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       }
     }
   }, [categories]);
-  const [showAbout, setShowAbout] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -945,12 +832,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const heroHeaderLinks = heroDesign?.headerLinks || {};
   const storefrontHeaderLinks = storefrontDesign?.headerLinks || {};
   const showEnterArchive = heroHeaderLinks.showEnterArchive ?? true;
-  const showInformation = showCatalog
-    ? (storefrontHeaderLinks.showInformation ?? true)
-    : (heroHeaderLinks.showInformation ?? true);
-  const showCustomPages = showCatalog
-    ? (storefrontHeaderLinks.showCustomPages ?? true)
-    : (heroHeaderLinks.showCustomPages ?? true);
   const showBag = showCatalog
     ? (storefrontHeaderLinks.showBag ?? true)
     : (heroHeaderLinks.showBag ?? true);
@@ -1165,10 +1046,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     </button>
                   );
                 })}
-                {showCustomPages && (pages || []).filter((p: any) => p.showInNav && p.status === "published").map((page: any) => (
+                {(pages || []).filter((p: any) => p.showInNav && p.status === "published").map((page: any) => (
                   <Link key={page.id} to={`/page/${page.slug}`} className="hover:opacity-70 transition-opacity">{page.title}</Link>
                 ))}
-                {showInformation && <button onClick={() => setShowAbout(true)} className="hover:opacity-70 transition-opacity">{getCopy(activeDesign, "navAbout")}</button>}
                 <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity">{getCopy(activeDesign, "navSearch")}</button>
                 {showSys && (
                   <Link to="/admin" className="hover:opacity-70 transition-opacity opacity-40">{getCopy(activeDesign, "navAdmin")}</Link>
@@ -1196,17 +1076,32 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               )}
               
               <nav className={`hidden md:flex ${storefrontDesign?.navStyle === "stickers" ? "gap-2 items-center" : "gap-6"}`}>
-                {categories.filter((c: any) => c.showInNav !== false).map((cat: any, catIdx: number) => {
-                  const catName = typeof cat === "string" ? cat : cat.name;
-                  const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === catName;
+                {navItems.map((item, itemIdx) => {
                   const stickers = storefrontDesign?.navStyle === "stickers";
+                  if (item.kind === "page") {
+                    return (
+                      <Link
+                        key={item.key}
+                        to={`/page/${item.page.slug}`}
+                        style={{
+                          color: headerTextColor,
+                          ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx) : {}),
+                        }}
+                        className={`text-[10px] tracking-[0.2em] font-medium uppercase transition-all opacity-40 hover:opacity-80 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  }
+                  const cat = item.category;
+                  const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === item.label;
                   return (
                     <button
-                      key={catName}
+                      key={item.key}
                       onClick={() => setActiveCategory(cat)}
                       style={{
                         color: headerTextColor,
-                        ...(stickers ? stickerPillStyle(storefrontDesign, catIdx, isActive) : {}),
+                        ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx, isActive) : {}),
                       }}
                       className={`text-[10px] tracking-[0.2em] font-medium transition-all ${
                         stickers ? "fm-sticker-pill" : ""
@@ -1215,7 +1110,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       }`}
                       aria-current={isActive ? "true" : undefined}
                     >
-                      {catName}
+                      {item.label}
                     </button>
                   );
                 })}
@@ -1247,55 +1142,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 </button>
               )}
 
-              {showCustomPages && (
-                storefrontDesign?.menus?.header?.length > 0 ? (
-                  <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={storefrontDesign.menus.header} /></div>
-                ) : (
-                <nav className="hidden lg:flex items-center gap-6 mr-2" style={{ color: headerTextColor }}>
-                  {pages.some((p:any) => p.showInNav && p.status === "published") && (
-                    <span className="text-[10px] tracking-[0.3em] font-bold opacity-25 uppercase select-none mr-2">
-                      {storefrontDesign?.navHeading || "INFO"}
-                    </span>
-                  )}
-                  {(pages || [])
-                    .filter((p: any) => p.showInNav && p.status === "published")
-                    .map((page: any, pageIdx: number) => (
-                      <Link
-                        key={page.id}
-                        to={`/page/${page.slug}`}
-                        className={`opacity-40 hover:opacity-100 transition-opacity whitespace-nowrap ${
-                          storefrontDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
-                        }`}
-                        style={{
-                          fontSize: storefrontDesign?.navLinkSize ? `${storefrontDesign.navLinkSize}px` : "10px",
-                          letterSpacing: storefrontDesign?.navLinkSpacing != null ? `${storefrontDesign.navLinkSpacing}em` : "0.2em",
-                          fontWeight: storefrontDesign?.navLinkWeight || undefined,
-                          textTransform: (storefrontDesign?.navLinkTransform as any) || "uppercase",
-                          ...(storefrontDesign?.navLinkColor && { color: storefrontDesign.navLinkColor }),
-                          ...(storefrontDesign?.navStyle === "stickers" ? stickerPillStyle(storefrontDesign, pageIdx + 2) : {}),
-                        }}
-                      >
-                        {page.title}
-                      </Link>
-                    ))}
-                </nav>
-                )
+              {storefrontDesign?.menus?.header?.length > 0 && (
+                <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={storefrontDesign.menus.header} /></div>
               )}
 
-              {showInformation && (
-                <button
-                  onClick={() => setShowAbout(true)}
-                  style={{
-                    color: headerTextColor,
-                    ...(storefrontDesign?.navStyle === "stickers" ? stickerPillStyle(storefrontDesign, 3) : {}),
-                  }}
-                  className={`text-[10px] tracking-[0.2em] opacity-50 hover:opacity-100 transition-opacity hidden md:block ${
-                    storefrontDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
-                  }`}
-                >
-                  {getCopy(activeDesign, "navInformation")}
-                </button>
-              )}
               <button
                 onClick={() => setSearchOpen(true)}
                 aria-label={getCopy(activeDesign, "ariaSearch")}
@@ -1413,6 +1263,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   </button>
                 );
               })}
+              {navItems.filter((i) => i.kind === "page").map((i: any) => (
+                <Link
+                  key={i.key}
+                  to={`/page/${i.page.slug}`}
+                  className="rounded-full border border-white/10 fm-muted hover:border-white/40 px-4 py-2 text-[11px] font-bold tracking-[0.06em] uppercase transition-colors"
+                >
+                  {i.label}
+                </Link>
+              ))}
             </div>
           )}
 
@@ -1605,14 +1464,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         />
         <RecentlyViewedRow />
         <Newsletter design={settings?.design} />
-        <SiteFooter settings={settings} pages={pages} onAboutOpen={() => setShowAbout(true)} />
+        <SiteFooter settings={settings} pages={pages} />
         {(storefrontDesign?.showPoweredBy ?? false) && (
           <p className="text-center pb-8 text-[9px] tracking-[0.3em] uppercase opacity-50">{getCopy(activeDesign, "poweredBy")}</p>
         )}
 
         {/* About panel */}
         <AnimatePresence>
-          {showAbout && <AboutPanel settings={settings} pages={pages} onClose={() => setShowAbout(false)} />}
         </AnimatePresence>
 
         <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} design={activeDesign} />
@@ -1685,23 +1543,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             </button>
           )}
 
-          {showInformation && (
-            <button
-              onClick={() => setShowAbout(true)}
-              style={{
-                color: homeHeaderTextColor,
-                ...(heroDesign?.navStyle === "stickers" ? stickerPillStyle(heroDesign, 3) : {}),
-              }}
-              className={`text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-80 hover:opacity-100 transition-opacity hidden md:block ${
-                heroDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
-              }`}
-            >
-              {getCopy(activeDesign, "navInformation")}
-            </button>
-          )}
           
           {/* Custom Pages in Home Header */}
-          {showCustomPages && (
+          {(
             heroDesign?.menus?.header?.length > 0 ? (
               <div style={{ color: homeHeaderTextColor }}><StoreMenu items={heroDesign.menus.header} /></div>
             ) : (
@@ -1841,7 +1685,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
       {/* About panel (available from homepage too) */}
       <AnimatePresence>
-        {showAbout && <AboutPanel settings={settings} pages={pages} onClose={() => setShowAbout(false)} />}
       </AnimatePresence>
 
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} design={activeDesign} />
