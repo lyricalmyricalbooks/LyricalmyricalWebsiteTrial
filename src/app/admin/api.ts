@@ -976,7 +976,8 @@ export const adminApi = {
     const dailyData = snap.docs.map(d => d.data()).reverse();
     
     // Also get top sellers from orders
-    const orders = ordersSnap.docs.map(d => d.data()).filter((order: any) => order.isTest !== true);
+    // Paid, real orders only: unpaid checkouts and test orders must not inflate sales figures.
+    const orders = ordersSnap.docs.map(d => d.data()).filter((order: any) => order.isTest !== true && order.paymentStatus === "paid");
 
     // Get all books to map IDs to categories and photos
     const books = booksSnap.docs.map(d => ({ id: d.id, ...d.data() }));

@@ -263,6 +263,11 @@ Orders list + detail, Overview, Books catalog, Discounts, Pages, Settings › Ge
 Payments, Shipping (profiles/zones/rates + dialogs), Notifications (+ Inventory sync). `Dashboard.tsx` renders migrated pages
 outside the legacy wrapper via its `migrated` flag — add new ones there.
 
+**Overview layout** (`AnalyticsDashboard.tsx`): one period control → headline KPIs (revenue,
+orders, average order, conversion — all sales figures from paid, non-test orders via
+`overviewInsights.ts`) → "To do today" beside newest orders → trend chart → tabbed details
+(Sales · Stock · Readers & traffic). Keep new Overview content inside those groups.
+
 **Not yet rebuilt** (still legacy markup, styled by the scoped compatibility layer in
 `theme.css` under `.admin-reso[data-admin-theme="reso"]`, which maps old dark utilities
 and violet/blue accents onto Riso tokens): Taxes/Communications
