@@ -23,7 +23,7 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
         className="flex items-baseline gap-2 whitespace-nowrap normal-case"
         style={{
           ...(design?.headingFont ? { fontFamily: `'${design.headingFont}', serif` } : {}),
-          fontSize: `${size}rem`,
+          fontSize: `min(${size}rem, 6vw)`, // shrinks on phones so the header never overflows
           fontWeight: weight,
           letterSpacing: "-0.01em",
           lineHeight: 1,

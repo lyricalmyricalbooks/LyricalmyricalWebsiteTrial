@@ -170,6 +170,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
   {
     group: "Header & About panel",
     fields: [
+      { key: "navInformation", label: "Nav: Information button", default: "INFORMATION" },
+      { key: "navEnterArchive", label: "Nav: Enter-archive fallback (Navigation › Enter archive label wins)", default: "ENTER ARCHIVE" },
       { key: "navAbout", label: "Nav: About", default: "About" },
       { key: "navSearch", label: "Nav: Search", default: "Search" },
       { key: "navAdmin", label: "Nav: Admin (debug only)", default: "Admin" },

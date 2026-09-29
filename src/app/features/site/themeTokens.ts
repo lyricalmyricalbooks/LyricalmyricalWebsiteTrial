@@ -19,8 +19,12 @@
 // tab, …) reads a token directly via var(--success), var(--favorite), etc.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Convert a hex or rgb()/rgba() color to an "r g b" triplet for use in rgba(var(--x), a). */
-export function hexToRgbTriplet(input?: string, fallback = "255 255 255"): string {
+/**
+ * Convert a hex or rgb()/rgba() color to an "r, g, b" triplet for use in rgba(var(--x), a).
+ * Commas are required: `rgba(255 255 255, 0.4)` (space triplet + comma alpha) is invalid CSS, which
+ * silently dropped every text-white/N, bg-white/N and border-white/N remap.
+ */
+export function hexToRgbTriplet(input?: string, fallback = "255, 255, 255"): string {
   if (!input) return fallback;
   let c = String(input).trim();
 
@@ -30,7 +34,7 @@ export function hexToRgbTriplet(input?: string, fallback = "255 255 255"): strin
     if (parts.length >= 3) {
       const [r, g, b] = parts;
       if ([r, g, b].every((n) => !Number.isNaN(parseInt(n, 10)))) {
-        return `${parseInt(r, 10)} ${parseInt(g, 10)} ${parseInt(b, 10)}`;
+        return `${parseInt(r, 10)}, ${parseInt(g, 10)}, ${parseInt(b, 10)}`;
       }
     }
     return fallback;
@@ -43,7 +47,7 @@ export function hexToRgbTriplet(input?: string, fallback = "255 255 255"): strin
   const g = parseInt(c.slice(2, 4), 16);
   const b = parseInt(c.slice(4, 6), 16);
   if ([r, g, b].some(Number.isNaN)) return fallback;
-  return `${r} ${g} ${b}`;
+  return `${r}, ${g}, ${b}`;
 }
 
 export interface StorefrontTokenInput {
@@ -92,7 +96,7 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
   const danger = design?.dangerColor || "#f43f5e";
   // Muted/secondary body text.
   const muted = design?.mutedTextColor || "#94a3b8";
-  const fgTriplet = hexToRgbTriplet(fg, "255 255 255");
+  const fgTriplet = hexToRgbTriplet(fg, "255, 255, 255");
 
   // Shadow elevation scale.
   const shadowMap = {
@@ -131,32 +135,32 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
     // Border tint: follows the dedicated "Border" color when set, else the
     // foreground. Alpha gradation of each border utility is preserved.
     `--border-rgb: ${hexToRgbTriplet(design?.borderColor, fgTriplet)};`,
-    `--overlay-rgb: ${hexToRgbTriplet(overlay, "0 0 0")};`,
+    `--overlay-rgb: ${hexToRgbTriplet(overlay, "0, 0, 0")};`,
     `--surface: ${surface};`,
-    `--surface-rgb: ${hexToRgbTriplet(surface, "10 10 10")};`,
+    `--surface-rgb: ${hexToRgbTriplet(surface, "10, 10, 10")};`,
     `--surface-2: ${surface2};`,
-    `--surface-2-rgb: ${hexToRgbTriplet(surface2, "23 23 23")};`,
+    `--surface-2-rgb: ${hexToRgbTriplet(surface2, "23, 23, 23")};`,
     `--accent: ${accent};`,
-    `--accent-rgb: ${hexToRgbTriplet(accent, "168 85 247")};`,
+    `--accent-rgb: ${hexToRgbTriplet(accent, "168, 85, 247")};`,
     `--accent-2: ${accent2};`,
-    `--accent-2-rgb: ${hexToRgbTriplet(accent2, "34 211 238")};`,
+    `--accent-2-rgb: ${hexToRgbTriplet(accent2, "34, 211, 238")};`,
     `--success: ${success};`,
-    `--success-rgb: ${hexToRgbTriplet(success, "52 211 153")};`,
+    `--success-rgb: ${hexToRgbTriplet(success, "52, 211, 153")};`,
     `--warning: ${warning};`,
-    `--warning-rgb: ${hexToRgbTriplet(warning, "245 158 11")};`,
+    `--warning-rgb: ${hexToRgbTriplet(warning, "245, 158, 11")};`,
     `--danger: ${danger};`,
-    `--danger-rgb: ${hexToRgbTriplet(danger, "244 63 94")};`,
+    `--danger-rgb: ${hexToRgbTriplet(danger, "244, 63, 94")};`,
     `--favorite: ${favorite};`,
-    `--favorite-rgb: ${hexToRgbTriplet(favorite, "251 113 133")};`,
+    `--favorite-rgb: ${hexToRgbTriplet(favorite, "251, 113, 133")};`,
     `--active-bg: ${activeBg};`,
     `--active-fg: ${activeFg};`,
     `--on-success: ${onSuccess};`,
     `--muted: ${muted};`,
-    `--muted-rgb: ${hexToRgbTriplet(muted, "148 163 184")};`,
+    `--muted-rgb: ${hexToRgbTriplet(muted, "148, 163, 184")};`,
     // Riso Press print treatment — every literal is an editable design key.
     `--rp-outline: ${design?.risoOutlineColor || fg};`,
     `--rp-outline-w: ${Number.isFinite(Number(design?.risoOutlineWidth)) && design?.risoOutlineWidth !== "" && design?.risoOutlineWidth != null ? Number(design.risoOutlineWidth) : 2}px;`,
-    `--rp-shadow-color: ${design?.risoShadowColor || `rgba(${fgTriplet.replace(/ /g, ",")},0.3)`};`,
+    `--rp-shadow-color: ${design?.risoShadowColor || `rgba(${fgTriplet},0.3)`};`,
     `--rp-shadow-x: ${Number.isFinite(Number(design?.risoShadowOffset)) && design?.risoShadowOffset != null && design?.risoShadowOffset !== "" ? Number(design.risoShadowOffset) : 3}px;`,
     `--rp-focus: ${design?.focusRingColor || accent};`,
     `--rp-card-radius: ${Number.isFinite(Number(design?.risoCardRadius)) && design?.risoCardRadius != null && design?.risoCardRadius !== "" ? Number(design.risoCardRadius) : 4}px;`,
@@ -312,7 +316,7 @@ ${RISO_TEXT_FLOOR}
 [data-fm-store] .glass-card{
   backdrop-filter:none;
   background:var(--surface-2,var(--surface));
-  border:var(--rp-outline-w) solid var(--rp-outline);
+  border:var(--rp-outline-w) solid var(--rp-outline) !important;
   border-radius:var(--rp-card-radius);
   box-shadow:var(--rp-shadow-x) var(--rp-shadow-x) 0 var(--rp-shadow-color);
 }
@@ -321,8 +325,11 @@ ${RISO_TEXT_FLOOR}
   text-transform:uppercase;letter-spacing:.09em;font-weight:800;
 }
 [data-fm-store] .custom-btn:hover{box-shadow:var(--rp-shadow-x) var(--rp-shadow-x) 0 var(--rp-shadow-color);}
-[data-fm-store] input,[data-fm-store] select,[data-fm-store] textarea{border-radius:0 !important;box-shadow:none;border:1px solid rgba(var(--border-rgb),.7);}
+[data-fm-store] input,[data-fm-store] select,[data-fm-store] textarea{border-radius:0 !important;box-shadow:none;}
+[data-fm-store] :is(input:not([type=checkbox],[type=radio],[type=range],[type=color],[type=file]),select,textarea):not(.bg-transparent){border:1px solid rgba(var(--border-rgb),.75) !important;}
+[data-fm-store] :is(input,select,textarea):focus-visible{border-color:var(--rp-focus) !important;}
 [data-fm-store] [class*="rounded-"]:not([class*="rounded-full"]){border-radius:0 !important;}
+[data-fm-store] :is(button,a,input,select,label).rounded-full{border-radius:0 !important;}
 [data-fm-store] .glass-card,[data-fm-store] [class*="rounded-[2"],[data-fm-store] [class*="rounded-[3"]{border-radius:var(--rp-card-radius) !important;}
 [data-fm-store] [class*="shadow-"]:not([class*="shadow-none"]):not(.custom-btn){box-shadow:var(--rp-shadow-x) var(--rp-shadow-x) 0 var(--rp-shadow-color) !important;}
 [data-fm-store] :where(a,button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--rp-focus);outline-offset:2px;}

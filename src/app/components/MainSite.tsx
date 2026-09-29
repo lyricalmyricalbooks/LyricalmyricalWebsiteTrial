@@ -1292,7 +1292,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     storefrontDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
                   }`}
                 >
-                  INFORMATION
+                  {getCopy(activeDesign, "navInformation")}
                 </button>
               )}
               <button
@@ -1644,7 +1644,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         }}
       >
         {/* Left Section */}
-        <div className={`flex items-center gap-8 flex-1 ${heroLogoPosition === "center" ? "" : "flex-initial"}`}>
+        <div className={`flex items-center gap-3 md:gap-8 flex-1 ${heroLogoPosition === "center" ? "" : "flex-initial"}`}>
           {heroLogoPosition === "left" && (
             <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
               <LogoMark design={heroLogoDesign} />
@@ -1662,7 +1662,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 heroDesign?.navStyle === "stickers" ? "fm-sticker-pill opacity-70" : ""
               }`}
             >
-              {heroDesign?.enterArchiveLabel || "ENTER ARCHIVE"}
+              {heroDesign?.enterArchiveLabel || getCopy(activeDesign, "navEnterArchive")}
             </button>
           )}
         </div>
@@ -1677,7 +1677,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         )}
 
         {/* Right Section */}
-        <div className={`flex gap-8 items-center flex-1 justify-end ${heroLogoPosition === "right" ? "flex-initial" : ""}`}>
+        <div className={`flex gap-3 md:gap-8 items-center flex-1 justify-end ${heroLogoPosition === "right" ? "flex-initial" : ""}`}>
           {heroLogoPosition === "right" && (
             <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
               <LogoMark design={heroLogoDesign} />
@@ -1695,7 +1695,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 heroDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
               }`}
             >
-              INFORMATION
+              {getCopy(activeDesign, "navInformation")}
             </button>
           )}
           

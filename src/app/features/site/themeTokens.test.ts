@@ -9,21 +9,21 @@ import {
 
 describe("hexToRgbTriplet", () => {
   it("parses 6-digit hex", () => {
-    expect(hexToRgbTriplet("#A855F7")).toBe("168 85 247");
+    expect(hexToRgbTriplet("#A855F7")).toBe("168, 85, 247");
   });
 
   it("parses 3-digit shorthand hex", () => {
-    expect(hexToRgbTriplet("#fff")).toBe("255 255 255");
+    expect(hexToRgbTriplet("#fff")).toBe("255, 255, 255");
   });
 
   it("parses rgb()/rgba()", () => {
-    expect(hexToRgbTriplet("rgba(255, 255, 255, 0.05)")).toBe("255 255 255");
-    expect(hexToRgbTriplet("rgb(10 20 30)")).toBe("10 20 30");
+    expect(hexToRgbTriplet("rgba(255, 255, 255, 0.05)")).toBe("255, 255, 255");
+    expect(hexToRgbTriplet("rgb(10 20 30)")).toBe("10, 20, 30");
   });
 
   it("falls back on invalid input", () => {
-    expect(hexToRgbTriplet(undefined)).toBe("255 255 255");
-    expect(hexToRgbTriplet("not-a-color", "0 0 0")).toBe("0 0 0");
+    expect(hexToRgbTriplet(undefined)).toBe("255, 255, 255");
+    expect(hexToRgbTriplet("not-a-color", "0, 0, 0")).toBe("0, 0, 0");
   });
 });
 
@@ -51,7 +51,7 @@ describe("RISO_STOREFRONT_CSS", () => {
 describe("buildStorefrontTokenVars", () => {
   it("emits defaults when design is empty (preserves current dark look)", () => {
     const css = buildStorefrontTokenVars({});
-    expect(css).toContain("--fg-rgb: 255 255 255;");
+    expect(css).toContain("--fg-rgb: 255, 255, 255;");
     expect(css).toContain("--surface: #0a0a0a;");
     expect(css).toContain("--success: #34d399;");
     expect(css).toContain("--favorite: #fb7185;");
@@ -59,7 +59,7 @@ describe("buildStorefrontTokenVars", () => {
 
   it("derives the foreground triplet from textColor", () => {
     const css = buildStorefrontTokenVars({ textColor: "#111111" });
-    expect(css).toContain("--fg-rgb: 17 17 17;");
+    expect(css).toContain("--fg-rgb: 17, 17, 17;");
   });
 
   it("defaults active-control colors to text/background when unset", () => {
@@ -69,10 +69,10 @@ describe("buildStorefrontTokenVars", () => {
   });
 
   it("border tint defaults to the foreground, follows borderColor when set", () => {
-    expect(buildStorefrontTokenVars({ textColor: "#111111" })).toContain("--border-rgb: 17 17 17;");
-    expect(buildStorefrontTokenVars({ surfaceColor: "#123456", surfaceRaisedColor: "#abcdef" })).toContain("--surface-rgb: 18 52 86;");
-    expect(buildStorefrontTokenVars({ surfaceColor: "#123456", surfaceRaisedColor: "#abcdef" })).toContain("--surface-2-rgb: 171 205 239;");
-    expect(buildStorefrontTokenVars({ borderColor: "#B1B1AA" })).toContain("--border-rgb: 177 177 170;");
+    expect(buildStorefrontTokenVars({ textColor: "#111111" })).toContain("--border-rgb: 17, 17, 17;");
+    expect(buildStorefrontTokenVars({ surfaceColor: "#123456", surfaceRaisedColor: "#abcdef" })).toContain("--surface-rgb: 18, 52, 86;");
+    expect(buildStorefrontTokenVars({ surfaceColor: "#123456", surfaceRaisedColor: "#abcdef" })).toContain("--surface-2-rgb: 171, 205, 239;");
+    expect(buildStorefrontTokenVars({ borderColor: "#B1B1AA" })).toContain("--border-rgb: 177, 177, 170;");
   });
 
   it("honors explicit overrides", () => {
