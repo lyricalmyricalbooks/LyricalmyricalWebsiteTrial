@@ -18,7 +18,7 @@ import ReviewsModeration from "./ReviewsModeration";
 import { adminApi } from "./api";
 import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
-  IconButton, Dialog, ToastProvider, type NavEntry,
+  IconButton, Dialog, ToastProvider, SyncChip, useOnline, type NavEntry,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog } from "./riso/shellParts";
 
@@ -57,6 +57,7 @@ const openSite = () => {
 };
 
 export function Dashboard() {
+  const online = useOnline();
   console.log("Dashboard rendering...");
   const [activeTab, setActiveTab] = useState("overview");
   const [user, setUser] = useState<any>(null);
@@ -276,6 +277,7 @@ export function Dashboard() {
     <ToastProvider>
       <AppShell
         appearance={appearance}
+        overlay={<SyncChip state={online ? null : "offline"} />}
         sidebar={
           <Sidebar
             open={sidebarOpen}
