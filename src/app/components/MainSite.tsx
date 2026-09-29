@@ -1045,7 +1045,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     </button>
                   );
                 })}
-                {showCustomPages && (pages || []).filter((p: any) => p.showInNav && p.status === "published").map((page: any) => (
+                {(pages || []).filter((p: any) => p.showInNav && p.status === "published").map((page: any) => (
                   <Link key={page.id} to={`/page/${page.slug}`} className="hover:opacity-70 transition-opacity">{page.title}</Link>
                 ))}
                 <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity">{getCopy(activeDesign, "navSearch")}</button>
@@ -1098,7 +1098,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     </button>
                   );
                 })}
-                {showCustomPages && (pages || [])
+                {/* Pages marked "Show in the navigation menu" always sit beside the categories. */}
+                {(pages || [])
                   .filter((p: any) => p.showInNav && p.status === "published")
                   .map((page: any, pageIdx: number) => {
                     const stickers = storefrontDesign?.navStyle === "stickers";
@@ -1110,7 +1111,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                           color: headerTextColor,
                           ...(stickers ? stickerPillStyle(storefrontDesign, categories.length + pageIdx) : {}),
                         }}
-                        className={`text-[10px] tracking-[0.2em] font-medium transition-all opacity-40 hover:opacity-80 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
+                        className={`text-[10px] tracking-[0.2em] font-medium uppercase transition-all opacity-40 hover:opacity-80 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
                       >
                         {page.title}
                       </Link>
