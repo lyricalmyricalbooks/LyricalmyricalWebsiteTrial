@@ -696,7 +696,7 @@ function StylePanel({ design, update, presetOptions }: any) {
                 }`}
               >
                 <div className="flex items-center justify-between gap-3 mb-2">
-                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-100 italic">{theme.name}</p>
+                  <p className="text-[11px] font-black uppercase tracking-wider text-slate-100">{theme.name}</p>
                   {isActive && <Check size={14} className="text-violet-300" strokeWidth={3} />}
                 </div>
                 <p className="text-[9px] text-slate-400 font-bold mb-3">{theme.mood}</p>
@@ -752,7 +752,7 @@ function StylePanel({ design, update, presetOptions }: any) {
         </div>
       </Accordion>
 
-      <div className="border-b border-white/5 my-4" />
+      <div className="border-b border-[var(--rp-border)] my-4" />
 
       <Accordion title="Typography">
         <div className="space-y-8">
@@ -784,7 +784,7 @@ function StylePanel({ design, update, presetOptions }: any) {
               value={design.headingFont || design.font || "Inter"}
               onChange={(val) => update("headingFont", val)}
             />
-            <p className="text-[9px] text-slate-600 font-bold mt-2 italic">
+            <p className="text-[9px] text-slate-600 font-bold mt-2">
               Used for all headings. Defaults to the body font.
             </p>
           </div>
@@ -1235,7 +1235,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
             onChange={(v: number) => update("logoHeight", v)}
           />
 
-          <div className="pt-2 space-y-4 border-t border-white/5">
+          <div className="pt-2 space-y-4 border-t border-[var(--rp-border)]">
             <SidebarLabel>Logo Image</SidebarLabel>
             <SidebarAssetUpload
               value={design.logoUrl}
@@ -1275,7 +1275,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
                 update("logoText", undefined);
                 update("logoTint", undefined);
               }}
-              className="w-full bg-white/[0.03] border border-white/10 rounded-xl py-2 text-[10px] font-bold text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all uppercase tracking-wider"
+              className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-xl py-2 text-[10px] font-bold text-slate-400 hover:text-white hover:bg-white/[0.06] transition-all uppercase tracking-wider"
             >
               Reset logo styling
             </button>
@@ -1348,7 +1348,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
               />
             </>
           )}
-          <div className="pt-2 border-t border-white/5">
+          <div className="pt-2 border-t border-[var(--rp-border)]">
             <SidebarLabel>Nav Pill Style</SidebarLabel>
             <SidebarRadioGroup
               value={design.navStyle || "default"}
@@ -1411,7 +1411,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
       </div>
 
       <Accordion title="Layout & Logic">
-        <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden mt-2">
+        <div className="space-y-0 border border-[var(--rp-border)] rounded-xl overflow-hidden mt-2">
           <SidebarToggle
             label="Sticky header"
             description="Keep the navigation bar visible while scrolling"
@@ -1743,7 +1743,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
               <h3 className="text-[12px] font-black text-neutral-800 uppercase tracking-tight truncate">{section.settings?.title || section.type.replace("Section", "")}</h3>
             </div>
           </div>
-          <div className="flex border-t border-neutral-100">
+          <div className="flex border-t border-[var(--rp-border)]">
             {(["content", "design"] as const).map((tab) => (
               <button
                 key={tab}
@@ -1862,7 +1862,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
         </div>
         
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 pr-4 border-r border-neutral-100">
+          <div className="flex items-center gap-2 pr-4 border-r border-[var(--rp-border)]">
              <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Active</span>
              <SidebarToggle 
                 checked={design.showHero ?? true} 
@@ -1872,7 +1872,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
         </div>
       </div>
 
-      <div className="border border-neutral-100 bg-neutral-50/50 rounded-2xl overflow-hidden mb-4">
+      <div className="border border-[var(--rp-border)] bg-neutral-50/50 rounded-2xl overflow-hidden mb-4">
         <button 
           onClick={() => setExpandedSection(expandedSection === "hero-legacy" ? null : "hero-legacy")}
           className="w-full px-4 py-3 flex items-center justify-between rp-row-hover"
@@ -1887,7 +1887,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
         </button>
         
         {expandedSection === "hero-legacy" && (
-          <div className="px-4 py-5 space-y-6 border-t border-neutral-100 bg-white">
+          <div className="px-4 py-5 space-y-6 border-t border-[var(--rp-border)] bg-white">
             <div className="space-y-3">
               <label className="text-[9px] tracking-widest text-neutral-400 uppercase font-black">Content Alignment</label>
               <div className="grid grid-cols-3 gap-2">
@@ -1907,7 +1907,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
               </div>
             </div>
             
-            <div className="flex items-center justify-between p-4 rounded-2xl bg-neutral-50 border border-neutral-100">
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-[var(--rp-surface-2)] border border-[var(--rp-border)]">
               <div className="flex items-center gap-3">
                 <RefreshCw size={14} className="text-neutral-400" />
                 <span className="text-[11px] font-bold text-neutral-600 uppercase">Auto-Rotate</span>
@@ -1927,7 +1927,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
       <ABLayoutSwitcher design={design} update={update} />
 
       {/* Start from a curated full-page layout */}
-      <div className="border border-neutral-100 bg-neutral-50/50 rounded-2xl overflow-hidden">
+      <div className="border border-[var(--rp-border)] bg-neutral-50/50 rounded-2xl overflow-hidden">
         <button
           onClick={() => setExpandedSection(expandedSection === "layout-templates" ? null : "layout-templates")}
           className="w-full px-4 py-3 flex items-center justify-between rp-row-hover"
@@ -1941,7 +1941,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
           <ChevronRight size={14} className={`text-neutral-400 transition-transform ${expandedSection === "layout-templates" ? "rotate-90" : ""}`} />
         </button>
         {expandedSection === "layout-templates" && (
-          <div className="px-4 py-4 space-y-2 border-t border-neutral-100 bg-white">
+          <div className="px-4 py-4 space-y-2 border-t border-[var(--rp-border)] bg-white">
             <p className="text-[9px] text-neutral-400 font-medium leading-relaxed mb-2">
               Replace this page's sections with a curated arrangement. Your current layout is kept as the alternate (A/B) layout.
             </p>
@@ -1953,7 +1953,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                   update("altSections", JSON.parse(JSON.stringify(sections)));
                   updateSections(buildTemplateSections(tpl));
                 }}
-                className="w-full text-left p-3 rounded-xl border border-neutral-200 hover:border-violet-400 hover:bg-violet-50/40 transition-all"
+                className="w-full text-left p-3 rounded-xl border border-[var(--rp-border)] hover:border-violet-400 hover:bg-violet-50/40 transition-all"
               >
                 <div className="flex items-center justify-between mb-0.5">
                   <p className="text-[11px] font-black text-neutral-800 uppercase tracking-tight">{tpl.name}</p>
@@ -1992,7 +1992,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
          }}
        >
         {sections.length === 0 ? (
-          <div className="py-10 text-center border-2 border-dashed border-neutral-100 rounded-[2rem] bg-neutral-50/50">
+          <div className="py-10 text-center border-2 border-dashed border-[var(--rp-border)] rounded-[2rem] bg-neutral-50/50">
              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm"><LayoutTemplate size={20} className="text-neutral-300" /></div>
              <p className="text-[11px] text-neutral-400 font-medium px-8 mb-5">Your homepage is empty. Drag a section here from the library, or start by adding a Hero section.</p>
              <div className="px-5">
@@ -2114,7 +2114,7 @@ function HomepagePanel({ design, update, colorSchemes = [], requestedSectionId, 
                         {blocks.length} {meta.blockLabel?.toLowerCase()}{blocks.length === 1 ? "" : "s"}
                       </button>
                       {isOpen && (
-                        <div className="mt-1.5 ml-12 pl-3 border-l-2 border-neutral-100 space-y-0.5">
+                        <div className="mt-1.5 ml-12 pl-3 border-l-2 border-[var(--rp-border)] space-y-0.5">
                           {blocks.map((block: any, bi: number) => (
                             <div key={bi} className="flex items-center justify-between gap-2 py-1 group/block">
                               <button
@@ -2288,7 +2288,7 @@ function PagesPanel({ pages, setPages, design, update }: any) {
           onBack={() => setEditingPage(null)} 
         />
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8">
-          <div className="p-6 bg-white/[0.03] border border-white/10 rounded-[2rem] relative overflow-hidden group">
+          <div className="p-6 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-[2rem] relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-br from-cyan-600/5 to-transparent pointer-events-none" />
             <div className="space-y-8 relative z-10">
               <div>
@@ -2326,7 +2326,7 @@ function PagesPanel({ pages, setPages, design, update }: any) {
           </div>
           
           <div className="p-8 bg-red-500/5 border border-red-500/10 rounded-[2rem] space-y-4">
-            <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest italic">Danger Protocol</h4>
+            <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest">Danger Protocol</h4>
             <button
               onClick={() => { if(confirm("Confirm page deletion?")) deletePage(editingPage.id); }}
               className="rp-btn rp-btn-danger w-full"
@@ -2365,7 +2365,7 @@ function PagesPanel({ pages, setPages, design, update }: any) {
           onBack={() => setEditingCategoryIndex(null)} 
         />
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-8">
-          <div className="p-6 bg-white/[0.03] border border-white/10 rounded-[2rem] relative overflow-hidden group">
+          <div className="p-6 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-[2rem] relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 to-transparent pointer-events-none" />
             <div className="space-y-8 relative z-10">
               <div>
@@ -2383,7 +2383,7 @@ function PagesPanel({ pages, setPages, design, update }: any) {
                   value={cat.description || ""}
                   onChange={(e) => updateCat("description", e.target.value)}
                   placeholder="ARCHIVAL CONTEXT..."
-                  className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-[11px] font-bold text-white outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-800 min-h-[120px] resize-none uppercase tracking-widest italic"
+                  className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl px-5 py-4 text-[11px] font-bold text-white outline-none focus:border-violet-500/50 transition-all placeholder:text-[var(--rp-text-subtle)] min-h-[120px] resize-none uppercase tracking-widest"
                 />
               </div>
 
@@ -2397,7 +2397,7 @@ function PagesPanel({ pages, setPages, design, update }: any) {
                 />
               </div>
 
-              <div className="pt-4 border-t border-white/5">
+              <div className="pt-4 border-t border-[var(--rp-border)]">
                 <SidebarToggle
                   label="Menu Visibility"
                   description="Toggle presence in shop navigation menu"
@@ -2409,7 +2409,7 @@ function PagesPanel({ pages, setPages, design, update }: any) {
           </div>
 
           <div className="p-8 bg-red-500/5 border border-red-500/10 rounded-[2rem] space-y-4">
-            <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest italic">Removal Protocol</h4>
+            <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest">Removal Protocol</h4>
             <button
               onClick={() => {
                 if (confirm("Terminate this category?")) {
@@ -2431,11 +2431,11 @@ function PagesPanel({ pages, setPages, design, update }: any) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden space-y-8">
       {/* Navigation Categories Section */}
-      <div className="p-8 bg-white/[0.02] border-b border-white/5">
+      <div className="p-8 bg-white/[0.02] border-b border-[var(--rp-border)]">
         <div className="flex items-center justify-between mb-8">
           <div className="flex flex-col">
-            <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase italic mb-1">Mapping</span>
-            <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">Shop Menu</h3>
+            <span className="text-[10px] font-black tracking-[0.4em] text-violet-500 uppercase mb-1">Mapping</span>
+            <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Shop Menu</h3>
           </div>
           <button
             onClick={() => {
@@ -2451,14 +2451,14 @@ function PagesPanel({ pages, setPages, design, update }: any) {
         
         <div className="space-y-3">
           {categories.map((cat: any, index: number) => (
-            <div key={index} className="flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-[2rem] p-5 group transition-all hover:bg-white/[0.05] relative overflow-hidden">
+            <div key={index} className="flex items-center gap-4 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-[2rem] p-5 group transition-all hover:bg-white/[0.05] relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-r from-violet-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <button
                 onClick={() => setEditingCategoryIndex(index)}
                 className="flex-1 text-left relative z-10"
               >
-                <p className="text-[11px] font-black text-white uppercase tracking-widest italic">{cat.name || "Untitled"}</p>
-                {cat.description && <p className="text-[9px] text-slate-500 font-bold uppercase italic tracking-tighter truncate max-w-[200px] mt-1">{cat.description}</p>}
+                <p className="text-[11px] font-black text-white uppercase tracking-widest">{cat.name || "Untitled"}</p>
+                {cat.description && <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter truncate max-w-[200px] mt-1">{cat.description}</p>}
               </button>
               
               <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-4 group-hover:translate-x-0 relative z-10">
@@ -2471,7 +2471,7 @@ function PagesPanel({ pages, setPages, design, update }: any) {
                     }
                   }}
                   disabled={index === 0}
-                  className="w-8 h-8 flex items-center justify-center bg-white/5 rounded-lg text-slate-400 hover:text-white transition-colors disabled:opacity-10"
+                  className="w-8 h-8 flex items-center justify-center bg-[var(--rp-surface-2)] rounded-lg text-slate-400 hover:text-white transition-colors disabled:opacity-10"
                 >
                   <ChevronUp size={14} strokeWidth={3} />
                 </button>
@@ -2484,7 +2484,7 @@ function PagesPanel({ pages, setPages, design, update }: any) {
                     }
                   }}
                   disabled={index === categories.length - 1}
-                  className="w-8 h-8 flex items-center justify-center bg-white/5 rounded-lg text-slate-400 hover:text-white transition-colors disabled:opacity-10"
+                  className="w-8 h-8 flex items-center justify-center bg-[var(--rp-surface-2)] rounded-lg text-slate-400 hover:text-white transition-colors disabled:opacity-10"
                 >
                   <ChevronDown size={14} strokeWidth={3} />
                 </button>
@@ -2504,8 +2504,8 @@ function PagesPanel({ pages, setPages, design, update }: any) {
       <div className="px-8 pb-12">
         <div className="flex items-center justify-between mb-8">
           <div className="flex flex-col">
-            <span className="text-[10px] font-black tracking-[0.4em] text-cyan-500 uppercase italic mb-1">Architecture</span>
-            <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">Custom Pages</h3>
+            <span className="text-[10px] font-black tracking-[0.4em] text-cyan-500 uppercase mb-1">Architecture</span>
+            <h3 className="text-2xl font-black text-white uppercase tracking-tighter">Custom Pages</h3>
           </div>
           <button 
             onClick={createPage} 
@@ -2520,16 +2520,16 @@ function PagesPanel({ pages, setPages, design, update }: any) {
             <button
               key={page.id}
               onClick={() => setEditingPage(page)}
-              className="w-full flex items-center justify-between p-6 bg-white/[0.03] border border-white/10 rounded-[2.5rem] hover:bg-white/[0.06] hover:border-cyan-500/30 transition-all group relative overflow-hidden"
+              className="w-full flex items-center justify-between p-6 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-[2.5rem] hover:bg-white/[0.06] hover:border-cyan-500/30 transition-all group relative overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-cyan-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <div className="flex items-center gap-6 relative z-10">
-                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-slate-600 group-hover:text-cyan-400 group-hover:scale-110 transition-all duration-500">
+                <div className="w-12 h-12 rounded-2xl bg-[var(--rp-surface-2)] border border-[var(--rp-border)] flex items-center justify-center text-slate-600 group-hover:text-cyan-400 group-hover:scale-110 transition-all duration-500">
                   <FileText size={20} strokeWidth={2.5} />
                 </div>
                 <div className="text-left">
-                  <p className="text-[11px] font-black text-white uppercase tracking-widest italic">{page.title}</p>
-                  <p className="text-[9px] text-slate-600 font-bold uppercase italic tracking-tighter mt-1">
+                  <p className="text-[11px] font-black text-white uppercase tracking-widest">{page.title}</p>
+                  <p className="text-[9px] text-slate-600 font-bold uppercase tracking-tighter mt-1">
                     /{page.slug} · <span className={page.status ==='published' ? 'text-emerald-500' : 'text-slate-700'}>{page.status}</span>
                   </p>
                 </div>
@@ -2548,7 +2548,7 @@ function ProductsPanel({ design, update }: any) {
     <div className="p-4 space-y-2 overflow-y-auto flex-1">
       <Accordion title="Screenshot-style Catalog" defaultOpen={true}>
         <div className="space-y-6">
-          <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest italic">
+          <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-widest">
             Match the provided black bookstore reference: oversized wordmark, ruled navigation,
             compact cart total, large image-led cards, and editable typography/spacing.
           </p>
@@ -2639,7 +2639,7 @@ function ProductsPanel({ design, update }: any) {
             checked={design.showCatalogControls ?? false}
             onChange={(v: boolean) => update("showCatalogControls", v)}
           />
-          <div className="pt-4 border-t border-white/5 space-y-4">
+          <div className="pt-4 border-t border-[var(--rp-border)] space-y-4">
             <SidebarInput
               label="Catalog heading (blank to hide)"
               value={design.catalogHeading ?? ""}
@@ -2813,7 +2813,7 @@ function ProductsPanel({ design, update }: any) {
               ]}
             />
           </div>
-          <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden mt-2">
+          <div className="space-y-0 border border-[var(--rp-border)] rounded-xl overflow-hidden mt-2">
             <SidebarToggle
               label="Related items"
               description="Show other publications at bottom"
@@ -3055,7 +3055,7 @@ function ProductsPanel({ design, update }: any) {
           </div>
 
           {design.showTrustSignals !== false && (
-            <div className="space-y-4 pt-4 border-t border-white/5">
+            <div className="space-y-4 pt-4 border-t border-[var(--rp-border)]">
               <SidebarLabel>Custom Trust Signals</SidebarLabel>
               <SidebarInput
                 label="Signal 1"
@@ -3081,7 +3081,7 @@ function ProductsPanel({ design, update }: any) {
       </Accordion>
 
       <Accordion title="Logic & Visibility">
-        <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden mt-2">
+        <div className="space-y-0 border border-[var(--rp-border)] rounded-xl overflow-hidden mt-2">
           <SidebarToggle
             label="Show price on hover"
             description="Reveal price on interaction."
@@ -3329,7 +3329,7 @@ function AnnouncementsPanel({ design, update }: any) {
     <div className="p-4 space-y-2 overflow-y-auto flex-1">
       <Accordion title="Status & Content" defaultOpen={true}>
         <div className="space-y-4">
-          <div className="border border-neutral-100 rounded-xl overflow-hidden">
+          <div className="border border-[var(--rp-border)] rounded-xl overflow-hidden">
             <SidebarToggle
               label="Show announcement bar"
               description="Display a banner at the top of your shop"
@@ -3347,7 +3347,7 @@ function AnnouncementsPanel({ design, update }: any) {
                   onChange={(e) => update("announcementText", e.target.value)}
                   rows={3}
                   placeholder="Enter your announcement..."
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-[11px] outline-none focus:border-neutral-400 transition-colors resize-none"
+                  className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-lg px-3 py-2 text-[11px] outline-none focus:border-neutral-400 transition-colors resize-none"
                 />
               </div>
             </div>
@@ -3371,7 +3371,7 @@ function AnnouncementsPanel({ design, update }: any) {
               />
             </div>
 
-            <div className="border border-neutral-100 rounded-xl overflow-hidden">
+            <div className="border border-[var(--rp-border)] rounded-xl overflow-hidden">
               <SidebarToggle
                 label="Scrolling text"
                 description="Animate the text to scroll horizontally"
@@ -3445,14 +3445,14 @@ function SocialPanel({ design, update }: any) {
           ].map(({ key, label, icon, placeholder }) => (
             <div key={key} className="group/item">
               <SidebarLabel>{label}</SidebarLabel>
-              <div className="mt-1 flex items-center gap-4 bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 focus-within:border-violet-500/50 transition-all shadow-inner relative overflow-hidden">
+              <div className="mt-1 flex items-center gap-4 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl px-5 py-4 focus-within:border-[var(--rp-border-strong)] transition-all shadow-inner relative overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-r from-violet-600/5 to-transparent opacity-0 group-focus-within/item:opacity-100 transition-opacity" />
                 <span className="text-slate-600 group-focus-within/item:text-violet-400 transition-colors relative z-10">{icon}</span>
                 <input
                   value={social[key] || ""}
                   onChange={(e) => updateSocial(key, e.target.value)}
                   placeholder={placeholder}
-                  className="bg-transparent border-none outline-none text-[11px] flex-1 font-black text-white uppercase tracking-widest italic placeholder:text-slate-800 relative z-10"
+                  className="bg-transparent border-none outline-none text-[11px] flex-1 font-black text-white uppercase tracking-widest placeholder:text-[var(--rp-text-subtle)] relative z-10"
                 />
               </div>
             </div>
@@ -3562,12 +3562,12 @@ function TextSizingPanel({ design, update }: any) {
       </Accordion>
 
       <Accordion title="Type Specimen">
-        <div className="bg-white/[0.03] border border-white/10 rounded-[2.5rem] p-8 relative overflow-hidden group">
+        <div className="bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-[2.5rem] p-8 relative overflow-hidden group">
            <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 to-transparent pointer-events-none" />
-           <p className="text-[10px] text-slate-500 mb-6 font-black uppercase tracking-[0.4em] border-b border-white/5 pb-4 italic">Render Preview</p>
+           <p className="text-[10px] text-slate-500 mb-6 font-black uppercase tracking-[0.4em] border-b border-[var(--rp-border)] pb-4">Render Preview</p>
            <div className="space-y-4 relative z-10">
              <p
-               className="text-white leading-none uppercase italic"
+               className="text-white leading-none uppercase"
                style={{
                  fontFamily: design.headingFont || design.font || "Inter",
                  fontWeight: design.headingWeight ?? 800,
@@ -3578,7 +3578,7 @@ function TextSizingPanel({ design, update }: any) {
                Aa — {design.headingFont || design.font || "Inter"}
              </p>
              <p
-               className="text-slate-400 text-[13px] italic tracking-tight"
+               className="text-slate-400 text-[13px] tracking-tight"
                style={{
                  fontFamily: design.font || "Inter",
                  fontWeight: design.bodyWeight ?? 400,
@@ -3680,7 +3680,7 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
   return (
     <div className="p-4 space-y-5 overflow-y-auto flex-1">
       {/* Header / Footer switch */}
-      <div className="flex gap-2 bg-white/[0.03] border border-white/10 rounded-2xl p-1.5">
+      <div className="flex gap-2 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl p-1.5">
         {(["header", "footer"] as const).map((t) => (
           <button
             key={t}
@@ -3700,20 +3700,20 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
       </p>
 
       {items.length === 0 && (
-        <div className="py-10 text-center text-[10px] tracking-[0.3em] text-slate-600 uppercase italic">
+        <div className="py-10 text-center text-[10px] tracking-[0.3em] text-slate-600 uppercase">
           No links yet.
         </div>
       )}
 
       <SortableList items={items} getId={(it) => it.id} onReorder={(next) => setItems(next)} className="space-y-4">
         {items.map((item, i) => (
-          <SortableRow key={item.id} id={item.id} className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 space-y-4">
+          <SortableRow key={item.id} id={item.id} className="bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl p-4 space-y-4">
             {({ handleProps }) => (
             <>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1 text-slate-600">
                 <span {...handleProps} className="cursor-grab active:cursor-grabbing hover:text-slate-300 transition-colors"><GripVertical size={14} /></span>
-                <span className="text-[9px] font-black uppercase tracking-widest italic text-slate-500">Link {i + 1}</span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Link {i + 1}</span>
               </div>
               <div className="flex items-center gap-1">
                 <button onClick={() => setItems(move(items, i, -1))} disabled={i === 0} aria-label="Move link up" className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10 disabled:opacity-20 transition-all"><ChevronUp size={14} /></button>
@@ -3726,10 +3726,10 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
 
             {/* Mega menu (header only): children become link-group columns */}
             {tab === "header" && (
-              <div className="space-y-3 p-3 rounded-xl bg-white/[0.02] border border-white/5">
+              <div className="space-y-3 p-3 rounded-xl bg-white/[0.02] border border-[var(--rp-border)]">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest italic text-slate-400">Mega menu</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Mega menu</p>
                     <p className="text-[8px] text-slate-600 font-bold mt-0.5">
                       Sub-links become columns; their own sub-links become the column's links.
                     </p>
@@ -3777,13 +3777,13 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
                 className="pl-4 border-l-2 border-violet-500/20 space-y-3"
               >
                 {(item.children || []).map((child, j) => (
-                  <SortableRow key={child.id} id={child.id} className="bg-white/[0.02] border border-white/5 rounded-xl p-3 space-y-3">
+                  <SortableRow key={child.id} id={child.id} className="bg-white/[0.02] border border-[var(--rp-border)] rounded-xl p-3 space-y-3">
                     {({ handleProps }) => (
                     <>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1 text-slate-600">
                         <span {...handleProps} className="cursor-grab active:cursor-grabbing hover:text-slate-300 transition-colors"><GripVertical size={12} /></span>
-                        <span className="text-[8px] font-black uppercase tracking-widest italic text-slate-600">Sub-link {j + 1}</span>
+                        <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Sub-link {j + 1}</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <button onClick={() => removeChild(i, j)} aria-label="Remove sub-link" className="p-1 rounded text-slate-500 hover:text-red-400"><Trash2 size={12} /></button>
@@ -3800,13 +3800,13 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
                         className="pl-3 border-l border-amber-500/20 space-y-2"
                       >
                         {(child.children || []).map((grand, k) => (
-                          <SortableRow key={grand.id} id={grand.id} className="bg-white/[0.02] border border-white/5 rounded-lg p-2.5 space-y-2">
+                          <SortableRow key={grand.id} id={grand.id} className="bg-white/[0.02] border border-[var(--rp-border)] rounded-lg p-2.5 space-y-2">
                             {({ handleProps: grandHandleProps }) => (
                             <>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1 text-slate-600">
                                 <span {...grandHandleProps} className="cursor-grab active:cursor-grabbing hover:text-slate-300 transition-colors"><GripVertical size={11} /></span>
-                                <span className="text-[8px] font-black uppercase tracking-widest italic text-slate-600">Column link {k + 1}</span>
+                                <span className="text-[8px] font-black uppercase tracking-widest text-slate-600">Column link {k + 1}</span>
                               </div>
                               <button onClick={() => removeGrand(i, j, k)} aria-label="Remove column link" className="p-1 rounded text-slate-500 hover:text-red-400"><Trash2 size={11} /></button>
                             </div>
@@ -3820,7 +3820,7 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
                     {tab === "header" && item.mega && (
                       <button
                         onClick={() => addGrand(i, j)}
-                        className="text-[8px] font-black uppercase tracking-widest italic text-amber-400 hover:text-amber-300 flex items-center gap-1.5"
+                        className="text-[8px] font-black uppercase tracking-widest text-amber-400 hover:text-amber-300 flex items-center gap-1.5"
                       >
                         <Plus size={10} /> Add column link
                       </button>
@@ -3834,7 +3834,7 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
 
             <button
               onClick={() => addChild(i)}
-              className="text-[9px] font-black uppercase tracking-widest italic text-violet-400 hover:text-violet-300 flex items-center gap-1.5"
+              className="text-[9px] font-black uppercase tracking-widest text-violet-400 hover:text-violet-300 flex items-center gap-1.5"
             >
               <Plus size={12} /> Add sub-link
             </button>
@@ -3906,7 +3906,7 @@ function TranslationsPanel({ design, update }: any) {
                     onChange={(e) => updateCopy(field.key, e.target.value)}
                     rows={3}
                     placeholder={field.default}
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-[11px] font-bold text-slate-200 outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-700 resize-none"
+                    className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-xl px-4 py-3 text-[11px] font-bold text-slate-200 outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-700 resize-none"
                   />
                 ) : (
                   <SidebarInput
@@ -3916,7 +3916,7 @@ function TranslationsPanel({ design, update }: any) {
                   />
                 )}
                 {field.hint && (
-                  <p className="text-[9px] text-slate-600 font-bold mt-1.5 italic">{field.hint}</p>
+                  <p className="text-[9px] text-slate-600 font-bold mt-1.5">{field.hint}</p>
                 )}
               </div>
             ))}
@@ -3930,7 +3930,7 @@ function TranslationsPanel({ design, update }: any) {
 function AdditionalPanel({ design, update }: any) {
   return (
     <div className="flex-1 flex flex-col space-y-10">
-      <div className="p-6 bg-white/[0.03] border border-white/10 rounded-[2rem] relative overflow-hidden">
+      <div className="p-6 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-[2rem] relative overflow-hidden">
         <SidebarLabel>Spacing density</SidebarLabel>
         <p className="text-[9px] text-slate-500 font-bold leading-relaxed mb-4">
           One control rescales the vertical rhythm of every section — compact for dense storefronts,
@@ -3947,7 +3947,7 @@ function AdditionalPanel({ design, update }: any) {
         />
       </div>
 
-      <div className="p-6 bg-white/[0.03] border border-white/10 rounded-[2rem] relative overflow-hidden group">
+      <div className="p-6 bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-[2rem] relative overflow-hidden group">
         <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 to-transparent pointer-events-none" />
         <div className="space-y-2 relative z-10">
           {[
@@ -3989,8 +3989,8 @@ function CodePanel({ design, update }: any) {
         <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
           <Code2 size={48} className="rotate-12" />
         </div>
-        <h4 className="text-[11px] font-black text-violet-400 uppercase tracking-[0.3em] italic mb-4">Development Override</h4>
-        <p className="text-[10px] text-slate-500 font-bold leading-relaxed italic uppercase">
+        <h4 className="text-[11px] font-black text-violet-400 uppercase tracking-[0.3em] mb-4">Development Override</h4>
+        <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase">
           Inject custom architectural protocols into the storefront runtime.
         </p>
       </div>
@@ -4003,7 +4003,7 @@ function CodePanel({ design, update }: any) {
             onChange={(e) => update("customCss", e.target.value)}
             rows={8}
             placeholder=".PROTOCOL { TRANSFORMATION: SCALE(1); }"
-            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-5 text-[11px] font-mono text-cyan-400 outline-none focus:border-cyan-500/50 transition-all resize-y placeholder:text-slate-800 shadow-inner italic"
+            className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl px-6 py-5 text-[11px] font-mono text-cyan-400 outline-none focus:border-cyan-500/50 transition-all resize-y placeholder:text-[var(--rp-text-subtle)] shadow-inner"
           />
         </div>
         
@@ -4014,7 +4014,7 @@ function CodePanel({ design, update }: any) {
             onChange={(e) => update("customHeadHtml", e.target.value)}
             rows={5}
             placeholder="<META PROTOCOL='THEME-COLOR' CONTENT='#000000' />"
-            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-5 text-[11px] font-mono text-violet-400 outline-none focus:border-violet-500/50 transition-all resize-y placeholder:text-slate-800 shadow-inner italic"
+            className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl px-6 py-5 text-[11px] font-mono text-violet-400 outline-none focus:border-violet-500/50 transition-all resize-y placeholder:text-[var(--rp-text-subtle)] shadow-inner"
           />
         </div>
 
@@ -4025,7 +4025,7 @@ function CodePanel({ design, update }: any) {
             onChange={(e) => update("customFooterScripts", e.target.value)}
             rows={5}
             placeholder="<SCRIPT>EMIT('READY');</SCRIPT>"
-            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-5 text-[11px] font-mono text-emerald-400 outline-none focus:border-emerald-500/50 transition-all resize-y placeholder:text-slate-800 shadow-inner italic"
+            className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl px-6 py-5 text-[11px] font-mono text-emerald-400 outline-none focus:border-emerald-500/50 transition-all resize-y placeholder:text-[var(--rp-text-subtle)] shadow-inner"
           />
         </div>
       </div>
@@ -4069,7 +4069,7 @@ function VersionHistoryPanel({
   return (
     <div className="flex flex-col space-y-4">
       <div className="px-2">
-        <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-[0.2em] italic mb-6">
+        <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-[0.2em] mb-6">
           Last {versions.length} saved states. Click to preview, restore to roll back.
         </p>
       </div>
@@ -4077,7 +4077,7 @@ function VersionHistoryPanel({
       {versions.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 opacity-40">
           <Clock size={32} className="text-slate-600 mb-4" />
-          <p className="text-[10px] font-black text-slate-600 tracking-[0.3em] uppercase italic">No versions yet</p>
+          <p className="text-[10px] font-black text-slate-600 tracking-[0.3em] uppercase">No versions yet</p>
           <p className="text-[9px] text-slate-700 font-bold mt-1">Save a draft or publish to create a snapshot</p>
         </div>
       ) : (
@@ -4390,13 +4390,13 @@ function SeoPanel({ design, update, previewMode }: { design: any; update: (k: st
   return (
     <div className="flex flex-col space-y-6">
       <div className="px-2">
-        <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-[0.2em] italic">
+        <p className="text-[10px] text-slate-500 font-bold leading-relaxed uppercase tracking-[0.2em]">
           SEO settings for the <span className="text-violet-400">{previewMode === "shop" ? "Shop" : "Homepage"}</span> page.
         </p>
       </div>
 
       {/* SERP Preview */}
-      <div className="bg-white rounded-3xl p-5 border border-neutral-200 shadow-sm">
+      <div className="bg-white rounded-3xl p-5 border border-[var(--rp-border)] shadow-sm">
         <p className="text-[8px] font-black text-neutral-400 uppercase tracking-[0.3em] mb-3">Google Search Preview</p>
         <div className="space-y-1">
           <p className="text-[9px] text-neutral-500 font-mono">{baseDomain}{slug ? `/${slug}` : ""}</p>
@@ -4411,7 +4411,7 @@ function SeoPanel({ design, update, previewMode }: { design: any; update: (k: st
 
       {/* Social Share Preview */}
       {og && (
-        <div className="rounded-3xl overflow-hidden border border-neutral-200 shadow-sm bg-white">
+        <div className="rounded-3xl overflow-hidden border border-[var(--rp-border)] shadow-sm bg-white">
           <div className="aspect-[1.91/1] bg-neutral-100 overflow-hidden">
             <img src={og} alt="OG" className="w-full h-full object-cover" />
           </div>
@@ -4427,14 +4427,14 @@ function SeoPanel({ design, update, previewMode }: { design: any; update: (k: st
         {/* URL Slug */}
         <div className="space-y-2">
           <SidebarLabel>URL Slug</SidebarLabel>
-          <div className="flex items-center bg-white/[0.03] border border-white/10 rounded-xl overflow-hidden">
+          <div className="flex items-center bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-xl overflow-hidden">
             <span className="px-3 text-[9px] text-slate-600 font-mono flex-shrink-0">/{" "}</span>
             <input
               type="text"
               value={slug}
               onChange={(e) => update(slugKey, e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
               placeholder={previewMode === "shop" ? "shop" : ""}
-              className="flex-1 bg-transparent py-3 pr-4 text-[11px] font-bold text-slate-200 outline-none placeholder:text-slate-800"
+              className="flex-1 bg-transparent py-3 pr-4 text-[11px] font-bold text-slate-200 outline-none placeholder:text-[var(--rp-text-subtle)]"
             />
           </div>
         </div>
@@ -4452,10 +4452,10 @@ function SeoPanel({ design, update, previewMode }: { design: any; update: (k: st
             value={title}
             onChange={(e) => update(titleKey, e.target.value)}
             placeholder="My Store · Books & Art"
-            className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-[11px] font-bold text-slate-200 outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-800"
+            className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-xl px-4 py-3 text-[11px] font-bold text-slate-200 outline-none focus:border-violet-500/50 transition-all placeholder:text-[var(--rp-text-subtle)]"
           />
           {/* Progress bar */}
-          <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+          <div className="h-1 bg-[var(--rp-surface-2)] rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${titleBg}`}
               style={{ width: `${Math.min(100, (titleLen / 60) * 100)}%` }}
@@ -4479,9 +4479,9 @@ function SeoPanel({ design, update, previewMode }: { design: any; update: (k: st
             onChange={(e) => update(descKey, e.target.value)}
             placeholder="A short description of this page for search engines..."
             rows={3}
-            className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-[11px] font-bold text-slate-200 outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-800 resize-none"
+            className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-xl px-4 py-3 text-[11px] font-bold text-slate-200 outline-none focus:border-violet-500/50 transition-all placeholder:text-[var(--rp-text-subtle)] resize-none"
           />
-          <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+          <div className="h-1 bg-[var(--rp-surface-2)] rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${descBg}`}
               style={{ width: `${Math.min(100, (descLen / 160) * 100)}%` }}
@@ -4714,7 +4714,7 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
     <div className="flex-1 flex flex-col items-center justify-center bg-[#e8e8e8] overflow-hidden p-6 pt-2">
       {/* Preview mode tabs */}
       <div className="flex flex-col items-center gap-2 mb-4 w-full max-w-[640px]">
-        <div className="flex flex-wrap justify-center gap-1 bg-white/80 border border-neutral-200 rounded-full p-0.5 shadow-sm">
+        <div className="flex flex-wrap justify-center gap-1 bg-white/80 border border-[var(--rp-border)] rounded-full p-0.5 shadow-sm">
           {([
             { id: "homepage",   icon: <Home size={10} />,        label: "Home" },
             { id: "shop",       icon: <ShoppingBag size={10} />, label: "Shop" },
@@ -4741,7 +4741,7 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
 
         {/* Book selector — only shown in product mode */}
         {previewMode.value === "product" && previewMode.books && previewMode.books.length > 0 && (
-          <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-full px-4 py-1.5 shadow-sm w-full max-w-xs">
+          <div className="flex items-center gap-2 bg-white border border-[var(--rp-border)] rounded-full px-4 py-1.5 shadow-sm w-full max-w-xs">
             <BookOpen size={10} className="text-neutral-400 flex-shrink-0" />
             <select
               value={previewMode.bookSlug}
@@ -4760,7 +4760,7 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
 
         {/* Custom-page selector — only shown in page mode */}
         {previewMode.value === "page" && previewMode.pages && previewMode.pages.length > 0 && (
-          <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-full px-4 py-1.5 shadow-sm w-full max-w-xs">
+          <div className="flex items-center gap-2 bg-white border border-[var(--rp-border)] rounded-full px-4 py-1.5 shadow-sm w-full max-w-xs">
             <FileText size={10} className="text-neutral-400 flex-shrink-0" />
             <select
               value={previewMode.pageSlug || ""}
@@ -4776,7 +4776,7 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
 
         {/* Collection selector — only shown in collection mode */}
         {previewMode.value === "collection" && previewMode.collections && previewMode.collections.length > 0 && (
-          <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-full px-4 py-1.5 shadow-sm w-full max-w-xs">
+          <div className="flex items-center gap-2 bg-white border border-[var(--rp-border)] rounded-full px-4 py-1.5 shadow-sm w-full max-w-xs">
             <Tag size={10} className="text-neutral-400 flex-shrink-0" />
             <select
               value={previewMode.collectionSlug || ""}
@@ -4837,13 +4837,13 @@ function LivePreview({ design, device, previewMode, iframeRef, previewBookSlug }
 
         {/* URL bar - Hidden on Mobile Frame for cleaner look */}
         {isDesktop && (
-          <div className="bg-[#f5f5f5] border-b border-neutral-200 px-3 py-2 flex items-center gap-2 flex-shrink-0">
+          <div className="bg-[#f5f5f5] border-b border-[var(--rp-border)] px-3 py-2 flex items-center gap-2 flex-shrink-0">
             <div className="flex gap-1.5">
               <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
               <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
               <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
             </div>
-            <div className="flex-1 bg-white border border-neutral-200 rounded-lg px-3 py-1 flex items-center gap-1.5 mx-2">
+            <div className="flex-1 bg-white border border-[var(--rp-border)] rounded-lg px-3 py-1 flex items-center gap-1.5 mx-2">
               <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
               <span className="text-[9px] text-neutral-400 font-mono truncate">{previewUrl}</span>
             </div>
@@ -5126,7 +5126,7 @@ interface GuidePanelProps {
 
 function ChecklistItem({ label, checked, onAction }: { label: string; checked: boolean; onAction: () => void }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-2.5 border-b border-white/5 last:border-none">
+    <div className="flex items-center justify-between gap-3 py-2.5 border-b border-[var(--rp-border)] last:border-none">
       <div className="flex items-center gap-3">
         <span className={`w-4 h-4 rounded-md border flex items-center justify-center transition-all ${
           checked 
@@ -5142,7 +5142,7 @@ function ChecklistItem({ label, checked, onAction }: { label: string; checked: b
       {!checked && (
         <button 
           onClick={onAction} 
-          className="text-[9px] font-black text-violet-400 hover:text-white uppercase tracking-widest italic"
+          className="text-[9px] font-black text-violet-400 hover:text-white uppercase tracking-widest"
         >
           Go ➜
         </button>
@@ -5155,13 +5155,13 @@ function FeatureLinkCard({ icon, title, desc, onAction }: { icon: React.ReactNod
   return (
     <button
       onClick={onAction}
-      className="w-full flex items-start gap-4 p-5 rounded-3xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] hover:border-violet-500/20 text-left transition-all group"
+      className="w-full flex items-start gap-4 p-5 rounded-3xl border border-[var(--rp-border)] bg-white/[0.02] hover:bg-white/[0.05] hover:border-violet-500/20 text-left transition-all group"
     >
-      <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 group-hover:text-violet-400 group-hover:bg-white/10 transition-all">
+      <div className="w-9 h-9 rounded-xl bg-[var(--rp-surface-2)] border border-[var(--rp-border)] flex items-center justify-center text-slate-400 group-hover:text-violet-400 group-hover:bg-white/10 transition-all">
         {icon}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[11px] font-black text-slate-200 uppercase tracking-tight italic group-hover:text-white transition-colors mb-1">
+        <p className="text-[11px] font-black text-slate-200 uppercase tracking-tight group-hover:text-white transition-colors mb-1">
           {title}
         </p>
         <p className="rp-hint">
@@ -5237,14 +5237,14 @@ function GuidePanel({
         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
           <HelpCircle size={40} className="rotate-12" />
         </div>
-        <h4 className="text-[11px] font-black text-violet-400 uppercase tracking-widest italic mb-2">Editor Guide</h4>
+        <h4 className="text-[11px] font-black text-violet-400 uppercase tracking-widest mb-2">Editor Guide</h4>
         <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
           Welcome to the Lyrical Theme Editor. Tweak styles, customize layouts, and publish premium storefronts in seconds.
         </p>
       </div>
 
       {/* Sub tabs nav */}
-      <div className="flex bg-white/[0.03] border border-white/5 rounded-2xl p-1 relative">
+      <div className="flex bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl p-1 relative">
         {(["tour", "features", "advanced", "faq"] as const).map((t) => (
           <button
             key={t}
@@ -5273,14 +5273,14 @@ function GuidePanel({
             </button>
 
             {/* Progress Bar */}
-            <div className="bg-white/[0.02] border border-white/5 rounded-3xl p-5 space-y-3">
+            <div className="bg-white/[0.02] border border-[var(--rp-border)] rounded-3xl p-5 space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic">Setup Checklist</span>
-                <span className="text-[9px] font-black text-violet-400 italic bg-violet-500/10 px-2 py-0.5 rounded-lg border border-violet-500/20">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Setup Checklist</span>
+                <span className="text-[9px] font-black text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-lg border border-violet-500/20">
                   {progressPercent}% Complete
                 </span>
               </div>
-              <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+              <div className="w-full h-1 bg-[var(--rp-surface-2)] rounded-full overflow-hidden">
                 <div className="h-full bg-violet-500 transition-all duration-500" style={{ width: `${progressPercent}%` }} />
               </div>
 
@@ -5362,14 +5362,14 @@ function GuidePanel({
               value={faqSearch}
               onChange={(e) => setFaqSearch(e.target.value)}
               placeholder="Search help topics..."
-              className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-3.5 text-[10px] text-white outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-800 tracking-widest italic"
+              className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl px-5 py-3.5 text-[10px] text-white outline-none focus:border-violet-500/50 transition-all placeholder:text-[var(--rp-text-subtle)] tracking-widest"
             />
 
             {filteredFaqs.length > 0 ? (
               <div className="space-y-4">
                 {filteredFaqs.map((faq, i) => (
-                  <div key={i} className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl space-y-2">
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-wide italic">
+                  <div key={i} className="p-4 bg-white/[0.02] border border-[var(--rp-border)] rounded-2xl space-y-2">
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-wide">
                       Q: {faq.q}
                     </p>
                     <p className="text-[9px] text-slate-500 leading-relaxed font-bold">
@@ -6468,12 +6468,12 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                 {saveStatus === "unsaved" ? "Unsaved" : saveStatus === "draft" ? "Draft" : "Live"}
               </span>
               {lastAutoSave && saveStatus === "draft" && (
-                <span className="text-[8px] text-slate-600 font-bold italic tracking-wider">
+                <span className="text-[8px] text-slate-600 font-bold tracking-wider">
                   Auto-saved {lastAutoSave.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </span>
               )}
               {scheduledAt && new Date(scheduledAt).getTime() > Date.now() && (
-                <span className="flex items-center gap-1.5 text-[8px] font-black tracking-widest px-3 py-1 rounded-full border uppercase italic bg-amber-500/10 text-amber-300 border-amber-500/20">
+                <span className="flex items-center gap-1.5 text-[8px] font-black tracking-widest px-3 py-1 rounded-full border uppercase bg-amber-500/10 text-amber-300 border-amber-500/20">
                   <Clock size={9} />
                   Goes live {new Date(scheduledAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                   <button onClick={cancelSchedule} title="Cancel scheduled publish" className="ml-1 hover:text-white transition-colors">
@@ -6490,7 +6490,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
             <button
               onClick={undo}
               disabled={pastDesigns.length === 0}
-              className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all disabled:opacity-10 relative"
+              className="w-10 h-10 flex items-center justify-center rounded-xl bg-[var(--rp-surface-2)] border border-[var(--rp-border)] text-white/40 hover:text-white hover:bg-white/10 hover:border-[var(--rp-border)] transition-all disabled:opacity-10 relative"
               title={`Undo (${pastDesigns.length} steps) — Ctrl+Z`}
             >
               <ChevronLeft size={18} strokeWidth={3} />
@@ -6503,7 +6503,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
             <button
               onClick={redo}
               disabled={futureDesigns.length === 0}
-              className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all disabled:opacity-10 relative"
+              className="w-10 h-10 flex items-center justify-center rounded-xl bg-[var(--rp-surface-2)] border border-[var(--rp-border)] text-white/40 hover:text-white hover:bg-white/10 hover:border-[var(--rp-border)] transition-all disabled:opacity-10 relative"
               title={`Redo (${futureDesigns.length} steps) — Ctrl+Y`}
             >
               <ChevronRight size={18} strokeWidth={3} />
@@ -6559,7 +6559,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
             data-tour="command-palette"
             onClick={() => setShowCommandPalette(true)}
             title="Open command palette (Ctrl+K)"
-            className="px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase border border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2 italic"
+            className="px-4 py-2 rounded-xl text-[9px] font-black tracking-widest uppercase border border-[var(--rp-border)] bg-[var(--rp-surface-2)] text-slate-400 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2"
           >
             <CommandIcon size={12} strokeWidth={2.5} />
             <span>K</span>
@@ -6579,7 +6579,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
         </div>
 
         {/* Device switcher */}
-        <div data-tour="device-switcher" className="flex flex-wrap items-center gap-1 max-w-full bg-white/[0.03] border border-white/5 rounded-2xl p-1.5 backdrop-blur-xl shadow-2xl">
+        <div data-tour="device-switcher" className="flex flex-wrap items-center gap-1 max-w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl p-1.5 backdrop-blur-xl shadow-2xl">
           {(["desktop", "tablet", "mobile"] as const).map((d) => (
             <button
               key={d}
@@ -6591,7 +6591,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
               }`}
             >
               {d === "desktop" ? <Monitor size={14} strokeWidth={2.5} /> : d === "tablet" ? <Tablet size={14} strokeWidth={2.5} /> : <Smartphone size={14} strokeWidth={2.5} />}
-              <span className="text-[9px] font-black uppercase tracking-widest italic">{d}</span>
+              <span className="text-[9px] font-black uppercase tracking-widest">{d}</span>
             </button>
           ))}
           <div className="h-4 w-px bg-white/10 mx-1" />
@@ -6605,7 +6605,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
             title={isFullscreen ? "Exit Fullscreen" : "Fullscreen Preview"}
           >
             {isFullscreen ? <Minimize2 size={14} strokeWidth={2.5} /> : <Maximize2 size={14} strokeWidth={2.5} />}
-            <span className="text-[9px] font-black uppercase tracking-widest italic">{isFullscreen ? "Exit" : "Full"}</span>
+            <span className="text-[9px] font-black uppercase tracking-widest">{isFullscreen ? "Exit" : "Full"}</span>
           </button>
         </div>
 
@@ -6618,7 +6618,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
             })()}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 text-slate-500 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest italic px-4 group"
+            className="flex items-center gap-2 text-slate-500 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest px-4 group"
           >
             <Eye size={14} className="group-hover:scale-110 transition-transform" /> 
             Live View
@@ -6628,7 +6628,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
 
           <button
             onClick={onExit}
-            className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/5 border border-white/5 text-slate-500 hover:text-white hover:bg-red-500/20 hover:border-red-500/20 transition-all"
+            className="flex items-center justify-center w-10 h-10 rounded-xl bg-[var(--rp-surface-2)] border border-[var(--rp-border)] text-slate-500 hover:text-white hover:bg-red-500/20 hover:border-red-500/20 transition-all"
             title="Exit Editor"
           >
             <X size={20} strokeWidth={3} />
@@ -6638,7 +6638,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
             <button
               onClick={() => setShowDiscardModal(true)}
               disabled={saving || savingDraft || discardingDraft}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[9px] font-black uppercase tracking-[0.16em] transition-all border italic bg-red-500/5 border-red-500/20 text-red-300 hover:bg-red-500/15 hover:border-red-500/40 disabled:opacity-30"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[9px] font-black uppercase tracking-[0.16em] transition-all border bg-red-500/5 border-red-500/20 text-red-300 hover:bg-red-500/15 hover:border-red-500/40 disabled:opacity-30"
               title="Permanently replace this draft with the published theme"
             >
               <Trash2 size={12} /> Discard Draft
@@ -6695,7 +6695,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
               <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 text-red-400">
                 <AlertCircle size={28} />
               </div>
-              <h3 id="discard-draft-title" className="mb-3 text-2xl font-black uppercase italic tracking-tight text-white">
+              <h3 id="discard-draft-title" className="mb-3 text-2xl font-black uppercase tracking-tight text-white">
                 Discard unpublished changes?
               </h3>
               <p id="discard-draft-description" className="mb-8 text-sm font-medium leading-relaxed text-slate-400">
@@ -6790,12 +6790,12 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                 width: "420px",
               };
             })()}
-            className="pointer-events-auto bg-[#0c0c0e] border border-white/10 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col z-[1001]"
+            className="pointer-events-auto bg-[#0c0c0e] border border-[var(--rp-border)] rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col z-[1001]"
           >
             <div className="absolute inset-0 bg-gradient-to-br from-violet-600/10 via-transparent to-cyan-600/10 pointer-events-none" />
             <div className="p-8 relative z-10 space-y-5">
               <div className="flex justify-between items-start gap-4">
-                <h3 className="text-lg font-black text-white tracking-tight uppercase italic leading-tight">
+                <h3 className="text-lg font-black text-white tracking-tight uppercase leading-tight">
                   {TOUR_STEPS[tourStep].title}
                 </h3>
                 <button
@@ -6823,7 +6823,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                         TOUR_STEPS[prevStep].action?.();
                         setTourStep(prevStep);
                       }}
-                      className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-xl text-[9px] font-black uppercase tracking-widest italic transition-all"
+                      className="px-4 py-2 bg-[var(--rp-surface-2)] hover:bg-white/10 border border-[var(--rp-border)] text-slate-300 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
                     >
                       Back
                     </button>
@@ -6838,7 +6838,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                         setTourStep(null);
                       }
                     }}
-                    className="px-5 py-2 bg-white text-black hover:bg-slate-200 rounded-xl text-[9px] font-black uppercase tracking-widest italic transition-all shadow-xl"
+                    className="px-5 py-2 bg-white text-black hover:bg-slate-200 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-xl"
                   >
                     {tourStep === TOUR_STEPS.length - 1 ? "Finish" : "Next"}
                   </button>
@@ -6858,14 +6858,14 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 30 }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="bg-[#0c0c0e] border border-white/10 rounded-[3rem] shadow-[0_0_100px_rgba(124,58,237,0.2)] w-full max-w-lg overflow-hidden relative"
+              className="bg-[#0c0c0e] border border-[var(--rp-border)] rounded-[3rem] shadow-[0_0_100px_rgba(124,58,237,0.2)] w-full max-w-lg overflow-hidden relative"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-violet-600/10 via-transparent to-cyan-600/10 pointer-events-none" />
               <div className="p-16 text-center relative z-10">
                 <div className="w-24 h-24 bg-violet-600/10 border border-violet-500/20 rounded-[2.5rem] flex items-center justify-center mx-auto mb-10 text-violet-400 rotate-12 group-hover:rotate-0 transition-transform duration-700">
                   <Globe size={40} strokeWidth={2.5} />
                 </div>
-                <h3 className="text-4xl font-black text-white tracking-tighter uppercase italic mb-4">Deploy Changes?</h3>
+                <h3 className="text-4xl font-black text-white tracking-tighter uppercase mb-4">Deploy Changes?</h3>
                 <p className="text-slate-400 text-[14px] leading-relaxed mb-12 max-w-sm mx-auto font-medium">
                   The current design protocol will be synchronized with the live storefront edge nodes.
                 </p>
@@ -6876,14 +6876,14 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                       setShowPublishModal(false);
                       await handleSave({ publish: true });
                     }}
-                    className="w-full bg-white text-black py-5 rounded-2xl text-[12px] font-black tracking-[0.3em] uppercase italic hover:bg-slate-200 transition-all active:scale-[0.98] shadow-2xl"
+                    className="w-full bg-white text-black py-5 rounded-2xl text-[12px] font-black tracking-[0.3em] uppercase hover:bg-slate-200 transition-all active:scale-[0.98] shadow-2xl"
                   >
                     Publish Now
                   </button>
 
                   {/* Schedule for later */}
-                  <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 space-y-3 text-left">
-                    <p className="text-[9px] font-black tracking-[0.3em] text-amber-400 uppercase italic flex items-center gap-2">
+                  <div className="bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl p-4 space-y-3 text-left">
+                    <p className="text-[9px] font-black tracking-[0.3em] text-amber-400 uppercase flex items-center gap-2">
                       <Clock size={11} /> Or schedule for later
                     </p>
                     <div className="flex gap-2">
@@ -6892,7 +6892,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                         value={scheduleInput}
                         min={new Date(Date.now() + 5 * 60_000).toISOString().slice(0, 16)}
                         onChange={(e) => setScheduleInput(e.target.value)}
-                        className="flex-1 bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2.5 text-[11px] font-bold text-slate-200 outline-none focus:border-amber-500/50 [color-scheme:dark]"
+                        className="flex-1 bg-white/[0.04] border border-[var(--rp-border)] rounded-xl px-3 py-2.5 text-[11px] font-bold text-slate-200 outline-none focus:border-amber-500/50 [color-scheme:dark]"
                       />
                       <button
                         onClick={schedulePublish}
@@ -6972,14 +6972,14 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                     <>
                       <SubPanelHeader title={currentSectionTitle} onBack={() => setActiveSection(null)} />
                       {supportsPageScope && (
-                        <div className="border-b border-white/5 bg-white/[0.02] px-6 py-4">
+                        <div className="border-b border-[var(--rp-border)] bg-white/[0.02] px-6 py-4">
                           <div className="mb-2 flex items-center justify-between gap-3">
                             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">Apply changes to</span>
                             <span className="text-[8px] font-bold text-slate-600">
                               {settingsScope === "all" ? "Every storefront page" : pageTemplates.find((template) => template.id === designSurface)?.label || "This page"}
                             </span>
                           </div>
-                          <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/5 bg-black/30 p-1" role="group" aria-label="Settings page scope">
+                          <div className="grid grid-cols-2 gap-1 rounded-xl border border-[var(--rp-border)] bg-black/30 p-1" role="group" aria-label="Settings page scope">
                             {([
                               { id: "all", label: "All pages" },
                               { id: "page", label: "This page only" },
@@ -7019,7 +7019,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
 
                         {/* Sub-tabs to switch between sections and theme settings */}
                         {!settingsSearch && (
-                          <div className="flex bg-white/[0.03] border border-white/5 rounded-2xl p-1 mb-6 relative">
+                          <div className="flex bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl p-1 mb-6 relative">
                             <button
                               onClick={() => setSettingsSubTab("sections")}
                               className={`flex-1 py-2.5 text-[10px] font-black tracking-widest uppercase transition-all rounded-xl border ${
@@ -7046,7 +7046,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                         {/* Page template pills — Shopify-style template selector */}
                         {!settingsSearch && settingsSubTab === "sections" && (
                           <div className="mb-4">
-                            <p className="text-[8px] font-black tracking-[0.3em] text-slate-600 uppercase italic mb-2">Editing template</p>
+                            <p className="text-[8px] font-black tracking-[0.3em] text-slate-600 uppercase mb-2">Editing template</p>
                             <div className="flex items-center gap-1.5 flex-wrap">
                               {pageTemplates.map((tpl) => {
                                 const active = designSurface === tpl.id;
@@ -7091,7 +7091,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                             value={settingsSearch}
                             onChange={(e) => setSettingsSearch(e.target.value)}
                             placeholder="Search settings…"
-                            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-6 py-4 text-[10px] font-black text-white outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-800 tracking-widest italic"
+                            className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl px-6 py-4 text-[10px] font-black text-white outline-none focus:border-violet-500/50 transition-all placeholder:text-[var(--rp-text-subtle)] tracking-widest"
                           />
                           <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-800 group-focus-within/search:text-violet-500/50 transition-colors">
                             <Settings size={16} className="animate-[spin_10s_linear_infinite]" />
@@ -7149,12 +7149,12 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                       
                       {filteredSections.length === 0 && (
                         <div className="p-12 text-center">
-                          <p className="text-[10px] font-black text-slate-700 tracking-[0.3em] uppercase italic">No settings match your search</p>
+                          <p className="text-[10px] font-black text-slate-700 tracking-[0.3em] uppercase">No settings match your search</p>
                         </div>
                       )}
                       
                       {/* Click-to-select tip */}
-                      <div className="mx-8 mt-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center gap-3">
+                      <div className="mx-8 mt-4 p-4 bg-white/[0.02] border border-[var(--rp-border)] rounded-2xl flex items-center gap-3">
                         <MousePointer2 size={14} className="text-violet-400 flex-shrink-0" strokeWidth={2.5} />
                         <p className="rp-hint">
                           Click any element in the preview to jump directly to its settings
@@ -7166,9 +7166,9 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                              <RefreshCw size={40} className="rotate-12" />
                            </div>
-                           <h4 className="text-[11px] font-black text-violet-400 uppercase tracking-widest italic mb-2">Editor Protocol</h4>
+                           <h4 className="text-[11px] font-black text-violet-400 uppercase tracking-widest mb-2">Editor Protocol</h4>
                            <p className="rp-hint">
-                             All changes mirror to the live buffer. Use <kbd className="bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-violet-400 font-mono">Ctrl+Z</kbd> to undo, <kbd className="bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-violet-400 font-mono">Ctrl+Y</kbd> to redo.
+                             All changes mirror to the live buffer. Use <kbd className="bg-[var(--rp-surface-2)] border border-[var(--rp-border)] px-1.5 py-0.5 rounded text-violet-400 font-mono">Ctrl+Z</kbd> to undo, <kbd className="bg-[var(--rp-surface-2)] border border-[var(--rp-border)] px-1.5 py-0.5 rounded text-violet-400 font-mono">Ctrl+Y</kbd> to redo.
                            </p>
                         </div>
                       </div>
@@ -7184,7 +7184,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                   className="flex-1 flex flex-col overflow-hidden"
                 >
                   <div className="p-8 pb-4">
-                    <span className="text-[10px] font-black tracking-[0.4em] text-cyan-500 uppercase italic mb-2 block">Content Structure</span>
+                    <span className="text-[10px] font-black tracking-[0.4em] text-cyan-500 uppercase mb-2 block">Content Structure</span>
                     <h2 className="rp-page-title mb-4">Site Architecture</h2>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -7216,7 +7216,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                   className="flex-1 flex flex-col overflow-hidden"
                 >
                   <div className="p-8 pb-4">
-                    <span className="text-[10px] font-black tracking-[0.4em] text-amber-500 uppercase italic mb-2 block">Temporal Archive</span>
+                    <span className="text-[10px] font-black tracking-[0.4em] text-amber-500 uppercase mb-2 block">Temporal Archive</span>
                     <h2 className="rp-page-title mb-4">Version History</h2>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -7248,7 +7248,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                   className="flex-1 flex flex-col overflow-hidden"
                 >
                   <div className="p-8 pb-4">
-                    <span className="text-[10px] font-black tracking-[0.4em] text-blue-500 uppercase italic mb-2 block">Adaptive Layout</span>
+                    <span className="text-[10px] font-black tracking-[0.4em] text-blue-500 uppercase mb-2 block">Adaptive Layout</span>
                     <h2 className="rp-page-title mb-4">Breakpoints</h2>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -7264,7 +7264,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                   className="flex-1 flex flex-col overflow-hidden"
                 >
                   <div className="p-8 pb-4">
-                    <span className="text-[10px] font-black tracking-[0.4em] text-emerald-500 uppercase italic mb-2 block">Search Engine</span>
+                    <span className="text-[10px] font-black tracking-[0.4em] text-emerald-500 uppercase mb-2 block">Search Engine</span>
                     <h2 className="rp-page-title mb-4">SEO & Metadata</h2>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -7280,7 +7280,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                   className="flex-1 flex flex-col overflow-hidden"
                 >
                   <div className="p-8 pb-4">
-                    <span className="text-[10px] font-black tracking-[0.4em] text-fuchsia-500 uppercase italic mb-2 block">Design System</span>
+                    <span className="text-[10px] font-black tracking-[0.4em] text-fuchsia-500 uppercase mb-2 block">Design System</span>
                     <h2 className="rp-page-title mb-4">Theme Library</h2>
                   </div>
                   <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -7322,11 +7322,11 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                   <div className="relative">
                     <div className="absolute inset-0 bg-violet-500/20 blur-[60px] rounded-full animate-pulse" />
                     <div className="relative z-10">
-                      <div className="w-24 h-24 rounded-[2.5rem] bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-8 text-slate-700 rotate-12 hover:rotate-0 transition-transform duration-700">
+                      <div className="w-24 h-24 rounded-[2.5rem] bg-[var(--rp-surface-2)] border border-[var(--rp-border)] flex items-center justify-center mx-auto mb-8 text-slate-700 rotate-12 hover:rotate-0 transition-transform duration-700">
                         {activeTab === "templates" && <LayoutTemplate size={40} />}
                       </div>
-                      <p className="text-[12px] font-black text-white tracking-[0.4em] uppercase italic mb-3">{activeTab} Module</p>
-                      <p className="text-[10px] font-black text-slate-600 tracking-[0.2em] uppercase italic">Awaiting Integration Link</p>
+                      <p className="text-[12px] font-black text-white tracking-[0.4em] uppercase mb-3">{activeTab} Module</p>
+                      <p className="text-[10px] font-black text-slate-600 tracking-[0.2em] uppercase">Awaiting Integration Link</p>
                     </div>
                   </div>
                 </motion.div>
@@ -7341,7 +7341,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
           {isFullscreen && (
             <button
               onClick={() => setIsFullscreen(false)}
-              className="absolute top-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full bg-black/80 backdrop-blur-md border border-white/10 hover:border-violet-500/50 hover:bg-violet-600/20 text-white shadow-2xl transition-all duration-300 group hover:scale-105"
+              className="absolute top-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full bg-black/80 backdrop-blur-md border border-[var(--rp-border)] hover:border-violet-500/50 hover:bg-violet-600/20 text-white shadow-2xl transition-all duration-300 group hover:scale-105"
               title="Exit Fullscreen"
             >
               <Minimize2 size={14} className="text-violet-400 group-hover:rotate-90 transition-transform duration-300" strokeWidth={2.5} />
@@ -7410,11 +7410,11 @@ function SidebarAssetUpload({ value, onChange, label, type }: any) {
   };
 
   return (
-    <div className="bg-white/[0.03] rounded-3xl p-5 border border-white/10 space-y-5 backdrop-blur-3xl transition-all hover:bg-white/[0.05] relative overflow-hidden group/upload">
+    <div className="bg-[var(--rp-surface-2)] rounded-3xl p-5 border border-[var(--rp-border)] space-y-5 backdrop-blur-3xl transition-all hover:bg-white/[0.05] relative overflow-hidden group/upload">
       <div className="absolute inset-0 bg-gradient-to-br from-violet-600/5 to-transparent pointer-events-none" />
       
       {value && (
-        <div className="aspect-video w-full rounded-2xl overflow-hidden border border-white/10 bg-black/40 group relative shadow-2xl">
+        <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--rp-border)] bg-black/40 group relative shadow-2xl">
           <img src={value} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
           <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
             <button 
@@ -7433,7 +7433,7 @@ function SidebarAssetUpload({ value, onChange, label, type }: any) {
             value={value || ""} 
             onChange={(e) => onChange(e.target.value)}
             placeholder="Asset URL..."
-            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-[10px] text-white outline-none focus:border-violet-500/50 transition-all placeholder:text-slate-800 font-black tracking-widest uppercase italic"
+            className="w-full bg-[var(--rp-surface-2)] border border-[var(--rp-border)] rounded-2xl px-5 py-4 text-[10px] text-white outline-none focus:border-violet-500/50 transition-all placeholder:text-[var(--rp-text-subtle)] font-black tracking-widest uppercase"
           />
         </div>
         
@@ -7447,7 +7447,7 @@ function SidebarAssetUpload({ value, onChange, label, type }: any) {
           />
           <label 
             htmlFor={`asset-${type}`}
-            className="flex items-center justify-center gap-3 w-full py-5 bg-white/[0.05] border border-white/10 rounded-[2rem] text-[10px] font-black cursor-pointer hover:bg-white/10 hover:border-violet-500/30 transition-all uppercase tracking-[0.25em] italic text-slate-400 hover:text-white shadow-xl group-active/upload:scale-[0.98]"
+            className="flex items-center justify-center gap-3 w-full py-5 bg-white/[0.05] border border-[var(--rp-border)] rounded-[2rem] text-[10px] font-black cursor-pointer hover:bg-white/10 hover:border-violet-500/30 transition-all uppercase tracking-[0.25em] text-slate-400 hover:text-white shadow-xl group-active/upload:scale-[0.98]"
           >
             {uploading ? (
               <RefreshCw size={16} className="animate-spin text-violet-400" strokeWidth={3} />
