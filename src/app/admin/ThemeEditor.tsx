@@ -758,7 +758,7 @@ function StylePanel({ design, update, presetOptions }: any) {
         <div className="space-y-8">
           <button
             onClick={() => setShowFontBrowser(true)}
-            className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 border border-violet-500/30 rounded-2xl py-4 text-[10px] font-black text-violet-300 hover:text-white hover:border-violet-400/50 transition-all uppercase tracking-[0.25em] italic"
+            className="rp-btn rp-btn-secondary w-full"
           >
             Browse 190+ Google Fonts
           </button>
@@ -793,7 +793,7 @@ function StylePanel({ design, update, presetOptions }: any) {
 
       <Accordion title="Curated Font Pairings">
         <div className="space-y-4">
-          <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+          <p className="rp-hint">
             Designer-matched heading and body combinations — apply both in one click.
           </p>
           <FontPairingsGrid design={design} update={update} />
@@ -1241,7 +1241,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
               type="logo"
               label="Upload Logo"
             />
-            <p className="text-[9px] text-slate-500 leading-relaxed">
+            <p className="rp-hint">
               Upload your logo image. Leave empty to use the wordmark text below instead.
             </p>
           </div>
@@ -1302,7 +1302,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
                 { value: "two-part", label: "Two-part serif" },
               ]}
             />
-            <p className="text-[9px] text-slate-500 leading-relaxed mt-2">
+            <p className="rp-hint mt-2">
               "Two-part serif" renders a wordmark like <em>Lyricalmyrical Books</em> — both words the same
               size in your heading font, second word muted.
             </p>
@@ -1356,7 +1356,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
                 { value: "stickers", label: "Sticker pills" },
               ]}
             />
-            <p className="text-[9px] text-slate-500 leading-relaxed mt-2">
+            <p className="rp-hint mt-2">
               Sticker pills give nav links an asymmetric corner shape and a slight rotation that
               straightens on hover.
             </p>
@@ -1432,7 +1432,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
                 { value: "theme", label: "Theme colors" },
               ]}
             />
-            <p className="text-[9px] text-slate-500 leading-relaxed">
+            <p className="rp-hint">
               "Theme colors" renders /page/… pages (About, Journal, …) in your storefront background,
               text color and wordmark instead of the white editorial page.
             </p>
@@ -1462,7 +1462,7 @@ function NavigationPanel({ design, update, setActiveTab, setActiveSection }: any
 
       <Accordion title="Cart">
         <div className="space-y-6">
-          <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden">
+          <div className="space-y-0 border-2 border-[var(--rp-border)] overflow-hidden">
             <SidebarToggle
               label="Free-shipping progress bar"
               description="Show how far shoppers are from free shipping"
@@ -2327,11 +2327,11 @@ function PagesPanel({ pages, setPages, design, update }: any) {
             <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest italic">Danger Protocol</h4>
             <button
               onClick={() => { if(confirm("Confirm page deletion?")) deletePage(editingPage.id); }}
-              className="w-full py-4 bg-red-500/20 text-red-400 text-[10px] font-black tracking-[0.3em] rounded-2xl hover:bg-red-500 hover:text-white transition-all uppercase italic shadow-2xl"
+              className="rp-btn rp-btn-danger w-full"
             >
               Terminate Page
             </button>
-            <p className="text-[9px] text-slate-600 font-bold leading-relaxed italic text-center">
+            <p className="rp-hint text-center">
               Page content must be managed via the primary Dashboard Interface.
             </p>
           </div>
@@ -2416,7 +2416,7 @@ function PagesPanel({ pages, setPages, design, update }: any) {
                   setEditingCategoryIndex(null);
                 }
               }}
-              className="w-full py-4 bg-red-500/20 text-red-400 text-[10px] font-black tracking-[0.3em] rounded-2xl hover:bg-red-500 hover:text-white transition-all uppercase italic shadow-2xl"
+              className="rp-btn rp-btn-danger w-full"
             >
               Delete Category
             </button>
@@ -3017,7 +3017,7 @@ function ProductsPanel({ design, update }: any) {
                   { value: "designed", label: "Designed card" },
                 ]}
               />
-              <p className="text-[9px] text-slate-500 leading-relaxed mt-2">
+              <p className="rp-hint mt-2">
                 "Designed card" wraps the description in a surface card with an eyebrow label and serif lead
                 (edit the label under Content &amp; Text → Product page).
               </p>
@@ -3236,7 +3236,7 @@ function ButtonsPanel({ design, update }: any) {
     <div className="p-4 space-y-2 overflow-y-auto flex-1">
       <Accordion title="Button Colors" defaultOpen={true}>
         <div className="space-y-6">
-          <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+          <p className="rp-hint">
             By default buttons use your accent color. Override them here for every CTA across the store —
             individual sections can still set their own accent.
           </p>
@@ -3252,7 +3252,7 @@ function ButtonsPanel({ design, update }: any) {
           />
           <ContrastBadge background={buttonBg} text={buttonText} />
           {/* Live sample */}
-          <div className="flex items-center justify-center py-5 rounded-2xl bg-white/[0.03] border border-white/10">
+          <div className="flex items-center justify-center py-5 bg-[var(--rp-surface-2)] border-2 border-[var(--rp-border)]">
             <span
               className={`px-8 py-3.5 text-[10px] tracking-[0.3em] font-bold ${design.buttonUppercase ?? true ? "uppercase" : ""} ${design.buttonShadow ?? true ? "shadow-xl" : ""}`}
               style={{
@@ -3271,7 +3271,7 @@ function ButtonsPanel({ design, update }: any) {
                 update("buttonColor", undefined);
                 update("buttonTextColor", undefined);
               }}
-              className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 text-[10px] font-black text-slate-500 hover:text-white hover:bg-white/10 transition-all uppercase tracking-[0.2em] italic"
+              className="rp-btn rp-btn-secondary w-full"
             >
               Reset to accent color
             </button>
@@ -3304,7 +3304,7 @@ function ButtonsPanel({ design, update }: any) {
             suffix="px"
             onChange={(v) => update("buttonRadius", v)}
           />
-          <div className="space-y-0 border border-neutral-100 rounded-xl overflow-hidden">
+          <div className="space-y-0 border-2 border-[var(--rp-border)] overflow-hidden">
             <SidebarToggle
               label="Uppercase"
               checked={design.buttonUppercase ?? true}
@@ -3692,7 +3692,7 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
         ))}
       </div>
 
-      <p className="text-[9px] text-slate-600 font-bold leading-relaxed italic px-1">
+      <p className="rp-hint">
         Build the {tab} navigation. Add links to pages, collections or any URL. Add sub-links to create a
         {tab === "header" ? " dropdown menu." : " grouped list."}
       </p>
@@ -3844,7 +3844,7 @@ function MenuBuilderPanel({ design, update, pages = [] }: any) {
 
       <button
         onClick={() => setItems([...items, newMenuItem()])}
-        className="w-full py-4 bg-violet-600/15 border border-violet-500/30 rounded-2xl text-[10px] font-black text-violet-300 hover:bg-violet-600/25 transition-all uppercase tracking-[0.2em] italic flex items-center justify-center gap-2"
+        className="rp-btn rp-btn-secondary w-full"
       >
         <Plus size={14} /> Add link
       </button>
@@ -4350,7 +4350,7 @@ function ResponsivePanel({ design, update, device }: { design: any; update: (k: 
         <div className="mx-1 pt-2">
           <button
             onClick={() => update("mobileOverrides", {})}
-            className="w-full py-3 text-[9px] font-black text-red-400/60 hover:text-red-400 hover:bg-red-500/10 rounded-2xl transition-all uppercase tracking-widest border border-transparent hover:border-red-500/20"
+            className="rp-btn rp-btn-ghost w-full"
           >
             Reset All Mobile Overrides
           </button>
@@ -5162,7 +5162,7 @@ function FeatureLinkCard({ icon, title, desc, onAction }: { icon: React.ReactNod
         <p className="text-[11px] font-black text-slate-200 uppercase tracking-tight italic group-hover:text-white transition-colors mb-1">
           {title}
         </p>
-        <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+        <p className="rp-hint">
           {desc}
         </p>
       </div>
@@ -5264,7 +5264,7 @@ function GuidePanel({
           <div className="space-y-6">
             <button
               onClick={startInteractiveTour}
-              className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-2xl py-4 text-[10px] font-black hover:shadow-[0_0_30px_rgba(124,58,237,0.3)] transition-all uppercase tracking-[0.25em] italic"
+              className="rp-btn rp-btn-primary w-full"
             >
               <Zap size={14} className="fill-white" />
               Launch Quick Tour
@@ -6907,7 +6907,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
 
                   <button
                     onClick={() => setShowPublishModal(false)}
-                    className="w-full py-4 text-[11px] font-black text-slate-500 tracking-[0.3em] uppercase italic hover:text-white transition-colors"
+                    className="rp-btn rp-btn-ghost w-full"
                   >
                     Cancel
                   </button>
@@ -7154,7 +7154,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                       {/* Click-to-select tip */}
                       <div className="mx-8 mt-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl flex items-center gap-3">
                         <MousePointer2 size={14} className="text-violet-400 flex-shrink-0" strokeWidth={2.5} />
-                        <p className="text-[9px] text-slate-500 font-bold leading-relaxed italic">
+                        <p className="rp-hint">
                           Click any element in the preview to jump directly to its settings
                         </p>
                       </div>
@@ -7165,7 +7165,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
                              <RefreshCw size={40} className="rotate-12" />
                            </div>
                            <h4 className="text-[11px] font-black text-violet-400 uppercase tracking-widest italic mb-2">Editor Protocol</h4>
-                           <p className="text-[9px] text-slate-500 font-bold leading-relaxed">
+                           <p className="rp-hint">
                              All changes mirror to the live buffer. Use <kbd className="bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-violet-400 font-mono">Ctrl+Z</kbd> to undo, <kbd className="bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-violet-400 font-mono">Ctrl+Y</kbd> to redo.
                            </p>
                         </div>
