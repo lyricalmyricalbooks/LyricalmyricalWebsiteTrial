@@ -140,6 +140,14 @@ profile, rate dialog).
 
 ## Theme editor
 
+> [!IMPORTANT]
+> **The default Admin → Settings → Design editor is the new Studio editor**
+> (`src/app/admin/studio/StudioEditor.tsx`; left tabs **Sections / Style / Text & labels / Menus**).
+> The big `ThemeEditor.tsx` described below is only the legacy editor (opens with `?editor=legacy`).
+> **Always add or change theme/design features in the Studio editor first** — the user only sees
+> Studio. Shop categories (the storefront category bar) are edited in Studio › **Menus** ›
+> **Shop categories**. Walkthroughs must use Studio's labels, not legacy tabs like "Pages".
+
 A large (~11k-line) Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the
 section/block contract, and the Shopify-parity roadmap.
