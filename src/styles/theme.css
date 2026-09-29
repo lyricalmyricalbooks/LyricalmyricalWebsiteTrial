@@ -956,3 +956,19 @@
   padding-top: var(--section-padding, 4rem);
   padding-bottom: var(--section-padding, 4rem);
 }
+
+/* ── Studio editor: keep light-on-dark controls readable ───────────────────────
+ * The admin compatibility layer remaps `.text-white` to dark ink (correct for the light Riso
+ * admin canvas). Studio's own dark controls (primary buttons, selected tabs/devices, Publish)
+ * use `bg-neutral-900 text-white`, which turned into dark-on-dark. Repeat the attribute to
+ * out-rank the compat selectors. */
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-900,
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-900 *,
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-700,
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-700 * {
+  color: #ffffff !important;
+}
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-900 svg,
+[data-studio-editor][data-studio-editor][data-studio-editor] .bg-neutral-900 svg * {
+  stroke: currentColor !important;
+}

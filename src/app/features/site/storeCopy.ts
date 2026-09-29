@@ -428,11 +428,9 @@ export const DEFAULT_COPY: Record<string, string> = COPY_SCHEMA.reduce(
  * Supports {year} token replacement and optional extra vars.
  */
 export function getCopy(design: any, key: string, vars?: Record<string, string | number>): string {
-  const raw =
-    (design?.copy && design.copy[key]) ||
-    design?.[key] ||
-    DEFAULT_COPY[key] ||
-    "";
+  // Only strings count: a design key that happens to share a copy key's name must never crash a page.
+  const str = (v: unknown) => (typeof v === "string" && v ? v : "");
+  const raw = str(design?.copy?.[key]) || str(design?.[key]) || DEFAULT_COPY[key] || "";
   const all: Record<string, string | number> = { year: new Date().getFullYear(), ...(vars || {}) };
   return raw.replace(/\{(\w+)\}/g, (m: string, name: string) =>
     name in all ? String(all[name]) : m,

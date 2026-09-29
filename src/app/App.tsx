@@ -8,6 +8,7 @@ import { CartDrawer } from "./components/CartDrawer";
 import { CookieConsent } from "./components/CookieConsent";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { BootSplash } from "./components/BootSplash";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // import.meta.env.BASE_URL is the Vite `base` config (e.g. "/LyricalmyricalWebsiteTrial/").
 // Strip the trailing slash so React Router treats it as a basename.
@@ -79,6 +80,7 @@ export default function App() {
       <CurrencyProvider>
         <CartProvider>
           <BrowserRouter basename={ROUTER_BASENAME}>
+          <ErrorBoundary>
           <CartDrawer />
           <CookieConsent />
           <Suspense fallback={<BootSplash />}>
@@ -115,6 +117,7 @@ export default function App() {
                   <Route path="/track" element={<OrderTracking />} />
                 </Routes>
           </Suspense>
+          </ErrorBoundary>
           </BrowserRouter>
         </CartProvider>
       </CurrencyProvider>
