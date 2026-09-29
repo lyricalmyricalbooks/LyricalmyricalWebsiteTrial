@@ -6443,7 +6443,7 @@ export function ThemeEditor({ settings, onSave, onExit, appearance = "light" }: 
   ];
 
   return (
-    <div className="rp fixed inset-0 z-[200] flex flex-col overflow-hidden" data-rp-appearance={appearance} style={{ fontFamily: "var(--rp-font-body)", background: "var(--rp-canvas)", color: "var(--rp-text)" }}>
+    <div data-te="" className="rp fixed inset-0 z-[200] flex flex-col overflow-hidden" data-rp-appearance={appearance} style={{ fontFamily: "var(--rp-font-body)", background: "var(--rp-canvas)", color: "var(--rp-text)" }}>
       {/* ── Top bar ── */}
       <div className={`transition-all duration-500 ease-in-out flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-6 flex-shrink-0 border-b-2 border-[var(--rp-border-strong)] z-50 ${isFullscreen ? "h-0 opacity-0 overflow-hidden border-none pointer-events-none" : "min-h-20 py-2 bg-[var(--rp-surface)]"}`}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">

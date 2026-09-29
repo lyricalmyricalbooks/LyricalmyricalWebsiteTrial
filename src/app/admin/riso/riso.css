@@ -613,3 +613,16 @@
 .rp-quill .ql-toolbar button:hover .ql-fill, .rp-quill .ql-toolbar button.ql-active .ql-fill { fill: var(--rp-primary-text); }
 .rp-quill:focus-within .ql-container, .rp-quill:focus-within .ql-toolbar { border-color: var(--rp-focus); }
 .rp-row-hover:hover { background: var(--rp-surface-2); }
+
+/* ── Theme editor panel bodies ───────────────────────────────────────────
+   The editor's ~7k lines of panel markup still carry legacy utilities. Scoped
+   to the editor root (data-te) so they take the Riso look: square corners,
+   ink text ramp and ink borders, without touching the live preview iframe or
+   circular controls (rounded-full). Migrate panels to rp-* components over time. */
+.rp[data-te] :is(.rounded-lg, .rounded-xl, .rounded-2xl, .rounded-3xl, .rounded-\[2rem\], .rounded-\[2\.5rem\]) { border-radius: 0; }
+.rp[data-te] :is(.text-slate-400, .text-slate-500, .text-slate-600, .text-neutral-400, .text-neutral-500, .text-neutral-600) { color: var(--rp-text-muted); }
+.rp[data-te] :is(.text-slate-700, .text-slate-800, .text-slate-900, .text-neutral-700, .text-neutral-800) { color: var(--rp-text); }
+.rp[data-te] :is(.border-white\/5, .border-white\/10, .border-black\/5, .border-black\/10) { border-color: var(--rp-border); }
+.rp[data-te] :is(input, select, textarea):focus-visible,
+.rp[data-te] button:focus-visible { outline: 2px solid var(--rp-primary); outline-offset: 2px; }
+.rp[data-te] .italic { font-style: normal; }
