@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Download, Trash2 } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
+import { matchesOrderTab, ORDER_TABS } from "./orderTabs";
 import { orderApi, FULFILLMENT_LABELS, type FulfillmentStatus } from "../lib/commerce";
 import {
   Checkbox, ConfirmDialog, DataTable, DestructiveButton, EmptyState, ErrorState, FilterBar, LoadingState,
@@ -17,7 +18,7 @@ const orderSearchCache = new WeakMap<any, string>();
 export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("Open");
+  const [activeTab, setActiveTab] = useState("To ship");
   const [searchQuery, setSearchQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<FulfillmentStatus>("processing");
@@ -119,10 +120,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
   const filteredOrders = useMemo(() => {
     const q = searchQuery.toLowerCase();
     return orders.filter(o => {
-      const matchesTab =
-        activeTab === "All orders" ||
-        (activeTab === "Open" && o.status === "open") ||
-        (activeTab === "Completed" && o.status === "completed");
+      const matchesTab = matchesOrderTab(o, activeTab);
 
       const matchesOrderType =
         orderType === "all" ||
@@ -151,6 +149,13 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
       return sort === "oldest" ? d : -d;
     });
   }, [orders, activeTab, searchQuery, orderType, range, sort]);
+
+  const tabCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    const base = orders.filter(o => orderType === "all" || (orderType === "test" ? o.isTest === true : o.isTest !== true));
+    ORDER_TABS.forEach(t => { c[t] = base.filter(o => matchesOrderTab(o, t)).length; });
+    return c;
+  }, [orders, orderType]);
 
   const PAGE_SIZE = 25;
   const pageCount = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE));
@@ -227,7 +232,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
       </FilterBar>
 
       <Tabs label="Order status" value={activeTab} onChange={setActiveTab}
-        tabs={["Open", "Completed", "All orders"].map(t => ({ id: t, label: t }))} />
+        tabs={ORDER_TABS.map(t => ({ id: t, label: t, count: t === "All orders" ? undefined : tabCounts[t] }))} />
 
       <SectionCard flush title="Orders" description={`${filteredOrders.length} order${filteredOrders.length === 1 ? "" : "s"} · totals are shown as recorded by the payment webhook`}
         actions={filteredOrders.length > 0 && (

@@ -36,6 +36,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
   const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
   const [isVoiding, setIsVoiding] = useState(false);
   const [restockOnRefund, setRestockOnRefund] = useState(true);
+  const [refundReason, setRefundReason] = useState("Customer request");
   const [isMarkingPaid, setIsMarkingPaid] = useState(false);
   const [timelineFilter, setTimelineFilter] = useState<"all" | "event" | "note">("all");
   const [confirming, setConfirming] = useState<null | "paid" | "refund" | "cancel">(null);
@@ -130,7 +131,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     setConfirming(null);
     setIsVoiding(true);
     try {
-      await adminApi.refundOrder(orderId);
+      await adminApi.refundOrder(orderId, { reason: refundReason, restock: restockOnRefund });
       toast.success(isManual ? "Manual order marked as refunded" : "Stripe refund issued and order cancelled");
       loadOrder();
     } catch (err: any) {
@@ -395,6 +396,9 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
               {paid ? (
                 <>
                   <DestructiveButton onClick={() => setConfirming("refund")} disabled={isVoiding}>{isVoiding ? "Refunding…" : "Refund paid order"}</DestructiveButton>
+                  <SelectField label="Refund reason" value={refundReason} onChange={(e) => setRefundReason(e.target.value)}>
+                    {["Customer request", "Damaged in transit", "Out of stock", "Wrong item sent", "Duplicate order", "Other"].map(r => <option key={r} value={r}>{r}</option>)}
+                  </SelectField>
                   <Checkbox label="Restock items" checked={restockOnRefund} onChange={(e) => setRestockOnRefund(e.target.checked)} />
                 </>
               ) : order.paymentStatus === "refunded" || order.paymentStatus === "refund_pending" ? (
