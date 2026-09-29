@@ -1,0 +1,149 @@
+import { useMemo, useState } from "react";
+import { ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, LayoutTemplate, Plus, Trash2 } from "lucide-react";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
+import { adminApi } from "../api";
+import { duplicatePage, movePage, seoHints } from "../pageInsights";
+import type { Page } from "../../features/site/types";
+
+const btn =
+  "inline-flex items-center gap-1.5 px-3 h-9 text-xs font-bold border border-neutral-300 rounded-lg bg-white hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed";
+const btnPrimary =
+  "inline-flex items-center gap-1.5 px-4 h-9 text-xs font-bold rounded-lg bg-neutral-900 text-white hover:bg-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed";
+const iconBtn = "inline-flex items-center justify-center w-8 h-8 rounded-md text-neutral-600 hover:bg-neutral-200 disabled:opacity-30";
+const input = "w-full border border-neutral-200 rounded-lg px-3 h-9 text-xs";
+
+const toSlug = (t: string) => t.toLowerCase().replace(/[^a-z0-9 -]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").trim();
+const publicUrl = (slug?: string) => `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/page/${slug || ""}`;
+const QUILL_MODULES = {
+  toolbar: [[{ header: [1, 2, 3, false] }], ["bold", "italic", "underline"], [{ list: "ordered" }, { list: "bullet" }], ["link", "blockquote"], ["clean"]],
+};
+
+type Say = (kind: "ok" | "err", text: string) => void;
+
+/** Custom storefront pages, managed inside the Studio editor (Pages tab). Pages save immediately — they are not part of the theme draft. */
+export function StudioPages({ pages, setPages, say, onEditSections }: {
+  pages: Page[]; setPages: (fn: (p: Page[]) => Page[]) => void; say: Say; onEditSections: (slug: string) => void;
+}) {
+  const [editing, setEditing] = useState<Partial<Page> | null>(null);
+  const [original, setOriginal] = useState("");
+  const [isNew, setIsNew] = useState(false);
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const dirty = !!editing && JSON.stringify(editing) !== original;
+  const ordered = useMemo(() => [...pages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)), [pages]);
+
+  const open = (p: Partial<Page>, fresh: boolean) => { setEditing(p); setOriginal(JSON.stringify(p)); setIsNew(fresh); setSlugEdited(!fresh); setError(""); };
+  const openNew = () => open({ title: "", slug: "", body: "", status: "published", showInNav: true, order: pages.length, seoTitle: "", metaDescription: "" }, true);
+  const back = () => { if (dirty && !window.confirm("Discard your unsaved changes to this page?")) return; setEditing(null); };
+
+  async function save() {
+    if (!editing) return;
+    if (!editing.title?.trim()) return setError("Give the page a title.");
+    if (!editing.slug?.trim()) return setError("A URL slug is required.");
+    if (pages.some((p) => p.slug === editing.slug && p.id !== editing.id)) return setError("Another page already uses this slug.");
+    setError(""); setSaving(true);
+    try {
+      let next: Page;
+      if (isNew) { next = await adminApi.createPage(editing); setPages((prev) => [...prev, next]); setIsNew(false); }
+      else { next = await adminApi.updatePage(editing.id!, editing); setPages((prev) => prev.map((p) => (p.id === next.id ? next : p))); }
+      setEditing(next); setOriginal(JSON.stringify(next));
+      say("ok", "Page saved.");
+    } catch (e: any) { say("err", e?.message || "Could not save the page."); } finally { setSaving(false); }
+  }
+
+  async function remove(p: Partial<Page>) {
+    if (!p.id || !window.confirm(`Delete “${p.title}”? It will be removed from the storefront and its menu. This cannot be undone.`)) return;
+    try { await adminApi.deletePage(p.id); setPages((prev) => prev.filter((x) => x.id !== p.id)); setEditing(null); say("ok", "Page deleted."); }
+    catch { say("err", "Could not delete the page."); }
+  }
+
+  async function move(id: string, dir: -1 | 1) {
+    const updates = movePage(ordered, id, dir);
+    if (!updates.length) return;
+    try {
+      await Promise.all(updates.map((u) => adminApi.updatePage(u.id, { ...pages.find((p) => p.id === u.id), order: u.order })));
+      setPages((prev) => prev.map((p) => { const u = updates.find((x) => x.id === p.id); return u ? { ...p, order: u.order } : p; }));
+    } catch { say("err", "Could not reorder pages."); }
+  }
+
+  if (editing) {
+    const set = (patch: Partial<Page>) => setEditing((p) => ({ ...p, ...patch }));
+    return (
+      <div className="p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <button className={btn} onClick={back}><ArrowLeft size={14} /> All pages</button>
+          {!isNew && editing.status === "published" && (
+            <a className={btn} href={publicUrl(editing.slug)} target="_blank" rel="noreferrer"><ExternalLink size={13} /> View</a>
+          )}
+        </div>
+        {error && <p role="alert" className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 rounded-lg p-2">{error}</p>}
+        <label className="block">
+          <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block mb-1">Page title</span>
+          <input className={input} value={editing.title || ""} placeholder="e.g. About the press"
+            onChange={(e) => set({ title: e.target.value, slug: slugEdited ? editing.slug : toSlug(e.target.value) })} />
+        </label>
+        <label className="block">
+          <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block mb-1">URL slug</span>
+          <input className={`${input} font-mono`} value={editing.slug || ""} placeholder="page-url-slug"
+            onChange={(e) => { setSlugEdited(true); set({ slug: toSlug(e.target.value) }); }} />
+          <span className="text-[11px] text-neutral-500 break-all">{publicUrl(editing.slug || "…")}</span>
+        </label>
+        <div>
+          <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block mb-1">Body</span>
+          <ReactQuill theme="snow" value={editing.body || ""} onChange={(v) => set({ body: v })} modules={QUILL_MODULES} placeholder="Write your page content…" />
+        </div>
+        <div className="space-y-2 border-t border-neutral-200 pt-3">
+          <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editing.status === "published"} onChange={(e) => set({ status: e.target.checked ? "published" : "draft" })} /> Published <span className="font-normal text-neutral-500">(drafts are hidden from the shop)</span></label>
+          <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editing.showInNav ?? true} onChange={(e) => set({ showInNav: e.target.checked })} /> Show in the navigation menu</label>
+        </div>
+        <div className="space-y-2 border-t border-neutral-200 pt-3">
+          <p className="text-xs font-bold">Search listing (SEO)</p>
+          <input className={input} value={editing.seoTitle || ""} placeholder={editing.title || "SEO title"} aria-label="SEO title" onChange={(e) => set({ seoTitle: e.target.value })} />
+          <textarea className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-xs" rows={3} maxLength={320} aria-label="Meta description"
+            value={editing.metaDescription || ""} placeholder="A brief summary for search engines…" onChange={(e) => set({ metaDescription: e.target.value })} />
+          <ul className="text-[11px] text-neutral-600 space-y-0.5">
+            {seoHints(editing.title || "", editing.seoTitle || "", editing.metaDescription || "").map((h) => (
+              <li key={h.text}>{h.level === "good" ? "✓ " : "⚠ "}{h.text}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 border-t border-neutral-200 pt-3 sticky bottom-0 bg-white pb-2">
+          <button className={btnPrimary} onClick={save} disabled={saving || (!dirty && !isNew)}>{saving ? "Saving…" : isNew ? "Create page" : "Save page"}</button>
+          {!isNew && editing.slug && <button className={btn} onClick={() => onEditSections(editing.slug!)}><LayoutTemplate size={13} /> Design sections</button>}
+          {!isNew && <button className={`${btn} text-red-700`} onClick={() => remove(editing)}><Trash2 size={13} /> Delete</button>}
+          {dirty && <span className="text-[11px] text-neutral-500">Unsaved changes</span>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-3">
+      <div>
+        <p className="text-sm font-bold">Pages</p>
+        <p className="text-xs text-neutral-500">Write About, Shipping or Journal pages. Pages save straight away and don't need Publish. Use “Design sections” to lay out a page with banners and galleries.</p>
+      </div>
+      <button className={btnPrimary} onClick={openNew}><Plus size={14} /> New page</button>
+      {ordered.length === 0 && <p className="text-xs text-neutral-500 border border-dashed border-neutral-300 rounded-lg p-4">No pages yet. Create one and it can appear in your storefront menu.</p>}
+      {ordered.map((p, i) => (
+        <div key={p.id} className="border border-neutral-200 rounded-lg p-2 bg-white space-y-1">
+          <div className="flex items-center gap-1">
+            <button className="flex-1 min-w-0 text-left" onClick={() => open({ ...p }, false)} aria-label={`Edit ${p.title}`}>
+              <p className="text-xs font-bold truncate">{p.title}</p>
+              <p className="text-[11px] text-neutral-500 font-mono truncate">/page/{p.slug}</p>
+            </button>
+            <button className={iconBtn} disabled={i === 0} onClick={() => move(p.id, -1)} aria-label={`Move ${p.title} up in menu`}><ChevronUp size={14} /></button>
+            <button className={iconBtn} disabled={i === ordered.length - 1} onClick={() => move(p.id, 1)} aria-label={`Move ${p.title} down in menu`}><ChevronDown size={14} /></button>
+            <button className={iconBtn} onClick={() => open(duplicatePage(p, pages), true)} aria-label={`Duplicate ${p.title}`}><Copy size={14} /></button>
+            <button className={iconBtn} onClick={() => remove(p)} aria-label={`Delete ${p.title}`}><Trash2 size={14} /></button>
+          </div>
+          <p className="text-[11px] text-neutral-600">
+            {p.status === "published" ? "✓ Published" : "○ Draft"} · {p.showInNav ? "In menu" : "Not in menu"}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
