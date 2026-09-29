@@ -38,7 +38,7 @@ The editor is **not** a blank slate. It already supports:
 | File | Owns |
 |------|------|
 | `src/app/admin/ThemeEditor.tsx` | Top-level editor shell and panels: Style, Colors, Navigation, Homepage. `HomepagePanel` drives the section list (drag/reorder, duplicate, visibility, delete) and the per-section/block settings forms. The section library is unified on the registry-driven `NewSectionLibraryModal`; the legacy `SECTION_TEMPLATES` + `SectionLibraryModal` dead code has been removed. |
-| `src/app/admin/ThemeEditorExtensions.tsx` | The real **`SECTION_REGISTRY`** (~25 section types), `getSectionFields`, `getBlockFields`, `BlocksEditor`, `NewSectionLibraryModal`, `getSectionMeta`. Field types: `text`, `textarea`, `html`, `richtext`, `color`, `number`, `range`, `select`, `toggle`, `date`, `image`. |
+| `src/app/admin/ThemeEditorExtensions.tsx` | The real **`SECTION_REGISTRY`** (32 section types), `getSectionFields`, `getBlockFields`, `BlocksEditor`, `NewSectionLibraryModal`, `getSectionMeta`. Field types: `text`, `textarea`, `html`, `richtext`, `color`, `number`, `range`, `select`, `toggle`, `date`, `image`. |
 | `src/app/admin/ThemeEditorPro.tsx` | Color math/normalization, palette & color-scheme tooling, theme import/export. |
 | `src/app/admin/ThemeEditorBuilder.tsx` | Builder UI that consumes the registry helpers (`getSectionMeta`, `getSectionFields`, `getBlockFields`, `NewSectionLibraryModal`). |
 | `src/app/components/SectionComponents.tsx` | **One storefront renderer per registry section type** (the components that actually draw each section) + shared style helpers (spacing, background, button styles, animation wrappers). Registry and renderers are at parity — every `SECTION_REGISTRY` type has a matching renderer. |
@@ -123,7 +123,7 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
 ## Known gaps & inconsistencies (seed for the roadmap)
 
 - **Section library unified.** The single library is the registry-driven
-  `NewSectionLibraryModal` over `SECTION_REGISTRY` (~25) in
+  `NewSectionLibraryModal` over `SECTION_REGISTRY` (32 types) in
   `ThemeEditorExtensions.tsx`. The legacy `SECTION_TEMPLATES` +
   `SectionLibraryModal` dead code in `ThemeEditor.tsx` has been removed.
 - **Registry↔renderer parity.** Every `SECTION_REGISTRY` type has an identically
@@ -184,9 +184,12 @@ library → verify), then check it off.
       `BlogPostsSection` (registry schema, block fields, storefront renderer,
       and library exposure) for announcements, release notes, and editorial
       content.
+- [x] Responsive Image Banner shipped end-to-end with separate desktop/mobile
+      artwork, image focal/style controls, nine content positions, four heights,
+      accessible alt text, overlay strength, and primary/secondary CTAs. It is
+      registry-driven, appears in the Media library, and renders on every template.
 - [ ] Add remaining common Shopify sections end-to-end as needed (e.g. featured
-      collection, image banner, richer content compositions) — each via the full
-      contract.
+      collection and richer content compositions) — each via the full contract.
 - [x] Core sections shipped end-to-end (Hero, FeatureGrid, Testimonials, FAQ,
       Newsletter, Slideshow, Multicolumn, RichText, Image-with-text, Video,
       Collection list, Featured product, Blog posts, Countdown, Contact form,
