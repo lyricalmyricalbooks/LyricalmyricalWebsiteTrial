@@ -45,7 +45,6 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
           </Link>
 
           <nav
-            aria-label={getCopy(design, "ariaMainNavigation")}
             data-studio-target="menus:header-order|menus:categories"
             data-studio-label="Header bar order"
             className="hidden items-center gap-8 lg:flex"

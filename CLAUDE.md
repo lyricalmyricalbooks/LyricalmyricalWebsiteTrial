@@ -148,9 +148,7 @@ profile, rate dialog).
 > Studio. Shop categories (the storefront category bar) are edited in Studio › **Menus** ›
 > **Shop categories**. Custom pages (About, Journal…) also live only in Studio › **Pages** tab
 > (`studio/StudioPages.tsx`); there is **no** separate Pages screen in the admin nav — do not
-> re-add one. New pages join the storefront header by default, and their public
-> routes render the full commerce bar (navigation, search, currency and cart), not a reduced page-only header. Walkthroughs must use Studio's
-> labels, not legacy legacy-editor tabs.
+> re-add one. Walkthroughs must use Studio's labels, not legacy legacy-editor tabs.
 
 Studio's Sections outline supports sortable sections and blocks. Canvas clicks
 open their inspector; **Edit mode** selects content and **Browse mode** lets
