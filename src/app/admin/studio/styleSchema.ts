@@ -2,6 +2,8 @@
 // Fields use the same shape as section fields, so they render through the
 // shared SectionFieldEditor. Keys may be dotted paths (e.g. "social.instagram").
 
+import { FONT_SELECT_OPTIONS } from "../../features/site/fonts";
+
 export type StyleField =
   | { key: string; label: string; kind: "text" | "textarea" | "color" | "toggle" | "image" | "html" }
   | { key: string; label: string; kind: "range" | "number"; min: number; max: number; step?: number; suffix?: string }
@@ -54,8 +56,10 @@ export const STYLE_GROUPS: StyleGroup[] = [
     id: "type",
     title: "Typography",
     fields: [
-      { key: "headingFont", label: "Heading font (Google Fonts name)", kind: "text" },
-      { key: "bodyFont", label: "Body font (Google Fonts name)", kind: "text" },
+      { key: "headingFont", label: "Heading font (Google Fonts)", kind: "select", options: FONT_SELECT_OPTIONS },
+      { key: "bodyFont", label: "Body font (Google Fonts)", kind: "select", options: FONT_SELECT_OPTIONS },
+      { key: "navFont", label: "Header & menu font (Google Fonts)", kind: "select", options: [{ value: "", label: "Same as body font" }, ...FONT_SELECT_OPTIONS] },
+      { key: "wordmarkFont", label: "Logo wordmark font (Google Fonts)", kind: "select", options: [{ value: "", label: "Same as heading font" }, ...FONT_SELECT_OPTIONS] },
       { key: "font", label: "Theme font (overrides body font — clear it to use Body font)", kind: "text" },
       { key: "baseFontSize", label: "Base text size", kind: "range", min: 12, max: 22, step: 1, suffix: "px" },
       { key: "lineHeight", label: "Line height", kind: "range", min: 1, max: 2.4, step: 0.05 },
@@ -91,6 +95,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showPriceOnHover", label: "Show price only on hover", kind: "toggle" },
       { key: "showSoldOutBadge", label: "Show “sold out” badge", kind: "toggle" },
       { key: "showCollectionMeta", label: "Show collection label on cards", kind: "toggle" },
+      { key: "catalogCardRuleWidth", label: "Line above card title (0 = hidden)", kind: "range", min: 0, max: 8, step: 1, suffix: "px" },
+      { key: "catalogPriceStyle", label: "Card price style", kind: "select", options: [{ value: "boxed", label: "Boxed tag" }, { value: "plain", label: "Plain text" }] },
       { key: "badgeBgPrimary", label: "Badge background", kind: "color" },
       { key: "badgeTextPrimary", label: "Badge text", kind: "color" },
       { key: "badgeBgSecondary", label: "Secondary badge background", kind: "color" },

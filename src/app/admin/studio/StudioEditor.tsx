@@ -745,6 +745,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 </p>
               </div>
             )}
+            {leftTab === "sections" && (template.id === "page" || template.id.startsWith("page:")) && !sections.some((s) => s.type === "PageContentSection") && (
+              <div className="m-3 p-3 rounded-lg border border-neutral-200 bg-white text-xs space-y-2" data-studio-panel="page-content">
+                <p className="font-bold text-sm">Make this page fully editable</p>
+                <p className="text-neutral-500">The page title and text are currently a fixed block. Turn them into a <b>Page content</b> section you can move, restyle and surround with images, galleries or any other section.</p>
+                <button className={btn} onClick={() => {
+                  const s = makeSection("PageContentSection", getSectionMeta("PageContentSection")?.defaults || {});
+                  setList((l) => insertSection(l, s, 0)); setSelectedId(s.id); setBlockId(null);
+                }}>Design this page</button>
+              </div>
+            )}
             {leftTab === "sections" && <div className="m-3 flex gap-2 flex-wrap">
               <button className={btn} disabled={!selected} onClick={() => selected && setCopiedSection(JSON.parse(JSON.stringify(selected)))}><Copy size={13} /> Copy</button>
               <button className={btn} disabled={!copiedSection} onClick={pasteSection}><Clipboard size={13} /> Paste</button>

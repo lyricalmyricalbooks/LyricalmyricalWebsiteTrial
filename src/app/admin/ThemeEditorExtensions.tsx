@@ -57,6 +57,13 @@ export type SectionTypeMeta = {
 
 export const SECTION_REGISTRY: SectionTypeMeta[] = [
   {
+    type: "PageContentSection",
+    label: "Page content",
+    description: "This page's own title and text (written in Studio › Pages) — move it, restyle it, and add sections around it.",
+    category: "Layout",
+    defaults: { eyebrow: "PAGE", showEyebrow: true, showTitle: true, showBody: true, titleSize: "md", bodySize: "md", align: "left", maxWidth: "narrow" },
+  },
+  {
     type: "CompositionSection",
     label: "Flexible composition",
     description: "Nested groups, text, images and buttons with responsive grid placement.",
@@ -2303,6 +2310,20 @@ const ALIGN_OPTIONS = [
 ];
 
 const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
+  PageContentSection: [
+    { key: "showEyebrow", label: "Show small label above title", kind: "toggle" },
+    { key: "eyebrow", label: "Small label", kind: "text" },
+    { key: "showTitle", label: "Show page title", kind: "toggle" },
+    { key: "titleOverride", label: "Title (blank = the page's name)", kind: "text" },
+    { key: "titleSize", label: "Title size", kind: "select", options: [{ value: "sm", label: "Small" }, { value: "md", label: "Medium" }, { value: "lg", label: "Large" }, { value: "xl", label: "Extra large" }] },
+    { key: "titleUppercase", label: "Uppercase title", kind: "toggle" },
+    { key: "showBody", label: "Show page text", kind: "toggle" },
+    { key: "bodyOverride", label: "Text (blank = the text from Pages)", kind: "textarea", rows: 6 },
+    { key: "bodySize", label: "Text size", kind: "select", options: [{ value: "sm", label: "Small" }, { value: "md", label: "Medium" }, { value: "lg", label: "Large" }] },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
+    { key: "maxWidth", label: "Column width", kind: "select", options: [{ value: "narrow", label: "Narrow" }, { value: "normal", label: "Medium" }, { value: "wide", label: "Wide" }, { value: "full", label: "Full width" }] },
+    { key: "textColor", label: "Text color", kind: "color" },
+  ],
   CompositionSection: [
     { key: "title", label: "Section heading", kind: "text" },
     { key: "gridColumns", label: "Desktop grid columns", kind: "range", min: 1, max: 24, step: 1 },

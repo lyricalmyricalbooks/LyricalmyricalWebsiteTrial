@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import * as Sections from "./SectionComponents";
 import { hexToRgbTriplet } from "../features/site/themeTokens";
+import { googleFontHref } from "../features/site/fonts";
 import { DEFAULT_COLOR_SCHEMES } from "../features/site/colorSchemes";
 import {
   boxShadowValue,
@@ -38,7 +39,7 @@ function GoogleFontLoader({ font }: { font: string }) {
     const link = document.createElement("link");
     link.id = linkId;
     link.rel = "stylesheet";
-    link.href = `https://fonts.googleapis.com/css2?family=${font.replace(/\s+/g, "+")}:wght@400;500;600;700;800;900&display=swap`;
+    link.href = googleFontHref(font);
     document.head.appendChild(link);
   }, [font]);
   return null;
