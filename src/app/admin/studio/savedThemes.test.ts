@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addSavedTheme, removeSavedTheme, MAX_SAVED_THEMES } from "./savedThemes";
+import { addSavedTheme, removeSavedTheme, renameSavedTheme, duplicateSavedTheme, serializeThemeFile, parseThemeFile, themeFileName, MAX_SAVED_THEMES } from "./savedThemes";
 
 describe("saved themes", () => {
   it("stores a detached, undefined-free copy", () => {
@@ -23,5 +23,27 @@ describe("saved themes", () => {
     const l = addSavedTheme([], "  ", {});
     expect(l[0].name).toBe("Untitled theme");
     expect(removeSavedTheme(l, l[0].id)).toEqual([]);
+  });
+
+  it("renames, replacing a clashing name", () => {
+    let l = addSavedTheme([], "A", {});
+    l = addSavedTheme(l, "B", {});
+    const a = l.find((t) => t.name === "A")!;
+    expect(renameSavedTheme(l, a.id, "  ").map((t) => t.name).sort()).toEqual(["A", "B"]);
+    expect(renameSavedTheme(l, a.id, "b").map((t) => t.name)).toEqual(["b"]);
+  });
+  it("duplicates with a unique name and a detached design", () => {
+    let l = addSavedTheme([], "A", { v: 1 });
+    l = duplicateSavedTheme(l, l[0].id);
+    l = duplicateSavedTheme(l, l.find((t) => t.name === "A")!.id);
+    expect(l.map((t) => t.name).sort()).toEqual(["A", "A copy", "A copy 2"]);
+    expect(l[0].design).toEqual({ v: 1 });
+  });
+  it("round-trips a theme file and rejects junk", () => {
+    const text = serializeThemeFile({ name: "Autumn", design: { a: [1] } });
+    expect(parseThemeFile(text)).toEqual({ name: "Autumn", design: { a: [1] } });
+    expect("error" in parseThemeFile("nope")).toBe(true);
+    expect("error" in parseThemeFile('{"x":1}')).toBe(true);
+    expect(themeFileName({ name: "My Theme!" })).toBe("my-theme.theme.json");
   });
 });
