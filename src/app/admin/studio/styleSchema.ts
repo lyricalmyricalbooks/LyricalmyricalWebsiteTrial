@@ -214,6 +214,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "navLinkWeight", label: "Link weight", kind: "select", options: weights },
       { key: "navLinkSpacing", label: "Link letter spacing", kind: "range", min: 0, max: 0.6, step: 0.02, suffix: "em" },
       { key: "navLinkOpacity", label: "Inactive link brightness", kind: "range", min: 0.1, max: 1, step: 0.05 },
+      { key: "navPlacement", label: "Category bar position", kind: "select", options: [{ value: "auto", label: "Auto (own row when it doesn’t fit)" }, { value: "inline", label: "Always beside logo" }, { value: "below", label: "Always full-width row below" }] },
       { key: "navGap", label: "Space between links", kind: "range", min: 4, max: 64, step: 1, suffix: "px" },
       { key: "navLinkTransform", label: "Link case", kind: "select", options: [{ value: "", label: "Inherit" }, { value: "none", label: "None" }, { value: "uppercase", label: "Uppercase" }, { value: "lowercase", label: "Lowercase" }, { value: "capitalize", label: "Capitalize" }] },
       { key: "navPillRadius", label: "Sticker pill corners (CSS radius)", kind: "text" },

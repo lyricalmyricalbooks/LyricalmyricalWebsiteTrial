@@ -20,7 +20,7 @@ import { BootSplash } from "./BootSplash";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
 import { buildNavItems } from "../features/site/navItems";
-import { navGap, navLinkStyle } from "../features/site/headerNav";
+import { navGap, navLinkStyle, useNavBelow } from "../features/site/headerNav";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { resolveFooterBadges } from "../features/site/paymentBadges";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
@@ -587,6 +587,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // Categories and in-menu pages share one header bar; Studio › Menus › Header bar order sets the sequence.
   const navOrder = activeDesign?.navOrder || storefrontDesign?.navOrder || legacyDesign?.navOrder;
   const navItems = useMemo(() => buildNavItems(categories, pages || [], navOrder), [categories, pages, navOrder]);
+  const headerRowRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  const navBelow = useNavBelow(storefrontDesign, headerRowRef, navRef);
 
   // "Skip straight to the shop": the homepage shows the catalog. Remember when we forced
   // it, so switching the setting back (e.g. live in the Studio preview) returns to Home.
@@ -813,6 +816,45 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // grid for the Home template's sections; with no Home sections it shows the catalog.
   const homeSections: any[] = heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections || [];
   const onHome = !showCatalog && homeSections.length > 0;
+  const navBar = (
+              <nav ref={navRef} data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className={`hidden md:flex shrink-0 flex-nowrap items-center ${navBelow ? "max-w-full overflow-x-auto py-3" : ""} ${storefrontDesign?.navStyle === "stickers" ? "gap-2" : ""}`} style={storefrontDesign?.navStyle === "stickers" ? undefined : { columnGap: navGap(storefrontDesign) }}>
+                {navItems.map((item, itemIdx) => {
+                  const stickers = storefrontDesign?.navStyle === "stickers";
+                  if (item.kind === "page") {
+                    return (
+                      <Link
+                        key={item.key}
+                        to={`/page/${item.page.slug}`}
+                        aria-current={location.pathname.endsWith(`/page/${item.page.slug}`) ? "page" : undefined}
+                        style={{
+                          ...navLinkStyle(storefrontDesign, location.pathname.endsWith(`/page/${item.page.slug}`), headerTextColor),
+                          ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx) : {}),
+                        }}
+                        className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  }
+                  const cat = item.category;
+                  const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === item.label;
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => pickCategory(cat)}
+                      style={{
+                        ...navLinkStyle(storefrontDesign, isActive, headerTextColor),
+                        ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx, isActive) : {}),
+                      }}
+                      className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
+                      aria-current={isActive ? "true" : undefined}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </nav>
+  );
   {
     return (
       <div
@@ -928,56 +970,20 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               <div style={{ borderTop: `${storefrontHeaderRuleWidth}px solid ${storefrontDesign?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
             </div>
           ) : (
-          <div className="mx-auto px-6 py-4 flex flex-nowrap items-center justify-between gap-4" style={{ maxWidth: storefrontMaxWidth }}>
+          <div ref={headerRowRef} className="mx-auto px-6 py-4 flex flex-nowrap items-center justify-between gap-4" style={{ maxWidth: storefrontMaxWidth }}>
             {/* Left Section */}
             <div className={`flex min-w-0 items-center gap-8 md:gap-12 flex-1 ${storefrontLogoPosition === "center" ? "" : "flex-initial"}`}>
               {storefrontLogoPosition === "left" && (
                 <button 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
-                  className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                  data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
                   <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
                 </button>
               )}
               
-              <nav data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className={`hidden md:flex min-w-0 flex-nowrap items-center ${storefrontDesign?.navStyle === "stickers" ? "gap-2" : ""}`} style={storefrontDesign?.navStyle === "stickers" ? undefined : { columnGap: navGap(storefrontDesign) }}>
-                {navItems.map((item, itemIdx) => {
-                  const stickers = storefrontDesign?.navStyle === "stickers";
-                  if (item.kind === "page") {
-                    return (
-                      <Link
-                        key={item.key}
-                        to={`/page/${item.page.slug}`}
-                        aria-current={location.pathname.endsWith(`/page/${item.page.slug}`) ? "page" : undefined}
-                        style={{
-                          ...navLinkStyle(storefrontDesign, location.pathname.endsWith(`/page/${item.page.slug}`), headerTextColor),
-                          ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx) : {}),
-                        }}
-                        className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
-                      >
-                        {item.label}
-                      </Link>
-                    );
-                  }
-                  const cat = item.category;
-                  const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === item.label;
-                  return (
-                    <button
-                      key={item.key}
-                      onClick={() => pickCategory(cat)}
-                      style={{
-                        ...navLinkStyle(storefrontDesign, isActive, headerTextColor),
-                        ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx, isActive) : {}),
-                      }}
-                      className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
-                      aria-current={isActive ? "true" : undefined}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </nav>
+              {!navBelow && navBar}
             </div>
 
             {/* Center Section (Logo) */}
@@ -986,7 +992,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 <button 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
-                  className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                  data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
                   <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
                 </button>
@@ -994,12 +1000,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             )}
 
             {/* Right Section */}
-            <div data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex shrink-0 flex-nowrap gap-6 md:gap-8 items-center flex-1 justify-end ${storefrontLogoPosition === "right" ? "flex-initial" : ""}`}>
+            <div data-hdr-fixed data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex shrink-0 flex-nowrap gap-6 md:gap-8 items-center flex-1 justify-end ${storefrontLogoPosition === "right" ? "flex-initial" : ""}`}>
               {storefrontLogoPosition === "right" && (
                 <button 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
-                  className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                  data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
                   <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
                 </button>
@@ -1085,6 +1091,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               )}
             </div>
           </div>
+          )}
+          {!isReferenceCatalog && navBelow && (
+            <div className="border-t" style={{ borderColor: headerBorderColor }}>
+              <div className="mx-auto px-6" style={{ maxWidth: storefrontMaxWidth }}>{navBar}</div>
+            </div>
           )}
         </header>
 
