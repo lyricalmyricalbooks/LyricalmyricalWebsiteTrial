@@ -20,6 +20,7 @@ import { BootSplash } from "./BootSplash";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
 import { buildNavItems } from "../features/site/navItems";
+import { navGap, navLinkStyle } from "../features/site/headerNav";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { resolveFooterBadges } from "../features/site/paymentBadges";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
@@ -927,20 +928,20 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               <div style={{ borderTop: `${storefrontHeaderRuleWidth}px solid ${storefrontDesign?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
             </div>
           ) : (
-          <div className="mx-auto px-6 py-4 flex items-center justify-between gap-4" style={{ maxWidth: storefrontMaxWidth }}>
+          <div className="mx-auto px-6 py-4 flex flex-nowrap items-center justify-between gap-4" style={{ maxWidth: storefrontMaxWidth }}>
             {/* Left Section */}
-            <div className={`flex items-center gap-8 md:gap-12 flex-1 ${storefrontLogoPosition === "center" ? "" : "flex-initial"}`}>
+            <div className={`flex min-w-0 items-center gap-8 md:gap-12 flex-1 ${storefrontLogoPosition === "center" ? "" : "flex-initial"}`}>
               {storefrontLogoPosition === "left" && (
                 <button 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
-                  className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                  className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
                   <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
                 </button>
               )}
               
-              <nav data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className={`hidden md:flex ${storefrontDesign?.navStyle === "stickers" ? "gap-2 items-center" : "gap-6"}`}>
+              <nav data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className={`hidden md:flex min-w-0 flex-nowrap items-center ${storefrontDesign?.navStyle === "stickers" ? "gap-2" : ""}`} style={storefrontDesign?.navStyle === "stickers" ? undefined : { columnGap: navGap(storefrontDesign) }}>
                 {navItems.map((item, itemIdx) => {
                   const stickers = storefrontDesign?.navStyle === "stickers";
                   if (item.kind === "page") {
@@ -948,11 +949,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       <Link
                         key={item.key}
                         to={`/page/${item.page.slug}`}
+                        aria-current={location.pathname.endsWith(`/page/${item.page.slug}`) ? "page" : undefined}
                         style={{
-                          color: headerTextColor,
+                          ...navLinkStyle(storefrontDesign, location.pathname.endsWith(`/page/${item.page.slug}`), headerTextColor),
                           ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx) : {}),
                         }}
-                        className={`text-[10px] tracking-[0.2em] font-medium uppercase transition-all opacity-40 hover:opacity-80 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
+                        className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
                       >
                         {item.label}
                       </Link>
@@ -965,14 +967,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       key={item.key}
                       onClick={() => pickCategory(cat)}
                       style={{
-                        color: headerTextColor,
+                        ...navLinkStyle(storefrontDesign, isActive, headerTextColor),
                         ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx, isActive) : {}),
                       }}
-                      className={`text-[10px] tracking-[0.2em] font-medium transition-all ${
-                        stickers ? "fm-sticker-pill" : ""
-                      } ${
-                        isActive ? "opacity-100" : "opacity-40 hover:opacity-80 hover-text-accent"
-                      }`}
+                      className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
                       aria-current={isActive ? "true" : undefined}
                     >
                       {item.label}
@@ -988,7 +986,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 <button 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
-                  className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                  className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
                   <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
                 </button>
@@ -996,12 +994,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             )}
 
             {/* Right Section */}
-            <div data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex gap-6 md:gap-8 items-center flex-1 justify-end ${storefrontLogoPosition === "right" ? "flex-initial" : ""}`}>
+            <div data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex shrink-0 flex-nowrap gap-6 md:gap-8 items-center flex-1 justify-end ${storefrontLogoPosition === "right" ? "flex-initial" : ""}`}>
               {storefrontLogoPosition === "right" && (
                 <button 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
-                  className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                  className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
                   <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
                 </button>
@@ -1049,14 +1047,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               {showSys && <Link
                 to="/admin"
                 style={{ color: headerTextColor }}
-                className="hidden sm:flex items-center gap-1.5 text-[9px] tracking-[0.2em] font-bold transition-all uppercase mr-2 opacity-30 hover:opacity-100"
+                className="hidden sm:flex items-center gap-1.5 whitespace-nowrap text-[9px] tracking-[0.2em] font-bold transition-all uppercase mr-2 opacity-30 hover:opacity-100"
               >
                 {getCopy(activeDesign, "navAdmin")}
               </Link>}
               {showBag && (
                 <button
                   onClick={() => setIsCartOpen(true)}
-                  className={`group flex items-center gap-2 px-4 py-2 transition-all hover:scale-[1.02] store-btn-primary ${
+                  className={`group flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2 transition-all hover:scale-[1.02] store-btn-primary ${
                     storefrontButtonShadow ? "shadow-lg" : ""
                   } ${storefrontDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""}`}
                   style={{
