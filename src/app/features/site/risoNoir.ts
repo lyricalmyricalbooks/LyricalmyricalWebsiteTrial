@@ -54,6 +54,9 @@ export const RISO_NOIR_TOKENS: Record<string, any> = {
   productDetailsLayout: "tabs", productImageShadow: "none",
   pdpShowBackLink: true, pdpShowBreadcrumb: true, pdpShowTag: true, pdpTagStyle: "filled",
   pdpShowStock: true, pdpShowCaption: true, pdpThumbPosition: "side", pdpDetailsPlacement: "below",
+  // Custom pages: Option D "Ruled" (Style › Custom pages).
+  pageShowEyebrow: false, pageWidth: "header", pageTitleSize: "xl", pageShowRule: true,
+  pageRuleWidth: 2, pageRuleSpacing: 32, pageTextMeasure: "readable",
   pdpSpecsStyle: "record", pdpCardShadowOffset: 8, pdpCardPadding: 24, pdpMetaSize: 11,
   // Optional storefront elements (all on).
   showRecentlyViewed: true, showBreadcrumbs: true, showCookieBanner: true,

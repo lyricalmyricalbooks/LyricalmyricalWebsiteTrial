@@ -10,6 +10,7 @@ import type { Page } from "./types";
 import { policyPageFor } from "./policyPages";
 import { getCopy } from "./storeCopy";
 import { StorefrontPageHeader } from "./StorefrontPageHeader";
+import { googleFontHref } from "./fonts";
 
 
 /**
@@ -20,15 +21,28 @@ import { StorefrontPageHeader } from "./StorefrontPageHeader";
 export function sitePageStyle(design: any, eyebrow: string): Record<string, any> {
   const d = design || {};
   return {
-    showEyebrow: d.pageShowEyebrow !== false,
+    showEyebrow: d.pageShowEyebrow === true,
     eyebrow,
     titleSize: d.pageTitleSize || "md",
     titleUppercase: d.pageTitleUppercase !== false,
     bodySize: d.pageBodySize || "md",
     align: d.pageAlign || "left",
-    maxWidth: d.pageWidth || "narrow",
+    maxWidth: d.pageWidth || "header",
     textColor: d.pageTextColor || undefined,
     headingColor: d.pageTitleColor || undefined,
+    // Option D "Ruled": title lined up with the header, a line under it, readable text column.
+    titleFont: d.pageTitleFont || undefined,
+    titleSizePx: d.pageTitleSizePx ?? undefined,
+    titleSizePxMobile: d.pageTitleSizePxMobile ?? undefined,
+    titleWeight: d.pageTitleWeight || undefined,
+    showRule: d.pageShowRule !== false,
+    ruleColor: d.pageRuleColor || undefined,
+    ruleWidth: d.pageRuleWidth ?? undefined,
+    ruleSpacing: d.pageRuleSpacing ?? undefined,
+    textMeasure: d.pageTextMeasure || "readable",
+    topSpacing: d.pageTopSpacing ?? undefined,
+    // Same width as the storefront header row (StorefrontPageHeader), so the title lines up with the logo.
+    headerWidth: Math.max(900, Math.min(1600, d.containerWidth ?? 1200)),
   };
 }
 
@@ -141,6 +155,7 @@ export function PageView() {
     >
       <StorefrontThemeStyle design={settings?.design} />
       <StorefrontPageHeader design={settings?.design} pages={pages} books={books} />
+      {pageStyle.titleFont && <link rel="stylesheet" href={googleFontHref(String(pageStyle.titleFont))} />}
 
       <CurrentPageContext.Provider value={{ title: shown.title, body: shown.body, pageStyle }}>
         <TemplateSections design={settings?.design} templateId={surfaceId} books={books} />
