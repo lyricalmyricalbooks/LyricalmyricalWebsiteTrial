@@ -6,16 +6,15 @@ import { adminApi } from "../../admin/api";
 import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
-import { LogoMark } from "../../components/LogoMark";
-import { resolveLogoDesign } from "./selectors";
 import type { Page } from "./types";
 import { policyPageFor } from "./policyPages";
 import { getCopy } from "./storeCopy";
+import { StorefrontPageHeader } from "./StorefrontPageHeader";
 
 
 export function PageView() {
   const { slug } = useParams<{ slug: string }>();
-  const { settings, books, loading: siteLoading } = useSiteData();
+  const { settings, books, pages, loading: siteLoading } = useSiteData();
   const [page, setPage] = useState<Page | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -73,7 +72,6 @@ export function PageView() {
   const themed = d?.pageChromeStyle === "theme";
   const themedBg = d?.backgroundColor || "#0a0910";
   const themedText = d?.textColor || "#f3f1ee";
-  const logoDesign = resolveLogoDesign(rawDesign.storefront, [rawDesign.heroPage, rawDesign]);
 
   const isPolicySlug = /^policy-/.test(slug || "");
   if (loading || (isPolicySlug && siteLoading && !page)) {
@@ -112,29 +110,7 @@ export function PageView() {
       style={themed ? { backgroundColor: themedBg, color: themedText } : undefined}
     >
       <StorefrontThemeStyle design={settings?.design} />
-      {/* Nav bar */}
-      <header
-        className={`px-8 py-5 flex items-center justify-between sticky top-0 backdrop-blur-md z-10 border-b ${
-          themed ? "border-white/10" : "border-neutral-100 bg-white/90"
-        }`}
-        style={themed ? { backgroundColor: `${themedBg}db` } : undefined}
-      >
-        <Link
-          to="/"
-          className={themed ? "flex items-center" : "text-xl font-black tracking-tighter text-neutral-900"}
-        >
-          {themed ? <LogoMark design={logoDesign} /> : (logoDesign?.logoText || "F✶M")}
-        </Link>
-        <Link
-          to="/"
-          className={`flex items-center gap-2 text-[10px] font-bold tracking-widest transition-colors ${
-            themed ? "opacity-50 hover:opacity-100" : "text-neutral-400 hover:text-black"
-          }`}
-        >
-          <ArrowLeft size={12} />
-          {getCopy(settings?.design, "pageHomeLink")}
-        </Link>
-      </header>
+      <StorefrontPageHeader design={settings?.design} pages={pages} books={books} />
 
       <TemplateSections design={settings?.design} templateId={surfaceId} books={books} />
 

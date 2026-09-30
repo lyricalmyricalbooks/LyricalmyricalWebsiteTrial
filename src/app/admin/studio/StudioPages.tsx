@@ -96,7 +96,7 @@ export function StudioPages({ pages, setPages, say, onEditSections }: {
         </div>
         <div className="space-y-2 border-t border-neutral-200 pt-3">
           <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editing.status === "published"} onChange={(e) => set({ status: e.target.checked ? "published" : "draft" })} /> Published <span className="font-normal text-neutral-500">(drafts are hidden from the shop)</span></label>
-          <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editing.showInNav ?? true} onChange={(e) => set({ showInNav: e.target.checked })} /> Show in the navigation menu</label>
+          <label className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={editing.showInNav ?? true} onChange={(e) => set({ showInNav: e.target.checked })} /> Include in the storefront header <span className="font-normal text-neutral-500">(on by default for new pages)</span></label>
         </div>
         <div className="space-y-2 border-t border-neutral-200 pt-3">
           <p className="text-xs font-bold">Search listing (SEO)</p>
@@ -123,7 +123,7 @@ export function StudioPages({ pages, setPages, say, onEditSections }: {
     <div className="p-4 space-y-3">
       <div>
         <p className="text-sm font-bold">Pages</p>
-        <p className="text-xs text-neutral-500">Write About, Shipping or Journal pages. Pages save straight away and don't need Publish. Use “Design sections” to lay out a page with banners and galleries.</p>
+        <p className="text-xs text-neutral-500">Write About, Shipping or Journal pages. New pages are included in the storefront header by default. Pages save straight away and don't need Publish. Use “Design sections” to lay out a page with banners and galleries.</p>
       </div>
       <button className={btnPrimary} onClick={openNew}><Plus size={14} /> New page</button>
       {ordered.length === 0 && <p className="text-xs text-neutral-500 border border-dashed border-neutral-300 rounded-lg p-4">No pages yet. Create one and it can appear in your storefront menu.</p>}

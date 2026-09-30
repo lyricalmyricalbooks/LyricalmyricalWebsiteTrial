@@ -109,7 +109,10 @@ enhance it:
 The default Settings → Design experience is `studio/StudioEditor.tsx`: its
 section/block outline, inspector, Edit/Browse preview and draft workflow are
 the primary editing surfaces. Keep the legacy `ThemeEditor.tsx` contracts in
-sync where shared registry controls or renderers change.
+sync where shared registry controls or renderers change. Custom pages created
+in Studio join the storefront header by default, and their public routes render
+the full commerce bar (navigation, search, currency and cart), not a reduced
+page-only header.
 
 1. **Read `docs/THEME_EDITOR.md` first**, plus the whole section/block system —
    `ThemeEditor.tsx`, `ThemeEditorExtensions.tsx` (the `SECTION_REGISTRY`),
