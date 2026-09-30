@@ -61,7 +61,7 @@ export default function CollectionPage() {
 
   if (loading) {
     return (
-      <div data-fm-store className="min-h-screen fm-page text-white flex items-center justify-center">
+      <div data-fm-store data-studio-target="copy:Collection & wishlist pages|style:catalog" data-studio-label="Collection page" className="min-h-screen fm-page text-white flex items-center justify-center">
         <StorefrontThemeStyle design={settings?.design} />
         <p className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "pageLoading")}</p>
       </div>
@@ -69,7 +69,7 @@ export default function CollectionPage() {
   }
 
   return (
-    <div data-fm-store className="min-h-screen fm-page text-white">
+    <div data-fm-store data-studio-target="copy:Collection & wishlist pages|style:catalog" data-studio-label="Collection page" className="min-h-screen fm-page text-white">
       <StorefrontThemeStyle design={settings?.design} />
       <header className="border-b border-white/10 px-6 py-5 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-[10px] tracking-[0.3em] text-white/50 hover:text-white uppercase">

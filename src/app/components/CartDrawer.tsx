@@ -91,6 +91,7 @@ export function CartDrawer() {
           <motion.div
             ref={drawerRef}
             role="dialog"
+            data-studio-target="copy:Cart|style:checkout" data-studio-label="Cart drawer"
             aria-modal="true"
             aria-label={getCopy(design, "cartTitle")}
             tabIndex={-1}

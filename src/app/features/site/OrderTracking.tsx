@@ -116,7 +116,7 @@ export default function OrderTracking() {
   };
 
   return (
-    <div data-fm-store className="min-h-screen fm-page text-white font-sans selection:bg-[rgba(var(--accent-rgb),0.3)] relative overflow-hidden pb-24">
+    <div data-fm-store data-studio-target="copy:Order tracking|style:colors" data-studio-label="Order tracking page" className="min-h-screen fm-page text-white font-sans selection:bg-[rgba(var(--accent-rgb),0.3)] relative overflow-hidden pb-24">
       <StorefrontThemeStyle design={settings?.design} />
       {/* Ambient background glow */}
       <div

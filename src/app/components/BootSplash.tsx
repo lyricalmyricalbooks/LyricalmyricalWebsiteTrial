@@ -7,7 +7,7 @@ import { getCopy } from "../features/site/storeCopy";
 export function BootSplash() {
   const design = readCachedDesign();
   return (
-    <div data-fm-store className="fm-page h-screen w-full flex flex-col items-center justify-center relative overflow-hidden" style={{ color: "rgb(var(--fg-rgb))" }} aria-label={getCopy(design, "loadingAria")}>
+    <div data-fm-store data-studio-target="copy:Loading screen" data-studio-label="Loading screen" className="fm-page h-screen w-full flex flex-col items-center justify-center relative overflow-hidden" style={{ color: "rgb(var(--fg-rgb))" }} aria-label={getCopy(design, "loadingAria")}>
       <StorefrontThemeStyle design={design} />
       <div className="absolute -left-[8vw] top-[12vh] h-44 w-[62vw] -rotate-6 bg-[var(--accent)] opacity-90 mix-blend-screen" />
       <div className="absolute -right-[10vw] bottom-[10vh] h-48 w-[64vw] rotate-6 bg-[var(--accent-2)] opacity-80 mix-blend-screen" />

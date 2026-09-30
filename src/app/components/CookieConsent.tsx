@@ -72,6 +72,7 @@ export function CookieConsent() {
           exit={{ y: 80, opacity: 0 }}
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           role="dialog"
+          data-studio-target="copy:Cookie banner|style:elements" data-studio-label="Cookie banner"
           aria-label={c("cookieAria")}
           aria-modal="false"
           className="fixed bottom-3 left-3 right-3 z-[150] overflow-hidden border-2 border-[var(--rp-outline)] bg-[var(--bg-color)] p-5 text-[rgb(var(--fg-rgb))] shadow-[6px_6px_0_var(--rp-shadow-color)] md:bottom-7 md:left-auto md:right-8 md:max-w-[30rem] md:p-6"

@@ -155,6 +155,8 @@ complete result.
 > and its words in Text & labels (`COPY_SCHEMA`). Add the toggle to `STYLE_GROUPS` in
 > `studio/styleSchema.ts` (default = current behaviour) in the same change that adds the element.
 
+New storefront regions must carry `data-studio-target` + `data-studio-label` so clicking them in the Studio preview opens their settings (see CLAUDE.md › Click-to-edit in the preview).
+
 ## Storefront look (Riso Noir)
 
 The public site defaults to Riso Press on black/white with a flare accent. Keep it token-driven:

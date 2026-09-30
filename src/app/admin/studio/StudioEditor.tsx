@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ChevronDown, ChevronUp, Copy, Eye, EyeOff, Monitor, Plus, Redo2, Search, Smartphone,
   Tablet, Trash2, Undo2, X,
@@ -46,11 +46,17 @@ const btnPrimary =
 const iconBtn =
   "inline-flex items-center justify-center w-8 h-8 rounded-md text-neutral-600 hover:bg-neutral-200 disabled:opacity-30";
 
-function Group({ title, hint, children, open: initial = false }: { title: string; hint?: string; children: any; open?: boolean }) {
+// Clicking a region in the preview (data-studio-target) focuses the matching panel here.
+type StudioFocus = { id: string | null; nonce: number };
+const FocusContext = createContext<StudioFocus>({ id: null, nonce: 0 });
+
+function Group({ id, title, hint, children, open: initial = false }: { id?: string; title: string; hint?: string; children: any; open?: boolean }) {
   const [open, setOpen] = useState(initial);
+  const focus = useContext(FocusContext);
   useEffect(() => { setOpen(initial); }, [initial]);
+  useEffect(() => { if (id && focus.id === id) setOpen(true); }, [id, focus]);
   return (
-    <section className="border-b border-neutral-200">
+    <section className="border-b border-neutral-200" data-studio-panel={id}>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
         className="w-full flex items-center justify-between px-4 py-3 text-left text-sm font-bold hover:bg-neutral-50">
         {title}
@@ -173,7 +179,7 @@ function CategoriesPanel({ design, onChange }: { design: any; onChange: (cats: a
     const c = [...cats]; [c[i], c[j]] = [c[j], c[i]]; onChange(c);
   };
   return (
-    <div className="p-4 space-y-3 border-b border-neutral-200">
+    <div className="p-4 space-y-3 border-b border-neutral-200" data-studio-panel="menus:categories">
       <div>
         <p className="text-sm font-bold">Shop categories</p>
         <p className="text-xs text-neutral-500">The names in the shop's category bar (Publications, Ephemera…). Rename, hide, reorder or delete them here. Renaming keeps every book that was filed under the old name.</p>
@@ -217,7 +223,7 @@ function NavOrderPanel({ design, pages, onChange }: { design: any; pages: any[];
   const cats = raw.map((c, i) => (typeof c === "string" ? { id: `cat-${i}`, name: c, description: "", showInNav: true } : c));
   const items = buildNavItems(cats, pages, design.navOrder);
   return (
-    <div className="p-4 space-y-3 border-b border-neutral-200">
+    <div className="p-4 space-y-3 border-b border-neutral-200" data-studio-panel="menus:header-order">
       <div>
         <p className="text-sm font-bold">Header bar order</p>
         <p className="text-xs text-neutral-500">Categories and pages share one bar across the top of the shop. Use the arrows to put them in any order. New pages are added at the end.</p>
@@ -237,11 +243,13 @@ function NavOrderPanel({ design, pages, onChange }: { design: any; pages: any[];
 
 function MenusPanel({ design, pages, onChange }: { design: any; pages: any[]; onChange: (menus: any) => void }) {
   const [which, setWhich] = useState<"header" | "footer">("header");
+  const focus = useContext(FocusContext);
+  useEffect(() => { if (focus.id === "menus:header" || focus.id === "menus:footer") setWhich(focus.id === "menus:footer" ? "footer" : "header"); }, [focus]);
   const menus = design.menus || {};
   const items: MenuItem[] = menus[which] || [];
   const set = (next: MenuItem[]) => onChange({ ...menus, [which]: next });
   return (
-    <div className="p-4 space-y-3">
+    <div className="p-4 space-y-3" data-studio-panel="menus:links">
       <div className="flex gap-1" role="tablist">
         {(["header", "footer"] as const).map((w) => (
           <button key={w} role="tab" aria-selected={which === w} onClick={() => setWhich(w)}
@@ -291,6 +299,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [mode, setMode] = useState<"edit" | "browse">("edit");
   const [mobilePanel, setMobilePanel] = useState("preview");
   const [styleSearch, setStyleSearch] = useState("");
+  const [focus, setFocus] = useState<StudioFocus>({ id: null, nonce: 0 });
   const [styleScope, setStyleScope] = useState<"all" | "page">("all");
   const [productSlug, setProductSlug] = useState("");
   const [collectionSlug, setCollectionSlug] = useState("publications");
@@ -450,6 +459,26 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         setCopyFilter(d.key);
         setTimeout(() => document.querySelector<HTMLElement>(`[data-copy-key="${CSS.escape(d.key)}"] input, [data-copy-key="${CSS.escape(d.key)}"] textarea`)?.focus(), 150);
       }
+      if (d.type === "STUDIO_TARGET" && typeof d.target === "string") {
+        const target = d.target as string;
+        const [kind, rest = ""] = target.split(":");
+        const tab: LeftTab | null = kind === "style" ? "style" : kind === "copy" ? "text" : kind === "menus" ? "menus" : kind === "pages" ? "pages" : null;
+        if (!tab) return;
+        setMobilePanel("outline");
+        setSelectedId(null); setBlockId(null);
+        if (tab === "style") setStyleSearch("");
+        if (tab === "text") setCopyFilter("");
+        setLeftTab(tab);
+        const panel = kind === "menus" && (rest === "header" || rest === "footer") ? "menus:links" : target;
+        setFocus(f => ({ id: target, nonce: f.nonce + 1 }));
+        setTimeout(() => {
+          const el = document.querySelector<HTMLElement>(`[data-studio-panel="${CSS.escape(panel)}"]`);
+          if (!el) return;
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+          el.classList.add("studio-flash");
+          setTimeout(() => el.classList.remove("studio-flash"), 1600);
+        }, 120);
+      }
       if (d.type === "SECTION_SELECT" && d.instanceId) {
         const cur = designRef.current;
         if (getSections(cur, { kind: "global" }).some((s) => s.id === d.instanceId)) {
@@ -586,6 +615,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         </div>
       )}
 
+      <FocusContext.Provider value={focus}>
       <div className="studio-workspace" {...(busy === "discard" ? { inert: "" } : {})}>
         {/* left column */}
         <nav className="studio-sidebar" aria-label="Editor panels">
@@ -655,7 +685,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             )}
 
             {leftTab === "style" && !styleSearch && (
-              <Group title="Payment icons · All pages" hint="Pick which payment logos the footer shows. Checkout itself always offers the methods enabled in Settings › Payments.">
+              <Group id="style:paymentIcons" title="Payment icons · All pages" hint="Pick which payment logos the footer shows. Checkout itself always offers the methods enabled in Settings › Payments.">
                 {PAYMENT_BADGE_OPTIONS.map((o) => {
                   const cur = resolveFooterBadges(design, settings);
                   const on = cur.includes(o.id);
@@ -675,7 +705,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               const fields = g.fields.filter(f => (g.title + " " + f.label + " " + f.key).toLowerCase().includes(styleSearch.toLowerCase()));
               if (!fields.length) return null;
               const local = styleScope === "page" && PAGE_STYLE_GROUPS.has(g.id);
-              return <Group key={g.id} title={g.title} hint={local ? "This page only. Reset a field to inherit its global value." : "All pages"} open={Boolean(styleSearch)}>
+              return <Group key={g.id} id={`style:${g.id}`} title={g.title} hint={local ? "This page only. Reset a field to inherit its global value." : "All pages"} open={Boolean(styleSearch)}>
                 {fields.map(f => <div key={f.key} className="studio-field">
                   <SectionFieldEditor field={f as any}
                     value={(local ? readStyle(design[template.id], f.key) : undefined) ?? readStyle(design, f.key) ?? readStyle(defaults, f.key)}
@@ -697,7 +727,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   const fs = g.fields.filter((f) => !q || `${f.label} ${g.group} ${f.default} ${f.key}`.toLowerCase().includes(q));
                   if (!fs.length) return null;
                   return (
-                    <Group key={g.group} title={g.group} open={Boolean(q)}>
+                    <Group key={g.group} id={`copy:${g.group}`} title={g.group} open={Boolean(q)}>
                       {fs.map((f) => {
                         const val = design.copy?.[f.key] ?? "";
                         const Tag: any = f.multiline ? "textarea" : "input";
@@ -734,7 +764,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
         {/* preview */}
         <main className="studio-canvas">
-          <div className="studio-canvas-status"><span>{template.label} · {device} · {mode === "edit" ? "Click to edit" : "Browse your storefront"}</span><span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}</div>
+          <div className="studio-canvas-status"><span>{template.label} · {device} · {mode === "edit" ? "Click anything in the preview to edit it" : "Browse your storefront"}</span><span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}</div>
           {template.id === "productPage" && !books.some(b => b.slug === productSlug) ? <p className="studio-empty">Choose an available product above to preview this template.</p> :
           <div className="studio-preview-frame" style={{ width: DEVICE_W[device], maxWidth: "100%" }}>
             <iframe ref={iframeRef} key={previewUrl + previewRevision} src={previewUrl} title="Live preview" onLoad={onIframeLoad} className="w-full h-full border-0" />
@@ -747,6 +777,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             onToggle={() => setList((l) => toggleSection(l, selected.id))} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
         )}
       </div>
+      </FocusContext.Provider>
 
       {adding !== null && <AddSectionDialog onPick={addSection} onClose={() => setAdding(null)} />}
     </div>

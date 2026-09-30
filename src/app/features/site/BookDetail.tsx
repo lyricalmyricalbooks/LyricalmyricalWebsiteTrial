@@ -300,7 +300,7 @@ export default function BookDetail() {
   if (!book) {
     return (
       <div
-        data-fm-store
+        data-fm-store data-studio-target="style:productPage|copy:Product page" data-studio-label="Product page"
         className="min-h-screen flex flex-col items-center justify-center gap-6"
         style={{
           backgroundColor: storefrontBg,
@@ -328,7 +328,7 @@ export default function BookDetail() {
   // ── page ───────────────────────────────────────────────────────────────────
   return (
     <div
-      data-fm-store
+      data-fm-store data-studio-target="style:productPage|copy:Product page|style:labels" data-studio-label="Product page"
       className="min-h-screen selection:bg-white/20"
       style={{
         fontFamily: font,
