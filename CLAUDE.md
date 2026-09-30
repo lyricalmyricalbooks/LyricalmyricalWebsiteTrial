@@ -283,7 +283,11 @@ nested blocks across more section types remains a follow-up):
 **Custom pages share one look:** Studio › Style › **Custom pages** (`page*` design keys, `sitePageStyle`
 in `PageView.tsx`) sets eyebrow, title size/case/colour, text size/colour, alignment and column
 width for every custom page. Each "Page content" section follows it unless its **Style this page on
-its own** switch (`ownStyle`) is on; pages without that section render the same component.
+its own** switch (`ownStyle`) is on; pages without that section render the same component. Default is the Riso "Ruled" layout (Option D): no small "Page" label (`pageShowEyebrow`
+off), the title lined up with the header (`pageWidth: "header"`, same width as `StorefrontPageHeader`), a line
+under it (`pageShowRule`, `pageRuleColor/Width/Spacing`) and a readable text column (`pageTextMeasure`). Title
+font/size px (desktop + phone)/weight and top spacing are `pageTitleFont`, `pageTitleSizePx*`, `pageTitleWeight`,
+`pageTopSpacing`; the Page content section has the same fields for "Style this page on its own".
 
 > [!IMPORTANT]
 > **Sentences that reach shoppers indirectly are copy too.** Error messages (`new Error("…")`),

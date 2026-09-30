@@ -1,5 +1,5 @@
 import { motion, useMotionValue, useSpring } from "motion/react";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
 import { Send, ChevronLeft, ChevronRight, MapPin, Clock } from "lucide-react";
 import { useCurrency } from "../CurrencyContext";
 import { useCart } from "../CartContext";
@@ -2361,7 +2361,15 @@ export function PricingTableSection({ settings, onCtaClick, enableAnimations }: 
 // The page being shown, plus the site-wide page look (Studio › Style › Custom pages) that every
 // "Page content" section follows unless its "Style this page on its own" switch is on.
 export const CurrentPageContext = createContext<{ title?: string; body?: string; pageStyle?: Record<string, any> } | null>(null);
-const PAGE_STYLE_KEYS = ["showEyebrow", "eyebrow", "titleSize", "titleUppercase", "bodySize", "align", "maxWidth", "textColor", "headingColor"];
+const PAGE_STYLE_KEYS = [
+  "showEyebrow", "eyebrow", "titleSize", "titleUppercase", "bodySize", "align", "maxWidth", "textColor", "headingColor",
+  "titleFont", "titleSizePx", "titleSizePxMobile", "titleWeight", "showRule", "ruleColor", "ruleWidth", "ruleSpacing",
+  "textMeasure", "topSpacing", "headerWidth",
+];
+const pageNum = (v: any, min: number, max: number) => {
+  const n = Number(v);
+  return v === "" || v == null || !Number.isFinite(n) ? undefined : Math.max(min, Math.min(max, n));
+};
 
 const PAGE_TITLE_SIZES: Record<string, string> = { sm: "text-3xl", md: "text-4xl md:text-5xl", lg: "text-5xl md:text-7xl", xl: "text-6xl md:text-8xl" };
 const PAGE_BODY_SIZES: Record<string, string> = { sm: "text-[15px]", md: "text-[17px]", lg: "text-[20px]" };
@@ -2374,32 +2382,72 @@ export function PageContentSection({ settings: own, enableAnimations }: any) {
   const settings = own?.ownStyle || !page?.pageStyle
     ? own
     : { ...own, ...Object.fromEntries(PAGE_STYLE_KEYS.map((k) => [k, page.pageStyle![k]])) };
+  const titleId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const align = aClass({ align: settings.align || "left" });
   const title = settings.titleOverride || page?.title || fb("PageContentSection.page.title");
   const body = settings.bodyOverride
     ? settings.bodyOverride.split(/\n{2,}/).map((p: string) => `<p>${p.replace(/[<>&]/g, (c: string) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" } as any)[c]).replace(/\n/g, "<br/>")}</p>`).join("")
     : page?.body || "<p>Your page text appears here. Write it in Studio › Pages.</p>";
+  // Option D "Ruled" pieces — each value comes from Style › Custom pages or the section's own fields.
+  const lineUp = settings.maxWidth === "header";
+  const headerWidth = pageNum(settings.headerWidth, 900, 1600) ?? 1200;
+  const sizeD = pageNum(settings.titleSizePx, 0, 200) || 0;
+  const sizeM = pageNum(settings.titleSizePxMobile, 0, 120) || sizeD;
+  const ruleSpacing = pageNum(settings.ruleSpacing, 0, 96);
+  const topSpacing = pageNum(settings.topSpacing, 0, 160);
+  const ruleWidth = pageNum(settings.ruleWidth, 0, 8) ?? 2;
+  const titleCss = [
+    sizeM ? `@media (max-width:767px){[data-page-title="${titleId}"]{font-size:${sizeM}px !important;}}` : "",
+    sizeD ? `@media (min-width:768px){[data-page-title="${titleId}"]{font-size:${sizeD}px !important;}}` : "",
+  ].join("");
+  const titleStyle: Record<string, any> = {
+    ...hStyle(settings),
+    ...(settings.titleFont ? { fontFamily: `'${String(settings.titleFont).replace(/['"\\;{}<>]/g, "")}', var(--heading-font, sans-serif)` } : {}),
+    ...(settings.titleWeight ? { fontWeight: Number(settings.titleWeight) || undefined } : {}),
+    ...(sizeD || sizeM ? { lineHeight: 0.92 } : {}),
+    ...(ruleSpacing != null ? { marginBottom: settings.showRule ? 0 : ruleSpacing } : {}),
+  };
   return (
     <section style={{ ...bgStyle(settings), ...(settings.textColor ? { color: settings.textColor } : {}) }}>
-      <div className={`py-16 px-6 mx-auto ${mw(settings, "max-w-2xl")}`} style={spacingStyle(settings)}>
+      {titleCss && <style>{titleCss}</style>}
+      <div
+        className={`py-16 px-6 mx-auto ${lineUp ? "" : mw(settings, "max-w-2xl")}`}
+        style={{ ...(lineUp ? { maxWidth: headerWidth } : {}), ...spacingStyle(settings), ...(topSpacing != null ? { paddingTop: topSpacing } : {}) }}
+      >
         <AnimationContainer enabled={enableAnimations}>
           <div className={align}>
             {settings.showEyebrow !== false && settings.eyebrow && (
               <p className="text-[10px] font-bold tracking-[0.3em] uppercase opacity-50 mb-4" style={bStyle(settings)} data-theme-field="eyebrow">{settings.eyebrow}</p>
             )}
             {settings.showTitle !== false && (
-              <h1 className={`${PAGE_TITLE_SIZES[settings.titleSize] || PAGE_TITLE_SIZES.md} font-black tracking-tight mb-10 ${settings.titleUppercase === false ? "" : "uppercase"}`} style={hStyle(settings)}>{title}</h1>
+              <h1
+                data-page-title={titleId}
+                className={`${PAGE_TITLE_SIZES[settings.titleSize] || PAGE_TITLE_SIZES.md} ${settings.titleWeight ? "" : "font-black"} tracking-tight ${ruleSpacing != null || settings.showRule ? "" : "mb-10"} ${settings.titleUppercase === false ? "" : "uppercase"}`}
+                style={titleStyle}
+              >
+                {title}
+              </h1>
             )}
           </div>
+          {settings.showRule && (
+            <hr
+              aria-hidden="true"
+              style={{
+                border: 0,
+                borderTop: `${ruleWidth}px solid ${settings.ruleColor || "rgb(var(--fg-rgb, 255, 255, 255))"}`,
+                marginBlock: `${ruleSpacing ?? 32}px`,
+              }}
+            />
+          )}
           {settings.showBody !== false && (
             <div
-              className={`max-w-none leading-[1.8] ${PAGE_BODY_SIZES[settings.bodySize] || PAGE_BODY_SIZES.md} ${align}
+              className={`leading-[1.8] ${PAGE_BODY_SIZES[settings.bodySize] || PAGE_BODY_SIZES.md} ${align} ${settings.textMeasure === "full" ? "max-w-none" : ""}
                 [&_p]:mb-6 [&_h1]:text-4xl [&_h1]:font-black [&_h1]:mb-8 [&_h1]:mt-12 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mb-5 [&_h2]:mt-10
                 [&_h3]:text-xl [&_h3]:font-bold [&_h3]:mb-4 [&_h3]:mt-8 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-6 [&_li]:mb-2
                 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-6 [&_strong]:font-bold [&_em]:italic [&_img]:my-8 [&_img]:max-w-full
                 [&_a]:underline [&_a]:underline-offset-4 [&_a]:text-[var(--accent)] [&_a]:hover:opacity-80
                 [&_blockquote]:border-l-4 [&_blockquote]:border-current/20 [&_blockquote]:pl-6 [&_blockquote]:italic [&_blockquote]:opacity-80 [&_blockquote]:my-8`}
-              style={bStyle(settings)}
+              style={{ ...bStyle(settings), ...(settings.textMeasure === "readable" ? { maxWidth: "62ch", ...(settings.align === "center" ? { marginInline: "auto" } : {}) } : {}) }}
               dangerouslySetInnerHTML={{ __html: body }}
             />
           )}

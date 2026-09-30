@@ -15,7 +15,7 @@ const render = (settings: any, design: any) =>
   );
 
 describe("custom pages share one Studio-controlled look", () => {
-  const design = { pageTitleSize: "xl", pageAlign: "center", pageWidth: "wide", pageTextColor: "#123456" };
+  const design = { pageTitleSize: "xl", pageAlign: "center", pageWidth: "wide", pageTextColor: "#123456", pageShowEyebrow: true };
   const drifted = { titleSize: "sm", align: "left", maxWidth: "full", textColor: "#ff0000", showEyebrow: false };
 
   it("a page's Page content section follows Style › Custom pages, ignoring stale per-page styling", () => {
@@ -34,6 +34,29 @@ describe("custom pages share one Studio-controlled look", () => {
   });
 
   it("falls back to the standard look when nothing is set", () => {
-    expect(sitePageStyle({}, "Page")).toMatchObject({ showEyebrow: true, titleSize: "md", titleUppercase: true, maxWidth: "narrow", align: "left" });
+    expect(sitePageStyle({}, "Page")).toMatchObject({ showEyebrow: false, titleSize: "md", titleUppercase: true, maxWidth: "header", align: "left", showRule: true, textMeasure: "readable", headerWidth: 1200 });
+  });
+
+  it("hides the small “Page” label by default (Option D)", () => {
+    expect(render({}, {})).not.toContain(">Page<");
+  });
+
+  it("lines the title up with the header and draws the ruled line from Studio values", () => {
+    const html = render({}, { containerWidth: 1400, pageRuleColor: "#abcdef", pageRuleWidth: 4, pageRuleSpacing: 40, pageTitleSizePx: 140, pageTitleSizePxMobile: 60, pageTitleFont: "Anton", pageTitleWeight: "400", pageTopSpacing: 24 });
+    expect(html).toContain("max-width:1400px");
+    expect(html).toContain("4px solid #abcdef");
+    expect(html).toContain("margin-block:40px");
+    expect(html).toContain("font-size:140px");
+    expect(html).toContain("font-size:60px");
+    expect(html).toContain("&#x27;Anton&#x27;");
+    expect(html).toContain("font-weight:400");
+    expect(html).toContain("padding-top:24px");
+    expect(html).toContain("max-width:62ch");
+  });
+
+  it("can switch the line off and use the full text width", () => {
+    const html = render({}, { pageShowRule: false, pageTextMeasure: "full" });
+    expect(html).not.toContain("<hr");
+    expect(html).not.toContain("62ch");
   });
 });
