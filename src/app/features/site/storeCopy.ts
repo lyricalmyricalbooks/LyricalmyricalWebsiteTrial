@@ -448,6 +448,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coPhone", label: "Field: phone", default: "Phone (optional)" },
       { key: "coShipMethod", label: "Shipping-method heading", default: "Shipping method" },
       { key: "coShipMethodNote", label: "Shipping-method note", default: "Choose the delivery speed that works for you." },
+      { key: "coOrderNote", label: "Order note: label", default: "Order note or gift message (optional)" },
+      { key: "coOrderNoteHelp", label: "Order note: help text", default: "Tell us anything we should know about this order. Up to 500 characters." },
       { key: "coRates", label: "Loading rates text", default: "Calculating live shipping rates..." },
       { key: "coPaymentNote", label: "Payment note", default: "All transactions are handled by the payment provider you select." },
       { key: "coCard", label: "Card option", default: "Credit or debit card" },
