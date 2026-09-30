@@ -1779,10 +1779,10 @@ export function CountdownSection({ settings, enableAnimations }: any) {
           {settings.subtitle && <p className="text-white/60 mb-8" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>}
           <div className={`flex gap-4 md:gap-8 mt-8 ${flexAlign}`}>
             {[
-              { label: "Days", v: days },
-              { label: "Hours", v: hours },
-              { label: "Min", v: minutes },
-              { label: "Sec", v: seconds },
+              { label: settings.labelDays || "Days", v: days },
+              { label: settings.labelHours || "Hours", v: hours },
+              { label: settings.labelMinutes || "Min", v: minutes },
+              { label: settings.labelSeconds || "Sec", v: seconds },
             ].map((u) => (
               <div key={u.label} className="text-center">
                 <div className="text-4xl md:text-6xl font-black text-white tabular-nums" style={hStyle(settings)}>{String(u.v).padStart(2, "0")}</div>
@@ -1830,12 +1830,12 @@ export function ContactFormSection({ settings, enableAnimations }: any) {
             <div className="text-center text-white/80 py-12" data-theme-field="successMessage">{settings.successMessage || "Thanks — we'll be in touch."}</div>
           ) : (
             <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }}>
-              <input type="text" required placeholder="Name" className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
-              <input type="email" required placeholder="Email" className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
+              <input type="text" required placeholder={settings.namePlaceholder || "Name"} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
+              <input type="email" required placeholder={settings.emailPlaceholder || "Email"} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
               {settings.showPhone && (
-                <input type="tel" placeholder="Phone" className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
+                <input type="tel" placeholder={settings.phonePlaceholder || "Phone"} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
               )}
-              <textarea required placeholder="Message" rows={5} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30 resize-none" />
+              <textarea required placeholder={settings.messagePlaceholder || "Message"} rows={5} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30 resize-none" />
               <button
                 type="submit"
                 className="w-full py-4 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
@@ -2243,7 +2243,7 @@ export function PricingTableSection({ settings, onCtaClick, enableAnimations }: 
                 className={`flex flex-col rounded-2xl p-8 border ${highlighted ? "border-white/40 bg-white/[0.07] shadow-2xl md:scale-[1.03]" : "border-white/10 bg-white/[0.03]"}`}
               >
                 {highlighted && (
-                  <span className="self-start mb-4 px-3 py-1 text-[9px] font-bold tracking-[0.2em] uppercase rounded-full bg-white text-black">Most popular</span>
+                  <span className="self-start mb-4 px-3 py-1 text-[9px] font-bold tracking-[0.2em] uppercase rounded-full bg-white text-black">{settings.highlightLabel || "Most popular"}</span>
                 )}
                 {item.planName && <h3 className="text-lg font-bold tracking-wide uppercase text-white">{item.planName}</h3>}
                 <div className="mt-3 flex items-baseline gap-1">

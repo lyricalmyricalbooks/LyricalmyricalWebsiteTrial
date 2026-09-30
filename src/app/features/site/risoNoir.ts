@@ -41,7 +41,7 @@ export const RISO_NOIR_TOKENS: Record<string, any> = {
   checkoutAccentColor: FLARE, checkoutBgColor: "#000000", checkoutInputRadius: 0,
   cartDrawerBg: "#000000", cartDrawerText: "#ffffff", cartDrawerMuted: "rgba(255,255,255,0.64)",
   cartDrawerSurface: "#0d0d0d", cartDrawerBorder: "#ffffff", pageChromeStyle: "theme",
-  navStyle: "default", wordmarkStyle: "two-part", enterArchiveLabel: "Browse books",
+  navStyle: "default", wordmarkStyle: "two-part",
   wordmarkPrimary: "Lyricalmyrical", wordmarkSecondary: "Books", wordmarkSecondaryMuted: false,
   wordmarkSize: 1.8, wordmarkWeight: 400, logoColor: "#ffffff",
   // Catalog.

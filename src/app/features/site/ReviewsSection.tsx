@@ -105,7 +105,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
       setEmail("");
       setRating(5);
     } catch (err: any) {
-      setError(err?.message || "Could not submit review.");
+      setError(err?.message || c("reviewsError"));
     } finally {
       setSubmitting(false);
     }

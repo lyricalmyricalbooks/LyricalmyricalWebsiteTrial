@@ -691,13 +691,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   const heroHeaderLinks = heroDesign?.headerLinks || {};
   const storefrontHeaderLinks = storefrontDesign?.headerLinks || {};
-  const showEnterArchive = heroHeaderLinks.showEnterArchive ?? true;
-  const showBag = showCatalog
+  const showBag = !activeDesign?.hideCartButton && (showCatalog
     ? (storefrontHeaderLinks.showBag ?? true)
-    : (heroHeaderLinks.showBag ?? true);
-  const showSys = showCatalog
+    : (heroHeaderLinks.showBag ?? true));
+  const showSys = !activeDesign?.hideAdminLink && (showCatalog
     ? (storefrontHeaderLinks.showSys ?? true)
-    : (heroHeaderLinks.showSys ?? true);
+    : (heroHeaderLinks.showSys ?? true));
   const storefrontBg = storefrontDesign?.backgroundColor || "#000000";
   const storefrontText = storefrontDesign?.textColor || "#ffffff";
   const storefrontAccent = storefrontDesign?.primaryColor || "#e8402a";
@@ -1003,15 +1002,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={storefrontDesign.menus.header} /></div>
               )}
 
-              <button
+              {!activeDesign?.hideHeaderSearch && <button
                 onClick={() => setSearchOpen(true)}
                 aria-label={getCopy(activeDesign, "ariaSearch")}
                 style={{ color: headerTextColor }}
                 className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-all opacity-50 hover:opacity-100"
               >
                 <SearchIcon size={14} />
-              </button>
-              <Link
+              </button>}
+              {!activeDesign?.hideHeaderWishlist && <Link
                 to="/wishlist"
                 aria-label={getCopy(activeDesign, "ariaWishlist")}
                 style={{ color: headerTextColor }}
@@ -1023,26 +1022,28 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     {wishlistCount}
                   </span>
                 )}
-              </Link>
-              <Link
+              </Link>}
+              {!activeDesign?.hideHeaderAccount && <Link
                 to="/account"
                 aria-label={getCopy(activeDesign, "ariaAccount")}
                 style={{ color: headerTextColor }}
                 className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-all opacity-50 hover:opacity-100"
               >
                 <UserIcon size={14} />
-              </Link>
-              <div className="hidden sm:flex items-center justify-center gap-2">
-                <CurrencySelector />
-                <ThemeToggle />
-              </div>
-              <Link
+              </Link>}
+              {(!activeDesign?.hideCurrencySelector || !activeDesign?.hideThemeToggle) && (
+                <div className="hidden sm:flex items-center justify-center gap-2">
+                  {!activeDesign?.hideCurrencySelector && <CurrencySelector label={getCopy(activeDesign, "currencyLabel")} ariaLabel={getCopy(activeDesign, "ariaCurrency")} />}
+                  {!activeDesign?.hideThemeToggle && <ThemeToggle label={getCopy(activeDesign, "ariaThemeToggle")} />}
+                </div>
+              )}
+              {showSys && <Link
                 to="/admin"
                 style={{ color: headerTextColor }}
                 className="hidden sm:flex items-center gap-1.5 text-[9px] tracking-[0.2em] font-bold transition-all uppercase mr-2 opacity-30 hover:opacity-100"
               >
-                Admin
-              </Link>
+                {getCopy(activeDesign, "navAdmin")}
+              </Link>}
               {showBag && (
                 <button
                   onClick={() => setIsCartOpen(true)}
@@ -1107,7 +1108,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               )}
               {storefrontDesign?.showCatalogCount && (
                 <span className="text-xs fm-muted">
-                  {filteredItems.length} title{filteredItems.length === 1 ? "" : "s"}
+                  {getCopy(activeDesign, filteredItems.length === 1 ? "catalogCountOne" : "catalogCountMany", { count: filteredItems.length })}
                 </span>
               )}
             </div>
@@ -1223,7 +1224,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 >
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleWish(item.id); }}
-                    aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
+                    aria-label={getCopy(activeDesign, wished ? "wishlistRemoveAria" : "wishlistAddAria")}
                     className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center transition-colors ${
                       wished
                         ? "fm-favorite-active border"
@@ -1275,7 +1276,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                             }}
                             className="flex items-center gap-1 border backdrop-blur-md text-[8px] tracking-widest px-2 py-1 uppercase rounded-full"
                           >
-                            <Zap size={9} /> Only {stock} left
+                            <Zap size={9} /> {getCopy(activeDesign, "onlyLeft", { count: stock })}
                           </span>
                         )}
                       </div>
@@ -1304,7 +1305,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       <div className={`${isReferenceCatalog ? "mt-2 block space-y-1" : "mt-2 flex items-center justify-between"}`}>
                         {showCollectionMeta ? (
                           <span className={`${isReferenceCatalog ? "hidden" : "text-[10px] tracking-[0.1em] text-white/40"}`}>
-                            {item.genres?.[0] || item.categories?.[0] || "Publication"}
+                            {item.genres?.[0] || item.categories?.[0] || getCopy(activeDesign, "categoryFallback")}
                           </span>
                         ) : (
                           <span />

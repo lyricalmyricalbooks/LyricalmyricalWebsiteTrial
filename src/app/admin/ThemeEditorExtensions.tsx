@@ -2493,6 +2493,10 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "ctaUrl", label: "CTA URL", kind: "text" },
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
     { key: "accentColor", label: "Accent", kind: "color" },
+    { key: "labelDays", label: "Label: days", kind: "text" },
+    { key: "labelHours", label: "Label: hours", kind: "text" },
+    { key: "labelMinutes", label: "Label: minutes", kind: "text" },
+    { key: "labelSeconds", label: "Label: seconds", kind: "text" },
   ],
   ContactFormSection: [
     { key: "eyebrow", label: "Eyebrow label", kind: "text" },
@@ -2501,6 +2505,10 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "buttonLabel", label: "Button label", kind: "text" },
     { key: "successMessage", label: "Thank-you message", kind: "text" },
     { key: "showPhone", label: "Show phone field", kind: "toggle" },
+    { key: "namePlaceholder", label: "Name field placeholder", kind: "text" },
+    { key: "emailPlaceholder", label: "Email field placeholder", kind: "text" },
+    { key: "phonePlaceholder", label: "Phone field placeholder", kind: "text" },
+    { key: "messagePlaceholder", label: "Message field placeholder", kind: "text" },
     { key: "accentColor", label: "Accent", kind: "color" },
   ],
   MapSection: [
@@ -2582,6 +2590,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "sectionTitle", label: "Section title", kind: "text" },
     { key: "sectionSubtitle", label: "Section subtitle", kind: "text" },
     { key: "highlightPlan", label: "Highlighted plan name", kind: "text" },
+    { key: "highlightLabel", label: "Highlight badge text", kind: "text" },
   ],
   ProductCoverCarouselSection: [
     { key: "title", label: "Wordmark headline", kind: "text" },
