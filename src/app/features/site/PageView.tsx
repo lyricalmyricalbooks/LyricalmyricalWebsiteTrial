@@ -107,10 +107,14 @@ export function PageView() {
     );
   }
 
+  const isHistoryPage = /^(history|history-of-lm)$/.test(slug || "");
+  const plainBody = shown.body?.replace(/<[^>]*>/g, "").trim() || "";
+  const useHistoryCopy = isHistoryPage && (!plainBody || /^s+$/i.test(plainBody));
+
   return (
     <div
       data-fm-store data-studio-target="pages|copy:Custom pages & 404|style:colors" data-studio-label="Page"
-      className={`min-h-screen ${themed ? "" : "bg-white"}`}
+      className={`min-h-screen flex flex-col ${themed ? "" : "bg-white"}`}
       style={themed ? { backgroundColor: themedBg, color: themedText } : undefined}
     >
       <StorefrontThemeStyle design={settings?.design} />
@@ -126,15 +130,25 @@ export function PageView() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="max-w-2xl mx-auto px-6 py-16"
+        className="w-full max-w-3xl mx-auto px-6 py-14 md:py-20 flex-1"
       >
         <p className={`text-[10px] font-bold tracking-[0.3em] uppercase mb-4 ${themed ? "opacity-50" : "text-neutral-400"}`}>
           {getCopy(settings?.design, "pageEyebrow")}
         </p>
-        <h1 className={`text-4xl font-black tracking-tight mb-10 ${themed ? "" : "text-neutral-900"}`}>
+        <h1 className={`text-4xl md:text-5xl font-black tracking-tight mb-10 md:mb-14 ${themed ? "" : "text-neutral-900"}`}>
           {shown.title}
         </h1>
 
+        {useHistoryCopy ? (
+          <div className="max-w-2xl">
+            <p className={`text-lg md:text-xl leading-[1.8] ${themed ? "opacity-90" : "text-neutral-800"}`}>
+              {getCopy(settings?.design, "historyBody")}
+            </p>
+            <p className={`mt-10 max-w-xl text-sm leading-7 ${themed ? "opacity-55" : "text-neutral-500"}`}>
+              {getCopy(settings?.design, "historySubtext")}
+            </p>
+          </div>
+        ) : (
         <div
           className={
             themed
@@ -155,12 +169,13 @@ export function PageView() {
           }
           dangerouslySetInnerHTML={{ __html: shown.body || "" }}
         />
+        )}
       </motion.main>
       )}
 
       <GlobalSections design={settings?.design} books={books} />
 
-      <footer className={`px-8 py-8 text-center border-t ${themed ? "border-white/10" : "border-neutral-100"}`}>
+      <footer className="mt-auto px-8 py-8 text-center">
         <p className={`text-[10px] tracking-widest ${themed ? "opacity-40" : "text-neutral-300"}`}>
           {getCopy(settings?.design, "footerCopyright")}
         </p>

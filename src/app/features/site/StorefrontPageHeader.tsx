@@ -78,8 +78,8 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
         data-section="navigation"
         data-studio-target="style:header|menus:header-order|copy:Header"
         data-studio-label="Header"
-        className={`${storefront.stickyHeader ?? true ? "sticky top-0" : "relative"} z-50 border-b`}
-        style={{ backgroundColor: headerBg, borderColor: storefront.borderColor || "var(--border-color)" , color: headerColor }}
+        className={`${storefront.stickyHeader ?? true ? "sticky top-0" : "relative"} z-50`}
+        style={{ backgroundColor: headerBg, color: headerColor }}
       >
         <div ref={rowRef} className="mx-auto flex flex-nowrap items-center justify-between gap-4 px-6 py-4" style={{ maxWidth, color: headerColor }}>
           <div className="flex min-w-0 flex-1 items-center gap-8 md:gap-12">
@@ -133,7 +133,7 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
           </div>
         </div>
         {navBelow && (
-          <div className="border-t" style={{ borderColor: storefront.borderColor || "var(--border-color)", color: headerColor }}>
+          <div style={{ color: headerColor }}>
             <div className="mx-auto px-6" style={{ maxWidth }}>{navBar}</div>
           </div>
         )}
