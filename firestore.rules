@@ -87,6 +87,16 @@ service cloud.firestore {
       allow create: if true;
       allow read, update, delete: if isAdmin();
     }
+    match /stockAlerts/{alertId} {
+      // Shoppers can sign up for a back-in-stock email; only admin (and Functions) can read/change.
+      allow create: if request.resource.data.keys().hasOnly(["email", "bookId", "bookTitle", "variantId", "variantName", "status", "createdAt"])
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.email.matches(".+@.+\\..+")
+        && request.resource.data.bookId is string
+        && request.resource.data.status == "waiting";
+      allow read, update, delete: if isAdmin();
+    }
     match /reviews/{reviewId} {
       // Public can read approved reviews (we filter client-side too)
       allow read: if true;
