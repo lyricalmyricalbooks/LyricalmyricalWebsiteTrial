@@ -404,8 +404,17 @@ Shopify/WordPress-parity improvements are:
 - [x] Version history / restore previous published versions: every Save Draft / Publish
       writes a snapshot to the admin-only `theme-versions` Firestore collection
       (`adminApi.saveThemeVersion`/`listThemeVersions`, last 30 kept, pruned on save),
-      loaded on editor open so history survives reloads. Restore loads a snapshot
-      into the working copy as an unsaved change; nothing goes live until Publish.
+      shown in Studio's History dialog so history survives reloads. Preview is
+      non-destructive; Restore loads a snapshot into the working copy as an
+      unsaved change, and nothing goes live until Publish.
+- [x] Publish and Discard use accessible admin dialogs with a concise inventory
+      of changed surfaces/settings instead of browser confirms. Ctrl/Cmd+S saves.
+- [x] Studio can copy/paste sections between templates and save configured
+      sections into the draft's reusable `sectionPresets` library.
+- [x] Sections support phone/desktop visibility, scheduled show windows, phone
+      padding/type/grid overrides, and direct drag reorder in the preview canvas.
+- [x] A pre-publish check flags empty content and missing image descriptions and
+      reminds editors of contrast and image-weight review.
 
 ### E. Visual layout & responsive engine (Fluid Engine / Wix Studio)
 - [ ] Nested blocks (block-in-block) in the schema, `BlocksEditor`, and

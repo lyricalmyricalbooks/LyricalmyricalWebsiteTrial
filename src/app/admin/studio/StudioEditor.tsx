@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, ChevronDown, ChevronUp, Copy, Eye, EyeOff, Monitor, Plus, Redo2, Search, Smartphone,
+  ArrowLeft, ChevronDown, ChevronUp, Clipboard, Copy, Eye, EyeOff, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
   Tablet, Trash2, Undo2, X,
 } from "lucide-react";
 import { adminApi } from "../api";
@@ -35,6 +35,34 @@ import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages";
 type Toast = { kind: "ok" | "err"; text: string } | null;
+type ThemeVersion = { id: string; kind: "draft" | "published"; label: string; createdAt: string; design: any };
+
+function describeChanges(from: any, to: any): string[] {
+  const out: string[] = [];
+  const surfaces = ["heroPage", "storefront", "productPage", "collectionPage", "cartPage", "page", "page404"];
+  for (const id of surfaces) {
+    const a = (from?.[id]?.sections || []).length, b = (to?.[id]?.sections || []).length;
+    if (a !== b) out.push(`${id}: ${a} → ${b} sections`);
+  }
+  const labels: Record<string, string> = { copy: "Text & labels", menus: "Menus", colorSchemes: "Color schemes", sectionPresets: "Saved sections" };
+  for (const [key, label] of Object.entries(labels)) if (JSON.stringify(from?.[key]) !== JSON.stringify(to?.[key])) out.push(label);
+  const ignored = new Set([...surfaces, ...Object.keys(labels), "globalSections"]);
+  if (JSON.stringify(from?.globalSections) !== JSON.stringify(to?.globalSections)) out.push("Global sections");
+  if (Object.keys({ ...from, ...to }).some(k => !ignored.has(k) && JSON.stringify(from?.[k]) !== JSON.stringify(to?.[k]))) out.push("Theme style and settings");
+  return out.length ? out : ["No saved design differences"];
+}
+
+function designChecks(design: any): { tone: "ok" | "warn"; text: string }[] {
+  const sections = Object.values(design || {}).flatMap((v: any) => Array.isArray(v?.sections) ? v.sections : [] as any[]);
+  const results: { tone: "ok" | "warn"; text: string }[] = [];
+  const empty = sections.filter((s: any) => !(s.settings?.title || s.settings?.heading || s.settings?.text || s.settings?.imageUrl || Object.values(s.settings || {}).some(Array.isArray))).length;
+  results.push({ tone: empty ? "warn" : "ok", text: empty ? `${empty} section${empty === 1 ? " is" : "s are"} empty or may lack meaningful content.` : "No obviously empty sections." });
+  const missingAlt = sections.filter((s: any) => Object.keys(s.settings || {}).some(k => /image.*url/i.test(k) && s.settings[k]) && !Object.keys(s.settings || {}).some(k => /alt/i.test(k) && s.settings[k])).length;
+  results.push({ tone: missingAlt ? "warn" : "ok", text: missingAlt ? `${missingAlt} image section${missingAlt === 1 ? " needs" : "s need"} an image description.` : "Image descriptions look complete." });
+  results.push({ tone: "ok", text: "Theme images use responsive storefront loading; verify uploaded hero images stay below 200 KB." });
+  results.push({ tone: "ok", text: "Color controls retain the editor's contrast indicators; review any warning badges before publishing." });
+  return results;
+}
 
 const DEVICE_W = { desktop: "100%", tablet: "820px", mobile: "390px" } as const;
 
@@ -305,6 +333,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [collectionSlug, setCollectionSlug] = useState("publications");
   const [previewStatus, setPreviewStatus] = useState<"loading" | "ready" | "error">("loading");
   const [previewRevision, setPreviewRevision] = useState(0);
+  const [versions, setVersions] = useState<ThemeVersion[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyPreview, setHistoryPreview] = useState<ThemeVersion | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"publish" | "discard" | null>(null);
+  const [checksOpen, setChecksOpen] = useState(false);
+  const [copiedSection, setCopiedSection] = useState<Section | null>(null);
   const inlineStart = useRef<any>(null);
 
   const [toast, setToast] = useState<Toast>(null);
@@ -341,6 +375,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   useEffect(() => {
     adminApi.getPages().then((p: any[]) => setPages(p || [])).catch(() => {});
     adminApi.getBooks().then((b: any[]) => { const published = (b || []).filter(x => x.status === "published" || !x.status); setBooks(published); setProductSlug(published[0]?.slug || ""); }).catch(() => say("err", "Could not load preview products. Reopen Studio to retry."));
+  }, []);
+  const loadVersions = useCallback(async () => {
+    try { setVersions(await adminApi.listThemeVersions() as ThemeVersion[]); }
+    catch { say("err", "Could not load version history. Check your connection and try again."); }
   }, []);
 
   const change = useCallback((fn: (d: any) => any) => setHist((h) => { const next = normalizeDesign(fn(h.present), defaults); return sameDesign(next, h.present) ? h : commit(h, next); }), [defaults]);
@@ -412,8 +450,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, [template.id, template.pageSlug, productSlug, collectionSlug, pages]);
 
   const sendDesign = useCallback(() => {
-    try { iframeRef.current?.contentWindow?.postMessage({ type: "THEME_UPDATE", design: designRef.current }, window.location.origin); } catch { /* ignore */ }
-  }, []);
+    try { iframeRef.current?.contentWindow?.postMessage({ type: "THEME_UPDATE", design: historyPreview?.design || designRef.current }, window.location.origin); } catch { /* ignore */ }
+  }, [historyPreview]);
   useEffect(() => { const t = setTimeout(sendDesign, 100); return () => clearTimeout(t); }, [design, sendDesign]);
   // Tell the preview which strings are editable copy, so double-clicking one jumps to its field.
   const sendCopyMap = useCallback(() => {
@@ -493,6 +531,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         setBlockId(typeof d.blockId === "string" ? d.blockId : null);
         setMobilePanel("settings");
       }
+      if (d.type === "SECTION_MOVE" && d.sectionId && d.beforeId) {
+        const from = sections.findIndex(s => s.id === d.sectionId), to = sections.findIndex(s => s.id === d.beforeId);
+        if (from >= 0 && to >= 0 && from !== to) {
+          const next = [...sections]; const [moved] = next.splice(from, 1); next.splice(from < to ? to - 1 : to, 0, moved); setList(() => next);
+        }
+      }
       if (d.type === "TEXT_EDIT_START") inlineStart.current = designRef.current;
       if (d.type === "TEXT_EDIT_END") {
         const before = inlineStart.current; inlineStart.current = null;
@@ -565,6 +609,22 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setList((l) => removeSection(l, id));
     if (selectedId === id) setSelectedId(null);
   };
+  const pasteSection = () => {
+    if (!copiedSection) return;
+    const clone = duplicateSection([copiedSection], copiedSection.id).list[1];
+    setList(l => insertSection(l, clone, l.length)); setSelectedId(clone.id); say("ok", "Section pasted onto this page.");
+  };
+  const saveSection = (section: Section) => {
+    const name = window.prompt("Name this saved section:", sectionTitle(section).label);
+    if (name === null) return;
+    const preset = { id: `preset-${Date.now()}`, name: name.trim() || sectionTitle(section).label, section: JSON.parse(JSON.stringify(section)) };
+    setStyle("sectionPresets", [...(design.sectionPresets || []), preset]); say("ok", "Section saved for reuse on any page.");
+  };
+  const addPreset = (preset: any) => {
+    const source = preset.section;
+    const clone = duplicateSection([source], source.id).list[1];
+    setList(l => insertSection(l, clone, l.length)); setSelectedId(clone.id);
+  };
 
   const sidebarTabs: [LeftTab, string][] = [["sections", "Sections"], ["style", "Style"], ["text", "Text & labels"], ["menus", "Menus"], ["pages", "Pages"]];
   const q = copyFilter.trim().toLowerCase();
@@ -600,9 +660,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <span className="text-xs font-bold px-2 py-1 rounded-full bg-neutral-100" role="status">
           {dirtyDraft ? "Unsaved changes" : unpublished ? "Draft saved · not live" : "Live"}
         </span>
-        <button className={btn} disabled={!unpublished || busy !== null} onClick={discard}>Discard draft</button>
+        <button className={btn} onClick={() => { setHistoryOpen(true); loadVersions(); }}><History size={14} /> History</button>
+        <button className={btn} onClick={() => setChecksOpen(true)}><ShieldCheck size={14} /> Check</button>
+        <button className={btn} disabled={!unpublished || busy !== null} onClick={() => setConfirmAction("discard")}>Discard draft</button>
         <button className={btn} disabled={!dirtyDraft || busy !== null} onClick={saveDraft}>{busy === "draft" ? "Saving…" : "Save draft"}</button>
-        <button className={btnPrimary} disabled={(!unpublished && !dirtyDraft) || busy !== null} onClick={publish}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
+        <button className={btnPrimary} disabled={(!unpublished && !dirtyDraft) || busy !== null} onClick={() => setConfirmAction("publish")}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
       </header>
 
       <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
@@ -640,6 +702,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 </p>
               </div>
             )}
+            {leftTab === "sections" && <div className="m-3 flex gap-2 flex-wrap">
+              <button className={btn} disabled={!selected} onClick={() => selected && setCopiedSection(JSON.parse(JSON.stringify(selected)))}><Copy size={13} /> Copy</button>
+              <button className={btn} disabled={!copiedSection} onClick={pasteSection}><Clipboard size={13} /> Paste</button>
+              <button className={btn} disabled={!selected} onClick={() => selected && saveSection(selected)}>Save section</button>
+              {(design.sectionPresets || []).map((p: any) => <button key={p.id} className={btn} onClick={() => addPreset(p)}>+ {p.name}</button>)}
+            </div>}
             {leftTab === "sections" && <StudioOutline
               sections={sections} selectedId={selectedId} blockId={blockId}
               onSelect={(id, block) => { setSelectedId(id); setBlockId(block || null); setMobilePanel("settings"); highlight(id, true, block || null); }}
@@ -737,6 +805,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                             <Tag value={val} placeholder={DEFAULT_COPY[f.key]} rows={f.multiline ? 3 : undefined}
                               onChange={(e: any) => setStyle(`copy.${f.key}`, e.target.value || undefined)}
                               className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-xs" />
+                            <span className="text-[10px] text-neutral-500">{val ? "Changed from default" : "Using default"}</span>
                             {f.hint && <span className="text-[11px] text-neutral-500">{f.hint}</span>}
                           </label>
                         );
@@ -780,6 +849,27 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       </FocusContext.Provider>
 
       {adding !== null && <AddSectionDialog onPick={addSection} onClose={() => setAdding(null)} />}
+      <Dialog open={historyOpen} onClose={() => { setHistoryOpen(false); setHistoryPreview(null); sendDesign(); }} title="Version history" description="Every saved draft and publish is kept here. Previewing never changes your draft." size="lg">
+        <div className="space-y-2 max-h-[60vh] overflow-auto">
+          {!versions.length && <p className="studio-empty">No saved versions yet.</p>}
+          {versions.map(v => <div key={v.id} className="border border-neutral-200 rounded-xl p-3 flex items-center gap-3">
+            <div className="flex-1"><strong className="block text-sm">{v.label}</strong><span className="text-xs text-neutral-500">{v.kind} · {new Date(v.createdAt).toLocaleString()}</span></div>
+            <button className={btn} onClick={() => { setHistoryPreview(v); setTimeout(sendDesign, 0); }}>Preview</button>
+            <button className={btnPrimary} onClick={() => { change(() => normalizeDesign(v.design, defaults)); setHistoryPreview(null); setHistoryOpen(false); say("ok", "Version restored to the draft. Save or Publish when ready."); }}>Restore to draft</button>
+          </div>)}
+          {historyPreview && <p className="text-xs font-bold">Previewing: {historyPreview.label}. Close History to return to your current draft.</p>}
+        </div>
+      </Dialog>
+      <Dialog open={confirmAction !== null} onClose={() => setConfirmAction(null)} title={confirmAction === "publish" ? "Publish this design?" : "Discard this draft?"}>
+        <div className="space-y-4">
+          <p className="text-sm">{confirmAction === "publish" ? "These changes will become visible to shoppers immediately:" : "These draft changes will be permanently replaced by the current live design:"}</p>
+          <ul className="list-disc pl-5 text-sm space-y-1">{describeChanges(confirmAction === "publish" ? published : design, confirmAction === "publish" ? design : published).map(x => <li key={x}>{x}</li>)}</ul>
+          <div className="flex justify-end gap-2"><button className={btn} onClick={() => setConfirmAction(null)}>Cancel</button><button className={confirmAction === "publish" ? btnPrimary : `${btn} border-red-300 text-red-700`} onClick={() => { const action = confirmAction; setConfirmAction(null); action === "publish" ? publish() : discard(); }}>{confirmAction === "publish" ? "Publish now" : "Discard draft"}</button></div>
+        </div>
+      </Dialog>
+      <Dialog open={checksOpen} onClose={() => setChecksOpen(false)} title="Pre-publish check" description="A quick accessibility, content and performance review of this draft.">
+        <div className="space-y-2">{designChecks(design).map((r, i) => <p key={i} className={`p-3 rounded-lg text-sm ${r.tone === "warn" ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-900"}`}>{r.tone === "warn" ? "⚠" : "✓"} {r.text}</p>)}</div>
+      </Dialog>
     </div>
   );
 }
