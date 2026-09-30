@@ -1,11 +1,11 @@
 import { Heart, Search, User as UserIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { useCart } from "../../CartContext";
 import { CurrencySelector } from "../../CurrencyContext";
 import { LogoMark } from "../../components/LogoMark";
 import { StoreMenu } from "../../components/StoreMenu";
-import { navGap, navLinkStyle } from "./headerNav";
+import { navGap, navLinkStyle, useNavBelow } from "./headerNav";
 import { buildNavItems } from "./navItems";
 import { SearchOverlay } from "./SearchOverlay";
 import { getCopy } from "./storeCopy";
@@ -31,36 +31,16 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
   const maxWidth = Math.max(900, Math.min(1600, storefront.containerWidth ?? 1200));
   const showAdmin = !storefront.hideAdminLink && (storefront.headerLinks?.showSys ?? true);
 
-  return (
-    <>
-      {(storefront.showAnnouncement ?? false) && storefront.announcementText && (
-        <div
-          data-studio-target="style:header"
-          data-studio-label="Announcement bar"
-          className="px-6 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.3em]"
-          style={{ backgroundColor: storefront.announcementBg || "var(--accent)", color: storefront.announcementColor || "var(--on-accent)" }}
-        >
-          {storefront.announcementText}
-        </div>
-      )}
-      <header
-        data-section="navigation"
-        data-studio-target="style:header|menus:header-order|copy:Header"
-        data-studio-label="Header"
-        className={`${storefront.stickyHeader ?? true ? "sticky top-0" : "relative"} z-50 border-b`}
-        style={{ backgroundColor: headerBg, borderColor: storefront.borderColor || "var(--border-color)" , color: headerColor }}
-      >
-        <div className="mx-auto flex flex-nowrap items-center justify-between gap-4 px-6 py-4" style={{ maxWidth, color: headerColor }}>
-          <div className="flex min-w-0 flex-1 items-center gap-8 md:gap-12">
-            <Link to="/" className="flex shrink-0 items-center" aria-label={getCopy(design, "logoAlt")}>
-              <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefront} /></span>
-            </Link>
-
+  const rowRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  const navBelow = useNavBelow(storefront, rowRef, navRef);
+  const navBar = (
             <nav
+              ref={navRef}
               aria-label={getCopy(design, "ariaMainNavigation")}
               data-studio-target="menus:header-order|menus:categories|style:navlinks"
               data-studio-label="Category bar"
-              className="hidden min-w-0 flex-nowrap items-center md:flex"
+              className={`hidden shrink-0 flex-nowrap items-center md:flex ${navBelow ? "max-w-full overflow-x-auto py-3" : ""}`}
               style={{ columnGap: navGap(storefront) }}
             >
               {navItems.map((item) => {
@@ -80,9 +60,37 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
                 );
               })}
             </nav>
+  );
+
+  return (
+    <>
+      {(storefront.showAnnouncement ?? false) && storefront.announcementText && (
+        <div
+          data-studio-target="style:header"
+          data-studio-label="Announcement bar"
+          className="px-6 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.3em]"
+          style={{ backgroundColor: storefront.announcementBg || "var(--accent)", color: storefront.announcementColor || "var(--on-accent)" }}
+        >
+          {storefront.announcementText}
+        </div>
+      )}
+      <header
+        data-section="navigation"
+        data-studio-target="style:header|menus:header-order|copy:Header"
+        data-studio-label="Header"
+        className={`${storefront.stickyHeader ?? true ? "sticky top-0" : "relative"} z-50 border-b`}
+        style={{ backgroundColor: headerBg, borderColor: storefront.borderColor || "var(--border-color)" , color: headerColor }}
+      >
+        <div ref={rowRef} className="mx-auto flex flex-nowrap items-center justify-between gap-4 px-6 py-4" style={{ maxWidth, color: headerColor }}>
+          <div className="flex min-w-0 flex-1 items-center gap-8 md:gap-12">
+            <Link to="/" data-hdr-fixed className="flex shrink-0 items-center" aria-label={getCopy(design, "logoAlt")}>
+              <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefront} /></span>
+            </Link>
+
+            {!navBelow && navBar}
           </div>
 
-          <div className="flex shrink-0 flex-nowrap items-center justify-end gap-6 md:gap-8" data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart">
+          <div data-hdr-fixed className="flex shrink-0 flex-nowrap items-center justify-end gap-6 md:gap-8" data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart">
             {storefront.menus?.header?.length > 0 && <div className="mr-2"><StoreMenu items={storefront.menus.header} /></div>}
             {!storefront.hideHeaderSearch && (
               <button onClick={() => setSearchOpen(true)} aria-label={getCopy(design, "ariaSearch")} className="hidden h-9 w-9 items-center justify-center rounded-full opacity-50 transition-all hover:opacity-100 sm:flex">
@@ -124,6 +132,11 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
             )}
           </div>
         </div>
+        {navBelow && (
+          <div className="border-t" style={{ borderColor: storefront.borderColor || "var(--border-color)", color: headerColor }}>
+            <div className="mx-auto px-6" style={{ maxWidth }}>{navBar}</div>
+          </div>
+        )}
       </header>
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={books} design={design} />
     </>
