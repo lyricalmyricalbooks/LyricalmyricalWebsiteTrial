@@ -50,7 +50,7 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
         style={{ backgroundColor: headerBg, borderColor: storefront.borderColor || "var(--border-color)" , color: headerColor }}
       >
         <div className="mx-auto flex min-h-[94px] items-center gap-8 px-6 md:px-10" style={{ maxWidth }}>
-          <Link to="/" className="mr-auto flex min-w-0 items-center" aria-label={getCopy(design, "logoAlt")}>
+          <Link to="/" className="mr-auto flex shrink-0 items-center" aria-label={getCopy(design, "logoAlt")}>
             <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefront} /></span>
           </Link>
 
