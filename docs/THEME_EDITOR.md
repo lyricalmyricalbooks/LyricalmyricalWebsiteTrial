@@ -109,7 +109,9 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
   `design.page.sections` otherwise; `design["page:<slug>"].hidePageBody`
   suppresses the legacy title + body HTML so a page can be fully
   section-built. Fully backward compatible — pages without a per-page stack
-  behave exactly as before.
+  behave exactly as before. Custom pages use the themed storefront header
+  (logo, header menu, published in-header pages, wishlist and account controls),
+  and newly created pages opt into that header navigation by default.
 - **Full-theme presets** (`THEME_LIBRARY` in `ThemeEditor.tsx`) may carry a
   `global` record; `applyThemePreset` bulk-writes those keys to the design
   root and **every static/dynamic page surface** in one undo step via
