@@ -1328,24 +1328,24 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     >
                       <div className="flex items-start justify-between gap-3">
                         <h3
-                          className={`${isReferenceCatalog ? "text-lg md:text-xl font-black tracking-tight" : "text-sm tracking-wider font-medium"} leading-tight min-w-0 break-words`}
+                          className={`fm-card-title ${isReferenceCatalog ? "text-lg md:text-xl font-black tracking-tight" : "text-sm tracking-wider font-medium"} leading-tight min-w-0 break-words`}
                           style={{ color: storefrontDesign?.productTitleColor || storefrontText, textTransform: storefrontTitleTransform }}
                         >
                           {item.title}
                         </h3>
                         {displayPrice > 0 && (
                           <span
-                            className="shrink-0 flex flex-col items-end leading-none font-mono tabular-nums"
+                            className="fm-card-price-wrap shrink-0 flex flex-col items-end leading-none font-mono tabular-nums"
                             style={{ color: storefrontDesign?.productPriceColor || storefrontText }}
                           >
                             <span
-                              className={`text-sm md:text-base font-bold whitespace-nowrap ${priceTagBoxed ? "px-2 py-1" : ""}`}
+                              className={`fm-card-price ${priceTagBoxed ? "fm-card-price-tag px-2 py-1" : ""} text-sm md:text-base font-bold whitespace-nowrap`}
                               style={priceTagBoxed ? { border: "2px solid currentColor" } : undefined}
                             >
                               {formatBookPrice(item)}
                             </span>
                             {onSale && (
-                              <span className="mt-1 text-[10px] line-through opacity-50">{formatBookPrice(item, true)}</span>
+                              <span className="fm-card-price-old mt-1 text-[10px] line-through opacity-50">{formatBookPrice(item, true)}</span>
                             )}
                           </span>
                         )}

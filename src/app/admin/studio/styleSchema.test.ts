@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STYLE_GROUPS, applyGlobalStyle, readStyle } from "./styleSchema";
+import { STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle } from "./styleSchema";
 
 describe("applyGlobalStyle", () => {
   const design = {
@@ -26,5 +26,34 @@ describe("applyGlobalStyle", () => {
     const keys = STYLE_GROUPS.flatMap((g) => g.fields.map((f) => f.key));
     expect(new Set(keys).size).toBe(keys.length);
     expect(readStyle({ social: { x: 1 } }, "social.x")).toBe(1);
+  });
+});
+
+describe("Studio style schema structure", () => {
+  it("has unique group ids", () => {
+    const ids = STYLE_GROUPS.map((g) => g.id);
+    expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
+  });
+
+  it("names the group of any key that appears twice", () => {
+    // Two controls for one value fight each other, and one is usually misplaced
+    // (e.g. a shop-card colour hiding under "Product page layout").
+    const seen = new Map<string, string>();
+    const dupes: string[] = [];
+    for (const g of STYLE_GROUPS) {
+      for (const f of g.fields) {
+        const prev = seen.get(f.key);
+        if (prev) dupes.push(`${f.key} (${prev} and ${g.id})`);
+        else seen.set(f.key, g.id);
+      }
+    }
+    expect(dupes).toEqual([]);
+  });
+
+  it("every click-to-edit field pattern matches at least one control", () => {
+    const keys = STYLE_GROUPS.flatMap((g) => g.fields.map((f) => f.key));
+    for (const [label, re] of Object.entries(STYLE_TARGET_FIELDS)) {
+      expect(keys.some((k) => re.test(k)), `no control matches "${label}"`).toBe(true);
+    }
   });
 });

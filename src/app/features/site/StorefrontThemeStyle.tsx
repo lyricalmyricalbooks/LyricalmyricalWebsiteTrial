@@ -1,4 +1,6 @@
 import { googleFontHref } from "./fonts";
+import { cardFontNames, cardTypographyCss } from "./cardTypography";
+import { smallPrintCss, smallPrintFontNames } from "./smallPrint";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, RISO_CHECKOUT_DARK_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS, hexToRgbTriplet } from "./themeTokens";
 
 /**
@@ -80,11 +82,14 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
   // greys follow the storefront tokens (which re-point them) instead of staying on white paper.
   const darkCheckoutCss = lum >= 0.5 ? RISO_CHECKOUT_DARK_CSS : "";
 
-  const fontNames = Array.from(new Set([d.headingFont, d.font || d.bodyFont, d.navFont, d.wordmarkFont].filter(Boolean).map(String)));
+  // Merchant overrides for book-card title/price and the tiny "small print" text. They come after the
+  // token layer so they win, and only exist when a Studio control has been set.
+  const fontNames = Array.from(new Set([d.headingFont, d.font || d.bodyFont, d.navFont, d.wordmarkFont, ...cardFontNames(d), ...smallPrintFontNames(d)].filter(Boolean).map(String)));
+  const overridesCss = smallPrintCss(d) + cardTypographyCss(d);
   return (
     <>
       {fontNames.map(n => <link key={n} rel="stylesheet" href={googleFontHref(n)} />)}
-      <style>{css}{customCss}{checkoutCss}{lightThemePaperCss}{darkCheckoutCss}</style>
+      <style>{css}{overridesCss}{customCss}{checkoutCss}{lightThemePaperCss}{darkCheckoutCss}</style>
     </>
   );
 }

@@ -14,6 +14,13 @@ export type StyleGroup = { id: string; title: string; hint?: string; fields: Sty
 const opts = (...v: string[]) => v.map((x) => ({ value: x, label: x[0].toUpperCase() + x.slice(1) }));
 const weights = ["300", "400", "500", "600", "700", "800", "900"].map((w) => ({ value: w, label: w }));
 
+// When a preview region is clicked, Studio pins an "Editing: <label>" card with just that region's
+// controls. A label listed here gathers its fields from ANY group by key; other labels show their
+// whole target group.
+export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
+  "Card title & price": /^(productTitleColor|productPriceColor|cardTitle|cardPrice|catalogPriceStyle|catalogTitleTransform|catalogCardRuleWidth)/,
+};
+
 export const STYLE_GROUPS: StyleGroup[] = [
   {
     id: "colors",
@@ -69,6 +76,18 @@ export const STYLE_GROUPS: StyleGroup[] = [
     ],
   },
   {
+    id: "smallPrint",
+    title: "Small print & labels",
+    hint: "The tiny captions, eyebrows, meta lines and counters used across the whole shop. Leave a control empty to keep the current look.",
+    fields: [
+      { key: "smallPrintMinSize", label: "Minimum size (0 = automatic)", kind: "range", min: 0, max: 18, step: 1, suffix: "px" },
+      { key: "smallPrintColor", label: "Text color (buttons and filled badges keep their own)", kind: "color" },
+      { key: "smallPrintCase", label: "Letter case", kind: "select", options: [{ value: "", label: "Automatic" }, { value: "uppercase", label: "UPPERCASE" }, { value: "none", label: "As typed" }] },
+      { key: "smallPrintTracking", label: "Letter spacing", kind: "range", min: 0, max: 0.5, step: 0.02, suffix: "em" },
+      { key: "smallPrintFont", label: "Font", kind: "select", options: [{ value: "", label: "Same as body font" }, ...FONT_SELECT_OPTIONS] },
+    ],
+  },
+  {
     id: "layout",
     title: "Layout & spacing",
     fields: [
@@ -114,6 +133,19 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showCollectionMeta", label: "Show collection label on cards", kind: "toggle" },
       { key: "catalogCardRuleWidth", label: "Line above card title (0 = hidden)", kind: "range", min: 0, max: 8, step: 1, suffix: "px" },
       { key: "catalogPriceStyle", label: "Card price style", kind: "select", options: [{ value: "boxed", label: "Boxed tag" }, { value: "plain", label: "Plain text" }] },
+      { key: "productTitleColor", label: "Card title color", kind: "color" },
+      { key: "cardTitleSize", label: "Card title size · desktop (0 = automatic)", kind: "range", min: 0, max: 48, step: 1, suffix: "px" },
+      { key: "cardTitleSizeMobile", label: "Card title size · phone (0 = same as desktop)", kind: "range", min: 0, max: 48, step: 1, suffix: "px" },
+      { key: "cardTitleWeight", label: "Card title weight", kind: "select", options: [{ value: "", label: "Automatic" }, ...weights] },
+      { key: "cardTitleFont", label: "Card title font", kind: "select", options: [{ value: "", label: "Same as heading font" }, ...FONT_SELECT_OPTIONS] },
+      { key: "cardTitleTracking", label: "Card title letter spacing", kind: "range", min: -0.05, max: 0.4, step: 0.01, suffix: "em" },
+      { key: "productPriceColor", label: "Card price color", kind: "color" },
+      { key: "cardPriceSize", label: "Card price size · desktop (0 = automatic)", kind: "range", min: 0, max: 40, step: 1, suffix: "px" },
+      { key: "cardPriceSizeMobile", label: "Card price size · phone (0 = same as desktop)", kind: "range", min: 0, max: 40, step: 1, suffix: "px" },
+      { key: "cardPriceWeight", label: "Card price weight", kind: "select", options: [{ value: "", label: "Automatic" }, ...weights] },
+      { key: "cardPriceFont", label: "Card price font", kind: "select", options: [{ value: "", label: "Monospace (default)" }, ...FONT_SELECT_OPTIONS] },
+      { key: "cardPriceTagBg", label: "Boxed price tag background", kind: "color" },
+      { key: "cardPriceOldColor", label: "Card crossed-out (old) price color", kind: "color" },
       { key: "badgeBgPrimary", label: "Badge background", kind: "color" },
       { key: "badgeTextPrimary", label: "Badge text", kind: "color" },
       { key: "badgeBgSecondary", label: "Secondary badge background", kind: "color" },
@@ -252,8 +284,6 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "productContentPosition", label: "Details side", kind: "select", options: [{ value: "right", label: "Right" }, { value: "left", label: "Left" }] },
       { key: "productAlignment", label: "Text alignment", kind: "select", options: [{ value: "left", label: "Left" }, { value: "center", label: "Center" }] },
       { key: "productTitleSize", label: "Title size", kind: "select", options: [{ value: "medium", label: "Medium" }, { value: "large", label: "Large" }, { value: "xlarge", label: "Xlarge" }] },
-      { key: "productTitleColor", label: "Title color", kind: "color" },
-      { key: "productPriceColor", label: "Price color", kind: "color" },
       { key: "productSubtitleWeight", label: "Subtitle weight", kind: "select", options: [{ value: "light", label: "Light" }, { value: "medium", label: "Medium" }, { value: "bold", label: "Bold" }] },
       { key: "productImageMaxWidth", label: "Photo size (max width)", kind: "range", min: 320, max: 900, step: 10, suffix: "px" },
       { key: "productImageAspect", label: "Photo shape", kind: "select", options: [{ value: "grid", label: "Same as shop grid" }, ...["3:4", "2:3", "4:5", "1:1", "16:9"].map((v) => ({ value: v, label: v }))] },
