@@ -1094,6 +1094,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               }
               enableAnimations={heroDesign?.enableAnimations ?? true}
               dataSection="homepage"
+              sharedBlocks={activeDesign.sharedBlocks || []}
             />
           </main>
         ) : (

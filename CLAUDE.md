@@ -162,6 +162,15 @@ phone overrides, canvas reordering and pre-publish checks also live in Studio. T
 `useStudioPersistence.ts`; `themeWrite.ts` replaces complete design maps when
 saving so removed page overrides do not reappear.
 
+Studio also supports three-level recursive composition blocks through the
+**Flexible composition** section. Groups can contain text, image, button, or
+more group blocks; the active desktop/tablet/mobile preview controls local
+alignment, visibility, and CSS-grid coordinates. Any configured block can be
+promoted to a linked shared block and inserted in another block-capable section;
+shared content updates everywhere while placement stays local. The preview
+supports section and block drag/reorder plus schema-derived inline editing for
+safe text fields.
+
 A large (~11k-line) Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the
 section/block contract, and the Shopify-parity roadmap.

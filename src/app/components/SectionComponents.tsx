@@ -5,6 +5,7 @@ import { useCurrency } from "../CurrencyContext";
 import { useCart } from "../CartContext";
 import { resolveStaffNoteRows } from "../features/site/staffNotes";
 import { textGradientStyle, hoverEffectClassName, hoverEffectGlowStyle, imageFilterCss, imageObjectPositionFromFocal } from "./sectionStyleHelpers";
+import { resolveSharedBlocks } from "../admin/studio/studioModel";
 
 // ──────────────────────────────
 // Animation helper
@@ -32,6 +33,73 @@ function visibleBlocks(list: any[]): any[] {
 function blockEditAttrs(block: any, idx: number) {
   const id = block?.id || `block-${idx}`;
   return { "data-fm-block": id, "data-block-id": id };
+}
+
+function compositionResponsiveStyle(block: any): Record<string, any> {
+  const desktop = block.grid?.desktop || {};
+  return {
+    gridColumn: desktop.column ? `${desktop.column} / span ${desktop.span || 4}` : undefined,
+    gridRow: desktop.row ? `${desktop.row} / span ${desktop.rowSpan || 1}` : undefined,
+    zIndex: desktop.z || undefined,
+    textAlign: block.responsive?.desktop?.align || undefined,
+  };
+}
+
+function compositionBreakpointCss(blocks: any[], sectionId: string) {
+  const safe = (value: any) => String(value || "").replace(/[^a-zA-Z0-9_-]/g, "");
+  const rules: string[] = [];
+  const walk = (items: any[]) => (items || []).forEach(block => {
+    const id = safe(block.id); if (!id) return;
+    for (const [device, query] of [["tablet", "(max-width:1023px)"], ["mobile", "(max-width:767px)"]] as const) {
+      const grid = block.grid?.[device] || {}, responsive = block.responsive?.[device] || {};
+      const body = [
+        grid.column ? `grid-column:${grid.column} / span ${grid.span || 4}` : "",
+        grid.row ? `grid-row:${grid.row} / span ${grid.rowSpan || 1}` : "",
+        grid.z != null ? `z-index:${grid.z}` : "",
+        responsive.align ? `text-align:${responsive.align}` : "",
+        responsive.hidden ? "display:none" : "",
+      ].filter(Boolean).join(";");
+      if (body) rules.push(`@media ${query}{#section-${safe(sectionId)} [data-fm-block="${id}"]{${body}}}`);
+    }
+    walk(block.children || []);
+  });
+  walk(blocks); return rules.join("\n");
+}
+
+function CompositionBlock({ block, index = 0, depth = 0 }: any) {
+  if (block.hidden || depth >= 3) return null;
+  const attrs = blockEditAttrs(block, index);
+  const style = compositionResponsiveStyle(block);
+  if (block.type === "group") return (
+    <div {...attrs} className="fm-composition-group" style={style}>
+      {(block.children || []).map((child: any, i: number) => <CompositionBlock key={child.id || i} block={child} index={i} depth={depth + 1} />)}
+    </div>
+  );
+  if (block.type === "image") return <figure {...attrs} className="fm-composition-block" style={style}>
+    {block.imageUrl && <img src={block.imageUrl} alt={block.alt || ""} loading="lazy" className="w-full h-auto object-cover" />}
+    {block.title && <figcaption data-theme-field="title">{block.title}</figcaption>}
+  </figure>;
+  if (block.type === "button") return <div {...attrs} className="fm-composition-block" style={style}><a href={block.url || "#"} className="inline-flex min-h-11 items-center border border-current px-5 py-3 font-bold" data-theme-field="text">{block.text || "Button"}</a></div>;
+  return <div {...attrs} className="fm-composition-block space-y-3" style={style}>
+    {block.title && <h3 className="text-2xl font-bold" data-theme-field="title">{block.title}</h3>}
+    {block.body && <p className="leading-relaxed" data-theme-field="body">{block.body}</p>}
+    {(block.children || []).map((child: any, i: number) => <CompositionBlock key={child.id || i} block={child} index={i} depth={depth + 1} />)}
+  </div>;
+}
+
+export function CompositionSection({ settings }: any) {
+  const blocks = resolveSharedBlocks(settings.items || settings.blocks || [], settings.__sharedBlocks || []);
+  const columns = Math.max(1, Math.min(24, Number(settings.gridColumns) || 12));
+  const breakpointCss = compositionBreakpointCss(blocks, settings.__sectionId);
+  return <section style={bgStyle(settings)}>
+    {breakpointCss && <style>{breakpointCss}</style>}
+    <div className={`py-16 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      {settings.title && <h2 className="text-3xl font-bold mb-8" style={hStyle(settings)} data-theme-field="title">{settings.title}</h2>}
+      <div className="fm-composition-grid" style={{ display: "grid", gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: `${settings.gridGap || 24}px` }}>
+        {blocks.map((block: any, index: number) => <CompositionBlock key={block.id || index} block={block} index={index} />)}
+      </div>
+    </div>
+  </section>;
 }
 
 // ──────────────────────────────

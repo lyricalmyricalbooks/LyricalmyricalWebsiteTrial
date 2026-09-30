@@ -137,6 +137,10 @@ sync where shared registry controls or renderers change.
    Visual and feature controls expose **All pages / This page only** scope.
    All-pages writes must update every static/dynamic template while preserving
    its page-specific section stack.
+   Studio composition blocks may nest three levels, carry breakpoint-specific
+   grid/alignment/visibility overrides, and link to `design.sharedBlocks` for
+   synchronized reuse across compatible section renderers. Preserve local placement overrides when editing a linked
+   source, and keep recursive operations immutable and depth-guarded.
 3. **Work the roadmap, complete a milestone end-to-end.** Pick a checklist item
    from the roadmap in `docs/THEME_EDITOR.md` (sections-everywhere, more section
    types, live-preview/UX, theme management), finish it fully, then **tick it off

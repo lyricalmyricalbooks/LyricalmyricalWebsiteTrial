@@ -13,9 +13,9 @@ import { buildNavItems, moveNavItem, renameCategory } from "../../features/site/
 import { COPY_SCHEMA, DEFAULT_COPY } from "../../features/site/storeCopy";
 import { MENU_LINK_TYPES, newMenuItem, type MenuItem } from "../../features/site/storeMenu";
 import {
-  commit, duplicateSection, getSections, initHistory, insertSection, makeSection, normalizeDesign,
+  commit, duplicateSection, findBlock, getSections, initHistory, insertSection, makeSection, mapBlock, moveBlockBefore, newId, normalizeDesign,
   patchBlockField, patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo,
-  type Section, type SectionTarget,
+  type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
 import { STATIC_SURFACES, STYLE_GROUPS, applyGlobalStyle, readStyle } from "./styleSchema";
 import { StudioPages } from "./StudioPages";
@@ -356,7 +356,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   useEffect(() => {
     if (!selected) { setBlockId(null); return; }
     const blocks = selected.settings[getBlocksKey(selected.type)] || selected.settings.blocks || [];
-    if (blockId && !blocks.some((b: any) => b.id === blockId)) setBlockId(null);
+    if (blockId && !findBlock(blocks, blockId)) setBlockId(null);
   }, [selected, blockId]);
   const colorSchemes = design.colorSchemes?.length ? design.colorSchemes : DEFAULT_COLOR_SCHEMES;
   const surfaceIds = useMemo(
@@ -384,6 +384,28 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const change = useCallback((fn: (d: any) => any) => setHist((h) => { const next = normalizeDesign(fn(h.present), defaults); return sameDesign(next, h.present) ? h : commit(h, next); }), [defaults]);
   const setList = (fn: (l: Section[]) => Section[]) => change((d) => setSections(d, target, fn(getSections(d, target))));
   const patchSelected = (patch: Record<string, any>) => selectedId && setList((l) => patchSectionSettings(l, selectedId, patch));
+  const saveSharedBlock = (id: string, name: string) => {
+    if (!selected) return;
+    const key = getBlocksKey(selected.type), blocks = selected.settings[key] || selected.settings.blocks || [];
+    const source = findBlock(blocks, id); if (!source) return;
+    const shared: SharedBlock = { id: newId(), name, sectionType: selected.type, block: { ...JSON.parse(JSON.stringify(source)), sharedBlockId: undefined }, updatedAt: new Date().toISOString() };
+    change(d => {
+      const nextSections = patchSectionSettings(getSections(d, target), selected.id, { [key]: mapBlock(blocks, id, b => ({ id: b.id, sharedBlockId: shared.id, grid: b.grid, responsive: b.responsive })) });
+      return setSections({ ...d, sharedBlocks: [...(d.sharedBlocks || []), shared] }, target, nextSections);
+    });
+    say("ok", `“${name}” is now linked and reusable.`);
+  };
+  const insertSharedBlock = (shared: SharedBlock) => {
+    if (!selected) return;
+    const key = getBlocksKey(selected.type);
+    patchSelected({ [key]: [...(selected.settings[key] || selected.settings.blocks || []), { id: newId(), sharedBlockId: shared.id }] });
+    say("ok", `Linked “${shared.name}” to this section.`);
+  };
+  const patchSharedBlock = (sharedId: string, patch: Record<string, any>) => change(d => ({
+    ...d,
+    sharedBlocks: (d.sharedBlocks || []).map((shared: SharedBlock) => shared.id === sharedId
+      ? { ...shared, block: { ...shared.block, ...patch }, updatedAt: new Date().toISOString() } : shared),
+  }));
   const setStyle = (path: string, value: any) => change((d) => applyGlobalStyle(d, path, value, surfaceIds));
   const applyNoirLook = () => {
     if (!window.confirm("Apply the Riso Noir look (black background, white text, flare accent) to every page? Your sections and text are kept.")) return;
@@ -457,7 +479,18 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const sendCopyMap = useCallback(() => {
     const items = COPY_SCHEMA.flatMap((g) => g.fields.map((f) => ({ key: f.key, text: (designRef.current.copy?.[f.key] || DEFAULT_COPY[f.key] || "") })));
     try { iframeRef.current?.contentWindow?.postMessage({ type: "SET_COPY_MAP", items }, window.location.origin); } catch { /* ignore */ }
-  }, []);
+    const editable: any[] = [];
+    const scanBlocks = (section: Section, blocks: any[]) => (blocks || []).forEach((block: any) => {
+      for (const field of getBlockFields(section.type)) if ((field.kind === "text" || field.kind === "textarea") && block[field.key]) editable.push({ sectionId: section.id, blockId: block.id, key: field.key, text: String(block[field.key]) });
+      scanBlocks(section, block.children || []);
+    });
+    const targets: SectionTarget[] = [{ kind: "global" }, ...templates.map(t => ({ kind: "template", id: t.id }) as SectionTarget)];
+    for (const target of targets) for (const section of getSections(designRef.current, target)) {
+      for (const field of getSectionFields(section.type)) if ((field.kind === "text" || field.kind === "textarea") && section.settings[field.key]) editable.push({ sectionId: section.id, blockId: null, key: field.key, text: String(section.settings[field.key]) });
+      scanBlocks(section, section.settings[getBlocksKey(section.type)] || section.settings.blocks || []);
+    }
+    try { iframeRef.current?.contentWindow?.postMessage({ type: "SET_EDIT_MAP", items: editable }, window.location.origin); } catch { /* ignore */ }
+  }, [templates]);
   useEffect(() => { const t = setTimeout(sendCopyMap, 200); return () => clearTimeout(t); }, [design, sendCopyMap]);
 
   const onIframeLoad = () => {
@@ -536,6 +569,18 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         if (from >= 0 && to >= 0 && from !== to) {
           const next = [...sections]; const [moved] = next.splice(from, 1); next.splice(from < to ? to - 1 : to, 0, moved); setList(() => next);
         }
+      }
+      if (d.type === "BLOCK_MOVE" && d.sectionId && d.blockId && d.beforeId) {
+        const section = sections.find(s => s.id === d.sectionId); if (!section) return;
+        const key = getBlocksKey(section.type), blocks = section.settings[key] || section.settings.blocks || [];
+        setList(list => patchSectionSettings(list, section.id, { [key]: moveBlockBefore(blocks, d.blockId, d.beforeId) }));
+      }
+      if (d.type === "ADD_BLOCK" && d.sectionId) {
+        const section = sections.find(s => s.id === d.sectionId); if (!section) return;
+        const meta = getSectionMeta(section.type); if (!meta?.blockType) return;
+        const key = getBlocksKey(section.type), block = { ...JSON.parse(JSON.stringify(meta.blockDefaults || {})), id: newId() };
+        setList(list => patchSectionSettings(list, section.id, { [key]: [...(section.settings[key] || []), block] }));
+        setSelectedId(section.id); setBlockId(block.id); setMobilePanel("settings");
       }
       if (d.type === "TEXT_EDIT_START") inlineStart.current = designRef.current;
       if (d.type === "TEXT_EDIT_END") {
@@ -842,6 +887,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
         {selected && (
           <StudioInspector section={selected} blockId={blockId} onSelectBlock={setBlockId} colorSchemes={colorSchemes}
+            device={device} sharedBlocks={design.sharedBlocks || []} onSaveShared={saveSharedBlock} onPatchShared={patchSharedBlock} onInsertShared={insertSharedBlock}
             onPatch={patchSelected} onDuplicate={() => dupSection(selected.id)} onDelete={() => delSection(selected.id)}
             onToggle={() => setList((l) => toggleSection(l, selected.id))} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
         )}

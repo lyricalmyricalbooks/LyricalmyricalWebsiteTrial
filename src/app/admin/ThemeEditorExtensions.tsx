@@ -57,6 +57,25 @@ export type SectionTypeMeta = {
 
 export const SECTION_REGISTRY: SectionTypeMeta[] = [
   {
+    type: "CompositionSection",
+    label: "Flexible composition",
+    description: "Nested groups, text, images and buttons with responsive grid placement.",
+    category: "Layout",
+    defaults: {
+      title: "Flexible composition",
+      gridColumns: 12,
+      items: [
+        { id: "composition-group", type: "group", title: "Content group", children: [
+          { id: "composition-heading", type: "text", title: "A flexible story", body: "Build nested editorial layouts without a bespoke section." },
+          { id: "composition-button", type: "button", text: "Explore", url: "#shop" },
+        ] },
+      ],
+    },
+    blockType: "composition",
+    blockDefaults: { type: "text", title: "New block", body: "Add your content." },
+    blockLabel: "Content block",
+  },
+  {
     type: "HeroSection",
     label: "Hero Banner",
     description: "Full-viewport hero with image, headline and CTA.",
@@ -610,6 +629,18 @@ type BlockField =
   | { key: string; label: string; kind: "list"; itemLabel?: string; itemFields?: { key: string; label: string }[] };
 
 const BLOCK_FIELDS: Record<string, BlockField[]> = {
+  CompositionSection: [
+    { key: "type", label: "Block type", kind: "select", options: [
+      { value: "group", label: "Group / container" }, { value: "text", label: "Text" },
+      { value: "image", label: "Image" }, { value: "button", label: "Button" },
+    ] },
+    { key: "title", label: "Heading", kind: "text" },
+    { key: "body", label: "Body", kind: "textarea", rows: 4 },
+    { key: "imageUrl", label: "Image", kind: "image" },
+    { key: "alt", label: "Image description", kind: "text" },
+    { key: "text", label: "Button label", kind: "text" },
+    { key: "url", label: "Link", kind: "text" },
+  ],
   HeroSection: [],
   FeatureGridSection: [
     { key: "title", label: "Title", kind: "text" },
@@ -2272,6 +2303,11 @@ const ALIGN_OPTIONS = [
 ];
 
 const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
+  CompositionSection: [
+    { key: "title", label: "Section heading", kind: "text" },
+    { key: "gridColumns", label: "Desktop grid columns", kind: "range", min: 1, max: 24, step: 1 },
+    { key: "gridGap", label: "Grid gap", kind: "range", min: 0, max: 80, step: 2, suffix: "px" },
+  ],
   HeroSection: [
     { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Headline", kind: "text" },
