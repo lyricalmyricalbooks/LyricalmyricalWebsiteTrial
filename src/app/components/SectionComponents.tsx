@@ -441,7 +441,7 @@ export function ImageBannerSection({ settings, onCtaClick, enableAnimations }: a
           Add a banner image
         </div>
       )}
-      <div className="absolute inset-0" style={{ backgroundColor: "#000", opacity: settings.overlayOpacity ?? 0.4 }} />
+      <div className="absolute inset-0" style={{ backgroundColor: "rgb(var(--overlay-rgb, 0, 0, 0))", opacity: settings.overlayOpacity ?? 0.4 }} />
       <div className={`relative z-10 flex w-full p-6 md:p-12 ${position}`}>
         <AnimationContainer enabled={enableAnimations}>
           <div className={`max-w-2xl ${textAlignClass} text-white`}>
@@ -1372,7 +1372,7 @@ export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any
             lineHeight: 0.95,
             ...hStyle(settings),
             // Always light: this text sits on the image scrim, not on the theme background.
-            color: "#ffffff",
+            color: settings.slideTextColor || "#ffffff",
           }}
           data-theme-field="title"
         >
@@ -1403,7 +1403,7 @@ export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any
               aria-label={`Go to cover ${i + 1}`}
               aria-current={i === current}
               className={`h-2 rounded-full transition-all ${i === current ? "w-5" : "w-2"}`}
-              style={{ backgroundColor: i === current ? "#ffffff" : "rgba(255,255,255,0.45)" }}
+              style={{ backgroundColor: settings.slideTextColor || "#ffffff", opacity: i === current ? 1 : 0.45 }}
             />
           ))}
         </div>
@@ -1631,14 +1631,16 @@ function shadeColor(hex: string, amount: number): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
 }
 
-function EphemeraObject({ item }: { item: any }) {
+function EphemeraObject({ item, settings = {} }: { item: any; settings?: any }) {
+  const ink = settings.ephemeraInkColor || "#0a0910";
+  const film = settings.ephemeraFilmColor || "#2a1a06";
   const color = item.color || "#e8402a";
   const rotation = `rotate(${Math.max(-12, Math.min(12, item.rotation ?? -3))}deg)`;
   const shadow = "0 10px 24px rgba(0,0,0,0.4)";
   switch (item.kind) {
     case "negative":
       return (
-        <div className="relative w-[170px] h-28 rounded-[2px] overflow-hidden" style={{ background: "#2a1a06", boxShadow: shadow, transform: rotation }}>
+        <div className="relative w-[170px] h-28 rounded-[2px] overflow-hidden" style={{ background: film, boxShadow: shadow, transform: rotation }}>
           <div className="absolute inset-0" style={{ background: "repeating-linear-gradient(90deg, transparent 0 30px, rgba(0,0,0,0.5) 30px 32px)" }} />
           <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, ${color}59, transparent 30%, transparent 70%, ${color}59)` }} />
         </div>
@@ -1670,8 +1672,8 @@ function EphemeraObject({ item }: { item: any }) {
       );
     case "sticker":
       return (
-        <div className="w-[118px] h-[76px] rounded-[2px] p-2 flex flex-col gap-1.5" style={{ background: color || "#f3f1ee", boxShadow: shadow, transform: rotation }}>
-          <div className="h-[22px]" style={{ background: "repeating-linear-gradient(90deg, #0a0910 0 2px, transparent 2px 5px)" }} />
+        <div className="w-[118px] h-[76px] rounded-[2px] p-2 flex flex-col gap-1.5" style={{ background: item.color || settings.ephemeraPaperColor || color, boxShadow: shadow, transform: rotation }}>
+          <div className="h-[22px]" style={{ background: `repeating-linear-gradient(90deg, ${ink} 0 2px, transparent 2px 5px)` }} />
           {item.label && <span className="text-[0.55rem] tracking-[0.06em] text-black/90">{item.label}</span>}
         </div>
       );
@@ -1681,7 +1683,7 @@ function EphemeraObject({ item }: { item: any }) {
         <div
           className="w-16 h-[190px] rounded-[2px] flex items-center justify-center"
           style={{
-            background: `linear-gradient(200deg, ${shadeColor(color, -100)} 0%, ${color} 60%, #05040a 100%)`,
+            background: `linear-gradient(200deg, ${shadeColor(color, -100)} 0%, ${color} 60%, ${ink} 100%)`,
             boxShadow: shadow,
             transform: rotation,
           }}
@@ -1706,7 +1708,7 @@ export function EphemeraRowSection({ settings, enableAnimations }: any) {
           <div className={`flex flex-wrap items-end ${justify}`} style={{ gap: settings.gap ?? 24 }}>
             {items.map((item: any, idx: number) => (
               <div key={item.id || idx} {...blockEditAttrs(item, idx)}>
-                <EphemeraObject item={item} />
+                <EphemeraObject item={item} settings={settings} />
               </div>
             ))}
           </div>

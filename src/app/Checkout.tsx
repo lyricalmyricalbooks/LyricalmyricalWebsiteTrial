@@ -1200,7 +1200,7 @@ export function Checkout() {
             <div className="border-t border-slate-200 pt-6">
               {notice && (
                 <div role={notice.tone === "error" ? "alert" : "status"} className="mb-4 rounded-lg border px-4 py-3 text-sm"
-                  style={{ borderColor: notice.tone === "error" ? "#b4271a" : "#94a3b8", color: notice.tone === "error" ? "#b4271a" : "inherit", background: notice.tone === "error" ? "rgba(232,64,42,.08)" : "transparent" }}>
+                  style={{ borderColor: notice.tone === "error" ? "var(--danger, #b4271a)" : "var(--muted, #94a3b8)", color: notice.tone === "error" ? "var(--danger, #b4271a)" : "inherit", background: notice.tone === "error" ? "rgba(232,64,42,.08)" : "transparent" }}>
                   <span aria-hidden="true">{notice.tone === "error" ? "✕ " : "ℹ "}</span>{notice.text}
                 </div>
               )}

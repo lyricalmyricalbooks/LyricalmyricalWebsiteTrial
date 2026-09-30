@@ -261,6 +261,13 @@ nested blocks across more section types remains a follow-up):
 > `features/site/studioCoverage.test.ts` fails on any design key the storefront reads without one.
 > Add the control in the same change as the design key — never allowlist around the test.
 
+> [!IMPORTANT]
+> **Every aspect of the public website must be editable in the designer (Studio).** No hard-coded
+> colours in storefront code: use a design key (`design.x || "#hex"`) or a theme variable
+> (`var(--token, #hex)`) — the hex may only be a fallback. Every section default needs a Content
+> field (lists are edited as blocks). `features/site/designerCoverage.test.ts` enforces both,
+> alongside `studioCoverage`, `storeCopy.coverage`, `studioTargets` and `themeLibrary` tests.
+
 **Click-to-edit in the preview:** sections carry `data-fm-section`; every other storefront region carries `data-studio-target="style:<groupId>|copy:<Group>|menus:<panel>|pages"` + `data-studio-label`. In Edit mode the preview bridge (`studio/previewBridge.ts`) outlines it, and a click sends `STUDIO_TARGET` (several targets → a small in-preview menu); `StudioEditor.tsx` switches tab and opens/flashes the matching `Group id` / `data-studio-panel`. New storefront regions must carry a target — `studioTargets.test.ts` checks every target points at a real panel.
 
 **One storefront shell:** `MainSite` renders a single Riso header/footer for every view; the Home view swaps the catalog grid for `design.heroPage.sections`. Studio › Sections (Home) › **Show a Home page** toggles `showHero` (off = open straight on the catalog). The legacy hero header/`HeroCarousel` were removed — don't re-add a second header.

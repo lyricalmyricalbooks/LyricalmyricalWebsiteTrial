@@ -2441,6 +2441,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   SlideshowSection: [
+    { key: "slideTextColor", label: "Slide text & dots colour", kind: "color" },
     { key: "prevAria", label: "Previous-slide button label (screen readers)", kind: "text" },
     { key: "nextAria", label: "Next-slide button label (screen readers)", kind: "text" },
     { key: "autoplay", label: "Autoplay", kind: "toggle" },
@@ -2708,6 +2709,9 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   EphemeraRowSection: [
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
     { key: "gap", label: "Object gap", kind: "range", min: 8, max: 80, step: 4, suffix: "px" },
+    { key: "ephemeraInkColor", label: "Ink colour (barcodes, spine shading)", kind: "color" },
+    { key: "ephemeraFilmColor", label: "Film negative base colour", kind: "color" },
+    { key: "ephemeraPaperColor", label: "Ticket colour (when a block has none)", kind: "color" },
   ],
 };
 

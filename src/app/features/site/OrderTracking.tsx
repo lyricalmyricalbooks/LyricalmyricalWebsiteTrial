@@ -252,7 +252,7 @@ export default function OrderTracking() {
                             ? "bg-violet-500/20 border-violet-500/40 fm-accent-text shadow-[0_0_30px_rgba(124,58,237,0.25)]" 
                             : "bg-white/[0.03] border-white/10 text-white/50"
                           }
-                          ${isActive ? "ring-2 ring-violet-500 ring-offset-4 ring-offset-[#050506]" : ""}
+                          ${isActive ? "ring-2 ring-violet-500 ring-offset-4 ring-offset-[var(--bg-color,#050506)]" : ""}
                         `}>
                           <StepIcon size={18} />
                         </div>
