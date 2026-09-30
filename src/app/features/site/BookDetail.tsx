@@ -416,7 +416,7 @@ export default function BookDetail() {
           }`}>
 
             {/* ── PHOTO COLUMN ── */}
-            <div data-section="products" className="space-y-4">
+            <div data-section="products" className="space-y-4 w-full max-w-[560px] mx-auto lg:mx-0 lg:justify-self-end">
               {productImageLayout === "slider" ? (
                 <>
                   {/* Main image */}
@@ -440,7 +440,7 @@ export default function BookDetail() {
                         key={activePhoto}
                         src={activeUrl}
                         alt={`${book.title} — view ${activePhoto + 1}`}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                         initial={{ opacity: 0, scale: 1.04 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0 }}
@@ -548,7 +548,7 @@ export default function BookDetail() {
                               : "border-white/[0.08] opacity-40 hover:opacity-70 hover:border-white/20"
                           }`}
                         >
-                          <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                          <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
                         </button>
                       ))}
                     </div>
@@ -558,7 +558,7 @@ export default function BookDetail() {
                 <div className="grid grid-cols-2 gap-4">
                   {photos.map((photo: any, i: number) => (
                     <div key={i} className={`${i === 0 ? "col-span-2" : ""} relative aspect-[3/4] fm-surface rounded-[1.5rem] overflow-hidden`}>
-                      <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
                           <span
@@ -580,7 +580,7 @@ export default function BookDetail() {
                 <div className="space-y-4">
                   {photos.map((photo: any, i: number) => (
                     <div key={i} className="relative aspect-[3/4] fm-surface rounded-[1.5rem] overflow-hidden">
-                      <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
                           <span

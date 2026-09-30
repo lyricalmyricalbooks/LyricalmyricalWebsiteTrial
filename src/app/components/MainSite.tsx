@@ -715,7 +715,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontGridGap = Math.max(8, Math.min(72, storefrontDesign?.catalogGridGap ?? (isReferenceCatalog ? 18 : 32)));
   const storefrontHeaderRuleWidth = Math.max(0, Math.min(8, storefrontDesign?.catalogHeaderRuleWidth ?? (isReferenceCatalog ? 4 : 1)));
   const storefrontHeaderMaxWidth = Math.max(900, Math.min(1800, storefrontDesign?.catalogHeaderWidth ?? storefrontMaxWidth));
-  const storefrontImageFit = storefrontDesign?.catalogImageFit === "contain" ? "object-contain" : "object-cover";
+  const storefrontImageFit = storefrontDesign?.catalogImageFit === "cover" ? "object-cover" : "object-contain";
   const storefrontTitleTransform = (storefrontDesign?.catalogTitleTransform || (isReferenceCatalog ? "none" : "uppercase")) as any;
   const catalogMastheadDesktop = Math.max(28, Math.min(96, storefrontDesign?.catalogMastheadDesktop ?? 58));
   const catalogMastheadMobile = Math.max(24, Math.min(72, storefrontDesign?.catalogMastheadMobile ?? 38));

@@ -189,7 +189,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "catalogNavGapDesktop", label: "Nav spacing (desktop)", kind: "range", min: 12, max: 80, step: 1, suffix: "px" },
       { key: "catalogNavGapMobile", label: "Nav spacing (phone)", kind: "range", min: 8, max: 40, step: 1, suffix: "px" },
       { key: "catalogTitleTransform", label: "Book title case", kind: "select", options: [{ value: "none", label: "None" }, { value: "uppercase", label: "Uppercase" }, { value: "capitalize", label: "Capitalize" }] },
-      { key: "catalogImageFit", label: "Cover image fit", kind: "select", options: [{ value: "cover", label: "Cover" }, { value: "contain", label: "Contain" }] },
+      { key: "catalogImageFit", label: "Cover image fit", kind: "select", options: [{ value: "contain", label: "Fit whole image" }, { value: "cover", label: "Fill [{ value: "cover", label: "Cover" }, { value: "contain", label: "Contain" }] crop" }] },
       { key: "catalogImageFocalX", label: "Cover focus (left↔right)", kind: "range", min: 0, max: 100, step: 1, suffix: "%" },
       { key: "catalogImageFocalY", label: "Cover focus (top↔bottom)", kind: "range", min: 0, max: 100, step: 1, suffix: "%" },
       { key: "catalogCartPlacement", label: "Cart button placement", kind: "select", options: [{ value: "top-right", label: "Top right" }, { value: "nav-end", label: "Nav end" }] },
