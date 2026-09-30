@@ -1,11 +1,11 @@
 import { motion, AnimatePresence } from "motion/react";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useParams, Link, useNavigate } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
   Package, Share2, Check, BookOpen, Globe, Ruler,
-  Weight, Tag, Truck, ShieldCheck, Zap, Heart, ChevronDown
+  Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus
 } from "lucide-react";
 import { useCart } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
@@ -26,6 +26,10 @@ import BackInStockForm from "./BackInStockForm";
 import { resolveLogoDesign } from "./selectors";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "./themeTokens";
 import { aspectRatioValue } from "./imageAspect";
+import { googleFontHref } from "./fonts";
+import { productPageCss, productPageFontNames } from "./productPageStyle";
+
+const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 // ── small helper ────────────────────────────────────────────────────────────
 function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
@@ -85,7 +89,6 @@ export default function BookDetail() {
   const glowOpacity            = (storefrontDesign.glowIntensity ?? settings?.design?.glowIntensity ?? 18) / 100;
   const showSpecs              = storefrontDesign.showSpecs              ?? settings?.design?.showSpecs              ?? true;
   const showBundleWidget       = storefrontDesign.showBundleWidget       ?? settings?.design?.showBundleWidget       ?? true;
-  const showTrustSignals       = storefrontDesign.showTrustSignals       ?? settings?.design?.showTrustSignals       ?? true;
 
   // Redesign autonomy settings
   const productTitleSize       = storefrontDesign.productTitleSize       || "large";
@@ -93,17 +96,16 @@ export default function BookDetail() {
   const productSubtitleWeight  = storefrontDesign.productSubtitleWeight  || "light";
   const productBorderRadius    = storefrontDesign.productBorderRadius    ?? settings?.design?.productBorderRadius ?? 32;
   const productImageGlowColor  = storefrontDesign.productImageGlowColor  || primaryColor;
-  const productImageShadow     = storefrontDesign.productImageShadow     || "lg";
+  const productImageShadow     = storefrontDesign.productImageShadow     || "none";
   const productImageHoverScale  = storefrontDesign.productImageHoverScale  ?? 1.05;
   const productImageFitClass   = storefrontDesign.productImageFit === "contain" ? "object-contain" : "object-cover";
   const productImageFit        = storefrontDesign.productImageFit === "contain" ? "contain" : "cover";
   const productImageMaxWidth   = Math.max(320, Math.min(900, Number(storefrontDesign.productImageMaxWidth) || 560));
   const productImageAspect     = aspectRatioValue(storefrontDesign.productImageAspect && storefrontDesign.productImageAspect !== "grid" ? storefrontDesign.productImageAspect : storefrontDesign.imageAspectRatio || "3:4");
-  const productDetailsLayout   = storefrontDesign.productDetailsLayout   || "sections";
+  const productDetailsLayout   = storefrontDesign.productDetailsLayout   || "tabs";
   const productCtaAnimation    = storefrontDesign.productCtaAnimation    || "none";
   const productCtaWidth        = storefrontDesign.productCtaWidth        || "full";
   const productCtaSize         = storefrontDesign.productCtaSize         || "large";
-  const productTrustLayout     = storefrontDesign.productTrustLayout     || "row";
   const productBundleLayout    = storefrontDesign.productBundleLayout    || "bordered";
   const showQtyStepper         = storefrontDesign.showQtyStepper         ?? settings?.design?.showQtyStepper         ?? false;
   const productDescriptionStyle = storefrontDesign.productDescriptionStyle || settings?.design?.productDescriptionStyle || "plain";
@@ -146,6 +148,20 @@ export default function BookDetail() {
   // at either level (storefront wins).
   const tokenSource = { ...(settings?.design || {}), ...(storefrontDesign || {}) };
 
+  // Catalogue-card layout (Studio › Style › Product page · buy card & details).
+  const pdpShowBackLink   = tokenSource.pdpShowBackLink   ?? true;
+  const pdpShowBreadcrumb = tokenSource.pdpShowBreadcrumb ?? true;
+  const pdpShowTag        = tokenSource.pdpShowTag        ?? true;
+  const pdpTagStyle       = tokenSource.pdpTagStyle === "outline" ? "outline" : "filled";
+  const pdpShowStock      = tokenSource.pdpShowStock      ?? true;
+  const pdpShowCaption    = tokenSource.pdpShowCaption    ?? true;
+  const pdpThumbPosition  = tokenSource.pdpThumbPosition  || "side";
+  const pdpDetailsBelow   = (tokenSource.pdpDetailsPlacement || "below") === "below";
+  const pdpSpecsRecord    = (tokenSource.pdpSpecsStyle || "record") === "record";
+  const headingFontName   = tokenSource.headingFont || tokenSource.font || tokenSource.bodyFont;
+  const pageFontNames     = Array.from(new Set([headingFontName, ...productPageFontNames(tokenSource)].filter(Boolean).map(String)));
+  const titleAutoSize     = productTitleSize === "medium" ? "clamp(28px, 3.4vw, 44px)" : productTitleSize === "xlarge" ? "clamp(40px, 6vw, 84px)" : undefined;
+
   const css = `
     [data-fm-store] {
       ${buildStorefrontTokenVars(tokenSource)}
@@ -160,6 +176,7 @@ export default function BookDetail() {
       --badge-text-secondary: ${badgeTextSecondary};
       --badge-bg-secondary: ${badgeBgSecondary};
       --low-inventory-color: ${lowInventoryColor};
+      --heading-font: ${headingFontName ? `'${String(headingFontName).replace(/['"\\;{}<>]/g, "")}', Impact, sans-serif` : "inherit"};
     }
     [data-fm-store] .custom-btn {
       background-color: var(--btn-bg) !important;
@@ -174,6 +191,7 @@ export default function BookDetail() {
     }
     ${STOREFRONT_TOKEN_CSS}
     ${(tokenSource as any)?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(tokenSource as any) : ""}
+    ${productPageCss(tokenSource)}
   `;
 
   const bookCategories = (book as any)?.categories || (book as any)?.genres || [];
@@ -283,6 +301,107 @@ export default function BookDetail() {
   const isOnSale      = selectedVariant ? false : ((book as any)?.isOnSale && salePrice > 0);
   const activeUrl     = (selectedVariant && selectedVariant.photoUrl) ? selectedVariant.photoUrl : (photos[activePhoto]?.url || placeholderImage(settings?.design));
 
+  // ── catalogue-card helpers ─────────────────────────────────────────────────
+  const bk            = (book || {}) as any;
+  const categoryLabel: string | undefined = bk.genres?.[0] || bk.categories?.[0];
+  const alignCls      = productAlignment === "center" ? "items-center text-center" : "items-start text-left";
+  const showThumbRail = photos.length > 1 && pdpThumbPosition !== "hidden";
+  const isLowStock    = stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10);
+  const stockText     = isOutOfStock
+    ? getCopy(settings?.design, "soldOutLabel")
+    : isLowStock ? getCopy(settings?.design, "pdpInStockCount", { count: stockLevel }) : getCopy(settings?.design, "pdpInStock");
+  const specRows = [
+    { key: "specFormat", icon: <BookOpen size={11} />, value: bk.format },
+    { key: "specLanguage", icon: <Globe size={11} />, value: bk.language },
+    { key: "specDimensions", icon: <Ruler size={11} />, value: bk.dimensions },
+    { key: "specIsbn", icon: <Package size={11} />, value: bk.isbn },
+    { key: "specWeight", icon: <Weight size={11} />, value: bk.weight },
+  ].filter((r) => r.value);
+  const hasSpecs = showSpecs !== false && (specRows.length > 0 || isLowStock);
+
+  const renderSpecs = () => pdpSpecsRecord ? (
+    <dl className="fm-pdp-record w-full text-left">
+      {specRows.map((r) => (
+        <Fragment key={r.key}><dt>{getCopy(settings?.design, r.key)}</dt><dd>{r.value}</dd></Fragment>
+      ))}
+      {isLowStock && (
+        <><dt>{getCopy(settings?.design, "specAvailability")}</dt><dd style={{ color: lowInventoryColor }}>{getCopy(settings?.design, "specRemaining", { count: stockLevel })}</dd></>
+      )}
+    </dl>
+  ) : (
+    <div className="grid grid-cols-2 gap-3 w-full text-left">
+      {specRows.map((r) => <SpecItem key={r.key} icon={r.icon} label={getCopy(settings?.design, r.key)} value={r.value} />)}
+      {isLowStock && (
+        <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label={getCopy(settings?.design, "specAvailability")} value={getCopy(settings?.design, "specRemaining", { count: stockLevel })} />
+      )}
+    </div>
+  );
+
+  const detailTabs: { id: "description" | "specs" | "reviews"; label: string }[] = [
+    { id: "description", label: getCopy(settings?.design, "tabDescription") },
+    ...(hasSpecs ? [{ id: "specs" as const, label: getCopy(settings?.design, productDetailsLayout === "accordions" ? "tabSpecs" : "tabDetails") }] : []),
+    { id: "reviews", label: getCopy(settings?.design, "tabReviews") },
+  ];
+  const activeTab = detailTabs.some((t) => t.id === detailsTab) ? detailsTab : "description";
+  const onTabKey = (e: React.KeyboardEvent, i: number) => {
+    if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
+    e.preventDefault();
+    const n = detailTabs.length;
+    const next = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + n) % n;
+    setDetailsTab(detailTabs[next].id);
+    document.getElementById(`pdp-tab-${detailTabs[next].id}`)?.focus();
+  };
+  const detailContent = (id: string) =>
+    id === "description" ? (
+      <p className="max-w-[65ch] text-[15px] leading-[1.75] whitespace-pre-line">{bk.description || getCopy(settings?.design, "noDescription")}</p>
+    ) : id === "specs" ? renderSpecs() : book ? (
+      <ReviewsSection bookId={book.id} hideHeader={true} />
+    ) : null;
+
+  const detailsBlock = !book ? null : productDetailsLayout === "tabs" ? (
+    <div className="fm-pdp-tabs w-full" data-studio-target="style:productCard|copy:Product page" data-studio-label="Product details tabs">
+      <div role="tablist" aria-label={getCopy(settings?.design, "pdpDetailsAria")}>
+        {detailTabs.map((t, i) => (
+          <button
+            key={t.id}
+            id={`pdp-tab-${t.id}`}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === t.id}
+            aria-controls="pdp-tabpanel"
+            tabIndex={activeTab === t.id ? 0 : -1}
+            onClick={() => setDetailsTab(t.id)}
+            onKeyDown={(e) => onTabKey(e, i)}
+            className="fm-pdp-tab"
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div id="pdp-tabpanel" role="tabpanel" aria-labelledby={`pdp-tab-${activeTab}`} className="fm-pdp-panel">
+        {detailContent(activeTab)}
+      </div>
+    </div>
+  ) : productDetailsLayout === "accordions" ? (
+    <div className="w-full flex flex-col gap-2.5" data-studio-target="style:productCard|copy:Product page" data-studio-label="Product details tabs">
+      {detailTabs.map((t) => (
+        <div key={t.id} className="fm-pdp-panel" style={{ padding: 0 }}>
+          <button
+            type="button"
+            aria-expanded={!!openAccordions[t.id]}
+            aria-controls={`pdp-acc-${t.id}`}
+            onClick={() => toggleAccordion(t.id)}
+            className="w-full min-h-[56px] px-5 flex items-center justify-between gap-4 text-[10px] font-black tracking-[0.28em] uppercase text-left"
+          >
+            <span>{t.label}</span>
+            <ChevronDown size={14} className={`shrink-0 transition-transform duration-300 ${openAccordions[t.id] ? "rotate-180" : ""}`} />
+          </button>
+          {openAccordions[t.id] && <div id={`pdp-acc-${t.id}`} className="px-5 pb-5">{detailContent(t.id)}</div>}
+        </div>
+      ))}
+    </div>
+  ) : null;
+
   // ── loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -344,6 +463,7 @@ export default function BookDetail() {
         color: storefrontText,
       }}
     >
+      {pageFontNames.map((n) => <link key={n} rel="stylesheet" href={googleFontHref(n)} />)}
       <style>{css}</style>
 
       {/* ── ambient glow that follows the book cover ── */}
@@ -367,7 +487,7 @@ export default function BookDetail() {
         }}
       >
         <div className="max-w-8xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
-          <button
+          {pdpShowBackLink && <button
             onClick={() => navigate(-1)}
             style={{ color: headerTextColor }}
             aria-label={getCopy(settings?.design, "backToCatalog")}
@@ -375,7 +495,7 @@ export default function BookDetail() {
           >
             <ArrowLeft size={15} className="group-hover:-translate-x-1 transition-transform" />
             <span className="hidden sm:inline text-[9px] font-black tracking-[0.35em] uppercase">{getCopy(settings?.design, "backToCatalog")}</span>
-          </button>
+          </button>}
 
           <Link
             to="/"
@@ -418,161 +538,96 @@ export default function BookDetail() {
 
       {/* ── hero layout ── */}
       <main className="relative z-10">
-        <div className="max-w-8xl mx-auto px-6 py-12 lg:py-20">
-          <div className={`grid grid-cols-1 lg:grid-cols-[1fr_480px] xl:grid-cols-[1fr_520px] gap-12 xl:gap-20 items-start ${
+        <div className="max-w-8xl mx-auto px-4 sm:px-6 pt-2 pb-12 lg:pb-20">
+          {/* ── breadcrumb ── */}
+          {pdpShowBreadcrumb && (
+            <nav
+              aria-label={getCopy(settings?.design, "pdpBreadcrumbAria")}
+              data-studio-target="style:productCard|copy:Product page" data-studio-label="Breadcrumb"
+              className="fm-pdp-crumb fm-pdp-meta"
+            >
+              <Link to="/">{getCopy(settings?.design, "pdpCrumbShop")}</Link>
+              {categoryLabel && (
+                <>
+                  <span aria-hidden="true">/</span>
+                  <Link to={`/collections/${slugify(categoryLabel)}`}>{categoryLabel}</Link>
+                </>
+              )}
+              <span aria-hidden="true">/</span>
+              <span aria-current="page" className="min-w-0 truncate">{book.title}</span>
+            </nav>
+          )}
+
+          <div className={`mt-8 lg:mt-10 grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-10 xl:gap-14 items-start ${
             productContentPosition === "left" ? "lg:[&>*:first-child]:order-2 lg:[&>*:last-child]:order-1" : ""
           }`}>
 
             {/* ── PHOTO COLUMN ── */}
-            <div data-section="products" className="space-y-4 w-full mx-auto lg:mx-0 lg:justify-self-end" style={{ maxWidth: productImageMaxWidth }}>
+            <div
+              data-section="products"
+              data-studio-target="style:productCard" data-studio-label="Product photos"
+              className="w-full min-w-0 mx-auto lg:mx-0 lg:justify-self-end"
+              style={{ maxWidth: productImageMaxWidth + (showThumbRail && pdpThumbPosition === "side" ? 90 : 0) }}
+            >
               {productImageLayout === "slider" ? (
-                <>
-                  {/* Main image */}
-                  <div 
-                    className={`relative overflow-hidden fm-surface transition-all duration-300 ${
-                      productImageShadow === "none" ? "shadow-none" :
-                      productImageShadow === "sm" ? "shadow-sm" :
-                      productImageShadow === "md" ? "shadow-md" :
-                      productImageShadow === "xl" ? "shadow-[0_50px_150px_rgba(0,0,0,0.85)]" : "shadow-[0_40px_120px_rgba(0,0,0,0.7)]"
-                    }`}
-                    style={{ borderRadius: `${productBorderRadius}px`, aspectRatio: productImageAspect }}
-                  >
-
-                    {/* shimmer */}
-                    {!imageLoaded && (
-                      <div className="absolute inset-0 fm-surface-2 animate-pulse" />
-                    )}
-
-                    <AnimatePresence mode="wait">
-                      <motion.img
-                        key={activePhoto}
-                        src={activeUrl}
-                        alt={getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: activePhoto + 1 })}
-                        className={`w-full h-full ${productImageFitClass}`}
-                        decoding="async"
-                        {...(activePhoto === 0 ? { fetchpriority: "high" } : {})}
-                        initial={{ opacity: 0, scale: 1.04 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0 }}
-                        whileHover={{ scale: productImageHoverScale }}
-                        transition={{ duration: 0.45 }}
-                        onLoad={() => setImageLoaded(true)}
-                      />
-                    </AnimatePresence>
-
-                    {/* Sold out overlay */}
-                    {isOutOfStock && (
-                      <div className="absolute inset-0 bg-black/75 flex items-center justify-center">
-                        <span
-                          className="border text-[10px] font-black tracking-[0.5em] px-8 py-3 rounded-full uppercase backdrop-blur-sm"
-                          style={{
-                            backgroundColor: badgeBgSecondary,
-                            color: badgeTextSecondary,
-                            borderColor: `${badgeTextSecondary}33`,
-                          }}
-                        >
-                          {getCopy(settings?.design, "soldOutLabel")}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Sale badge */}
-                    {isOnSale && !isOutOfStock && (
-                      <div className="absolute top-5 left-5">
-                        <span
-                          className="text-[9px] font-black tracking-[0.3em] uppercase px-4 py-2 rounded-full"
-                          style={{
-                            backgroundColor: badgeBgPrimary,
-                            color: badgeTextPrimary,
-                          }}
-                        >
-                          {getCopy(settings?.design, "saleBadgeLabel")}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Low stock */}
-                    {stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockCardThreshold", 5) && (
-                      <div className="absolute bottom-5 left-5 right-5">
-                        <div
-                          className="bg-black/70 backdrop-blur-md border rounded-2xl px-4 py-3 flex items-center gap-2"
-                          style={{ borderColor: `${lowInventoryColor}40` }}
-                        >
-                          <Zap size={12} className="shrink-0" style={{ color: lowInventoryColor }} />
-                          <span className="text-[9px] font-black tracking-widest uppercase" style={{ color: lowInventoryColor }}>
-                            {getCopy(settings?.design, "onlyLeft", { count: stockLevel })}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Arrow nav */}
-                    {photos.length > 1 && (
-                      <>
-                        <button
-                          onClick={() => setActivePhoto(p => Math.max(0, p - 1))}
-                          disabled={activePhoto === 0}
-                          aria-label={getCopy(settings?.design, "ariaPrevPhoto")}
-                          className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all disabled:opacity-20"
-                        >
-                          <ChevronLeft size={16} />
-                        </button>
-                        <button
-                          onClick={() => setActivePhoto(p => Math.min(photos.length - 1, p + 1))}
-                          disabled={activePhoto === photos.length - 1}
-                          aria-label={getCopy(settings?.design, "ariaNextPhoto")}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all disabled:opacity-20"
-                        >
-                          <ChevronRight size={16} />
-                        </button>
-                      </>
-                    )}
-
-                    {/* Dot indicators */}
-                    {photos.length > 1 && (
-                      <div className="absolute bottom-5 right-5 flex gap-1.5">
-                        {photos.map((_: any, i: number) => (
-                          <button
-                            key={i}
-                            onClick={() => setActivePhoto(i)}
-                            aria-label={"Go to photo " + (i + 1)}
-                            className={`rounded-full transition-all ${
-                              activePhoto === i ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/30"
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
+                <div className="fm-pdp-media" data-thumbs={showThumbRail ? pdpThumbPosition : "none"}>
                   {/* Thumbnail rail */}
-                  {photos.length > 1 && (
-                    <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide">
+                  {showThumbRail && (
+                    <div className="fm-pdp-rail" role="group" aria-label={getCopy(settings?.design, "pdpPhotosAria")}>
                       {photos.map((photo: any, i: number) => (
                         <button
                           key={i}
+                          type="button"
                           onClick={() => setActivePhoto(i)}
-                          className={`flex-shrink-0 w-16 h-20 rounded-xl overflow-hidden border-2 transition-all duration-300 ${
-                            activePhoto === i
-                              ? "border-white scale-105 shadow-lg"
-                              : "border-white/[0.08] opacity-40 hover:opacity-70 hover:border-white/20"
-                          }`}
+                          aria-current={activePhoto === i}
+                          aria-label={getCopy(settings?.design, "ariaGoToPhoto", { n: i + 1 })}
+                          className="fm-pdp-thumb"
+                          style={{ aspectRatio: productImageAspect }}
                         >
-                          <img src={photo.url} alt="" loading="lazy" decoding="async" className={`w-full h-full ${productImageFitClass}`} />
+                          <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full" style={{ objectFit: productImageFit }} />
                         </button>
                       ))}
                     </div>
                   )}
-                </>
-              ) : productImageLayout === "grid" ? (
-                <div className="grid grid-cols-2 gap-4">
-                  {photos.map((photo: any, i: number) => (
-                    <div key={i} className={`${i === 0 ? "col-span-2" : ""} relative fm-surface rounded-[1.5rem] overflow-hidden`} style={{ aspectRatio: productImageAspect }}>
-                      <img src={photo.url} alt="" loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
-                      {i === 0 && isOutOfStock && (
-                        <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+
+                  <figure className="m-0 min-w-0">
+                    {/* Main image */}
+                    <div
+                      className={`relative overflow-hidden fm-surface fm-pdp-frame transition-all duration-300 ${
+                        productImageShadow === "none" ? "shadow-none" :
+                        productImageShadow === "sm" ? "shadow-sm" :
+                        productImageShadow === "md" ? "shadow-md" :
+                        productImageShadow === "xl" ? "shadow-[0_50px_150px_rgba(0,0,0,0.85)]" : "shadow-[0_40px_120px_rgba(0,0,0,0.7)]"
+                      }`}
+                      style={{ borderRadius: `${productBorderRadius}px`, aspectRatio: productImageAspect }}
+                    >
+                      {/* shimmer */}
+                      {!imageLoaded && (
+                        <div className="absolute inset-0 fm-surface-2 animate-pulse" />
+                      )}
+
+                      <AnimatePresence mode="wait">
+                        <motion.img
+                          key={activePhoto}
+                          src={activeUrl}
+                          alt={getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: activePhoto + 1 })}
+                          className={`w-full h-full ${productImageFitClass}`}
+                          decoding="async"
+                          {...(activePhoto === 0 ? { fetchpriority: "high" } : {})}
+                          initial={{ opacity: 0, scale: 1.04 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0 }}
+                          whileHover={{ scale: productImageHoverScale }}
+                          transition={{ duration: 0.45 }}
+                          onLoad={() => setImageLoaded(true)}
+                        />
+                      </AnimatePresence>
+
+                      {/* Sold out overlay */}
+                      {isOutOfStock && (
+                        <div className="absolute inset-0 bg-black/75 flex items-center justify-center">
                           <span
-                            className="border text-[10px] font-black tracking-[0.5em] px-8 py-3 rounded-full uppercase"
+                            className="border text-[10px] font-black tracking-[0.5em] px-8 py-3 rounded-full uppercase backdrop-blur-sm"
                             style={{
                               backgroundColor: badgeBgSecondary,
                               color: badgeTextSecondary,
@@ -583,14 +638,89 @@ export default function BookDetail() {
                           </span>
                         </div>
                       )}
+
+                      {/* Sale badge */}
+                      {isOnSale && !isOutOfStock && (
+                        <div className="absolute top-5 left-5">
+                          <span
+                            className="text-[9px] font-black tracking-[0.3em] uppercase px-4 py-2 rounded-full"
+                            style={{
+                              backgroundColor: badgeBgPrimary,
+                              color: badgeTextPrimary,
+                            }}
+                          >
+                            {getCopy(settings?.design, "saleBadgeLabel")}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Low stock */}
+                      {stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockCardThreshold", 5) && (
+                        <div className="absolute bottom-5 left-5 right-5">
+                          <div
+                            className="bg-black/70 backdrop-blur-md border rounded-2xl px-4 py-3 flex items-center gap-2"
+                            style={{ borderColor: `${lowInventoryColor}40` }}
+                          >
+                            <Zap size={12} className="shrink-0" style={{ color: lowInventoryColor }} />
+                            <span className="text-[9px] font-black tracking-widest uppercase" style={{ color: lowInventoryColor }}>
+                              {getCopy(settings?.design, "onlyLeft", { count: stockLevel })}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Arrow nav */}
+                      {photos.length > 1 && (
+                        <>
+                          <button
+                            onClick={() => setActivePhoto(p => Math.max(0, p - 1))}
+                            disabled={activePhoto === 0}
+                            aria-label={getCopy(settings?.design, "ariaPrevPhoto")}
+                            className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all disabled:opacity-20"
+                          >
+                            <ChevronLeft size={16} />
+                          </button>
+                          <button
+                            onClick={() => setActivePhoto(p => Math.min(photos.length - 1, p + 1))}
+                            disabled={activePhoto === photos.length - 1}
+                            aria-label={getCopy(settings?.design, "ariaNextPhoto")}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all disabled:opacity-20"
+                          >
+                            <ChevronRight size={16} />
+                          </button>
+                        </>
+                      )}
+
+                      {/* Dot indicators (only when the thumbnail rail is hidden) */}
+                      {photos.length > 1 && !showThumbRail && (
+                        <div className="absolute bottom-5 right-5 flex gap-1.5">
+                          {photos.map((_: any, i: number) => (
+                            <button
+                              key={i}
+                              onClick={() => setActivePhoto(i)}
+                              aria-label={getCopy(settings?.design, "ariaGoToPhoto", { n: i + 1 })}
+                              className={`rounded-full transition-all ${
+                                activePhoto === i ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/30"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ))}
+
+                    {pdpShowCaption && (
+                      <figcaption className="fm-pdp-caption fm-pdp-meta">
+                        <span>{getCopy(settings?.design, "pdpCaption", { n: activePhoto + 1 })}</span>
+                        {photos.length > 1 && <span>{getCopy(settings?.design, "pdpCaptionCount", { n: activePhoto + 1, total: photos.length })}</span>}
+                      </figcaption>
+                    )}
+                  </figure>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className={productImageLayout === "grid" ? "grid grid-cols-2 gap-4" : "space-y-4"}>
                   {photos.map((photo: any, i: number) => (
-                    <div key={i} className="relative fm-surface rounded-[1.5rem] overflow-hidden" style={{ aspectRatio: productImageAspect }}>
-                      <img src={photo.url} alt="" loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
+                    <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame overflow-hidden`} style={{ aspectRatio: productImageAspect, borderRadius: `${productBorderRadius}px` }}>
+                      <img src={photo.url} alt={getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
                           <span
@@ -612,472 +742,231 @@ export default function BookDetail() {
             </div>
 
             {/* ── INFO COLUMN ── */}
-            <div data-section="products" className={`flex flex-col gap-8 lg:sticky lg:top-24 w-full ${productAlignment === "center" ? "items-center text-center" : "items-start text-left"}`}>
+            <div data-section="products" className="flex flex-col gap-8 lg:sticky lg:top-24 w-full min-w-0">
+              <div className="fm-pdp-card" data-studio-target="style:productCard|copy:Product page" data-studio-label="Buy card">
 
-              {/* Genre tag */}
-              <div>
-                <span
-                  className="inline-flex items-center gap-1.5 text-[9px] font-black tracking-[0.4em] uppercase px-4 py-2 rounded-full border"
-                  style={{ color: primaryColor, borderColor: `${primaryColor}40`, background: `${primaryColor}12` }}
-                >
-                  <Tag size={9} />
-                  {(book as any).genres?.[0] || (book as any).categories?.[0] || getCopy(settings?.design, "categoryFallback")}
-                </span>
-              </div>
-
-              {/* Title block */}
-              <div className="space-y-3 w-full">
-                <h1 className={`font-black tracking-tight leading-[1.05] ${
-                  productTitleSize === "medium" ? "text-2xl md:text-3xl" :
-                  productTitleSize === "xlarge" ? "text-5xl md:text-6xl" : "text-4xl md:text-5xl"
-                }`}>
-                  {book.title}
-                </h1>
-                {(book as any).subtitle && (
-                  <p className={`text-white/40 text-xl leading-snug ${
-                    productSubtitleWeight === "bold" ? "font-bold" :
-                    productSubtitleWeight === "medium" ? "font-normal" : "font-light"
-                  }`}>{(book as any).subtitle}</p>
-                )}
-                {(book as any).authorName && (
-                  <p className="text-white/30 text-[11px] font-black tracking-[0.35em] uppercase">
-                    {(book as any).authorName}
-                  </p>
-                )}
-              </div>
-
-              {/* Price */}
-              <div data-section="colors" className={`flex items-baseline gap-4 ${productAlignment === "center" ? "justify-center" : ""}`}>
-                {isOnSale ? (
-                  <>
-                    <span className="text-4xl font-black tracking-tight text-white">{formatBookPrice(book)}</span>
-                    <span className="text-white/25 line-through text-xl">{formatBookPrice(book, true)}</span>
-                    <span
-                      className="text-[9px] font-black tracking-widest border px-3 py-1.5 rounded-full uppercase"
-                      style={{
-                        color: "var(--success)",
-                        backgroundColor: "rgba(var(--success-rgb), 0.1)",
-                        borderColor: "rgba(var(--success-rgb), 0.2)",
-                      }}
+                {/* Tag · title · price · stock */}
+                <div className={`fm-pdp-card-section ${alignCls}`}>
+                  {pdpShowTag && (
+                    <div>
+                      <span className="fm-pdp-tag" data-style={pdpTagStyle}>
+                        <Tag size={10} aria-hidden="true" />
+                        {categoryLabel || getCopy(settings?.design, "categoryFallback")}
+                      </span>
+                    </div>
+                  )}
+                  <div className="space-y-3 w-full">
+                    <h1
+                      className="fm-pdp-title"
+                      data-studio-target="style:productCard" data-studio-label="Product title & price"
+                      style={titleAutoSize ? ({ "--pdp-title-auto": titleAutoSize } as React.CSSProperties) : undefined}
                     >
-                      {getCopy(settings?.design, "saveAmount", { amount: formatPrice(getBookPrice(book, true) - getBookPrice(book)) })}
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-4xl font-black tracking-tight text-white">
-                    {retailPrice > 0 ? (selectedVariant ? formatPrice(selectedVariant.price) : formatBookPrice(book)) : getCopy(settings?.design, "priceOnRequest")}
-                  </span>
-                )}
-              </div>
-
-              {/* Description */}
-              {productDetailsLayout === "sections" && (book as any).description && (
-                productDescriptionStyle === "designed" ? (
-                  <div className={`w-full fm-surface border border-white/10 rounded-2xl p-6 md:p-8 ${
-                    productAlignment === "center" ? "text-center" : "text-left"
-                  }`}>
-                    <p className="text-[9px] font-black tracking-[0.3em] uppercase mb-4" style={{ color: "var(--accent, #e8402a)" }}>
-                      {getCopy(settings?.design, "productDescriptionLabel")}
-                    </p>
-                    <p
-                      className="text-white/70 text-[15px] leading-[1.85]"
-                      style={storefrontDesign?.headingFont || settings?.design?.headingFont
-                        ? { fontFamily: `'${storefrontDesign?.headingFont || settings?.design?.headingFont}', serif`, fontSize: "17px" }
-                        : undefined}
-                    >
-                      {(book as any).description}
-                    </p>
-                  </div>
-                ) : (
-                <p className={`text-white/50 text-[14px] leading-[1.8] pl-5 ${
-                  productAlignment === "center" ? "border-none text-center px-4" : "border-l-2 border-white/10 text-left"
-                }`}>
-                  {(book as any).description}
-                </p>
-                )
-              )}
-
-              {/* Specs grid */}
-              {productDetailsLayout === "sections" && showSpecs !== false && ((book as any).format || (book as any).language || (book as any).dimensions || (book as any).isbn || (book as any).weight) && (
-                <div className="grid grid-cols-2 gap-3 w-full">
-                  {(book as any).format && (
-                    <SpecItem icon={<BookOpen size={11} />} label={getCopy(settings?.design, "specFormat")} value={(book as any).format} />
-                  )}
-                  {(book as any).language && (
-                    <SpecItem icon={<Globe size={11} />} label={getCopy(settings?.design, "specLanguage")} value={(book as any).language} />
-                  )}
-                  {(book as any).dimensions && (
-                    <SpecItem icon={<Ruler size={11} />} label={getCopy(settings?.design, "specDimensions")} value={(book as any).dimensions} />
-                  )}
-                  {(book as any).isbn && (
-                    <SpecItem icon={<Package size={11} />} label={getCopy(settings?.design, "specIsbn")} value={(book as any).isbn} />
-                  )}
-                  {(book as any).weight && (
-                    <SpecItem icon={<Weight size={11} />} label={getCopy(settings?.design, "specWeight")} value={(book as any).weight} />
-                  )}
-                  {stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10) && (
-                    <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label={getCopy(settings?.design, "specAvailability")} value={getCopy(settings?.design, "specRemaining", { count: stockLevel })} />
-                  )}
-                </div>
-              )}
-
-              {/* Variant Selector */}
-              {book.variants && book.variants.length > 0 && (
-                <div className={`space-y-3 w-full flex flex-col ${productAlignment === "center" ? "items-center" : "items-start"}`}>
-                  <label className="text-[9px] tracking-[0.35em] text-white/40 uppercase font-black">{getCopy(settings?.design, "bookFormatLabel")}</label>
-                  <div className={`flex flex-wrap gap-2.5 ${productAlignment === "center" ? "justify-center" : "justify-start"}`}>
-                    {book.variants.map((v: any) => {
-                      const isSelected = selectedVariant?.id === v.id;
-                      const vStock = v.stockLevel ?? v.stock ?? 0;
-                      const isVOutOfStock = vStock === 0;
-                      return (
-                        <button
-                          key={v.id}
-                          type="button"
-                          onClick={() => setSelectedVariant(v)}
-                          className={`px-5 py-3 rounded-2xl border text-[9px] font-black tracking-widest uppercase transition-all duration-300 ${
-                            isSelected
-                              ? "fm-active border-transparent shadow-xl shadow-black/20"
-                              : isVOutOfStock
-                              ? "bg-white/5 border-white/5 text-white/20 cursor-not-allowed line-through"
-                              : "bg-white/[0.02] border-white/10 text-white/60 hover:text-white hover:border-white/20"
-                          }`}
-                        >
-                          {v.name} · {formatPrice(v.price)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* CTA */}
-              <div className={`flex flex-wrap sm:flex-nowrap gap-3 w-full ${
-                productCtaWidth === "auto"
-                  ? (productAlignment === "center" ? "justify-center" : "justify-start")
-                  : "w-full"
-              }`}>
-                {showQtyStepper && !isOutOfStock && (
-                  <div className="flex items-center border border-white/15 rounded-full h-16 px-1 flex-shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setQty((q) => Math.max(1, q - 1))}
-                      aria-label={getCopy(settings?.design, "ariaQtyDown")}
-                      disabled={qty <= 1}
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-lg leading-none hover:bg-white/10 transition-colors disabled:opacity-30"
-                    >
-                      –
-                    </button>
-                    <span className="w-8 text-center text-sm font-bold" aria-live="polite">{qty}</span>
-                    <button
-                      type="button"
-                      onClick={() => setQty((q) => {
-                        const max = stockLevel !== 999 ? stockLevel : 99;
-                        return Math.min(max, q + 1);
-                      })}
-                      aria-label={getCopy(settings?.design, "ariaQtyUp")}
-                      disabled={stockLevel !== 999 && qty >= stockLevel}
-                      className="w-10 h-10 rounded-full flex items-center justify-center text-lg leading-none hover:bg-white/10 transition-colors disabled:opacity-30"
-                    >
-                      +
-                    </button>
-                  </div>
-                )}
-                <motion.button
-                  data-section="buttons"
-                  onClick={handleAddToCart}
-                  disabled={isOutOfStock}
-                  whileTap={!isOutOfStock ? { scale: 0.97 } : {}}
-                  animate={
-                    !isOutOfStock && !added && productCtaAnimation === "pulse"
-                      ? { scale: [1, 1.02, 1] }
-                      : !isOutOfStock && !added && productCtaAnimation === "glow"
-                      ? { boxShadow: [`0 0 0px ${buttonBg}00`, `0 0 20px ${buttonBg}50`, `0 0 0px ${buttonBg}00`] }
-                      : {}
-                  }
-                  transition={
-                    !isOutOfStock && !added && (productCtaAnimation === "pulse" || productCtaAnimation === "glow")
-                      ? { duration: 2, repeat: Infinity, ease: "easeInOut" }
-                      : {}
-                  }
-                  whileHover={
-                    !isOutOfStock && !added && productCtaAnimation === "scale"
-                      ? { scale: 1.04, y: -2 }
-                      : {}
-                  }
-                  className={`${productCtaWidth === "full" ? "flex-1" : "px-8"} flex items-center justify-center gap-3 ${
-                    productCtaSize === "medium" ? "py-3.5" : "py-5"
-                  } text-[10px] font-black tracking-[0.4em] transition-all duration-300 ${
-                    isOutOfStock
-                      ? "bg-white/[0.06] text-white/25 cursor-not-allowed border border-white/[0.06]"
-                      : added
-                      ? "fm-success-solid"
-                      : `custom-btn ${buttonShadow ? "shadow-2xl" : ""} ${buttonUppercase ? "uppercase" : ""}`
-                  }`}
-                  style={
-                    !isOutOfStock && !added
-                      ? {
-                          "--btn-bg": buttonStyle === "solid" ? buttonBg : "transparent",
-                          "--btn-text": buttonStyle === "solid" ? buttonText : buttonBg,
-                          "--btn-border": buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
-                          "--btn-shadow": buttonStyle === "solid" && buttonShadow ? `0 20px 60px ${buttonBg}50` : "none",
-                          borderRadius: buttonRadius,
-                        } as React.CSSProperties
-                      : { borderRadius: buttonRadius }
-                  }
-                >
-                  {isOutOfStock ? (
-                    getCopy(settings?.design, "soldOutLabel")
-                  ) : added ? (
-                    <><Check size={14} strokeWidth={3} /> {getCopy(settings?.design, "bookAdded")}</>
-                  ) : (
-                    <><ShoppingBag size={14} /> {storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel")}</>
-                  )}
-                </motion.button>
-
-                <button
-                  data-section="colors"
-                  onClick={() => book && toggleWish(book.id)}
-                  aria-label={getCopy(settings?.design, wished ? "wishlistRemoveAria" : "wishlistAddAria")}
-                  title={getCopy(settings?.design, wished ? "wishlistInTitle" : "wishlistSaveTitle")}
-                  className={`w-16 h-16 rounded-2xl border flex items-center justify-center transition-all ${
-                    wished
-                      ? "fm-favorite-active"
-                      : "border-white/[0.08] hover:bg-white/[0.06] hover:border-white/20 text-white/40"
-                  }`}
-                >
-                  <Heart size={15} fill={wished ? "currentColor" : "none"} />
-                </button>
-
-                {showSocialShare && (
-                  <button
-                    onClick={handleShare}
-                    className="w-16 h-16 rounded-2xl border border-white/[0.08] flex items-center justify-center hover:bg-white/[0.06] hover:border-white/20 transition-all"
-                    title={getCopy(settings?.design, "bookShare")}
-                  >
-                    <Share2 size={15} className="text-white/40" />
-                  </button>
-                )}
-              </div>
-
-              {isOutOfStock && showBackInStock && book && (
-                <BackInStockForm
-                  key={selectedVariant?.id || "base"}
-                  design={settings?.design}
-                  bookId={book.id}
-                  bookTitle={book.title}
-                  variantId={selectedVariant?.id}
-                  variantName={selectedVariant?.name}
-                />
-              )}
-
-              {/* Trust signals */}
-              {showTrustSignals !== false && (
-                <div className={`w-full pt-4 ${
-                  productTrustLayout === "row"
-                    ? `flex flex-wrap gap-6 ${productAlignment === "center" ? "justify-center" : "justify-start"}`
-                    : productTrustLayout === "stack"
-                    ? "flex flex-col gap-3"
-                    : "grid grid-cols-3 gap-3"
-                }`}>
-                  <div className={`flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase ${
-                    productTrustLayout === "stack" && productAlignment === "center" ? "justify-center" : ""
-                  } ${productTrustLayout === "grid" ? "flex-col text-center p-3 border border-white/5 bg-white/[0.01] rounded-2xl" : ""}`}>
-                    <Truck size={12} className="text-white/30 shrink-0" /> {storefrontDesign.productTrust1 || settings?.design?.productTrust1 || getCopy(settings?.design, "productTrust1")}
-                  </div>
-                  <div className={`flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase ${
-                    productTrustLayout === "stack" && productAlignment === "center" ? "justify-center" : ""
-                  } ${productTrustLayout === "grid" ? "flex-col text-center p-3 border border-white/5 bg-white/[0.01] rounded-2xl" : ""}`}>
-                    <ShieldCheck size={12} className="text-white/30 shrink-0" /> {storefrontDesign.productTrust2 || settings?.design?.productTrust2 || getCopy(settings?.design, "productTrust2")}
-                  </div>
-                  <div className={`flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase ${
-                    productTrustLayout === "stack" && productAlignment === "center" ? "justify-center" : ""
-                  } ${productTrustLayout === "grid" ? "flex-col text-center p-3 border border-white/5 bg-white/[0.01] rounded-2xl" : ""}`}>
-                    <Package size={12} className="text-white/30 shrink-0" /> {storefrontDesign.productTrust3 || settings?.design?.productTrust3 || getCopy(settings?.design, "productTrust3")}
-                  </div>
-                </div>
-              )}
-
-              {/* Tabs Control */}
-              {productDetailsLayout === "tabs" && (
-                <div className="bg-white/[0.02] border border-white/5 rounded-3xl p-6 space-y-6 w-full mt-4">
-                  <div className="flex border-b border-white/5 p-1 bg-black/20 rounded-2xl relative">
-                    <button
-                      type="button"
-                      onClick={() => setDetailsTab("description")}
-                      className={`flex-1 py-2.5 text-[9px] font-black tracking-widest uppercase transition-all rounded-xl ${
-                        detailsTab === "description"
-                          ? "fm-active font-black"
-                          : "text-white/50 hover:text-white"
-                      }`}
-                    >
-                      {getCopy(settings?.design, "tabDescription")}
-                    </button>
-                    {showSpecs !== false && (
-                      <button
-                        type="button"
-                        onClick={() => setDetailsTab("specs")}
-                        className={`flex-1 py-2.5 text-[9px] font-black tracking-widest uppercase transition-all rounded-xl ${
-                          detailsTab === "specs"
-                            ? "fm-active font-black"
-                            : "text-white/50 hover:text-white"
-                        }`}
-                      >
-                        {getCopy(settings?.design, "tabDetails")}
-                      </button>
+                      {book.title}
+                    </h1>
+                    {bk.subtitle && (
+                      <p className={`text-white/40 text-xl leading-snug ${
+                        productSubtitleWeight === "bold" ? "font-bold" :
+                        productSubtitleWeight === "medium" ? "font-normal" : "font-light"
+                      }`}>{bk.subtitle}</p>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => setDetailsTab("reviews")}
-                      className={`flex-1 py-2.5 text-[9px] font-black tracking-widest uppercase transition-all rounded-xl ${
-                        detailsTab === "reviews"
-                          ? "fm-active font-black"
-                          : "text-white/50 hover:text-white"
-                      }`}
-                    >
-                      {getCopy(settings?.design, "tabReviews")}
-                    </button>
+                    {bk.authorName && (
+                      <p className="fm-pdp-meta">{bk.authorName}</p>
+                    )}
                   </div>
-                  <div className="pt-2 min-h-[120px]">
-                    <AnimatePresence mode="wait">
-                      {detailsTab === "description" && (
-                        <motion.div
-                          key="desc"
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          className={`text-white/60 text-[13px] leading-[1.8] ${productAlignment === "center" ? "text-center" : "text-left"}`}
-                        >
-                          {(book as any).description || getCopy(settings?.design, "noDescription")}
-                        </motion.div>
+                  <div data-section="colors" className={`flex flex-wrap items-end gap-x-5 gap-y-3 w-full ${productAlignment === "center" ? "justify-center" : "justify-between"}`}>
+                    <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+                      {isOnSale ? (
+                        <>
+                          <span className="fm-pdp-price">{formatBookPrice(book)}</span>
+                          <span className="text-white/25 line-through text-xl">{formatBookPrice(book, true)}</span>
+                          <span
+                            className="text-[9px] font-black tracking-widest border px-3 py-1.5 uppercase"
+                            style={{
+                              color: "var(--success)",
+                              backgroundColor: "rgba(var(--success-rgb), 0.1)",
+                              borderColor: "rgba(var(--success-rgb), 0.2)",
+                            }}
+                          >
+                            {getCopy(settings?.design, "saveAmount", { amount: formatPrice(getBookPrice(book, true) - getBookPrice(book)) })}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="fm-pdp-price">
+                          {retailPrice > 0 ? (selectedVariant ? formatPrice(selectedVariant.price) : formatBookPrice(book)) : getCopy(settings?.design, "priceOnRequest")}
+                        </span>
                       )}
-                      {detailsTab === "specs" && showSpecs !== false && (
-                        <motion.div
-                          key="specs"
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          className="grid grid-cols-2 gap-3"
-                        >
-                          {(book as any).format && <SpecItem icon={<BookOpen size={11} />} label={getCopy(settings?.design, "specFormat")} value={(book as any).format} />}
-                          {(book as any).language && <SpecItem icon={<Globe size={11} />} label={getCopy(settings?.design, "specLanguage")} value={(book as any).language} />}
-                          {(book as any).dimensions && <SpecItem icon={<Ruler size={11} />} label={getCopy(settings?.design, "specDimensions")} value={(book as any).dimensions} />}
-                          {(book as any).isbn && <SpecItem icon={<Package size={11} />} label={getCopy(settings?.design, "specIsbn")} value={(book as any).isbn} />}
-                          {(book as any).weight && <SpecItem icon={<Weight size={11} />} label={getCopy(settings?.design, "specWeight")} value={(book as any).weight} />}
-                          {stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10) && (
-                            <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label={getCopy(settings?.design, "specAvailability")} value={getCopy(settings?.design, "specRemaining", { count: stockLevel })} />
-                          )}
-                        </motion.div>
-                      )}
-                      {detailsTab === "reviews" && (
-                        <motion.div
-                          key="reviews"
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                        >
-                          <ReviewsSection bookId={book.id} hideHeader={true} />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    </div>
+                    {pdpShowStock && (
+                      <span className="fm-pdp-meta fm-pdp-stock" data-state={isOutOfStock ? "out" : isLowStock ? "low" : "in"}>
+                        {stockText}
+                      </span>
+                    )}
                   </div>
                 </div>
-              )}
 
-              {/* Accordions Control */}
-              {productDetailsLayout === "accordions" && (
-                <div className="space-y-2.5 w-full mt-4">
-                  {/* Description Accordion */}
-                  <div className="bg-white/[0.02] border border-white/5 rounded-3xl overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() => toggleAccordion("description")}
-                      className="w-full flex items-center justify-between px-6 py-4.5 text-[10px] font-black tracking-widest uppercase text-white/70 hover:text-white"
-                    >
-                      <span>{getCopy(settings?.design, "tabDescription")}</span>
-                      <ChevronDown size={14} className={`transition-transform duration-300 ${openAccordions.description ? "rotate-180" : ""}`} />
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {openAccordions.description && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.3 }}
-                          className="overflow-hidden"
-                        >
-                          <p className={`px-6 pb-6 text-white/50 text-[13px] leading-[1.8] ${productAlignment === "center" ? "text-center" : "text-left"}`}>
-                            {(book as any).description || getCopy(settings?.design, "noDescription")}
-                          </p>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-
-                  {/* Specifications Accordion */}
-                  {showSpecs !== false && ((book as any).format || (book as any).language || (book as any).dimensions || (book as any).isbn || (book as any).weight) && (
-                    <div className="bg-white/[0.02] border border-white/5 rounded-3xl overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => toggleAccordion("specs")}
-                        className="w-full flex items-center justify-between px-6 py-4.5 text-[10px] font-black tracking-widest uppercase text-white/70 hover:text-white"
-                      >
-                        <span>{getCopy(settings?.design, "tabSpecs")}</span>
-                        <ChevronDown size={14} className={`transition-transform duration-300 ${openAccordions.specs ? "rotate-180" : ""}`} />
-                      </button>
-                      <AnimatePresence initial={false}>
-                        {openAccordions.specs && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.3 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="px-6 pb-6 grid grid-cols-2 gap-3">
-                              {(book as any).format && <SpecItem icon={<BookOpen size={11} />} label={getCopy(settings?.design, "specFormat")} value={(book as any).format} />}
-                              {(book as any).language && <SpecItem icon={<Globe size={11} />} label={getCopy(settings?.design, "specLanguage")} value={(book as any).language} />}
-                              {(book as any).dimensions && <SpecItem icon={<Ruler size={11} />} label={getCopy(settings?.design, "specDimensions")} value={(book as any).dimensions} />}
-                              {(book as any).isbn && <SpecItem icon={<Package size={11} />} label={getCopy(settings?.design, "specIsbn")} value={(book as any).isbn} />}
-                              {(book as any).weight && <SpecItem icon={<Weight size={11} />} label={getCopy(settings?.design, "specWeight")} value={(book as any).weight} />}
-                              {stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10) && (
-                                <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label={getCopy(settings?.design, "specAvailability")} value={getCopy(settings?.design, "specRemaining", { count: stockLevel })} />
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                {/* Format · quantity · add to bag */}
+                <div className={`fm-pdp-card-section ${alignCls}`}>
+                  {book.variants && book.variants.length > 0 && (
+                    <div className={`flex flex-col gap-2.5 w-full ${productAlignment === "center" ? "items-center" : "items-start"}`}>
+                      <span id="pdp-format-label" className="fm-pdp-meta">{getCopy(settings?.design, "bookFormatLabel")}</span>
+                      <div role="group" aria-labelledby="pdp-format-label" className={`flex flex-wrap gap-2 ${productAlignment === "center" ? "justify-center" : "justify-start"}`}>
+                        {book.variants.map((v: any) => {
+                          const vStock = v.stockLevel ?? v.stock ?? 0;
+                          return (
+                            <button
+                              key={v.id}
+                              type="button"
+                              onClick={() => setSelectedVariant(v)}
+                              aria-pressed={selectedVariant?.id === v.id}
+                              data-soldout={vStock === 0}
+                              className="fm-pdp-chip"
+                            >
+                              {v.name} · {formatPrice(v.price)}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
-                  {/* Reviews Accordion */}
-                  <div className="bg-white/[0.02] border border-white/5 rounded-3xl overflow-hidden">
+                  {/* CTA */}
+                  <div className={`flex flex-wrap gap-2.5 w-full ${
+                    productCtaWidth === "auto" && productAlignment === "center" ? "justify-center" : "justify-start"
+                  }`}>
+                    {showQtyStepper && !isOutOfStock && (
+                      <div className="fm-pdp-qty">
+                        <button
+                          type="button"
+                          onClick={() => setQty((q) => Math.max(1, q - 1))}
+                          aria-label={getCopy(settings?.design, "ariaQtyDown")}
+                          disabled={qty <= 1}
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <output aria-live="polite">{qty}</output>
+                        <button
+                          type="button"
+                          onClick={() => setQty((q) => {
+                            const max = stockLevel !== 999 ? stockLevel : 99;
+                            return Math.min(max, q + 1);
+                          })}
+                          aria-label={getCopy(settings?.design, "ariaQtyUp")}
+                          disabled={stockLevel !== 999 && qty >= stockLevel}
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    )}
+                    <motion.button
+                      data-section="buttons"
+                      onClick={handleAddToCart}
+                      disabled={isOutOfStock}
+                      whileTap={!isOutOfStock ? { scale: 0.97 } : {}}
+                      animate={
+                        !isOutOfStock && !added && productCtaAnimation === "pulse"
+                          ? { scale: [1, 1.02, 1] }
+                          : !isOutOfStock && !added && productCtaAnimation === "glow"
+                          ? { boxShadow: [`0 0 0px ${buttonBg}00`, `0 0 20px ${buttonBg}50`, `0 0 0px ${buttonBg}00`] }
+                          : {}
+                      }
+                      transition={
+                        !isOutOfStock && !added && (productCtaAnimation === "pulse" || productCtaAnimation === "glow")
+                          ? { duration: 2, repeat: Infinity, ease: "easeInOut" }
+                          : {}
+                      }
+                      whileHover={
+                        !isOutOfStock && !added && productCtaAnimation === "scale"
+                          ? { scale: 1.04, y: -2 }
+                          : {}
+                      }
+                      className={`${productCtaWidth === "full" ? "flex-1 min-w-[170px]" : "px-8"} min-h-[52px] flex items-center justify-center gap-3 ${
+                        productCtaSize === "medium" ? "py-3" : "py-4"
+                      } text-[10px] font-black tracking-[0.3em] transition-all duration-300 ${
+                        isOutOfStock
+                          ? "bg-white/[0.06] text-white/25 cursor-not-allowed border border-white/[0.06]"
+                          : added
+                          ? "fm-success-solid"
+                          : `custom-btn ${buttonShadow ? "shadow-2xl" : ""} ${buttonUppercase ? "uppercase" : ""}`
+                      }`}
+                      style={
+                        !isOutOfStock && !added
+                          ? {
+                              "--btn-bg": buttonStyle === "solid" ? buttonBg : "transparent",
+                              "--btn-text": buttonStyle === "solid" ? buttonText : buttonBg,
+                              "--btn-border": buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
+                              "--btn-shadow": buttonStyle === "solid" && buttonShadow ? `0 20px 60px ${buttonBg}50` : "none",
+                              borderRadius: buttonRadius,
+                            } as React.CSSProperties
+                          : { borderRadius: buttonRadius }
+                      }
+                    >
+                      {isOutOfStock ? (
+                        getCopy(settings?.design, "soldOutLabel")
+                      ) : added ? (
+                        <><Check size={14} strokeWidth={3} /> {getCopy(settings?.design, "bookAdded")}</>
+                      ) : (
+                        <><ShoppingBag size={14} /> {storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel")}</>
+                      )}
+                    </motion.button>
+
                     <button
                       type="button"
-                      onClick={() => toggleAccordion("reviews")}
-                      className="w-full flex items-center justify-between px-6 py-4.5 text-[10px] font-black tracking-widest uppercase text-white/70 hover:text-white"
+                      data-section="colors"
+                      onClick={() => book && toggleWish(book.id)}
+                      aria-pressed={wished}
+                      aria-label={getCopy(settings?.design, wished ? "wishlistRemoveAria" : "wishlistAddAria")}
+                      title={getCopy(settings?.design, wished ? "wishlistInTitle" : "wishlistSaveTitle")}
+                      className={`fm-pdp-sq transition-all ${wished ? "fm-favorite-active" : ""}`}
                     >
-                      <span>{getCopy(settings?.design, "tabReviews")}</span>
-                      <ChevronDown size={14} className={`transition-transform duration-300 ${openAccordions.reviews ? "rotate-180" : ""}`} />
+                      <Heart size={16} fill={wished ? "currentColor" : "none"} />
                     </button>
-                    <AnimatePresence initial={false}>
-                      {openAccordions.reviews && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.3 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="px-6 pb-6">
-                            <ReviewsSection bookId={book.id} hideHeader={true} />
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+
+                    {showSocialShare && (
+                      <button
+                        type="button"
+                        onClick={handleShare}
+                        aria-label={getCopy(settings?.design, "bookShare")}
+                        title={getCopy(settings?.design, "bookShare")}
+                        className="fm-pdp-sq transition-all"
+                      >
+                        <Share2 size={16} />
+                      </button>
+                    )}
                   </div>
+
+                  {isOutOfStock && showBackInStock && book && (
+                    <BackInStockForm
+                      key={selectedVariant?.id || "base"}
+                      design={settings?.design}
+                      bookId={book.id}
+                      bookTitle={book.title}
+                      variantId={selectedVariant?.id}
+                      variantName={selectedVariant?.name}
+                    />
+                  )}
                 </div>
-              )}
+
+                {/* Description + specs inside the card ("Sections" details layout) */}
+                {productDetailsLayout === "sections" && (bk.description || hasSpecs) && (
+                  <div className={`fm-pdp-card-section ${alignCls}`}>
+                    {bk.description && (
+                      productDescriptionStyle === "designed" ? (
+                        <div className="w-full">
+                          <p className="fm-pdp-meta mb-3" style={{ color: "var(--accent, #e8402a)" }}>
+                            {getCopy(settings?.design, "productDescriptionLabel")}
+                          </p>
+                          <p className="text-[15px] leading-[1.8] whitespace-pre-line">{bk.description}</p>
+                        </div>
+                      ) : (
+                        <p className="text-white/50 text-[14px] leading-[1.8] whitespace-pre-line">{bk.description}</p>
+                      )
+                    )}
+                    {hasSpecs && renderSpecs()}
+                  </div>
+                )}
+              </div>
+
+              {!pdpDetailsBelow && detailsBlock}
 
               {/* Frequently Bought Together Widget */}
               {showBundleWidget !== false && bundleBook && (
@@ -1128,10 +1017,10 @@ export default function BookDetail() {
                   </div>
                 </div>
               )}
-
-
             </div>
           </div>
+
+          {pdpDetailsBelow && detailsBlock && <div className="mt-12 lg:mt-16">{detailsBlock}</div>}
         </div>
 
         {/* ── Related books ── */}

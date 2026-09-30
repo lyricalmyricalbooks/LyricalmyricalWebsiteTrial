@@ -119,9 +119,15 @@ export const COPY_SCHEMA: CopyGroup[] = [
   {
     group: "Product page",
     fields: [
-      { key: "productTrust1", label: "Trust signal 1", default: "Tracked shipping" },
-      { key: "productTrust2", label: "Trust signal 2", default: "14-day returns" },
-      { key: "productTrust3", label: "Trust signal 3", default: "Ships in 1–2 days" },
+      { key: "pdpCrumbShop", label: "Breadcrumb: first link", default: "Shop" },
+      { key: "pdpBreadcrumbAria", label: "Breadcrumb — screen-reader label", default: "Breadcrumb" },
+      { key: "pdpCaption", label: "Photo caption", default: "Fig. {n}", hint: "Use {n} for the photo number." },
+      { key: "pdpCaptionCount", label: "Photo caption counter", default: "{n} of {total}", hint: "Use {n} for the photo number and {total} for how many photos." },
+      { key: "pdpInStock", label: "Stock line (plenty left)", default: "In stock" },
+      { key: "pdpInStockCount", label: "Stock line (few left)", default: "In stock · {count} left", hint: "Shown at or below the “only N left” threshold. Use {count} for the number left." },
+      { key: "pdpPhotosAria", label: "Thumbnails — screen-reader label", default: "Photos" },
+      { key: "pdpDetailsAria", label: "Details tabs — screen-reader label", default: "Product information" },
+      { key: "ariaGoToPhoto", label: "Thumbnail / dot — screen-reader label", default: "Go to photo {n}", hint: "Use {n} for the photo number." },
       { key: "relatedHeading", label: "Related products heading", default: "From the Archive" },
       { key: "backToCatalog", label: "Back link label", default: "Back" },
       { key: "addToBagLabel", label: "Add to bag button", default: "ADD TO BAG" },

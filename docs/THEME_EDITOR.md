@@ -222,6 +222,11 @@ library → verify), then check it off.
       `theme.css` fixes unreadable violet/blue active states in legacy panels.
       Draft/publish separation is covered by `admin/themeDraft.test.ts`.
       Known follow-up: the editor's panels are still legacy markup on the compat layer.
+- [x] **Product page — Riso catalogue card (September 2026).** `BookDetail.tsx` uses a breadcrumb,
+      thumbnail rail + framed photo + caption, one bordered buy card and full-width details tabs.
+      Every part is in Studio › Style › **Product page · buy card & details** (`pdp*` keys →
+      `features/site/productPageStyle.ts`, tested by `productPageStyle.test.ts`); words in Text & labels ›
+      Product page. Trust-signal lines removed.
 - [x] **Riso Noir (September 2026) — full public-site Riso redesign on black.** The
       storefront now defaults to Riso Press on black with white text and the flare
       `#e8402a` accent (ink text on flare fills). `features/site/risoNoir.ts` holds the shared
