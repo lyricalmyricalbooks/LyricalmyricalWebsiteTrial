@@ -125,6 +125,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     id: "footer",
     title: "Footer & social links",
     fields: [
+      { key: "hideNewsletter", label: "Hide the “Join the Archive” sign-up box", kind: "toggle" },
       { key: "footerColumns", label: "Multi-column footer", kind: "toggle" },
       { key: "footerLayout", label: "Footer columns", kind: "select", options: [{ value: "3col", label: "3 columns" }, { value: "4col", label: "4 columns (with location)" }] },
       { key: "footerBg", label: "Footer background", kind: "color" },

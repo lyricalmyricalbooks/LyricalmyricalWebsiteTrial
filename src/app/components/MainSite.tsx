@@ -1336,7 +1336,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           }
         />
         {!onHome && <RecentlyViewedRow />}
-        {!onHome && <Newsletter design={settings?.design} />}
+        {!onHome && !activeDesign?.hideNewsletter && <Newsletter design={settings?.design} />}
         <SiteFooter settings={settings} pages={pages} />
         {(storefrontDesign?.showPoweredBy ?? false) && (
           <p className="text-center pb-8 text-[9px] tracking-[0.3em] uppercase opacity-50">{getCopy(activeDesign, "poweredBy")}</p>
