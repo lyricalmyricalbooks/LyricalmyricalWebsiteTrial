@@ -95,6 +95,7 @@ export function Checkout() {
 
   const [isApplying, setIsApplying]     = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [orderNote, setOrderNote] = useState("");
   // Announced inline message (replaces alert()); tone drives colour, glyph + words carry the meaning.
   const [notice, setNotice] = useState<null | { tone: "error" | "info"; text: string }>(null);
   const [isSuccess, setIsSuccess]       = useState(false);
@@ -811,6 +812,7 @@ export function Checkout() {
         customer,
         customerId: currentUser?.uid || null,
         referralSource: referralSource || "direct",
+        ...(checkoutDesign.showOrderNote && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
         addressVerified,
         addressError,
         items: cart.map(item => ({
@@ -1156,6 +1158,21 @@ export function Checkout() {
                 </div>
               )}
             </section>
+
+            {checkoutDesign.showOrderNote && (
+              <section data-studio-target="style:checkout|copy:Checkout" data-studio-label="Order note">
+                <label htmlFor="checkout-order-note" className="text-sm font-medium text-slate-900">{c("coOrderNote")}</label>
+                <p className="mt-1 text-xs leading-5 text-slate-500">{c("coOrderNoteHelp")}</p>
+                <textarea
+                  id="checkout-order-note"
+                  value={orderNote}
+                  onChange={e => setOrderNote(e.target.value.slice(0, 500))}
+                  maxLength={500}
+                  rows={3}
+                  className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)]"
+                />
+              </section>
+            )}
 
             <section>
               <StepBadge n={c("coStepOf", { n: 3 })} label={c("coPayment")} />

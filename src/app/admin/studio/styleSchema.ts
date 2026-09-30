@@ -396,6 +396,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     fields: [
       { key: "checkoutAccentColor", label: "Checkout accent", kind: "color" },
       { key: "checkoutBgColor", label: "Checkout background", kind: "color" },
+      { key: "showOrderNote", label: "Order note / gift message box at checkout", kind: "toggle" },
       { key: "checkoutInputRadius", label: "Checkout field corner radius", kind: "range", min: 0, max: 24, step: 1, suffix: "px" },
       { key: "cartDrawerBg", label: "Cart drawer background", kind: "color" },
       { key: "cartDrawerText", label: "Cart drawer text", kind: "color" },

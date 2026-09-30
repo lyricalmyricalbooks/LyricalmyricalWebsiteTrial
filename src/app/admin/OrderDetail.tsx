@@ -381,6 +381,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
             <dl style={{ margin: "16px 0 0", display: "grid", gap: 10 }}>
               <div><dt className="rp-label">Email</dt><dd style={{ margin: 0, overflowWrap: "anywhere" }}>{order.customer?.email}</dd></div>
               <div><dt className="rp-label">Phone</dt><dd style={{ margin: 0 }}>{order.customer?.phone || "Not provided"}</dd></div>
+              {order.orderNote && <div><dt className="rp-label">Customer note</dt><dd style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{order.orderNote}</dd></div>}
             </dl>
             <div className="rp-card-actions" data-print="hide">
               <SecondaryButton size="sm" icon={<Copy size={14} aria-hidden />} onClick={() => { navigator.clipboard.writeText(order.customer?.email); toast.success("Email copied"); }}>Copy email</SecondaryButton>

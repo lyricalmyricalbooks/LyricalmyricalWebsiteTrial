@@ -118,6 +118,7 @@ npm run logs
 - `stripeWebhook` — the **only** thing that marks orders paid; it also
   decrements stock, counts discount redemptions, and records revenue. Orders are
   created `unpaid` first.
+- Checkout **order note / gift message** (`orderNote` on the order, max 500 chars, enforced in `firestore.rules`): Studio › Style › Checkout & cart drawer › **Order note / gift message box at checkout** (`showOrderNote`, off by default); words in Text & labels › Checkout; shown to admins in Order detail › Customer.
 - `downloadDigitalAsset` — gated digital ebook downloads.
 - `onOrderPaid` / `onOrderShipped` — Firestore triggers that send customer/admin
   emails (Resend).
