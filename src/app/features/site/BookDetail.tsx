@@ -95,6 +95,7 @@ export default function BookDetail() {
   const productImageShadow     = storefrontDesign.productImageShadow     || "lg";
   const productImageHoverScale  = storefrontDesign.productImageHoverScale  ?? 1.05;
   const productImageFitClass   = storefrontDesign.productImageFit === "contain" ? "object-contain" : "object-cover";
+  const productImageFit        = storefrontDesign.productImageFit === "contain" ? "contain" : "cover";
   const productImageMaxWidth   = Math.max(320, Math.min(900, Number(storefrontDesign.productImageMaxWidth) || 560));
   const productImageAspect     = aspectRatioValue(storefrontDesign.productImageAspect && storefrontDesign.productImageAspect !== "grid" ? storefrontDesign.productImageAspect : storefrontDesign.imageAspectRatio || "3:4");
   const productDetailsLayout   = storefrontDesign.productDetailsLayout   || "sections";
