@@ -540,8 +540,6 @@ export const adminApi = {
       headerColor: "",
       // Homepage
       heroLayout: "fullscreen",
-      heroCTA: "ENTER ARCHIVE",
-      heroSubtext: "Discover rare editions and exclusive prints.",
       showFeaturedCarousel: true,
       showBookStrip: true,
       // Products
@@ -603,7 +601,6 @@ export const adminApi = {
       showZoom: true,
       showBackToTop: false,
       showPoweredBy: false,
-      navHeading: "INFO",
       headerLinks: {
         showEnterArchive: true,
         showBag: true,

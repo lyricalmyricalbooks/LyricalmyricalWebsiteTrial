@@ -25,6 +25,7 @@ import RecentlyViewedRow from "./RecentlyViewedRow";
 import BackInStockForm from "./BackInStockForm";
 import { resolveLogoDesign } from "./selectors";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "./themeTokens";
+import { StorefrontOverrides } from "./StorefrontOverrides";
 import { aspectRatioValue } from "./imageAspect";
 
 // ── small helper ────────────────────────────────────────────────────────────
@@ -94,7 +95,8 @@ export default function BookDetail() {
   const productBorderRadius    = storefrontDesign.productBorderRadius    ?? settings?.design?.productBorderRadius ?? 32;
   const productImageGlowColor  = storefrontDesign.productImageGlowColor  || primaryColor;
   const productImageShadow     = storefrontDesign.productImageShadow     || "lg";
-  const productImageHoverScale  = storefrontDesign.productImageHoverScale  ?? 1.05;
+  // "Image zoom" off turns the hover zoom off entirely, whatever the zoom amount is set to.
+  const productImageHoverScale  = storefrontDesign.showZoom === false ? 1 : (storefrontDesign.productImageHoverScale ?? 1.05);
   const productImageFitClass   = storefrontDesign.productImageFit === "contain" ? "object-contain" : "object-cover";
   const productImageFit        = storefrontDesign.productImageFit === "contain" ? "contain" : "cover";
   const productImageMaxWidth   = Math.max(320, Math.min(900, Number(storefrontDesign.productImageMaxWidth) || 560));
@@ -345,6 +347,7 @@ export default function BookDetail() {
       }}
     >
       <style>{css}</style>
+      <StorefrontOverrides design={tokenSource} />
 
       {/* ── ambient glow that follows the book cover ── */}
       {showAmbientGlow !== false && (
