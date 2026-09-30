@@ -355,7 +355,7 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
                 if (/^https?:\/\//i.test(url)) { window.open(url, "_blank", "noopener"); return; }
                 // Site-relative URLs need the GitHub Pages sub-path prefix.
                 const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-                window.location.assign(url.startsWith("/") ? base + url : url);
+                window.location.assign(keepPreviewParam(url.startsWith("/") ? base + url : url));
               }}
               className={`px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase ${
                 settings.hoverEffect ? hoverEffectClassName(settings.hoverEffect) : "hover:scale-105 transition-transform"
@@ -410,11 +410,22 @@ const BANNER_POSITIONS: Record<string, string> = {
   "bottom-right": "items-end justify-end",
 };
 
+/** Site-relative links keep ?preview=true so a Studio preview never reloads into the live design. */
+function keepPreviewParam(href: string) {
+  if (typeof window === "undefined" || new URLSearchParams(window.location.search).get("preview") !== "true") return href;
+  try {
+    const next = new URL(href, window.location.href);
+    if (next.origin !== window.location.origin) return href;
+    next.searchParams.set("preview", "true");
+    return next.pathname + next.search + next.hash;
+  } catch { return href; }
+}
+
 function followBannerLink(url: string | undefined, fallback?: () => void) {
   if (!url) return fallback?.();
   if (/^https?:\/\//i.test(url)) return window.open(url, "_blank", "noopener");
   const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-  window.location.assign(url.startsWith("/") ? base + url : url);
+  window.location.assign(keepPreviewParam(url.startsWith("/") ? base + url : url));
 }
 
 export function ImageBannerSection({ settings, onCtaClick, enableAnimations }: any) {
@@ -1284,12 +1295,13 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
                       </span>
                     )}
                   </div>
-                  <h3 className="mt-3 text-lg md:text-xl font-black leading-tight" style={{ color: text, textTransform: settings.titleTransform || "none" }}>
+                  {/* fm-card-*: Studio › Style › Product cards & grid (title/price colour, size, font) applies here too. */}
+                  <h3 className="fm-card-title mt-3 text-lg md:text-xl font-black leading-tight" style={{ color: text, textTransform: settings.titleTransform || "none" }}>
                     {book.title}
                   </h3>
                   {settings.showPrices !== false && price > 0 && (
-                    <p className="mt-1 text-lg" style={{ color: text }}>
-                      {formatBookPrice(book)}
+                    <p className="fm-card-price-wrap mt-1 text-lg" style={{ color: text }}>
+                      <span className="fm-card-price">{formatBookPrice(book)}</span>
                     </p>
                   )}
                 </button>
@@ -1531,16 +1543,16 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                     )}
                   </div>
                   <div className="mt-2.5 flex items-baseline justify-between gap-3">
-                    <h3 className="text-[17px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
+                    <h3 className="fm-card-title text-[17px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
                     {settings.showPrices !== false && (
-                      <p className="text-sm whitespace-nowrap fm-muted">
+                      <p className="fm-card-price-wrap text-sm whitespace-nowrap fm-muted">
                         {onSale ? (
                           <>
-                            <span className="line-through opacity-60 mr-1.5">{formatBookPrice({ ...book, isOnSale: false })}</span>
-                            {formatBookPrice(book)}
+                            <span className="fm-card-price-old line-through opacity-60 mr-1.5">{formatBookPrice({ ...book, isOnSale: false })}</span>
+                            <span className="fm-card-price">{formatBookPrice(book)}</span>
                           </>
                         ) : (
-                          formatBookPrice(book)
+                          <span className="fm-card-price">{formatBookPrice(book)}</span>
                         )}
                       </p>
                     )}

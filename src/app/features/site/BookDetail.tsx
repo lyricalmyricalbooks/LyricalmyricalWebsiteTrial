@@ -1075,11 +1075,11 @@ export default function BookDetail() {
                           {/* hover shine */}
                           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                         </div>
-                        <p className="text-[10px] font-black tracking-wider text-white/50 group-hover:text-white transition-colors uppercase leading-tight mb-1">
+                        <p className="fm-card-title text-[10px] font-black tracking-wider text-white/50 group-hover:text-white transition-colors uppercase leading-tight mb-1" data-studio-target="style:products" data-studio-label="Card title & price">
                           {rel.title}
                         </p>
                         {relPrice > 0 && (
-                          <p className="text-[11px] font-medium text-white/25 group-hover:text-white/50 transition-colors">
+                          <p className="fm-card-price-wrap fm-card-price text-[11px] font-medium text-white/25 group-hover:text-white/50 transition-colors" data-studio-target="style:products" data-studio-label="Card title & price">
                             {formatPrice(relPrice)}
                           </p>
                         )}

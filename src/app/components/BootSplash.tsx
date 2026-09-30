@@ -1,11 +1,11 @@
 import { motion } from "motion/react";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
-import { readCachedDesign } from "../features/site/useSiteData";
+import { useLiveDesign } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
 
 /** Riso boot/loading splash — colors, wordmark and copy all come from the saved design. */
 export function BootSplash() {
-  const design = readCachedDesign();
+  const design = useLiveDesign();
   return (
     <div data-fm-store data-studio-target="copy:Loading screen" data-studio-label="Loading screen" className="fm-page h-screen w-full flex flex-col items-center justify-center relative overflow-hidden" style={{ color: "rgb(var(--fg-rgb))" }} aria-label={getCopy(design, "loadingAria")}>
       <StorefrontThemeStyle design={design} />

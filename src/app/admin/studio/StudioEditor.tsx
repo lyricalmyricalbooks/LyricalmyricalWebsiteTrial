@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, ChevronDown, ChevronUp, Clipboard, Copy, Eye, EyeOff, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
+  ArrowLeft, ChevronDown, ChevronUp, Clipboard, Copy, Eye, EyeOff, ExternalLink, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
   Tablet, Trash2, Undo2, X,
 } from "lucide-react";
 import { adminApi } from "../api";
@@ -28,7 +28,7 @@ import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY, PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
 import { StudioOutline } from "./StudioOutline";
 import { StudioInspector } from "./StudioInspector";
-import { applyPageStyle, buildPreviewState, deliverPreviewState, PAGE_STYLE_GROUPS, previewRoute } from "./studioWorkflow";
+import { applyPageStyle, buildPreviewState, deliverPreviewState, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, withDraftPage } from "./studioWorkflow";
 import { useStudioPersistence } from "./useStudioPersistence";
 import { Dialog, SecondaryButton } from "../riso/components";
 import "./studio.css";
@@ -317,6 +317,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [published, setPublished] = useState<any>(() => normalizeDesign(settings?.design, defaults));
   const [pages, setPages] = useState<any[]>([]);
   const [books, setBooks] = useState<any[]>([]);
+  // The page open in Studio › Pages with unsaved edits — shown in the preview only, never saved from here.
+  const [draftPage, setDraftPage] = useState<any | null>(null);
   const [leftTab, setLeftTab] = useState<LeftTab>("sections");
   const [templateId, setTemplateId] = useState("heroPage");
   const [showGlobal, setShowGlobal] = useState(false);
@@ -484,16 +486,26 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     }
   }, [template.id, template.pageSlug, productSlug, collectionSlug, pages]);
 
+  // Full-screen "Preview in new tab" windows listen on this channel (features/site/previewTab.ts).
+  const channelRef = useRef<BroadcastChannel | null>(null);
   const sendPreviewState = useCallback(() => {
     const previewDesign = historyPreview?.design || designRef.current;
+    const state = buildPreviewState(settings, previewDesign, withDraftPage(pages, draftPage), books);
     try {
-      deliverPreviewState(
-        iframeRef.current?.contentWindow,
-        buildPreviewState(settings, previewDesign, pages, books),
-        window.location.origin,
-      );
-    } catch { /* ignore */ }
-  }, [historyPreview, settings, pages, books]);
+      deliverPreviewState(iframeRef.current?.contentWindow, state, window.location.origin);
+    } catch (err) { console.warn("[Studio] preview delivery failed", err); }
+    try { channelRef.current?.postMessage(state); } catch (err) { console.warn("[Studio] preview tab delivery failed", err); }
+  }, [historyPreview, settings, pages, books, draftPage]);
+  const sendPreviewRef = useRef(sendPreviewState);
+  sendPreviewRef.current = sendPreviewState;
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const bc = new BroadcastChannel(PREVIEW_CHANNEL);
+    channelRef.current = bc;
+    bc.onmessage = (e) => { if (e.data?.type === "PREVIEW_READY") sendPreviewRef.current(); };
+    return () => { bc.close(); channelRef.current = null; };
+  }, []);
+  const openPreviewTab = () => { window.open(previewUrl, "_blank"); };
   useEffect(() => { const t = setTimeout(sendPreviewState, 100); return () => clearTimeout(t); }, [design, sendPreviewState]);
   // Tell the preview which strings are editable copy, so double-clicking one jumps to its field.
   const sendCopyMap = useCallback(() => {
@@ -730,6 +742,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           ))}
         </div>
         <button className={btn} aria-pressed={mode === "browse"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}>{mode === "edit" ? "Edit mode" : "Browse mode"}</button>
+        <button className={btn} onClick={openPreviewTab} title="Open your unsaved draft full-screen in a new tab. It updates as you edit; shoppers never see it."><ExternalLink size={14} /> Preview in new tab</button>
         <button className={iconBtn} disabled={!hist.past.length} onClick={() => setHist(undo)} aria-label="Undo (Ctrl+Z)"><Undo2 size={15} /></button>
         <button className={iconBtn} disabled={!hist.future.length} onClick={() => setHist(redo)} aria-label="Redo (Ctrl+Shift+Z)"><Redo2 size={15} /></button>
         <div className="flex-1" />
@@ -919,7 +932,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             )}
 
             {leftTab === "pages" && (
-              <StudioPages pages={pages} setPages={setPages} say={say}
+              <StudioPages pages={pages} setPages={setPages} say={say} onDraft={setDraftPage}
                 onEditSections={(slug) => { setShowGlobal(false); setTemplateId(`page:${slug}`); setSelectedId(null); setLeftTab("sections"); }} />
             )}
 
@@ -952,12 +965,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       </FocusContext.Provider>
 
       {adding !== null && <AddSectionDialog onPick={addSection} onClose={() => setAdding(null)} />}
-      <Dialog open={historyOpen} onClose={() => { setHistoryOpen(false); setHistoryPreview(null); sendDesign(); }} title="Version history" description="Every saved draft and publish is kept here. Previewing never changes your draft." size="lg">
+      <Dialog open={historyOpen} onClose={() => { setHistoryOpen(false); setHistoryPreview(null); }} title="Version history" description="Every saved draft and publish is kept here. Previewing never changes your draft." size="lg">
         <div className="space-y-2 max-h-[60vh] overflow-auto">
           {!versions.length && <p className="studio-empty">No saved versions yet.</p>}
           {versions.map(v => <div key={v.id} className="border border-neutral-200 rounded-xl p-3 flex items-center gap-3">
             <div className="flex-1"><strong className="block text-sm">{v.label}</strong><span className="text-xs text-neutral-500">{v.kind} · {new Date(v.createdAt).toLocaleString()}</span></div>
-            <button className={btn} onClick={() => { setHistoryPreview(v); setTimeout(sendDesign, 0); }}>Preview</button>
+            <button className={btn} onClick={() => { setHistoryPreview(v); }}>Preview</button>
             <button className={btnPrimary} onClick={() => { change(() => normalizeDesign(v.design, defaults)); setHistoryPreview(null); setHistoryOpen(false); say("ok", "Version restored to the draft. Save or Publish when ready."); }}>Restore to draft</button>
           </div>)}
           {historyPreview && <p className="text-xs font-bold">Previewing: {historyPreview.label}. Close History to return to your current draft.</p>}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, LayoutTemplate, Plus, Trash2 } from "lucide-react";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
@@ -22,8 +22,10 @@ const QUILL_MODULES = {
 type Say = (kind: "ok" | "err", text: string) => void;
 
 /** Custom storefront pages, managed inside the Studio editor (Pages tab). Pages save immediately — they are not part of the theme draft. */
-export function StudioPages({ pages, setPages, say, onEditSections }: {
+export function StudioPages({ pages, setPages, say, onEditSections, onDraft }: {
   pages: Page[]; setPages: (fn: (p: Page[]) => Page[]) => void; say: Say; onEditSections: (slug: string) => void;
+  /** Receives the page being edited (unsaved) so the preview can show it before Save; null when closed. */
+  onDraft?: (page: Partial<Page> | null) => void;
 }) {
   const [editing, setEditing] = useState<Partial<Page> | null>(null);
   const [original, setOriginal] = useState("");
@@ -32,6 +34,8 @@ export function StudioPages({ pages, setPages, say, onEditSections }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const dirty = !!editing && JSON.stringify(editing) !== original;
+  useEffect(() => { onDraft?.(dirty ? editing : null); }, [dirty, editing, onDraft]);
+  useEffect(() => () => onDraft?.(null), [onDraft]);
   const ordered = useMemo(() => [...pages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)), [pages]);
 
   const open = (p: Partial<Page>, fresh: boolean) => { setEditing(p); setOriginal(JSON.stringify(p)); setIsNew(fresh); setSlugEdited(!fresh); setError(""); };
