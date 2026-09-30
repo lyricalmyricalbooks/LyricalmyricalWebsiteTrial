@@ -9,6 +9,17 @@ export function applyPageStyle(design: any, surface: string, path: string, value
   return { ...design, [surface]: setPath(design[surface] || {}, path, value) };
 }
 
+/** Build the single authoritative snapshot sent to the storefront iframe. */
+export function buildPreviewState(settings: any, design: any, pages: any[], books: any[]) {
+  return {
+    type: "STUDIO_PREVIEW_STATE" as const,
+    settings: { ...settings, design, draftDesign: design },
+    design,
+    pages: pages.filter((page) => page.status === "published"),
+    books,
+  };
+}
+
 /** One in-flight write, with an immutable baseline even if editing continues. */
 export function createSnapshotWriter() {
   let busy = false;

@@ -389,7 +389,7 @@ function useThemePreview(initialDesign: any) {
     // 1. Listen for iframe messages (legacy/standard)
     const handleMessage = (event: MessageEvent) => {
       if (!isPreview || event.origin !== window.location.origin || (window.parent !== window && event.source !== window.parent)) return;
-      if (event.data && event.data.type === "THEME_UPDATE") {
+      if (event.data && (event.data.type === "THEME_UPDATE" || event.data.type === "STUDIO_PREVIEW_STATE")) {
         setDesignOverride(event.data.design);
 
       }

@@ -166,7 +166,10 @@ guard Publish/Discard. Reusable/copyable sections, scheduled visibility,
 phone overrides, canvas reordering and pre-publish checks also live in Studio. These live in
 `studio/StudioEditor.tsx`, `StudioOutline.tsx`, `StudioInspector.tsx` and
 `useStudioPersistence.ts`; `themeWrite.ts` replaces complete design maps when
-saving so removed page overrides do not reappear.
+saving so removed page overrides do not reappear. The iframe receives an atomic
+`STUDIO_PREVIEW_STATE` snapshot of the unsaved design, settings, books and
+published pages, keeping colors, menus and newly created page content live
+across preview navigation without another Firestore read.
 
 Studio also supports three-level recursive composition blocks through the
 **Flexible composition** section. Groups can contain text, image, button, or
