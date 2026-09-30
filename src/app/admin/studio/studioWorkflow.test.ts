@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeDesign } from "./studioModel";
-import { applyPageStyle, createSnapshotWriter, parseRecovery, previewRoute, updateBlocks } from "./studioWorkflow";
+import { applyPageStyle, buildPreviewState, createSnapshotWriter, parseRecovery, previewRoute, updateBlocks } from "./studioWorkflow";
 
 describe("Studio workflow", () => {
   it("normalization is idempotent and never nests page surfaces inside one another", () => {
@@ -65,5 +65,22 @@ describe("Studio workflow", () => {
     expect(previewRoute("/LyricalmyricalWebsiteTrial/?catalog=true", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "storefront" });
     expect(previewRoute("/LyricalmyricalWebsiteTrial/page/about", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "page:about" });
     expect(previewRoute("/outside", "/LyricalmyricalWebsiteTrial/")).toBeNull();
+  });
+  it("sends a complete draft snapshot and excludes pages shoppers cannot see", () => {
+    const design = { primaryColor: "#f00" };
+    const books = [{ id: "book-1" }];
+    const state = buildPreviewState(
+      { design: { primaryColor: "#000" }, payments: { stripe: { connected: true } } },
+      design,
+      [{ id: "live", status: "published" }, { id: "draft", status: "draft" }],
+      books,
+    );
+    expect(state).toMatchObject({
+      type: "STUDIO_PREVIEW_STATE",
+      design,
+      settings: { design, draftDesign: design, payments: { stripe: { connected: true } } },
+      pages: [{ id: "live", status: "published" }],
+      books,
+    });
   });
 });

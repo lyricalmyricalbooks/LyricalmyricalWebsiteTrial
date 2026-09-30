@@ -28,7 +28,7 @@ import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY, PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
 import { StudioOutline } from "./StudioOutline";
 import { StudioInspector } from "./StudioInspector";
-import { applyPageStyle, PAGE_STYLE_GROUPS, previewRoute } from "./studioWorkflow";
+import { applyPageStyle, buildPreviewState, PAGE_STYLE_GROUPS, previewRoute } from "./studioWorkflow";
 import { useStudioPersistence } from "./useStudioPersistence";
 import { Dialog, SecondaryButton } from "../riso/components";
 import "./studio.css";
@@ -469,10 +469,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     }
   }, [template.id, template.pageSlug, productSlug, collectionSlug, pages]);
 
-  const sendDesign = useCallback(() => {
-    try { iframeRef.current?.contentWindow?.postMessage({ type: "THEME_UPDATE", design: historyPreview?.design || designRef.current }, window.location.origin); } catch { /* ignore */ }
-  }, [historyPreview]);
-  useEffect(() => { const t = setTimeout(sendDesign, 150); return () => clearTimeout(t); }, [design, sendDesign]);
+  const sendPreviewState = useCallback(() => {
+    const previewDesign = historyPreview?.design || designRef.current;
+    try {
+      iframeRef.current?.contentWindow?.postMessage(
+        buildPreviewState(settings, previewDesign, pages, books),
+        window.location.origin,
+      );
+    } catch { /* ignore */ }
+  }, [historyPreview, settings, pages, books]);
+  useEffect(() => { const t = setTimeout(sendPreviewState, 100); return () => clearTimeout(t); }, [design, sendPreviewState]);
   // Tell the preview which strings are editable copy, so double-clicking one jumps to its field.
   const sendCopyMap = useCallback(() => {
     const items = COPY_SCHEMA.flatMap((g) => g.fields.map((f) => ({ key: f.key, text: (designRef.current.copy?.[f.key] || DEFAULT_COPY[f.key] || "") })));
@@ -524,13 +530,13 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       if (e.origin !== window.location.origin || e.source !== iframeRef.current?.contentWindow || !e.data) return;
       const d = e.data;
       if (d.type === "PREVIEW_ERROR") say("err", `The preview hit an error: ${String(d.message).slice(0, 200)}`);
-      if (d.type === "PREVIEW_READY") { setPreviewStatus("ready"); sendDesign(); sendCopyMap(); highlight(selectedId); iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); }
+      if (d.type === "PREVIEW_READY") { setPreviewStatus("ready"); sendPreviewState(); sendCopyMap(); highlight(selectedId); iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); }
       if (d.type === "STUDIO_ROUTE" && typeof d.href === "string") {
         const route = previewRoute(d.href, import.meta.env.BASE_URL);
         if (route && templates.some(t => t.id === route.templateId)) { setTemplateId(route.templateId); setShowGlobal(false); setSelectedId(null); setBlockId(null); }
         if (route?.product) setProductSlug(route.product);
         if (route?.collection) setCollectionSlug(route.collection);
-        sendDesign();
+        sendPreviewState();
       }
       if (d.type === "COPY_SELECT" && typeof d.key === "string" && COPY_SCHEMA.some(g => g.fields.some(f => f.key === d.key))) {
         setMobilePanel("outline");
@@ -610,7 +616,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     };
     window.addEventListener("message", h);
     return () => window.removeEventListener("message", h);
-  }, [templates, selectedId, sendDesign, sendCopyMap, highlight, change, mode]);
+  }, [templates, selectedId, sendPreviewState, sendCopyMap, highlight, change, mode]);
 
   const { busy, saveDraft, publish, discard, recovery, recover, dismissRecovery } = useStudioPersistence({
     design, savedDraft, published, setSavedDraft, setPublished, onPersisted,

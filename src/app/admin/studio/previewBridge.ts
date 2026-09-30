@@ -30,7 +30,7 @@ export const PREVIEW_BRIDGE_SOURCE = String.raw`(function(){
   var observer=new MutationObserver(function(records){if(records.some(function(r){return !closest(r.target,'[data-studio-overlay]');})){Array.from(document.querySelectorAll(SEC+','+BLK)).forEach(function(n){n.draggable=mode==='edit';});redraw();}});
   observer.observe(document.body,{childList:true,subtree:true});window.addEventListener('pagehide',function(){observer.disconnect();});
   window.addEventListener('message',function(e){if(e.origin!==O||e.source!==parent||!e.data)return;var d=e.data;
-    if(d.type==='THEME_UPDATE'&&d.design&&typeof d.design==='object')window.__studioPreviewDesign=d.design;
+    if((d.type==='THEME_UPDATE'||d.type==='STUDIO_PREVIEW_STATE')&&d.design&&typeof d.design==='object')window.__studioPreviewDesign=d.design;
     if(d.type==='STUDIO_MODE'&&(d.mode==='edit'||d.mode==='browse')){closeMenu();if(editing)editing();mode=d.mode;document.documentElement.dataset.studioMode=mode;place(hover,null);draw();window.dispatchEvent(new CustomEvent('studio:mode',{detail:mode}));}
     if(d.type==='HIGHLIGHT_SECTION'){selected=typeof d.instanceId==='string'?d.instanceId:null;block=typeof d.blockId==='string'?d.blockId:null;
       window.dispatchEvent(new CustomEvent('studio:selection',{detail:{sectionId:selected,blockId:block}}));
