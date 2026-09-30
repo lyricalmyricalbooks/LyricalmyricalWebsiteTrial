@@ -263,7 +263,7 @@ export default function BookDetail() {
       navigator.share({ title: book?.title, url: window.location.href });
     } else {
       navigator.clipboard.writeText(window.location.href);
-      toast.success("Link copied to clipboard");
+      toast.success(getCopy(settings?.design, "bookLinkCopied"));
     }
   };
 
@@ -490,7 +490,7 @@ export default function BookDetail() {
                         >
                           <Zap size={12} className="shrink-0" style={{ color: lowInventoryColor }} />
                           <span className="text-[9px] font-black tracking-widest uppercase" style={{ color: lowInventoryColor }}>
-                            Only {stockLevel} left
+                            {getCopy(settings?.design, "onlyLeft", { count: stockLevel })}
                           </span>
                         </div>
                       </div>
@@ -611,7 +611,7 @@ export default function BookDetail() {
                   style={{ color: primaryColor, borderColor: `${primaryColor}40`, background: `${primaryColor}12` }}
                 >
                   <Tag size={9} />
-                  {(book as any).genres?.[0] || (book as any).categories?.[0] || "Publication"}
+                  {(book as any).genres?.[0] || (book as any).categories?.[0] || getCopy(settings?.design, "categoryFallback")}
                 </span>
               </div>
 
@@ -650,12 +650,12 @@ export default function BookDetail() {
                         borderColor: "rgba(var(--success-rgb), 0.2)",
                       }}
                     >
-                      Save {formatPrice(getBookPrice(book, true) - getBookPrice(book))}
+                      {getCopy(settings?.design, "saveAmount", { amount: formatPrice(getBookPrice(book, true) - getBookPrice(book)) })}
                     </span>
                   </>
                 ) : (
                   <span className="text-4xl font-black tracking-tight text-white">
-                    {retailPrice > 0 ? (selectedVariant ? formatPrice(selectedVariant.price) : formatBookPrice(book)) : "Price on request"}
+                    {retailPrice > 0 ? (selectedVariant ? formatPrice(selectedVariant.price) : formatBookPrice(book)) : getCopy(settings?.design, "priceOnRequest")}
                   </span>
                 )}
               </div>
@@ -691,22 +691,22 @@ export default function BookDetail() {
               {productDetailsLayout === "sections" && showSpecs !== false && ((book as any).format || (book as any).language || (book as any).dimensions || (book as any).isbn || (book as any).weight) && (
                 <div className="grid grid-cols-2 gap-3 w-full">
                   {(book as any).format && (
-                    <SpecItem icon={<BookOpen size={11} />} label="Format" value={(book as any).format} />
+                    <SpecItem icon={<BookOpen size={11} />} label={getCopy(settings?.design, "specFormat")} value={(book as any).format} />
                   )}
                   {(book as any).language && (
-                    <SpecItem icon={<Globe size={11} />} label="Language" value={(book as any).language} />
+                    <SpecItem icon={<Globe size={11} />} label={getCopy(settings?.design, "specLanguage")} value={(book as any).language} />
                   )}
                   {(book as any).dimensions && (
-                    <SpecItem icon={<Ruler size={11} />} label="Dimensions" value={(book as any).dimensions} />
+                    <SpecItem icon={<Ruler size={11} />} label={getCopy(settings?.design, "specDimensions")} value={(book as any).dimensions} />
                   )}
                   {(book as any).isbn && (
-                    <SpecItem icon={<Package size={11} />} label="ISBN" value={(book as any).isbn} />
+                    <SpecItem icon={<Package size={11} />} label={getCopy(settings?.design, "specIsbn")} value={(book as any).isbn} />
                   )}
                   {(book as any).weight && (
-                    <SpecItem icon={<Weight size={11} />} label="Weight" value={(book as any).weight} />
+                    <SpecItem icon={<Weight size={11} />} label={getCopy(settings?.design, "specWeight")} value={(book as any).weight} />
                   )}
                   {stockLevel > 0 && stockLevel !== 999 && stockLevel <= 10 && (
-                    <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label="Availability" value={`${stockLevel} remaining`} />
+                    <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label={getCopy(settings?.design, "specAvailability")} value={getCopy(settings?.design, "specRemaining", { count: stockLevel })} />
                   )}
                 </div>
               )}
@@ -817,19 +817,19 @@ export default function BookDetail() {
                   }
                 >
                   {isOutOfStock ? (
-                    "Sold Out"
+                    getCopy(settings?.design, "soldOutLabel")
                   ) : added ? (
                     <><Check size={14} strokeWidth={3} /> {getCopy(settings?.design, "bookAdded")}</>
                   ) : (
-                    <><ShoppingBag size={14} /> {storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel") || "Add to Bag"}</>
+                    <><ShoppingBag size={14} /> {storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel")}</>
                   )}
                 </motion.button>
 
                 <button
                   data-section="colors"
                   onClick={() => book && toggleWish(book.id)}
-                  aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
-                  title={wished ? "In wishlist" : "Save to wishlist"}
+                  aria-label={getCopy(settings?.design, wished ? "wishlistRemoveAria" : "wishlistAddAria")}
+                  title={getCopy(settings?.design, wished ? "wishlistInTitle" : "wishlistSaveTitle")}
                   className={`w-16 h-16 rounded-2xl border flex items-center justify-center transition-all ${
                     wished
                       ? "fm-favorite-active"
@@ -862,17 +862,17 @@ export default function BookDetail() {
                   <div className={`flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase ${
                     productTrustLayout === "stack" && productAlignment === "center" ? "justify-center" : ""
                   } ${productTrustLayout === "grid" ? "flex-col text-center p-3 border border-white/5 bg-white/[0.01] rounded-2xl" : ""}`}>
-                    <Truck size={12} className="text-white/30 shrink-0" /> {storefrontDesign.productTrust1 || settings?.design?.productTrust1 || getCopy(settings?.design, "productTrust1") || "Tracked Shipping"}
+                    <Truck size={12} className="text-white/30 shrink-0" /> {storefrontDesign.productTrust1 || settings?.design?.productTrust1 || getCopy(settings?.design, "productTrust1")}
                   </div>
                   <div className={`flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase ${
                     productTrustLayout === "stack" && productAlignment === "center" ? "justify-center" : ""
                   } ${productTrustLayout === "grid" ? "flex-col text-center p-3 border border-white/5 bg-white/[0.01] rounded-2xl" : ""}`}>
-                    <ShieldCheck size={12} className="text-white/30 shrink-0" /> {storefrontDesign.productTrust2 || settings?.design?.productTrust2 || getCopy(settings?.design, "productTrust2") || "14-Day Returns"}
+                    <ShieldCheck size={12} className="text-white/30 shrink-0" /> {storefrontDesign.productTrust2 || settings?.design?.productTrust2 || getCopy(settings?.design, "productTrust2")}
                   </div>
                   <div className={`flex items-center gap-2 text-[9px] tracking-widest text-white/40 uppercase ${
                     productTrustLayout === "stack" && productAlignment === "center" ? "justify-center" : ""
                   } ${productTrustLayout === "grid" ? "flex-col text-center p-3 border border-white/5 bg-white/[0.01] rounded-2xl" : ""}`}>
-                    <Package size={12} className="text-white/30 shrink-0" /> {storefrontDesign.productTrust3 || settings?.design?.productTrust3 || getCopy(settings?.design, "productTrust3") || "Ships in 1-2 Days"}
+                    <Package size={12} className="text-white/30 shrink-0" /> {storefrontDesign.productTrust3 || settings?.design?.productTrust3 || getCopy(settings?.design, "productTrust3")}
                   </div>
                 </div>
               )}
@@ -927,7 +927,7 @@ export default function BookDetail() {
                           exit={{ opacity: 0, y: -10 }}
                           className={`text-white/60 text-[13px] leading-[1.8] ${productAlignment === "center" ? "text-center" : "text-left"}`}
                         >
-                          {(book as any).description || "No description available."}
+                          {(book as any).description || getCopy(settings?.design, "noDescription")}
                         </motion.div>
                       )}
                       {detailsTab === "specs" && showSpecs !== false && (
@@ -938,13 +938,13 @@ export default function BookDetail() {
                           exit={{ opacity: 0, y: -10 }}
                           className="grid grid-cols-2 gap-3"
                         >
-                          {(book as any).format && <SpecItem icon={<BookOpen size={11} />} label="Format" value={(book as any).format} />}
-                          {(book as any).language && <SpecItem icon={<Globe size={11} />} label="Language" value={(book as any).language} />}
-                          {(book as any).dimensions && <SpecItem icon={<Ruler size={11} />} label="Dimensions" value={(book as any).dimensions} />}
-                          {(book as any).isbn && <SpecItem icon={<Package size={11} />} label="ISBN" value={(book as any).isbn} />}
-                          {(book as any).weight && <SpecItem icon={<Weight size={11} />} label="Weight" value={(book as any).weight} />}
+                          {(book as any).format && <SpecItem icon={<BookOpen size={11} />} label={getCopy(settings?.design, "specFormat")} value={(book as any).format} />}
+                          {(book as any).language && <SpecItem icon={<Globe size={11} />} label={getCopy(settings?.design, "specLanguage")} value={(book as any).language} />}
+                          {(book as any).dimensions && <SpecItem icon={<Ruler size={11} />} label={getCopy(settings?.design, "specDimensions")} value={(book as any).dimensions} />}
+                          {(book as any).isbn && <SpecItem icon={<Package size={11} />} label={getCopy(settings?.design, "specIsbn")} value={(book as any).isbn} />}
+                          {(book as any).weight && <SpecItem icon={<Weight size={11} />} label={getCopy(settings?.design, "specWeight")} value={(book as any).weight} />}
                           {stockLevel > 0 && stockLevel !== 999 && stockLevel <= 10 && (
-                            <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label="Availability" value={`${stockLevel} remaining`} />
+                            <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label={getCopy(settings?.design, "specAvailability")} value={getCopy(settings?.design, "specRemaining", { count: stockLevel })} />
                           )}
                         </motion.div>
                       )}
@@ -986,7 +986,7 @@ export default function BookDetail() {
                           className="overflow-hidden"
                         >
                           <p className={`px-6 pb-6 text-white/50 text-[13px] leading-[1.8] ${productAlignment === "center" ? "text-center" : "text-left"}`}>
-                            {(book as any).description || "No description available."}
+                            {(book as any).description || getCopy(settings?.design, "noDescription")}
                           </p>
                         </motion.div>
                       )}
@@ -1014,13 +1014,13 @@ export default function BookDetail() {
                             className="overflow-hidden"
                           >
                             <div className="px-6 pb-6 grid grid-cols-2 gap-3">
-                              {(book as any).format && <SpecItem icon={<BookOpen size={11} />} label="Format" value={(book as any).format} />}
-                              {(book as any).language && <SpecItem icon={<Globe size={11} />} label="Language" value={(book as any).language} />}
-                              {(book as any).dimensions && <SpecItem icon={<Ruler size={11} />} label="Dimensions" value={(book as any).dimensions} />}
-                              {(book as any).isbn && <SpecItem icon={<Package size={11} />} label="ISBN" value={(book as any).isbn} />}
-                              {(book as any).weight && <SpecItem icon={<Weight size={11} />} label="Weight" value={(book as any).weight} />}
+                              {(book as any).format && <SpecItem icon={<BookOpen size={11} />} label={getCopy(settings?.design, "specFormat")} value={(book as any).format} />}
+                              {(book as any).language && <SpecItem icon={<Globe size={11} />} label={getCopy(settings?.design, "specLanguage")} value={(book as any).language} />}
+                              {(book as any).dimensions && <SpecItem icon={<Ruler size={11} />} label={getCopy(settings?.design, "specDimensions")} value={(book as any).dimensions} />}
+                              {(book as any).isbn && <SpecItem icon={<Package size={11} />} label={getCopy(settings?.design, "specIsbn")} value={(book as any).isbn} />}
+                              {(book as any).weight && <SpecItem icon={<Weight size={11} />} label={getCopy(settings?.design, "specWeight")} value={(book as any).weight} />}
                               {stockLevel > 0 && stockLevel !== 999 && stockLevel <= 10 && (
-                                <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label="Availability" value={`${stockLevel} remaining`} />
+                                <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label={getCopy(settings?.design, "specAvailability")} value={getCopy(settings?.design, "specRemaining", { count: stockLevel })} />
                               )}
                             </div>
                           </motion.div>
@@ -1085,7 +1085,7 @@ export default function BookDetail() {
                       <div>
                         <p className="text-[11px] font-bold text-white uppercase leading-tight truncate max-w-[200px]">{book.title} + {bundleBook.title}</p>
                         <p className="text-[10px] text-white/40 mt-1.5 font-mono">
-                          Total: <span className="text-white font-black">{formatPrice((isOnSale ? salePrice : retailPrice) + (bundleBook.isOnSale && bundleBook.salePrice ? bundleBook.salePrice : bundleBook.retailPrice))}</span>
+                          {getCopy(settings?.design, "bundleTotal")} <span className="text-white font-black">{formatPrice((isOnSale ? salePrice : retailPrice) + (bundleBook.isOnSale && bundleBook.salePrice ? bundleBook.salePrice : bundleBook.retailPrice))}</span>
                         </p>
                       </div>
                       <button
@@ -1101,7 +1101,7 @@ export default function BookDetail() {
                           borderRadius: buttonRadius,
                         } as React.CSSProperties}
                       >
-                        {addingBoth ? "Adding Both..." : "Add Both to Bag"}
+                        {getCopy(settings?.design, addingBoth ? "bundleAdding" : "bundleAdd")}
                       </button>
                     </div>
                   </div>
@@ -1191,7 +1191,7 @@ export default function BookDetail() {
         {/* ── Footer ── */}
         <footer className="relative z-10 border-t border-white/[0.06] py-10 text-center">
           <p className="text-[9px] font-black tracking-[0.4em] text-white/20 uppercase">
-            © {new Date().getFullYear()} Lyricalmyrical Books · Toronto, Canada
+            {getCopy(settings?.design, "footerCopyright")}
           </p>
         </footer>
       </main>

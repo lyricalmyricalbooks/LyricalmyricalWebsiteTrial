@@ -70,7 +70,7 @@ export default function OrderTracking() {
 
       setOrder(foundOrder);
     } catch (err: any) {
-      setError(err.message || "Failed to retrieve order tracking information.");
+      setError(err.message || getCopy(settings?.design, "trackError"));
     } finally {
       setLoading(false);
     }
@@ -98,10 +98,10 @@ export default function OrderTracking() {
   const currentStep = order ? getStepIndex(order.status) : 0;
   
   const steps = [
-    { label: "Paid", desc: "Order confirmed", icon: CheckCircle2 },
-    { label: "Processing", desc: "Packing items", icon: Package },
-    { label: "Shipped", desc: "In transit", icon: Truck },
-    { label: "Delivered", desc: "Arrival confirmed", icon: MapPin },
+    { label: getCopy(settings?.design, "trackStepPaid"), desc: getCopy(settings?.design, "trackStepPaidDesc"), icon: CheckCircle2 },
+    { label: getCopy(settings?.design, "trackStepProcessing"), desc: getCopy(settings?.design, "trackStepProcessingDesc"), icon: Package },
+    { label: getCopy(settings?.design, "trackStepShipped"), desc: getCopy(settings?.design, "trackStepShippedDesc"), icon: Truck },
+    { label: getCopy(settings?.design, "trackStepDelivered"), desc: getCopy(settings?.design, "trackStepDeliveredDesc"), icon: MapPin },
   ];
 
   // Format order prices using checkout currency if available, else fallback
@@ -215,23 +215,23 @@ export default function OrderTracking() {
                 onClick={() => setOrder(null)} 
                 className="flex items-center gap-2 text-[9px] font-black tracking-[0.25em] text-white/60 hover:text-white uppercase transition-colors"
               >
-                <ArrowLeft size={12} /> Track Another Order
+                <ArrowLeft size={12} /> {getCopy(settings?.design, "trackAnother")}
               </button>
 
               {/* Order Header Summary */}
               <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8 backdrop-blur-sm">
                 <div>
                   <p className="text-[10px] font-black tracking-[0.3em] fm-accent-text uppercase mb-2">{getCopy(settings?.design, "trackFound")}</p>
-                  <h2 className="text-4xl font-black tracking-tighter uppercase italic leading-none">ORDER #{order.orderId}</h2>
+                  <h2 className="text-4xl font-black tracking-tighter uppercase italic leading-none">{getCopy(settings?.design, "coOrderNumber", { number: order.orderId })}</h2>
                   <p className="text-[10px] font-mono text-white/60 mt-3 uppercase tracking-widest flex items-center gap-3">
-                    <Calendar size={12} /> Created: {new Date(order.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                    <Calendar size={12} /> {getCopy(settings?.design, "trackCreated")} {new Date(order.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-1.5 self-stretch md:self-auto border-t md:border-t-0 border-white/5 pt-6 md:pt-0">
                   <span className="text-[9px] font-black fm-muted uppercase tracking-widest">{getCopy(settings?.design, "trackTotalPayable")}</span>
                   <span className="text-3xl font-black text-white">{orderFormatPrice(order.total)}</span>
                   <span className="text-[9px] font-black fm-success-text bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg uppercase tracking-widest mt-1">
-                    {order.paymentStatus === "paid" ? "Paid" : "Unpaid"}
+                    {getCopy(settings?.design, order.paymentStatus === "paid" ? "trackPaid" : "trackUnpaid")}
                   </span>
                 </div>
               </div>
@@ -284,7 +284,7 @@ export default function OrderTracking() {
                       <p className="text-[10px] font-black tracking-[0.3em] fm-accent-text uppercase">{getCopy(settings?.design, "trackLogisticsEyebrow")}</p>
                       <h4 className="text-2xl font-black tracking-tighter uppercase italic leading-none">{getCopy(settings?.design, "trackCarrier")}</h4>
                       <p className="text-xs font-medium fm-muted leading-relaxed max-w-md mt-2">
-                        Your parcel is in transit. Tracking number: <code className="text-white bg-white/10 px-2 py-0.5 rounded font-mono">{order.trackingNumber}</code>
+                        {getCopy(settings?.design, "trackInTransit")} <code className="text-white bg-white/10 px-2 py-0.5 rounded font-mono">{order.trackingNumber}</code>
                         {order.trackingCarrier ? ` (${order.trackingCarrier.toUpperCase()})` : ""}
                       </p>
                     </div>
@@ -294,7 +294,7 @@ export default function OrderTracking() {
                       rel="noopener noreferrer"
                       className="fm-active hover:bg-slate-200 px-8 py-4 rounded-2xl text-[9px] font-black tracking-[0.25em] uppercase transition-all active:scale-95 flex items-center gap-3 shrink-0 shadow-xl"
                     >
-                      Track Shipment <ExternalLink size={12} />
+                      {getCopy(settings?.design, "trackShipment")} <ExternalLink size={12} />
                     </a>
                   </div>
                 );
@@ -347,7 +347,7 @@ export default function OrderTracking() {
                         {item.variantName && (
                           <p className="text-[9px] fm-muted uppercase tracking-widest mt-1">{item.variantName}</p>
                         )}
-                        <p className="text-[10px] fm-muted font-mono mt-2">QTY: {item.quantity} × {orderFormatPrice(item.price)}</p>
+                        <p className="text-[10px] fm-muted font-mono mt-2">{getCopy(settings?.design, "qtyLine", { qty: item.quantity })} × {orderFormatPrice(item.price)}</p>
                       </div>
                       <div className="text-right">
                         <span className="text-sm font-black text-white font-mono">{orderFormatPrice(item.price * item.quantity)}</span>

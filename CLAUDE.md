@@ -233,6 +233,12 @@ nested blocks across more section types remains a follow-up):
 3. CSS-grid visual positioning with guarded coordinates and overlap;
 4. per-breakpoint layout overrides tied to the device preview toggle.
 
+> [!IMPORTANT]
+> **Everything shopper-facing must be editable in Studio — nothing "built into the site".**
+> Any storefront element (box, row, link, heading, text) needs a Studio control to hide/show it
+> and its words in Text & labels (`COPY_SCHEMA`). Add the toggle to `STYLE_GROUPS` in
+> `studio/styleSchema.ts` (default = current behaviour) in the same change that adds the element.
+
 **One storefront shell:** `MainSite` renders a single Riso header/footer for every view; the Home view swaps the catalog grid for `design.heroPage.sections`. Studio › Sections (Home) › **Show a Home page** toggles `showHero` (off = open straight on the catalog). The legacy hero header/`HeroCarousel` were removed — don't re-add a second header.
 
 **Riso Noir storefront:** the public site defaults to the Riso Press look on black with white text
