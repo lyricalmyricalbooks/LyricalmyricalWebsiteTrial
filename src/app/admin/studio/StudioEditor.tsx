@@ -25,7 +25,7 @@ import { addSavedTheme, removeSavedTheme, type SavedTheme } from "./savedThemes"
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyThemeKeysToSurfaces } from "../themeScope";
-import { THEME_LIBRARY, PALETTES } from "./themeLibrary";
+import { THEME_LIBRARY, PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
 import { StudioOutline } from "./StudioOutline";
 import { StudioInspector } from "./StudioInspector";
 import { applyPageStyle, PAGE_STYLE_GROUPS, previewRoute } from "./studioWorkflow";
@@ -429,9 +429,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       ...(palette ? { palettePreset: palette.id, primaryColor: palette.accent, backgroundColor: palette.bg, textColor: palette.text } : {}),
       themeStyle: "default",
     };
-    for (const k of ["font", "fontSize", "cornerStyle", "buttonStyle", "animationLevel", "productCardStyle", "productHoverEffect",
-      "imageAspectRatio", "productImageLayout", "productContentPosition", "productColumnsDesktop", "productColumnsMobile",
-      "cardRadius", "productCTA", "catalogLayoutStyle", "showCatalogControls"]) if (theme[k] !== undefined) base[k] = theme[k];
+    for (const k of THEME_APPLIED_KEYS) if (theme[k] !== undefined) base[k] = theme[k];
     change((d) => applyThemeKeysToSurfaces(d, { ...base, ...(theme.global || {}), themeLibraryPreset: theme.id }, surfaceIds));
     say("ok", `“${theme.name}” applied to the draft — Publish to make it live.`);
   };

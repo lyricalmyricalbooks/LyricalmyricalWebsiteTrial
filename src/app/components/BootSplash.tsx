@@ -16,7 +16,7 @@ export function BootSplash() {
         animate={{ opacity: 1, y: 0 }}
         className="relative flex w-[min(86vw,34rem)] flex-col items-center"
       >
-        <span className="mb-7 rotate-1 border-2 border-[var(--rp-outline)] bg-[var(--warning)] px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] text-[#100f0d] shadow-[4px_4px_0_var(--accent)]">
+        <span className="mb-7 rotate-1 border-2 border-[var(--rp-outline)] bg-[var(--warning)] px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] text-[var(--on-accent,#100f0d)] shadow-[4px_4px_0_var(--accent)]">
           {getCopy(design, "loadingTag")}
         </span>
         <p className="text-center text-[clamp(3.4rem,12vw,7.5rem)] font-black uppercase leading-[0.72] tracking-[-0.075em] drop-shadow-[3px_3px_0_var(--accent)]">

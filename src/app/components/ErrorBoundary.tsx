@@ -31,9 +31,9 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
     if (!this.state.error) return this.props.children;
     const inPreview = typeof window !== "undefined" && window.location.search.includes("preview=true");
     return (
-      <div role="alert" style={{ minHeight: "100vh", background: "#000", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, textAlign: "center", fontFamily: "system-ui, sans-serif" }}>
+      <div role="alert" style={{ minHeight: "100vh", background: "var(--bg-color, #000)", color: "var(--text-color, #fff)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, textAlign: "center", fontFamily: "system-ui, sans-serif" }}>
         <p style={{ fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase" }}>{getCopy(cachedDesign(), "errorTitle")}</p>
-        <button onClick={() => window.location.reload()} style={{ border: "2px solid #fff", background: "#e8402a", color: "#100f0d", padding: "10px 20px", fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", fontSize: 11 }}>
+        <button onClick={() => window.location.reload()} style={{ border: "2px solid var(--rp-outline, #fff)", background: "var(--accent, #e8402a)", color: "var(--on-accent, #100f0d)", padding: "10px 20px", fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", fontSize: 11 }}>
           {getCopy(cachedDesign(), "errorReload")}
         </button>
         {inPreview && <pre style={{ maxWidth: 560, whiteSpace: "pre-wrap", fontSize: 11, opacity: 0.7 }}>{String(this.state.error?.message || this.state.error)}</pre>}

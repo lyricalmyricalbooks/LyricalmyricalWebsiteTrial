@@ -174,9 +174,9 @@ export function CurrencySelector({ label = "CURRENCY", ariaLabel = "Select curre
           aria-label={ariaLabel}
           className="bg-transparent border-none outline-none text-[9px] font-black tracking-widest text-current cursor-pointer uppercase appearance-none pr-4"
         >
-          <option value="CAD" className="bg-[#050508] text-white">CAD</option>
-          <option value="USD" className="bg-[#050508] text-white">USD</option>
-          <option value="EUR" className="bg-[#050508] text-white">EUR</option>
+          <option value="CAD" className="bg-[var(--surface,#050508)] text-[var(--text-color,#fff)]">CAD</option>
+          <option value="USD" className="bg-[var(--surface,#050508)] text-[var(--text-color,#fff)]">USD</option>
+          <option value="EUR" className="bg-[var(--surface,#050508)] text-[var(--text-color,#fff)]">EUR</option>
         </select>
         <ChevronDown size={10} className="absolute right-3 pointer-events-none opacity-40 group-hover:opacity-80 transition-opacity" />
       </div>

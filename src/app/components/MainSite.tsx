@@ -44,10 +44,10 @@ import { SearchOverlay } from "../features/site/SearchOverlay";
 // ──────────────────────────────
 const STICKER_ROTATIONS = [-2, 1.5, 2, -1, 1, -1.5];
 const STICKER_ACTIVE_COLORS = [
-  { bg: "var(--accent, #e8402a)", text: "#ffffff" },
-  { bg: "var(--success, #34d399)", text: "#04150f" },
-  { bg: "var(--warning, #f5b942)", text: "#2b1a05" },
-  { bg: "var(--danger, #fb7185)", text: "#2b0810" },
+  { bg: "var(--accent, #e8402a)", text: "var(--on-accent, #ffffff)" },
+  { bg: "var(--success, #34d399)", text: "var(--on-success, #04150f)" },
+  { bg: "var(--warning, #f5b942)", text: "var(--on-accent, #2b1a05)" },
+  { bg: "var(--danger, #fb7185)", text: "var(--on-accent, #2b0810)" },
 ];
 const STICKER_PILL_CSS =
   ".fm-sticker-pill{transition:all .2s ease}.fm-sticker-pill:hover{transform:rotate(0deg) scale(1.08)!important;opacity:1!important}";

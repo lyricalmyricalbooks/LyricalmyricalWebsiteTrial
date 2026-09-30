@@ -60,6 +60,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "bodyFont", label: "Body font (Google Fonts)", kind: "select", options: FONT_SELECT_OPTIONS },
       { key: "navFont", label: "Header & menu font (Google Fonts)", kind: "select", options: [{ value: "", label: "Same as body font" }, ...FONT_SELECT_OPTIONS] },
       { key: "wordmarkFont", label: "Logo wordmark font (Google Fonts)", kind: "select", options: [{ value: "", label: "Same as heading font" }, ...FONT_SELECT_OPTIONS] },
+      { key: "font", label: "Theme font (overrides body font — clear it to use Body font)", kind: "text" },
       { key: "baseFontSize", label: "Base text size", kind: "range", min: 12, max: 22, step: 1, suffix: "px" },
       { key: "lineHeight", label: "Line height", kind: "range", min: 1, max: 2.4, step: 0.05 },
       { key: "headingWeight", label: "Heading weight", kind: "select", options: weights },
