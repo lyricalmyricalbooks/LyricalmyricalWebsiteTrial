@@ -17,7 +17,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
   if (items.length === 0 || (settings?.design as any)?.showRecentlyViewed === false) return null;
 
   return (
-    <section className="border-t border-white/[0.06]">
+    <section className="border-t border-white/[0.06]" data-studio-target="copy:Collection & wishlist pages|style:footer" data-studio-label="Recently viewed">
       <div className="max-w-8xl mx-auto px-6 py-14">
         <div className="flex items-center gap-6 mb-8">
           <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">

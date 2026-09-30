@@ -101,6 +101,7 @@ export function SearchOverlay({
           className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-start justify-center pt-24 px-4"
           onClick={onClose}
           role="dialog"
+          data-studio-target="copy:Search & filters" data-studio-label="Search overlay"
           aria-modal="true"
           aria-label={c("searchDialogAria")}
         >

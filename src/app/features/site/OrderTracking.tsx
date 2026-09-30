@@ -116,7 +116,7 @@ export default function OrderTracking() {
   };
 
   return (
-    <div data-fm-store className="min-h-screen fm-page text-white font-sans selection:bg-[rgba(var(--accent-rgb),0.3)] relative overflow-hidden pb-24">
+    <div data-fm-store data-studio-target="copy:Order tracking|style:colors" data-studio-label="Order tracking page" className="min-h-screen fm-page text-white font-sans selection:bg-[rgba(var(--accent-rgb),0.3)] relative overflow-hidden pb-24">
       <StorefrontThemeStyle design={settings?.design} />
       {/* Ambient background glow */}
       <div
@@ -370,7 +370,7 @@ export default function OrderTracking() {
                   )}
                   <div className="flex justify-between">
                     <span className="text-[10px] font-black uppercase tracking-[0.25em] fm-muted">{getCopy(settings?.design, "summaryShipping")}</span>
-                    <span className="font-mono text-white/80">{order.shipping > 0 ? orderFormatPrice(order.shipping) : "FREE"}</span>
+                    <span className="font-mono text-white/80">{order.shipping > 0 ? orderFormatPrice(order.shipping) : getCopy(settings?.design, "coFree")}</span>
                   </div>
                   {order.tax > 0 && (
                     <div className="flex justify-between">

@@ -95,7 +95,7 @@ function MaintenancePage({ message, design }: { message?: string; design?: any }
   const c = (key: string) => getCopy(design, key);
 
   return (
-    <div data-fm-store className="fm-page min-h-screen text-white flex flex-col items-center justify-center gap-6 text-center px-6">
+    <div data-fm-store data-studio-target="copy:Maintenance page" data-studio-label="Maintenance page" className="fm-page min-h-screen text-white flex flex-col items-center justify-center gap-6 text-center px-6">
       <StorefrontThemeStyle design={design} />
       <span className="rotate-1 border-2 border-[var(--rp-outline)] bg-[var(--accent)] px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] text-[var(--on-accent)] shadow-[4px_4px_0_var(--rp-shadow-color)]">
         {c("maintenanceTag")}
@@ -149,7 +149,7 @@ function Newsletter({ design }: { design?: any }) {
   };
 
   return (
-    <div className="py-16 border-t border-white/10 text-center space-y-6">
+    <div data-studio-target="copy:Newsletter|style:footer" data-studio-label="Newsletter box" className="py-16 border-t border-white/10 text-center space-y-6">
       <div className="space-y-2">
         <h3 className="text-lg font-bold tracking-tight">{getCopy(design, "newsletterHeading")}</h3>
         <p className="text-white/40 text-xs tracking-widest max-w-sm mx-auto">
@@ -262,12 +262,13 @@ function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
   const headingFontFamily = d?.headingFont ? `'${d.headingFont}', serif` : undefined;
   return (
     <footer
+      data-studio-target="style:footer|copy:Footer" data-studio-label="Footer"
       className="border-t-2 border-white/30 bg-black/40"
       style={d?.footerBg ? { backgroundColor: d.footerBg } : undefined}
     >
       <div className={`max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 ${fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/70`}>
         {/* Col 1: Brand */}
-        <div className="space-y-4">
+        <div className="space-y-4" data-studio-target="copy:Footer|style:logo" data-studio-label="Footer brand">
           {d?.wordmarkStyle === "two-part" ? (
             <p className="text-white text-xl" style={{ fontFamily: headingFontFamily, fontWeight: d?.wordmarkWeight ?? 600, letterSpacing: "-0.01em" }}>
               {d.wordmarkPrimary || "Lyricalmyrical"} <span className="opacity-60">{d.wordmarkSecondary || "Books"}</span>
@@ -281,7 +282,7 @@ function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
         </div>
 
         {/* Col 2: Navigation */}
-        <div className="space-y-3">
+        <div className="space-y-3" data-studio-target="menus:footer|copy:Footer|pages" data-studio-label="Footer links">
           <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerNavHeading")}</p>
           {settings?.design?.menus?.footer?.length > 0 ? (
             <FooterMenu items={settings.design.menus.footer} />
@@ -310,7 +311,7 @@ function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
         </div>
 
         {/* Col 3: Policies / Info */}
-        <div className="space-y-3">
+        <div className="space-y-3" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer legal & location">
           <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLegalHeading")}</p>
           {POLICY_KEYS.filter((k) => (settings?.policies as any)?.[k]?.trim()).map((k) => (
             <p key={k}><Link to={`/page/${policySlug(k)}`} className="hover:text-white transition-colors">{POLICY_TITLES[k]}</Link></p>
@@ -320,7 +321,7 @@ function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
 
         {/* Col 4: Location (4-column layout only) */}
         {fourCol && (
-          <div className="space-y-3">
+          <div className="space-y-3" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer location">
             <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLocationHeading")}</p>
             <p>{getCopy(settings?.design, "footerLocation")}</p>
             <a
@@ -340,7 +341,7 @@ function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
         </p>
 
         {resolveFooterBadges(d, settings).length > 0 && d?.showPaymentBadges !== false && (
-          <div className="flex items-center gap-4 text-white/55 select-none">
+          <div className="flex items-center gap-4 text-white/55 select-none" data-studio-target="style:paymentIcons|style:footer" data-studio-label="Payment icons">
             {resolveFooterBadges(d, settings).map((badgeId: string) => {
               const icon = PAYMENT_ICONS[badgeId];
               if (!icon) return null;
@@ -809,7 +810,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   {
     return (
       <div
-        data-fm-store
+        data-fm-store data-studio-target="style:colors|style:type|style:layout" data-studio-label="Page background, colours & fonts"
         className="min-h-screen overflow-y-auto selection:bg-white selection:text-black"
         style={{ fontFamily: `'${resolveTypography(storefrontDesign).body}', sans-serif`, backgroundColor: storefrontBg, color: storefrontText }}
       >
@@ -821,6 +822,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           storefrontDesign?.announcementScrolling ? (
             <div
               data-section="announcements"
+              data-studio-target="style:header" data-studio-label="Announcement bar"
               className="overflow-hidden py-2.5 sticky top-0 z-[60]"
               style={{
                 backgroundColor: storefrontDesign?.announcementBg || "#e8402a",
@@ -846,6 +848,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           ) : (
             <div
               data-section="announcements"
+              data-studio-target="style:header" data-studio-label="Announcement bar"
               className="text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]"
               style={{
                 backgroundColor: storefrontDesign?.announcementBg || "#e8402a",
@@ -859,6 +862,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
         <header
           data-section="navigation"
+          data-studio-target="style:header|menus:header-order|copy:Header" data-studio-label="Header"
           className={`${storefrontDesign?.stickyHeader ?? true ? "sticky" : "relative"} ${showAnnouncement && announcementMsg ? "top-10" : "top-0"} z-50 transition-all duration-500 ${isHeaderTransparent ? "border-transparent" : isReferenceCatalog ? "" : "backdrop-blur-xl border-b"}`}
           style={{
             backgroundColor: headerBgColor,
@@ -873,7 +877,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   className="text-left font-black tracking-tight leading-none hover:opacity-80 transition-opacity"
                   style={{ color: headerTextColor, textTransform: storefrontDesign?.brandTransform || "none", fontSize: `clamp(${catalogMastheadMobile}px, 5vw, ${catalogMastheadDesktop}px)` }}
                 >
-                  {catalogMastheadText}
+                  <span data-studio-target="style:catalogLayout|style:logo" data-studio-label="Masthead">{catalogMastheadText}</span>
                 </button>
                 {showBag && catalogCartPlacement === "top-right" && (
                   <button
@@ -892,7 +896,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 )}
               </div>
               <div className="mt-6" style={{ borderTop: `${storefrontHeaderRuleWidth}px solid ${storefrontDesign?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
-              <div className="py-5 flex flex-wrap items-center text-base font-black" style={{ columnGap: catalogNavGapDesktop, rowGap: catalogNavGapMobile }}>
+              <div data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className="py-5 flex flex-wrap items-center text-base font-black" style={{ columnGap: catalogNavGapDesktop, rowGap: catalogNavGapMobile }}>
                 {categories.filter((c: any) => c.showInNav !== false).slice(0, storefrontDesign?.referenceCategoryLimit ?? 1).map((cat: any) => {
                   const catName = typeof cat === "string" ? cat : cat.name;
                   const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === catName;
@@ -927,11 +931,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   style={{ color: headerTextColor }}
                   className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
-                  <LogoMark design={storefrontLogoDesign} />
+                  <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
                 </button>
               )}
               
-              <nav className={`hidden md:flex ${storefrontDesign?.navStyle === "stickers" ? "gap-2 items-center" : "gap-6"}`}>
+              <nav data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className={`hidden md:flex ${storefrontDesign?.navStyle === "stickers" ? "gap-2 items-center" : "gap-6"}`}>
                 {navItems.map((item, itemIdx) => {
                   const stickers = storefrontDesign?.navStyle === "stickers";
                   if (item.kind === "page") {
@@ -981,20 +985,20 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   style={{ color: headerTextColor }}
                   className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
-                  <LogoMark design={storefrontLogoDesign} />
+                  <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
                 </button>
               </div>
             )}
 
             {/* Right Section */}
-            <div className={`flex gap-6 md:gap-8 items-center flex-1 justify-end ${storefrontLogoPosition === "right" ? "flex-initial" : ""}`}>
+            <div data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex gap-6 md:gap-8 items-center flex-1 justify-end ${storefrontLogoPosition === "right" ? "flex-initial" : ""}`}>
               {storefrontLogoPosition === "right" && (
                 <button 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
                   className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
-                  <LogoMark design={storefrontLogoDesign} />
+                  <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
                 </button>
               )}
 
@@ -1102,7 +1106,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
           {/* Catalog heading + title count */}
           {(storefrontDesign?.catalogHeading || storefrontDesign?.showCatalogCount) && (
-            <div className="flex items-baseline justify-between flex-wrap gap-4 mb-8">
+            <div data-studio-target="style:catalog" data-studio-label="Catalog heading" className="flex items-baseline justify-between flex-wrap gap-4 mb-8">
               {storefrontDesign?.catalogHeading && (
                 <h1 className="text-3xl md:text-5xl tracking-tight m-0">{storefrontDesign.catalogHeading}</h1>
               )}
@@ -1116,7 +1120,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
           {/* Category filter chips */}
           {storefrontDesign?.showCategoryChips && (
-            <div className="flex gap-2.5 flex-wrap mb-10">
+            <div data-studio-target="menus:categories|style:catalog" data-studio-label="Category chips" className="flex gap-2.5 flex-wrap mb-10">
               {[{ name: "ALL", value: "ALL" as any }, ...categories.filter((c: any) => c.showInNav !== false).map((c: any) => ({ name: typeof c === "string" ? c : c.name, value: c }))].map((chip: any) => {
                 const isActive = chip.value === "ALL"
                   ? activeCategory === "ALL"
@@ -1196,7 +1200,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             </p>
           )}
 
-          <div className={`grid ${mobileColsClass} ${desktopColsClass}`} style={{ gap: storefrontGridGap, rowGap: isReferenceCatalog ? Math.max(40, storefrontGridGap * 3) : shopSectionSpacing }}>
+          <div data-studio-target="style:products|style:catalogLayout|copy:Catalog & empty states" data-studio-label="Product grid" className={`grid ${mobileColsClass} ${desktopColsClass}`} style={{ gap: storefrontGridGap, rowGap: isReferenceCatalog ? Math.max(40, storefrontGridGap * 3) : shopSectionSpacing }}>
             {filteredItems.map((item: any, index: number) => {
               const slug = getBookSlug(item);
               const stock = item.stockLevel ?? 999;
@@ -1340,7 +1344,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         {!onHome && !activeDesign?.hideNewsletter && <Newsletter design={settings?.design} />}
         <SiteFooter settings={settings} pages={pages} />
         {(storefrontDesign?.showPoweredBy ?? false) && (
-          <p className="text-center pb-8 text-[9px] tracking-[0.3em] uppercase opacity-50">{getCopy(activeDesign, "poweredBy")}</p>
+          <p data-studio-target="copy:Header|style:footer" data-studio-label="Powered-by line" className="text-center pb-8 text-[9px] tracking-[0.3em] uppercase opacity-50">{getCopy(activeDesign, "poweredBy")}</p>
         )}
 
         <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} design={activeDesign} />

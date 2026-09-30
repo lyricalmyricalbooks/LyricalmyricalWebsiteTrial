@@ -1,4 +1,11 @@
 import { Component, type ReactNode } from "react";
+import { getCopy } from "../features/site/storeCopy";
+import { SITE_CACHE_KEY } from "../features/site/constants";
+
+// The boundary sits above the data providers, so it reads the last-seen design from the site cache.
+function cachedDesign(): any {
+  try { return JSON.parse(sessionStorage.getItem(SITE_CACHE_KEY) || "null")?.settings?.design || {}; } catch { return {}; }
+}
 
 /**
  * Last-resort guard so a rendering error shows a readable message instead of a blank page.
@@ -25,9 +32,9 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
     const inPreview = typeof window !== "undefined" && window.location.search.includes("preview=true");
     return (
       <div role="alert" style={{ minHeight: "100vh", background: "#000", color: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, padding: 24, textAlign: "center", fontFamily: "system-ui, sans-serif" }}>
-        <p style={{ fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase" }}>Something went wrong</p>
+        <p style={{ fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase" }}>{getCopy(cachedDesign(), "errorTitle")}</p>
         <button onClick={() => window.location.reload()} style={{ border: "2px solid #fff", background: "#e8402a", color: "#100f0d", padding: "10px 20px", fontWeight: 800, letterSpacing: "0.2em", textTransform: "uppercase", fontSize: 11 }}>
-          Reload
+          {getCopy(cachedDesign(), "errorReload")}
         </button>
         {inPreview && <pre style={{ maxWidth: 560, whiteSpace: "pre-wrap", fontSize: 11, opacity: 0.7 }}>{String(this.state.error?.message || this.state.error)}</pre>}
       </div>

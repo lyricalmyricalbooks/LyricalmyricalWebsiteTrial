@@ -78,7 +78,7 @@ export function PageView() {
   const isPolicySlug = /^policy-/.test(slug || "");
   if (loading || (isPolicySlug && siteLoading && !page)) {
     return (
-      <div data-fm-store className="min-h-screen fm-page flex items-center justify-center">
+      <div data-fm-store data-studio-target="pages|copy:Custom pages & 404" data-studio-label="Page" className="min-h-screen fm-page flex items-center justify-center">
         <StorefrontThemeStyle design={settings?.design} />
         <p className="text-white/40 text-[10px] tracking-[0.4em] uppercase animate-pulse">
           {getCopy(settings?.design, "pageLoading")}
@@ -90,7 +90,7 @@ export function PageView() {
   const shown = page || policyPage;
   if (!shown) {
     return (
-      <div data-fm-store className="min-h-screen fm-page text-white flex flex-col items-center justify-center gap-4">
+      <div data-fm-store data-studio-target="copy:Custom pages & 404|pages" data-studio-label="Not-found page" className="min-h-screen fm-page text-white flex flex-col items-center justify-center gap-4">
         <StorefrontThemeStyle design={settings?.design} />
         <p className="text-7xl font-black text-white/30" data-theme-field="notFoundCode">{getCopy(settings?.design, "notFoundCode")}</p>
         <p className="text-white/60 font-medium">{getCopy(settings?.design, "notFoundTitle")}</p>
@@ -107,7 +107,7 @@ export function PageView() {
 
   return (
     <div
-      data-fm-store
+      data-fm-store data-studio-target="pages|copy:Custom pages & 404|style:colors" data-studio-label="Page"
       className={`min-h-screen ${themed ? "" : "bg-white"}`}
       style={themed ? { backgroundColor: themedBg, color: themedText } : undefined}
     >

@@ -1,3 +1,4 @@
+import { getCopy } from "../features/site/storeCopy";
 // ──────────────────────────────
 // Brand logo (image, tinted image, or wordmark text)
 //
@@ -44,7 +45,7 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
       const maskUrl = `url("${design.logoUrl}")`;
       return (
         <span
-          aria-label="Logo"
+          aria-label={getCopy(design, "logoAlt")}
           style={{
             display: "inline-block",
             height,
@@ -64,7 +65,7 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
         </span>
       );
     }
-    return <img src={design.logoUrl} alt="Logo" className="object-contain" style={{ height }} />;
+    return <img src={design.logoUrl} alt={getCopy(design, "logoAlt")} className="object-contain" style={{ height }} />;
   }
 
   return logoColor ? <span style={{ color: logoColor }}>{text}</span> : <>{text}</>;
