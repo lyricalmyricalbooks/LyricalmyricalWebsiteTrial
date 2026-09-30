@@ -23,6 +23,7 @@ import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 import { resolveLogoDesign } from "./selectors";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "./themeTokens";
+import { aspectRatioValue } from "./imageAspect";
 
 // ── small helper ────────────────────────────────────────────────────────────
 function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
@@ -91,6 +92,8 @@ export default function BookDetail() {
   const productImageGlowColor  = storefrontDesign.productImageGlowColor  || primaryColor;
   const productImageShadow     = storefrontDesign.productImageShadow     || "lg";
   const productImageHoverScale  = storefrontDesign.productImageHoverScale  ?? 1.05;
+  const productImageMaxWidth   = Math.max(320, Math.min(900, Number(storefrontDesign.productImageMaxWidth) || 560));
+  const productImageAspect     = aspectRatioValue(storefrontDesign.productImageAspect && storefrontDesign.productImageAspect !== "grid" ? storefrontDesign.productImageAspect : storefrontDesign.imageAspectRatio || "3:4");
   const productDetailsLayout   = storefrontDesign.productDetailsLayout   || "sections";
   const productCtaAnimation    = storefrontDesign.productCtaAnimation    || "none";
   const productCtaWidth        = storefrontDesign.productCtaWidth        || "full";
@@ -416,18 +419,18 @@ export default function BookDetail() {
           }`}>
 
             {/* ── PHOTO COLUMN ── */}
-            <div data-section="products" className="space-y-4">
+            <div data-section="products" className="space-y-4 w-full mx-auto lg:mx-0 lg:justify-self-end" style={{ maxWidth: productImageMaxWidth }}>
               {productImageLayout === "slider" ? (
                 <>
                   {/* Main image */}
                   <div 
-                    className={`relative aspect-[3/4] overflow-hidden fm-surface transition-all duration-300 ${
+                    className={`relative overflow-hidden fm-surface transition-all duration-300 ${
                       productImageShadow === "none" ? "shadow-none" :
                       productImageShadow === "sm" ? "shadow-sm" :
                       productImageShadow === "md" ? "shadow-md" :
                       productImageShadow === "xl" ? "shadow-[0_50px_150px_rgba(0,0,0,0.85)]" : "shadow-[0_40px_120px_rgba(0,0,0,0.7)]"
                     }`}
-                    style={{ borderRadius: `${productBorderRadius}px` }}
+                    style={{ borderRadius: `${productBorderRadius}px`, aspectRatio: productImageAspect }}
                   >
 
                     {/* shimmer */}
@@ -440,7 +443,9 @@ export default function BookDetail() {
                         key={activePhoto}
                         src={activeUrl}
                         alt={`${book.title} — view ${activePhoto + 1}`}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
+                        decoding="async"
+                        {...(activePhoto === 0 ? { fetchpriority: "high" } : {})}
                         initial={{ opacity: 0, scale: 1.04 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0 }}
@@ -548,7 +553,7 @@ export default function BookDetail() {
                               : "border-white/[0.08] opacity-40 hover:opacity-70 hover:border-white/20"
                           }`}
                         >
-                          <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                          <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
                         </button>
                       ))}
                     </div>
@@ -557,8 +562,8 @@ export default function BookDetail() {
               ) : productImageLayout === "grid" ? (
                 <div className="grid grid-cols-2 gap-4">
                   {photos.map((photo: any, i: number) => (
-                    <div key={i} className={`${i === 0 ? "col-span-2" : ""} relative aspect-[3/4] fm-surface rounded-[1.5rem] overflow-hidden`}>
-                      <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                    <div key={i} className={`${i === 0 ? "col-span-2" : ""} relative fm-surface rounded-[1.5rem] overflow-hidden`} style={{ aspectRatio: productImageAspect }}>
+                      <img src={photo.url} alt="" loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className="w-full h-full object-contain" />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
                           <span
@@ -579,8 +584,8 @@ export default function BookDetail() {
               ) : (
                 <div className="space-y-4">
                   {photos.map((photo: any, i: number) => (
-                    <div key={i} className="relative aspect-[3/4] fm-surface rounded-[1.5rem] overflow-hidden">
-                      <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                    <div key={i} className="relative fm-surface rounded-[1.5rem] overflow-hidden" style={{ aspectRatio: productImageAspect }}>
+                      <img src={photo.url} alt="" loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className="w-full h-full object-contain" />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
                           <span

@@ -5,6 +5,7 @@ import { Link, useNavigate, useLocation } from "react-router";
 import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyPages";
 import { useCart } from "../CartContext";
 import { CATEGORIES, DEFAULT_IMAGE } from "../features/site/constants";
+import { aspectRatioValue } from "../features/site/imageAspect";
 import {
   getFeaturedBooks,
   getFilteredItems,
@@ -715,7 +716,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontGridGap = Math.max(8, Math.min(72, storefrontDesign?.catalogGridGap ?? (isReferenceCatalog ? 18 : 32)));
   const storefrontHeaderRuleWidth = Math.max(0, Math.min(8, storefrontDesign?.catalogHeaderRuleWidth ?? (isReferenceCatalog ? 4 : 1)));
   const storefrontHeaderMaxWidth = Math.max(900, Math.min(1800, storefrontDesign?.catalogHeaderWidth ?? storefrontMaxWidth));
-  const storefrontImageFit = storefrontDesign?.catalogImageFit === "contain" ? "object-contain" : "object-cover";
+  const storefrontImageFit = storefrontDesign?.catalogImageFit === "cover" ? "object-cover" : "object-contain";
   const storefrontTitleTransform = (storefrontDesign?.catalogTitleTransform || (isReferenceCatalog ? "none" : "uppercase")) as any;
   const catalogMastheadDesktop = Math.max(28, Math.min(96, storefrontDesign?.catalogMastheadDesktop ?? 58));
   const catalogMastheadMobile = Math.max(24, Math.min(72, storefrontDesign?.catalogMastheadMobile ?? 38));
@@ -750,11 +751,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   const shopSectionSpacing = Math.max(24, Math.min(120, storefrontDesign?.sectionSpacing ?? 64));
   const imageAspect = storefrontDesign?.imageAspectRatio || (isReferenceCatalog ? "1:1" : "3:4");
-  const imageAspectClass = imageAspect === "1:1"
-    ? "aspect-square"
-    : imageAspect === "2:3"
-    ? "aspect-[2/3]"
-    : "aspect-[3/4]";
+  const imageAspectStyle = aspectRatioValue(imageAspect);
   const mobileColsClass = storefrontMobileColumns === 1 ? "grid-cols-1" : storefrontMobileColumns === 3 ? "grid-cols-3" : "grid-cols-2";
   const desktopColsClass =
     storefrontDesktopColumns === 2
@@ -1238,7 +1235,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     <Heart size={13} fill={wished ? "currentColor" : "none"} />
                   </button>
                   <Link to={`/books/${slug}`}>
-                    <div className={`relative ${imageAspectClass} fm-surface mb-4 overflow-hidden ${isReferenceCatalog ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius }}>
+                    <div className={`relative fm-surface mb-4 overflow-hidden ${isReferenceCatalog ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius, aspectRatio: imageAspectStyle }}>
                       <SkeletonImage
                         src={item.photos?.[0]?.url || DEFAULT_IMAGE}
                         alt={item.title}

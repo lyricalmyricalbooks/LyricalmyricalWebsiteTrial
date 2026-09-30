@@ -38,6 +38,7 @@ import { CATEGORIES } from "../features/site/constants";
 import { Book, Variant } from "../features/site/types";
 import { useCurrency } from "../CurrencyContext";
 import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs } from "./riso/components";
+import { prepareProductImage } from "./prepareImage";
 
 type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "organize" | "seo";
 
@@ -455,7 +456,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     setUploading(true);
     try {
       for (const file of list.slice(0, room)) {
-        const url = await adminApi.uploadFile(file, `products/${Date.now()}-${file.name}`);
+        const ready = await prepareProductImage(file);
+        const url = await adminApi.uploadFile(ready, `products/${Date.now()}-${ready.name}`);
         setFormData((prev: any) => ({ ...prev, photos: [...prev.photos, { url, id: Math.random().toString(36).substr(2, 9), altText: file.name.replace(/\.[^.]+$/, "") }] }));
       }
     } catch (err: any) {
