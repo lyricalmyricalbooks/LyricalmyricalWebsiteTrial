@@ -111,7 +111,9 @@ section/block outline, inspector, Edit/Browse preview and draft workflow are
 the primary editing surfaces. Keep the legacy `ThemeEditor.tsx` contracts in
 sync where shared registry controls or renderers change. Custom pages created
 in Studio join the storefront header by default, and their public routes render
-the themed storefront header.
+the themed storefront header. The iframe preview receives the unsaved design,
+settings, catalog and published-page collection as one live snapshot; preserve
+that full-state contract when adding Studio-editable storefront data.
 
 1. **Read `docs/THEME_EDITOR.md` first**, plus the whole section/block system —
    `ThemeEditor.tsx`, `ThemeEditorExtensions.tsx` (the `SECTION_REGISTRY`),

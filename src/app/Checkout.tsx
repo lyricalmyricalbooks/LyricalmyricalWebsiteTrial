@@ -217,7 +217,8 @@ export function Checkout() {
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("preview") !== "true") return;
     const receive = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.source !== window.parent || event.data?.type !== "THEME_UPDATE" || !event.data.design) return;
+      if (event.origin !== window.location.origin || event.source !== window.parent
+        || !["THEME_UPDATE", "STUDIO_PREVIEW_STATE"].includes(event.data?.type) || !event.data.design) return;
       setSettings((current: any) => ({ ...current, design: resolveSurfaceDesign(event.data.design, "/checkout") }));
     };
     window.addEventListener("message", receive);

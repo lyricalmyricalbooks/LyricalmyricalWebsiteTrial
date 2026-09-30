@@ -108,7 +108,15 @@ export function useSiteData() {
       if (event.origin && (event.origin !== window.location.origin || (window.parent !== window && event.source !== window.parent))) return;
       if (!event.data) return;
 
-      if (event.data.type === "THEME_UPDATE" && event.data.design && typeof event.data.design === "object") {
+      if (event.data.type === "STUDIO_PREVIEW_STATE") {
+        const preview = event.data;
+        if (preview.design && typeof preview.design === "object") {
+          (window as any).__studioPreviewDesign = preview.design;
+          setSettings((prev) => ({ ...prev, ...(preview.settings || {}), design: preview.design }));
+        }
+        if (Array.isArray(preview.books)) setBooks(preview.books);
+        if (Array.isArray(preview.pages)) setPages(preview.pages);
+      } else if (event.data.type === "THEME_UPDATE" && event.data.design && typeof event.data.design === "object") {
         (window as any).__studioPreviewDesign = event.data.design;
         setSettings((prev) => ({
           ...prev,

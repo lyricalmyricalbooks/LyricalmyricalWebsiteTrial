@@ -28,8 +28,12 @@ The editor is **not** a blank slate. It already supports:
   All-pages changes are copied to every static and dynamic template while
   preserving each template's section stack.
 - **Section presets** (save/reuse a configured section).
-- **Live preview** via an iframe `postMessage` channel (`THEME_UPDATE`) with
-  click-to-edit (the preview can request a section be opened in the editor).
+- **Live preview** via an iframe `postMessage` channel with click-to-edit (the
+  preview can request a section be opened in the editor). `STUDIO_PREVIEW_STATE`
+  sends the complete unsaved design plus current books, published pages and
+  non-design settings, so colors, navigation and newly created pages update
+  together without an iframe reload; `THEME_UPDATE` remains supported for
+  legacy callers.
 - **Import/export** of a theme design as JSON (in `ThemeEditorPro`).
 - A **token/CSS-variable layer** applied to every storefront surface.
 
@@ -339,6 +343,11 @@ library → verify), then check it off.
       snapshot on every template. Studio also sends a schema-derived editable
       field map, so safe text/textarea fields can be edited in the canvas even
       when a renderer does not carry a handwritten `data-theme-field` hook.
+- [x] Studio iframe preview state is atomic: `STUDIO_PREVIEW_STATE` carries the
+      unsaved design, settings, books and published pages on every relevant
+      change and again after every preview navigation/ready handshake. This
+      keeps colors, menus, page content and newly created pages in sync without
+      relying on a second Firestore read or timing-sensitive iframe reload.
 - [x] Double-click-to-edit (`TEXT_EDIT` postMessage) now has broad `data-theme-field`
       coverage: nearly every section-level `text`/`textarea` field across the 27
       renderers in `SectionComponents.tsx` is wired (title/subtitle/eyebrow/CTA/body

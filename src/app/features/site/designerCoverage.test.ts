@@ -62,6 +62,17 @@ describe("the public website is fully editable in Studio", () => {
     expect(offenders, "use a design key (`design.x || \"rgba(...)\"`) or `var(--token, rgba(...))` and add a Studio control").toEqual([]);
   });
 
+  it("has no fixed Tailwind colour classes: each one the storefront uses is re-pointed at a Studio token", async () => {
+    const { scanStorefrontColorClasses } = await import("./storefrontColorScan");
+    const { STOREFRONT_COLOR_CLASSES } = await import("./storefrontColorClasses");
+    const { colorUtilityCss } = await import("./themeTokens");
+    const listed = new Set(STOREFRONT_COLOR_CLASSES);
+    const unlisted = scanStorefrontColorClasses(APP).filter((c) => !listed.has(c));
+    expect(unlisted, "add these to storefrontColorClasses.ts so themeTokens.ts maps them to Studio colours").toEqual([]);
+    const unmapped = STOREFRONT_COLOR_CLASSES.filter((c) => !colorUtilityCss(c));
+    expect(unmapped, "teach colorUtilityCss (themeTokens.ts) a token for these, or use a token class (fm-muted, fm-accent-text …)").toEqual([]);
+  });
+
   it("gives every section default a Content field (lists are edited as blocks)", async () => {
     const { SECTION_REGISTRY, getSectionFields } = await import("../../admin/ThemeEditorExtensions");
     const missing: string[] = [];

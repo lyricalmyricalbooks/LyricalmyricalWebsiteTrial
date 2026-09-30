@@ -166,7 +166,10 @@ guard Publish/Discard. Reusable/copyable sections, scheduled visibility,
 phone overrides, canvas reordering and pre-publish checks also live in Studio. These live in
 `studio/StudioEditor.tsx`, `StudioOutline.tsx`, `StudioInspector.tsx` and
 `useStudioPersistence.ts`; `themeWrite.ts` replaces complete design maps when
-saving so removed page overrides do not reappear.
+saving so removed page overrides do not reappear. The iframe receives an atomic
+`STUDIO_PREVIEW_STATE` snapshot of the unsaved design, settings, books and
+published pages, keeping colors, menus and newly created page content live
+across preview navigation without another Firestore read.
 
 Studio also supports three-level recursive composition blocks through the
 **Flexible composition** section. Groups can contain text, image, button, or
@@ -271,6 +274,16 @@ nested blocks across more section types remains a follow-up):
 > (`var(--token, #hex)`) — the hex may only be a fallback. Every section default needs a Content
 > field (lists are edited as blocks). `features/site/designerCoverage.test.ts` enforces both,
 > alongside `studioCoverage`, `storeCopy.coverage`, `studioTargets` and `themeLibrary` tests.
+> Tailwind colour classes count too: every one the storefront uses (incl. `hover:`/`focus:`/
+> `group-hover:`/`selection:`/`md:` variants) must be listed in `features/site/storefrontColorClasses.ts`,
+> which `colorUtilityCss` in `themeTokens.ts` re-points at a Studio token (greys → text/muted/surface,
+> black → overlay/page colour, hues → accent/success/warning/danger). `designerCoverage.test.ts` fails
+> on an unlisted or unmappable class — add it to the list rather than hard-coding a colour.
+
+**Custom pages share one look:** Studio › Style › **Custom pages** (`page*` design keys, `sitePageStyle`
+in `PageView.tsx`) sets eyebrow, title size/case/colour, text size/colour, alignment and column
+width for every custom page. Each "Page content" section follows it unless its **Style this page on
+its own** switch (`ownStyle`) is on; pages without that section render the same component.
 
 > [!IMPORTANT]
 > **Sentences that reach shoppers indirectly are copy too.** Error messages (`new Error("…")`),

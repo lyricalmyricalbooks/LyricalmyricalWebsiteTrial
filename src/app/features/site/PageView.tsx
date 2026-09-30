@@ -12,8 +12,25 @@ import { getCopy } from "./storeCopy";
 import { StorefrontPageHeader } from "./StorefrontPageHeader";
 
 
-// Mirrors the "Page content" section defaults in ThemeEditorExtensions SECTION_REGISTRY.
-const PAGE_CONTENT_DEFAULTS = { showEyebrow: true, showTitle: true, showBody: true, titleSize: "md", bodySize: "md", align: "left", maxWidth: "narrow" };
+/**
+ * The site-wide custom-page look (Studio › Style › Custom pages). Every "Page content" section
+ * follows it unless switched to its own style, so all custom pages match. Values after `||`
+ * are only first-run fallbacks.
+ */
+export function sitePageStyle(design: any, eyebrow: string): Record<string, any> {
+  const d = design || {};
+  return {
+    showEyebrow: d.pageShowEyebrow !== false,
+    eyebrow,
+    titleSize: d.pageTitleSize || "md",
+    titleUppercase: d.pageTitleUppercase !== false,
+    bodySize: d.pageBodySize || "md",
+    align: d.pageAlign || "left",
+    maxWidth: d.pageWidth || "narrow",
+    textColor: d.pageTextColor || undefined,
+    headingColor: d.pageTitleColor || undefined,
+  };
+}
 
 export function PageView() {
   const { slug } = useParams<{ slug: string }>();
@@ -76,6 +93,7 @@ export function PageView() {
   // "theme" chrome renders the page in the storefront's colors/wordmark;
   // default "classic" keeps the original white editorial page.
   const themed = d?.pageChromeStyle === "theme";
+  const pageStyle = sitePageStyle(d, getCopy(settings?.design, "pageEyebrow"));
   const themedBg = d?.backgroundColor || "#0a0910";
   const themedText = d?.textColor || "#f3f1ee";
 
@@ -117,14 +135,14 @@ export function PageView() {
 
   return (
     <div
-      data-fm-store data-studio-target="pages|copy:Custom pages & 404|style:colors" data-studio-label="Page"
+      data-fm-store data-studio-target="pages|style:customPages|copy:Custom pages & 404|style:colors" data-studio-label="Page"
       className={`min-h-screen flex flex-col ${themed ? "" : "bg-white text-neutral-900"}`}
       style={themed ? { backgroundColor: themedBg, color: themedText } : undefined}
     >
       <StorefrontThemeStyle design={settings?.design} />
       <StorefrontPageHeader design={settings?.design} pages={pages} books={books} />
 
-      <CurrentPageContext.Provider value={{ title: shown.title, body: shown.body }}>
+      <CurrentPageContext.Provider value={{ title: shown.title, body: shown.body, pageStyle }}>
         <TemplateSections design={settings?.design} templateId={surfaceId} books={books} />
       </CurrentPageContext.Provider>
 
@@ -133,8 +151,8 @@ export function PageView() {
           not it has its own section stack. */}
       {!hidePageBody && (
         <main className="w-full flex-1">
-          <CurrentPageContext.Provider value={{ title: shown.title, body: useHistoryCopy ? historyHtml : shown.body }}>
-            <PageContentSection settings={{ ...PAGE_CONTENT_DEFAULTS, eyebrow: getCopy(settings?.design, "pageEyebrow") }} enableAnimations />
+          <CurrentPageContext.Provider value={{ title: shown.title, body: useHistoryCopy ? historyHtml : shown.body, pageStyle }}>
+            <PageContentSection settings={{ showTitle: true, showBody: true }} enableAnimations />
           </CurrentPageContext.Provider>
         </main>
       )}
