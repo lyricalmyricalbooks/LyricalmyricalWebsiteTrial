@@ -40,12 +40,12 @@ export function getPublications(books: Book[], design?: any) {
   }));
 }
 
-export function getFilteredItems(books: Book[], activeCategory: any, nowISO: string) {
+export function getFilteredItems(books: Book[], activeCategory: any, nowISO: string, allCategories: any[] = []) {
   return books.filter(
     (book) =>
       book.status === "published" &&
       (!book.scheduleDate || book.scheduleDate <= nowISO) &&
-      bookInCategory(book, activeCategory),
+      bookInCategory(book, activeCategory, allCategories),
   );
 }
 

@@ -256,6 +256,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
     fields: [
       { key: "navSearch", label: "Nav: Search", default: "Search" },
       { key: "navAdmin", label: "Nav: Admin (debug only)", default: "Admin" },
+      { key: "navDropdownAll", label: "Category drop-down: “All” link", default: "All" },
       { key: "ariaMainNavigation", label: "Main navigation — screen-reader label", default: "Main navigation" },
       { key: "ariaSearch", label: "Search icon — screen-reader label", default: "Search" },
       { key: "ariaWishlist", label: "Wishlist icon — screen-reader label", default: "Wishlist" },

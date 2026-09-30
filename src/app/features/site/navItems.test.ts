@@ -46,3 +46,30 @@ describe("renameCategory", () => {
     expect(bookInCategory({ categories: [] }, next[0])).toBe(true);
   });
 });
+
+describe("sub-categories (drop-downs)", () => {
+  const tree = [
+    { id: "pub", name: "PUBLICATIONS", showInNav: true },
+    { id: "books", name: "BOOKS", parentId: "pub", showInNav: true },
+    { id: "zines", name: "ZINES", parentId: "pub", showInNav: true },
+    { id: "eph", name: "EPHEMERA", showInNav: true },
+    { id: "hid", name: "HIDDEN SUB", parentId: "eph", showInNav: false },
+  ];
+  it("nests sub-categories under their parent instead of giving them a spot in the bar", () => {
+    const items = buildNavItems(tree, []);
+    expect(items.map((i) => i.label)).toEqual(["PUBLICATIONS", "EPHEMERA"]);
+    expect((items[0] as any).children.map((c: any) => c.name)).toEqual(["BOOKS", "ZINES"]);
+    expect((items[1] as any).children).toEqual([]);
+  });
+  it("a parent matches books filed under any of its sub-categories", () => {
+    const withParent = [...tree, { id: "prints", name: "PRINTS", showInNav: true }, { id: "risos", name: "RISOS", parentId: "prints" }];
+    expect(bookInCategory({ categories: ["RISOS"] }, withParent[5], withParent)).toBe(true);
+    expect(bookInCategory({ categories: ["ZINES"] }, withParent[5], withParent)).toBe(false);
+    expect(bookInCategory({ categories: ["ZINES"] }, tree[2], tree)).toBe(true);
+    expect(bookInCategory({ categories: ["BOOKS"] }, tree[2], tree)).toBe(false);
+  });
+  it("treats a missing or nested parent as top-level (one level deep only)", () => {
+    const odd = [{ id: "a", name: "A", parentId: "gone" }, { id: "b", name: "B", parentId: "a" }, { id: "c", name: "C", parentId: "b" }];
+    expect(buildNavItems(odd, []).map((i) => i.label)).toEqual(["A", "C"]);
+  });
+});

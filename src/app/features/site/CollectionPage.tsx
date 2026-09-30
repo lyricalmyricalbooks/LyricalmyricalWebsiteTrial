@@ -37,7 +37,7 @@ export default function CollectionPage() {
   const categoryName = catName(category);
 
   const items = useMemo(() => {
-    const base = books.filter(b => b.status === "published" && bookInCategory(b, category));
+    const base = books.filter(b => b.status === "published" && bookInCategory(b, category, categories));
     return applyCatalogControls(base, query, sort, inStockOnly, [0, Infinity]);
   }, [books, category, query, sort, inStockOnly]);
 

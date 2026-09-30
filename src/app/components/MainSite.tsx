@@ -19,7 +19,8 @@ import { useSiteData } from "../features/site/useSiteData";
 import { BootSplash } from "./BootSplash";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
-import { buildNavItems } from "../features/site/navItems";
+import { buildNavItems, childCategories, parentOf } from "../features/site/navItems";
+import { NavDropdown } from "../features/site/NavDropdown";
 import { navGap, navLinkStyle, useNavBelow } from "../features/site/headerNav";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { StorefrontOverrides } from "../features/site/StorefrontOverrides";
@@ -656,8 +657,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     () =>
       activeCategory === "ALL"
         ? getPublishedBooks(books)
-        : getFilteredItems(books, activeCategory, new Date().toISOString()),
-    [books, activeCategory],
+        : getFilteredItems(books, activeCategory, new Date().toISOString(), categories),
+    [books, activeCategory, categories],
   );
   const publishedBooks = useMemo(() => getPublishedBooks(books), [books]);
 
@@ -667,7 +668,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     const counts: Record<string, number> = { ALL: getPublishedBooks(books).length };
     for (const cat of categories) {
       const name = typeof cat === "string" ? cat : cat?.name;
-      if (name) counts[name] = getFilteredItems(books, cat, nowISO).length;
+      if (name) counts[name] = getFilteredItems(books, cat, nowISO, categories).length;
     }
     return counts;
   }, [books, categories]);
@@ -851,7 +852,38 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     );
                   }
                   const cat = item.category;
-                  const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === item.label;
+                  const activeName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
+                  const isActive = activeName === item.label;
+                  const subs = item.children || [];
+                  // Sub-categories (Studio › Menus › Shop categories › "Sits under") → drop-down,
+                  // or their own links when Style › Navigation links › "no drop-down" is on.
+                  if (subs.length > 0 && storefrontDesign?.navFlatSubcategories) {
+                    return [item, ...subs.map((k: any) => ({ key: `cat:${k.id}`, label: k.name, category: k }))].map((c: any) => {
+                      const on = activeName === c.label;
+                      return (
+                        <button key={c.key} onClick={() => pickCategory(c.category)} aria-current={on ? "true" : undefined}
+                          style={{ ...navLinkStyle(storefrontDesign, on, headerTextColor), ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx, on) : {}) }}
+                          className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}>
+                          {c.label}
+                        </button>
+                      );
+                    });
+                  }
+                  if (subs.length > 0) {
+                    const branchActive = isActive || subs.some((k: any) => k.name === activeName);
+                    return (
+                      <NavDropdown
+                        key={item.key}
+                        design={storefrontDesign}
+                        copyDesign={activeDesign}
+                        label={item.label}
+                        linkStyle={{ ...navLinkStyle(storefrontDesign, branchActive, headerTextColor), ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx, branchActive) : {}) }}
+                        className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
+                        all={{ key: `${item.key}:all`, label: item.label, active: isActive, onSelect: () => pickCategory(cat) }}
+                        entries={subs.map((k: any) => ({ key: `cat:${k.id}`, label: k.name, active: activeName === k.name, onSelect: () => pickCategory(categories.find((c: any) => c.id === k.id) || k) }))}
+                      />
+                    );
+                  }
                   return (
                     <button
                       key={item.key}
@@ -959,9 +991,27 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               </div>
               <div className="mt-6" style={{ borderTop: `${storefrontHeaderRuleWidth}px solid ${storefrontDesign?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
               <div data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className="py-5 flex flex-wrap items-center text-base font-black" style={{ columnGap: catalogNavGapDesktop, rowGap: catalogNavGapMobile }}>
-                {categories.filter((c: any) => c.showInNav !== false).slice(0, storefrontDesign?.referenceCategoryLimit ?? 1).map((cat: any) => {
+                {categories.filter((c: any) => c.showInNav !== false && !parentOf(c, categories)).slice(0, storefrontDesign?.referenceCategoryLimit ?? 1).map((cat: any) => {
                   const catName = typeof cat === "string" ? cat : cat.name;
-                  const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === catName;
+                  const activeName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
+                  const isActive = activeName === catName;
+                  const subs = childCategories(cat, categories).filter((k: any) => k.showInNav !== false);
+                  if (subs.length > 0) {
+                    const branchActive = isActive || subs.some((k: any) => k.name === activeName);
+                    return (
+                      <NavDropdown
+                        key={catName}
+                        design={storefrontDesign}
+                        copyDesign={activeDesign}
+                        studioTarget={false}
+                        label={catName}
+                        linkStyle={{ color: headerTextColor, fontSize: "inherit", fontWeight: "inherit", opacity: branchActive ? 1 : 0.7 }}
+                        className="hover:!opacity-100"
+                        all={{ key: `${catName}:all`, label: catName, active: isActive, onSelect: () => pickCategory(cat) }}
+                        entries={subs.map((k: any) => ({ key: `cat:${k.id}`, label: k.name, active: activeName === k.name, onSelect: () => pickCategory(categories.find((c: any) => c.id === k.id) || k) }))}
+                      />
+                    );
+                  }
                   return (
                     <button key={catName} onClick={() => pickCategory(cat)} className={isActive ? "opacity-100" : "opacity-70 hover:opacity-100"}>
                       {catName}⌄
