@@ -24,6 +24,7 @@ import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { resolveFooterBadges } from "../features/site/paymentBadges";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
 import { LogoMark } from "./LogoMark";
+import { googleFontHref } from "../features/site/fonts";
 import { ThemeToggle } from "./theme/ThemeToggle";
 import { CurrencySelector, useCurrency } from "../CurrencyContext";
 import { addDoc, collection } from "firebase/firestore";
@@ -428,7 +429,7 @@ function GoogleFontLoader({ font }: { font: string }) {
     const link = document.createElement("link");
     link.id = linkId;
     link.rel = "stylesheet";
-    link.href = `https://fonts.googleapis.com/css2?family=${font.replace(/\s+/g, "+")}:wght@400;500;600;700;800;900&display=swap`;
+    link.href = googleFontHref(font);
     document.head.appendChild(link);
   }, [font]);
   return null;
@@ -516,6 +517,9 @@ ${design?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(design) : "
   }
   // Density system: one control rescales the vertical rhythm of every section.
   const density = design?.density;
+  // Header & menu font: applies to the whole header (links, currency, cart). Empty = body font.
+  const navFont = design?.navFont;
+  if (navFont) css += `[data-fm-store] header[data-section="navigation"]{font-family:'${String(navFont).replace(/'/g, "")}',sans-serif;}\n`;
   if (density === "compact") {
     css += `[data-fm-store] [data-section-id] > section{padding-top:3rem;padding-bottom:3rem;}`;
   } else if (density === "spacious") {
@@ -525,6 +529,8 @@ ${design?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(design) : "
     <>
       <GoogleFontLoader font={t.body} />
       <GoogleFontLoader font={t.heading} />
+      {navFont && <GoogleFontLoader font={navFont} />}
+      {design?.wordmarkFont && <GoogleFontLoader font={design.wordmarkFont} />}
       <style>{css}</style>
     </>
   );
