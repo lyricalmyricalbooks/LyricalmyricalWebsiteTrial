@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ChevronDown, ChevronUp, Clipboard, Copy, Eye, EyeOff, ExternalLink, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
-  Tablet, Trash2, Undo2, X,
+  Download, Pencil, Tablet, Trash2, Undo2, Upload, X,
 } from "lucide-react";
 import { adminApi } from "../api";
 import {
@@ -21,7 +21,7 @@ import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, r
 import { StudioPages } from "./StudioPages";
 import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
-import { addSavedTheme, removeSavedTheme, type SavedTheme } from "./savedThemes";
+import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, renameSavedTheme, serializeThemeFile, themeFileName, type SavedTheme } from "./savedThemes";
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyThemeKeysToSurfaces } from "../themeScope";
@@ -451,6 +451,23 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     change(() => normalizeDesign(JSON.parse(JSON.stringify(t.design)), defaults));
     say("ok", `“${t.name}” loaded into the draft — Publish to make it live.`);
   };
+  const renameTheme = (t: SavedTheme) => {
+    const name = window.prompt("Rename this theme:", t.name);
+    if (name === null || !name.trim()) return;
+    persistThemes(renameSavedTheme(savedThemes, t.id, name), "Theme renamed.");
+  };
+  const exportTheme = (t: SavedTheme) => {
+    const url = URL.createObjectURL(new Blob([serializeThemeFile(t)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = themeFileName(t); a.click();
+    URL.revokeObjectURL(url);
+  };
+  const importTheme = async (file?: File | null) => {
+    if (!file) return;
+    const parsed = parseThemeFile(await file.text());
+    if ("error" in parsed) { say("err", parsed.error); return; }
+    persistThemes(addSavedTheme(savedThemes, parsed.name, parsed.design), `Imported “${parsed.name}” into My themes.`);
+  };
   const riso = design.themeStyle === "riso";
 
   const setScopedStyle = (group: string, path: string, value: any) => {
@@ -827,12 +844,21 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 <div className="pt-2 border-t border-neutral-200 space-y-2">
                   <p className="text-[10px] font-black tracking-widest uppercase text-neutral-500">My themes</p>
                   <button type="button" className={`${btn} w-full justify-center`} onClick={saveCurrentAsTheme}>Save current design as a theme…</button>
+                  <label className={`${btn} w-full justify-center cursor-pointer`}>
+                    <Upload size={14} /> Import a theme file…
+                    <input type="file" accept="application/json,.json" className="sr-only" aria-label="Import a theme file"
+                      onChange={(e) => { importTheme(e.target.files?.[0]); e.target.value = ""; }} />
+                  </label>
                   {savedThemes.map((t) => (
                     <div key={t.id} className="flex items-stretch gap-1">
                       <button type="button" onClick={() => applySavedTheme(t)} className="flex-1 text-left border border-neutral-200 rounded-lg px-3 py-2 hover:bg-neutral-50">
                         <span className="block text-xs font-bold">{t.name}</span>
                         <span className="block text-[11px] text-neutral-500">Saved {new Date(t.savedAt).toLocaleDateString()}</span>
                       </button>
+                      <button type="button" aria-label={`Rename ${t.name}`} title="Rename" className={iconBtn} onClick={() => renameTheme(t)}><Pencil size={14} /></button>
+                      <button type="button" aria-label={`Duplicate ${t.name}`} title="Duplicate" className={iconBtn}
+                        onClick={() => persistThemes(duplicateSavedTheme(savedThemes, t.id), "Theme duplicated.")}><Copy size={14} /></button>
+                      <button type="button" aria-label={`Download ${t.name} as a file`} title="Download file" className={iconBtn} onClick={() => exportTheme(t)}><Download size={14} /></button>
                       <button type="button" aria-label={`Delete ${t.name}`} className={iconBtn}
                         onClick={() => { if (window.confirm(`Delete saved theme “${t.name}”?`)) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }}><Trash2 size={14} /></button>
                     </div>

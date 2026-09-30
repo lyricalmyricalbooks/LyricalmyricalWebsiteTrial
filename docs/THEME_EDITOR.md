@@ -416,8 +416,10 @@ schema-valid AI composition authoring.
       Draft action that resets both Firestore and local editor history to the
       published storefront without changing what shoppers see.
 - [x] Import/export JSON exists (`ThemeEditorPro`) plus a friendly duplicate-theme draft flow in the theme toolbar.
-- [ ] Multiple saved themes (a library of full themes, not just presets), with
-      one active/published.
+- [x] Multiple saved themes: Studio › Style › Theme look › **My themes** (up to 10 full
+      designs) with Rename, Duplicate, Download as a `.theme.json` file and
+      **Import a theme file…** (`studio/savedThemes.ts`). Applying one loads it into the
+      undoable draft; the published site is the active theme until Publish.
 - [x] Version history / restore previous published versions: every Save Draft / Publish
       writes a snapshot to the admin-only `theme-versions` Firestore collection
       (`adminApi.saveThemeVersion`/`listThemeVersions`, last 30 kept, pruned on save),
