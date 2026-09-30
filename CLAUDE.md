@@ -233,6 +233,8 @@ nested blocks across more section types remains a follow-up):
 3. CSS-grid visual positioning with guarded coordinates and overlap;
 4. per-breakpoint layout overrides tied to the device preview toggle.
 
+**One storefront shell:** `MainSite` renders a single Riso header/footer for every view; the Home view swaps the catalog grid for `design.heroPage.sections`. Studio › Sections (Home) › **Show a Home page** toggles `showHero` (off = open straight on the catalog). The legacy hero header/`HeroCarousel` were removed — don't re-add a second header.
+
 **Riso Noir storefront:** the public site defaults to the Riso Press look on black with white text
 (`src/app/features/site/risoNoir.ts` → `RISO_NOIR_TOKENS`, `withRisoNoirDefault`; theme-library
 preset `lyricalmyrical-riso-noir`). `RISO_STOREFRONT_CSS` in `themeTokens.ts` must stay token-driven

@@ -596,10 +596,18 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             ))}
           </div>
           <div className="flex-1 overflow-auto">
-            {leftTab === "sections" && template.id === "heroPage" && design.showHero === false && (
-              <div role="status" className="m-3 p-3 rounded-lg border border-amber-300 bg-amber-50 text-xs text-amber-900 space-y-2">
-                <p><b>These Home sections are hidden.</b> Your homepage is set to skip straight to the shop, so the preview (and your live site) shows the catalog instead.</p>
-                <button className={btn} onClick={() => { setStyle("showHero", undefined); say("ok", "Homepage sections are on in the draft — Publish to make it live."); }}>Show these sections on the homepage</button>
+            {leftTab === "sections" && template.id === "heroPage" && (
+              <div className="m-3 p-3 rounded-lg border border-neutral-200 bg-white text-xs space-y-2">
+                <label className="flex items-center justify-between gap-3 font-bold text-sm">
+                  Show a Home page
+                  <input type="checkbox" role="switch" checked={design.showHero !== false}
+                    onChange={(e) => setStyle("showHero", e.target.checked ? undefined : false)} aria-describedby="studio-home-toggle-help" />
+                </label>
+                <p id="studio-home-toggle-help" className="text-neutral-500">
+                  {design.showHero === false
+                    ? "Off: your shop opens straight on the catalog. The sections below are kept but not shown."
+                    : "On: your shop opens on these sections, with the catalog one click away. Turn off to open straight on the catalog."}
+                </p>
               </div>
             )}
             {leftTab === "sections" && <StudioOutline

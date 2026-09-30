@@ -374,154 +374,6 @@ function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
   );
 }
 
-function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive: () => void }) {
-  const navigate = useNavigate();
-  const hero = design?.hero || {};
-  const cleanedSlides = (hero.slides || []).filter((slide: any) => {
-    const title = String(slide?.title || "").trim().toUpperCase();
-    const subtitle = String(slide?.subtitle || "").trim().toUpperCase();
-    const ctaText = String(slide?.ctaText || "").trim().toUpperCase();
-    const isTemplatePlaceholder =
-      title === "NEW SLIDE" &&
-      subtitle === "SUBTITLE HERE" &&
-      ctaText === "LEARN MORE";
-    return !isTemplatePlaceholder;
-  });
-
-  const slides = cleanedSlides.length > 0
-    ? cleanedSlides
-    : [{
-      id: "fallback",
-      imageUrl: "",
-      title: "F✶M",
-      subtitle: "PHOTOGRAPHY & ART BOOKS",
-      ctaText: "ENTER ARCHIVE",
-      ctaLink: "/shop",
-    }];
-
-  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
-  const activeSlide = slides[activeSlideIndex] || slides[0];
-  const autoRotate = hero.autoRotate ?? true;
-  const rotateMs = hero.rotateMs || 5000;
-
-  const carouselButtonBg = design?.buttonColor || design?.primaryColor || "#ffffff";
-  const carouselButtonText = design?.buttonTextColor || "#100f0d";
-  const carouselButtonRadius = Math.max(0, Math.min(999, design?.buttonRadius ?? 999));
-  const carouselButtonStyle = design?.buttonStyle || "solid";
-  const carouselButtonUppercase = design?.buttonUppercase ?? true;
-  const carouselButtonShadow = design?.buttonShadow ?? true;
-
-  useEffect(() => {
-    if (activeSlideIndex > slides.length - 1) {
-      setActiveSlideIndex(0);
-    }
-  }, [activeSlideIndex, slides.length]);
-
-  const alignClass = hero.align === "left"
-    ? "items-start text-left"
-    : hero.align === "right"
-      ? "items-end text-right"
-      : "items-center text-center";
-
-  const heightClass = "h-screen min-h-[680px]";
-
-  useEffect(() => {
-    if (!autoRotate || slides.length < 2) return;
-    const timer = window.setInterval(() => {
-      setActiveSlideIndex((idx) => (idx + 1) % slides.length);
-    }, rotateMs);
-    return () => window.clearInterval(timer);
-  }, [autoRotate, rotateMs, slides.length]);
-
-  const handleSlideCta = () => {
-    const link = activeSlide?.ctaLink || "/shop";
-    if (link === "/shop" || link === "/") {
-      onEnterArchive();
-      return;
-    }
-    navigate(link);
-  };
-
-  return (
-    <section className={`relative w-full overflow-hidden ${heightClass}`}>
-      {activeSlide?.imageUrl ? (
-        <img
-          key={activeSlide.id}
-          src={activeSlide.imageUrl}
-          alt={activeSlide.title || "Homepage hero"}
-          loading="eager"
-          decoding="async"
-          fetchPriority="high"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-      ) : (
-        <div className="absolute inset-0 fm-surface" />
-      )}
-      <div className="absolute inset-0" style={{ background: "black", opacity: hero.overlayOpacity ?? 0.45 }} />
-
-      <div className={`relative z-10 h-full flex flex-col justify-center px-8 md:px-16 ${alignClass}`}>
-        <div className="max-w-2xl">
-          {activeSlide?.badge && (
-            <span className="inline-flex mb-5 px-4 py-1.5 border border-white/30 rounded-full text-[9px] md:text-[10px] tracking-[0.35em] font-semibold uppercase">
-              {activeSlide.badge}
-            </span>
-          )}
-          <h1 className="text-5xl md:text-7xl font-black leading-none tracking-tight uppercase">{activeSlide?.title || "F✶M"}</h1>
-          <p className="mt-5 text-[11px] md:text-xs tracking-[0.35em] text-white/70 uppercase">{activeSlide?.subtitle || "PHOTOGRAPHY & ART BOOKS"}</p>
-          <div className={`mt-10 flex flex-wrap items-center gap-4 ${
-            hero.align === "left" ? "justify-start" : hero.align === "right" ? "justify-end" : "justify-center"
-          }`}>
-            <button
-              onClick={handleSlideCta}
-              className={`px-8 py-3 text-[10px] tracking-[0.3em] font-bold transition-transform hover:scale-[1.02] ${
-                carouselButtonShadow ? "shadow-xl" : ""
-              } ${carouselButtonUppercase ? "uppercase" : ""}`}
-              style={{
-                backgroundColor: carouselButtonStyle === "solid" ? carouselButtonBg : "transparent",
-                color: carouselButtonStyle === "solid" ? carouselButtonText : carouselButtonBg,
-                border: carouselButtonStyle !== "solid" ? `1px solid ${carouselButtonBg}` : "none",
-                borderRadius: carouselButtonRadius,
-              }}
-            >
-              {activeSlide?.ctaText || "ENTER ARCHIVE"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {slides.length > 1 && (
-        <>
-          <button
-            onClick={() => setActiveSlideIndex((prev) => (prev - 1 + slides.length) % slides.length)}
-            className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full border border-white/20 bg-black/30 flex items-center justify-center hover:bg-black/50"
-            aria-label={getCopy(design, "ariaPrevSlide")}
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <button
-            onClick={() => setActiveSlideIndex((prev) => (prev + 1) % slides.length)}
-            className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full border border-white/20 bg-black/30 flex items-center justify-center hover:bg-black/50"
-            aria-label={getCopy(design, "ariaNextSlide")}
-          >
-            <ChevronRight size={16} />
-          </button>
-
-          <div className="absolute bottom-8 left-0 right-0 z-20 flex justify-center gap-2">
-            {slides.map((slide: any, idx: number) => (
-              <button
-                key={slide.id || idx}
-                onClick={() => setActiveSlideIndex(idx)}
-                className={`h-1.5 rounded-full transition-all ${idx === activeSlideIndex ? "w-8 bg-white" : "w-3 bg-white/40"}`}
-                aria-label={`Go to slide ${idx + 1}`}
-              />
-            ))}
-          </div>
-        </>
-      )}
-    </section>
-  );
-}
-
 // ──────────────────────────────
 // Hook for real-time theme sync
 // ──────────────────────────────
@@ -711,9 +563,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontDesign = legacyDesign.storefront && Object.keys(legacyDesign.storefront).length > 0
     ? { ...legacyDesign, ...legacyDesign.storefront }
     : legacyDesign;
-  const heroLogoDesign = resolveLogoDesign(legacyDesign.heroPage, [legacyDesign]);
   const storefrontLogoDesign = resolveLogoDesign(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
-  const heroLogoPosition = resolveLogoPosition(legacyDesign.heroPage, [legacyDesign]);
   const storefrontLogoPosition = resolveLogoPosition(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -743,6 +593,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   }, [legacyDesign?.showHero, showCatalog, setShowCatalog, isCatalogPreview]);
 
   const [activeCategory, setActiveCategory] = useState<any>(categories[0]);
+  const pickCategory = (cat: any) => {
+    setActiveCategory(cat);
+    setShowCatalog(true);
+  };
 
   // Sync activeCategory if categories change
   useEffect(() => {
@@ -775,7 +629,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     }
   }, [categories, activeCategory]);
 
-  const publications = useMemo(() => getPublications(getFeaturedBooks(books)), [books]);
   const baseFilteredItems = useMemo(
     () =>
       activeCategory === "ALL"
@@ -877,13 +730,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontButtonUppercase = storefrontDesign?.buttonUppercase ?? true;
   const storefrontButtonShadow = storefrontDesign?.buttonShadow ?? true;
 
-  const heroAccent = heroDesign?.primaryColor || "#e8402a";
-  const heroButtonBg = heroDesign?.buttonColor || heroAccent;
-  const heroButtonText = heroDesign?.buttonTextColor || "#100f0d";
-  const heroButtonRadius = Math.max(0, Math.min(999, heroDesign?.buttonRadius ?? 999));
-  const heroButtonStyle = heroDesign?.buttonStyle || "solid";
-  const heroButtonUppercase = heroDesign?.buttonUppercase ?? true;
-  const heroButtonShadow = heroDesign?.buttonShadow ?? true;
   const storefrontCtaText = storefrontDesign?.productCTA || "VIEW";
   const soldOutLabel = storefrontDesign?.soldOutLabel || "SOLD OUT";
   const showCollectionMeta = storefrontDesign?.showCollectionMeta ?? true;
@@ -957,7 +803,11 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     return <MaintenancePage message={settings.maintenance.message} design={activeDesign} />;
   }
 
-  if (showCatalog) {
+  // One storefront shell (Riso header, footer) for every view. "Home" swaps the catalog
+  // grid for the Home template's sections; with no Home sections it shows the catalog.
+  const homeSections: any[] = heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections || [];
+  const onHome = !showCatalog && homeSections.length > 0;
+  {
     return (
       <div
         data-fm-store
@@ -1048,7 +898,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   const catName = typeof cat === "string" ? cat : cat.name;
                   const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === catName;
                   return (
-                    <button key={catName} onClick={() => setActiveCategory(cat)} className={isActive ? "opacity-100" : "opacity-70 hover:opacity-100"}>
+                    <button key={catName} onClick={() => pickCategory(cat)} className={isActive ? "opacity-100" : "opacity-70 hover:opacity-100"}>
                       {catName}⌄
                     </button>
                   );
@@ -1105,7 +955,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   return (
                     <button
                       key={item.key}
-                      onClick={() => setActiveCategory(cat)}
+                      onClick={() => pickCategory(cat)}
                       style={{
                         color: headerTextColor,
                         ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx, isActive) : {}),
@@ -1230,6 +1080,21 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           )}
         </header>
 
+        {onHome ? (
+          <main className="relative w-auto overflow-hidden">
+            <SectionList
+              sections={homeSections}
+              colorSchemes={heroDesign.colorSchemes?.length > 0 ? heroDesign.colorSchemes : activeDesign.colorSchemes}
+              books={books}
+              onCtaClick={() => setShowCatalog(true)}
+              onProductClick={(book: any) =>
+                navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
+              }
+              enableAnimations={heroDesign?.enableAnimations ?? true}
+              dataSection="homepage"
+            />
+          </main>
+        ) : (
         <main className="mx-auto px-6 py-12 md:py-20" style={{ maxWidth: isReferenceCatalog ? storefrontHeaderMaxWidth : storefrontMaxWidth }}>
           {/* Theme-editor sections authored for the storefront page template */}
           <TemplateSections design={activeDesign} templateId="storefront" books={books} />
@@ -1259,7 +1124,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 return (
                   <button
                     key={chip.name}
-                    onClick={() => setActiveCategory(chip.value)}
+                    onClick={() => pickCategory(chip.value)}
                     aria-pressed={isActive}
                     className={`rounded-full border px-4 py-2 text-[11px] font-bold tracking-[0.06em] uppercase transition-colors ${
                       isActive ? "fm-active border-transparent" : "border-white/10 fm-muted hover:border-white/40"
@@ -1460,6 +1325,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             })}
           </div>
         </main>
+        )}
 
         <GlobalSections
           design={activeDesign}
@@ -1469,232 +1335,16 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
           }
         />
-        <RecentlyViewedRow />
-        <Newsletter design={settings?.design} />
+        {!onHome && <RecentlyViewedRow />}
+        {!onHome && <Newsletter design={settings?.design} />}
         <SiteFooter settings={settings} pages={pages} />
         {(storefrontDesign?.showPoweredBy ?? false) && (
           <p className="text-center pb-8 text-[9px] tracking-[0.3em] uppercase opacity-50">{getCopy(activeDesign, "poweredBy")}</p>
         )}
-
-        {/* About panel */}
-        <AnimatePresence>
-        </AnimatePresence>
 
         <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} design={activeDesign} />
       </div>
     );
   }
 
-  // Homepage (hero) ──
-  const homeHeaderTextColor = scrolled ? (heroDesign?.headerColor || "#ffffff") : "#ffffff";
-
-  return (
-    <div
-      data-fm-store
-      className="min-h-screen w-full overflow-x-hidden relative selection:bg-white selection:text-black font-sans"
-      style={{ 
-        fontFamily: `'${resolveTypography(heroDesign).body}', sans-serif`,
-        backgroundColor: heroDesign?.backgroundColor || "#000000",
-        color: heroDesign?.textColor || "#ffffff"
-      }}
-    >
-      <TypographyTokens design={heroDesign} />
-      {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
-      {heroDesign?.navStyle === "stickers" && <style>{STICKER_PILL_CSS}</style>}
-      <header
-        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-6 transition-all duration-500 border-b ${scrolled ? "backdrop-blur-xl py-4" : "border-transparent bg-gradient-to-b from-black/70 to-transparent"}`}
-        style={{
-          backgroundColor: scrolled ? (heroDesign?.headerBg || "rgba(0,0,0,0.8)") : "transparent",
-          borderColor: scrolled ? (heroDesign?.headerColor ? `${heroDesign.headerColor}1a` : "rgba(255,255,255,0.05)") : "transparent",
-          color: homeHeaderTextColor
-        }}
-      >
-        {/* Left Section */}
-        <div className={`flex items-center gap-3 md:gap-8 flex-1 ${heroLogoPosition === "center" ? "" : "flex-initial"}`}>
-          {heroLogoPosition === "left" && (
-            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
-              <LogoMark design={heroLogoDesign} />
-            </button>
-          )}
-
-          {showEnterArchive && (
-            <button
-              onClick={() => setShowCatalog(true)}
-              style={{
-                color: homeHeaderTextColor,
-                ...(heroDesign?.navStyle === "stickers" ? stickerPillStyle(heroDesign, 1) : {}),
-              }}
-              className={`text-[10px] md:text-xs tracking-[0.3em] font-bold hover:opacity-75 transition-opacity ${
-                heroDesign?.navStyle === "stickers" ? "fm-sticker-pill opacity-70" : ""
-              }`}
-            >
-              {heroDesign?.enterArchiveLabel || getCopy(activeDesign, "navEnterArchive")}
-            </button>
-          )}
-        </div>
-
-        {/* Center Section (Logo) */}
-        {heroLogoPosition === "center" && (
-          <div className="flex-1 flex justify-center">
-            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
-              <LogoMark design={heroLogoDesign} />
-            </button>
-          </div>
-        )}
-
-        {/* Right Section */}
-        <div className={`flex gap-3 md:gap-8 items-center flex-1 justify-end ${heroLogoPosition === "right" ? "flex-initial" : ""}`}>
-          {heroLogoPosition === "right" && (
-            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
-              <LogoMark design={heroLogoDesign} />
-            </button>
-          )}
-
-          
-          {/* Custom Pages in Home Header */}
-          {(
-            heroDesign?.menus?.header?.length > 0 ? (
-              <div style={{ color: homeHeaderTextColor }}><StoreMenu items={heroDesign.menus.header} /></div>
-            ) : (
-            <nav className="hidden lg:flex items-center gap-6" style={{ color: homeHeaderTextColor }}>
-              {pages.some((p: any) => p.showInNav && p.status === "published") && (
-                <span className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white/20 uppercase select-none mr-2">
-                  {heroDesign?.navHeading || "INFO"}
-                </span>
-              )}
-              {(pages || [])
-                .filter((p: any) => p.showInNav && p.status === "published")
-                .map((page: any, pageIdx: number) => (
-                  <Link
-                    key={page.id}
-                    to={`/page/${page.slug}`}
-                    className={`opacity-60 hover:opacity-100 transition-opacity ${
-                      heroDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
-                    }`}
-                    style={{
-                      fontSize: heroDesign?.navLinkSize ? `${heroDesign.navLinkSize}px` : "10px",
-                      letterSpacing: heroDesign?.navLinkSpacing != null ? `${heroDesign.navLinkSpacing}em` : "0.2em",
-                      fontWeight: heroDesign?.navLinkWeight || "500",
-                      textTransform: (heroDesign?.navLinkTransform as any) || "uppercase",
-                      ...(heroDesign?.navLinkColor && { color: heroDesign.navLinkColor }),
-                      ...(heroDesign?.navStyle === "stickers" ? stickerPillStyle(heroDesign, pageIdx + 2) : {}),
-                    }}
-                  >
-                    {page.title}
-                  </Link>
-                ))}
-            </nav>
-            )
-          )}
-
-          <button
-            onClick={() => setSearchOpen(true)}
-            aria-label={getCopy(activeDesign, "ariaSearch")}
-            style={{ color: homeHeaderTextColor }}
-            className="hidden sm:flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-all opacity-70 hover:opacity-100"
-          >
-            <SearchIcon size={15} />
-          </button>
-          {showBag && (
-            <button
-              onClick={() => setIsCartOpen(true)}
-              className={`group flex items-center gap-2 px-5 py-2.5 transition-all hover:scale-[1.02] store-btn-primary ${
-                heroButtonShadow ? "shadow-lg" : ""
-              } ${heroDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""}`}
-              style={{
-                backgroundColor: heroButtonStyle === "solid" ? heroButtonBg : "transparent",
-                color: heroButtonStyle === "solid" ? heroButtonText : heroButtonBg,
-                border: heroButtonStyle !== "solid" ? `1px solid ${heroButtonBg}` : "none",
-                borderRadius: heroButtonRadius,
-                ...(heroDesign?.navStyle === "stickers"
-                  ? { borderRadius: heroDesign?.navPillRadius || "14px 4px 14px 4px", transform: "rotate(2deg)" }
-                  : {}),
-              }}
-            >
-              <span className={`text-[10px] tracking-[0.2em] font-bold ${heroButtonUppercase ? "uppercase" : ""}`}>
-                {bagLabel}
-              </span>
-              {cartCount > 0 && (
-                <span
-                  style={{
-                    backgroundColor: heroButtonStyle === "solid" ? heroButtonText : heroButtonBg,
-                    color: heroButtonStyle === "solid" ? heroButtonBg : heroButtonText,
-                  }}
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors"
-                >
-                  {cartCount}
-                </span>
-              )}
-            </button>
-          )}
-          {showSys && (
-            <Link to="/admin" style={{ color: homeHeaderTextColor }} className="text-[10px] tracking-widest opacity-30 hover:opacity-100 transition-opacity">SYS</Link>
-          )}
-        </div>
-      </header>
-
-      <main className="relative w-auto overflow-hidden">
-        {(heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections) &&
-        (heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections).length > 0 ? (
-          <SectionList
-            sections={heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections}
-            colorSchemes={
-              heroDesign.colorSchemes && heroDesign.colorSchemes.length > 0
-                ? heroDesign.colorSchemes
-                : activeDesign.colorSchemes
-            }
-            books={books}
-            onCtaClick={() => setShowCatalog(true)}
-            onProductClick={(book: any) =>
-              navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
-            }
-            enableAnimations={heroDesign?.enableAnimations ?? true}
-            dataSection="homepage"
-          />
-        ) : (
-          /* Fallback to legacy structure */
-          <>
-            {(heroDesign?.hero?.enabled ?? true) ? (
-              <HeroCarousel design={heroDesign} onEnterArchive={() => setShowCatalog(true)} />
-            ) : (
-              <section className="h-screen min-h-[680px] flex flex-col items-center justify-center text-center px-8">
-                <p className="text-[12px] tracking-[0.3em] text-white/60 uppercase mb-6">
-                  {heroDesign?.heroSubtext || "Discover rare editions and exclusive prints."}
-                </p>
-                <button
-                  onClick={() => setShowCatalog(true)}
-                  className={`px-8 py-3 text-[10px] tracking-[0.3em] font-bold transition-transform hover:scale-[1.02] ${
-                    heroButtonShadow ? "shadow-xl" : ""
-                  } ${heroButtonUppercase ? "uppercase" : ""}`}
-                  style={{
-                    backgroundColor: heroButtonStyle === "solid" ? heroButtonBg : "transparent",
-                    color: heroButtonStyle === "solid" ? heroButtonText : heroButtonBg,
-                    border: heroButtonStyle !== "solid" ? `1px solid ${heroButtonBg}` : "none",
-                    borderRadius: heroButtonRadius,
-                  }}
-                >
-                  {heroDesign?.heroCTA || "ENTER ARCHIVE"}
-                </button>
-              </section>
-            )}
-          </>
-        )}
-      </main>
-
-      <GlobalSections
-        design={activeDesign}
-        books={books}
-        onCtaClick={() => setShowCatalog(true)}
-        onProductClick={(book: any) =>
-          navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
-        }
-      />
-
-      {/* About panel (available from homepage too) */}
-      <AnimatePresence>
-      </AnimatePresence>
-
-      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} design={activeDesign} />
-    </div>
-  );
 }
