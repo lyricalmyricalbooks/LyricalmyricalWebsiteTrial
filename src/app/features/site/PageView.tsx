@@ -110,7 +110,7 @@ export function PageView() {
       style={themed ? { backgroundColor: themedBg, color: themedText } : undefined}
     >
       <StorefrontThemeStyle design={settings?.design} />
-      <StorefrontPageHeader design={settings?.design} pages={pages} />
+      <StorefrontPageHeader design={settings?.design} pages={pages} books={books} />
 
       <TemplateSections design={settings?.design} templateId={surfaceId} books={books} />
 
