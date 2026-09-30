@@ -7,6 +7,7 @@ import { LogoMark } from "../../components/LogoMark";
 import { StoreMenu } from "../../components/StoreMenu";
 import { navGap, navLinkStyle, useNavBelow } from "./headerNav";
 import { buildNavItems } from "./navItems";
+import { NavDropdown } from "./NavDropdown";
 import { SearchOverlay } from "./SearchOverlay";
 import { getCopy } from "./storeCopy";
 import type { Book, Page } from "./types";
@@ -47,6 +48,33 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
                 const isPage = item.kind === "page";
                 const to = isPage ? `/page/${item.page.slug}` : `/collections/${slugify(item.label)}`;
                 const active = location.pathname.endsWith(to);
+                const subs = item.kind === "category" ? item.children : [];
+                if (subs.length > 0) {
+                  const subLinks = subs.map((k: any) => {
+                    const subTo = `/collections/${slugify(k.name)}`;
+                    return { key: `cat:${k.id}`, label: k.name, to: subTo, active: location.pathname.endsWith(subTo) };
+                  });
+                  if (storefront.navFlatSubcategories) {
+                    return [{ key: item.key, label: item.label, to, active }, ...subLinks].map((l) => (
+                      <Link key={l.key} to={l.to} aria-current={l.active ? "page" : undefined} style={navLinkStyle(storefront, l.active, headerColor)} className="transition-all hover:!opacity-100 hover-text-accent">
+                        {l.label}
+                      </Link>
+                    ));
+                  }
+                  const branchActive = active || subLinks.some((l) => l.active);
+                  return (
+                    <NavDropdown
+                      key={item.key}
+                      design={storefront}
+                      copyDesign={design}
+                      label={item.label}
+                      linkStyle={navLinkStyle(storefront, branchActive, headerColor)}
+                      className="transition-all hover:!opacity-100 hover-text-accent"
+                      all={{ key: `${item.key}:all`, label: item.label, to, active }}
+                      entries={subLinks}
+                    />
+                  );
+                }
                 return (
                   <Link
                     key={item.key}

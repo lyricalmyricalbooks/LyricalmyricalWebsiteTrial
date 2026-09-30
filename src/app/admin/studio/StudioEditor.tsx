@@ -9,7 +9,7 @@ import {
   getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, DEFAULT_COLOR_SCHEMES,
 } from "../ThemeEditorExtensions";
 import { CATEGORIES } from "../../features/site/constants";
-import { buildNavItems, moveNavItem, renameCategory } from "../../features/site/navItems";
+import { buildNavItems, childCategories, moveNavItem, parentOf, renameCategory } from "../../features/site/navItems";
 import { COPY_SCHEMA, DEFAULT_COPY } from "../../features/site/storeCopy";
 import { MENU_LINK_TYPES, newMenuItem, type MenuItem } from "../../features/site/storeMenu";
 import {
@@ -210,7 +210,7 @@ function CategoriesPanel({ design, onChange }: { design: any; onChange: (cats: a
     <div className="p-4 space-y-3 border-b border-neutral-200" data-studio-panel="menus:categories">
       <div>
         <p className="text-sm font-bold">Shop categories</p>
-        <p className="text-xs text-neutral-500">The names in the shop's category bar (Publications, Ephemera…). Rename, hide, reorder or delete them here. Renaming keeps every book that was filed under the old name.</p>
+        <p className="text-xs text-neutral-500">The names in the shop's category bar (Publications, Ephemera…). Rename, hide, reorder or delete them here. Renaming keeps every book that was filed under the old name. Set <b>Sits under</b> to turn a category into a drop-down item (e.g. Books and Zines under Publications).</p>
       </div>
       {cats.map((c, i) => (
         <div key={c.id || i} className="border border-neutral-200 rounded-lg p-2 space-y-2 bg-white">
@@ -219,12 +219,27 @@ function CategoriesPanel({ design, onChange }: { design: any; onChange: (cats: a
             <button className={iconBtn} onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move category up"><ChevronUp size={14} /></button>
             <button className={iconBtn} onClick={() => move(i, 1)} disabled={i === cats.length - 1} aria-label="Move category down"><ChevronDown size={14} /></button>
             <button className={iconBtn} aria-label="Delete category"
-              onClick={() => { if (window.confirm(`Delete the "${c.name || "Untitled"}" category? Books keep their data; you can re-add it later.`)) onChange(cats.filter((_, j) => j !== i)); }}><Trash2 size={14} /></button>
+              onClick={() => { if (window.confirm(`Delete the "${c.name || "Untitled"}" category? Books keep their data; you can re-add it later.`)) onChange(cats.filter((_, j) => j !== i).map((k) => (k.parentId === c.id ? { ...k, parentId: null } : k))); }}><Trash2 size={14} /></button>
           </div>
           <label className="flex items-center gap-2 text-xs">
             <input type="checkbox" checked={c.showInNav !== false} onChange={(e) => patch(i, { showInNav: e.target.checked })} />
             Show in the shop menu
           </label>
+          <label className="flex items-center gap-2 text-xs">
+            <span className="shrink-0">Sits under</span>
+            <select value={parentOf(c, cats) || ""} disabled={childCategories(c, cats).length > 0}
+              onChange={(e) => patch(i, { parentId: e.target.value || null })}
+              aria-label={`Parent of ${c.name || "category"}`}
+              className="flex-1 min-w-0 border border-neutral-200 rounded-md px-2 h-8 text-xs bg-white disabled:opacity-60">
+              <option value="">Nothing — its own spot in the menu</option>
+              {cats.filter((p) => p.id !== c.id && !parentOf(p, cats)).map((p) => (
+                <option key={p.id} value={p.id}>{p.name || "Untitled"} (drop-down)</option>
+              ))}
+            </select>
+          </label>
+          {childCategories(c, cats).length > 0 && (
+            <p className="text-[11px] text-neutral-500">Drop-down: All, {childCategories(c, cats).map((k) => k.name).join(", ")}. Choose which books go where in Books › edit a book › Organize › Categories.</p>
+          )}
         </div>
       ))}
       <button className={btn} onClick={() => onChange([...cats, { id: `cat-${Date.now()}`, name: "NEW CATEGORY", description: "", showInNav: true }])}><Plus size={14} /> Add category</button>

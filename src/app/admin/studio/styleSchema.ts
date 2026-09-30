@@ -286,6 +286,13 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "navPillRadius", label: "Sticker pill corners (CSS radius)", kind: "text" },
       { key: "navPillRotate", label: "Tilt sticker pills", kind: "toggle" },
       { key: "navPillActivePalette", label: "Colorful sticker pills", kind: "toggle" },
+      { key: "navFlatSubcategories", label: "Show sub-categories as their own links (no drop-down)", kind: "toggle" },
+      { key: "navDropdownHideAll", label: "Hide the “All” link at the top of drop-downs", kind: "toggle" },
+      { key: "navDropdownBg", label: "Drop-down background", kind: "color" },
+      { key: "navDropdownTextColor", label: "Drop-down link color", kind: "color" },
+      { key: "navDropdownBorderColor", label: "Drop-down border color", kind: "color" },
+      { key: "navDropdownBorderWidth", label: "Drop-down border thickness", kind: "range", min: 0, max: 8, step: 1, suffix: "px" },
+      { key: "navDropdownTransform", label: "Drop-down link case", kind: "select", options: [{ value: "", label: "Same as header links" }, { value: "none", label: "As typed" }, { value: "uppercase", label: "Uppercase" }, { value: "lowercase", label: "Lowercase" }, { value: "capitalize", label: "Capitalize" }] },
     ],
   },
   {
