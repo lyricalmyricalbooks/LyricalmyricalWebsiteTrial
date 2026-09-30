@@ -22,6 +22,7 @@ import { getCopy } from "../features/site/storeCopy";
 import { buildNavItems } from "../features/site/navItems";
 import { navGap, navLinkStyle, useNavBelow } from "../features/site/headerNav";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
+import { StorefrontOverrides } from "../features/site/StorefrontOverrides";
 import { resolveFooterBadges } from "../features/site/paymentBadges";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
 import { LogoMark, wordmarkSecondaryStyle } from "./LogoMark";
@@ -265,6 +266,8 @@ function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
   const instagramUrl: string = (settings?.design?.social ?? DEFAULT_SOCIAL).instagram || "";
   const d = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? rawDesign.storefront : rawDesign;
   const fourCol = d?.footerLayout === "4col";
+  // "Multi-column footer" off → the columns stack into one.
+  const multiColumn = d?.footerColumns !== false;
   const headingFontFamily = d?.headingFont ? `'${d.headingFont}', serif` : undefined;
   return (
     <footer
@@ -272,7 +275,7 @@ function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
       className="border-t-2 border-white/30 bg-black/40"
       style={d?.footerBg ? { backgroundColor: d.footerBg } : undefined}
     >
-      <div className={`max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 ${fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/70`}>
+      <div className={`max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 ${!multiColumn ? "" : fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/70`}>
         {/* Col 1: Brand */}
         <div className="space-y-4" data-studio-target="copy:Footer|style:logo" data-studio-label="Footer brand">
           {d?.wordmarkStyle === "two-part" ? (
@@ -538,6 +541,8 @@ ${design?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(design) : "
       {navFont && <GoogleFontLoader font={navFont} />}
       {design?.wordmarkFont && <GoogleFontLoader font={design.wordmarkFont} />}
       <style>{css}</style>
+      {/* Card title/price + small-print controls — the same layer every other storefront page renders. */}
+      <StorefrontOverrides design={design} />
     </>
   );
 }
@@ -750,7 +755,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const soldOutLabel = storefrontDesign?.soldOutLabel || "SOLD OUT";
   const showCollectionMeta = storefrontDesign?.showCollectionMeta ?? true;
   const cardRuleWidth = Math.max(0, Math.min(8, storefrontDesign?.catalogCardRuleWidth ?? 2));
-  const priceTagBoxed = (storefrontDesign?.catalogPriceStyle ?? "boxed") !== "plain";
+  // Studio › Style › Product cards & grid › Card style: editorial (default) · card (framed panel) · minimal (no frame, plain price).
+  const cardStyle = (storefrontDesign?.productCardStyle || "editorial") as "card" | "minimal" | "editorial";
+  const priceTagBoxed = (storefrontDesign?.catalogPriceStyle ?? (cardStyle === "minimal" ? "plain" : "boxed")) !== "plain";
+  const priceOnHover = storefrontDesign?.showPriceOnHover === true;
   const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
   const saleBadgeLabel = storefrontDesign?.saleBadgeLabel || "SALE";
@@ -1245,7 +1253,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     ? { duration: 0.8, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }
                     : { duration: 0 }
                   }
-                  className={`group relative transition-all duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""}`}
+                  className={`group relative transition-all duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""} ${cardStyle === "card" ? "fm-surface border border-white/10 p-3" : ""}`}
+                  style={cardStyle === "card" ? { borderRadius: storefrontCardRadius } : undefined}
                 >
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleWish(item.id); }}
@@ -1259,7 +1268,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     <Heart size={13} fill={wished ? "currentColor" : "none"} />
                   </button>
                   <Link to={`/books/${slug}`}>
-                    <div className={`relative fm-surface mb-4 overflow-hidden ${isReferenceCatalog ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius, aspectRatio: imageAspectStyle }}>
+                    <div className={`relative fm-surface mb-4 overflow-hidden ${isReferenceCatalog || cardStyle === "minimal" ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius, aspectRatio: imageAspectStyle }}>
                       <SkeletonImage
                         src={item.photos?.[0]?.url || placeholderImage(activeDesign)}
                         alt={item.title}
@@ -1335,7 +1344,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         </h3>
                         {displayPrice > 0 && (
                           <span
-                            className="fm-card-price-wrap shrink-0 flex flex-col items-end leading-none font-mono tabular-nums"
+                            className={`fm-card-price-wrap shrink-0 flex flex-col items-end leading-none font-mono tabular-nums ${priceOnHover ? "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100" : ""}`}
                             style={{ color: storefrontDesign?.productPriceColor || storefrontText }}
                           >
                             <span

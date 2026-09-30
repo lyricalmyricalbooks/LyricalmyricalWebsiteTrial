@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS, SITE_CACHE_KEY } from "./constants";
 import type { Book, SiteSettings, Page } from "./types";
 import { RISO_NOIR_TOKENS, withRisoNoirDefault } from "./risoNoir";
 import { setSiteIdentity } from "../../lib/seo";
+import { applyCustomCode } from "./customCode";
 
 type CachePayload = {
   books: Book[];
@@ -170,6 +171,8 @@ export function useSiteData() {
 
   // Site name / default title / share image (Studio › Text & labels › Site & sharing) feed every page's <head>.
   useEffect(() => { setSiteIdentity(settings.design); }, [settings.design]);
+  // Studio › Style › Custom code (public pages only; see customCode.ts).
+  useEffect(() => { applyCustomCode(settings.design, location.pathname); }, [settings.design, location.pathname]);
 
   return { books, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading };
 }

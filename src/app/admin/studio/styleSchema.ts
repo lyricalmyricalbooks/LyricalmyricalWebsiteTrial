@@ -265,7 +265,6 @@ export const STYLE_GROUPS: StyleGroup[] = [
     id: "navlinks",
     title: "Navigation links",
     fields: [
-      { key: "navHeading", label: "Nav heading (before page links)", kind: "text" },
       { key: "navLinkColor", label: "Link color", kind: "color" },
       { key: "navLinkSize", label: "Link size", kind: "range", min: 8, max: 20, step: 1, suffix: "px" },
       { key: "navLinkWeight", label: "Link weight", kind: "select", options: weights },
@@ -365,8 +364,6 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "newBadgeDays", label: "“New” for how many days", kind: "range", min: 1, max: 180, step: 1 },
       { key: "soldOutLabel", label: "Sold-out text", kind: "text" },
       { key: "cartLabel", label: "Cart label", kind: "text" },
-      { key: "heroCTA", label: "Hero button text", kind: "text" },
-      { key: "heroSubtext", label: "Hero subtext", kind: "text" },
     ],
   },
   {
@@ -429,7 +426,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
   {
     id: "code",
     title: "Custom code (advanced)",
-    hint: "Runs on the live storefront. Use with care.",
+    hint: "Runs on the live storefront only (not in this preview, checkout or admin). Use with care.",
     fields: [
       { key: "customCss", label: "Custom CSS", kind: "textarea" },
       { key: "customHeadHtml", label: "Extra <head> HTML", kind: "textarea" },

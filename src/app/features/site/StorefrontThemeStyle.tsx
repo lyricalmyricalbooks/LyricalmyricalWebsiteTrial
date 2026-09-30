@@ -1,6 +1,5 @@
 import { googleFontHref } from "./fonts";
-import { cardFontNames, cardTypographyCss } from "./cardTypography";
-import { smallPrintCss, smallPrintFontNames } from "./smallPrint";
+import { storefrontOverridesCss, storefrontOverridesFontNames } from "./StorefrontOverrides";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, RISO_CHECKOUT_DARK_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS, hexToRgbTriplet } from "./themeTokens";
 
 /**
@@ -84,8 +83,8 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
 
   // Merchant overrides for book-card title/price and the tiny "small print" text. They come after the
   // token layer so they win, and only exist when a Studio control has been set.
-  const fontNames = Array.from(new Set([d.headingFont, d.font || d.bodyFont, d.navFont, d.wordmarkFont, ...cardFontNames(d), ...smallPrintFontNames(d)].filter(Boolean).map(String)));
-  const overridesCss = smallPrintCss(d) + cardTypographyCss(d);
+  const fontNames = Array.from(new Set([d.headingFont, d.font || d.bodyFont, d.navFont, d.wordmarkFont, ...storefrontOverridesFontNames(d)].filter(Boolean).map(String)));
+  const overridesCss = storefrontOverridesCss(d);
   return (
     <>
       {fontNames.map(n => <link key={n} rel="stylesheet" href={googleFontHref(n)} />)}
