@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeDesign } from "./studioModel";
-import { applyPageStyle, buildPreviewState, createSnapshotWriter, parseRecovery, previewRoute, updateBlocks } from "./studioWorkflow";
+import { applyPageStyle, buildPreviewState, createSnapshotWriter, deliverPreviewState, parseRecovery, previewRoute, updateBlocks } from "./studioWorkflow";
 
 describe("Studio workflow", () => {
   it("normalization is idempotent and never nests page surfaces inside one another", () => {
@@ -82,5 +82,29 @@ describe("Studio workflow", () => {
       pages: [{ id: "live", status: "published" }],
       books,
     });
+  });
+  it("delivers the unsaved snapshot through postMessage and a same-origin fallback", () => {
+    const origin = "https://shop.example";
+    const state = buildPreviewState({}, { primaryColor: "#f00" }, [], []);
+    const received: MessageEvent[] = [];
+    const frame = {
+      location: { origin },
+      postMessage: (data: any, origin: string) => received.push(new MessageEvent("message", { data, origin })),
+      dispatchEvent: (event: MessageEvent) => { received.push(event); return true; },
+    } as unknown as Window;
+    deliverPreviewState(frame, state, origin);
+    expect(received).toHaveLength(2);
+    expect(received.every((event) => event.data.design.primaryColor === "#f00")).toBe(true);
+  });
+  it("does not directly dispatch into a cross-origin preview", () => {
+    let posts = 0, dispatches = 0;
+    const frame = {
+      location: { origin: "https://other.example" },
+      postMessage: () => { posts += 1; },
+      dispatchEvent: () => { dispatches += 1; return true; },
+    } as unknown as Window;
+    deliverPreviewState(frame, buildPreviewState({}, {}, [], []), "https://shop.example");
+    expect(posts).toBe(1);
+    expect(dispatches).toBe(0);
   });
 });

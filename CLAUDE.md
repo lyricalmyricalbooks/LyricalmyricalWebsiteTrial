@@ -169,7 +169,9 @@ phone overrides, canvas reordering and pre-publish checks also live in Studio. T
 saving so removed page overrides do not reappear. The iframe receives an atomic
 `STUDIO_PREVIEW_STATE` snapshot of the unsaved design, settings, books and
 published pages, keeping colors, menus and newly created page content live
-across preview navigation without another Firestore read.
+across preview navigation without another Firestore read. Delivery uses both
+`postMessage` and a same-origin message-event fallback so iframe load timing
+cannot leave the canvas showing the published design.
 
 Studio also supports three-level recursive composition blocks through the
 **Flexible composition** section. Groups can contain text, image, button, or

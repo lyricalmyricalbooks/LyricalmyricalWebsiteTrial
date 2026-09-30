@@ -32,8 +32,10 @@ The editor is **not** a blank slate. It already supports:
   preview can request a section be opened in the editor). `STUDIO_PREVIEW_STATE`
   sends the complete unsaved design plus current books, published pages and
   non-design settings, so colors, navigation and newly created pages update
-  together without an iframe reload; `THEME_UPDATE` remains supported for
-  legacy callers.
+  together without an iframe reload. Studio also directly dispatches the same
+  event into its same-origin iframe as a delivery fallback, preventing iframe
+  timing from leaving the canvas on published colours; `THEME_UPDATE` remains
+  supported for legacy callers.
 - **Import/export** of a theme design as JSON (in `ThemeEditorPro`).
 - A **token/CSS-variable layer** applied to every storefront surface.
 
