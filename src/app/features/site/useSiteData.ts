@@ -1,12 +1,13 @@
 import { useLocation } from "react-router";
 import { resolveSurfaceDesign } from "./surfaceDesign";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { adminApi } from "../../admin/api";
 import { DEFAULT_SETTINGS, SITE_CACHE_KEY } from "./constants";
 import type { Book, SiteSettings, Page } from "./types";
 import { RISO_NOIR_TOKENS, withRisoNoirDefault } from "./risoNoir";
 import { setSiteIdentity } from "../../lib/seo";
 import { applyCustomCode } from "./customCode";
+import { applyBackorderPolicy } from "./backorder";
 
 type CachePayload = {
   books: Book[];
@@ -193,7 +194,9 @@ export function useSiteData() {
   // Studio › Style › Custom code (public pages only; see customCode.ts).
   useEffect(() => { applyCustomCode(settings.design, location.pathname); }, [settings.design, location.pathname]);
 
-  return { books, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading };
+  const sellableBooks = useMemo(() => books.map(applyBackorderPolicy), [books]);
+
+  return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading };
 }
 
 /**

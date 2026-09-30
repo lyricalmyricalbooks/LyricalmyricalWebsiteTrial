@@ -606,7 +606,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
     const variant = requested.variantId
       ? (book.variants || []).find(v => v.id === requested.variantId) || null
       : null;
-    if (book.trackInventory) {
+    if (book.trackInventory && !book.allowBackorder) {
       const available = variant ? Number(variant.stock || 0) : Number(book.stockLevel || 0);
       if (available < quantity) throw new Error(`Insufficient stock for ${requested.title}. Only ${available} left.`);
     }
@@ -881,7 +881,7 @@ exports.createStripeCheckoutSession = onRequest(
         if (item.variantId) {
           variant = (book.variants || []).find(v => v.id === item.variantId) || null;
         }
-        if (book.trackInventory) {
+        if (book.trackInventory && !book.allowBackorder) {
           if (variant) {
             if (variant.stock < item.quantity) {
               res.status(400).json({ error: `Insufficient stock for ${item.title} (${variant.name}). Only ${variant.stock} left.` });

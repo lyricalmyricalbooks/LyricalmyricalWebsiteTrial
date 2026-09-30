@@ -309,8 +309,10 @@ export default function BookDetail() {
   const alignCls      = productAlignment === "center" ? "items-center text-center" : "items-start text-left";
   const showThumbRail = photos.length > 1 && pdpThumbPosition !== "hidden";
   const isLowStock    = stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10);
+  const isBackorder   = !!(selectedVariant ? (selectedVariant as any).onBackorder : (book as any)?.onBackorder);
   const stockText     = isOutOfStock
     ? getCopy(settings?.design, "soldOutLabel")
+    : isBackorder ? getCopy(settings?.design, "pdpBackorder")
     : isLowStock ? getCopy(settings?.design, "pdpInStockCount", { count: stockLevel }) : getCopy(settings?.design, "pdpInStock");
   const specRows = [
     { key: "specFormat", icon: <BookOpen size={11} />, value: bk.format },
