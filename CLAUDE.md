@@ -148,7 +148,9 @@ profile, rate dialog).
 > Studio. Shop categories (the storefront category bar) are edited in Studio › **Menus** ›
 > **Shop categories**. Custom pages (About, Journal…) also live only in Studio › **Pages** tab
 > (`studio/StudioPages.tsx`); there is **no** separate Pages screen in the admin nav — do not
-> re-add one. Walkthroughs must use Studio's labels, not legacy legacy-editor tabs.
+> re-add one. New pages join the storefront header by default, and their public
+> routes render the themed storefront header. Walkthroughs must use Studio's
+> labels, not legacy legacy-editor tabs.
 
 Studio's Sections outline supports sortable sections and blocks. Canvas clicks
 open their inspector; **Edit mode** selects content and **Browse mode** lets
@@ -161,6 +163,15 @@ phone overrides, canvas reordering and pre-publish checks also live in Studio. T
 `studio/StudioEditor.tsx`, `StudioOutline.tsx`, `StudioInspector.tsx` and
 `useStudioPersistence.ts`; `themeWrite.ts` replaces complete design maps when
 saving so removed page overrides do not reappear.
+
+Studio also supports three-level recursive composition blocks through the
+**Flexible composition** section. Groups can contain text, image, button, or
+more group blocks; the active desktop/tablet/mobile preview controls local
+alignment, visibility, and CSS-grid coordinates. Any configured block can be
+promoted to a linked shared block and inserted in another block-capable section;
+shared content updates everywhere while placement stays local. The preview
+supports section and block drag/reorder plus schema-derived inline editing for
+safe text fields.
 
 A large (~11k-line) Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the

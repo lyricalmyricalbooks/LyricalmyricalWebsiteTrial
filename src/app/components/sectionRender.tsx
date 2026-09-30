@@ -156,6 +156,7 @@ export type SectionListProps = {
   enableAnimations?: boolean;
   /** Value for the `data-section` attribute (used by the editor's click-to-edit). */
   dataSection?: string;
+  sharedBlocks?: any[];
 };
 
 /**
@@ -170,6 +171,7 @@ export function SectionList({
   onProductClick,
   enableAnimations = true,
   dataSection = "homepage",
+  sharedBlocks = [],
 }: SectionListProps) {
   const list = (sections || []).filter((section: any) => section.visible !== false && sectionInWindow(section));
   if (list.length === 0) return null;
@@ -181,7 +183,7 @@ export function SectionList({
         const SectionComponent = (Sections as any)[section.type];
         if (!SectionComponent) return null;
 
-        const s = { ...(section.settings || {}), __sectionId: section.id };
+        const s = { ...(section.settings || {}), __sectionId: section.id, __sharedBlocks: sharedBlocks };
         const scheme = s.colorSchemeId ? schemes.find((sc: any) => sc.id === s.colorSchemeId) : null;
         const wrapperCls =
           [
@@ -282,6 +284,7 @@ export function TemplateSections({
       onProductClick={handlers.onProductClick}
       enableAnimations={enableAnimations ?? (design?.enableAnimations ?? true)}
       dataSection={templateId}
+      sharedBlocks={design?.sharedBlocks || []}
     />
   );
 }
@@ -314,6 +317,7 @@ export function GlobalSections({
       onProductClick={onProductClick || handlers.onProductClick}
       enableAnimations={false}
       dataSection="globalSections"
+      sharedBlocks={design?.sharedBlocks || []}
     />
   );
 }

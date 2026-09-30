@@ -32,6 +32,16 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
 
   return (
     <>
+      {(storefront.showAnnouncement ?? false) && storefront.announcementText && (
+        <div
+          data-studio-target="style:header"
+          data-studio-label="Announcement bar"
+          className="px-6 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.3em]"
+          style={{ backgroundColor: storefront.announcementBg || "var(--accent)", color: storefront.announcementColor || "var(--on-accent)" }}
+        >
+          {storefront.announcementText}
+        </div>
+      )}
       <header
         data-section="navigation"
         data-studio-target="style:header|menus:header-order|copy:Header"
@@ -45,6 +55,7 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
           </Link>
 
           <nav
+            aria-label={getCopy(design, "ariaMainNavigation")}
             data-studio-target="menus:header-order|menus:categories"
             data-studio-label="Header bar order"
             className="hidden items-center gap-8 lg:flex"

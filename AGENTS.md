@@ -109,7 +109,9 @@ enhance it:
 The default Settings → Design experience is `studio/StudioEditor.tsx`: its
 section/block outline, inspector, Edit/Browse preview and draft workflow are
 the primary editing surfaces. Keep the legacy `ThemeEditor.tsx` contracts in
-sync where shared registry controls or renderers change.
+sync where shared registry controls or renderers change. Custom pages created
+in Studio join the storefront header by default, and their public routes render
+the themed storefront header.
 
 1. **Read `docs/THEME_EDITOR.md` first**, plus the whole section/block system —
    `ThemeEditor.tsx`, `ThemeEditorExtensions.tsx` (the `SECTION_REGISTRY`),
@@ -137,6 +139,10 @@ sync where shared registry controls or renderers change.
    Visual and feature controls expose **All pages / This page only** scope.
    All-pages writes must update every static/dynamic template while preserving
    its page-specific section stack.
+   Studio composition blocks may nest three levels, carry breakpoint-specific
+   grid/alignment/visibility overrides, and link to `design.sharedBlocks` for
+   synchronized reuse across compatible section renderers. Preserve local placement overrides when editing a linked
+   source, and keep recursive operations immutable and depth-guarded.
 3. **Work the roadmap, complete a milestone end-to-end.** Pick a checklist item
    from the roadmap in `docs/THEME_EDITOR.md` (sections-everywhere, more section
    types, live-preview/UX, theme management), finish it fully, then **tick it off
