@@ -28,7 +28,7 @@ import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY, PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
 import { StudioOutline } from "./StudioOutline";
 import { StudioInspector } from "./StudioInspector";
-import { applyPageStyle, buildPreviewState, PAGE_STYLE_GROUPS, previewRoute } from "./studioWorkflow";
+import { applyPageStyle, buildPreviewState, deliverPreviewState, PAGE_STYLE_GROUPS, previewRoute } from "./studioWorkflow";
 import { useStudioPersistence } from "./useStudioPersistence";
 import { Dialog, SecondaryButton } from "../riso/components";
 import "./studio.css";
@@ -487,7 +487,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const sendPreviewState = useCallback(() => {
     const previewDesign = historyPreview?.design || designRef.current;
     try {
-      iframeRef.current?.contentWindow?.postMessage(
+      deliverPreviewState(
+        iframeRef.current?.contentWindow,
         buildPreviewState(settings, previewDesign, pages, books),
         window.location.origin,
       );

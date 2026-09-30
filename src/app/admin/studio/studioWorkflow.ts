@@ -20,6 +20,23 @@ export function buildPreviewState(settings: any, design: any, pages: any[], book
   };
 }
 
+/** Deliver through postMessage plus a same-origin fallback for iframe load races. */
+export function deliverPreviewState(
+  frame: Window | null | undefined,
+  state: ReturnType<typeof buildPreviewState>,
+  origin: string,
+) {
+  if (!frame) return;
+  frame.postMessage(state, origin);
+  try {
+    if (frame.location.origin !== origin) return;
+    const source = typeof window === "undefined" ? null : window;
+    frame.dispatchEvent(new MessageEvent("message", { data: state, origin, source }));
+  } catch {
+    // Cross-origin frames still receive the normal postMessage above.
+  }
+}
+
 /** One in-flight write, with an immutable baseline even if editing continues. */
 export function createSnapshotWriter() {
   let busy = false;
