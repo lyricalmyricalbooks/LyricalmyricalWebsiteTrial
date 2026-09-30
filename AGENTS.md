@@ -149,6 +149,12 @@ sync where shared registry controls or renderers change.
 When prompting this agent, naming a specific roadmap milestone gets the most
 complete result.
 
+> [!IMPORTANT]
+> **Everything shopper-facing must be editable in Studio — nothing "built into the site".**
+> Any storefront element (box, row, link, heading, text) needs a Studio control to hide/show it
+> and its words in Text & labels (`COPY_SCHEMA`). Add the toggle to `STYLE_GROUPS` in
+> `studio/styleSchema.ts` (default = current behaviour) in the same change that adds the element.
+
 ## Storefront look (Riso Noir)
 
 The public site defaults to Riso Press on black/white with a flare accent. Keep it token-driven:

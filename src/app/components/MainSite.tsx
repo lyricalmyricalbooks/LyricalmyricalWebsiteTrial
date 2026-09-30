@@ -298,7 +298,7 @@ function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
                   {page.title}
                 </Link>
               ))}
-              <a href={settings?.design?.social?.instagram || "https://www.instagram.com/lyricalmyricalbooks"} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkInstagram")}</a>
+              {d?.showSocialInFooter !== false && <a href={settings?.design?.social?.instagram || "https://www.instagram.com/lyricalmyricalbooks"} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkInstagram")}</a>}
               <a
                 href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
                 className="block hover:text-white transition-colors"
@@ -1335,7 +1335,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
           }
         />
-        {!onHome && <RecentlyViewedRow />}
+        {!onHome && !activeDesign?.hideRecentlyViewed && <RecentlyViewedRow />}
         {!onHome && !activeDesign?.hideNewsletter && <Newsletter design={settings?.design} />}
         <SiteFooter settings={settings} pages={pages} />
         {(storefrontDesign?.showPoweredBy ?? false) && (
