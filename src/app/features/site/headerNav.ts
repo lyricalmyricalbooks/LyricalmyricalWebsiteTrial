@@ -22,6 +22,13 @@ export function navLinkStyle(design: any, active: boolean, color?: string): CSSP
 /** Gap between header nav links (px). */
 export const navGap = (design: any) => Math.max(4, Math.min(64, Number(design?.navGap ?? 28)));
 
+const HEADER_FIT_BUFFER = 96;
+
+/** Keep the fit decision small and deterministic so late font/layout changes can be retested. */
+export function navNeedsOwnRow(navWidth: number, fixedWidth: number, availableWidth: number) {
+  return navWidth + fixedWidth + HEADER_FIT_BUFFER > availableWidth;
+}
+
 /**
  * Decide whether the category bar fits on the header's single line.
  * Studio › Style › Navigation links › "Category bar position": auto (default) moves
@@ -31,25 +38,50 @@ export const navGap = (design: any) => Math.max(4, Math.min(64, Number(design?.n
  */
 export function useNavBelow(design: any, rowRef: RefObject<HTMLElement | null>, navRef: RefObject<HTMLElement | null>) {
   const mode = design?.navPlacement || "auto";
-  const [below, setBelow] = useState(mode === "below");
+  // Auto starts on the safe row. The first layout measurement may move it inline,
+  // but a slow webfont or restored page data can never briefly make links overlap
+  // the account/currency/cart controls.
+  const [below, setBelow] = useState(mode !== "inline");
   useLayoutEffect(() => {
     if (mode !== "auto") { setBelow(mode === "below"); return; }
     const row = rowRef.current;
-    if (!row || typeof ResizeObserver === "undefined") return;
+    if (!row) return;
     const measure = () => {
       const nav = navRef.current;
       if (!nav) return;
-      let needed = nav.scrollWidth + 96;
-      row.querySelectorAll<HTMLElement>("[data-hdr-fixed]").forEach((el) => { needed += el.offsetWidth; });
+      let fixedWidth = 0;
+      // Only count top-level fixed regions. A right-positioned logo is itself
+      // marked fixed inside the fixed controls region and must not be counted twice.
+      row.querySelectorAll<HTMLElement>(":scope > * [data-hdr-fixed], :scope > [data-hdr-fixed]").forEach((el) => {
+        if (!el.parentElement?.closest("[data-hdr-fixed]")) fixedWidth += el.offsetWidth;
+      });
       const styles = getComputedStyle(row);
       const avail = row.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
-      setBelow(needed > avail);
+      setBelow(navNeedsOwnRow(nav.scrollWidth, fixedWidth, avail));
     };
     measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(row);
-    if (navRef.current) ro.observe(navRef.current);
-    return () => ro.disconnect();
+    const frame = requestAnimationFrame(measure);
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    ro?.observe(row);
+    if (navRef.current) ro?.observe(navRef.current);
+    const mo = typeof MutationObserver === "undefined" ? null : new MutationObserver(measure);
+    if (navRef.current) mo?.observe(navRef.current, { childList: true, subtree: true, characterData: true });
+    window.addEventListener("resize", measure);
+
+    // Font swaps alter text width without reliably resizing an already constrained
+    // nav box. Recheck both the initial font-ready promise and later font loads.
+    let cancelled = false;
+    const fonts = document.fonts;
+    fonts?.ready.then(() => { if (!cancelled) measure(); });
+    fonts?.addEventListener?.("loadingdone", measure);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      ro?.disconnect();
+      mo?.disconnect();
+      window.removeEventListener("resize", measure);
+      fonts?.removeEventListener?.("loadingdone", measure);
+    };
   }, [mode, rowRef, navRef]);
   return below;
 }
