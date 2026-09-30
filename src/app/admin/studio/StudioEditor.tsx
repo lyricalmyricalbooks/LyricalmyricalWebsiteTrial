@@ -472,7 +472,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const sendDesign = useCallback(() => {
     try { iframeRef.current?.contentWindow?.postMessage({ type: "THEME_UPDATE", design: historyPreview?.design || designRef.current }, window.location.origin); } catch { /* ignore */ }
   }, [historyPreview]);
-  useEffect(() => { const t = setTimeout(sendDesign, 100); return () => clearTimeout(t); }, [design, sendDesign]);
+  useEffect(() => { const t = setTimeout(sendDesign, 150); return () => clearTimeout(t); }, [design, sendDesign]);
   // Tell the preview which strings are editable copy, so double-clicking one jumps to its field.
   const sendCopyMap = useCallback(() => {
     const items = COPY_SCHEMA.flatMap((g) => g.fields.map((f) => ({ key: f.key, text: (designRef.current.copy?.[f.key] || DEFAULT_COPY[f.key] || "") })));
@@ -489,7 +489,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     }
     try { iframeRef.current?.contentWindow?.postMessage({ type: "SET_EDIT_MAP", items: editable }, window.location.origin); } catch { /* ignore */ }
   }, [templates]);
-  useEffect(() => { const t = setTimeout(sendCopyMap, 200); return () => clearTimeout(t); }, [design, sendCopyMap]);
+  // The edit map is a full scan of every section; run it only once typing/dragging settles, and when idle.
+  useEffect(() => {
+    let idle: number | undefined;
+    const t = setTimeout(() => {
+      const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, o?: { timeout: number }) => number);
+      if (ric) idle = ric(sendCopyMap, { timeout: 1000 }); else sendCopyMap();
+    }, 600);
+    return () => { clearTimeout(t); if (idle !== undefined) (window as any).cancelIdleCallback?.(idle); };
+  }, [design, sendCopyMap]);
 
   const onIframeLoad = () => {
     try {
@@ -504,7 +512,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const highlight = useCallback((id: string | null, scroll = false, selectedBlock: string | null = blockId) => {
     try { iframeRef.current?.contentWindow?.postMessage({ type: "HIGHLIGHT_SECTION", instanceId: id, blockId: selectedBlock, scroll }, window.location.origin); } catch { /* ignore */ }
   }, [blockId]);
-  useEffect(() => highlight(selectedId), [selectedId, highlight, design]);
+  // Re-highlight right away when the selection changes, but only after edits settle when the design changes.
+  useEffect(() => highlight(selectedId), [selectedId, highlight]);
+  useEffect(() => { const t = setTimeout(() => highlight(selectedId), 250); return () => clearTimeout(t); }, [design]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); }, [mode]);
   useEffect(() => { setPreviewStatus("loading"); const timer = setTimeout(() => setPreviewStatus(s => s === "loading" ? "error" : s), 15000); return () => clearTimeout(timer); }, [previewUrl, previewRevision]);
 
