@@ -94,6 +94,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showPriceOnHover", label: "Show price only on hover", kind: "toggle" },
       { key: "showSoldOutBadge", label: "Show “sold out” badge", kind: "toggle" },
       { key: "showCollectionMeta", label: "Show collection label on cards", kind: "toggle" },
+      { key: "catalogCardRuleWidth", label: "Line above card title (0 = hidden)", kind: "range", min: 0, max: 8, step: 1, suffix: "px" },
+      { key: "catalogPriceStyle", label: "Card price style", kind: "select", options: [{ value: "boxed", label: "Boxed tag" }, { value: "plain", label: "Plain text" }] },
       { key: "badgeBgPrimary", label: "Badge background", kind: "color" },
       { key: "badgeTextPrimary", label: "Badge text", kind: "color" },
       { key: "badgeBgSecondary", label: "Secondary badge background", kind: "color" },
