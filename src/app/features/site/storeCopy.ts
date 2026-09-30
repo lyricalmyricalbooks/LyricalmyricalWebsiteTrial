@@ -163,6 +163,18 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "errorTitle", label: "Crash screen message", default: "Something went wrong" },
       { key: "errorReload", label: "Crash screen button", default: "Reload" },
       { key: "pageHomeLink", label: "Header 'home' link", default: "HOME" },
+      {
+        key: "historyBody",
+        label: "History of LM — body",
+        default: "Lyricalmyrical Books is an independent publishing house based in Toronto, with roots in Italy. We specialize in photography and art books, bringing artists, images, and ideas together through carefully made printed editions.",
+        multiline: true,
+      },
+      {
+        key: "historySubtext",
+        label: "History of LM — text underneath",
+        default: "Independent publishing between Toronto and Italy — photography, art, and books made to last.",
+        multiline: true,
+      },
       { key: "notFoundCode", label: "404 number", default: "404" },
       { key: "notFoundTitle", label: "404 message", default: "Page not found" },
       { key: "notFoundBack", label: "404 back link", default: "BACK TO HOME" },
