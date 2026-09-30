@@ -869,7 +869,7 @@ export default function BookDetail() {
                 />
               )}
 
-              {/* Trust signals */
+              {/* Trust signals */}
               {showTrustSignals !== false && (
                 <div className={`w-full pt-4 ${
                   productTrustLayout === "row"
