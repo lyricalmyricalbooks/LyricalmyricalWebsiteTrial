@@ -740,6 +740,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontCtaText = storefrontDesign?.productCTA || "VIEW";
   const soldOutLabel = storefrontDesign?.soldOutLabel || "SOLD OUT";
   const showCollectionMeta = storefrontDesign?.showCollectionMeta ?? true;
+  const cardRuleWidth = Math.max(0, Math.min(8, storefrontDesign?.catalogCardRuleWidth ?? 2));
+  const priceTagBoxed = (storefrontDesign?.catalogPriceStyle ?? "boxed") !== "plain";
   const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
   const saleBadgeLabel = storefrontDesign?.saleBadgeLabel || "SALE";
@@ -1304,8 +1306,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       </div>
                     </div>
                     <div
-                      className="pt-3"
-                      style={{ borderTop: "2px solid rgba(var(--fg-rgb), 0.85)" }}
+                      data-studio-target="style:products"
+                      data-studio-label="Card title & price"
+                      className={cardRuleWidth > 0 ? "pt-3" : ""}
+                      style={cardRuleWidth > 0 ? { borderTop: `${cardRuleWidth}px solid rgba(var(--fg-rgb), 0.85)` } : undefined}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <h3
@@ -1320,8 +1324,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                             style={{ color: storefrontDesign?.productPriceColor || storefrontText }}
                           >
                             <span
-                              className="px-2 py-1 text-sm md:text-base font-bold whitespace-nowrap"
-                              style={{ border: "2px solid currentColor" }}
+                              className={`text-sm md:text-base font-bold whitespace-nowrap ${priceTagBoxed ? "px-2 py-1" : ""}`}
+                              style={priceTagBoxed ? { border: "2px solid currentColor" } : undefined}
                             >
                               {formatBookPrice(item)}
                             </span>
