@@ -1077,12 +1077,12 @@ export default function BookDetail() {
                   }`}>
                     {/* Cover Art Previews */}
                     <div className="flex items-center gap-4">
-                      <div className="w-16 aspect-[3/4] fm-surface rounded-xl border border-white/10 shadow-lg shrink-0">
-                        <img src={photos[0]?.url || DEFAULT_IMAGE} alt={book.title} className="w-full h-full object-cover" />
+                      <div className="w-16 fm-surface rounded-xl border border-white/10 shadow-lg shrink-0 overflow-hidden" style={{ aspectRatio: productImageAspect }}>
+                        <img src={photos[0]?.url || DEFAULT_IMAGE} alt={book.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
                       </div>
                       <span className="text-white/20 font-black text-lg">+</span>
-                      <div className="w-16 aspect-[3/4] fm-surface rounded-xl border border-white/10 shadow-lg shrink-0">
-                        <img src={bundleBook.photos?.[0]?.url || DEFAULT_IMAGE} alt={bundleBook.title} className="w-full h-full object-cover" />
+                      <div className="w-16 fm-surface rounded-xl border border-white/10 shadow-lg shrink-0 overflow-hidden" style={{ aspectRatio: productImageAspect }}>
+                        <img src={bundleBook.photos?.[0]?.url || DEFAULT_IMAGE} alt={bundleBook.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
                       </div>
                     </div>
 
@@ -1143,12 +1143,13 @@ export default function BookDetail() {
                       className="group"
                     >
                       <Link to={`/books/${relSlug}`}>
-                        <div className="relative aspect-[3/4] fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl">
+                        <div className="relative fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl" style={{ aspectRatio: productImageAspect }}>
                           <img
                             src={(rel as any).photos?.[0]?.url || DEFAULT_IMAGE}
                             alt={rel.title}
                             loading="lazy"
-                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                            className="w-full h-full transition-transform duration-700 group-hover:scale-105"
+                            style={{ objectFit: productImageFit }}
                           />
                           {relStock === 0 && (
                             <div className="absolute inset-0 bg-black/65 flex items-center justify-center">

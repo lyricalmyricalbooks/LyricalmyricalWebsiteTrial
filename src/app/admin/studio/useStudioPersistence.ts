@@ -46,8 +46,6 @@ export function useStudioPersistence(props: {
   };
   const persist = async (kind: "draft" | "publish" | "discard") => {
     if (locked.current) return;
-    if (kind === "publish" && !window.confirm("Publish this design to the live storefront?")) return;
-    if (kind === "discard" && !window.confirm("Discard unpublished changes and restore the live design?")) return;
     locked.current = true; setBusy(kind);
     const p = current.current;
     try {

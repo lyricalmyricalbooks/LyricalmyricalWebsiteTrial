@@ -2211,6 +2211,14 @@ export function SectionSettingsPanel({
             </button>
           ))}
         </div>
+        <div className="rounded-xl border border-neutral-200 p-3 space-y-3">
+          <p className="text-[9px] font-black tracking-widest text-neutral-400 uppercase">Phone overrides</p>
+          <label className="text-[10px] font-bold block">Top padding (px)<input type="number" min="0" max="240" value={settings.mobilePaddingTop ?? ""} placeholder={String(settings.paddingTop ?? 0)} onChange={(e) => onUpdate({ mobilePaddingTop: e.target.value === "" ? undefined : Number(e.target.value) })} className="mt-1 w-full bg-white border border-neutral-200 rounded-lg px-3 py-2" /></label>
+          <label className="text-[10px] font-bold block">Bottom padding (px)<input type="number" min="0" max="240" value={settings.mobilePaddingBottom ?? ""} placeholder={String(settings.paddingBottom ?? 0)} onChange={(e) => onUpdate({ mobilePaddingBottom: e.target.value === "" ? undefined : Number(e.target.value) })} className="mt-1 w-full bg-white border border-neutral-200 rounded-lg px-3 py-2" /></label>
+          <label className="text-[10px] font-bold block">Text scale (%)<input type="number" min="60" max="140" value={settings.mobileFontScale ?? ""} placeholder="100" onChange={(e) => onUpdate({ mobileFontScale: e.target.value === "" ? undefined : Number(e.target.value) })} className="mt-1 w-full bg-white border border-neutral-200 rounded-lg px-3 py-2" /></label>
+          <label className="text-[10px] font-bold block">Grid columns<input type="number" min="1" max="4" value={settings.mobileColumns ?? ""} placeholder="Automatic" onChange={(e) => onUpdate({ mobileColumns: e.target.value === "" ? undefined : Number(e.target.value) })} className="mt-1 w-full bg-white border border-neutral-200 rounded-lg px-3 py-2" /></label>
+          <p className="text-[8px] text-neutral-400">Shown in the phone preview and on shopper screens below 768px.</p>
+        </div>
       </div>
 
       {/* ── Scoped custom CSS ── */}

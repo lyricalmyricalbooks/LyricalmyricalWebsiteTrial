@@ -154,7 +154,10 @@ Studio's Sections outline supports sortable sections and blocks. Canvas clicks
 open their inspector; **Edit mode** selects content and **Browse mode** lets
 storefront links and controls work. **Style** has searchable controls with
 **All pages / This page only** scope for supported visual groups. Save draft,
-Publish and local unsaved recovery are separate actions. These live in
+Publish and local unsaved recovery are separate actions. History provides
+non-destructive snapshot Preview and Restore to draft; change-aware dialogs
+guard Publish/Discard. Reusable/copyable sections, scheduled visibility,
+phone overrides, canvas reordering and pre-publish checks also live in Studio. These live in
 `studio/StudioEditor.tsx`, `StudioOutline.tsx`, `StudioInspector.tsx` and
 `useStudioPersistence.ts`; `themeWrite.ts` replaces complete design maps when
 saving so removed page overrides do not reappear.
