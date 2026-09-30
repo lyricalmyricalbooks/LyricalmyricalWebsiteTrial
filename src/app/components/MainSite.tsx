@@ -24,7 +24,7 @@ import { navGap, navLinkStyle, useNavBelow } from "../features/site/headerNav";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { resolveFooterBadges } from "../features/site/paymentBadges";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
-import { LogoMark } from "./LogoMark";
+import { LogoMark, wordmarkSecondaryStyle } from "./LogoMark";
 import { googleFontHref } from "../features/site/fonts";
 import { ThemeToggle } from "./theme/ThemeToggle";
 import { CurrencySelector, useCurrency } from "../CurrencyContext";
@@ -274,7 +274,7 @@ function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
         <div className="space-y-4" data-studio-target="copy:Footer|style:logo" data-studio-label="Footer brand">
           {d?.wordmarkStyle === "two-part" ? (
             <p className="text-white text-xl" style={{ fontFamily: headingFontFamily, fontWeight: d?.wordmarkWeight ?? 600, letterSpacing: "-0.01em" }}>
-              {d.wordmarkPrimary || "Lyricalmyrical"} <span className="opacity-60">{d.wordmarkSecondary || "Books"}</span>
+              {d.wordmarkPrimary || "Lyricalmyrical"} <span style={wordmarkSecondaryStyle(d)}>{d.wordmarkSecondary || "Books"}</span>
             </p>
           ) : (
             <p className="text-white font-bold tracking-widest text-xs">{getCopy(settings?.design, "footerWordmark")}</p>

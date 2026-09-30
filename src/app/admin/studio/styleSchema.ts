@@ -165,6 +165,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "wordmarkPrimary", label: "Wordmark: first word", kind: "text" },
       { key: "wordmarkSecondary", label: "Wordmark: second word", kind: "text" },
       { key: "wordmarkSecondaryMuted", label: "Dim the second word", kind: "toggle" },
+      { key: "wordmarkSecondaryColor", label: "Second word color (overrides dimming)", kind: "color" },
       { key: "wordmarkSize", label: "Wordmark size", kind: "range", min: 1, max: 4, step: 0.1, suffix: "rem" },
       { key: "wordmarkWeight", label: "Wordmark weight", kind: "select", options: weights },
     ],
