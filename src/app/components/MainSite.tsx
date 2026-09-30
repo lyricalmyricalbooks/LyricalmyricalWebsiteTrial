@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as Use
 import { Link, useNavigate, useLocation } from "react-router";
 import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyPages";
 import { useCart } from "../CartContext";
-import { CATEGORIES, DEFAULT_IMAGE } from "../features/site/constants";
+import { CATEGORIES, placeholderImage, DEFAULT_SOCIAL } from "../features/site/constants";
 import { aspectRatioValue } from "../features/site/imageAspect";
 import {
   getFeaturedBooks,
@@ -36,6 +36,7 @@ import { useSEO } from "../lib/seo";
 import { CatalogControls, applyCatalogControls, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { SearchOverlay } from "../features/site/SearchOverlay";
+import { designNumber } from "../features/site/designNumber";
 
 // ──────────────────────────────
 // Sticker-pill navigation (navStyle: "stickers") — asymmetric border radius,
@@ -260,6 +261,8 @@ const PAYMENT_ICONS: Record<string, React.ReactNode> = {
 function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
   const navPages = (pages || []).filter(p => p.showInNav && p.status === "published");
   const rawDesign = settings?.design || {};
+  // Never configured → the house default; cleared on purpose in Studio → hidden.
+  const instagramUrl: string = (settings?.design?.social ?? DEFAULT_SOCIAL).instagram || "";
   const d = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? rawDesign.storefront : rawDesign;
   const fourCol = d?.footerLayout === "4col";
   const headingFontFamily = d?.headingFont ? `'${d.headingFont}', serif` : undefined;
@@ -302,7 +305,7 @@ function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
                   {page.title}
                 </Link>
               ))}
-              {d?.showSocialInFooter !== false && <a href={settings?.design?.social?.instagram || "https://www.instagram.com/lyricalmyricalbooks"} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkInstagram")}</a>}
+              {d?.showSocialInFooter !== false && instagramUrl && <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkInstagram")}</a>}
               <a
                 href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
                 className="block hover:text-white transition-colors"
@@ -358,14 +361,16 @@ function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
         )}
 
         <div className="flex gap-4">
+          {instagramUrl && (
           <a
-            href={settings?.design?.social?.instagram || "https://www.instagram.com/lyricalmyricalbooks"}
+            href={instagramUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="text-white/55 hover:text-white transition-colors"
           >
             <Instagram size={14} />
           </a>
+          )}
           <a
             href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
             className="text-white/55 hover:text-white transition-colors"
@@ -686,14 +691,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const { has: isWished, toggle: toggleWish, count: wishlistCount } = useWishlist();
 
   useSEO({
-    title: showCatalog ? "Archive" : undefined,
+    title: showCatalog ? getCopy(settings?.design, "seoArchiveTitle") : undefined,
     description: settings?.info?.description,
     image: settings?.assets?.profileUrl,
     type: "website",
     jsonLd: {
       "@context": "https://schema.org",
       "@type": "BookStore",
-      name: settings?.info?.name || "Lyricalmyrical Books",
+      name: settings?.info?.name || getCopy(settings?.design, "siteName"),
       url: settings?.info?.website,
       description: settings?.info?.description,
     },
@@ -1112,6 +1117,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               enableAnimations={heroDesign?.enableAnimations ?? true}
               dataSection="homepage"
               sharedBlocks={activeDesign.sharedBlocks || []}
+              design={activeDesign}
             />
           </main>
         ) : (
@@ -1220,7 +1226,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               const slug = getBookSlug(item);
               const stock = item.stockLevel ?? 999;
               const isOutOfStock = stock === 0;
-              const isLowStock = stock > 0 && stock !== 999 && stock <= 5;
+              const isLowStock = stock > 0 && stock !== 999 && stock <= designNumber(activeDesign, "lowStockCardThreshold", 5);
               const onSale = !!item.isOnSale && item.salePrice > 0 && item.salePrice < (item.retailPrice ?? 0);
               const displayPrice = onSale ? item.salePrice : item.retailPrice;
               const isNewArrival = (() => {
@@ -1255,7 +1261,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   <Link to={`/books/${slug}`}>
                     <div className={`relative fm-surface mb-4 overflow-hidden ${isReferenceCatalog ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius, aspectRatio: imageAspectStyle }}>
                       <SkeletonImage
-                        src={item.photos?.[0]?.url || DEFAULT_IMAGE}
+                        src={item.photos?.[0]?.url || placeholderImage(activeDesign)}
                         alt={item.title}
                         className={`w-full h-full ${storefrontImageFit} transition-transform duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}
                         style={{ objectPosition: `${catalogImageFocalX}% ${catalogImageFocalY}%` }}

@@ -356,19 +356,19 @@ export function Checkout() {
     // ⚡ Bolt: Replace O(N) array iteration with O(1) memoized cart count context value
     const totalQty = currentCartCount;
     if (discount.minQuantity && totalQty < discount.minQuantity) {
-      throw new Error(`This code requires a minimum of ${discount.minQuantity} items in your cart.`);
+      throw new Error(c("coErrMinItems", { count: discount.minQuantity }));
     }
     // ⚡ Bolt: Replace O(N) array iteration with O(1) memoized cart total context value
     const itemsSubtotal = currentCartTotal;
     if (discount.minOrderAmount && itemsSubtotal < Number(discount.minOrderAmount)) {
-      throw new Error(`This code requires a minimum order of ${Number(discount.minOrderAmount).toFixed(2)}.`);
+      throw new Error(c("coErrMinOrder", { amount: formatPrice(Number(discount.minOrderAmount)) }));
     }
 
     // 2. Email domain / email list
     const hasEmailRestrictions = (discount.allowedCustomerEmails && discount.allowedCustomerEmails.trim()) || 
                                   (discount.allowedEmailDomains && discount.allowedEmailDomains.trim());
     if (hasEmailRestrictions && !email.trim()) {
-      throw new Error("Please enter your email address under 'Shipping Details' first to apply this code.");
+      throw new Error(c("coErrNeedEmail"));
     }
 
     if (email.trim()) {
@@ -380,7 +380,7 @@ export function Checkout() {
           .map((e: string) => e.trim().toLowerCase())
           .filter(Boolean);
         if (allowedEmails.length > 0 && !allowedEmails.includes(lowerEmail)) {
-          throw new Error("This code is restricted to specific VIP customer emails.");
+          throw new Error(c("coErrVipEmails"));
         }
       }
 
@@ -397,7 +397,7 @@ export function Checkout() {
           }
         });
         if (allowedDomains.length > 0 && !matchesDomain) {
-          throw new Error(`This code is restricted to specific email domains (e.g. ${discount.allowedEmailDomains}).`);
+          throw new Error(c("coErrEmailDomains", { domains: discount.allowedEmailDomains }));
         }
       }
     }
@@ -411,13 +411,13 @@ export function Checkout() {
         return bookCats.some(cat => selectedCats.has(cat));
       });
       if (!hasMatchingCategory) {
-        throw new Error(`This code only applies to categories: ${(discount.selectedCategories || []).join(", ")}.`);
+        throw new Error(c("coErrCategories", { categories: (discount.selectedCategories || []).join(", ") }));
       }
     } else if (discount.appliesTo === "products") {
       const selectedProds = new Set(discount.selectedProducts || []);
       const hasMatchingProduct = cartItems.some(item => selectedProds.has(item.id));
       if (!hasMatchingProduct) {
-        throw new Error("This code only applies to specific products not currently in your cart.");
+        throw new Error(c("coErrProducts"));
       }
     }
 
@@ -447,14 +447,14 @@ export function Checkout() {
 
       const totalQualUnits = qualItems.reduce((sum, item) => sum + item.quantity, 0);
       if (totalQualUnits < requiredUnits) {
-        throw new Error(`This BOGO code requires buying at least ${requiredUnits} qualifying items.`);
+        throw new Error(c("coErrBogo", { count: requiredUnits }));
       }
     }
 
     if (discount.type === "tiered") {
       const tiers = discount.tiers || [];
       if (!Array.isArray(tiers) || tiers.length === 0) {
-        throw new Error("This tiered code is not configured correctly.");
+        throw new Error(c("coErrTiered"));
       }
 
       // ⚡ Bolt: Convert constraints to O(1) Sets outside the loop
@@ -477,7 +477,7 @@ export function Checkout() {
 
       const lowestMinSpend = Math.min(...tiers.map(t => Number(t.minSpend)));
       if (qualifyingSubtotal < lowestMinSpend) {
-        throw new Error(`This code requires a minimum spend of $${lowestMinSpend.toFixed(2)} on qualifying items.`);
+        throw new Error(c("coErrMinSpend", { amount: formatPrice(lowestMinSpend) }));
       }
     }
   };
@@ -723,7 +723,7 @@ export function Checkout() {
     };
   };
 
-  useSEO({ title: "Checkout", description: "Secure checkout for Lyricalmyrical Books." });
+  useSEO({ title: c("seoCheckoutTitle"), description: c("seoCheckoutDescription") });
 
   // Track funnel + abandoned cart on email entry
   useEffect(() => {
@@ -766,7 +766,7 @@ export function Checkout() {
 
   const handleCompletePurchase = async () => {
     if (!customer.name || !customer.email || !customer.address.street || !customer.address.city || !customer.address.state || !customer.address.zip) {
-      setNotice({ tone: "error", text: "Please fill in all required shipping details, including city, state/province, and postal/zip code." });
+      setNotice({ tone: "error", text: c("coErrShippingFields") });
       return;
     }
     setNotice(null);
@@ -789,7 +789,7 @@ export function Checkout() {
       });
 
       if (!valResponse.ok) {
-        throw new Error("Could not connect to address verification service.");
+        throw new Error(c("coErrAddressService"));
       }
 
       const valData = await valResponse.json();
@@ -860,7 +860,7 @@ export function Checkout() {
         });
         const paypalData = await paypalResponse.json();
         if (!paypalResponse.ok) throw new Error(paypalData.error || c("coPaypalError"));
-        if (!paypalData.approvalUrl) throw new Error("PayPal did not return an approval URL.");
+        if (!paypalData.approvalUrl) throw new Error(c("coErrPaypalUrl"));
         window.location.href = paypalData.approvalUrl;
         return;
       }
@@ -885,10 +885,10 @@ export function Checkout() {
       if (sessionData.url) {
         window.location.href = sessionData.url;
       } else {
-        throw new Error("No checkout URL returned from payment server.");
+        throw new Error(c("coErrNoCheckoutUrl"));
       }
     } catch (err: any) {
-      setNotice({ tone: "error", text: `Checkout failed: ${err.message}. Your card has not been charged. Please try again.` });
+      setNotice({ tone: "error", text: c("coCheckoutFailed", { error: err.message }) });
       setIsCompleting(false);
     }
   };
@@ -899,7 +899,7 @@ export function Checkout() {
     const isPayPalReturn = params.get("paypal_return") === "true";
     const isSuccessReturn = params.get("success") === "true";
     if (!oid || (!isPayPalReturn && !isSuccessReturn)) {
-      if (params.get("canceled")) setNotice({ tone: "info", text: "Payment was canceled. Your cart is saved — you can review it and try again." });
+      if (params.get("canceled")) setNotice({ tone: "info", text: c("coPaymentCanceled") });
       return;
     }
 
@@ -911,7 +911,7 @@ export function Checkout() {
       try {
         if (isPayPalReturn) {
           const paypalOrderId = params.get("token");
-          if (!paypalOrderId) throw new Error("PayPal did not return an order token.");
+          if (!paypalOrderId) throw new Error(c("coErrPaypalToken"));
           const captureResponse = await fetch(functionUrl("capturePayPalOrder"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -962,7 +962,7 @@ export function Checkout() {
     return (
       <div data-fm-store data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout" data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
         <StorefrontThemeStyle design={checkoutDesign} />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.15)_0%,transparent_70%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(var(--accent-rgb,232,64,42),0.15)_0%,transparent_70%)] pointer-events-none" />
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", duration: 0.8 }}
           className="relative z-10 flex flex-col items-center max-w-md w-full">
           <div className="w-24 h-24 rounded-[2rem] border flex items-center justify-center mb-10 shadow-[0_0_60px_rgba(124,58,237,0.3)]" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.2)", borderColor: "rgba(var(--accent-rgb), 0.3)" }}>
@@ -1013,7 +1013,7 @@ export function Checkout() {
     return (
       <div data-fm-store data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout" data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
         <StorefrontThemeStyle design={checkoutDesign} />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.08)_0%,transparent_70%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(var(--accent-rgb,232,64,42),0.08)_0%,transparent_70%)] pointer-events-none" />
         <div className="relative z-10 flex flex-col items-center">
           <div className="w-20 h-20 rounded-[1.5rem] bg-white/5 border border-white/10 flex items-center justify-center mb-8">
             <Package size={36} className="text-white/20" strokeWidth={1} />
@@ -1201,7 +1201,7 @@ export function Checkout() {
             <div className="border-t border-slate-200 pt-6">
               {notice && (
                 <div role={notice.tone === "error" ? "alert" : "status"} className="mb-4 rounded-lg border px-4 py-3 text-sm"
-                  style={{ borderColor: notice.tone === "error" ? "var(--danger, #b4271a)" : "var(--muted, #94a3b8)", color: notice.tone === "error" ? "var(--danger, #b4271a)" : "inherit", background: notice.tone === "error" ? "rgba(232,64,42,.08)" : "transparent" }}>
+                  style={{ borderColor: notice.tone === "error" ? "var(--danger, #b4271a)" : "var(--muted, #94a3b8)", color: notice.tone === "error" ? "var(--danger, #b4271a)" : "inherit", background: notice.tone === "error" ? "rgba(var(--danger-rgb, 232, 64, 42), .08)" : "transparent" }}>
                   <span aria-hidden="true">{notice.tone === "error" ? "✕ " : "ℹ "}</span>{notice.text}
                 </div>
               )}

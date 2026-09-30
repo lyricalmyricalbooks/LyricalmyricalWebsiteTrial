@@ -5,6 +5,7 @@ import * as Sections from "./SectionComponents";
 import { hexToRgbTriplet } from "../features/site/themeTokens";
 import { googleFontHref } from "../features/site/fonts";
 import { DEFAULT_COLOR_SCHEMES } from "../features/site/colorSchemes";
+import { SectionDesignContext } from "./sectionCopy";
 import {
   boxShadowValue,
   cornerRadiusValue,
@@ -158,6 +159,8 @@ export type SectionListProps = {
   /** Value for the `data-section` attribute (used by the editor's click-to-edit). */
   dataSection?: string;
   sharedBlocks?: any[];
+  /** The page design, so renderers can read shopper-facing helper words via getCopy. */
+  design?: any;
 };
 
 /**
@@ -173,12 +176,14 @@ export function SectionList({
   enableAnimations = true,
   dataSection = "homepage",
   sharedBlocks = [],
+  design,
 }: SectionListProps) {
   const list = (sections || []).filter((section: any) => section.visible !== false && sectionInWindow(section));
   if (list.length === 0) return null;
   const schemes: any[] = colorSchemes && colorSchemes.length > 0 ? colorSchemes : DEFAULT_COLOR_SCHEMES;
 
   return (
+    <SectionDesignContext.Provider value={design || null}>
     <div className="flex flex-col">
       {list.map((section: any) => {
         const SectionComponent = (Sections as any)[section.type];
@@ -239,6 +244,7 @@ export function SectionList({
         );
       })}
     </div>
+    </SectionDesignContext.Provider>
   );
 }
 
@@ -286,6 +292,7 @@ export function TemplateSections({
       enableAnimations={enableAnimations ?? (design?.enableAnimations ?? true)}
       dataSection={templateId}
       sharedBlocks={design?.sharedBlocks || []}
+      design={design}
     />
   );
 }
@@ -319,6 +326,7 @@ export function GlobalSections({
       enableAnimations={false}
       dataSection="globalSections"
       sharedBlocks={design?.sharedBlocks || []}
+      design={design}
     />
   );
 }

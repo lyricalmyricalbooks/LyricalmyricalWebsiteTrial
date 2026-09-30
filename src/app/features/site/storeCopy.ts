@@ -25,6 +25,25 @@ export type CopyGroup = {
 
 export const COPY_SCHEMA: CopyGroup[] = [
   {
+    group: "Site & sharing",
+    fields: [
+      { key: "siteName", label: "Site name", default: "Lyricalmyrical Books", hint: "Used as {name} in the browser-tab title, share previews and search results." },
+      { key: "siteDefaultTitle", label: "Home page title (browser tab / Google)", default: "{name} — Independent Publishing House", hint: "Use {name} for the site name." },
+      { key: "siteDefaultDescription", label: "Default description (Google / social previews)", default: "{name} is an independent publishing house based in Toronto, specializing in photography and art books.", multiline: true, hint: "Use {name} for the site name." },
+      { key: "siteTitleFormat", label: "Other pages' tab title", default: "{title} — {name}", hint: "Use {title} for the page title and {name} for the site name." },
+      { key: "seoArchiveTitle", label: "Catalog page title", default: "Archive" },
+      { key: "seoWishlistTitle", label: "Wishlist page title", default: "Your Wishlist" },
+      { key: "seoWishlistDescription", label: "Wishlist page description", default: "Books you've saved for later from {name}.", hint: "Use {name} for the site name." },
+      { key: "seoCheckoutTitle", label: "Checkout page title", default: "Checkout" },
+      { key: "seoCheckoutDescription", label: "Checkout page description", default: "Secure checkout for {name}.", hint: "Use {name} for the site name." },
+      { key: "seoAccountTitle", label: "Account page title", default: "Your Account" },
+      { key: "seoAccountDescription", label: "Account page description", default: "Manage your account, orders and saved addresses." },
+      { key: "seoBookDescription", label: "Book page description (when a book has none)", default: "{title} — {name}", hint: "Use {title} for the book title and {name} for the site name." },
+      { key: "seoCollectionTitle", label: "Collection page title", default: "{category} Collection", hint: "Use {category} for the collection name." },
+      { key: "seoCollectionDescription", label: "Collection page description", default: "Browse the {category} collection from {name}.", hint: "Use {category} (lower-case) and {name}." },
+    ],
+  },
+  {
     group: "Cart",
     fields: [
       { key: "cartTitle", label: "Cart heading", default: "Shopping Bag" },
@@ -107,6 +126,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "backToCatalog", label: "Back link label", default: "Back" },
       { key: "addToBagLabel", label: "Add to bag button", default: "ADD TO BAG" },
       { key: "bookLoading", label: "Loading text", default: "Loading" },
+      { key: "bookPhotoAlt", label: "Product photo — alt text", default: "{title} — view {n}", hint: "Use {title} for the book title and {n} for the photo number." },
       { key: "bookNotFound", label: "Not-found message", default: "Publication not found" },
       { key: "bookReturn", label: "Not-found button", default: "Return to Archive" },
       { key: "bookFormatLabel", label: "Format selector label", default: "Format / Edition" },
@@ -316,6 +336,9 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "trackInTransit", label: "In-transit line", default: "Your parcel is in transit. Tracking number:" },
       { key: "trackShipment", label: "Carrier tracking button", default: "Track Shipment" },
       { key: "trackError", label: "Lookup error", default: "Failed to retrieve order tracking information." },
+      { key: "trackErrFill", label: "Missing details error", default: "Please fill in both order ID and email." },
+      { key: "trackErrNotFound", label: "Order not found error", default: "Order not found. Check the ID and try again." },
+      { key: "trackErrEmail", label: "Email mismatch error", default: "Invalid credentials. Please verify your email." },
       { key: "trackCreated", label: "Created-date label", default: "Created:" },
       { key: "trackPaid", label: "Payment status: paid", default: "Paid" },
       { key: "trackUnpaid", label: "Payment status: unpaid", default: "Unpaid" },
@@ -377,6 +400,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "accountUnfulfilled", label: "Order status: not shipped yet", default: "UNFULFILLED" },
       { key: "accountTrackPackage", label: "Track package button", default: "Track Package" },
       { key: "accountSignInError", label: "Sign-in link error", default: "Failed to sign in. Link may be expired." },
+      { key: "accountConfirmEmailPrompt", label: "Confirm email prompt (sign-in link opened on a new device)", default: "Please enter your email to confirm sign-in:" },
       { key: "accountMagicLinkError", label: "Magic-link send error", default: "Failed to send magic link." },
       { key: "accountGoogleError", label: "Google sign-in error", default: "Google Authentication failed." },
       { key: "accountSignedInLink", label: "Signed in via email link", default: "Successfully signed in with email link!" },
@@ -467,6 +491,32 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coItemCountMany", label: "Summary item count (many)", default: "{count} items", hint: "Use {count} for the number." },
       { key: "coApply", label: "Discount apply button", default: "Apply" },
       { key: "coDiscountApplied", label: "Discount applied message", default: "{code} applied", hint: "Use {code} for the code." },
+      { key: "coErrMinItems", label: "Discount error — minimum items", default: "This code requires a minimum of {count} items in your cart.", hint: "Use {count} for the number of items." },
+      { key: "coErrMinOrder", label: "Discount error — minimum order", default: "This code requires a minimum order of {amount}.", hint: "Use {amount} for the amount." },
+      { key: "coErrNeedEmail", label: "Discount error — email needed first", default: "Please enter your email address under 'Shipping Details' first to apply this code." },
+      { key: "coErrVipEmails", label: "Discount error — VIP emails only", default: "This code is restricted to specific VIP customer emails." },
+      { key: "coErrEmailDomains", label: "Discount error — email domains", default: "This code is restricted to specific email domains (e.g. {domains}).", hint: "Use {domains} for the allowed domains." },
+      { key: "coErrCategories", label: "Discount error — categories only", default: "This code only applies to categories: {categories}.", hint: "Use {categories} for the category list." },
+      { key: "coErrProducts", label: "Discount error — specific products only", default: "This code only applies to specific products not currently in your cart." },
+      { key: "coErrBogo", label: "Discount error — buy-N-get-one", default: "This BOGO code requires buying at least {count} qualifying items.", hint: "Use {count} for the number of items." },
+      { key: "coErrTiered", label: "Discount error — tiered code misconfigured", default: "This tiered code is not configured correctly." },
+      { key: "coErrMinSpend", label: "Discount error — minimum spend", default: "This code requires a minimum spend of {amount} on qualifying items.", hint: "Use {amount} for the amount." },
+      { key: "coErrShippingFields", label: "Missing shipping details message", default: "Please fill in all required shipping details, including city, state/province, and postal/zip code.", multiline: true },
+      { key: "coErrAddressService", label: "Address verification unreachable", default: "Could not connect to address verification service." },
+      { key: "coErrPaypalUrl", label: "PayPal — no approval link", default: "PayPal did not return an approval URL." },
+      { key: "coErrPaypalToken", label: "PayPal — no order token", default: "PayPal did not return an order token." },
+      { key: "coErrNoCheckoutUrl", label: "Payment server — no checkout link", default: "No checkout URL returned from payment server." },
+      { key: "coCheckoutFailed", label: "Checkout failed message", default: "Checkout failed: {error}. Your card has not been charged. Please try again.", hint: "Use {error} for the reason.", multiline: true },
+      { key: "coPaymentCanceled", label: "Payment canceled message", default: "Payment was canceled. Your cart is saved — you can review it and try again.", multiline: true },
+    ],
+  },
+  {
+    group: "Sections",
+    fields: [
+      { key: "sectionNoImage", label: "Empty image placeholder", default: "No Image" },
+      { key: "sectionNoVideo", label: "Empty video placeholder", default: "No Video" },
+      { key: "sectionGoToCover", label: "Cover carousel dot — screen-reader label", default: "Go to cover {n}", hint: "Use {n} for the cover number." },
+      { key: "sectionViewBook", label: "Book link — screen-reader label", default: "View {title}", hint: "Use {title} for the book title." },
     ],
   },
   {
@@ -489,6 +539,9 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "reviewsSubmit", label: "Submit button", default: "Submit Review" },
       { key: "reviewsModerated", label: "Moderation note", default: "Reviews are moderated before appearing." },
       { key: "reviewsError", label: "Submit error", default: "Could not submit review." },
+      { key: "reviewsErrRequired", label: "Missing name/review error", default: "Name and review body are required." },
+      { key: "reviewsStarOne", label: "Star rating — screen-reader label (1)", default: "{n} star", hint: "Use {n} for the rating." },
+      { key: "reviewsStarMany", label: "Star rating — screen-reader label (many)", default: "{n} stars", hint: "Use {n} for the rating." },
     ],
   },
 ];
@@ -523,6 +576,8 @@ export function getCopy(design: any, key: string, vars?: Record<string, string |
   const str = (v: unknown) => (typeof v === "string" && v ? v : "");
   const raw = str(design?.copy?.[key]) || str(design?.[key]) || DEFAULT_COPY[key] || "";
   const all: Record<string, string | number> = { year: new Date().getFullYear(), ...(vars || {}) };
+  // {name} is the site name (Text & labels › Site & sharing) in every string that mentions it.
+  if (!("name" in all) && key !== "siteName" && raw.includes("{name}")) all.name = getCopy(design, "siteName");
   return raw.replace(/\{(\w+)\}/g, (m: string, name: string) =>
     name in all ? String(all[name]) : m,
   );

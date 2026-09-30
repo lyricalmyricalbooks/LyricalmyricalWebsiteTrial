@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowLeft, Heart } from "lucide-react";
 import { useSiteData } from "./useSiteData";
-import { DEFAULT_IMAGE } from "./constants";
+import { placeholderImage } from "./constants";
 import { CatalogControls, applyCatalogControls, type SortKey } from "./CatalogControls";
 import { useWishlist } from "../../lib/wishlist";
 import { useSEO } from "../../lib/seo";
@@ -42,8 +42,8 @@ export default function CollectionPage() {
   }, [books, category, query, sort, inStockOnly]);
 
   useSEO({
-    title: `${categoryName} Collection`,
-    description: `Browse the ${categoryName.toLowerCase()} collection from Lyricalmyrical Books.`,
+    title: getCopy(settings?.design, "seoCollectionTitle", { category: categoryName }),
+    description: getCopy(settings?.design, "seoCollectionDescription", { category: categoryName.toLowerCase() }),
     type: "website",
   });
 
@@ -127,7 +127,7 @@ export default function CollectionPage() {
                 <Link to={`/books/${bSlug}`} className="block">
                   <div className="relative aspect-[3/4] fm-surface rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
                     <img
-                      src={(book as any).photos?.[0]?.url || DEFAULT_IMAGE}
+                      src={(book as any).photos?.[0]?.url || placeholderImage(settings?.design)}
                       alt={book.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />

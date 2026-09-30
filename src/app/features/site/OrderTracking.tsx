@@ -50,7 +50,7 @@ export default function OrderTracking() {
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!orderIdInput.trim() || !emailInput.trim()) {
-      setError("Please fill in both order ID and email.");
+      setError(getCopy(settings?.design, "trackErrFill"));
       return;
     }
 
@@ -61,11 +61,11 @@ export default function OrderTracking() {
     try {
       const foundOrder = await adminApi.getOrderById(orderIdInput.trim());
       if (!foundOrder) {
-        throw new Error("Order not found. Check the ID and try again.");
+        throw new Error(getCopy(settings?.design, "trackErrNotFound"));
       }
 
       if (foundOrder.customer?.email?.toLowerCase().trim() !== emailInput.toLowerCase().trim()) {
-        throw new Error("Invalid credentials. Please verify your email.");
+        throw new Error(getCopy(settings?.design, "trackErrEmail"));
       }
 
       setOrder(foundOrder);

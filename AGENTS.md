@@ -163,6 +163,21 @@ complete result.
 > and its words in Text & labels (`COPY_SCHEMA`). Add the toggle to `STYLE_GROUPS` in
 > `studio/styleSchema.ts` (default = current behaviour) in the same change that adds the element.
 
+> [!IMPORTANT]
+> **Sentences that reach shoppers indirectly are copy too.** Error messages (`new Error("…")`),
+> notices (`setNotice`/`setError`), `window.prompt`, SEO titles/descriptions, template-literal
+> `aria-label`/`alt`s and renderer word-fallbacks must all come from `getCopy()` (Studio › Text & labels —
+> groups *Checkout*, *Order tracking*, *Reviews*, *Sections*, **Site & sharing**) or, inside
+> `SectionComponents.tsx`, from `sectionFallbacks.ts` (`fb("Type.field")`, each backed by a Content
+> field; use `??` so clearing a field blanks it). `noHardwiredMessages.test.ts` and
+> `components/sectionFallbacks.test.ts` enforce this; `designerCoverage.test.ts` also rejects literal
+> `rgb()/rgba()/hsl()` (use `rgba(var(--accent-rgb, …), a)` or a design key). Behaviour numbers
+> (low-stock thresholds, recently-viewed count, search-result cap) and the no-photo placeholder image
+> are Studio › Style controls read with `designNumber()` / `placeholderImage()`. Site name, default
+> title/description and share image live in Text & labels › **Site & sharing** and Style › Logo &
+> wordmark › **Share image**; `lib/seo.ts` reads them via `setSiteIdentity` (published by `useSiteData`).
+> No sample books or announcements are shown to shoppers.
+
 New storefront regions must carry `data-studio-target` + `data-studio-label` so clicking them in the Studio preview opens their settings (see CLAUDE.md › Click-to-edit in the preview).
 
 ## Storefront look (Riso Noir)

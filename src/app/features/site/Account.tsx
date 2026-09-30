@@ -90,7 +90,7 @@ export default function AccountPage() {
     return formatPrice(n);
   };
 
-  useSEO({ title: "Your Account", description: "Manage your account, orders and saved addresses." });
+  useSEO({ title: getCopy(settings?.design, "seoAccountTitle"), description: getCopy(settings?.design, "seoAccountDescription") });
 
   // Handle incoming Magic Link authentication on mount
   useEffect(() => {
@@ -99,7 +99,7 @@ export default function AccountPage() {
         setAuthLoading(true);
         let email = window.localStorage.getItem("emailForSignIn");
         if (!email) {
-          email = window.prompt("Please enter your email to confirm sign-in:");
+          email = window.prompt(getCopy(settings?.design, "accountConfirmEmailPrompt"));
         }
         if (email) {
           try {
