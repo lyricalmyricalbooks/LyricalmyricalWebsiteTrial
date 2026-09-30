@@ -13,6 +13,8 @@ vi.mock("react-quill/dist/quill.snow.css", () => ({}));
 const APP = join(__dirname, "..", "..");
 // Files whose job is to *define* default token values (every one is a Studio › Style control).
 const TOKEN_SOURCES = new Set(["features/site/risoNoir.ts", "features/site/colorSchemes.ts"]);
+// Neutral shadow-depth scales (not palette colours) and the admin-only rich-text editor chrome.
+const SHADOW_SOURCES = new Set(["components/sectionStyleHelpers.ts", "features/site/themeTokens.ts", "components/RichTextEditor.tsx"]);
 
 function publicSources(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -39,6 +41,25 @@ describe("the public website is fully editable in Studio", () => {
       });
     }
     expect(offenders, "use a design key (`design.x || \"#hex\"`) or `var(--token, #hex)` and add a Studio control").toEqual([]);
+  });
+
+  it("has no hard-coded rgb()/rgba()/hsl() colours either (fallbacks after || ?? var(--x, …) are fine)", () => {
+    const offenders: string[] = [];
+    for (const file of publicSources(APP)) {
+      const rel = relative(APP, file).split("\\").join("/");
+      if (TOKEN_SOURCES.has(rel) || SHADOW_SOURCES.has(rel)) continue;
+      readFileSync(file, "utf8").split("\n").forEach((line, i) => {
+        if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
+        for (const m of line.matchAll(/\b(?:rgba?|hsla?)\(\s*[0-9]/g)) {
+          const before = line.slice(0, m.index);
+          if (/(\|\||\?\?)\s*(\(?[^()]*\?\s*)?[`"']?$/.test(before) || /var\(--[\w-]+,\s*$/.test(before)) continue;
+          // Pure black shadows/scrims are depth cues, not palette colours.
+          if (/[Ss]hadow/.test(line) && /\b(?:rgba?)\(\s*0[ ,]+0[ ,]+0/.test(line.slice(m.index))) continue;
+          offenders.push(`${rel}:${i + 1}`);
+        }
+      });
+    }
+    expect(offenders, "use a design key (`design.x || \"rgba(...)\"`) or `var(--token, rgba(...))` and add a Studio control").toEqual([]);
   });
 
   it("gives every section default a Content field (lists are edited as blocks)", async () => {

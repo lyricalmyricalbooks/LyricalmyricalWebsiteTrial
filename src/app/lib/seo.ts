@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+import { getCopy } from "../features/site/storeCopy";
 
 type SEO = {
   title?: string;
@@ -9,9 +10,18 @@ type SEO = {
   jsonLd?: Record<string, any>;
 };
 
-const DEFAULT_TITLE = "Lyricalmyrical Books — Independent Publishing House";
-const DEFAULT_DESC =
-  "Lyricalmyrical Books is an independent publishing house based in Toronto, specializing in photography and art books.";
+// Site identity (name, default title/description, share image) is edited in Studio
+// (Text & labels › Site & sharing, Style › Logo & wordmark › Share image). useSiteData
+// publishes the loaded design here so every page's tags follow it.
+let siteDesign: any = null;
+const listeners = new Set<() => void>();
+export function setSiteIdentity(design: any) {
+  if (design === siteDesign) return;
+  siteDesign = design;
+  listeners.forEach((l) => l());
+}
+const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; };
+const getSiteDesign = () => siteDesign;
 
 function setMeta(selector: string, attr: string, value: string) {
   let el = document.head.querySelector(selector) as HTMLMetaElement | null;
@@ -44,10 +54,13 @@ function clearJsonLd(id: string) {
 }
 
 export function useSEO(seo: SEO) {
+  const design = useSyncExternalStore(subscribe, getSiteDesign, getSiteDesign);
   useEffect(() => {
-    const title = seo.title ? `${seo.title} — Lyricalmyrical Books` : DEFAULT_TITLE;
-    const description = seo.description || DEFAULT_DESC;
-    const image = seo.image || "";
+    const title = seo.title
+      ? getCopy(design, "siteTitleFormat", { title: seo.title })
+      : getCopy(design, "siteDefaultTitle");
+    const description = seo.description || getCopy(design, "siteDefaultDescription");
+    const image = seo.image || design?.shareImageUrl || "";
     const url = seo.url || (typeof window !== "undefined" ? window.location.href : "");
     const type = seo.type || "website";
 
@@ -69,5 +82,5 @@ export function useSEO(seo: SEO) {
     return () => {
       clearJsonLd("seo-jsonld-page");
     };
-  }, [seo.title, seo.description, seo.image, seo.url, seo.type, JSON.stringify(seo.jsonLd || {})]);
+  }, [design, seo.title, seo.description, seo.image, seo.url, seo.type, JSON.stringify(seo.jsonLd || {})]);
 }

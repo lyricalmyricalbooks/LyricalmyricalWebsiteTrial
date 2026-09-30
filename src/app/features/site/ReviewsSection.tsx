@@ -4,7 +4,7 @@ import { reviewsApi, type Review } from "../../lib/reviews";
 import { useSiteData } from "./useSiteData";
 import { getCopy } from "./storeCopy";
 
-function Stars({ value, onChange, size = 16 }: { value: number; onChange?: (v: number) => void; size?: number }) {
+function Stars({ value, onChange, size = 16, design }: { value: number; onChange?: (v: number) => void; size?: number; design?: any }) {
   const interactive = !!onChange;
   return (
     <div className="flex items-center gap-0.5">
@@ -14,7 +14,7 @@ function Stars({ value, onChange, size = 16 }: { value: number; onChange?: (v: n
           type="button"
           disabled={!interactive}
           onClick={() => onChange?.(n)}
-          aria-label={`${n} star${n > 1 ? "s" : ""}`}
+          aria-label={getCopy(design, n > 1 ? "reviewsStarMany" : "reviewsStarOne", { n })}
           className={interactive ? "cursor-pointer" : "cursor-default"}
         >
           <Star
@@ -38,7 +38,7 @@ export function ReviewsSummary({ count, average }: { count: number; average: num
   }
   return (
     <div className="flex items-center gap-3">
-      <Stars value={Math.round(average)} size={14} />
+      <Stars value={Math.round(average)} size={14} design={settings?.design} />
       <span className="text-[10px] font-black tracking-widest text-white/60 uppercase">
         {average.toFixed(1)} · {c(count === 1 ? "reviewsCountOne" : "reviewsCountMany", { count })}
       </span>
@@ -85,7 +85,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
     e.preventDefault();
     setError("");
     if (!authorName.trim() || !body.trim()) {
-      setError("Name and review body are required.");
+      setError(c("reviewsErrRequired"));
       return;
     }
     setSubmitting(true);
@@ -132,7 +132,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
             {reviews.map(r => (
               <li key={r.id} className="border-t border-white/[0.06] pt-8 first:border-t-0 first:pt-0">
                 <div className="flex items-center justify-between mb-3">
-                  <Stars value={r.rating} size={13} />
+                  <Stars value={r.rating} size={13} design={settings?.design} />
                   <span className="text-[9px] tracking-widest text-white/30 uppercase">
                     {new Date(r.createdAt).toLocaleDateString()}
                   </span>
@@ -162,7 +162,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
               <h3 className="text-lg font-bold tracking-tight">{c("reviewsWrite")}</h3>
               <div className="flex items-center gap-3">
                 <span className="text-[10px] tracking-widest uppercase text-white/40">{c("reviewsRating")}</span>
-                <Stars value={rating} onChange={setRating} />
+                <Stars value={rating} onChange={setRating} design={settings?.design} />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input

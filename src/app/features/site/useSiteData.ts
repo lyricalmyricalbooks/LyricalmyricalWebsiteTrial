@@ -2,9 +2,10 @@ import { useLocation } from "react-router";
 import { resolveSurfaceDesign } from "./surfaceDesign";
 import { useEffect, useState } from "react";
 import { adminApi } from "../../admin/api";
-import { DEFAULT_BOOKS, DEFAULT_SETTINGS, SITE_CACHE_KEY } from "./constants";
+import { DEFAULT_SETTINGS, SITE_CACHE_KEY } from "./constants";
 import type { Book, SiteSettings, Page } from "./types";
 import { RISO_NOIR_TOKENS, withRisoNoirDefault } from "./risoNoir";
+import { setSiteIdentity } from "../../lib/seo";
 
 type CachePayload = {
   books: Book[];
@@ -34,7 +35,7 @@ function writeCache(payload: CachePayload) {
 export function useSiteData() {
   const location = useLocation();
   const cached = typeof window !== "undefined" ? readCache() : null;
-  const [books, setBooks] = useState<Book[]>(cached?.books || DEFAULT_BOOKS);
+  const [books, setBooks] = useState<Book[]>(cached?.books || []);
   const [settings, setSettings] = useState<SiteSettings>(() => {
     const base = cached?.settings || DEFAULT_SETTINGS;
     const preview = new URLSearchParams(window.location.search).get("preview") === "true" ? (window as any).__studioPreviewDesign : null;
@@ -56,7 +57,7 @@ export function useSiteData() {
 
         if (cancelled) return;
 
-        const safeBooks = Array.isArray(bookResponse) ? (bookResponse as unknown as Book[]) : DEFAULT_BOOKS;
+        const safeBooks = Array.isArray(bookResponse) ? (bookResponse as unknown as Book[]) : [];
         const isPreview = typeof window !== 'undefined' && window.location.search.includes('preview=true');
         const safeSettings = (settingsResponse || DEFAULT_SETTINGS) as any;
         
@@ -158,6 +159,9 @@ export function useSiteData() {
       bc.close();
     };
   }, []);
+
+  // Site name / default title / share image (Studio › Text & labels › Site & sharing) feed every page's <head>.
+  useEffect(() => { setSiteIdentity(settings.design); }, [settings.design]);
 
   return { books, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading };
 }

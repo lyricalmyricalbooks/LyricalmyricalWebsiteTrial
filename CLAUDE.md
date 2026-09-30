@@ -272,6 +272,21 @@ nested blocks across more section types remains a follow-up):
 > field (lists are edited as blocks). `features/site/designerCoverage.test.ts` enforces both,
 > alongside `studioCoverage`, `storeCopy.coverage`, `studioTargets` and `themeLibrary` tests.
 
+> [!IMPORTANT]
+> **Sentences that reach shoppers indirectly are copy too.** Error messages (`new Error("…")`),
+> notices (`setNotice`/`setError`), `window.prompt`, SEO titles/descriptions, template-literal
+> `aria-label`/`alt`s and renderer word-fallbacks must all come from `getCopy()` (Studio › Text & labels —
+> groups *Checkout*, *Order tracking*, *Reviews*, *Sections*, **Site & sharing**) or, inside
+> `SectionComponents.tsx`, from `sectionFallbacks.ts` (`fb("Type.field")`, each backed by a Content
+> field; use `??` so clearing a field blanks it). `noHardwiredMessages.test.ts` and
+> `components/sectionFallbacks.test.ts` enforce this; `designerCoverage.test.ts` also rejects literal
+> `rgb()/rgba()/hsl()` (use `rgba(var(--accent-rgb, …), a)` or a design key). Behaviour numbers
+> (low-stock thresholds, recently-viewed count, search-result cap) and the no-photo placeholder image
+> are Studio › Style controls read with `designNumber()` / `placeholderImage()`. Site name, default
+> title/description and share image live in Text & labels › **Site & sharing** and Style › Logo &
+> wordmark › **Share image**; `lib/seo.ts` reads them via `setSiteIdentity` (published by `useSiteData`).
+> No sample books or announcements are shown to shoppers.
+
 **Click-to-edit in the preview:** sections carry `data-fm-section`; every other storefront region carries `data-studio-target="style:<groupId>|copy:<Group>|menus:<panel>|pages"` + `data-studio-label`. In Edit mode the preview bridge (`studio/previewBridge.ts`) outlines it, and a click sends `STUDIO_TARGET` (several targets → a small in-preview menu); `StudioEditor.tsx` switches tab and opens/flashes the matching `Group id` / `data-studio-panel`. New storefront regions must carry a target — `studioTargets.test.ts` checks every target points at a real panel.
 
 **One storefront shell:** `MainSite` renders a single Riso header/footer for every view; the Home view swaps the catalog grid for `design.heroPage.sections`. Studio › Sections (Home) › **Show a Home page** toggles `showHero` (off = open straight on the catalog). The legacy hero header/`HeroCarousel` were removed — don't re-add a second header.

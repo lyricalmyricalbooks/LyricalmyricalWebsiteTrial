@@ -12,7 +12,8 @@ import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 import { getCopy } from "./storeCopy";
-import { DEFAULT_IMAGE } from "./constants";
+import { designNumber } from "./designNumber";
+import { placeholderImage } from "./constants";
 import type { Book } from "./types";
 import { trackBookView } from "../../lib/recentlyViewed";
 import { useWishlist } from "../../lib/wishlist";
@@ -191,7 +192,7 @@ export default function BookDetail() {
     book
       ? {
           title: book.title,
-          description: (book as any).description || `${book.title} — Lyricalmyrical Books`,
+          description: (book as any).description || getCopy(settings?.design, "seoBookDescription", { title: book.title }),
           image: (book as any).photos?.[0]?.url,
           type: "book",
           jsonLd: {
@@ -274,13 +275,13 @@ export default function BookDetail() {
     }
   };
 
-  const photos        = (book as any)?.photos || [{ url: DEFAULT_IMAGE }];
+  const photos        = (book as any)?.photos || [{ url: placeholderImage(settings?.design) }];
   const stockLevel    = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any)?.stockLevel ?? 999);
   const isOutOfStock  = stockLevel === 0;
   const retailPrice   = selectedVariant ? selectedVariant.price : ((book as any)?.retailPrice ?? 0);
   const salePrice     = selectedVariant ? 0 : ((book as any)?.salePrice   ?? 0);
   const isOnSale      = selectedVariant ? false : ((book as any)?.isOnSale && salePrice > 0);
-  const activeUrl     = (selectedVariant && selectedVariant.photoUrl) ? selectedVariant.photoUrl : (photos[activePhoto]?.url || DEFAULT_IMAGE);
+  const activeUrl     = (selectedVariant && selectedVariant.photoUrl) ? selectedVariant.photoUrl : (photos[activePhoto]?.url || placeholderImage(settings?.design));
 
   // ── loading ────────────────────────────────────────────────────────────────
   if (loading) {
@@ -446,7 +447,7 @@ export default function BookDetail() {
                       <motion.img
                         key={activePhoto}
                         src={activeUrl}
-                        alt={`${book.title} — view ${activePhoto + 1}`}
+                        alt={getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: activePhoto + 1 })}
                         className={`w-full h-full ${productImageFitClass}`}
                         decoding="async"
                         {...(activePhoto === 0 ? { fetchpriority: "high" } : {})}
@@ -491,7 +492,7 @@ export default function BookDetail() {
                     )}
 
                     {/* Low stock */}
-                    {stockLevel > 0 && stockLevel !== 999 && stockLevel <= 5 && (
+                    {stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockCardThreshold", 5) && (
                       <div className="absolute bottom-5 left-5 right-5">
                         <div
                           className="bg-black/70 backdrop-blur-md border rounded-2xl px-4 py-3 flex items-center gap-2"
@@ -714,7 +715,7 @@ export default function BookDetail() {
                   {(book as any).weight && (
                     <SpecItem icon={<Weight size={11} />} label={getCopy(settings?.design, "specWeight")} value={(book as any).weight} />
                   )}
-                  {stockLevel > 0 && stockLevel !== 999 && stockLevel <= 10 && (
+                  {stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10) && (
                     <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label={getCopy(settings?.design, "specAvailability")} value={getCopy(settings?.design, "specRemaining", { count: stockLevel })} />
                   )}
                 </div>
@@ -963,7 +964,7 @@ export default function BookDetail() {
                           {(book as any).dimensions && <SpecItem icon={<Ruler size={11} />} label={getCopy(settings?.design, "specDimensions")} value={(book as any).dimensions} />}
                           {(book as any).isbn && <SpecItem icon={<Package size={11} />} label={getCopy(settings?.design, "specIsbn")} value={(book as any).isbn} />}
                           {(book as any).weight && <SpecItem icon={<Weight size={11} />} label={getCopy(settings?.design, "specWeight")} value={(book as any).weight} />}
-                          {stockLevel > 0 && stockLevel !== 999 && stockLevel <= 10 && (
+                          {stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10) && (
                             <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label={getCopy(settings?.design, "specAvailability")} value={getCopy(settings?.design, "specRemaining", { count: stockLevel })} />
                           )}
                         </motion.div>
@@ -1039,7 +1040,7 @@ export default function BookDetail() {
                               {(book as any).dimensions && <SpecItem icon={<Ruler size={11} />} label={getCopy(settings?.design, "specDimensions")} value={(book as any).dimensions} />}
                               {(book as any).isbn && <SpecItem icon={<Package size={11} />} label={getCopy(settings?.design, "specIsbn")} value={(book as any).isbn} />}
                               {(book as any).weight && <SpecItem icon={<Weight size={11} />} label={getCopy(settings?.design, "specWeight")} value={(book as any).weight} />}
-                              {stockLevel > 0 && stockLevel !== 999 && stockLevel <= 10 && (
+                              {stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10) && (
                                 <SpecItem icon={<Zap size={11} style={{ color: lowInventoryColor }} />} label={getCopy(settings?.design, "specAvailability")} value={getCopy(settings?.design, "specRemaining", { count: stockLevel })} />
                               )}
                             </div>
@@ -1092,11 +1093,11 @@ export default function BookDetail() {
                     {/* Cover Art Previews */}
                     <div className="flex items-center gap-4">
                       <div className="w-16 fm-surface rounded-xl border border-white/10 shadow-lg shrink-0 overflow-hidden" style={{ aspectRatio: productImageAspect }}>
-                        <img src={photos[0]?.url || DEFAULT_IMAGE} alt={book.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
+                        <img src={photos[0]?.url || placeholderImage(settings?.design)} alt={book.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
                       </div>
                       <span className="text-white/20 font-black text-lg">+</span>
                       <div className="w-16 fm-surface rounded-xl border border-white/10 shadow-lg shrink-0 overflow-hidden" style={{ aspectRatio: productImageAspect }}>
-                        <img src={bundleBook.photos?.[0]?.url || DEFAULT_IMAGE} alt={bundleBook.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
+                        <img src={bundleBook.photos?.[0]?.url || placeholderImage(settings?.design)} alt={bundleBook.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
                       </div>
                     </div>
 
@@ -1159,7 +1160,7 @@ export default function BookDetail() {
                       <Link to={`/books/${relSlug}`}>
                         <div className="relative fm-surface rounded-[1.5rem] overflow-hidden mb-4 border border-white/[0.05] group-hover:border-white/[0.12] transition-all shadow-xl" style={{ aspectRatio: productImageAspect }}>
                           <img
-                            src={(rel as any).photos?.[0]?.url || DEFAULT_IMAGE}
+                            src={(rel as any).photos?.[0]?.url || placeholderImage(settings?.design)}
                             alt={rel.title}
                             loading="lazy"
                             className="w-full h-full transition-transform duration-700 group-hover:scale-105"

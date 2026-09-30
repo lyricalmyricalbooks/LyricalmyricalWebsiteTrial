@@ -1,4 +1,4 @@
-import { DEFAULT_BOOKS, DEFAULT_IMAGE } from "./constants";
+import { placeholderImage } from "./constants";
 import type { Book } from "./types";
 import { bookInCategory } from "./navItems";
 
@@ -29,13 +29,14 @@ export function resolveLogoPosition(surfaceDesign: any, fallbackDesigns: any[] =
 
 export function getFeaturedBooks(books: Book[]) {
   const featuredBooks = books.filter((book) => book.status === "published" && book.isFeatured).slice(0, 4);
-  return featuredBooks.length > 0 ? featuredBooks : DEFAULT_BOOKS.slice(0, 4);
+  // Nothing starred as featured → show the first published books rather than invented ones.
+  return featuredBooks.length > 0 ? featuredBooks : books.filter((book) => book.status === "published").slice(0, 4);
 }
 
-export function getPublications(books: Book[]) {
+export function getPublications(books: Book[], design?: any) {
   return books.map((book) => ({
     title: book.title.toUpperCase(),
-    image: book.photos?.[0]?.url || DEFAULT_IMAGE,
+    image: book.photos?.[0]?.url || placeholderImage(design),
   }));
 }
 

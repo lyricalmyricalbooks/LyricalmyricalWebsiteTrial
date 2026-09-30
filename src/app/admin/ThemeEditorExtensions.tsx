@@ -2675,6 +2675,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "autoplayMs", label: "Auto-advance speed (ms)", kind: "number", min: 1500, max: 15000, step: 250 },
     { key: "showDots", label: "Show dots", kind: "toggle" },
     { key: "scrimOpacity", label: "Bottom scrim darkness", kind: "range", min: 0, max: 1, step: 0.05 },
+    { key: "taglineColor", label: "Tagline color", kind: "color" },
     { key: "colorOverlay", label: "Color overlay", kind: "color" },
     { key: "colorOverlayOpacity", label: "Color overlay opacity", kind: "range", min: 0, max: 1, step: 0.05 },
     { key: "colorOverlayBlend", label: "Blend overlay into covers (duotone)", kind: "toggle" },

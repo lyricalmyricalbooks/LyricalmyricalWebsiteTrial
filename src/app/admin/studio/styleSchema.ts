@@ -83,6 +83,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
     title: "Product cards & grid",
     fields: [
       { key: "productCardStyle", label: "Card style", kind: "select", options: opts("card", "minimal", "editorial") },
+      { key: "placeholderImageUrl", label: "Image shown for books with no photo", kind: "image" },
+      { key: "lowStockCardThreshold", label: "Show “low stock” when this many or fewer are left (cards)", kind: "number", min: 1, max: 100, step: 1 },
       { key: "productHoverEffect", label: "Hover effect", kind: "select", options: opts("none", "zoom", "lift") },
       { key: "imageAspectRatio", label: "Image shape", kind: "select", options: ["3:4", "2:3", "4:5", "1:1", "16:9"].map((v) => ({ value: v, label: v })) },
       { key: "productColumnsDesktop", label: "Columns (desktop)", kind: "range", min: 2, max: 6, step: 1 },
@@ -158,6 +160,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     hint: "The name in the header. Upload a logo image, or edit the wordmark text and color.",
     fields: [
       { key: "logoUrl", label: "Logo image (optional)", kind: "image" },
+      { key: "shareImageUrl", label: "Share image (link previews on social / messages)", kind: "image" },
       { key: "logoTint", label: "Recolor logo image with the color below", kind: "toggle" },
       { key: "logoColor", label: "Logo / wordmark color", kind: "color" },
       { key: "logoText", label: "Text logo (when no wordmark / image)", kind: "text" },
@@ -180,6 +183,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showCategoryChips", label: "Show category chips", kind: "toggle" },
       { key: "categoryChipShowCounts", label: "Show counts on chips", kind: "toggle" },
       { key: "showCatalogControls", label: "Show search, sort & in-stock bar", kind: "toggle" },
+      { key: "searchResultLimit", label: "Search pop-up: max results shown", kind: "number", min: 1, max: 24, step: 1 },
     ],
   },
   {
@@ -227,6 +231,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
     id: "productPage",
     title: "Product page layout",
     fields: [
+      { key: "lowStockProductThreshold", label: "Show “only N left” on the product page at or below", kind: "number", min: 1, max: 100, step: 1 },
+      { key: "recentlyViewedCount", label: "Recently viewed: how many books", kind: "number", min: 1, max: 12, step: 1 },
       { key: "productImageLayout", label: "Image layout", kind: "select", options: [{ value: "slider", label: "Slider" }, { value: "grid", label: "Grid" }] },
       { key: "productContentPosition", label: "Details side", kind: "select", options: [{ value: "right", label: "Right" }, { value: "left", label: "Left" }] },
       { key: "productAlignment", label: "Text alignment", kind: "select", options: [{ value: "left", label: "Left" }, { value: "center", label: "Center" }] },

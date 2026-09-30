@@ -4,7 +4,7 @@ import { Heart, ArrowLeft, ShoppingBag, Trash2 } from "lucide-react";
 import { useWishlist } from "../../lib/wishlist";
 import { useSiteData } from "./useSiteData";
 import { useCart } from "../../CartContext";
-import { DEFAULT_IMAGE } from "./constants";
+import { placeholderImage } from "./constants";
 import { useSEO } from "../../lib/seo";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
@@ -18,8 +18,8 @@ export default function WishlistPage() {
   const { formatBookPrice } = useCurrency();
 
   useSEO({
-    title: "Your Wishlist",
-    description: "Books you've saved for later from Lyricalmyrical Books.",
+    title: getCopy(settings?.design, "seoWishlistTitle"),
+    description: getCopy(settings?.design, "seoWishlistDescription"),
   });
 
   useEffect(() => {
@@ -74,7 +74,7 @@ export default function WishlistPage() {
                 <Link to={`/books/${slug}`} className="block">
                   <div className="relative aspect-[3/4] fm-surface rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
                     <img
-                      src={(book as any).photos?.[0]?.url || DEFAULT_IMAGE}
+                      src={(book as any).photos?.[0]?.url || placeholderImage(settings?.design)}
                       alt={book.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />

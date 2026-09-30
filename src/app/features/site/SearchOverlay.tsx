@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { Search, X } from "lucide-react";
 import { useCurrency } from "../../CurrencyContext";
+import { designNumber } from "./designNumber";
 import { getCopy } from "./storeCopy";
 
 type Book = any;
@@ -86,9 +87,9 @@ export function SearchOverlay({
       .map(b => ({ book: b, s: score(b, q) }))
       .filter(x => x.s > 0)
       .sort((a, b) => b.s - a.s)
-      .slice(0, 8)
+      .slice(0, Math.max(1, designNumber(design, "searchResultLimit", 8)))
       .map(x => x.book);
-  }, [query, books]);
+  }, [query, books, design]);
 
   return (
     <AnimatePresence>
