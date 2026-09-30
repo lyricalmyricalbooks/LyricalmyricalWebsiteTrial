@@ -21,6 +21,12 @@
 .studio-tabs { display: flex; border-bottom: 1px solid var(--rp-divider); }
 .studio-tabs button { flex: 1; font-size: 12px; padding: 12px; }
 .studio-field { margin: 16px 0; }
+.studio-control-card { display: grid; gap: 10px; margin: 18px 0; padding: 12px; border: 1px solid var(--rp-divider); border-radius: 6px; background: var(--rp-surface-sunken); font-size: 12px; }
+.studio-control-card label { display: grid; gap: 4px; }
+.studio-control-card input[type=number] { width: 100%; min-height: 36px; padding: 6px; border: 1px solid var(--rp-border); background: var(--rp-input-bg); color: var(--rp-text); }
+.studio-control-card label:has(input[type=checkbox]) { display: flex; align-items: center; gap: 8px; }
+.studio-grid-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.studio-link-button { width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid var(--rp-border); border-radius: 5px; text-align: left; background: var(--rp-surface); }
 .studio-search { width: 100%; border: 1px solid var(--rp-border); border-radius: 6px; background: var(--rp-input-bg); color: var(--rp-text); padding: 10px 12px; font-size: 12px; }
 .studio-settings-search { padding: 12px; border-bottom: 1px solid var(--rp-divider); display: grid; gap: 10px; }
 .studio-settings-search label { display: grid; gap: 4px; font-size: 11px; }
@@ -39,6 +45,8 @@
 .studio-tree-label small { font-size: 10px; color: var(--rp-text-subtle); margin-top: 3px; }
 .studio-tree-row .rp-icon-btn { width: 28px; height: 32px; }
 .studio-blocks { margin: 0 5px 8px 20px; padding-left: 4px; border-left: 1px solid var(--rp-divider); }
+.studio-blocks[data-depth="1"] { margin-left: 12px; }
+.studio-blocks[data-depth="2"] { margin-left: 8px; }
 .studio-blocks > button { margin-top: 8px; }
 .studio-insert { display: flex; align-items: center; justify-content: center; gap: 5px; width: 100%; font-size: 10px; color: var(--rp-text-subtle); min-height: 26px; border: 1px dashed transparent; }
 .studio-insert:hover, .studio-insert:focus-visible { border-color: var(--rp-primary); color: var(--rp-primary-text); background: var(--rp-primary-tint); }

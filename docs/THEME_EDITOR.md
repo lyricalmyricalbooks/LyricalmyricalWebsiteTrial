@@ -46,6 +46,7 @@ The editor is **not** a blank slate. It already supports:
 | `src/app/components/MainSite.tsx` | Renders the homepage/storefront. Uses `SectionList` for `heroPage.sections` and the shared `GlobalSections` from `sectionRender`. |
 | `src/app/features/site/StorefrontThemeStyle.tsx` + `themeTokens` | Injects the semantic token / CSS-variable layer onto any storefront surface via the `[data-fm-store]` attribute. |
 | `src/app/admin/api.ts` | Persistence: `getSettings`, `updateSettings(settings, { publish })`, `schedulePublish`. |
+| `src/app/admin/studio/studioModel.ts` | Immutable Studio state, recursive block-tree operations (three levels), linked shared-block resolution, normalization, and undo/redo. |
 
 ## The section/block contract (read before adding a section)
 
@@ -332,8 +333,10 @@ library → verify), then check it off.
       fields remain as a fallback for blocks that haven't been migrated to the
       list. (Full recursive multi-field nested blocks across more section types
       remains a follow-up.)
-- [~] Live preview channel (`THEME_UPDATE` postMessage) exists — extend it to
-      cover all edits (not only some) and all templates.
+- [x] Live preview channel (`THEME_UPDATE` postMessage) covers the full design
+      snapshot on every template. Studio also sends a schema-derived editable
+      field map, so safe text/textarea fields can be edited in the canvas even
+      when a renderer does not carry a handwritten `data-theme-field` hook.
 - [x] Double-click-to-edit (`TEXT_EDIT` postMessage) now has broad `data-theme-field`
       coverage: nearly every section-level `text`/`textarea` field across the 27
       renderers in `SectionComponents.tsx` is wired (title/subtitle/eyebrow/CTA/body
@@ -363,8 +366,9 @@ library → verify), then check it off.
       skipped because it renders through `formatArticleDate()`, a display transform,
       so the visible text isn't the raw stored value, and `linkUrl` is skipped since
       it's only used as the card `href`, never rendered as text). Extending more
-      block-heavy sections (`MulticolumnSection`, etc.) with this now-proven pattern
-      is a follow-up.
+      block-heavy sections are covered by the schema-derived editable-field map,
+      including recursively nested blocks; transformed/composite strings remain
+      inspector-only.
 - [x] Per-section box fill, raised box fill, and line/border color controls now feed the storefront token layer so hard-coded card/form/divider utilities can be recolored from the editor.
 
 
@@ -373,21 +377,12 @@ library → verify), then check it off.
 After the reference-grid follow-through work, the next five highest-leverage
 Shopify/WordPress-parity improvements are:
 
-1. **Nested block drag/drop** — extend `BlocksEditor`'s new `kind: "list"`
-   sub-list pattern from flat plain-text rows to 2–3 levels of recursive,
-   multi-field blocks for columns, cards, and media/text groups, and adopt it
-   in more section types beyond `PricingTableSection`.
-2. **CSS-grid visual positioning** — add guarded grid coordinates, z-index, and
-   overlap controls for sections that need true visual layout rather than only
-   vertical order.
-3. **Per-breakpoint layout overrides** — store desktop/tablet/mobile placement
-   overrides and pair them with the existing device preview toggle so mobile
-   layouts can be intentionally edited.
-4. **Reusable shared blocks** — promote configured blocks into a cross-section
-   library so repeated cards, CTAs, and media/text groups can be updated once.
-5. **Live-preview iframe drag/drop** — let `data-fm-section` / `data-fm-block`
-   hooks in the preview itself become drag sources/targets, not just click
-   targets, so reordering can happen directly in the canvas.
+The September 2026 composition milestone completed the previous five items:
+recursive three-level blocks, linked shared blocks, breakpoint overrides,
+guarded CSS-grid placement, and direct section/block canvas drag/drop. The next
+five highest-leverage increments are asset processing, performance profiling,
+collaboration conflict handling, a complete theme-management workspace, and
+schema-valid AI composition authoring.
 
 > Mega-menu child/grandchild drag/drop (previously #2 on this list) shipped:
 > `MenuBuilderPanel` in `ThemeEditor.tsx` now uses `SortableList`/`SortableRow`
@@ -417,15 +412,19 @@ Shopify/WordPress-parity improvements are:
       reminds editors of contrast and image-weight review.
 
 ### E. Visual layout & responsive engine (Fluid Engine / Wix Studio)
-- [ ] Nested blocks (block-in-block) in the schema, `BlocksEditor`, and
-      renderers — at least 2–3 levels deep.
-- [ ] Reusable shared blocks usable across any section ("theme blocks").
+- [x] Nested blocks (block-in-block) in the Studio model, outline, inspector,
+      and `CompositionSection` renderer — guarded to three levels deep.
+- [x] Reusable linked shared blocks can be promoted from or inserted into any
+      compatible section of the same renderer type. Content inherits from one
+      source while placement, visibility and responsive layout remain local.
 - [x] Emit stable `data-fm-section` / `data-fm-block` ids on rendered
       section and block nodes for reliable click-to-edit/hover-highlight.
-- [ ] CSS-Grid block positioning (start/end coords + `z-index` overlap) with
-      separate desktop/mobile grids and dynamic-row guardrails.
-- [ ] Per-breakpoint overrides + device preview toggle (also under C) with
-      auto `clamp()` typography.
+- [x] `CompositionSection` supports CSS-Grid row/column/span/`z-index`
+      positioning with separate desktop/tablet/mobile layouts and a three-level
+      tree guardrail.
+- [x] Block alignment/visibility and grid placement use the active
+      desktop/tablet/mobile preview as their editing scope, with inheritance
+      when an override is blank. Auto `clamp()` typography remains a later enhancement.
 - [x] Soft section/block limits with in-editor warnings (25 sections / 50
       blocks reference).
 
