@@ -178,6 +178,8 @@ complete result.
 > wordmark › **Share image**; `lib/seo.ts` reads them via `setSiteIdentity` (published by `useSiteData`).
 > No sample books or announcements are shown to shoppers.
 
+A Studio › Style control is not done until it visibly changes the live preview on every surface that shows the element: card title/price and small-print rules come from the shared `features/site/StorefrontOverrides.tsx`, which every storefront root that writes its own token `<style>` (MainSite, BookDetail, `StorefrontThemeStyle`) must render; `storefrontOverrides.test.ts` enforces this and fails on any Style control nothing reads.
+
 New storefront regions must carry `data-studio-target` + `data-studio-label` so clicking them in the Studio preview opens their settings (see CLAUDE.md › Click-to-edit in the preview).
 
 ## Storefront look (Riso Noir)
