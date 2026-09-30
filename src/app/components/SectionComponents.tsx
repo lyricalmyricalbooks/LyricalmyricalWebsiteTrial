@@ -1,5 +1,5 @@
 import { motion, useMotionValue, useSpring } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Send, ChevronLeft, ChevronRight, MapPin, Clock } from "lucide-react";
 import { useCurrency } from "../CurrencyContext";
 import { useCart } from "../CartContext";
@@ -2343,6 +2343,50 @@ export function PricingTableSection({ settings, onCtaClick, enableAnimations }: 
             );
           })}
         </div>
+      </div>
+    </section>
+  );
+}
+
+/** The custom page (title + body) currently being viewed; provided by PageView. */
+export const CurrentPageContext = createContext<{ title?: string; body?: string } | null>(null);
+
+const PAGE_TITLE_SIZES: Record<string, string> = { sm: "text-3xl", md: "text-4xl md:text-5xl", lg: "text-5xl md:text-7xl", xl: "text-6xl md:text-8xl" };
+const PAGE_BODY_SIZES: Record<string, string> = { sm: "text-[15px]", md: "text-[17px]", lg: "text-[20px]" };
+
+/** Renders a custom page's own title and text, so it can be placed, styled and reordered like any section. */
+export function PageContentSection({ settings, enableAnimations }: any) {
+  const page = useContext(CurrentPageContext);
+  const align = aClass({ align: settings.align || "left" });
+  const title = settings.titleOverride || page?.title || "Page title";
+  const body = settings.bodyOverride
+    ? settings.bodyOverride.split(/\n{2,}/).map((p: string) => `<p>${p.replace(/[<>&]/g, (c: string) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" } as any)[c]).replace(/\n/g, "<br/>")}</p>`).join("")
+    : page?.body || "<p>Your page text appears here. Write it in Studio › Pages.</p>";
+  return (
+    <section style={{ ...bgStyle(settings), ...(settings.textColor ? { color: settings.textColor } : {}) }}>
+      <div className={`py-16 px-6 mx-auto ${mw(settings, "max-w-2xl")}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className={align}>
+            {settings.showEyebrow !== false && settings.eyebrow && (
+              <p className="text-[10px] font-bold tracking-[0.3em] uppercase opacity-50 mb-4" style={bStyle(settings)} data-theme-field="eyebrow">{settings.eyebrow}</p>
+            )}
+            {settings.showTitle !== false && (
+              <h1 className={`${PAGE_TITLE_SIZES[settings.titleSize] || PAGE_TITLE_SIZES.md} font-black tracking-tight mb-10 ${settings.titleUppercase === false ? "" : "uppercase"}`} style={hStyle(settings)}>{title}</h1>
+            )}
+          </div>
+          {settings.showBody !== false && (
+            <div
+              className={`max-w-none leading-[1.8] ${PAGE_BODY_SIZES[settings.bodySize] || PAGE_BODY_SIZES.md} ${align}
+                [&_p]:mb-6 [&_h1]:text-4xl [&_h1]:font-black [&_h1]:mb-8 [&_h1]:mt-12 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mb-5 [&_h2]:mt-10
+                [&_h3]:text-xl [&_h3]:font-bold [&_h3]:mb-4 [&_h3]:mt-8 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-6 [&_li]:mb-2
+                [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-6 [&_strong]:font-bold [&_em]:italic [&_img]:my-8 [&_img]:max-w-full
+                [&_a]:underline [&_a]:underline-offset-4 [&_a]:text-[var(--accent)] [&_a]:hover:opacity-80
+                [&_blockquote]:border-l-4 [&_blockquote]:border-current/20 [&_blockquote]:pl-6 [&_blockquote]:italic [&_blockquote]:opacity-80 [&_blockquote]:my-8`}
+              style={bStyle(settings)}
+              dangerouslySetInnerHTML={{ __html: body }}
+            />
+          )}
+        </AnimationContainer>
       </div>
     </section>
   );

@@ -6,6 +6,7 @@ import { adminApi } from "../../admin/api";
 import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
+import { CurrentPageContext } from "../../components/SectionComponents";
 import type { Page } from "./types";
 import { policyPageFor } from "./policyPages";
 import { getCopy } from "./storeCopy";
@@ -66,7 +67,10 @@ export function PageView() {
   const d = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? rawDesign.storefront : rawDesign;
   const perPageSurface = slug ? rawDesign?.[`page:${slug}`] : undefined;
   const surfaceId = perPageSurface?.sections?.length ? `page:${slug}` : "page";
-  const hidePageBody = !!perPageSurface?.hidePageBody;
+  // Once a "Page content" section is in the stack, it renders the title/text
+  // (so it can be moved and styled in Studio) and the fixed body is skipped.
+  const hasContentSection = (rawDesign?.[surfaceId]?.sections || []).some((s: any) => s?.type === "PageContentSection");
+  const hidePageBody = !!perPageSurface?.hidePageBody || hasContentSection;
   // "theme" chrome renders the page in the storefront's colors/wordmark;
   // default "classic" keeps the original white editorial page.
   const themed = d?.pageChromeStyle === "theme";
@@ -112,7 +116,9 @@ export function PageView() {
       <StorefrontThemeStyle design={settings?.design} />
       <StorefrontPageHeader design={settings?.design} pages={pages} books={books} />
 
-      <TemplateSections design={settings?.design} templateId={surfaceId} books={books} />
+      <CurrentPageContext.Provider value={{ title: shown.title, body: shown.body }}>
+        <TemplateSections design={settings?.design} templateId={surfaceId} books={books} />
+      </CurrentPageContext.Provider>
 
       {/* Content */}
       {!hidePageBody && (
