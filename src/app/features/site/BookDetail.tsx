@@ -92,6 +92,7 @@ export default function BookDetail() {
   const productImageGlowColor  = storefrontDesign.productImageGlowColor  || primaryColor;
   const productImageShadow     = storefrontDesign.productImageShadow     || "lg";
   const productImageHoverScale  = storefrontDesign.productImageHoverScale  ?? 1.05;
+  const productImageFitClass   = storefrontDesign.productImageFit === "contain" ? "object-contain" : "object-cover";
   const productImageMaxWidth   = Math.max(320, Math.min(900, Number(storefrontDesign.productImageMaxWidth) || 560));
   const productImageAspect     = aspectRatioValue(storefrontDesign.productImageAspect && storefrontDesign.productImageAspect !== "grid" ? storefrontDesign.productImageAspect : storefrontDesign.imageAspectRatio || "3:4");
   const productDetailsLayout   = storefrontDesign.productDetailsLayout   || "sections";
@@ -443,7 +444,7 @@ export default function BookDetail() {
                         key={activePhoto}
                         src={activeUrl}
                         alt={`${book.title} — view ${activePhoto + 1}`}
-                        className="w-full h-full object-contain"
+                        className={`w-full h-full ${productImageFitClass}`}
                         decoding="async"
                         {...(activePhoto === 0 ? { fetchpriority: "high" } : {})}
                         initial={{ opacity: 0, scale: 1.04 }}
@@ -553,7 +554,7 @@ export default function BookDetail() {
                               : "border-white/[0.08] opacity-40 hover:opacity-70 hover:border-white/20"
                           }`}
                         >
-                          <img src={photo.url} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
+                          <img src={photo.url} alt="" loading="lazy" decoding="async" className={`w-full h-full ${productImageFitClass}`} />
                         </button>
                       ))}
                     </div>
@@ -563,7 +564,7 @@ export default function BookDetail() {
                 <div className="grid grid-cols-2 gap-4">
                   {photos.map((photo: any, i: number) => (
                     <div key={i} className={`${i === 0 ? "col-span-2" : ""} relative fm-surface rounded-[1.5rem] overflow-hidden`} style={{ aspectRatio: productImageAspect }}>
-                      <img src={photo.url} alt="" loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className="w-full h-full object-contain" />
+                      <img src={photo.url} alt="" loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
                           <span
@@ -585,7 +586,7 @@ export default function BookDetail() {
                 <div className="space-y-4">
                   {photos.map((photo: any, i: number) => (
                     <div key={i} className="relative fm-surface rounded-[1.5rem] overflow-hidden" style={{ aspectRatio: productImageAspect }}>
-                      <img src={photo.url} alt="" loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className="w-full h-full object-contain" />
+                      <img src={photo.url} alt="" loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
                           <span
