@@ -80,7 +80,7 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
   // greys follow the storefront tokens (which re-point them) instead of staying on white paper.
   const darkCheckoutCss = lum >= 0.5 ? RISO_CHECKOUT_DARK_CSS : "";
 
-  const fontNames = Array.from(new Set([d.headingFont, d.font || d.bodyFont, d.navFont, d.wordmarkFont].filter(Boolean).map(String)));
+  const fontNames = Array.from(new Set([d.headingFont, d.font || d.bodyFont, d.navFont, d.wordmarkFont, d.cardTitleFont, d.cardPriceFont].filter(Boolean).map(String)));
   return (
     <>
       {fontNames.map(n => <link key={n} rel="stylesheet" href={googleFontHref(n)} />)}

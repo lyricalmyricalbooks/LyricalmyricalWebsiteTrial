@@ -746,6 +746,22 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const showCollectionMeta = storefrontDesign?.showCollectionMeta ?? true;
   const cardRuleWidth = Math.max(0, Math.min(8, storefrontDesign?.catalogCardRuleWidth ?? 2));
   const priceTagBoxed = (storefrontDesign?.catalogPriceStyle ?? "boxed") !== "plain";
+  // Card title / price typography — every knob is a Studio › Style › Product cards & grid control.
+  const cardTitleStyle: CSSProperties = {
+    color: storefrontDesign?.productTitleColor || storefrontText,
+    textTransform: storefrontTitleTransform,
+    ...(Number(storefrontDesign?.cardTitleSize) > 0 ? { fontSize: `${Number(storefrontDesign.cardTitleSize)}px` } : {}),
+    ...(storefrontDesign?.cardTitleWeight ? { fontWeight: Number(storefrontDesign.cardTitleWeight) } : {}),
+    ...(storefrontDesign?.cardTitleFont ? { fontFamily: `'${String(storefrontDesign.cardTitleFont).replace(/'/g, "")}', sans-serif` } : {}),
+    ...(storefrontDesign?.cardTitleTracking != null && storefrontDesign.cardTitleTracking !== "" ? { letterSpacing: `${Number(storefrontDesign.cardTitleTracking)}em` } : {}),
+  };
+  const cardPriceStyle: CSSProperties = {
+    color: storefrontDesign?.productPriceColor || storefrontText,
+    ...(Number(storefrontDesign?.cardPriceSize) > 0 ? { fontSize: `${Number(storefrontDesign.cardPriceSize)}px` } : {}),
+    ...(storefrontDesign?.cardPriceWeight ? { fontWeight: Number(storefrontDesign.cardPriceWeight) } : {}),
+    ...(storefrontDesign?.cardPriceFont ? { fontFamily: `'${String(storefrontDesign.cardPriceFont).replace(/'/g, "")}', sans-serif` } : {}),
+  };
+  const cardPriceOldStyle: CSSProperties = storefrontDesign?.cardPriceOldColor ? { color: storefrontDesign.cardPriceOldColor, opacity: 1 } : {};
   const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
   const saleBadgeLabel = storefrontDesign?.saleBadgeLabel || "SALE";
@@ -1323,23 +1339,25 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       <div className="flex items-start justify-between gap-3">
                         <h3
                           className={`${isReferenceCatalog ? "text-lg md:text-xl font-black tracking-tight" : "text-sm tracking-wider font-medium"} leading-tight min-w-0 break-words`}
-                          style={{ color: storefrontDesign?.productTitleColor || storefrontText, textTransform: storefrontTitleTransform }}
+                          style={cardTitleStyle}
                         >
                           {item.title}
                         </h3>
                         {displayPrice > 0 && (
                           <span
                             className="shrink-0 flex flex-col items-end leading-none font-mono tabular-nums"
-                            style={{ color: storefrontDesign?.productPriceColor || storefrontText }}
+                            style={cardPriceStyle}
                           >
                             <span
                               className={`text-sm md:text-base font-bold whitespace-nowrap ${priceTagBoxed ? "px-2 py-1" : ""}`}
-                              style={priceTagBoxed ? { border: "2px solid currentColor" } : undefined}
+                              style={priceTagBoxed
+                                ? { border: "2px solid currentColor", ...(storefrontDesign?.cardPriceTagBg ? { backgroundColor: storefrontDesign.cardPriceTagBg } : {}) }
+                                : undefined}
                             >
                               {formatBookPrice(item)}
                             </span>
                             {onSale && (
-                              <span className="mt-1 text-[10px] line-through opacity-50">{formatBookPrice(item, true)}</span>
+                              <span className="mt-1 text-[10px] line-through opacity-50" style={cardPriceOldStyle}>{formatBookPrice(item, true)}</span>
                             )}
                           </span>
                         )}

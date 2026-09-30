@@ -289,6 +289,8 @@ its own** switch (`ownStyle`) is on; pages without that section render the same 
 
 **One storefront shell:** `MainSite` renders a single Riso header/footer for every view; the Home view swaps the catalog grid for `design.heroPage.sections`. Studio › Sections (Home) › **Show a Home page** toggles `showHero` (off = open straight on the catalog). The legacy hero header/`HeroCarousel` were removed — don't re-add a second header.
 
+**Shop card title & price:** Studio › Style › **Product cards & grid** has colour, size, weight, font and letter-spacing controls for the card title and price (`productTitleColor`, `cardTitle*`, `productPriceColor`, `cardPrice*`), plus the boxed-tag and old-price colours; clicking a card title/price in the preview opens that group.
+
 **Fonts:** Studio › Style › **Typography** has Google Fonts pickers (heading, body, header & menu `navFont`, logo `wordmarkFont`) fed by the curated list in `features/site/fonts.ts` (Riso trio Anton / Archivo / DM Mono first; `googleFontHref` uses only weights each family serves).
 
 **Riso Noir storefront:** the public site defaults to the Riso Press look on black with white text
