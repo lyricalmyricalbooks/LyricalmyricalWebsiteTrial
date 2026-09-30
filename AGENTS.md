@@ -189,6 +189,11 @@ no literal colours in `RISO_STOREFRONT_CSS`, RGB triplet variables stay comma-se
 shopper-facing string needs a `COPY_SCHEMA` entry + `getCopy` call so it is editable in the theme
 editor (see `docs/THEME_EDITOR.md` › Riso Noir). Payment UI stays conventional and legible.
 
+## Product page
+
+The book page is the Riso "catalogue card" layout; every part of it is a `pdp*` control in Studio ›
+Style › Product page · buy card & details (see CLAUDE.md). Trust-signal lines were removed on purpose.
+
 ## Working rules
 
 - Match the surrounding code's style, naming, and patterns.

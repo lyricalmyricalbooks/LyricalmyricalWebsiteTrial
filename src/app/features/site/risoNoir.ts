@@ -50,6 +50,11 @@ export const RISO_NOIR_TOKENS: Record<string, any> = {
   showCatalogControls: false, showCatalogCount: false,
   productBorderRadius: 0, cardRadius: 0, showQtyStepper: true,
   productDescriptionStyle: "designed",
+  // Product page: the "catalogue card" layout (Style › Product page · buy card & details).
+  productDetailsLayout: "tabs", productImageShadow: "none",
+  pdpShowBackLink: true, pdpShowBreadcrumb: true, pdpShowTag: true, pdpTagStyle: "filled",
+  pdpShowStock: true, pdpShowCaption: true, pdpThumbPosition: "side", pdpDetailsPlacement: "below",
+  pdpSpecsStyle: "record", pdpCardShadowOffset: 8, pdpCardPadding: 24, pdpMetaSize: 11,
   // Optional storefront elements (all on).
   showRecentlyViewed: true, showBreadcrumbs: true, showCookieBanner: true,
   // Footer extras off by default: payment-badge row and the "Powered by" line.
