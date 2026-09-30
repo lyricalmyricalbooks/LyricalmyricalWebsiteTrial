@@ -1,3 +1,4 @@
+import type React from "react";
 import { getCopy } from "../features/site/storeCopy";
 // ──────────────────────────────
 // Brand logo (image, tinted image, or wordmark text)
@@ -9,6 +10,14 @@ import { getCopy } from "../features/site/storeCopy";
 //   - logoText   : wordmark text shown when no image is uploaded
 //   - logoHeight : rendered height in px (clamped 20–64)
 // ──────────────────────────────
+// Second-word styling shared by the header wordmark and footer brand: an explicit
+// colour (wordmarkSecondaryColor) wins; otherwise it is dimmed unless the toggle is off.
+export function wordmarkSecondaryStyle(design: any, dim = 0.6): React.CSSProperties | undefined {
+  const color = design?.wordmarkSecondaryColor;
+  if (color) return { color };
+  return design?.wordmarkSecondaryMuted === false ? undefined : { opacity: dim };
+}
+
 export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defaultText?: string }) {
   const height = Math.max(20, Math.min(64, design?.logoHeight ?? 24));
   const logoColor = design?.logoColor;
@@ -32,7 +41,7 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
         }}
       >
         <span>{design?.wordmarkPrimary || "Lyricalmyrical"}</span>
-        <span style={design?.wordmarkSecondaryMuted === false ? undefined : { opacity: 0.56 }}>
+        <span style={wordmarkSecondaryStyle(design, 0.56)}>
           {design?.wordmarkSecondary || "Books"}
         </span>
       </span>
