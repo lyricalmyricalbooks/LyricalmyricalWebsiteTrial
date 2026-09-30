@@ -271,6 +271,16 @@ nested blocks across more section types remains a follow-up):
 > (`var(--token, #hex)`) — the hex may only be a fallback. Every section default needs a Content
 > field (lists are edited as blocks). `features/site/designerCoverage.test.ts` enforces both,
 > alongside `studioCoverage`, `storeCopy.coverage`, `studioTargets` and `themeLibrary` tests.
+> Tailwind colour classes count too: every one the storefront uses (incl. `hover:`/`focus:`/
+> `group-hover:`/`selection:`/`md:` variants) must be listed in `features/site/storefrontColorClasses.ts`,
+> which `colorUtilityCss` in `themeTokens.ts` re-points at a Studio token (greys → text/muted/surface,
+> black → overlay/page colour, hues → accent/success/warning/danger). `designerCoverage.test.ts` fails
+> on an unlisted or unmappable class — add it to the list rather than hard-coding a colour.
+
+**Custom pages share one look:** Studio › Style › **Custom pages** (`page*` design keys, `sitePageStyle`
+in `PageView.tsx`) sets eyebrow, title size/case/colour, text size/colour, alignment and column
+width for every custom page. Each "Page content" section follows it unless its **Style this page on
+its own** switch (`ownStyle`) is on; pages without that section render the same component.
 
 **Click-to-edit in the preview:** sections carry `data-fm-section`; every other storefront region carries `data-studio-target="style:<groupId>|copy:<Group>|menus:<panel>|pages"` + `data-studio-label`. In Edit mode the preview bridge (`studio/previewBridge.ts`) outlines it, and a click sends `STUDIO_TARGET` (several targets → a small in-preview menu); `StudioEditor.tsx` switches tab and opens/flashes the matching `Group id` / `data-studio-panel`. New storefront regions must carry a target — `studioTargets.test.ts` checks every target points at a real panel.
 
