@@ -75,7 +75,22 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "containerWidth", label: "Content width", kind: "range", min: 800, max: 1800, step: 20, suffix: "px" },
       { key: "sectionSpacing", label: "Space between sections", kind: "range", min: 0, max: 160, step: 4, suffix: "px" },
       { key: "cardRadius", label: "Card corner radius", kind: "range", min: 0, max: 40, step: 1, suffix: "px" },
-      { key: "pageChromeStyle", label: "Custom-page header style", kind: "select", options: [{ value: "theme", label: "Match the storefront" }, { value: "classic", label: "Classic white page" }] },
+    ],
+  },
+  {
+    id: "customPages",
+    title: "Custom pages",
+    hint: "One look for every custom page (About, History, Journal…). A page's Page content section can opt out with its own style.",
+    fields: [
+      { key: "pageChromeStyle", label: "Page colours", kind: "select", options: [{ value: "theme", label: "Match the storefront" }, { value: "classic", label: "Classic white page" }] },
+      { key: "pageShowEyebrow", label: "Show small label above title", kind: "toggle" },
+      { key: "pageTitleSize", label: "Title size", kind: "select", options: [{ value: "sm", label: "Small" }, { value: "md", label: "Medium" }, { value: "lg", label: "Large" }, { value: "xl", label: "Extra large" }] },
+      { key: "pageTitleUppercase", label: "Uppercase title", kind: "toggle" },
+      { key: "pageTitleColor", label: "Title colour", kind: "color" },
+      { key: "pageBodySize", label: "Text size", kind: "select", options: [{ value: "sm", label: "Small" }, { value: "md", label: "Medium" }, { value: "lg", label: "Large" }] },
+      { key: "pageTextColor", label: "Text colour", kind: "color" },
+      { key: "pageAlign", label: "Alignment", kind: "select", options: [{ value: "left", label: "Left" }, { value: "center", label: "Center" }, { value: "right", label: "Right" }] },
+      { key: "pageWidth", label: "Column width", kind: "select", options: [{ value: "narrow", label: "Narrow" }, { value: "normal", label: "Medium" }, { value: "wide", label: "Wide" }, { value: "full", label: "Full width" }] },
     ],
   },
   {

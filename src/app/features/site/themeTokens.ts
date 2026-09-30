@@ -24,6 +24,8 @@
  * Commas are required: `rgba(255 255 255, 0.4)` (space triplet + comma alpha) is invalid CSS, which
  * silently dropped every text-white/N, bg-white/N and border-white/N remap.
  */
+import { STOREFRONT_COLOR_CLASSES } from "./storefrontColorClasses";
+
 export function hexToRgbTriplet(input?: string, fallback = "255, 255, 255"): string {
   if (!input) return fallback;
   let c = String(input).trim();
@@ -174,100 +176,153 @@ export function buildStorefrontTokenVars(design: StorefrontTokenInput = {}): str
   ].join("\n      ");
 }
 
-// ── Tailwind alpha-utility remap ─────────────────────────────────────────────
-// Each tuple: [tailwind class, css property, alpha, rgb-var]. Scoped under
-// [data-fm-store] so it wins over Tailwind's own .text-white/40 etc. Only the
-// base (non-variant) utilities are remapped; :hover / :focus variants are left
-// untouched so interaction deltas keep working.
+// ── Tailwind colour-utility remap ────────────────────────────────────────────
+// Nothing on the storefront may keep a fixed Tailwind colour: every colour class the
+// public site uses (listed in storefrontColorClasses.ts, kept complete by
+// designerCoverage.test.ts) is re-pointed here at a Studio token, including its
+// hover/focus/selection/responsive variants. Rules are scoped under [data-fm-store]
+// so they out-specify Tailwind's own utilities. Only classes actually in use are
+// emitted, which keeps the stylesheet a few KB instead of every possible shade.
 
-const FG = "--fg-rgb";
-const BORDER = "--border-rgb";
-const OVERLAY = "--overlay-rgb";
-
-const PREFIX_PROP: Record<string, string> = {
-  text: "color",
-  bg: "background-color",
-  border: "border-color",
+type Role = { solid: string; rgb: string };
+const HUE_ROLES: Record<string, Role> = {
+  violet: { solid: "--accent", rgb: "--accent-rgb" },
+  purple: { solid: "--accent", rgb: "--accent-rgb" },
+  indigo: { solid: "--accent", rgb: "--accent-rgb" },
+  sky: { solid: "--accent", rgb: "--accent-rgb" },
+  blue: { solid: "--accent", rgb: "--accent-rgb" },
+  pink: { solid: "--accent", rgb: "--accent-rgb" },
+  fuchsia: { solid: "--accent", rgb: "--accent-rgb" },
+  cyan: { solid: "--accent-2", rgb: "--accent-2-rgb" },
+  teal: { solid: "--success", rgb: "--success-rgb" },
+  emerald: { solid: "--success", rgb: "--success-rgb" },
+  green: { solid: "--success", rgb: "--success-rgb" },
+  lime: { solid: "--success", rgb: "--success-rgb" },
+  amber: { solid: "--warning", rgb: "--warning-rgb" },
+  yellow: { solid: "--warning", rgb: "--warning-rgb" },
+  orange: { solid: "--warning", rgb: "--warning-rgb" },
+  rose: { solid: "--danger", rgb: "--danger-rgb" },
+  red: { solid: "--danger", rgb: "--danger-rgb" },
 };
+const GREYS = new Set(["slate", "gray", "zinc", "neutral", "stone"]);
 
-// Alpha suffixes as they appear in the storefront Tailwind classes (fraction
-// steps like "40" => 0.40, and arbitrary values like "[0.03]" => 0.03).
-const WHITE_ALPHAS = [
-  "5", "8", "10", "15", "20", "25", "30", "40", "50", "60", "70", "75", "80", "90",
-  "[0.01]", "[0.02]", "[0.03]", "[0.04]", "[0.05]", "[0.06]", "[0.07]", "[0.08]", "[0.12]", "[0.14]",
-];
-const BLACK_ALPHAS = ["20", "30", "40", "50", "60", "65", "70", "75", "80"];
+const COLOR_CLASS_RE =
+  /^(bg|text|border|ring|from|via|to|placeholder|outline|divide|fill|stroke|decoration|caret|accent)-(white|black|slate|gray|zinc|neutral|stone|violet|purple|indigo|sky|blue|pink|fuchsia|cyan|teal|emerald|green|lime|amber|yellow|orange|rose|red)(?:-(\d{2,3}))?(?:\/(\d+|\[[\d.]+\]))?$/;
 
-function suffixToAlpha(suffix: string): number {
-  if (suffix.startsWith("[")) return parseFloat(suffix.slice(1, -1));
-  return parseInt(suffix, 10) / 100;
+function alphaOf(suffix?: string): number | null {
+  if (!suffix) return null;
+  return suffix.startsWith("[") ? parseFloat(suffix.slice(1, -1)) : parseInt(suffix, 10) / 100;
 }
+
+/** The token-driven colour value for one Tailwind colour utility (without variants). */
+function tokenValue(prefix: string, color: string, shade: number, alpha: number | null): string | null {
+  const rgba = (v: string, a: number) => `rgba(var(${v}), ${a})`;
+  if (color === "white") {
+    const v = prefix === "border" || prefix === "divide" ? "--border-rgb" : prefix === "bg" && alpha !== null ? "--surface-rgb" : "--fg-rgb";
+    return alpha === null ? `rgb(var(${v}))` : rgba(v, alpha);
+  }
+  if (color === "black") {
+    if (alpha !== null) return rgba("--overlay-rgb", alpha);
+    return prefix === "text" ? "var(--bg-color)" : "rgb(var(--overlay-rgb))";
+  }
+  if (GREYS.has(color)) {
+    if (alpha !== null) return rgba(prefix === "border" || prefix === "divide" ? "--border-rgb" : "--fg-rgb", alpha);
+    if (prefix === "border" || prefix === "divide" || prefix === "outline") return rgba("--border-rgb", shade >= 400 ? 0.65 : 0.4);
+    if (prefix === "bg") {
+      if (shade <= 100) return "var(--surface-2)";
+      if (shade <= 300) return rgba("--fg-rgb", 0.16);
+      if (shade <= 500) return "var(--muted)";
+      if (shade <= 700) return "rgb(var(--fg-rgb))";
+      return "var(--surface)";
+    }
+    if (shade >= 800) return "rgb(var(--fg-rgb))";
+    if (shade >= 600) return rgba("--fg-rgb", 0.8);
+    if (shade >= 400) return "var(--muted)";
+    return rgba("--fg-rgb", 0.5);
+  }
+  const role = HUE_ROLES[color];
+  if (!role) return null;
+  if (alpha !== null) return rgba(role.rgb, alpha);
+  if (shade <= 200 && prefix === "bg") return rgba(role.rgb, 0.14);
+  if (shade <= 200 && (prefix === "border" || prefix === "divide")) return rgba(role.rgb, 0.5);
+  return `var(${role.solid})`;
+}
+
+function declaration(prefix: string, value: string): string {
+  switch (prefix) {
+    case "text": return `color:${value};`;
+    case "bg": return `background-color:${value};`;
+    case "border": return `border-color:${value};`;
+    case "divide": return `border-color:${value};`;
+    case "outline": return `outline-color:${value};`;
+    case "ring": return `--tw-ring-color:${value};`;
+    case "from": return `--tw-gradient-from:${value};`;
+    case "via": return `--tw-gradient-via:${value};`;
+    case "to": return `--tw-gradient-to:${value};`;
+    case "fill": return `fill:${value};`;
+    case "stroke": return `stroke:${value};`;
+    case "decoration": return `text-decoration-color:${value};`;
+    case "caret": return `caret-color:${value};`;
+    case "accent": return `accent-color:${value};`;
+    default: return `color:${value};`; // placeholder-*
+  }
+}
+
+const BREAKPOINTS: Record<string, string> = { sm: "40rem", md: "48rem", lg: "64rem", xl: "80rem", "2xl": "96rem" };
+const PSEUDO: Record<string, string> = {
+  hover: ":hover", focus: ":focus", "focus-visible": ":focus-visible", "focus-within": ":focus-within",
+  active: ":active", disabled: ":disabled", checked: ":checked",
+};
 
 /** Escape a Tailwind class so it can be used as a CSS selector. */
 function escapeClass(cls: string): string {
-  return cls.replace(/[/[\].]/g, (ch) => "\\" + ch);
+  return cls.replace(/[/[\].:]/g, (ch) => "\\" + ch);
 }
-
-function buildAlphaRules(
-  color: string,
-  suffixes: string[],
-  varFor: (prefix: string) => string,
-): string {
-  const rules: string[] = [];
-  for (const suffix of suffixes) {
-    const alpha = suffixToAlpha(suffix);
-    for (const prefix of Object.keys(PREFIX_PROP)) {
-      const cls = `${prefix}-${color}/${suffix}`;
-      rules.push(
-        `[data-fm-store] .${escapeClass(cls)}{${PREFIX_PROP[prefix]}:rgba(var(${varFor(prefix)}), ${alpha});}`,
-      );
-    }
-  }
-  return rules.join("\n");
-}
-
-// Solid (no-alpha) utility remap for a Tailwind color name → a CSS variable.
-function buildSolidRules(color: string, cssVar: string): string {
-  return Object.entries(PREFIX_PROP)
-    .map(([prefix, prop]) => `[data-fm-store] .${prefix}-${color}{${prop}:var(${cssVar});}`)
-    .join("\n");
-}
-
-// Map the brand's semantic hues onto tokens so every shade+alpha recolors with
-// the theme, exactly like the white/black utilities do:
-//   violet / purple -> accent       emerald / green -> success
-//   cyan            -> secondary     amber / yellow  -> warning
-//   rose            -> danger (error). Favorites use the dedicated fm-favorite-*
-//   helpers, so remapping raw rose to danger does not affect the wishlist.
-const BRAND_ALPHAS = ["10", "15", "20", "25", "30", "40", "50", "60", "70", "[0.05]", "[0.08]"];
-const SHADES = ["300", "400", "500", "600", "700", "900", "950"];
-
-const BRAND_HUES: Array<{ names: string[]; solidVar: string; rgbVar: string }> = [
-  { names: ["violet", "purple"], solidVar: "--accent", rgbVar: "--accent-rgb" },
-  { names: ["emerald", "green"], solidVar: "--success", rgbVar: "--success-rgb" },
-  { names: ["cyan"], solidVar: "--accent-2", rgbVar: "--accent-2-rgb" },
-  { names: ["amber", "yellow"], solidVar: "--warning", rgbVar: "--warning-rgb" },
-  { names: ["rose", "red"], solidVar: "--danger", rgbVar: "--danger-rgb" },
-];
-
-const brandOverrideCss = BRAND_HUES.flatMap(({ names, solidVar, rgbVar }) =>
-  names.flatMap((name) =>
-    SHADES.flatMap((shade) => [
-      buildAlphaRules(`${name}-${shade}`, BRAND_ALPHAS, () => rgbVar),
-      buildSolidRules(`${name}-${shade}`, solidVar),
-    ]),
-  ),
-).join("\n");
-
-const alphaOverrideCss = [
-  // text/bg follow the foreground; borders follow the Border color token.
-  buildAlphaRules("white", WHITE_ALPHAS, (p) => (p === "border" ? BORDER : p === "bg" ? "--surface-rgb" : FG)),
-  buildAlphaRules("black", BLACK_ALPHAS, () => OVERLAY),
-  brandOverrideCss,
-].join("\n");
 
 /**
- * Static stylesheet that wires the Tailwind alpha utilities + a few semantic
+ * The scoped rule that re-points one storefront colour class (e.g. `hover:bg-neutral-800`,
+ * `text-white/40`, `md:from-black/80`) at the Studio tokens, or null when it is not a colour
+ * utility this layer understands.
+ */
+export function colorUtilityCss(cls: string): string | null {
+  const parts = cls.split(":");
+  const base = parts.pop()!;
+  const m = COLOR_CLASS_RE.exec(base);
+  if (!m) return null;
+  const [, prefix, color, shadeStr, alphaStr] = m;
+  const value = tokenValue(prefix, color, shadeStr ? parseInt(shadeStr, 10) : 500, alphaOf(alphaStr));
+  if (!value) return null;
+  let decl = declaration(prefix, value);
+  // Solid dark grey chips/buttons (quantity badge, Apply) sit under light words: invert them.
+  if (prefix === "bg" && GREYS.has(color) && alphaStr === undefined && /^(600|700)$/.test(shadeStr || "")) {
+    decl += "color:var(--bg-color) !important;";
+  }
+  let sel = `.${escapeClass(cls)}`;
+  let media = "";
+  let pseudoEl = prefix === "placeholder" ? "::placeholder" : "";
+  let groupHover = false;
+  let selection = false;
+  for (const v of parts) {
+    if (BREAKPOINTS[v]) media = `@media (width >= ${BREAKPOINTS[v]})`;
+    else if (PSEUDO[v]) sel += PSEUDO[v];
+    else if (v === "group-hover") groupHover = true;
+    else if (v === "placeholder") pseudoEl = "::placeholder";
+    else if (v === "selection") selection = true;
+    else return null; // unknown variant (dark:, aria-*, …)
+  }
+  let selector = `[data-fm-store] ${groupHover ? ".group:hover " : ""}${sel}${pseudoEl}`;
+  if (selection) selector = `[data-fm-store] ${sel}::selection,[data-fm-store] ${sel} ::selection`;
+  const rule = `${selector}{${decl}}`;
+  return media ? `${media}{${rule}}` : rule;
+}
+
+/** Every colour class in `classes`, re-pointed at the tokens. */
+export function colorUtilitiesCss(classes: readonly string[]): string {
+  return classes.map(colorUtilityCss).filter(Boolean).join("\n");
+}
+
+/**
+ * Static stylesheet that wires the storefront's Tailwind colour utilities + a few semantic
  * helper classes onto the token layer. Inject once per storefront surface.
  *
  * The `[data-fm-store].fm-page` / `.fm-surface` / `.text-white` rules exist because roots such as
@@ -275,10 +330,7 @@ const alphaOverrideCss = [
  * which the descendant selectors never match. Every line must stay scoped (see themeTokens.test.ts).
  */
 export const STOREFRONT_TOKEN_CSS = `
-${alphaOverrideCss}
-[data-fm-store] .text-white{color:rgb(var(--fg-rgb));}
-[data-fm-store] .bg-white{background-color:rgb(var(--fg-rgb));}
-[data-fm-store] .border-white{border-color:rgb(var(--border-rgb));}
+${colorUtilitiesCss(STOREFRONT_COLOR_CLASSES)}
 [data-fm-store] .fm-page{background-color:var(--bg-color);}
 [data-fm-store].fm-page{background-color:var(--bg-color);}
 [data-fm-store].fm-surface{background-color:var(--surface);}
@@ -351,14 +403,15 @@ export function risoGrainCss(design: StorefrontTokenInput = {}): string {
 }
 
 /**
- * Dark checkout for Riso themes. Checkout markup is deliberately conventional (white paper, slate
- * text) so payment stays legible; on a dark Riso theme these remaps turn that same markup into
+ * Dark checkout for dark themes. Checkout markup is deliberately conventional (white paper, slate
+ * text) so payment stays legible; on any dark theme these remaps turn that same markup into
  * white-on-black without touching a single class, and every colour still comes from the tokens.
  */
 export const RISO_CHECKOUT_DARK_CSS = (() => {
   const P = "[data-fm-checkout]";
   const rules: string[] = [
     `${P}.bg-white{background-color:var(--bg-color);}`,
+    `${P}.text-slate-900{color:rgb(var(--fg-rgb));}`,
     `${P} .bg-white{background-color:var(--surface);}`,
     `${P} header.bg-white{background-color:var(--bg-color);}`,
     `${P} .bg-white\\/90{background-color:rgba(var(--surface-rgb),.9);}`,
