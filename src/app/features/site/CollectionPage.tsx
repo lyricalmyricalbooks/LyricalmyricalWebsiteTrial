@@ -137,10 +137,12 @@ export default function CollectionPage() {
                       </div>
                     )}
                   </div>
-                  <h3 className="text-[11px] tracking-widest uppercase text-white/80">{book.title}</h3>
-                  {book.retailPrice ? (
-                    <p className="text-[10px] text-white/40 mt-1">{formatBookPrice(book)}</p>
-                  ) : null}
+                  <div data-studio-target="style:products" data-studio-label="Card title & price">
+                    <h3 className="fm-card-title text-[11px] tracking-widest uppercase text-white/80">{book.title}</h3>
+                    {book.retailPrice ? (
+                      <p className="fm-card-price-wrap fm-card-price text-[10px] text-white/40 mt-1">{formatBookPrice(book)}</p>
+                    ) : null}
+                  </div>
                 </Link>
               </article>
             );

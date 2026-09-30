@@ -17,7 +17,7 @@ import {
   patchBlockField, patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo,
   type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
-import { STATIC_SURFACES, STYLE_GROUPS, applyGlobalStyle, readStyle } from "./styleSchema";
+import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, type StyleField, type StyleGroup } from "./styleSchema";
 import { StudioPages } from "./StudioPages";
 import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
@@ -327,6 +327,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [mode, setMode] = useState<"edit" | "browse">("edit");
   const [mobilePanel, setMobilePanel] = useState("preview");
   const [styleSearch, setStyleSearch] = useState("");
+  // Region clicked in the preview → a pinned "Editing: <label>" card with only that region's controls.
+  const [styleFocus, setStyleFocus] = useState<{ id: string; label: string } | null>(null);
   const [focus, setFocus] = useState<StudioFocus>({ id: null, nonce: 0 });
   const [styleScope, setStyleScope] = useState<"all" | "page">("all");
   const [productSlug, setProductSlug] = useState("");
@@ -454,6 +456,19 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     else setStyle(path, value);
   };
 
+  const renderStyleField = (g: StyleGroup, f: StyleField) => {
+    const local = styleScope === "page" && PAGE_STYLE_GROUPS.has(g.id);
+    return (
+      <div key={f.key} className="studio-field">
+        <SectionFieldEditor field={f as any}
+          value={(local ? readStyle(design[template.id], f.key) : undefined) ?? readStyle(design, f.key) ?? readStyle(defaults, f.key)}
+          onChange={v => setScopedStyle(g.id, f.key, v)}
+          uploadFile={file => adminApi.uploadFile(file, 'design/' + Date.now() + '_' + file.name)} />
+        {local && readStyle(design[template.id], f.key) !== undefined && <button className="studio-reset" onClick={() => setScopedStyle(g.id, f.key, undefined)}>Reset to global</button>}
+      </div>
+    );
+  };
+
   // ── preview wiring ──
   const previewUrl = useMemo(() => {
     const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -552,9 +567,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         setMobilePanel("outline");
         setSelectedId(null); setBlockId(null);
         if (tab === "style") setStyleSearch("");
+        setStyleFocus(tab === "style" && STYLE_GROUPS.some(g => g.id === rest) ? { id: rest, label: typeof d.label === "string" && d.label ? d.label : (STYLE_GROUPS.find(g => g.id === rest)?.title || rest) } : null);
         if (tab === "text") setCopyFilter("");
         setLeftTab(tab);
-        const panel = kind === "menus" && (rest === "header" || rest === "footer") ? "menus:links" : target;
+        const panel = kind === "menus" && (rest === "header" || rest === "footer") ? "menus:links" : tab === "style" && STYLE_GROUPS.some(g => g.id === rest) ? "style-focus" : target;
         setFocus(f => ({ id: target, nonce: f.nonce + 1 }));
         setTimeout(() => {
           const el = document.querySelector<HTMLElement>(`[data-studio-panel="${CSS.escape(panel)}"]`);
@@ -742,7 +758,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <nav className="studio-sidebar" aria-label="Editor panels">
           <div className="grid grid-cols-5 border-b" role="tablist">
             {sidebarTabs.map(([id, label]) => (
-              <button key={id} role="tab" aria-selected={leftTab === id} onClick={() => setLeftTab(id)}
+              <button key={id} role="tab" aria-selected={leftTab === id} onClick={() => { setLeftTab(id); setStyleFocus(null); }}
                 className={`py-3 text-[11px] font-bold leading-tight px-1 ${leftTab === id ? "border-b-2 border-neutral-900" : "text-neutral-500 hover:bg-neutral-50"}`}>{label}</button>
             ))}
           </div>
@@ -784,7 +800,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               onAdd={setAdding} onDuplicate={dupSection} onDelete={delSection}
               onToggle={id => setList(list => toggleSection(list, id))} />}
             {leftTab === "style" && <div className="studio-settings-search">
-              <input className="studio-search" aria-label="Search style settings" placeholder="Search colors, fonts, spacing…" value={styleSearch} onChange={e => setStyleSearch(e.target.value)} />
+              <input className="studio-search" aria-label="Search style settings" placeholder="Search colors, fonts, spacing…" value={styleSearch} onChange={e => { setStyleSearch(e.target.value); if (e.target.value) setStyleFocus(null); }} />
               <label>Editing scope<select aria-label="Style scope" value={styleScope} onChange={e => setStyleScope(e.target.value as any)}><option value="all">All pages</option><option value="page">This page only: {template.label}</option></select></label>
               {styleSearch && <button className={btn} onClick={() => setStyleSearch("")}>Clear search</button>}
             </div>}
@@ -821,7 +837,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               </Group>
             )}
 
-            {leftTab === "style" && !styleSearch && (
+            {leftTab === "style" && !styleSearch && !styleFocus && (
               <Group id="style:paymentIcons" title="Payment icons · All pages" hint="Pick which payment logos the footer shows. Checkout itself always offers the methods enabled in Settings › Payments.">
                 {PAYMENT_BADGE_OPTIONS.map((o) => {
                   const cur = resolveFooterBadges(design, settings);
@@ -838,18 +854,34 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               </Group>
             )}
 
-            {leftTab === "style" && STYLE_GROUPS.map(g => {
+            {leftTab === "style" && styleFocus && !styleSearch && (() => {
+              const focusGroup = STYLE_GROUPS.find(g => g.id === styleFocus.id)!;
+              const pattern = STYLE_TARGET_FIELDS[styleFocus.label];
+              const picked = pattern
+                ? STYLE_GROUPS.flatMap(g => g.fields.filter(f => pattern.test(f.key)).map(f => ({ g, f })))
+                : focusGroup.fields.map(f => ({ g: focusGroup, f }));
+              return (
+                <div className="border-b border-neutral-200 bg-neutral-50" data-studio-panel="style-focus">
+                  <div className="px-4 pt-3 pb-2 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-black tracking-widest uppercase text-neutral-500">You clicked</p>
+                      <p className="text-sm font-bold">{styleFocus.label}</p>
+                      <p className="text-xs text-neutral-500 mt-0.5">{picked.length} settings for this element{styleScope === "page" ? "" : " · all pages"}</p>
+                    </div>
+                    <button type="button" className={btn} onClick={() => setStyleFocus(null)}>Show all style settings</button>
+                  </div>
+                  <div className="px-4 pb-4 space-y-4">
+                    {picked.map(({ g, f }) => renderStyleField(g, f))}
+                  </div>
+                </div>
+              );
+            })()}
+            {leftTab === "style" && !styleFocus && STYLE_GROUPS.map(g => {
               const fields = g.fields.filter(f => (g.title + " " + f.label + " " + f.key).toLowerCase().includes(styleSearch.toLowerCase()));
               if (!fields.length) return null;
               const local = styleScope === "page" && PAGE_STYLE_GROUPS.has(g.id);
               return <Group key={g.id} id={`style:${g.id}`} title={g.title} hint={local ? "This page only. Reset a field to inherit its global value." : "All pages"} open={Boolean(styleSearch)}>
-                {fields.map(f => <div key={f.key} className="studio-field">
-                  <SectionFieldEditor field={f as any}
-                    value={(local ? readStyle(design[template.id], f.key) : undefined) ?? readStyle(design, f.key) ?? readStyle(defaults, f.key)}
-                    onChange={v => setScopedStyle(g.id, f.key, v)}
-                    uploadFile={file => adminApi.uploadFile(file, 'design/' + Date.now() + '_' + file.name)} />
-                  {local && readStyle(design[template.id], f.key) !== undefined && <button className="studio-reset" onClick={() => setScopedStyle(g.id, f.key, undefined)}>Reset to global</button>}
-                </div>)}
+                {fields.map(f => renderStyleField(g, f))}
               </Group>;
             })}
             {leftTab === "style" && styleSearch && !STYLE_GROUPS.some(g => g.fields.some(f => (g.title + " " + f.label + " " + f.key).toLowerCase().includes(styleSearch.toLowerCase()))) && <p className="studio-empty">No matching settings.</p>}

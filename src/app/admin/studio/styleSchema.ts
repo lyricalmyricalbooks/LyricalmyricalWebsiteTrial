@@ -14,6 +14,13 @@ export type StyleGroup = { id: string; title: string; hint?: string; fields: Sty
 const opts = (...v: string[]) => v.map((x) => ({ value: x, label: x[0].toUpperCase() + x.slice(1) }));
 const weights = ["300", "400", "500", "600", "700", "800", "900"].map((w) => ({ value: w, label: w }));
 
+// When a preview region is clicked, Studio pins an "Editing: <label>" card with just that region's
+// controls. A label listed here gathers its fields from ANY group by key; other labels show their
+// whole target group.
+export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
+  "Card title & price": /^(productTitleColor|productPriceColor|cardTitle|cardPrice|catalogPriceStyle|catalogTitleTransform|catalogCardRuleWidth)/,
+};
+
 export const STYLE_GROUPS: StyleGroup[] = [
   {
     id: "colors",
@@ -69,6 +76,18 @@ export const STYLE_GROUPS: StyleGroup[] = [
     ],
   },
   {
+    id: "smallPrint",
+    title: "Small print & labels",
+    hint: "The tiny captions, eyebrows, meta lines and counters used across the whole shop. Leave a control empty to keep the current look.",
+    fields: [
+      { key: "smallPrintMinSize", label: "Minimum size (0 = automatic)", kind: "range", min: 0, max: 18, step: 1, suffix: "px" },
+      { key: "smallPrintColor", label: "Text color (buttons and filled badges keep their own)", kind: "color" },
+      { key: "smallPrintCase", label: "Letter case", kind: "select", options: [{ value: "", label: "Automatic" }, { value: "uppercase", label: "UPPERCASE" }, { value: "none", label: "As typed" }] },
+      { key: "smallPrintTracking", label: "Letter spacing", kind: "range", min: 0, max: 0.5, step: 0.02, suffix: "em" },
+      { key: "smallPrintFont", label: "Font", kind: "select", options: [{ value: "", label: "Same as body font" }, ...FONT_SELECT_OPTIONS] },
+    ],
+  },
+  {
     id: "layout",
     title: "Layout & spacing",
     fields: [
@@ -113,12 +132,14 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "catalogCardRuleWidth", label: "Line above card title (0 = hidden)", kind: "range", min: 0, max: 8, step: 1, suffix: "px" },
       { key: "catalogPriceStyle", label: "Card price style", kind: "select", options: [{ value: "boxed", label: "Boxed tag" }, { value: "plain", label: "Plain text" }] },
       { key: "productTitleColor", label: "Card title color", kind: "color" },
-      { key: "cardTitleSize", label: "Card title size (0 = automatic)", kind: "range", min: 0, max: 48, step: 1, suffix: "px" },
+      { key: "cardTitleSize", label: "Card title size · desktop (0 = automatic)", kind: "range", min: 0, max: 48, step: 1, suffix: "px" },
+      { key: "cardTitleSizeMobile", label: "Card title size · phone (0 = same as desktop)", kind: "range", min: 0, max: 48, step: 1, suffix: "px" },
       { key: "cardTitleWeight", label: "Card title weight", kind: "select", options: [{ value: "", label: "Automatic" }, ...weights] },
       { key: "cardTitleFont", label: "Card title font", kind: "select", options: [{ value: "", label: "Same as heading font" }, ...FONT_SELECT_OPTIONS] },
       { key: "cardTitleTracking", label: "Card title letter spacing", kind: "range", min: -0.05, max: 0.4, step: 0.01, suffix: "em" },
       { key: "productPriceColor", label: "Card price color", kind: "color" },
-      { key: "cardPriceSize", label: "Card price size (0 = automatic)", kind: "range", min: 0, max: 40, step: 1, suffix: "px" },
+      { key: "cardPriceSize", label: "Card price size · desktop (0 = automatic)", kind: "range", min: 0, max: 40, step: 1, suffix: "px" },
+      { key: "cardPriceSizeMobile", label: "Card price size · phone (0 = same as desktop)", kind: "range", min: 0, max: 40, step: 1, suffix: "px" },
       { key: "cardPriceWeight", label: "Card price weight", kind: "select", options: [{ value: "", label: "Automatic" }, ...weights] },
       { key: "cardPriceFont", label: "Card price font", kind: "select", options: [{ value: "", label: "Monospace (default)" }, ...FONT_SELECT_OPTIONS] },
       { key: "cardPriceTagBg", label: "Boxed price tag background", kind: "color" },

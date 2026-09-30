@@ -164,13 +164,13 @@ export function SearchOverlay({
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white truncate">{b.title}</p>
+                      <p className="fm-card-title text-sm text-white truncate" data-studio-target="style:products" data-studio-label="Card title & price">{b.title}</p>
                       {b.authorName && (
                         <p className="text-[11px] text-white/40 truncate">{b.authorName}</p>
                       )}
                     </div>
                     {price != null && (
-                      <span className="text-[11px] tracking-widest text-white/60 font-mono">
+                      <span className="fm-card-price-wrap fm-card-price text-[11px] tracking-widest text-white/60 font-mono" data-studio-target="style:products" data-studio-label="Card title & price">
                         {formatBookPrice(b)}
                       </span>
                     )}
