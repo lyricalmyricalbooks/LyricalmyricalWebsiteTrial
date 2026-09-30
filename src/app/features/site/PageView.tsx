@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router";
-import { motion } from "motion/react";
 import { ArrowLeft } from "lucide-react";
 import { adminApi } from "../../admin/api";
 import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
-import { CurrentPageContext } from "../../components/SectionComponents";
+import { CurrentPageContext, PageContentSection } from "../../components/SectionComponents";
 import type { Page } from "./types";
 import { policyPageFor } from "./policyPages";
 import { getCopy } from "./storeCopy";
 import { StorefrontPageHeader } from "./StorefrontPageHeader";
 
+
+// Mirrors the "Page content" section defaults in ThemeEditorExtensions SECTION_REGISTRY.
+const PAGE_CONTENT_DEFAULTS = { showEyebrow: true, showTitle: true, showBody: true, titleSize: "md", bodySize: "md", align: "left", maxWidth: "narrow" };
 
 export function PageView() {
   const { slug } = useParams<{ slug: string }>();
@@ -110,11 +112,13 @@ export function PageView() {
   const isHistoryPage = /^(history|history-of-lm)$/.test(slug || "");
   const plainBody = shown.body?.replace(/<[^>]*>/g, "").trim() || "";
   const useHistoryCopy = isHistoryPage && (!plainBody || /^s+$/i.test(plainBody));
+  const esc = (t: string) => t.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" } as any)[c]);
+  const historyHtml = `<p>${esc(getCopy(settings?.design, "historyBody"))}</p><p>${esc(getCopy(settings?.design, "historySubtext"))}</p>`;
 
   return (
     <div
       data-fm-store data-studio-target="pages|copy:Custom pages & 404|style:colors" data-studio-label="Page"
-      className={`min-h-screen flex flex-col ${themed ? "" : "bg-white"}`}
+      className={`min-h-screen flex flex-col ${themed ? "" : "bg-white text-neutral-900"}`}
       style={themed ? { backgroundColor: themedBg, color: themedText } : undefined}
     >
       <StorefrontThemeStyle design={settings?.design} />
@@ -124,53 +128,15 @@ export function PageView() {
         <TemplateSections design={settings?.design} templateId={surfaceId} books={books} />
       </CurrentPageContext.Provider>
 
-      {/* Content */}
+      {/* Content — the same "Page content" renderer Studio uses, with its
+          default settings, so every custom page looks identical whether or
+          not it has its own section stack. */}
       {!hidePageBody && (
-      <motion.main
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="w-full max-w-3xl mx-auto px-6 py-14 md:py-20 flex-1"
-      >
-        <p className={`text-[10px] font-bold tracking-[0.3em] uppercase mb-4 ${themed ? "opacity-50" : "text-neutral-400"}`}>
-          {getCopy(settings?.design, "pageEyebrow")}
-        </p>
-        <h1 className={`text-4xl md:text-5xl font-black tracking-tight mb-10 md:mb-14 ${themed ? "" : "text-neutral-900"}`}>
-          {shown.title}
-        </h1>
-
-        {useHistoryCopy ? (
-          <div className="max-w-2xl">
-            <p className={`text-lg md:text-xl leading-[1.8] ${themed ? "opacity-90" : "text-neutral-800"}`}>
-              {getCopy(settings?.design, "historyBody")}
-            </p>
-            <p className={`mt-10 max-w-xl text-sm leading-7 ${themed ? "opacity-55" : "text-neutral-500"}`}>
-              {getCopy(settings?.design, "historySubtext")}
-            </p>
-          </div>
-        ) : (
-        <div
-          className={
-            themed
-              ? `prose prose-invert max-w-none leading-[1.8]
-                [&_p]:mb-6 [&_p]:text-[16px]
-                [&_a]:text-[var(--accent)] [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:opacity-80`
-              : `prose prose-neutral max-w-none text-neutral-800 leading-[1.8]
-                [&_h1]:text-4xl [&_h1]:font-black [&_h1]:tracking-tight [&_h1]:mb-8 [&_h1]:mt-12 [&_h1]:text-neutral-900
-                [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mb-5 [&_h2]:mt-10 [&_h2]:text-neutral-900
-                [&_h3]:text-xl [&_h3]:font-bold [&_h3]:mb-4 [&_h3]:mt-8 [&_h3]:text-neutral-900
-                [&_p]:mb-6 [&_p]:text-[16px]
-                [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-6 [&_li]:mb-2
-                [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-6
-                [&_strong]:font-bold [&_strong]:text-neutral-900
-                [&_a]:text-[var(--accent)] [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:opacity-80
-                [&_blockquote]:border-l-4 [&_blockquote]:border-neutral-100 [&_blockquote]:pl-6 [&_blockquote]:italic [&_blockquote]:text-neutral-500 [&_blockquote]:my-8
-                [&_em]:italic`
-          }
-          dangerouslySetInnerHTML={{ __html: shown.body || "" }}
-        />
-        )}
-      </motion.main>
+        <main className="w-full flex-1">
+          <CurrentPageContext.Provider value={{ title: shown.title, body: useHistoryCopy ? historyHtml : shown.body }}>
+            <PageContentSection settings={{ ...PAGE_CONTENT_DEFAULTS, eyebrow: getCopy(settings?.design, "pageEyebrow") }} enableAnimations />
+          </CurrentPageContext.Provider>
+        </main>
       )}
 
       <GlobalSections design={settings?.design} books={books} />
