@@ -35,7 +35,11 @@ The editor is **not** a blank slate. It already supports:
   together without an iframe reload. Studio also directly dispatches the same
   event into its same-origin iframe as a delivery fallback, preventing iframe
   timing from leaving the canvas on published colours; `THEME_UPDATE` remains
-  supported for legacy callers.
+  supported for legacy callers. The snapshot is JSON-cloned first (`toCloneable`,
+  dropping Firestore `_lastDoc`) because an uncloneable book made every post throw.
+  **Preview in new tab** sends the same snapshot over
+  `BroadcastChannel("studio_preview")` to a top-level `?preview=true` window
+  (`features/site/previewTab.ts`), which re-dispatches it as a window message.
 - **Import/export** of a theme design as JSON (in `ThemeEditorPro`).
 - A **token/CSS-variable layer** applied to every storefront surface.
 

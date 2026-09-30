@@ -115,7 +115,10 @@ the themed storefront header. The iframe preview receives the unsaved design,
 settings, catalog and published-page collection as one live snapshot; preserve
 that full-state contract when adding Studio-editable storefront data. Snapshot
 delivery uses `postMessage` plus a same-origin message-event fallback so iframe
-load timing cannot strand the preview on the published design.
+load timing cannot strand the preview on the published design; keep the snapshot
+structured-clone safe (`toCloneable`) and mirror it to the **Preview in new tab**
+window over `BroadcastChannel("studio_preview")` (`features/site/previewTab.ts`).
+New book cards must carry the `fm-card-*` classes (`cardClasses.test.tsx`).
 
 1. **Read `docs/THEME_EDITOR.md` first**, plus the whole section/block system —
    `ThemeEditor.tsx`, `ThemeEditorExtensions.tsx` (the `SECTION_REGISTRY`),

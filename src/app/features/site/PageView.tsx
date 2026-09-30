@@ -97,8 +97,12 @@ export function PageView() {
   // (written by the theme editor's per-page template pills); when absent, the
   // shared "Custom Pages" template (design.page.sections) renders as before.
   const rawDesign = (settings as any)?.design || {};
-  const d = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? rawDesign.storefront : rawDesign;
   const perPageSurface = slug ? rawDesign?.[`page:${slug}`] : undefined;
+  // Shop look first, then the Custom pages template and this page's own overrides, so
+  // Studio's "This page only" edits win (in the preview and live).
+  const { sections: _s1, ...pageSurface } = rawDesign?.page || {};
+  const { sections: _s2, ...ownSurface } = perPageSurface || {};
+  const d = { ...rawDesign, ...(rawDesign.storefront || {}), ...pageSurface, ...ownSurface };
   const surfaceId = perPageSurface?.sections?.length ? `page:${slug}` : "page";
   // Once a "Page content" section is in the stack, it renders the title/text
   // (so it can be moved and styled in Studio) and the fixed body is skipped.
@@ -112,7 +116,10 @@ export function PageView() {
   const themedText = d?.textColor || "#f3f1ee";
 
   const isPolicySlug = /^policy-/.test(slug || "");
-  if (loading || (isPolicySlug && siteLoading && !page)) {
+  // Studio preview: show the page from the unsaved snapshot (typed edits appear before Save).
+  const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
+  const previewPage = isPreview ? (pages || []).find((p: any) => p.slug === slug && p.status === "published") : undefined;
+  if (!previewPage && (loading || (isPolicySlug && siteLoading && !page))) {
     return (
       <div data-fm-store data-studio-target="pages|copy:Custom pages & 404" data-studio-label="Page" className="min-h-screen fm-page flex items-center justify-center">
         <StorefrontThemeStyle design={settings?.design} />
@@ -123,7 +130,7 @@ export function PageView() {
     );
   }
 
-  const shown = page || policyPage;
+  const shown = previewPage || page || policyPage;
   if (!shown) {
     return (
       <div data-fm-store data-studio-target="copy:Custom pages & 404|pages" data-studio-label="Not-found page" className="min-h-screen fm-page text-white flex flex-col items-center justify-center gap-4">

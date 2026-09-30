@@ -39,7 +39,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
                     loading="lazy"
                   />
                 </div>
-                <p className="mt-2 text-[9px] font-black tracking-widest uppercase text-white/40 group-hover:text-white/80 transition-colors leading-tight">
+                <p className="fm-card-title mt-2 text-[9px] font-black tracking-widest uppercase text-white/40 group-hover:text-white/80 transition-colors leading-tight" data-studio-target="style:products" data-studio-label="Card title & price">
                   {book.title}
                 </p>
               </Link>

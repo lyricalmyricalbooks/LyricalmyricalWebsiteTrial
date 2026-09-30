@@ -404,10 +404,11 @@ function useThemePreview(initialDesign: any) {
     };
 
     // 2. Listen for BroadcastChannel (cross-tab sync)
+    // Preview only — otherwise a draft could leak into the admin's own normal storefront tabs.
     let bc: BroadcastChannel | null = null;
     try {
-      bc = new BroadcastChannel("site_preview_updates");
-      bc.onmessage = (event) => {
+      if (isPreview) bc = new BroadcastChannel("site_preview_updates");
+      if (bc) bc.onmessage = (event) => {
         if (event.data && event.data.type === "THEME_UPDATE") {
           setDesignOverride(event.data.design);
         }

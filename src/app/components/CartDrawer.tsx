@@ -46,7 +46,8 @@ export function CartDrawer() {
 
   // Resolve storefront design settings (flat or nested under `.storefront`).
   const rawDesign = (settings as any)?.design || {};
-  const design = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? rawDesign.storefront : rawDesign;
+  // Merge (not replace) so root-only keys still apply — same resolution as MainSite's storefrontDesign.
+  const design = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? { ...rawDesign, ...rawDesign.storefront } : rawDesign;
   const showFreeShipBar = design.showFreeShipBar ?? true;
   const showTrustBadges = design.showCartTrustBadges ?? true;
 

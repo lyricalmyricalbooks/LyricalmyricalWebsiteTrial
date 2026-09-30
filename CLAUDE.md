@@ -171,7 +171,16 @@ saving so removed page overrides do not reappear. The iframe receives an atomic
 published pages, keeping colors, menus and newly created page content live
 across preview navigation without another Firestore read. Delivery uses both
 `postMessage` and a same-origin message-event fallback so iframe load timing
-cannot leave the canvas showing the published design.
+cannot leave the canvas showing the published design. `buildPreviewState` makes the
+snapshot clone-safe (`toCloneable` strips `_lastDoc` Firestore snapshots — they made
+`postMessage` throw `DataCloneError` and silently froze the preview once books loaded).
+In preview, `useSiteData` keeps the snapshot's books/pages/settings on `window.__studioPreviewState`
+so a late Firestore load never overwrites them; chrome outside that pipeline (cookie banner,
+boot splash) uses `useLiveDesign()`. **Preview in new tab** (Studio top bar) opens a full-screen
+top-level `?preview=true` window: Studio posts the same snapshot on `BroadcastChannel("studio_preview")`
+and `features/site/previewTab.ts` (started in `main.tsx`) re-dispatches it as a window message, answers
+`PREVIEW_READY`, and keeps `?preview=true` on in-app navigation. Unsaved Studio › Pages edits ride
+along in the snapshot (`withDraftPage`) without being saved.
 
 Studio also supports three-level recursive composition blocks through the
 **Flexible composition** section. Groups can contain text, image, button, or
@@ -310,7 +319,7 @@ font/size px (desktop + phone)/weight and top spacing are `pageTitleFont`, `page
 
 **One storefront shell:** `MainSite` renders a single Riso header/footer for every view; the Home view swaps the catalog grid for `design.heroPage.sections`. Studio › Sections (Home) › **Show a Home page** toggles `showHero` (off = open straight on the catalog). The legacy hero header/`HeroCarousel` were removed — don't re-add a second header.
 
-**Shop card title & price:** Studio › Style › **Product cards & grid** has colour, size (desktop + phone), weight, font and letter-spacing controls for the card title and price (`productTitleColor`, `cardTitle*`, `productPriceColor`, `cardPrice*`), plus the boxed-tag and old-price colours. `features/site/cardTypography.ts` turns them into CSS (emitted by `StorefrontThemeStyle`); cards opt in with the `fm-card-title` / `fm-card-price-wrap` / `fm-card-price` / `fm-card-price-tag` / `fm-card-price-old` classes — the shop grid, collection, wishlist and search cards already do. Add those classes to any new book card.
+**Shop card title & price:** Studio › Style › **Product cards & grid** has colour, size (desktop + phone), weight, font and letter-spacing controls for the card title and price (`productTitleColor`, `cardTitle*`, `productPriceColor`, `cardPrice*`), plus the boxed-tag and old-price colours. `features/site/cardTypography.ts` turns them into CSS (emitted by `StorefrontThemeStyle`); cards opt in with the `fm-card-title` / `fm-card-price-wrap` / `fm-card-price` / `fm-card-price-tag` / `fm-card-price-old` classes — the shop grid, collection, wishlist, search, related-books and recently-viewed cards and the **Product grid** / **Product showcase grid** sections do. When a Style card colour is set it wins over a section's own colour; empty = the section's colour. Add those classes to any new book card — `features/site/cardClasses.test.tsx` renders every section with sample books and fails on a book title without `fm-card-title`.
 
 **Product page (catalogue card):** `features/site/BookDetail.tsx` renders the Riso "catalogue card" layout —
 breadcrumb, thumbnail rail + framed photo + "Fig. n" caption, one bordered buy card (tag, title, price,

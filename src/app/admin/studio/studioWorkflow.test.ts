@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeDesign } from "./studioModel";
-import { applyPageStyle, buildPreviewState, createSnapshotWriter, deliverPreviewState, parseRecovery, previewRoute, updateBlocks } from "./studioWorkflow";
+import { applyPageStyle, buildPreviewState, createSnapshotWriter, deliverPreviewState, parseRecovery, previewRoute, updateBlocks, withDraftPage } from "./studioWorkflow";
 
 describe("Studio workflow", () => {
   it("normalization is idempotent and never nests page surfaces inside one another", () => {
@@ -82,6 +82,37 @@ describe("Studio workflow", () => {
       pages: [{ id: "live", status: "published" }],
       books,
     });
+  });
+  it("overlays the unsaved Studio › Pages edit onto the preview's page list only", () => {
+    const pages = [{ id: "a", slug: "about", title: "About", status: "published" }];
+    expect(withDraftPage(pages, null)).toBe(pages);
+    expect(withDraftPage(pages, { id: "a", slug: "about", title: "About us" })[0].title).toBe("About us");
+    expect(pages[0].title).toBe("About");
+    const added = withDraftPage(pages, { slug: "journal", title: "Journal", status: "published" });
+    expect(added.map((p: any) => p.slug)).toEqual(["about", "journal"]);
+    expect(withDraftPage(pages, { title: "No slug yet" })).toBe(pages);
+  });
+  it("strips live Firestore snapshots so the preview message can be cloned", () => {
+    // Admin book lists carry `_lastDoc` (a Firestore DocumentSnapshot with functions); postMessage
+    // throws DataCloneError on it, which silently stopped every preview update once books loaded.
+    const books = [{ id: "b1", title: "Altrove", _lastDoc: { ref: () => null } }];
+    const pages = [{ id: "p1", status: "published", _lastDoc: { get: () => null } }];
+    expect(() => structuredClone(books)).toThrow();
+    const state = buildPreviewState({}, { productTitleColor: "#3245D2" }, pages, books);
+    expect(() => structuredClone(state)).not.toThrow();
+    expect(state.books).toEqual([{ id: "b1", title: "Altrove" }]);
+    expect(state.pages).toEqual([{ id: "p1", status: "published" }]);
+  });
+  it("still dispatches the same-origin fallback when postMessage throws", () => {
+    const origin = "https://shop.example";
+    let dispatched = 0;
+    const frame = {
+      location: { origin },
+      postMessage: () => { throw new Error("DataCloneError"); },
+      dispatchEvent: () => { dispatched += 1; return true; },
+    } as unknown as Window;
+    deliverPreviewState(frame, buildPreviewState({}, {}, [], []), origin);
+    expect(dispatched).toBe(1);
   });
   it("delivers the unsaved snapshot through postMessage and a same-origin fallback", () => {
     const origin = "https://shop.example";

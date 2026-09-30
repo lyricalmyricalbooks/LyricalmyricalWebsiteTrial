@@ -9,15 +9,38 @@ export function applyPageStyle(design: any, surface: string, path: string, value
   return { ...design, [surface]: setPath(design[surface] || {}, path, value) };
 }
 
+/**
+ * Plain, structured-clone-safe copy for postMessage/BroadcastChannel. Admin book/page lists carry
+ * `_lastDoc` (a live Firestore snapshot with functions), which makes postMessage throw a
+ * DataCloneError — silently stopping every preview update once books have loaded.
+ */
+export function toCloneable<T>(value: T): T {
+  if (value == null) return value;
+  return JSON.parse(JSON.stringify(value, (key, v) => (key === "_lastDoc" ? undefined : v)));
+}
+
 /** Build the single authoritative snapshot sent to the storefront iframe. */
 export function buildPreviewState(settings: any, design: any, pages: any[], books: any[]) {
-  return {
+  return toCloneable({
     type: "STUDIO_PREVIEW_STATE" as const,
     settings: { ...settings, design, draftDesign: design },
     design,
-    pages: pages.filter((page) => page.status === "published"),
-    books,
-  };
+    pages: (pages || []).filter((page) => page.status === "published"),
+    books: books || [],
+  });
+}
+
+/** Channel that carries the unsaved snapshot to a full-screen "Preview in new tab" window. */
+export { PREVIEW_CHANNEL } from "../../features/site/previewTab";
+
+/**
+ * Overlay the page being edited in Studio › Pages (unsaved) onto the page list, for the preview
+ * snapshot only — nothing is written. Matches by id, else by slug for a page not yet created.
+ */
+export function withDraftPage(pages: any[], draft: any | null | undefined) {
+  if (!draft || !draft.slug) return pages;
+  const match = (p: any) => (draft.id ? p.id === draft.id : p.slug === draft.slug);
+  return pages.some(match) ? pages.map((p) => (match(p) ? { ...p, ...draft } : p)) : [...pages, { ...draft, id: draft.id || `draft-${draft.slug}` }];
 }
 
 /** Deliver through postMessage plus a same-origin fallback for iframe load races. */
@@ -27,7 +50,12 @@ export function deliverPreviewState(
   origin: string,
 ) {
   if (!frame) return;
-  frame.postMessage(state, origin);
+  try {
+    frame.postMessage(state, origin);
+  } catch (err) {
+    // Never let one undeliverable post stop the direct same-origin dispatch below.
+    console.warn("[Studio] preview postMessage failed", err);
+  }
   try {
     if (frame.location.origin !== origin) return;
     const source = typeof window === "undefined" ? null : window;
