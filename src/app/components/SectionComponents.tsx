@@ -2351,14 +2351,22 @@ export function PricingTableSection({ settings, onCtaClick, enableAnimations }: 
 }
 
 /** The custom page (title + body) currently being viewed; provided by PageView. */
-export const CurrentPageContext = createContext<{ title?: string; body?: string } | null>(null);
+// The page being shown, plus the site-wide page look (Studio › Style › Custom pages) that every
+// "Page content" section follows unless its "Style this page on its own" switch is on.
+export const CurrentPageContext = createContext<{ title?: string; body?: string; pageStyle?: Record<string, any> } | null>(null);
+const PAGE_STYLE_KEYS = ["showEyebrow", "eyebrow", "titleSize", "titleUppercase", "bodySize", "align", "maxWidth", "textColor", "headingColor"];
 
 const PAGE_TITLE_SIZES: Record<string, string> = { sm: "text-3xl", md: "text-4xl md:text-5xl", lg: "text-5xl md:text-7xl", xl: "text-6xl md:text-8xl" };
 const PAGE_BODY_SIZES: Record<string, string> = { sm: "text-[15px]", md: "text-[17px]", lg: "text-[20px]" };
 
 /** Renders a custom page's own title and text, so it can be placed, styled and reordered like any section. */
-export function PageContentSection({ settings, enableAnimations }: any) {
+export function PageContentSection({ settings: own, enableAnimations }: any) {
   const page = useContext(CurrentPageContext);
+  // Default: follow the site-wide page look so every custom page matches. "Use its own style"
+  // (ownStyle) lets one page keep the section's own values instead.
+  const settings = own?.ownStyle || !page?.pageStyle
+    ? own
+    : { ...own, ...Object.fromEntries(PAGE_STYLE_KEYS.map((k) => [k, page.pageStyle![k]])) };
   const align = aClass({ align: settings.align || "left" });
   const title = settings.titleOverride || page?.title || "Page title";
   const body = settings.bodyOverride

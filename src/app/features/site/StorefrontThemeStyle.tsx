@@ -76,8 +76,9 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
     ? `[data-fm-checkout] .bg-white{background-color:${d.surfaceRaisedColor || "#ffffff"} !important;}`
     : "";
 
-  // Riso on a dark canvas: turn the conventional white checkout markup into white-on-black.
-  const darkCheckoutCss = d.themeStyle === "riso" && lum >= 0.5 ? RISO_CHECKOUT_DARK_CSS : "";
+  // Any dark canvas: turn the conventional white checkout markup into the theme's colours, so its
+  // greys follow the storefront tokens (which re-point them) instead of staying on white paper.
+  const darkCheckoutCss = lum >= 0.5 ? RISO_CHECKOUT_DARK_CSS : "";
 
   const fontNames = Array.from(new Set([d.headingFont, d.font || d.bodyFont, d.navFont, d.wordmarkFont].filter(Boolean).map(String)));
   return (

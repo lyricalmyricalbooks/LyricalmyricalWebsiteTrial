@@ -61,7 +61,7 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
     label: "Page content",
     description: "This page's own title and text (written in Studio › Pages) — move it, restyle it, and add sections around it.",
     category: "Layout",
-    defaults: { eyebrow: "PAGE", showEyebrow: true, showTitle: true, showBody: true, titleSize: "md", bodySize: "md", align: "left", maxWidth: "narrow" },
+    defaults: { ownStyle: false, eyebrow: "PAGE", showEyebrow: true, showTitle: true, showBody: true, titleSize: "md", bodySize: "md", align: "left", maxWidth: "narrow" },
   },
   {
     type: "CompositionSection",
@@ -2311,6 +2311,7 @@ const ALIGN_OPTIONS = [
 
 const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   PageContentSection: [
+    { key: "ownStyle", label: "Style this page on its own (off = match every page via Style › Custom pages)", kind: "toggle" },
     { key: "showEyebrow", label: "Show small label above title", kind: "toggle" },
     { key: "eyebrow", label: "Small label", kind: "text" },
     { key: "showTitle", label: "Show page title", kind: "toggle" },

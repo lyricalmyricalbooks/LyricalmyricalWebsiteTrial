@@ -524,6 +524,8 @@ export const adminApi = {
       rates: []
     },
     design: {
+      // Custom pages (Studio › Style › Custom pages): on by default, so the toggles show as on.
+      pageShowEyebrow: true, pageTitleUppercase: true,
       primaryColor: "#e8402a",
       font: "Archivo",
       palettePreset: "dark",
