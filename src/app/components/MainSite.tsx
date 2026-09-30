@@ -1297,30 +1297,39 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         </span>
                       </div>
                     </div>
-                    <div className={isReferenceCatalog ? "px-0" : "px-1"}>
-                      <h3
-                        className={`${isReferenceCatalog ? "text-lg md:text-xl font-black tracking-tight" : "text-xs tracking-wider font-medium"} leading-tight text-white/90`}
-                        style={{ color: storefrontDesign?.productTitleColor || storefrontText, textTransform: storefrontTitleTransform }}
-                      >
-                        {item.title}
-                      </h3>
-                      <div className={`${isReferenceCatalog ? "mt-2 block space-y-1" : "mt-2 flex items-center justify-between"}`}>
-                        {showCollectionMeta ? (
-                          <span className={`${isReferenceCatalog ? "hidden" : "text-[10px] tracking-[0.1em] text-white/40"}`}>
-                            {item.genres?.[0] || item.categories?.[0] || getCopy(activeDesign, "categoryFallback")}
-                          </span>
-                        ) : (
-                          <span />
-                        )}
+                    <div
+                      className="pt-3"
+                      style={{ borderTop: "2px solid rgba(var(--fg-rgb), 0.85)" }}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <h3
+                          className={`${isReferenceCatalog ? "text-lg md:text-xl font-black tracking-tight" : "text-sm tracking-wider font-medium"} leading-tight min-w-0 break-words`}
+                          style={{ color: storefrontDesign?.productTitleColor || storefrontText, textTransform: storefrontTitleTransform }}
+                        >
+                          {item.title}
+                        </h3>
                         {displayPrice > 0 && (
-                          <span className={`${isReferenceCatalog ? "text-lg" : "text-[10px]"} flex items-center gap-1.5`} style={{ color: storefrontDesign?.productPriceColor || (isReferenceCatalog ? storefrontText : undefined) }}>
+                          <span
+                            className="shrink-0 flex flex-col items-end leading-none font-mono tabular-nums"
+                            style={{ color: storefrontDesign?.productPriceColor || storefrontText }}
+                          >
+                            <span
+                              className="px-2 py-1 text-sm md:text-base font-bold whitespace-nowrap"
+                              style={{ border: "2px solid currentColor" }}
+                            >
+                              {formatBookPrice(item)}
+                            </span>
                             {onSale && (
-                              <span className="text-white/30 line-through">{formatBookPrice(item, true)}</span>
+                              <span className="mt-1 text-[10px] line-through opacity-50">{formatBookPrice(item, true)}</span>
                             )}
-                            <span className={onSale ? "fm-success-text font-semibold" : "text-white/50"}>{formatBookPrice(item)}</span>
                           </span>
                         )}
                       </div>
+                      {showCollectionMeta && (
+                        <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.2em] text-white/50">
+                          {item.genres?.[0] || item.categories?.[0] || getCopy(activeDesign, "categoryFallback")}
+                        </p>
+                      )}
                     </div>
                   </Link>
                 </motion.article>
