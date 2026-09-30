@@ -370,7 +370,7 @@ export default function OrderTracking() {
                   )}
                   <div className="flex justify-between">
                     <span className="text-[10px] font-black uppercase tracking-[0.25em] fm-muted">{getCopy(settings?.design, "summaryShipping")}</span>
-                    <span className="font-mono text-white/80">{order.shipping > 0 ? orderFormatPrice(order.shipping) : "FREE"}</span>
+                    <span className="font-mono text-white/80">{order.shipping > 0 ? orderFormatPrice(order.shipping) : getCopy(settings?.design, "coFree")}</span>
                   </div>
                   {order.tax > 0 && (
                     <div className="flex justify-between">

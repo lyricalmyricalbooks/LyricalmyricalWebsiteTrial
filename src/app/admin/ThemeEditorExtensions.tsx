@@ -2356,6 +2356,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "accentColor", label: "Accent color", kind: "color" },
   ],
   ImageWithTextSection: [
+    { key: "imageAlt", label: "Image description (alt text)", kind: "text" },
     { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Title", kind: "text" },
     { key: "body", label: "Body", kind: "textarea", rows: 4 },
@@ -2396,6 +2397,8 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   SlideshowSection: [
+    { key: "prevAria", label: "Previous-slide button label (screen readers)", kind: "text" },
+    { key: "nextAria", label: "Next-slide button label (screen readers)", kind: "text" },
     { key: "autoplay", label: "Autoplay", kind: "toggle" },
     { key: "autoplaySpeed", label: "Autoplay speed (ms)", kind: "number", min: 1500, max: 15000, step: 250 },
   ],

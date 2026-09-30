@@ -391,7 +391,7 @@ export default function BookDetail() {
           >
             <ShoppingBag size={14} className="transition-colors text-current" />
             <span className="text-[9px] font-black tracking-[0.25em] uppercase transition-colors text-current">
-              {getCopy(settings?.design, "cartLabel") || "Bag"}
+              {getCopy(settings?.design, "cartLabel")}
             </span>
             {cartCount > 0 && (
               <span

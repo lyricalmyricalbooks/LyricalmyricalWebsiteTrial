@@ -481,7 +481,7 @@ export default function AccountPage() {
                 onClick={() => setIsEditingAddress(!isEditingAddress)}
                 className="text-[9px] font-black tracking-[0.25em] text-cyan-400 hover:text-cyan-300 uppercase shrink-0"
               >
-                {isEditingAddress ? "CLOSE" : "MANAGE"}
+                {getCopy(settings?.design, isEditingAddress ? "accountClose" : "accountManage")}
               </button>
             </div>
           </div>
@@ -661,7 +661,7 @@ export default function AccountPage() {
                                     : undefined
                                 }
                               >
-                                {o.fulfillmentStatus?.toUpperCase() || (o.status === 'completed' ? 'DELIVERED' : 'UNFULFILLED')}
+                                {o.fulfillmentStatus?.toUpperCase() || getCopy(settings?.design, o.status === 'completed' ? 'accountDelivered' : 'accountUnfulfilled')}
                               </span>
                             );
                           })()}
