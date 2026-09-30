@@ -17,6 +17,16 @@ export const PALETTES = [
   { id: "ocean",   label: "Deep Ocean",     bg: "#0c1a25", text: "#e2e8f0", accent: "#38bdf8", swatches: ["#0c1a25","#e2e8f0","#38bdf8"] },
 ];
 
+// Top-level preset keys that "Apply" copies onto the design. Every key applied here (and every
+// key in a preset's `global`) must have a Studio › Style control — themeLibrary.test.ts enforces it.
+// `palettePreset` is expanded into editable colours; the older fontSize/cornerStyle/
+// animationLevel keys are not read by the storefront, so they are not applied.
+export const THEME_APPLIED_KEYS = [
+  "font", "buttonStyle", "productCardStyle", "productHoverEffect", "imageAspectRatio", "productImageLayout",
+  "productContentPosition", "productColumnsDesktop", "productColumnsMobile", "cardRadius", "productCTA",
+  "catalogLayoutStyle", "showCatalogControls",
+];
+
 export const THEME_LIBRARY = [
   {
     id: RISO_NOIR_ID,
@@ -107,7 +117,7 @@ export const THEME_LIBRARY = [
       showQtyStepper: true, productDescriptionStyle: "designed",
     },
   },
-  { id: "lyrical-photo-reference", name: "Lyrical Photo Reference", mood: "Black reference storefront with oversized masthead, ruled nav and three-column book grid", palettePreset: "cyber", font: "Inter", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "1:1", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 0, productCTA: "VIEW", catalogLayoutStyle: "reference", catalogMastheadText: "Lyricalmyrical Books", catalogHeaderWidth: 1180, catalogHeaderRuleWidth: 4, catalogGridGap: 18, catalogTitleTransform: "none", catalogImageFit: "cover", showAnnouncement: false, showCatalogControls: false, showCollectionMeta: false, referenceCategoryLimit: 1, catalogCartPlacement: "top-right", catalogMastheadDesktop: 58, catalogMastheadMobile: 38, catalogNavGapDesktop: 40, catalogNavGapMobile: 18, catalogImageFocalX: 50, catalogImageFocalY: 50, headerBg: "#000000", headerColor: "#ffffff", borderColor: "#B1B1AA" },
+  { id: "lyrical-photo-reference", name: "Lyrical Photo Reference", mood: "Black reference storefront with oversized masthead, ruled nav and three-column book grid", palettePreset: "cyber", font: "Inter", fontSize: "lg", cornerStyle: "sharp", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "1:1", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 0, productCTA: "VIEW", catalogLayoutStyle: "reference", showCatalogControls: false, global: { catalogMastheadText: "Lyricalmyrical Books", catalogHeaderWidth: 1180, catalogHeaderRuleWidth: 4, catalogGridGap: 18, catalogTitleTransform: "none", catalogImageFit: "cover", showAnnouncement: false, showCollectionMeta: false, referenceCategoryLimit: 1, catalogCartPlacement: "top-right", catalogMastheadDesktop: 58, catalogMastheadMobile: 38, catalogNavGapDesktop: 40, catalogNavGapMobile: 18, catalogImageFocalX: 50, catalogImageFocalY: 50, headerBg: "#000000", headerColor: "#ffffff", borderColor: "#B1B1AA" } },
   { id: "editorial-luxe", name: "Editorial Luxe", mood: "High-contrast serif with generous spacing", palettePreset: "light", font: "Playfair Display", fontSize: "md", cornerStyle: "rounded", buttonStyle: "outline", animationLevel: "minimal", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "3:4", productImageLayout: "grid", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 1, cardRadius: 12, productCTA: "READ MORE" },
   { id: "night-neon", name: "Night Neon", mood: "Dark cinematic storefront with energetic accents", palettePreset: "cyber", font: "Space Mono", fontSize: "md", cornerStyle: "sharp", buttonStyle: "solid", animationLevel: "high", productCardStyle: "card", productHoverEffect: "lift", imageAspectRatio: "2:3", productImageLayout: "slider", productContentPosition: "left", productColumnsDesktop: 4, productColumnsMobile: 2, cardRadius: 4, productCTA: "BUY NOW" },
   { id: "earthy-studio", name: "Earthy Studio", mood: "Warm lifestyle brand with artisan feel", palettePreset: "warm", font: "Fraunces", fontSize: "md", cornerStyle: "rounded", buttonStyle: "soft", animationLevel: "moderate", productCardStyle: "editorial", productHoverEffect: "zoom", imageAspectRatio: "3:4", productImageLayout: "stacked", productContentPosition: "right", productColumnsDesktop: 3, productColumnsMobile: 2, cardRadius: 14, productCTA: "DISCOVER" },

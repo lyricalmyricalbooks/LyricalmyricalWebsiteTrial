@@ -253,6 +253,14 @@ nested blocks across more section types remains a follow-up):
 > and its words in Text & labels (`COPY_SCHEMA`). Add the toggle to `STYLE_GROUPS` in
 > `studio/styleSchema.ts` (default = current behaviour) in the same change that adds the element.
 
+> [!IMPORTANT]
+> **Every design must be fully editable in Studio.** Each theme-library preset
+> (`studio/themeLibrary.ts`) may only set keys that have a Studio › Style control in
+> `STYLE_GROUPS`: top-level keys go through `THEME_APPLIED_KEYS`, everything else in the preset's
+> `global`. `studio/themeLibrary.test.ts` fails on any preset key with no control, and
+> `features/site/studioCoverage.test.ts` fails on any design key the storefront reads without one.
+> Add the control in the same change as the design key — never allowlist around the test.
+
 **Click-to-edit in the preview:** sections carry `data-fm-section`; every other storefront region carries `data-studio-target="style:<groupId>|copy:<Group>|menus:<panel>|pages"` + `data-studio-label`. In Edit mode the preview bridge (`studio/previewBridge.ts`) outlines it, and a click sends `STUDIO_TARGET` (several targets → a small in-preview menu); `StudioEditor.tsx` switches tab and opens/flashes the matching `Group id` / `data-studio-panel`. New storefront regions must carry a target — `studioTargets.test.ts` checks every target points at a real panel.
 
 **One storefront shell:** `MainSite` renders a single Riso header/footer for every view; the Home view swaps the catalog grid for `design.heroPage.sections`. Studio › Sections (Home) › **Show a Home page** toggles `showHero` (off = open straight on the catalog). The legacy hero header/`HeroCarousel` were removed — don't re-add a second header.

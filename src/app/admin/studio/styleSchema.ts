@@ -56,6 +56,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     fields: [
       { key: "headingFont", label: "Heading font (Google Fonts name)", kind: "text" },
       { key: "bodyFont", label: "Body font (Google Fonts name)", kind: "text" },
+      { key: "font", label: "Theme font (overrides body font — clear it to use Body font)", kind: "text" },
       { key: "baseFontSize", label: "Base text size", kind: "range", min: 12, max: 22, step: 1, suffix: "px" },
       { key: "lineHeight", label: "Line height", kind: "range", min: 1, max: 2.4, step: 0.05 },
       { key: "headingWeight", label: "Heading weight", kind: "select", options: weights },
