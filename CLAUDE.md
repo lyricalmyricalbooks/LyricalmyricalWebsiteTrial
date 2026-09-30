@@ -122,6 +122,10 @@ npm run logs
 - `onOrderPaid` / `onOrderShipped` — Firestore triggers that send customer/admin
   emails (Resend).
 - `abandonedCartSweep` — scheduled recovery email after ~1h.
+- `onBookRestocked` — emails shoppers in `stockAlerts` (created from the sold-out product page's
+  "Notify me when back in stock" box, `features/site/BackInStockForm.tsx`) when a book/variant goes
+  0 → available. Studio › Style › Product page layout › **Notify me when back in stock** toggles the box;
+  its words are in Text & labels › Product page.
 
 Secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`,
 `SHIPPO_API_TOKEN`) are stored as Firebase Functions secrets, not in the repo.

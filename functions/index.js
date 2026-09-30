@@ -3225,6 +3225,80 @@ exports.shippoWebhook = onRequest(
 );
 
 // ──────────────────────────────────────────────────────────────
+// 12b. Back-in-stock alerts: email shoppers who signed up on a sold-out product
+// ──────────────────────────────────────────────────────────────
+function stockOf(item, fallback) {
+  if (!item) return fallback;
+  if (item.stockLevel !== undefined) return Number(item.stockLevel);
+  if (item.stock !== undefined) return Number(item.stock);
+  return fallback;
+}
+
+exports.onBookRestocked = onDocumentUpdated(
+  { document: "books/{bookId}", secrets: [RESEND_API_KEY] },
+  async event => {
+    const before = event.data?.before?.data() || {};
+    const after = event.data?.after?.data() || {};
+    const bookId = event.params.bookId;
+    if (after.isTest === true || after.status === "draft") return;
+
+    // Which variant ids (and the base product, "") just went from 0 to available?
+    const restocked = new Set();
+    if (stockOf(before, 999) <= 0 && stockOf(after, 999) > 0) restocked.add("");
+    const beforeVariants = Array.isArray(before.variants) ? before.variants : [];
+    for (const v of Array.isArray(after.variants) ? after.variants : []) {
+      const prev = beforeVariants.find(x => x.id === v.id);
+      if (prev && stockOf(prev, 999) <= 0 && stockOf(v, 999) > 0) restocked.add(String(v.id));
+    }
+    // A base restock also covers signups made before variants existed.
+    if (restocked.size === 0) return;
+
+    const snap = await db
+      .collection("stockAlerts")
+      .where("bookId", "==", bookId)
+      .where("status", "==", "waiting")
+      .limit(500)
+      .get();
+    if (snap.empty) return;
+
+    const link = `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/${encodeURIComponent(after.slug || bookId)}`;
+    const esc = t => String(t || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    for (const doc of snap.docs) {
+      const alert = doc.data();
+      if (!restocked.has(String(alert.variantId || ""))) continue;
+      // Claim first so a duplicate trigger never double-sends.
+      const claimed = await db.runTransaction(async tx => {
+        const cur = await tx.get(doc.ref);
+        if (!cur.exists || cur.data().status !== "waiting") return false;
+        tx.update(doc.ref, { status: "sending" });
+        return true;
+      });
+      if (!claimed) continue;
+      try {
+        const title = esc(after.title || alert.bookTitle);
+        const variant = alert.variantName ? ` (${esc(alert.variantName)})` : "";
+        await sendEmail({
+          to: alert.email,
+          subject: `Back in stock: ${after.title || alert.bookTitle}`,
+          html: `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+            <h2 style="margin-top:0;">It's back!</h2>
+            <p style="font-size:15px;line-height:1.6;"><strong>${title}</strong>${variant} is available again. Stock is limited, so grab your copy while you can.</p>
+            <p><a href="${link}" style="display:inline-block;background:#111;color:#fff;padding:12px 22px;text-decoration:none;font-weight:bold;">Shop now</a></p>
+            <p style="font-size:12px;color:#888;">You received this because you asked to be notified. This is a one-time message.</p>
+          </div>`,
+          secret: RESEND_API_KEY.value(),
+        });
+        await doc.ref.update({ status: "notified", notifiedAt: new Date().toISOString() });
+      } catch (err) {
+        console.error("Back-in-stock email failed:", err);
+        await doc.ref.update({ status: "waiting" });
+      }
+    }
+  },
+);
+
+// ──────────────────────────────────────────────────────────────
 // 12. Low Stock Alerts: Email admin when product or variant stock drops below 3 or hits 0
 // ──────────────────────────────────────────────────────────────
 exports.onBookUpdated = onDocumentUpdated(

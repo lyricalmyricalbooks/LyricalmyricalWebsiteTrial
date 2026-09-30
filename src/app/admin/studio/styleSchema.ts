@@ -256,6 +256,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showRelatedProducts", label: "Related products", kind: "toggle" },
       { key: "showSpecs", label: "Specifications", kind: "toggle" },
       { key: "showSocialShare", label: "Share button", kind: "toggle" },
+      { key: "showBackInStock", label: "“Notify me when back in stock” box (sold-out items)", kind: "toggle" },
       { key: "showZoom", label: "Image zoom", kind: "toggle" },
     ],
   },

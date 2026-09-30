@@ -21,6 +21,7 @@ import { funnelApi } from "../../lib/commerce";
 import ReviewsSection from "./ReviewsSection";
 import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
+import BackInStockForm from "./BackInStockForm";
 import { resolveLogoDesign } from "./selectors";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "./themeTokens";
 import { aspectRatioValue } from "./imageAspect";
@@ -76,6 +77,7 @@ export default function BookDetail() {
   const productContentPosition = storefrontDesign.productContentPosition || "right";
   const showRelatedProducts    = storefrontDesign.showRelatedProducts    ?? true;
   const showSocialShare        = storefrontDesign.showSocialShare        ?? true;
+  const showBackInStock        = storefrontDesign.showBackInStock        ?? true;
 
   // Autonomy controls for book detail page
   const showAmbientGlow        = storefrontDesign.showAmbientGlow        ?? settings?.design?.showAmbientGlow        ?? true;
@@ -855,6 +857,17 @@ export default function BookDetail() {
                   </button>
                 )}
               </div>
+
+              {isOutOfStock && showBackInStock && book && (
+                <BackInStockForm
+                  key={selectedVariant?.id || "base"}
+                  design={settings?.design}
+                  bookId={book.id}
+                  bookTitle={book.title}
+                  variantId={selectedVariant?.id}
+                  variantName={selectedVariant?.name}
+                />
+              )}
 
               {/* Trust signals */}
               {showTrustSignals !== false && (
