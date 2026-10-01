@@ -1571,6 +1571,121 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
 }
 
 // ──────────────────────────────
+// FEATURED COLLECTION — books from one shop category, with a "View all" link
+// to that category's page.
+// ──────────────────────────────
+
+export function FeaturedCollectionSection({ settings, books, onProductClick, enableAnimations }: any) {
+  const sc = useSectionCopy();
+  const { formatBookPrice } = useCurrency();
+  const { addToCart } = useCart();
+  const name = String(settings.collection || "").trim().toUpperCase();
+  const limit = Math.max(1, Math.min(12, settings.productLimit ?? 4));
+  const matches = (books || []).filter((b: any) =>
+    !name || name === "ALL" || [...(b.categories || []), ...(b.genres || [])].some((t: string) => String(t).trim().toUpperCase() === name),
+  );
+  const items = matches.slice(0, limit);
+  const cols = Math.max(2, Math.min(5, settings.columnsDesktop ?? 4));
+  const mobileCols = Math.max(1, Math.min(2, settings.columnsMobile ?? 2));
+  const aspect = settings.imageAspectRatio === "1:1" ? "1 / 1" : settings.imageAspectRatio === "3:4" ? "3 / 4" : "2 / 3";
+  const gridId = `featured-collection-${settings.__sectionId || "section"}`;
+  const slug = String(settings.collection || "all").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "all";
+  const ctaText = settings.ctaText ?? fb("FeaturedCollectionSection.ctaText");
+  const showCta = settings.showViewAll !== false && !!ctaText;
+  const align = settings.align === "center" ? "text-center" : "text-left";
+  if (!items.length) return null;
+
+  return (
+    <section style={bgStyle(settings)}>
+      <style>{`
+        .${gridId} { grid-template-columns: repeat(${mobileCols}, minmax(0, 1fr)); }
+        @media (min-width: 1024px) { .${gridId} { grid-template-columns: repeat(${cols}, minmax(0, 1fr)); } }
+      `}</style>
+      <div className={`py-16 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+        <AnimationContainer enabled={enableAnimations}>
+          <div className={`mb-8 flex flex-wrap items-end justify-between gap-4 ${align}`}>
+            <div className={settings.align === "center" ? "w-full" : ""}>
+              {settings.eyebrow && (
+                <p className="text-[10px] tracking-[0.3em] font-bold uppercase mb-2" style={{ color: "var(--accent, #e8402a)" }} data-theme-field="eyebrow">{settings.eyebrow}</p>
+              )}
+              {settings.title && (
+                <h2 className="text-3xl md:text-4xl tracking-tight" style={hStyle(settings)} data-theme-field="title">{settings.title}</h2>
+              )}
+              {settings.description && <p className="mt-2 max-w-xl text-sm fm-muted" data-theme-field="description">{settings.description}</p>}
+            </div>
+            {showCta && settings.align !== "center" && (
+              <button type="button" className="min-h-11 text-[10px] font-bold uppercase tracking-[0.2em] underline underline-offset-4" onClick={() => followBannerLink(`/collections/${slug}`)} data-theme-field="ctaText">
+                {ctaText}
+              </button>
+            )}
+          </div>
+        </AnimationContainer>
+        <div className={`${gridId} grid gap-6`}>
+          {items.map((book: any, idx: number) => {
+            const onSale = !!book.isOnSale && book.salePrice > 0 && book.salePrice < (book.retailPrice ?? 0);
+            const soldOut = book.stockLevel === 0;
+            return (
+              <AnimationContainer key={book.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
+                <div
+                  {...blockEditAttrs({ id: book.id || productSlug(book) }, idx)}
+                  className="group relative cursor-pointer"
+                  role="link"
+                  tabIndex={0}
+                  aria-label={sc("sectionViewBook", { title: book.title })}
+                  onClick={() => onProductClick?.(book)}
+                  onKeyDown={(e: any) => {
+                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onProductClick?.(book); }
+                  }}
+                >
+                  <div className="relative overflow-hidden rounded-[2px] bg-white/5" style={{ aspectRatio: aspect }}>
+                    {book.photos?.[0]?.url && (
+                      <img src={book.photos[0].url} alt={book.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                    )}
+                    {settings.showQuickAdd === true && (
+                      <button
+                        type="button"
+                        aria-label={soldOut ? `${book.title} is sold out` : `Add ${book.title} to bag`}
+                        disabled={soldOut}
+                        onClick={(e: any) => { e.stopPropagation(); if (!soldOut) addToCart(book); }}
+                        className={`absolute right-3 bottom-3 w-8 h-8 rounded-full border text-base leading-none flex items-center justify-center ${soldOut ? "opacity-40 cursor-not-allowed border-white/20 bg-black/60 text-white/60" : "border-white/30 bg-black/70 text-white"}`}
+                      >
+                        +
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-2.5 flex items-baseline justify-between gap-3">
+                    <h3 className="fm-card-title text-[17px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
+                    {settings.showPrices !== false && (
+                      <p className="fm-card-price-wrap text-sm whitespace-nowrap fm-muted">
+                        {onSale ? (
+                          <>
+                            <span className="fm-card-price-old line-through opacity-60 mr-1.5">{formatBookPrice({ ...book, isOnSale: false })}</span>
+                            <span className="fm-card-price">{formatBookPrice(book)}</span>
+                          </>
+                        ) : (
+                          <span className="fm-card-price">{formatBookPrice(book)}</span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </AnimationContainer>
+            );
+          })}
+        </div>
+        {showCta && settings.align === "center" && (
+          <div className="mt-10 text-center">
+            <button type="button" className="min-h-11 text-[10px] font-bold uppercase tracking-[0.2em] underline underline-offset-4" onClick={() => followBannerLink(`/collections/${slug}`)} data-theme-field="ctaText">
+              {ctaText}
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ──────────────────────────────
 // STAFF NOTES TABLE — books-driven editorial table; rows open the book.
 // ──────────────────────────────
 

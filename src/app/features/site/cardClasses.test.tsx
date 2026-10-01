@@ -58,7 +58,7 @@ function titleElements(html: string) {
 
 describe("every book card opts into the Studio card controls", () => {
   it("renders at least the product-grid sections with sample books", () => {
-    const shown = ["ProductGridHeaderSection", "ProductShowcaseGridSection"].map((t) =>
+    const shown = ["ProductGridHeaderSection", "ProductShowcaseGridSection", "FeaturedCollectionSection"].map((t) =>
       titleElements(render(t, SECTION_REGISTRY.find((m: any) => m.type === t)?.defaults || {})).length);
     expect(shown.every((n) => n > 0)).toBe(true);
   });
@@ -77,7 +77,7 @@ describe("every book card opts into the Studio card controls", () => {
   });
 
   it("marks the price of each product-grid card", () => {
-    for (const t of ["ProductGridHeaderSection", "ProductShowcaseGridSection"]) {
+    for (const t of ["ProductGridHeaderSection", "ProductShowcaseGridSection", "FeaturedCollectionSection"]) {
       const html = render(t, SECTION_REGISTRY.find((m: any) => m.type === t)?.defaults || {});
       expect(html, t).toContain("fm-card-price-wrap");
       expect(html, t).toContain("fm-card-price");

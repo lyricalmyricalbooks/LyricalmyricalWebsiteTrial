@@ -201,8 +201,10 @@ library → verify), then check it off.
       artwork, image focal/style controls, nine content positions, four heights,
       accessible alt text, overlay strength, and primary/secondary CTAs. It is
       registry-driven, appears in the Media library, and renders on every template.
-- [ ] Add remaining common Shopify sections end-to-end as needed (e.g. featured
-      collection and richer content compositions) — each via the full contract.
+- [x] **Featured Collection** (`FeaturedCollectionSection`): books from one shop category, with
+      eyebrow/title/description, limit, columns, cover ratio, price/quick-add toggles and a "View all"
+      link to `/collections/<category>`. Library: Commerce.
+- [ ] Add remaining common Shopify sections end-to-end as needed (e.g. richer content compositions) — each via the full contract.
 - [x] Core sections shipped end-to-end (Hero, FeatureGrid, Testimonials, FAQ,
       Newsletter, Slideshow, Multicolumn, RichText, Image-with-text, Video,
       Collection list, Featured product, Blog posts, Countdown, Contact form,

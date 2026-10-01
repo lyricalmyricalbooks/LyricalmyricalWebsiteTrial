@@ -41,4 +41,9 @@ describe("SECTION_REGISTRY ↔ SectionComponents parity", () => {
     expect(registryTypes).toContain("ImageBannerSection");
     expect(rendererNames.has("ImageBannerSection")).toBe(true);
   });
+
+  it("includes the featured collection section in both registry and renderers", () => {
+    expect(registryTypes).toContain("FeaturedCollectionSection");
+    expect(rendererNames.has("FeaturedCollectionSection")).toBe(true);
+  });
 });

@@ -25,6 +25,7 @@ export const SECTION_FALLBACKS: Record<string, string> = {
   "LogoListSection.item.alt": "Logo",
   "CollapsibleSection.item.heading": "Heading",
   "CollectionListSection.item.title": "Collection",
+  "FeaturedCollectionSection.ctaText": "View all",
   "FeaturedProductSection.eyebrow": "Featured",
   "FeaturedProductSection.ctaText": "View product",
   "ProductGridHeaderSection.title": "Lyricalmyrical Books",
