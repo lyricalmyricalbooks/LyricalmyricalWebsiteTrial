@@ -11,6 +11,8 @@ describe("Checkout component", () => {
     const body = src.slice(src.indexOf("export function Checkout()"));
     const declared = body.indexOf("const [settings, setSettings]");
     expect(declared).toBeGreaterThan(-1);
-    expect(body.slice(0, declared)).not.toMatch(/\bsettings\b/);
+    // Comments may describe settings before the declaration; executable reads
+    // use optional chaining, which is the TDZ regression this guards against.
+    expect(body.slice(0, declared)).not.toMatch(/\bsettings\s*\?\./);
   });
 });

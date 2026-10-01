@@ -301,7 +301,10 @@ export default function BookDetail() {
     }
   };
 
-  const photos        = (book as any)?.photos || [{ url: placeholderImage(settings?.design) }];
+  const configuredPhotos = (book as any)?.photos;
+  const photos        = Array.isArray(configuredPhotos) && configuredPhotos.length > 0
+    ? configuredPhotos
+    : [{ url: placeholderImage(settings?.design) }];
   const stockLevel    = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any)?.stockLevel ?? 999);
   const isOutOfStock  = stockLevel === 0;
   const retailPrice   = selectedVariant ? selectedVariant.price : ((book as any)?.retailPrice ?? 0);
@@ -312,8 +315,10 @@ export default function BookDetail() {
   // ── catalogue-card helpers ─────────────────────────────────────────────────
   const bk            = (book || {}) as any;
   // Only real shop categories (Studio › Menus › Shop categories) — never old genre tags like "Photography".
-  const shopCats      = (settings?.design?.categories || []).filter((c: any) => !categoryNames(c).includes("PUBLICATIONS"));
-  const shopCat       = shopCats.find((c: any) => (bk.categories || []).some((t: string) => categoryNames(c).includes(t)));
+  const configuredCategories = settings?.design?.categories;
+  const shopCats      = (Array.isArray(configuredCategories) ? configuredCategories : []).filter((c: any) => !categoryNames(c).includes("PUBLICATIONS"));
+  const safeBookCategories = Array.isArray(bk.categories) ? bk.categories : [];
+  const shopCat       = shopCats.find((c: any) => safeBookCategories.some((t: string) => categoryNames(c).includes(t)));
   const categoryLabel: string | undefined = shopCat ? catName(shopCat) : undefined;
   const alignCls      = productAlignment === "center" ? "items-center text-center" : "items-start text-left";
   const showThumbRail = photos.length > 1 && pdpThumbPosition !== "hidden";
