@@ -4,7 +4,7 @@ import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { orderApi, FULFILLMENT_FLOW, FULFILLMENT_LABELS, type FulfillmentStatus } from "../lib/commerce";
 import {
-  Checkbox, ConfirmDialog, EmptyState, LoadingState, PrimaryButton, SecondaryButton, DestructiveButton,
+  Checkbox, ConfirmDialog, Dialog, EmptyState, LoadingState, PrimaryButton, SecondaryButton, DestructiveButton,
   SectionCard, SectionHead, SelectField, StatusBadge, Tabs, TextField, type BadgeTone,
 } from "./riso/components";
 
@@ -34,6 +34,11 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
   const [loading, setLoading] = useState(true);
   const [note, setNote] = useState("");
   const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
+  const [labelRates, setLabelRates] = useState<any[]>([]);
+  const [labelShipmentId, setLabelShipmentId] = useState("");
+  const [selectedLabelRate, setSelectedLabelRate] = useState("");
+  const [showLabelRates, setShowLabelRates] = useState(false);
+  const [isBuyingLabel, setIsBuyingLabel] = useState(false);
   const [isVoiding, setIsVoiding] = useState(false);
   const [restockOnRefund, setRestockOnRefund] = useState(true);
   const [refundReason, setRefundReason] = useState("Customer request");
@@ -94,27 +99,33 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     window.print();
   };
 
-  const SHIPPO_SITE_URL = "https://app.goshippo.com/orders";
-
   const handlePushToShippo = async () => {
     setIsGeneratingLabel(true);
-    // Open the tab synchronously so the browser doesn't block the popup after the await.
-    const shippoTab = window.open("", "_blank");
-    const goTo = (url: string) => {
-      if (shippoTab) shippoTab.location.href = url;
-      else window.open(url, "_blank", "noopener,noreferrer");
-    };
     try {
-      const result = await adminApi.createShippoOrder(orderId);
-      goTo(result?.dashboardUrl || SHIPPO_SITE_URL);
-      loadOrder();
-      toast.success("Order sent to Shippo — finish the label on Shippo.");
+      const result = await adminApi.getCanadaPostLabelRates(orderId);
+      setLabelRates(result.rates || []);
+      setLabelShipmentId(result.shipmentId || "");
+      setSelectedLabelRate(result.rates?.[0]?.id || "");
+      setShowLabelRates(true);
     } catch (err: any) {
-      // Even if pre-filling fails, still take the admin to Shippo's site.
-      goTo(SHIPPO_SITE_URL);
-      toast.error(`Opened Shippo, but couldn't pre-fill the order: ${err.message || "request failed"}`);
+      toast.error(err.message || "Couldn't load Canada Post rates.");
     } finally {
       setIsGeneratingLabel(false);
+    }
+  };
+
+  const handleBuyLabel = async () => {
+    if (!selectedLabelRate || !labelShipmentId) return;
+    setIsBuyingLabel(true);
+    try {
+      await adminApi.buyCanadaPostLabel(orderId, labelShipmentId, selectedLabelRate);
+      setShowLabelRates(false);
+      await loadOrder();
+      toast.success("Canada Post label purchased.");
+    } catch (err: any) {
+      toast.error(err.message || "Couldn't purchase the label.");
+    } finally {
+      setIsBuyingLabel(false);
     }
   };
 
@@ -262,7 +273,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                 </a>
               ) : (
                 <SecondaryButton onClick={handlePushToShippo} disabled={isGeneratingLabel}>
-                  {isGeneratingLabel ? "Connecting to Shippo…" : "Generate shipping label"}
+                  {isGeneratingLabel ? "Finding Canada Post rates…" : "Choose Canada Post label"}
                 </SecondaryButton>
               )}
               {order.status !== "completed" && !showShipForm && (
@@ -413,6 +424,45 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
           </SectionCard>
         </div>
       </div>
+
+      <Dialog open={showLabelRates} onClose={() => !isBuyingLabel && setShowLabelRates(false)}
+        title="Choose a Canada Post label"
+        description="The five cheapest Canada Post services are shown first. Buying a label charges your Shippo account."
+        footer={<>
+          <SecondaryButton onClick={() => setShowLabelRates(false)} disabled={isBuyingLabel}>Cancel</SecondaryButton>
+          <PrimaryButton onClick={handleBuyLabel} disabled={!selectedLabelRate || isBuyingLabel}>
+            {isBuyingLabel ? "Buying label…" : "Buy selected label"}
+          </PrimaryButton>
+        </>}>
+        {labelRates.length === 0 ? (
+          <EmptyState title="No Canada Post rates available" description="Canada Post did not return a service for this parcel and address. Check the address or parcel details, then try again." />
+        ) : (
+          <fieldset style={{ margin: 0, padding: 0, border: 0 }}>
+            <legend className="rp-sr-only">Canada Post label choices</legend>
+            <div style={{ display: "grid", gap: 10 }}>
+              {labelRates.map((rate, index) => {
+                const selected = selectedLabelRate === rate.id;
+                const days = rate.estimatedDays ? `${rate.estimatedDays} day${rate.estimatedDays === 1 ? "" : "s"}` : "Delivery estimate unavailable";
+                return (
+                  <label key={rate.id} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center", padding: 16, cursor: "pointer", border: `2px solid ${selected ? "var(--rp-primary)" : "var(--rp-border)"}`, background: selected ? "var(--rp-primary-tint)" : "var(--rp-surface)" }}>
+                    <input type="radio" name="label-rate" value={rate.id} checked={selected} onChange={() => setSelectedLabelRate(rate.id)} />
+                    <span>
+                      <strong style={{ display: "block" }}>{rate.name}</strong>
+                      <span className="rp-hint">{days}{rate.durationTerms ? ` · ${rate.durationTerms}` : ""}</span>
+                    </span>
+                    <span style={{ textAlign: "right" }}>
+                      {index === 0 && <StatusBadge tone="success">Cheapest</StatusBadge>}
+                      <strong className="rp-mono" style={{ display: "block", marginTop: index === 0 ? 6 : 0 }}>
+                        {new Intl.NumberFormat("en-CA", { style: "currency", currency: rate.currency || "CAD" }).format(rate.amount)}
+                      </strong>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
+      </Dialog>
 
       <ConfirmDialog open={confirming === "paid"} title="Mark this order as paid?" confirmLabel="Mark as paid"
         message="This will decrement inventory, record revenue, and send the customer a confirmation email."

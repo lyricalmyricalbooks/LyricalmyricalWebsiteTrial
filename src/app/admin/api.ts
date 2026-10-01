@@ -866,6 +866,32 @@ export const adminApi = {
     return await response.json();
   },
 
+  getCanadaPostLabelRates: async (orderId: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin to view label rates.");
+    const response = await fetch(functionUrl("createShippingLabel"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ orderId, mode: "rates" }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Failed to load Canada Post rates.");
+    return result;
+  },
+
+  buyCanadaPostLabel: async (orderId: string, shipmentId: string, rateId: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin to buy labels.");
+    const response = await fetch(functionUrl("createShippingLabel"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ orderId, mode: "purchase", shipmentId, rateId }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Failed to buy the Canada Post label.");
+    return result;
+  },
+
   markOrderPaid: async (orderId: string) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
