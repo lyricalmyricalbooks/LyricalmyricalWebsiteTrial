@@ -1,10 +1,13 @@
 import { motion, useMotionValue, useSpring } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
 import { Send, ChevronLeft, ChevronRight, MapPin, Clock } from "lucide-react";
 import { useCurrency } from "../CurrencyContext";
 import { useCart } from "../CartContext";
 import { resolveStaffNoteRows } from "../features/site/staffNotes";
 import { textGradientStyle, hoverEffectClassName, hoverEffectGlowStyle, imageFilterCss, imageObjectPositionFromFocal } from "./sectionStyleHelpers";
+import { resolveSharedBlocks } from "../admin/studio/studioModel";
+import { fb } from "./sectionFallbacks";
+import { useSectionCopy } from "./sectionCopy";
 
 // ──────────────────────────────
 // Animation helper
@@ -32,6 +35,73 @@ function visibleBlocks(list: any[]): any[] {
 function blockEditAttrs(block: any, idx: number) {
   const id = block?.id || `block-${idx}`;
   return { "data-fm-block": id, "data-block-id": id };
+}
+
+function compositionResponsiveStyle(block: any): Record<string, any> {
+  const desktop = block.grid?.desktop || {};
+  return {
+    gridColumn: desktop.column ? `${desktop.column} / span ${desktop.span || 4}` : undefined,
+    gridRow: desktop.row ? `${desktop.row} / span ${desktop.rowSpan || 1}` : undefined,
+    zIndex: desktop.z || undefined,
+    textAlign: block.responsive?.desktop?.align || undefined,
+  };
+}
+
+function compositionBreakpointCss(blocks: any[], sectionId: string) {
+  const safe = (value: any) => String(value || "").replace(/[^a-zA-Z0-9_-]/g, "");
+  const rules: string[] = [];
+  const walk = (items: any[]) => (items || []).forEach(block => {
+    const id = safe(block.id); if (!id) return;
+    for (const [device, query] of [["tablet", "(max-width:1023px)"], ["mobile", "(max-width:767px)"]] as const) {
+      const grid = block.grid?.[device] || {}, responsive = block.responsive?.[device] || {};
+      const body = [
+        grid.column ? `grid-column:${grid.column} / span ${grid.span || 4}` : "",
+        grid.row ? `grid-row:${grid.row} / span ${grid.rowSpan || 1}` : "",
+        grid.z != null ? `z-index:${grid.z}` : "",
+        responsive.align ? `text-align:${responsive.align}` : "",
+        responsive.hidden ? "display:none" : "",
+      ].filter(Boolean).join(";");
+      if (body) rules.push(`@media ${query}{#section-${safe(sectionId)} [data-fm-block="${id}"]{${body}}}`);
+    }
+    walk(block.children || []);
+  });
+  walk(blocks); return rules.join("\n");
+}
+
+function CompositionBlock({ block, index = 0, depth = 0 }: any) {
+  if (block.hidden || depth >= 3) return null;
+  const attrs = blockEditAttrs(block, index);
+  const style = compositionResponsiveStyle(block);
+  if (block.type === "group") return (
+    <div {...attrs} className="fm-composition-group" style={style}>
+      {(block.children || []).map((child: any, i: number) => <CompositionBlock key={child.id || i} block={child} index={i} depth={depth + 1} />)}
+    </div>
+  );
+  if (block.type === "image") return <figure {...attrs} className="fm-composition-block" style={style}>
+    {block.imageUrl && <img src={block.imageUrl} alt={block.alt || ""} loading="lazy" className="w-full h-auto object-cover" />}
+    {block.title && <figcaption data-theme-field="title">{block.title}</figcaption>}
+  </figure>;
+  if (block.type === "button") return <div {...attrs} className="fm-composition-block" style={style}><a href={block.url || "#"} className="inline-flex min-h-11 items-center border border-current px-5 py-3 font-bold" data-theme-field="text">{block.text || fb("CompositionSection.block.text")}</a></div>;
+  return <div {...attrs} className="fm-composition-block space-y-3" style={style}>
+    {block.title && <h3 className="text-2xl font-bold" data-theme-field="title">{block.title}</h3>}
+    {block.body && <p className="leading-relaxed" data-theme-field="body">{block.body}</p>}
+    {(block.children || []).map((child: any, i: number) => <CompositionBlock key={child.id || i} block={child} index={i} depth={depth + 1} />)}
+  </div>;
+}
+
+export function CompositionSection({ settings }: any) {
+  const blocks = resolveSharedBlocks(settings.items || settings.blocks || [], settings.__sharedBlocks || []);
+  const columns = Math.max(1, Math.min(24, Number(settings.gridColumns) || 12));
+  const breakpointCss = compositionBreakpointCss(blocks, settings.__sectionId);
+  return <section style={bgStyle(settings)}>
+    {breakpointCss && <style>{breakpointCss}</style>}
+    <div className={`py-16 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      {settings.title && <h2 className="text-3xl font-bold mb-8" style={hStyle(settings)} data-theme-field="title">{settings.title}</h2>}
+      <div className="fm-composition-grid" style={{ display: "grid", gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: `${settings.gridGap || 24}px` }}>
+        {blocks.map((block: any, index: number) => <CompositionBlock key={block.id || index} block={block} index={index} />)}
+      </div>
+    </div>
+  </section>;
 }
 
 // ──────────────────────────────
@@ -265,14 +335,14 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
             style={{ ...(settings.titleItalic ? { fontStyle: "italic" } : {}), ...hStyle(settings) }}
             data-theme-field="title"
           >
-            {settings.title || "Lyricalmyrical"}
+            {settings.title ?? fb("HeroSection.title")}
           </h1>
           <p
             className="text-sm md:text-md tracking-[0.3em] font-medium text-white/70 uppercase mb-10"
             style={bStyle(settings)}
             data-theme-field="subtitle"
           >
-            {settings.subtitle || "Photography & Art Books"}
+            {settings.subtitle ?? fb("HeroSection.subtitle")}
           </p>
           <div className={`flex flex-wrap items-center gap-4 ${
             settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center"
@@ -285,14 +355,14 @@ export function HeroSection({ settings, onCtaClick, enableAnimations }: any) {
                 if (/^https?:\/\//i.test(url)) { window.open(url, "_blank", "noopener"); return; }
                 // Site-relative URLs need the GitHub Pages sub-path prefix.
                 const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-                window.location.assign(url.startsWith("/") ? base + url : url);
+                window.location.assign(keepPreviewParam(url.startsWith("/") ? base + url : url));
               }}
               className={`px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase ${
                 settings.hoverEffect ? hoverEffectClassName(settings.hoverEffect) : "hover:scale-105 transition-transform"
               }`}
               style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
             >
-              <span data-theme-field="ctaText">{settings.ctaText || "Explore"}</span>
+              <span data-theme-field="ctaText">{settings.ctaText ?? fb("HeroSection.ctaText")}</span>
             </MagneticButton>
             {settings.secondaryCtaText && (
               <button className="px-8 py-3.5 rounded-full border border-white/30 text-[10px] tracking-[0.3em] font-semibold uppercase hover:bg-white/10 transition-colors text-white">
@@ -340,11 +410,27 @@ const BANNER_POSITIONS: Record<string, string> = {
   "bottom-right": "items-end justify-end",
 };
 
+const inStudioPreview = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
+/** Empty sections show a "how to fill me" sample only in the Studio preview — shoppers never see sample content. */
+const sampleInPreview = <T,>(items: T[], sample: T[]): T[] => (items.length ? items : inStudioPreview() ? sample : []);
+const sampleHtml = (html: string | undefined, sample: string) => html || (inStudioPreview() ? sample : "");
+
+/** Site-relative links keep ?preview=true so a Studio preview never reloads into the live design. */
+function keepPreviewParam(href: string) {
+  if (typeof window === "undefined" || new URLSearchParams(window.location.search).get("preview") !== "true") return href;
+  try {
+    const next = new URL(href, window.location.href);
+    if (next.origin !== window.location.origin) return href;
+    next.searchParams.set("preview", "true");
+    return next.pathname + next.search + next.hash;
+  } catch { return href; }
+}
+
 function followBannerLink(url: string | undefined, fallback?: () => void) {
   if (!url) return fallback?.();
   if (/^https?:\/\//i.test(url)) return window.open(url, "_blank", "noopener");
   const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
-  window.location.assign(url.startsWith("/") ? base + url : url);
+  window.location.assign(keepPreviewParam(url.startsWith("/") ? base + url : url));
 }
 
 export function ImageBannerSection({ settings, onCtaClick, enableAnimations }: any) {
@@ -373,7 +459,7 @@ export function ImageBannerSection({ settings, onCtaClick, enableAnimations }: a
           Add a banner image
         </div>
       )}
-      <div className="absolute inset-0" style={{ backgroundColor: "#000", opacity: settings.overlayOpacity ?? 0.4 }} />
+      <div className="absolute inset-0" style={{ backgroundColor: "rgb(var(--overlay-rgb, 0, 0, 0))", opacity: settings.overlayOpacity ?? 0.4 }} />
       <div className={`relative z-10 flex w-full p-6 md:p-12 ${position}`}>
         <AnimationContainer enabled={enableAnimations}>
           <div className={`max-w-2xl ${textAlignClass} text-white`}>
@@ -383,7 +469,7 @@ export function ImageBannerSection({ settings, onCtaClick, enableAnimations }: a
               </p>
             )}
             <h2 className="text-4xl font-black leading-none tracking-tight md:text-6xl" style={hStyle(settings)} data-theme-field="title">
-              {settings.title || "Stories worth keeping"}
+              {settings.title ?? fb("ImageBannerSection.title")}
             </h2>
             {settings.body && <p className="mt-5 text-base leading-relaxed text-white/80 md:text-lg" style={bStyle(settings)} data-theme-field="body">{settings.body}</p>}
             {(settings.ctaText || settings.secondaryCtaText) && (
@@ -421,7 +507,7 @@ export function FeatureGridSection({ settings, enableAnimations }: any) {
         <AnimationContainer enabled={enableAnimations}>
           <div className={`mb-10 ${textAlign}`}>
             <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">
-              {settings.title || "Highlights"}
+              {settings.title ?? fb("FeatureGridSection.title")}
             </h2>
             {settings.subtitle && (
               <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
@@ -429,7 +515,7 @@ export function FeatureGridSection({ settings, enableAnimations }: any) {
           </div>
         </AnimationContainer>
         <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-          {(items.length ? items : [{ title: "Feature One", description: "Describe your value." }]).map((item: any, idx: number) => (
+          {sampleInPreview(items, [{ title: "Feature One", description: "Describe your value." }]).map((item: any, idx: number) => (
             <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.1}>
               <div {...blockEditAttrs(item, idx)} className="p-6 bg-white/[0.03] border border-white/10 rounded-2xl">
                 {item.icon && <div className="text-3xl mb-3">{item.icon}</div>}
@@ -457,18 +543,18 @@ export function NewsletterSection({ settings, enableAnimations }: any) {
           <div className={`max-w-xl mx-auto space-y-8 ${textAlign}`}>
             <div className="space-y-3">
               <h2 className="text-2xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">
-                {settings.title || "Join the Archive"}
+                {settings.title ?? fb("NewsletterSection.title")}
               </h2>
               <p className="text-xs text-white/40 tracking-widest leading-relaxed" style={bStyle(settings)}>
                 <span data-theme-field="description">
-                  {settings.description || "Occasional dispatches about new publications and limited editions."}
+                  {settings.description ?? fb("NewsletterSection.description")}
                 </span>
               </p>
             </div>
             <form className="flex gap-2" onSubmit={(e) => e.preventDefault()}>
               <input
                 type="email"
-                placeholder={settings.placeholder || "email@example.com"}
+                placeholder={settings.placeholder ?? fb("NewsletterSection.placeholder")}
                 className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-3 text-xs text-white focus:border-white/30 transition-all outline-none"
               />
               <MagneticButton
@@ -480,7 +566,7 @@ export function NewsletterSection({ settings, enableAnimations }: any) {
                 style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #fff)", color: "var(--btn-text, #000)", ...btnS(settings) }}
               >
                 <Send size={12} />
-                <span data-theme-field="buttonLabel">{settings.buttonLabel || "JOIN"}</span>
+                <span data-theme-field="buttonLabel">{settings.buttonLabel ?? fb("NewsletterSection.buttonLabel")}</span>
               </MagneticButton>
             </form>
           </div>
@@ -503,14 +589,14 @@ export function TestimonialsSection({ settings, enableAnimations }: any) {
         <AnimationContainer enabled={enableAnimations}>
           <div className={`mb-8 ${textAlign}`}>
             <h2 className="text-3xl font-bold tracking-tight uppercase leading-tight text-white" style={hStyle(settings)} data-theme-field="title">
-              {settings.title || "Testimonials"}
+              {settings.title ?? fb("TestimonialsSection.title")}
             </h2>
             {settings.subtitle && (
               <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
             )}
           </div>
           <div className="grid md:grid-cols-2 gap-6">
-            {(items.length ? items : [{ quote: "An incredible independent shop.", author: "Customer" }]).map((item: any, idx: number) => (
+            {sampleInPreview(items, [{ quote: "An incredible independent shop.", author: "Customer" }]).map((item: any, idx: number) => (
               <div
                 key={idx}
                 {...blockEditAttrs(item, idx)}
@@ -541,14 +627,14 @@ export function FAQSection({ settings, enableAnimations }: any) {
         <AnimationContainer enabled={enableAnimations}>
           <div className="mb-8">
             <h2 className="text-3xl font-bold tracking-tight uppercase leading-tight text-white" style={hStyle(settings)} data-theme-field="title">
-              {settings.title || "FAQ"}
+              {settings.title ?? fb("FAQSection.title")}
             </h2>
             {settings.subtitle && (
               <p className="mt-3 text-white/60 text-sm leading-relaxed" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
             )}
           </div>
           <div className="space-y-3">
-            {(items.length ? items : [{ question: "Sample question?", answer: "Sample answer." }]).map((item: any, idx: number) => (
+            {sampleInPreview(items, [{ question: "Sample question?", answer: "Sample answer." }]).map((item: any, idx: number) => (
               <details key={idx} {...blockEditAttrs(item, idx)} className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
                 <summary className="text-sm font-bold text-white cursor-pointer" style={bStyle(settings)} data-theme-field="question">{item.question}</summary>
                 <p className="text-white/60 text-sm mt-3" style={bStyle(settings)} data-theme-field="answer">{item.answer}</p>
@@ -608,6 +694,7 @@ export function TextContentSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function ImageWithTextSection({ settings, enableAnimations }: any) {
+  const sc = useSectionCopy();
   const reverse = settings.layout === "text-left";
   return (
     <section style={bgStyle(settings)}>
@@ -621,7 +708,7 @@ export function ImageWithTextSection({ settings, enableAnimations }: any) {
               {settings.imageUrl ? (
                 <StyledImage src={settings.imageUrl} settings={settings} fieldKey="imageUrl" loading="lazy" decoding="async" alt={settings.imageAlt || ""} />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-white/20 text-xs uppercase tracking-widest">No Image</div>
+                <div className="w-full h-full flex items-center justify-center text-white/20 text-xs uppercase tracking-widest">{sc("sectionNoImage")}</div>
               )}
             </div>
             <div className="space-y-5">
@@ -629,10 +716,10 @@ export function ImageWithTextSection({ settings, enableAnimations }: any) {
                 <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)} data-theme-field="eyebrow">{settings.eyebrow}</p>
               )}
               <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white" style={hStyle(settings)} data-theme-field="title">
-                {settings.title || "About the collection"}
+                {settings.title ?? fb("ImageWithTextSection.title")}
               </h2>
               <p className="text-white/60 leading-relaxed" style={bStyle(settings)} data-theme-field="body">
-                {settings.body || "Pair text with an image to give focus to your chosen product or collection."}
+                {settings.body ?? fb("ImageWithTextSection.body")}
               </p>
               {settings.ctaText && (
                 <a
@@ -664,7 +751,7 @@ export function RichTextSection({ settings, enableAnimations }: any) {
           <div
             className={`${mw(settings, "max-w-3xl")} mx-auto prose prose-invert ${align === "left" ? "text-left" : align === "right" ? "text-right" : "text-center"}`}
             style={bStyle(settings)}
-            dangerouslySetInnerHTML={{ __html: settings.html || "<p>Use this rich text section to share information with your customers.</p>" }}
+            dangerouslySetInnerHTML={{ __html: sampleHtml(settings.html, "<p>Use this rich text section to share information with your customers.</p>") }}
           />
         </AnimationContainer>
       </div>
@@ -677,7 +764,7 @@ export function RichTextSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function MarqueeSection({ settings }: any) {
-  const text = settings.text || "Free shipping over $100 · New arrivals weekly · Independent & original";
+  const text = settings.text ?? fb("MarqueeSection.text");
   const separator = settings.separator || "·";
   const speed = Math.max(5, Math.min(120, settings.speed ?? 20));
   const fontSize = Math.max(10, Math.min(120, settings.fontSize ?? 28));
@@ -746,7 +833,7 @@ export function MulticolumnSection({ settings, enableAnimations }: any) {
                     <img src={item.imageUrl} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={item.title || ""} />
                   </div>
                 )}
-                <h3 className="text-lg font-bold text-white" style={bStyle(settings)}>{item.title || "Column"}</h3>
+                <h3 className="text-lg font-bold text-white" style={bStyle(settings)}>{item.title || fb("MulticolumnSection.item.title")}</h3>
                 <p className="text-white/60 text-sm" style={bStyle(settings)}>{item.body || ""}</p>
                 {Array.isArray(item.links) && item.links.length > 0 ? (
                   <div className="flex flex-col gap-1.5">
@@ -783,12 +870,24 @@ export function MulticolumnSection({ settings, enableAnimations }: any) {
 export function SlideshowSection({ settings, enableAnimations }: any) {
   const slides = visibleBlocks(settings.slides || settings.items || settings.blocks || []);
   const [active, setActive] = useState(0);
+  const [inspecting, setInspecting] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("preview") !== "true") return;
+    const select = (event: Event) => {
+      const id = (event as CustomEvent).detail?.blockId;
+      const index = slides.findIndex((slide: any) => slide.id === id);
+      if (index >= 0) { setActive(index); setInspecting(true); }
+    };
+    const mode = (event: Event) => setInspecting((event as CustomEvent).detail === "edit");
+    window.addEventListener("studio:selection", select); window.addEventListener("studio:mode", mode);
+    return () => { window.removeEventListener("studio:selection", select); window.removeEventListener("studio:mode", mode); };
+  }, [slides]);
 
   useEffect(() => {
-    if (!settings.autoplay || slides.length <= 1) return;
+    if (inspecting || !settings.autoplay || slides.length <= 1) return;
     const t = setInterval(() => setActive((a) => (a + 1) % slides.length), Math.max(2000, settings.autoplaySpeed || 5000));
     return () => clearInterval(t);
-  }, [slides.length, settings.autoplay, settings.autoplaySpeed]);
+  }, [slides.length, settings.autoplay, settings.autoplaySpeed, inspecting]);
 
   if (slides.length === 0) {
     return (
@@ -834,21 +933,21 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
         <>
           <button
             onClick={() => setActive((a) => (a - 1 + slides.length) % slides.length)}
-            aria-label={settings.prevAria || "Previous slide"}
+            aria-label={settings.prevAria ?? fb("SlideshowSection.prevAria")}
             className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center backdrop-blur hover:bg-white/20"
           >
             <ChevronLeft size={18} />
           </button>
           <button
             onClick={() => setActive((a) => (a + 1) % slides.length)}
-            aria-label={settings.nextAria || "Next slide"}
+            aria-label={settings.nextAria ?? fb("SlideshowSection.nextAria")}
             className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center backdrop-blur hover:bg-white/20"
           >
             <ChevronRight size={18} />
           </button>
           <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2">
             {slides.map((_: any, i: number) => (
-              <button key={i} onClick={() => setActive(i)} aria-label={"Go to slide " + (i + 1)} className={`w-2 h-2 rounded-full transition-all ${i === active ? "bg-white w-6" : "bg-white/40"}`} />
+              <button key={i} onClick={() => setActive(i)} aria-label={(settings.dotAria ?? fb("SlideshowSection.dotAria")).replace("{n}", String(i + 1))} className={`w-2 h-2 rounded-full transition-all ${i === active ? "bg-white w-6" : "bg-white/40"}`} />
             ))}
           </div>
         </>
@@ -894,7 +993,7 @@ export function VideoSection({ settings, enableAnimations }: any) {
           )}
           <div className="aspect-video w-full overflow-hidden rounded-2xl fm-surface border border-white/10">
             {embed ? (
-              <iframe src={embed} title={settings.title || "Video"} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen className="w-full h-full" />
+              <iframe src={embed} title={settings.title ?? fb("VideoSection.title")} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen className="w-full h-full" />
             ) : url ? (
               <video src={url} controls poster={settings.posterUrl} className="w-full h-full object-cover" />
             ) : (
@@ -935,7 +1034,7 @@ export function LogoListSection({ settings, enableAnimations }: any) {
                 {item.logoUrl ? (
                   <img src={item.logoUrl} alt={item.alt || ""} loading="lazy" decoding="async" className="h-10 w-auto object-contain" />
                 ) : (
-                  <span className="text-white/40 text-sm font-bold uppercase tracking-widest">{item.alt || "Logo"}</span>
+                  <span className="text-white/40 text-sm font-bold uppercase tracking-widest">{item.alt || fb("LogoListSection.item.alt")}</span>
                 )}
               </div>
             ))}
@@ -970,7 +1069,7 @@ export function CollapsibleSection({ settings, enableAnimations }: any) {
             {items.map((item: any, idx: number) => (
               <details key={idx} {...blockEditAttrs(item, idx)} className="border-b border-white/10 group">
                 <summary className="flex items-center justify-between cursor-pointer py-5 text-white text-sm font-bold tracking-wide uppercase" style={bStyle(settings)}>
-                  {item.heading || "Heading"}
+                  {item.heading || fb("CollapsibleSection.item.heading")}
                   <span className="text-white/40 group-open:rotate-45 transition-transform">+</span>
                 </summary>
                 <div
@@ -1019,7 +1118,7 @@ export function CollectionListSection({ settings, enableAnimations }: any) {
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-5">
-                  <h3 className="text-white text-lg font-bold uppercase tracking-tight">{item.title || "Collection"}</h3>
+                  <h3 className="text-white text-lg font-bold uppercase tracking-tight">{item.title || fb("CollectionListSection.item.title")}</h3>
                   {item.subtitle && <p className="text-white/70 text-xs">{item.subtitle}</p>}
                 </div>
               </a>
@@ -1058,7 +1157,7 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
               {photo ? <img src={photo} loading="lazy" decoding="async" className="w-full h-full object-cover" alt={target.title} /> : null}
             </div>
             <div className="space-y-5">
-              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow || "Featured"}</p>
+              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow ?? fb("FeaturedProductSection.eyebrow")}</p>
               <h2 className="text-3xl md:text-4xl font-bold text-white" style={hStyle(settings)}>{target.title}</h2>
               {target.subtitle && <p className="text-white/60" style={bStyle(settings)}>{target.subtitle}</p>}
               <p className="text-2xl font-bold text-white" style={bStyle(settings)}>${typeof price === "number" ? price.toFixed(2) : price}</p>
@@ -1069,7 +1168,7 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
                 className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
                 style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
               >
-                {settings.ctaText || "View product"}
+                {settings.ctaText ?? fb("FeaturedProductSection.ctaText")}
               </MagneticButton>
             </div>
           </div>
@@ -1150,15 +1249,15 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
               data-theme-field="title"
               style={{ fontSize: `clamp(${settings.mastheadMobile ?? 38}px, 5vw, ${settings.mastheadDesktop ?? 58}px)`, ...hStyle(settings) }}
             >
-              {settings.title || "Lyricalmyrical Books"}
+              {settings.title ?? fb("ProductGridHeaderSection.title")}
             </h2>
             <p className="text-lg md:text-2xl font-black whitespace-nowrap" data-theme-field="cartTotalText">
-              {settings.cartLabel || "Cart"} | {settings.cartTotalText || "CA$130.00"}
+              {settings.cartLabel ?? fb("ProductGridHeaderSection.cartLabel")} | {settings.cartTotalText ?? fb("ProductGridHeaderSection.cartTotalText")}
             </p>
           </div>
           <div className="mt-6" style={{ borderTop: `${settings.headerRuleWidth ?? 4}px solid ${rule}` }} />
           <div className="py-5 flex flex-wrap font-black text-base" style={{ gap: settings.navGap ?? 40 }}>
-            {(settings.navText || "Products · About · Project Submissions · Contact")
+            {(settings.navText ?? fb("ProductGridHeaderSection.navText"))
               .split("·")
               .map((label: string, idx: number) => (
                 <span key={idx} data-theme-field={idx === 0 ? "navText" : undefined}>{label.trim()}</span>
@@ -1197,16 +1296,17 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
                         className="absolute top-3 right-3 rounded-full px-4 py-3 text-[10px] font-black"
                         style={{ background: settings.badgeColor || "var(--badge-bg-primary, #e8402a)", color: settings.badgeTextColor || "var(--badge-text-primary, #100f0d)" }}
                       >
-                        {settings.saleLabel || "On sale"}
+                        {settings.saleLabel ?? fb("ProductGridHeaderSection.saleLabel")}
                       </span>
                     )}
                   </div>
-                  <h3 className="mt-3 text-lg md:text-xl font-black leading-tight" style={{ color: text, textTransform: settings.titleTransform || "none" }}>
+                  {/* fm-card-*: Studio › Style › Product cards & grid (title/price colour, size, font) applies here too. */}
+                  <h3 className="fm-card-title mt-3 text-lg md:text-xl font-black leading-tight" style={{ color: text, textTransform: settings.titleTransform || "none" }}>
                     {book.title}
                   </h3>
                   {settings.showPrices !== false && price > 0 && (
-                    <p className="mt-1 text-lg" style={{ color: text }}>
-                      {formatBookPrice(book)}
+                    <p className="fm-card-price-wrap mt-1 text-lg" style={{ color: text }}>
+                      <span className="fm-card-price">{formatBookPrice(book)}</span>
                     </p>
                   )}
                 </button>
@@ -1225,6 +1325,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
 // ──────────────────────────────
 
 export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any) {
+  const sc = useSectionCopy();
   const covers = filterBooksBySource(books, settings)
     .map((book: any) => ({ id: book.id || productSlug(book), url: book.photos?.[0]?.url, title: book.title }))
     .filter((c: any) => !!c.url)
@@ -1273,7 +1374,7 @@ export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any
       <div
         aria-hidden="true"
         className="absolute inset-0 pointer-events-none"
-        style={{ background: `linear-gradient(180deg, rgba(0,0,0,${scrim * 0.18}) 0%, rgba(0,0,0,${scrim}) 60%, rgba(0,0,0,${Math.min(1, scrim * 1.75)}) 100%)` }}
+        style={{ background: `linear-gradient(180deg, rgba(var(--overlay-rgb, 0, 0, 0),${scrim * 0.18}) 0%, rgba(var(--overlay-rgb, 0, 0, 0),${scrim}) 60%, rgba(var(--overlay-rgb, 0, 0, 0),${Math.min(1, scrim * 1.75)}) 100%)` }}
       />
       {overlayColor && overlayOpacity > 0 && (
         <div
@@ -1292,14 +1393,14 @@ export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any
             lineHeight: 0.95,
             ...hStyle(settings),
             // Always light: this text sits on the image scrim, not on the theme background.
-            color: "#ffffff",
+            color: settings.slideTextColor || "#ffffff",
           }}
           data-theme-field="title"
         >
-          {settings.title || "Lyricalmyrical Books"}
+          {settings.title ?? fb("ProductCoverCarouselSection.title")}
         </h1>
         {settings.tagline && (
-          <p className="mt-3.5 text-[15px] max-w-lg" style={{ ...bStyle(settings), color: "rgba(255,255,255,0.88)" }} data-theme-field="tagline">
+          <p className="mt-3.5 text-[15px] max-w-lg" style={{ ...bStyle(settings), color: settings.taglineColor || "rgba(255,255,255,0.88)" }} data-theme-field="tagline">
             {settings.tagline}
           </p>
         )}
@@ -1320,10 +1421,10 @@ export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any
             <button
               key={cover.id || i}
               onClick={() => setActive(i)}
-              aria-label={`Go to cover ${i + 1}`}
+              aria-label={sc("sectionGoToCover", { n: i + 1 })}
               aria-current={i === current}
               className={`h-2 rounded-full transition-all ${i === current ? "w-5" : "w-2"}`}
-              style={{ backgroundColor: i === current ? "#ffffff" : "rgba(255,255,255,0.45)" }}
+              style={{ backgroundColor: settings.slideTextColor || "#ffffff", opacity: i === current ? 1 : 0.45 }}
             />
           ))}
         </div>
@@ -1338,6 +1439,7 @@ export function ProductCoverCarouselSection({ settings, books, onCtaClick }: any
 // ──────────────────────────────
 
 export function ProductShowcaseGridSection({ settings, books, onProductClick, enableAnimations }: any) {
+  const sc = useSectionCopy();
   const { formatBookPrice } = useCurrency();
   const { addToCart } = useCart();
   const items = filterBooksBySource(books, settings).slice(0, Math.max(1, Math.min(24, settings.productLimit ?? 12)));
@@ -1389,7 +1491,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                   className="group relative cursor-pointer"
                   role="link"
                   tabIndex={0}
-                  aria-label={`View ${book.title}`}
+                  aria-label={sc("sectionViewBook", { title: book.title })}
                   onClick={() => openBook(book)}
                   onKeyDown={(e: any) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -1427,7 +1529,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                     {settings.showQuickAdd !== false && (
                       <button
                         type="button"
-                        aria-label={soldOut ? `${book.title} is sold out` : `Add ${book.title} to bag`}
+                        aria-label={sc(soldOut ? "sectionSoldOutAria" : "sectionQuickAddAria", { title: book.title })}
                         disabled={soldOut}
                         onClick={(e: any) => {
                           e.stopPropagation();
@@ -1446,16 +1548,16 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                     )}
                   </div>
                   <div className="mt-2.5 flex items-baseline justify-between gap-3">
-                    <h3 className="text-[17px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
+                    <h3 className="fm-card-title text-[17px] leading-snug" style={hStyle(settings)}>{book.title}</h3>
                     {settings.showPrices !== false && (
-                      <p className="text-sm whitespace-nowrap fm-muted">
+                      <p className="fm-card-price-wrap text-sm whitespace-nowrap fm-muted">
                         {onSale ? (
                           <>
-                            <span className="line-through opacity-60 mr-1.5">{formatBookPrice({ ...book, isOnSale: false })}</span>
-                            {formatBookPrice(book)}
+                            <span className="fm-card-price-old line-through opacity-60 mr-1.5">{formatBookPrice({ ...book, isOnSale: false })}</span>
+                            <span className="fm-card-price">{formatBookPrice(book)}</span>
                           </>
                         ) : (
-                          formatBookPrice(book)
+                          <span className="fm-card-price">{formatBookPrice(book)}</span>
                         )}
                       </p>
                     )}
@@ -1478,6 +1580,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
 // ──────────────────────────────
 
 export function StaffNotesTableSection({ settings, books, onProductClick, enableAnimations }: any) {
+  const sc = useSectionCopy();
   const rows = resolveStaffNoteRows(settings.items || settings.blocks || [], books, settings.fallbackLimit ?? 8);
   const showCategory = settings.showCategory !== false;
   const showFormat = settings.showFormat !== false;
@@ -1500,10 +1603,10 @@ export function StaffNotesTableSection({ settings, books, onProductClick, enable
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b border-white/10">
-                  <th className="text-left py-3 px-2 text-[11px] font-bold tracking-[0.12em] fm-muted">{settings.colTitleLabel || "TITLE"}</th>
-                  {showCategory && <th className="text-left py-3 px-2 text-[11px] font-bold tracking-[0.12em] fm-muted">{settings.colCategoryLabel || "CATEGORY"}</th>}
-                  {showFormat && <th className="text-left py-3 px-2 text-[11px] font-bold tracking-[0.12em] fm-muted">{settings.colFormatLabel || "FORMAT"}</th>}
-                  <th className="text-left py-3 px-2 text-[11px] font-bold tracking-[0.12em] fm-muted">{settings.colNoteLabel || "NOTE"}</th>
+                  <th className="text-left py-3 px-2 text-[11px] font-bold tracking-[0.12em] fm-muted">{settings.colTitleLabel ?? fb("StaffNotesTableSection.colTitleLabel")}</th>
+                  {showCategory && <th className="text-left py-3 px-2 text-[11px] font-bold tracking-[0.12em] fm-muted">{settings.colCategoryLabel ?? fb("StaffNotesTableSection.colCategoryLabel")}</th>}
+                  {showFormat && <th className="text-left py-3 px-2 text-[11px] font-bold tracking-[0.12em] fm-muted">{settings.colFormatLabel ?? fb("StaffNotesTableSection.colFormatLabel")}</th>}
+                  <th className="text-left py-3 px-2 text-[11px] font-bold tracking-[0.12em] fm-muted">{settings.colNoteLabel ?? fb("StaffNotesTableSection.colNoteLabel")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1512,7 +1615,7 @@ export function StaffNotesTableSection({ settings, books, onProductClick, enable
                     key={book.id || idx}
                     className="border-b border-white/10 cursor-pointer transition-colors hover:bg-white/[0.04] focus-visible:bg-white/[0.06] outline-none"
                     tabIndex={0}
-                    aria-label={`View ${book.title}`}
+                    aria-label={sc("sectionViewBook", { title: book.title })}
                     onClick={() => open(book)}
                     onKeyDown={(e: any) => {
                       if (e.key === "Enter" || e.key === " ") {
@@ -1551,15 +1654,17 @@ function shadeColor(hex: string, amount: number): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
 }
 
-function EphemeraObject({ item }: { item: any }) {
+function EphemeraObject({ item, settings = {} }: { item: any; settings?: any }) {
+  const ink = settings.ephemeraInkColor || "#0a0910";
+  const film = settings.ephemeraFilmColor || "#2a1a06";
   const color = item.color || "#e8402a";
   const rotation = `rotate(${Math.max(-12, Math.min(12, item.rotation ?? -3))}deg)`;
   const shadow = "0 10px 24px rgba(0,0,0,0.4)";
   switch (item.kind) {
     case "negative":
       return (
-        <div className="relative w-[170px] h-28 rounded-[2px] overflow-hidden" style={{ background: "#2a1a06", boxShadow: shadow, transform: rotation }}>
-          <div className="absolute inset-0" style={{ background: "repeating-linear-gradient(90deg, transparent 0 30px, rgba(0,0,0,0.5) 30px 32px)" }} />
+        <div className="relative w-[170px] h-28 rounded-[2px] overflow-hidden" style={{ background: film, boxShadow: shadow, transform: rotation }}>
+          <div className="absolute inset-0" style={{ background: "repeating-linear-gradient(90deg, transparent 0 30px, rgba(var(--overlay-rgb, 0, 0, 0), 0.5) 30px 32px)" }} />
           <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, ${color}59, transparent 30%, transparent 70%, ${color}59)` }} />
         </div>
       );
@@ -1569,7 +1674,7 @@ function EphemeraObject({ item }: { item: any }) {
           className="w-[90px] h-[90px] rounded-full flex items-center justify-center"
           style={{
             background: `radial-gradient(circle at 35% 30%, ${shadeColor(color, 24)}, ${shadeColor(color, -48)} 75%)`,
-            boxShadow: `${shadow}, inset 0 2px 6px rgba(255,255,255,0.15)`,
+            boxShadow: `${shadow}, inset 0 2px 6px rgba(var(--fg-rgb, 255, 255, 255), 0.15)`,
             transform: rotation,
           }}
         >
@@ -1590,8 +1695,8 @@ function EphemeraObject({ item }: { item: any }) {
       );
     case "sticker":
       return (
-        <div className="w-[118px] h-[76px] rounded-[2px] p-2 flex flex-col gap-1.5" style={{ background: color || "#f3f1ee", boxShadow: shadow, transform: rotation }}>
-          <div className="h-[22px]" style={{ background: "repeating-linear-gradient(90deg, #0a0910 0 2px, transparent 2px 5px)" }} />
+        <div className="w-[118px] h-[76px] rounded-[2px] p-2 flex flex-col gap-1.5" style={{ background: item.color || settings.ephemeraPaperColor || color, boxShadow: shadow, transform: rotation }}>
+          <div className="h-[22px]" style={{ background: `repeating-linear-gradient(90deg, ${ink} 0 2px, transparent 2px 5px)` }} />
           {item.label && <span className="text-[0.55rem] tracking-[0.06em] text-black/90">{item.label}</span>}
         </div>
       );
@@ -1601,7 +1706,7 @@ function EphemeraObject({ item }: { item: any }) {
         <div
           className="w-16 h-[190px] rounded-[2px] flex items-center justify-center"
           style={{
-            background: `linear-gradient(200deg, ${shadeColor(color, -100)} 0%, ${color} 60%, #05040a 100%)`,
+            background: `linear-gradient(200deg, ${shadeColor(color, -100)} 0%, ${color} 60%, ${ink} 100%)`,
             boxShadow: shadow,
             transform: rotation,
           }}
@@ -1626,7 +1731,7 @@ export function EphemeraRowSection({ settings, enableAnimations }: any) {
           <div className={`flex flex-wrap items-end ${justify}`} style={{ gap: settings.gap ?? 24 }}>
             {items.map((item: any, idx: number) => (
               <div key={item.id || idx} {...blockEditAttrs(item, idx)}>
-                <EphemeraObject item={item} />
+                <EphemeraObject item={item} settings={settings} />
               </div>
             ))}
           </div>
@@ -1664,9 +1769,9 @@ export function BlogPostsSection({ settings, enableAnimations }: any) {
   const items = visibleBlocks(settings.items || settings.blocks || []);
   const columns = Math.max(1, Math.min(4, settings.columns ?? 3));
   const align = aClass(settings);
-  const cards = items.length ? items : [
+  const cards = sampleInPreview(items, [
     { title: "Add an article", date: "", excerpt: "Create article cards in the blocks editor to share news, releases, and reading guides.", imageUrl: "", linkUrl: "#" },
-  ];
+  ]);
 
   return (
     <section style={bgStyle(settings)}>
@@ -1700,7 +1805,7 @@ export function BlogPostsSection({ settings, enableAnimations }: any) {
                 <a href={article.linkUrl || "#"} className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded-3xl">
                   <div className="aspect-[4/3] bg-white/5 overflow-hidden">
                     {article.imageUrl ? (
-                      <img src={article.imageUrl} alt={article.title || "Article image"} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
+                      <img src={article.imageUrl} alt={article.title || fb("BlogPostsSection.article.title")} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-white/20 text-[10px] font-bold uppercase tracking-[0.3em]">
                         Article Image
@@ -1712,12 +1817,12 @@ export function BlogPostsSection({ settings, enableAnimations }: any) {
                       {article.tag && <span style={bStyle(settings)} data-theme-field="tag">{article.tag}</span>}
                       {settings.showDates !== false && article.date && <time dateTime={article.date}>{formatArticleDate(article.date)}</time>}
                     </div>
-                    <h3 className="mt-4 text-xl font-bold leading-tight text-white" style={hStyle(settings)} data-theme-field="title">{article.title || "Untitled article"}</h3>
+                    <h3 className="mt-4 text-xl font-bold leading-tight text-white" style={hStyle(settings)} data-theme-field="title">{article.title || fb("BlogPostsSection.article.title@1797")}</h3>
                     {settings.showExcerpts !== false && article.excerpt && (
                       <p className="mt-3 text-sm leading-relaxed text-white/60" style={bStyle(settings)} data-theme-field="excerpt">{article.excerpt}</p>
                     )}
                     <span className="mt-6 inline-flex items-center text-[10px] font-bold uppercase tracking-[0.25em] underline underline-offset-4" style={{ color: settings.accentColor || undefined }} data-theme-field="ctaText">
-                      {settings.ctaText || "Read more"}
+                      {settings.ctaText ?? fb("BlogPostsSection.ctaText")}
                     </span>
                   </div>
                 </a>
@@ -1762,15 +1867,15 @@ export function CountdownSection({ settings, enableAnimations }: any) {
             </p>
           )}
           <h2 className="text-3xl md:text-4xl font-bold uppercase text-white mb-2" style={hStyle(settings)} data-theme-field="title">
-            {settings.title || "Limited time offer"}
+            {settings.title ?? fb("CountdownSection.title")}
           </h2>
           {settings.subtitle && <p className="text-white/60 mb-8" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>}
           <div className={`flex gap-4 md:gap-8 mt-8 ${flexAlign}`}>
             {[
-              { label: "Days", v: days },
-              { label: "Hours", v: hours },
-              { label: "Min", v: minutes },
-              { label: "Sec", v: seconds },
+              { label: settings.labelDays ?? fb("CountdownSection.labelDays"), v: days },
+              { label: settings.labelHours ?? fb("CountdownSection.labelHours"), v: hours },
+              { label: settings.labelMinutes ?? fb("CountdownSection.labelMinutes"), v: minutes },
+              { label: settings.labelSeconds ?? fb("CountdownSection.labelSeconds"), v: seconds },
             ].map((u) => (
               <div key={u.label} className="text-center">
                 <div className="text-4xl md:text-6xl font-black text-white tabular-nums" style={hStyle(settings)}>{String(u.v).padStart(2, "0")}</div>
@@ -1808,28 +1913,28 @@ export function ContactFormSection({ settings, enableAnimations }: any) {
               <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50 mb-3" style={bStyle(settings)} data-theme-field="eyebrow">{settings.eyebrow}</p>
             )}
             <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">
-              {settings.title || "Get in touch"}
+              {settings.title ?? fb("ContactFormSection.title")}
             </h2>
             {settings.subtitle && (
               <p className="text-white/60 mt-3" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
             )}
           </div>
           {submitted ? (
-            <div className="text-center text-white/80 py-12" data-theme-field="successMessage">{settings.successMessage || "Thanks — we'll be in touch."}</div>
+            <div className="text-center text-white/80 py-12" data-theme-field="successMessage">{settings.successMessage ?? fb("ContactFormSection.successMessage")}</div>
           ) : (
             <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }}>
-              <input type="text" required placeholder="Name" className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
-              <input type="email" required placeholder="Email" className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
+              <input type="text" required placeholder={settings.namePlaceholder ?? fb("ContactFormSection.namePlaceholder")} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
+              <input type="email" required placeholder={settings.emailPlaceholder ?? fb("ContactFormSection.emailPlaceholder")} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
               {settings.showPhone && (
-                <input type="tel" placeholder="Phone" className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
+                <input type="tel" placeholder={settings.phonePlaceholder ?? fb("ContactFormSection.phonePlaceholder")} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
               )}
-              <textarea required placeholder="Message" rows={5} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30 resize-none" />
+              <textarea required placeholder={settings.messagePlaceholder ?? fb("ContactFormSection.messagePlaceholder")} rows={5} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30 resize-none" />
               <button
                 type="submit"
                 className="w-full py-4 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
                 style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
               >
-                <span data-theme-field="buttonLabel">{settings.buttonLabel || "Send message"}</span>
+                <span data-theme-field="buttonLabel">{settings.buttonLabel ?? fb("ContactFormSection.buttonLabel")}</span>
               </button>
             </form>
           )}
@@ -1844,7 +1949,7 @@ export function ContactFormSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function MapSection({ settings, enableAnimations }: any) {
-  const query = settings.address || "New York, NY";
+  const query = settings.address ?? fb("MapSection.address");
   const src = `https://www.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;
   return (
     <section style={bgStyle(settings)}>
@@ -1875,7 +1980,7 @@ export function MapSection({ settings, enableAnimations }: any) {
             </div>
           )}
           <div className="aspect-[16/9] rounded-2xl overflow-hidden border border-white/10 bg-white/5">
-            <iframe src={src} title={settings.title || "Map"} loading="lazy" className="w-full h-full border-0" referrerPolicy="no-referrer-when-downgrade" />
+            <iframe src={src} title={settings.title ?? fb("MapSection.title")} loading="lazy" className="w-full h-full border-0" referrerPolicy="no-referrer-when-downgrade" />
           </div>
         </AnimationContainer>
       </div>
@@ -1888,6 +1993,7 @@ export function MapSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
+  const sc = useSectionCopy();
   const kind = block.kind || "text";
 
   if (kind === "image") {
@@ -1896,7 +2002,7 @@ function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
         {block.imageUrl ? (
           <img src={block.imageUrl} alt={block.title || ""} loading="lazy" decoding="async" className="w-full h-auto object-cover" />
         ) : (
-          <div className="aspect-video w-full flex items-center justify-center text-white/20 text-xs uppercase tracking-widest">No Image</div>
+          <div className="aspect-video w-full flex items-center justify-center text-white/20 text-xs uppercase tracking-widest">{sc("sectionNoImage")}</div>
         )}
       </div>
     );
@@ -1918,7 +2024,7 @@ function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
               className="inline-block px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
               style={buttonStyle}
             >
-              {btn.text || "Shop now"}
+              {btn.text || fb("MapSection.btn.text")}
             </a>
           ))}
         </div>
@@ -1931,7 +2037,7 @@ function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
           className="inline-block px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
           style={buttonStyle}
         >
-          {block.buttonText || "Shop now"}
+          {block.buttonText || fb("MapSection.block.buttonText")}
         </a>
       </div>
     );
@@ -1945,11 +2051,11 @@ function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
     return (
       <div {...blockEditAttrs(block, blockIndex)} className="aspect-video w-full overflow-hidden rounded-2xl fm-surface border border-white/10">
         {embed ? (
-          <iframe src={embed} title={block.title || "Video"} allow="autoplay; fullscreen" allowFullScreen className="w-full h-full" />
+          <iframe src={embed} title={block.title || fb("MapSection.block.title")} allow="autoplay; fullscreen" allowFullScreen className="w-full h-full" />
         ) : url ? (
           <video src={url} controls className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-white/20 text-xs uppercase tracking-widest">No Video</div>
+          <div className="w-full h-full flex items-center justify-center text-white/20 text-xs uppercase tracking-widest">{sc("sectionNoVideo")}</div>
         )}
       </div>
     );
@@ -1999,7 +2105,7 @@ export function RowSection({ settings, enableAnimations }: any) {
             className="grid grid-cols-1 md:[grid-template-columns:var(--row-template)]"
             style={{ ["--row-template" as any]: template, gap, alignItems }}
           >
-            {(blocks.length ? blocks : [{ kind: "text", title: "Add columns", body: "Use the Row section to combine text, images, buttons and video side by side." }]).map(
+            {sampleInPreview(blocks, [{ kind: "text", title: "Add columns", body: "Use the Row section to combine text, images, buttons and video side by side." }]).map(
               (block: any, idx: number) => (
                 <RowBlock key={idx} block={block} blockIndex={idx} accentFallback={settings.accentColor} settings={settings} />
               ),
@@ -2094,7 +2200,7 @@ export function VideoHeroSection({ settings, onCtaClick }: any) {
       {bgEmbed ? (
         <iframe
           src={bgEmbed}
-          title={settings.headline || "Background video"}
+          title={settings.headline ?? fb("VideoHeroSection.headline")}
           allow="autoplay; fullscreen; picture-in-picture"
           className="absolute inset-0 w-full h-full pointer-events-none object-cover"
           style={{ border: 0 }}
@@ -2231,7 +2337,7 @@ export function PricingTableSection({ settings, onCtaClick, enableAnimations }: 
                 className={`flex flex-col rounded-2xl p-8 border ${highlighted ? "border-white/40 bg-white/[0.07] shadow-2xl md:scale-[1.03]" : "border-white/10 bg-white/[0.03]"}`}
               >
                 {highlighted && (
-                  <span className="self-start mb-4 px-3 py-1 text-[9px] font-bold tracking-[0.2em] uppercase rounded-full bg-white text-black">Most popular</span>
+                  <span className="self-start mb-4 px-3 py-1 text-[9px] font-bold tracking-[0.2em] uppercase rounded-full bg-white text-black">{settings.highlightLabel ?? fb("PricingTableSection.highlightLabel")}</span>
                 )}
                 {item.planName && <h3 className="text-lg font-bold tracking-wide uppercase text-white">{item.planName}</h3>}
                 <div className="mt-3 flex items-baseline gap-1">
@@ -2263,6 +2369,106 @@ export function PricingTableSection({ settings, onCtaClick, enableAnimations }: 
             );
           })}
         </div>
+      </div>
+    </section>
+  );
+}
+
+/** The custom page (title + body) currently being viewed; provided by PageView. */
+// The page being shown, plus the site-wide page look (Studio › Style › Custom pages) that every
+// "Page content" section follows unless its "Style this page on its own" switch is on.
+export const CurrentPageContext = createContext<{ title?: string; body?: string; pageStyle?: Record<string, any> } | null>(null);
+const PAGE_STYLE_KEYS = [
+  "showEyebrow", "eyebrow", "titleSize", "titleUppercase", "bodySize", "align", "maxWidth", "textColor", "headingColor",
+  "titleFont", "titleSizePx", "titleSizePxMobile", "titleWeight", "showRule", "ruleColor", "ruleWidth", "ruleSpacing",
+  "textMeasure", "topSpacing", "headerWidth",
+];
+const pageNum = (v: any, min: number, max: number) => {
+  const n = Number(v);
+  return v === "" || v == null || !Number.isFinite(n) ? undefined : Math.max(min, Math.min(max, n));
+};
+
+const PAGE_TITLE_SIZES: Record<string, string> = { sm: "text-3xl", md: "text-4xl md:text-5xl", lg: "text-5xl md:text-7xl", xl: "text-6xl md:text-8xl" };
+const PAGE_BODY_SIZES: Record<string, string> = { sm: "text-[15px]", md: "text-[17px]", lg: "text-[20px]" };
+
+/** Renders a custom page's own title and text, so it can be placed, styled and reordered like any section. */
+export function PageContentSection({ settings: own, enableAnimations }: any) {
+  const page = useContext(CurrentPageContext);
+  // Default: follow the site-wide page look so every custom page matches. "Use its own style"
+  // (ownStyle) lets one page keep the section's own values instead.
+  const settings = own?.ownStyle || !page?.pageStyle
+    ? own
+    : { ...own, ...Object.fromEntries(PAGE_STYLE_KEYS.map((k) => [k, page.pageStyle![k]])) };
+  const titleId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const align = aClass({ align: settings.align || "left" });
+  const title = settings.titleOverride || page?.title || fb("PageContentSection.page.title");
+  const body = settings.bodyOverride
+    ? settings.bodyOverride.split(/\n{2,}/).map((p: string) => `<p>${p.replace(/[<>&]/g, (c: string) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" } as any)[c]).replace(/\n/g, "<br/>")}</p>`).join("")
+    : sampleHtml(page?.body, "<p>Your page text appears here. Write it in Studio › Pages.</p>");
+  // Option D "Ruled" pieces — each value comes from Style › Custom pages or the section's own fields.
+  const lineUp = settings.maxWidth === "header";
+  const headerWidth = pageNum(settings.headerWidth, 900, 1600) ?? 1200;
+  const sizeD = pageNum(settings.titleSizePx, 0, 200) || 0;
+  const sizeM = pageNum(settings.titleSizePxMobile, 0, 120) || sizeD;
+  const ruleSpacing = pageNum(settings.ruleSpacing, 0, 96);
+  const topSpacing = pageNum(settings.topSpacing, 0, 160);
+  const ruleWidth = pageNum(settings.ruleWidth, 0, 8) ?? 2;
+  const titleCss = [
+    sizeM ? `@media (max-width:767px){[data-page-title="${titleId}"]{font-size:${sizeM}px !important;}}` : "",
+    sizeD ? `@media (min-width:768px){[data-page-title="${titleId}"]{font-size:${sizeD}px !important;}}` : "",
+  ].join("");
+  const titleStyle: Record<string, any> = {
+    ...hStyle(settings),
+    ...(settings.titleFont ? { fontFamily: `'${String(settings.titleFont).replace(/['"\\;{}<>]/g, "")}', var(--heading-font, sans-serif)` } : {}),
+    ...(settings.titleWeight ? { fontWeight: Number(settings.titleWeight) || undefined } : {}),
+    ...(sizeD || sizeM ? { lineHeight: 0.92 } : {}),
+    ...(ruleSpacing != null ? { marginBottom: settings.showRule ? 0 : ruleSpacing } : {}),
+  };
+  return (
+    <section style={{ ...bgStyle(settings), ...(settings.textColor ? { color: settings.textColor } : {}) }}>
+      {titleCss && <style>{titleCss}</style>}
+      <div
+        className={`py-16 px-6 mx-auto ${lineUp ? "" : mw(settings, "max-w-2xl")}`}
+        style={{ ...(lineUp ? { maxWidth: headerWidth } : {}), ...spacingStyle(settings), ...(topSpacing != null ? { paddingTop: topSpacing } : {}) }}
+      >
+        <AnimationContainer enabled={enableAnimations}>
+          <div className={align}>
+            {settings.showEyebrow !== false && settings.eyebrow && (
+              <p className="text-[10px] font-bold tracking-[0.3em] uppercase opacity-50 mb-4" style={bStyle(settings)} data-theme-field="eyebrow">{settings.eyebrow}</p>
+            )}
+            {settings.showTitle !== false && (
+              <h1
+                data-page-title={titleId}
+                className={`${PAGE_TITLE_SIZES[settings.titleSize] || PAGE_TITLE_SIZES.md} ${settings.titleWeight ? "" : "font-black"} tracking-tight ${ruleSpacing != null || settings.showRule ? "" : "mb-10"} ${settings.titleUppercase === false ? "" : "uppercase"}`}
+                style={titleStyle}
+              >
+                {title}
+              </h1>
+            )}
+          </div>
+          {settings.showRule && (
+            <hr
+              aria-hidden="true"
+              style={{
+                border: 0,
+                borderTop: `${ruleWidth}px solid ${settings.ruleColor || "rgb(var(--fg-rgb, 255, 255, 255))"}`,
+                marginBlock: `${ruleSpacing ?? 32}px`,
+              }}
+            />
+          )}
+          {settings.showBody !== false && (
+            <div
+              className={`leading-[1.8] ${PAGE_BODY_SIZES[settings.bodySize] || PAGE_BODY_SIZES.md} ${align} ${settings.textMeasure === "full" ? "max-w-none" : ""}
+                [&_p]:mb-6 [&_h1]:text-4xl [&_h1]:font-black [&_h1]:mb-8 [&_h1]:mt-12 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:mb-5 [&_h2]:mt-10
+                [&_h3]:text-xl [&_h3]:font-bold [&_h3]:mb-4 [&_h3]:mt-8 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:mb-6 [&_li]:mb-2
+                [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:mb-6 [&_strong]:font-bold [&_em]:italic [&_img]:my-8 [&_img]:max-w-full
+                [&_a]:underline [&_a]:underline-offset-4 [&_a]:text-[var(--accent)] [&_a]:hover:opacity-80
+                [&_blockquote]:border-l-4 [&_blockquote]:border-current/20 [&_blockquote]:pl-6 [&_blockquote]:italic [&_blockquote]:opacity-80 [&_blockquote]:my-8`}
+              style={{ ...bStyle(settings), ...(settings.textMeasure === "readable" ? { maxWidth: "62ch", ...(settings.align === "center" ? { marginInline: "auto" } : {}) } : {}) }}
+              dangerouslySetInnerHTML={{ __html: body }}
+            />
+          )}
+        </AnimationContainer>
       </div>
     </section>
   );

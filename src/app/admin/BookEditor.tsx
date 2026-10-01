@@ -35,9 +35,11 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
+import { normalizeCategories, parentOf } from "../features/site/navItems";
 import { Book, Variant } from "../features/site/types";
 import { useCurrency } from "../CurrencyContext";
 import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs } from "./riso/components";
+import { prepareProductImage } from "./prepareImage";
 
 type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "organize" | "seo";
 
@@ -117,6 +119,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [authors, setAuthors] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  // Sub-category name → its parent's name (Studio › Menus › Shop categories › "Sits under").
+  const [categoryParents, setCategoryParents] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
@@ -337,13 +341,16 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       setShippingProfiles(sh);
       setAuthors(au);
       
-      const siteCats = settings?.design?.categories || settings?.draftDesign?.categories || CATEGORIES;
-      const filteredCats = Array.isArray(siteCats) 
-        ? siteCats
-            .filter((c: any) => c && typeof c === 'string' && c !== 'PUBLICATIONS')
-        : CATEGORIES.filter(c => c !== 'PUBLICATIONS');
-      
-      setCategories(filteredCats);
+      // Draft first so categories just added in Studio › Menus › Shop categories show up before publishing.
+      const siteCats = settings?.draftDesign?.categories || settings?.design?.categories || CATEGORIES;
+      const all = normalizeCategories(Array.isArray(siteCats) ? siteCats : [...CATEGORIES]);
+      // PUBLICATIONS already shows every book, so it isn't something to file a book under.
+      const pickable = all.filter((c: any) => c?.name && c.name !== 'PUBLICATIONS');
+      setCategories(pickable.map((c: any) => c.name));
+      setCategoryParents(Object.fromEntries(pickable.map((c: any) => {
+        const pid = parentOf(c, all);
+        return [c.name, pid ? all.find((p: any) => p.id === pid)?.name || "" : ""];
+      })));
 
       if (sh.length > 0) {
         const defaultProfile = sh.find(p => p.id === "general-profile") || sh[0];
@@ -455,7 +462,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     setUploading(true);
     try {
       for (const file of list.slice(0, room)) {
-        const url = await adminApi.uploadFile(file, `products/${Date.now()}-${file.name}`);
+        const ready = await prepareProductImage(file);
+        const url = await adminApi.uploadFile(ready, `products/${Date.now()}-${ready.name}`);
         setFormData((prev: any) => ({ ...prev, photos: [...prev.photos, { url, id: Math.random().toString(36).substr(2, 9), altText: file.name.replace(/\.[^.]+$/, "") }] }));
       }
     } catch (err: any) {
@@ -871,11 +879,12 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           )}
 
           {tab === "organize" && (
-            <SectionCard title="Categories & tags" description="Categories build the shop menus. Tags power search.">
+            <SectionCard title="Categories & tags" description="Categories build the shop menus — pick every one this book belongs in (e.g. Publications › Books). Sub-categories are set in Design › Menus › Shop categories. Tags power search.">
               <div className="be-chips" role="group" aria-label="Categories">
-                {Array.from(new Set([...categories, ...(formData.categories || []), "Photography", "Contemporary", "Artist Book", "Zine", "Archive"])).map((cat) => {
+                {categories.map((cat) => {
                   const on = (formData.categories || []).includes(cat);
-                  return <button key={cat} type="button" aria-pressed={on} className={`be-chip ${on ? "is-on" : ""}`} onClick={() => toggleCategory(cat)}>{on ? "✓ " : ""}{cat}</button>;
+                  const parent = categoryParents[cat];
+                  return <button key={cat} type="button" aria-pressed={on} className={`be-chip ${on ? "is-on" : ""}`} onClick={() => toggleCategory(cat)}>{on ? "✓ " : ""}{parent ? `${parent} › ` : ""}{cat}</button>;
                 })}
               </div>
               <div className="be-tags">

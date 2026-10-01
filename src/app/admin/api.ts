@@ -1,3 +1,4 @@
+import { themeWrite } from "./themeWrite";
 import { 
   collection, 
   getDocs, 
@@ -409,26 +410,11 @@ export const adminApi = {
 
   updateSettings: async (settings: any, options: { publish?: boolean } = {}) => {
     const docRef = doc(db, "settings", "website");
-    // Deep-strip undefined values — Firestore rejects them, and editor controls
-    // use `undefined` to mean "inherit / unset".
-    const payload = JSON.parse(JSON.stringify({ ...settings }));
-    
-    // If we're updating 'design' (the theme), handle the draft/publish logic
-    if (settings.design) {
-      if (options.publish) {
-        // Publish: update both live and draft
-        payload.design = settings.design;
-        payload.draftDesign = settings.design;
-      } else {
-        // Save Draft: only update draftDesign, don't touch the live design
-        payload.draftDesign = settings.design;
-        delete payload.design;
-      }
-    }
-    
-    await setDoc(docRef, payload, { merge: true });
-    const sections = Object.keys(settings);
-    await adminApi.recordAuditLog("settings", `Updated settings: ${sections.join(", ")}`);
+    const { payload, options: writeOptions } = themeWrite(settings, options.publish);
+    await setDoc(docRef, payload, writeOptions);
+    // The primary write already succeeded. An audit failure must not report a
+    // failed publish and encourage a duplicate operation.
+    await adminApi.recordAuditLog("settings", `Updated settings: ${Object.keys(settings).join(", ")}`).catch(error => console.warn("Settings saved; audit log unavailable", error));
   },
 
   // Replace the work-in-progress theme with the currently published theme.
@@ -437,8 +423,8 @@ export const adminApi = {
   discardThemeDraft: async (publishedDesign: any) => {
     const docRef = doc(db, "settings", "website");
     const draftDesign = JSON.parse(JSON.stringify(publishedDesign));
-    await setDoc(docRef, { draftDesign }, { merge: true });
-    await adminApi.recordAuditLog("settings", "Discarded unpublished theme changes");
+    await setDoc(docRef, { draftDesign }, { mergeFields: ["draftDesign"] });
+    await adminApi.recordAuditLog("settings", "Discarded unpublished theme changes").catch(error => console.warn("Draft discarded; audit log unavailable", error));
   },
 
   // ── Theme version history (persisted so it survives reloads) ──
@@ -538,6 +524,11 @@ export const adminApi = {
       rates: []
     },
     design: {
+      // On by default on the product page (Style › Product page layout / Storefront elements).
+      showRelatedProducts: true,
+      showRecentlyViewed: true,
+      // Custom pages (Studio › Style › Custom pages): on by default, so the toggles show as on.
+      pageShowEyebrow: true, pageTitleUppercase: true,
       primaryColor: "#e8402a",
       font: "Archivo",
       palettePreset: "dark",
@@ -552,8 +543,6 @@ export const adminApi = {
       headerColor: "",
       // Homepage
       heroLayout: "fullscreen",
-      heroCTA: "ENTER ARCHIVE",
-      heroSubtext: "Discover rare editions and exclusive prints.",
       showFeaturedCarousel: true,
       showBookStrip: true,
       // Products
@@ -615,11 +604,8 @@ export const adminApi = {
       showZoom: true,
       showBackToTop: false,
       showPoweredBy: false,
-      navHeading: "INFO",
       headerLinks: {
         showEnterArchive: true,
-        showInformation: true,
-        showCustomPages: true,
         showBag: true,
         showSys: true,
       },

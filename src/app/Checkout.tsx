@@ -1,3 +1,4 @@
+import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router";
 import { useCart } from "./CartContext";
@@ -94,6 +95,7 @@ export function Checkout() {
 
   const [isApplying, setIsApplying]     = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [orderNote, setOrderNote] = useState("");
   // Announced inline message (replaces alert()); tone drives colour, glyph + words carry the meaning.
   const [notice, setNotice] = useState<null | { tone: "error" | "info"; text: string }>(null);
   const [isSuccess, setIsSuccess]       = useState(false);
@@ -189,7 +191,9 @@ export function Checkout() {
         setShippingProfiles(profiles);
         setTaxRates(siteSettings?.taxes?.rates || []);
         setBooks(bookList);
-        setSettings(siteSettings);
+        const preview = new URLSearchParams(window.location.search).get("preview") === "true";
+        const design = preview ? (window as any).__studioPreviewDesign || siteSettings?.draftDesign || siteSettings?.design : siteSettings?.design;
+        setSettings({ ...siteSettings, design: resolveSurfaceDesign(design, "/checkout") });
 
         // Auto-select first available payment gateway
         const payments = siteSettings?.payments || {};
@@ -208,6 +212,19 @@ export function Checkout() {
       }
     }
     loadFulfillmentSettings();
+  }, []);
+
+  // Preview only replaces appearance; fulfillment and payment settings stay server-sourced.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("preview") !== "true") return;
+    const receive = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== window.parent
+        || !["THEME_UPDATE", "STUDIO_PREVIEW_STATE"].includes(event.data?.type) || !event.data.design) return;
+      setSettings((current: any) => ({ ...current, design: resolveSurfaceDesign(event.data.design, "/checkout") }));
+    };
+    window.addEventListener("message", receive);
+    window.parent.postMessage({ type: "PREVIEW_READY" }, window.location.origin);
+    return () => window.removeEventListener("message", receive);
   }, []);
 
   // Recover cart if cartId query parameter is present in URL
@@ -340,19 +357,19 @@ export function Checkout() {
     // ⚡ Bolt: Replace O(N) array iteration with O(1) memoized cart count context value
     const totalQty = currentCartCount;
     if (discount.minQuantity && totalQty < discount.minQuantity) {
-      throw new Error(`This code requires a minimum of ${discount.minQuantity} items in your cart.`);
+      throw new Error(c("coErrMinItems", { count: discount.minQuantity }));
     }
     // ⚡ Bolt: Replace O(N) array iteration with O(1) memoized cart total context value
     const itemsSubtotal = currentCartTotal;
     if (discount.minOrderAmount && itemsSubtotal < Number(discount.minOrderAmount)) {
-      throw new Error(`This code requires a minimum order of ${Number(discount.minOrderAmount).toFixed(2)}.`);
+      throw new Error(c("coErrMinOrder", { amount: formatPrice(Number(discount.minOrderAmount)) }));
     }
 
     // 2. Email domain / email list
     const hasEmailRestrictions = (discount.allowedCustomerEmails && discount.allowedCustomerEmails.trim()) || 
                                   (discount.allowedEmailDomains && discount.allowedEmailDomains.trim());
     if (hasEmailRestrictions && !email.trim()) {
-      throw new Error("Please enter your email address under 'Shipping Details' first to apply this code.");
+      throw new Error(c("coErrNeedEmail"));
     }
 
     if (email.trim()) {
@@ -364,7 +381,7 @@ export function Checkout() {
           .map((e: string) => e.trim().toLowerCase())
           .filter(Boolean);
         if (allowedEmails.length > 0 && !allowedEmails.includes(lowerEmail)) {
-          throw new Error("This code is restricted to specific VIP customer emails.");
+          throw new Error(c("coErrVipEmails"));
         }
       }
 
@@ -381,7 +398,7 @@ export function Checkout() {
           }
         });
         if (allowedDomains.length > 0 && !matchesDomain) {
-          throw new Error(`This code is restricted to specific email domains (e.g. ${discount.allowedEmailDomains}).`);
+          throw new Error(c("coErrEmailDomains", { domains: discount.allowedEmailDomains }));
         }
       }
     }
@@ -395,13 +412,13 @@ export function Checkout() {
         return bookCats.some(cat => selectedCats.has(cat));
       });
       if (!hasMatchingCategory) {
-        throw new Error(`This code only applies to categories: ${(discount.selectedCategories || []).join(", ")}.`);
+        throw new Error(c("coErrCategories", { categories: (discount.selectedCategories || []).join(", ") }));
       }
     } else if (discount.appliesTo === "products") {
       const selectedProds = new Set(discount.selectedProducts || []);
       const hasMatchingProduct = cartItems.some(item => selectedProds.has(item.id));
       if (!hasMatchingProduct) {
-        throw new Error("This code only applies to specific products not currently in your cart.");
+        throw new Error(c("coErrProducts"));
       }
     }
 
@@ -431,14 +448,14 @@ export function Checkout() {
 
       const totalQualUnits = qualItems.reduce((sum, item) => sum + item.quantity, 0);
       if (totalQualUnits < requiredUnits) {
-        throw new Error(`This BOGO code requires buying at least ${requiredUnits} qualifying items.`);
+        throw new Error(c("coErrBogo", { count: requiredUnits }));
       }
     }
 
     if (discount.type === "tiered") {
       const tiers = discount.tiers || [];
       if (!Array.isArray(tiers) || tiers.length === 0) {
-        throw new Error("This tiered code is not configured correctly.");
+        throw new Error(c("coErrTiered"));
       }
 
       // ⚡ Bolt: Convert constraints to O(1) Sets outside the loop
@@ -461,7 +478,7 @@ export function Checkout() {
 
       const lowestMinSpend = Math.min(...tiers.map(t => Number(t.minSpend)));
       if (qualifyingSubtotal < lowestMinSpend) {
-        throw new Error(`This code requires a minimum spend of $${lowestMinSpend.toFixed(2)} on qualifying items.`);
+        throw new Error(c("coErrMinSpend", { amount: formatPrice(lowestMinSpend) }));
       }
     }
   };
@@ -565,7 +582,7 @@ export function Checkout() {
         validateDiscountRestrictions(appliedDiscount, customer.email, cart, booksMap, cartCount, cartTotal);
       } catch (err: any) {
         setAppliedDiscount(null);
-        setDiscountError(err.message || "Discount no longer valid.");
+        setDiscountError(err.message || c("coDiscountInvalid"));
       }
     }
   }, [customer.email, cart, books, appliedDiscount]);
@@ -678,7 +695,7 @@ export function Checkout() {
       validateDiscountRestrictions(discount, customer.email, cart, booksMap, cartCount, cartTotal);
       setAppliedDiscount(discount);
     } catch (err: any) {
-      setDiscountError(err.message || "INVALID OR EXPIRED CODE");
+      setDiscountError(err.message || c("coDiscountExpired"));
       setAppliedDiscount(null);
     } finally {
       setIsApplying(false);
@@ -707,7 +724,7 @@ export function Checkout() {
     };
   };
 
-  useSEO({ title: "Checkout", description: "Secure checkout for Lyricalmyrical Books." });
+  useSEO({ title: c("seoCheckoutTitle"), description: c("seoCheckoutDescription") });
 
   // Track funnel + abandoned cart on email entry
   useEffect(() => {
@@ -750,7 +767,7 @@ export function Checkout() {
 
   const handleCompletePurchase = async () => {
     if (!customer.name || !customer.email || !customer.address.street || !customer.address.city || !customer.address.state || !customer.address.zip) {
-      setNotice({ tone: "error", text: "Please fill in all required shipping details, including city, state/province, and postal/zip code." });
+      setNotice({ tone: "error", text: c("coErrShippingFields") });
       return;
     }
     setNotice(null);
@@ -773,7 +790,7 @@ export function Checkout() {
       });
 
       if (!valResponse.ok) {
-        throw new Error("Could not connect to address verification service.");
+        throw new Error(c("coErrAddressService"));
       }
 
       const valData = await valResponse.json();
@@ -795,6 +812,7 @@ export function Checkout() {
         customer,
         customerId: currentUser?.uid || null,
         referralSource: referralSource || "direct",
+        ...(checkoutDesign.showOrderNote && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
         addressVerified,
         addressError,
         items: cart.map(item => ({
@@ -843,8 +861,8 @@ export function Checkout() {
           body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
         });
         const paypalData = await paypalResponse.json();
-        if (!paypalResponse.ok) throw new Error(paypalData.error || "Failed to create PayPal order.");
-        if (!paypalData.approvalUrl) throw new Error("PayPal did not return an approval URL.");
+        if (!paypalResponse.ok) throw new Error(paypalData.error || c("coPaypalError"));
+        if (!paypalData.approvalUrl) throw new Error(c("coErrPaypalUrl"));
         window.location.href = paypalData.approvalUrl;
         return;
       }
@@ -862,17 +880,17 @@ export function Checkout() {
 
       if (!sessionResponse.ok) {
         const errorData = await sessionResponse.json();
-        throw new Error(errorData.error || "Failed to create secure Stripe session.");
+        throw new Error(errorData.error || c("coStripeError"));
       }
 
       const sessionData = await sessionResponse.json();
       if (sessionData.url) {
         window.location.href = sessionData.url;
       } else {
-        throw new Error("No checkout URL returned from payment server.");
+        throw new Error(c("coErrNoCheckoutUrl"));
       }
     } catch (err: any) {
-      setNotice({ tone: "error", text: `Checkout failed: ${err.message}. Your card has not been charged. Please try again.` });
+      setNotice({ tone: "error", text: c("coCheckoutFailed", { error: err.message }) });
       setIsCompleting(false);
     }
   };
@@ -883,7 +901,7 @@ export function Checkout() {
     const isPayPalReturn = params.get("paypal_return") === "true";
     const isSuccessReturn = params.get("success") === "true";
     if (!oid || (!isPayPalReturn && !isSuccessReturn)) {
-      if (params.get("canceled")) setNotice({ tone: "info", text: "Payment was canceled. Your cart is saved — you can review it and try again." });
+      if (params.get("canceled")) setNotice({ tone: "info", text: c("coPaymentCanceled") });
       return;
     }
 
@@ -895,14 +913,14 @@ export function Checkout() {
       try {
         if (isPayPalReturn) {
           const paypalOrderId = params.get("token");
-          if (!paypalOrderId) throw new Error("PayPal did not return an order token.");
+          if (!paypalOrderId) throw new Error(c("coErrPaypalToken"));
           const captureResponse = await fetch(functionUrl("capturePayPalOrder"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ orderId: oid, paypalOrderId }),
           });
           const captureData = await captureResponse.json();
-          if (!captureResponse.ok) throw new Error(captureData.error || "PayPal capture failed.");
+          if (!captureResponse.ok) throw new Error(captureData.error || c("coPaypalCaptureError"));
         }
 
         // Firestore is authoritative. URL flags and the capture HTTP response
@@ -944,9 +962,9 @@ export function Checkout() {
   if (isSuccess) {
     const isManual = successOrder?.paymentStatus === "pending";
     return (
-      <div data-fm-store data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+      <div data-fm-store data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout" data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
         <StorefrontThemeStyle design={checkoutDesign} />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.15)_0%,transparent_70%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(var(--accent-rgb,232,64,42),0.15)_0%,transparent_70%)] pointer-events-none" />
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", duration: 0.8 }}
           className="relative z-10 flex flex-col items-center max-w-md w-full">
           <div className="w-24 h-24 rounded-[2rem] border flex items-center justify-center mb-10 shadow-[0_0_60px_rgba(124,58,237,0.3)]" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.2)", borderColor: "rgba(var(--accent-rgb), 0.3)" }}>
@@ -954,19 +972,19 @@ export function Checkout() {
           </div>
           <p className="text-[9px] font-black tracking-[0.5em] uppercase mb-4" style={{ color: "var(--accent)" }}>
             {isManual
-              ? "Order Placed"
-              : (paymentConfirmed ? "Order Confirmed" : "Finalizing Payment")}
+              ? c("coOrderPlaced")
+              : (paymentConfirmed ? c("coOrderConfirmed") : c("coFinalizing"))}
           </p>
           <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white mb-4">{c("coThanks")}</h2>
-          <p className="text-white/30 text-xs font-mono mb-2 tracking-widest">ORDER #{orderNumber}</p>
+          <p className="text-white/30 text-xs font-mono mb-2 tracking-widest">{c("coOrderNumber", { number: orderNumber })}</p>
 
           {isManual ? (
             <div className="w-full mt-4 mb-10 p-8 bg-white/[0.02] border border-white/5 rounded-[2rem] text-left space-y-4 shadow-inner animate-in fade-in slide-in-from-bottom-4 duration-500">
               <h4 className="text-[10px] font-black uppercase tracking-[0.25em] italic flex items-center gap-2" style={{ color: "var(--accent)" }}>
-                <Building size={14} /> {successOrder?.paymentMethod || "Payment Instructions"}
+                <Building size={14} /> {successOrder?.paymentMethod || c("coPaymentInstructions")}
               </h4>
               <p className="text-white/80 text-xs font-bold leading-relaxed whitespace-pre-wrap">
-                {successOrder?.paymentInstructions || "Please check your email for payment instructions."}
+                {successOrder?.paymentInstructions || c("coCheckEmail")}
               </p>
               <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl flex gap-3 items-center">
                 <AlertCircle size={14} className="text-amber-400 shrink-0" />
@@ -978,8 +996,8 @@ export function Checkout() {
           ) : (
             <p className="text-white/20 text-[10px] tracking-widest mb-14">
               {paymentConfirmed
-                ? "A confirmation will be sent to your email."
-                : "Your payment is being confirmed — the receipt email will follow shortly."}
+                ? c("coConfirmationSent")
+                : c("coConfirming")}
             </p>
           )}
 
@@ -995,9 +1013,9 @@ export function Checkout() {
   // ── Empty cart ──────────────────────────────────────────────────────────────
   if (cart.length === 0) {
     return (
-      <div data-fm-store data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+      <div data-fm-store data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout" data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
         <StorefrontThemeStyle design={checkoutDesign} />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(124,58,237,0.08)_0%,transparent_70%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(var(--accent-rgb,232,64,42),0.08)_0%,transparent_70%)] pointer-events-none" />
         <div className="relative z-10 flex flex-col items-center">
           <div className="w-20 h-20 rounded-[1.5rem] bg-white/5 border border-white/10 flex items-center justify-center mb-8">
             <Package size={36} className="text-white/20" strokeWidth={1} />
@@ -1024,7 +1042,7 @@ export function Checkout() {
       : c("coPlaceOrder");
 
   return (
-    <div data-fm-store data-fm-checkout className="min-h-screen bg-white font-sans text-slate-900 selection:bg-sky-100">
+    <div data-fm-store data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout" data-fm-checkout className="min-h-screen bg-white font-sans text-slate-900 selection:bg-sky-100">
       <StorefrontThemeStyle design={checkoutDesign} />
       {settings?.payments?.testMode && (
         <div className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-sm font-medium text-amber-900">
@@ -1135,11 +1153,26 @@ export function Checkout() {
                 <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
                   <Truck size={18} className="mt-0.5 shrink-0 text-slate-400" />
                   {cart.length > 0 && shippingProfiles.some((p) => Array.isArray(p.zones) && p.zones.length > 0) && customer.address.country
-                    ? `We don't currently offer shipping for this order to ${customer.address.country}. Try another country or contact us for a custom quote.`
-                    : "Enter your delivery address to see available shipping methods."}
+                    ? c("coNoShipping", { country: customer.address.country })
+                    : c("coEnterAddress")}
                 </div>
               )}
             </section>
+
+            {checkoutDesign.showOrderNote && (
+              <section data-studio-target="style:checkout|copy:Checkout" data-studio-label="Order note">
+                <label htmlFor="checkout-order-note" className="text-sm font-medium text-slate-900">{c("coOrderNote")}</label>
+                <p className="mt-1 text-xs leading-5 text-slate-500">{c("coOrderNoteHelp")}</p>
+                <textarea
+                  id="checkout-order-note"
+                  value={orderNote}
+                  onChange={e => setOrderNote(e.target.value.slice(0, 500))}
+                  maxLength={500}
+                  rows={3}
+                  className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)]"
+                />
+              </section>
+            )}
 
             <section>
               <StepBadge n={c("coStepOf", { n: 3 })} label={c("coPayment")} />
@@ -1159,7 +1192,7 @@ export function Checkout() {
                     {selectedPaymentMethod === "stripe" && (
                       <div className="border-t border-slate-200 px-6 py-7 text-center">
                         <CreditCard size={34} strokeWidth={1.4} className="mx-auto mb-3 text-slate-400" />
-                        <p className="text-sm text-slate-600">After you click “Pay securely,” you’ll complete your card payment on Stripe’s secure checkout.</p>
+                        <p className="text-sm text-slate-600">{c("coStripeNote")}</p>
                       </div>
                     )}
                   </label>
@@ -1185,7 +1218,7 @@ export function Checkout() {
             <div className="border-t border-slate-200 pt-6">
               {notice && (
                 <div role={notice.tone === "error" ? "alert" : "status"} className="mb-4 rounded-lg border px-4 py-3 text-sm"
-                  style={{ borderColor: notice.tone === "error" ? "#b4271a" : "#94a3b8", color: notice.tone === "error" ? "#b4271a" : "inherit", background: notice.tone === "error" ? "rgba(232,64,42,.08)" : "transparent" }}>
+                  style={{ borderColor: notice.tone === "error" ? "var(--danger, #b4271a)" : "var(--muted, #94a3b8)", color: notice.tone === "error" ? "var(--danger, #b4271a)" : "inherit", background: notice.tone === "error" ? "rgba(var(--danger-rgb, 232, 64, 42), .08)" : "transparent" }}>
                   <span aria-hidden="true">{notice.tone === "error" ? "✕ " : "ℹ "}</span>{notice.text}
                 </div>
               )}
@@ -1216,7 +1249,7 @@ export function Checkout() {
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">{c("coSummary")}</h2>
               {/* ⚡ Bolt: Replace O(N) array iterations in render with O(1) memoized value */}
-              <span className="text-sm text-slate-500">{cartCount} item{cartCount === 1 ? "" : "s"}</span>
+              <span className="text-sm text-slate-500">{c(cartCount === 1 ? "coItemCountOne" : "coItemCountMany", { count: cartCount })}</span>
             </div>
 
             <div className="space-y-5">
@@ -1254,12 +1287,12 @@ export function Checkout() {
                 <button type="button" onClick={removeDiscount} className="rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50" aria-label={c("coDiscountRemove")}><X size={17} /></button>
               ) : (
                 <button type="button" onClick={applyDiscount} disabled={isApplying || !discountCode} className="rounded-lg bg-slate-700 px-5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">
-                  {isApplying ? <Loader2 size={17} className="animate-spin" /> : "Apply"}
+                  {isApplying ? <Loader2 size={17} className="animate-spin" /> : c("coApply")}
                 </button>
               )}
             </div>
             {discountError && <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} />{discountError}</p>}
-            {appliedDiscount && <p className="mt-2 flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--success)" }}><CheckCircle2 size={13} />{appliedDiscount.code} applied</p>}
+            {appliedDiscount && <p className="mt-2 flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--success)" }}><CheckCircle2 size={13} />{c("coDiscountApplied", { code: appliedDiscount.code })}</p>}
 
             <div className="my-7 border-t border-slate-200" />
 
@@ -1267,8 +1300,8 @@ export function Checkout() {
               <div className="flex justify-between text-slate-600"><span>{c("summarySubtotal")}</span><span className="font-medium text-slate-900">{formatPrice(cartTotal)}</span></div>
               {discountAmount > 0 && <div className="flex justify-between" style={{ color: "var(--success)" }}><span>{c("summaryDiscount")}</span><span>-{formatPrice(discountAmount)}</span></div>}
               <div className="flex justify-between text-slate-600">
-                <span>Shipping{getActiveShippingDetails()?.serviceName ? ` · ${getActiveShippingDetails()?.serviceName}` : ""}</span>
-                <span className="font-medium text-slate-900">{isFreeShipping || shippingCost === 0 ? "Free" : formatPrice(finalShipping)}</span>
+                <span>{c("summaryShipping")}{getActiveShippingDetails()?.serviceName ? ` · ${getActiveShippingDetails()?.serviceName}` : ""}</span>
+                <span className="font-medium text-slate-900">{isFreeShipping || shippingCost === 0 ? c("coFree") : formatPrice(finalShipping)}</span>
               </div>
               <div className="flex justify-between text-slate-600"><span>{c("summaryTax")}</span><span className="font-medium text-slate-900">{taxCost > 0 ? formatPrice(taxCost) : c("coTaxLater")}</span></div>
             </div>

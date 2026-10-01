@@ -118,10 +118,15 @@ npm run logs
 - `stripeWebhook` — the **only** thing that marks orders paid; it also
   decrements stock, counts discount redemptions, and records revenue. Orders are
   created `unpaid` first.
+- Checkout **order note / gift message** (`orderNote` on the order, max 500 chars, enforced in `firestore.rules`): Studio › Style › Checkout & cart drawer › **Order note / gift message box at checkout** (`showOrderNote`, off by default); words in Text & labels › Checkout; shown to admins in Order detail › Customer.
 - `downloadDigitalAsset` — gated digital ebook downloads.
 - `onOrderPaid` / `onOrderShipped` — Firestore triggers that send customer/admin
   emails (Resend).
 - `abandonedCartSweep` — scheduled recovery email after ~1h.
+- `onBookRestocked` — emails shoppers in `stockAlerts` (created from the sold-out product page's
+  "Notify me when back in stock" box, `features/site/BackInStockForm.tsx`) when a book/variant goes
+  0 → available. Studio › Style › Product page layout › **Notify me when back in stock** toggles the box;
+  its words are in Text & labels › Product page.
 
 Secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`,
 `SHIPPO_API_TOKEN`) are stored as Firebase Functions secrets, not in the repo.
@@ -139,6 +144,53 @@ exist (charged = displayed). Admin UI: Settings › Shipping › profile editor 
 profile, rate dialog).
 
 ## Theme editor
+
+> [!IMPORTANT]
+> **The default Admin → Settings → Design editor is the new Studio editor**
+> (`src/app/admin/studio/StudioEditor.tsx`; left tabs **Sections / Style / Text & labels / Menus**).
+> The big `ThemeEditor.tsx` described below is only the legacy editor (opens with `?editor=legacy`).
+> **Always add or change theme/design features in the Studio editor first** — the user only sees
+> Studio. Shop categories (the storefront category bar) are edited in Studio › **Menus** ›
+> **Shop categories**. Custom pages (About, Journal…) also live only in Studio › **Pages** tab
+> (`studio/StudioPages.tsx`); there is **no** separate Pages screen in the admin nav — do not
+> re-add one. New pages join the storefront header by default, and their public
+> routes render the themed storefront header. Walkthroughs must use Studio's
+> labels, not legacy legacy-editor tabs.
+
+Studio's Sections outline supports sortable sections and blocks. Canvas clicks
+open their inspector; **Edit mode** selects content and **Browse mode** lets
+storefront links and controls work. **Style** has searchable controls with
+**All pages / This page only** scope for supported visual groups. Save draft,
+Publish and local unsaved recovery are separate actions. **My themes** (Style › Theme look) can be renamed, duplicated, downloaded as a file and re-imported. History provides
+non-destructive snapshot Preview and Restore to draft; change-aware dialogs
+guard Publish/Discard. Reusable/copyable sections, scheduled visibility,
+phone overrides, canvas reordering and pre-publish checks also live in Studio. These live in
+`studio/StudioEditor.tsx`, `StudioOutline.tsx`, `StudioInspector.tsx` and
+`useStudioPersistence.ts`; `themeWrite.ts` replaces complete design maps when
+saving so removed page overrides do not reappear. The iframe receives an atomic
+`STUDIO_PREVIEW_STATE` snapshot of the unsaved design, settings, books and
+published pages, keeping colors, menus and newly created page content live
+across preview navigation without another Firestore read. Delivery uses both
+`postMessage` and a same-origin message-event fallback so iframe load timing
+cannot leave the canvas showing the published design. `buildPreviewState` makes the
+snapshot clone-safe (`toCloneable` strips `_lastDoc` Firestore snapshots — they made
+`postMessage` throw `DataCloneError` and silently froze the preview once books loaded).
+In preview, `useSiteData` keeps the snapshot's books/pages/settings on `window.__studioPreviewState`
+so a late Firestore load never overwrites them; chrome outside that pipeline (cookie banner,
+boot splash) uses `useLiveDesign()`. **Preview in new tab** (Studio top bar) opens a full-screen
+top-level `?preview=true` window: Studio posts the same snapshot on `BroadcastChannel("studio_preview")`
+and `features/site/previewTab.ts` (started in `main.tsx`) re-dispatches it as a window message, answers
+`PREVIEW_READY`, and keeps `?preview=true` on in-app navigation. Unsaved Studio › Pages edits ride
+along in the snapshot (`withDraftPage`) without being saved.
+
+Studio also supports three-level recursive composition blocks through the
+**Flexible composition** section. Groups can contain text, image, button, or
+more group blocks; the active desktop/tablet/mobile preview controls local
+alignment, visibility, and CSS-grid coordinates. Any configured block can be
+promoted to a linked shared block and inserted in another block-capable section;
+shared content updates everywhere while placement stays local. The preview
+supports section and block drag/reorder plus schema-derived inline editing for
+safe text fields.
 
 A large (~11k-line) Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the
@@ -214,6 +266,88 @@ nested blocks across more section types remains a follow-up):
 3. CSS-grid visual positioning with guarded coordinates and overlap;
 4. per-breakpoint layout overrides tied to the device preview toggle.
 
+> [!IMPORTANT]
+> **Everything shopper-facing must be editable in Studio — nothing "built into the site".**
+> Any storefront element (box, row, link, heading, text) needs a Studio control to hide/show it
+> and its words in Text & labels (`COPY_SCHEMA`). Add the toggle to `STYLE_GROUPS` in
+> `studio/styleSchema.ts` (default = current behaviour) in the same change that adds the element.
+
+> [!IMPORTANT]
+> **Every design must be fully editable in Studio.** Each theme-library preset
+> (`studio/themeLibrary.ts`) may only set keys that have a Studio › Style control in
+> `STYLE_GROUPS`: top-level keys go through `THEME_APPLIED_KEYS`, everything else in the preset's
+> `global`. `studio/themeLibrary.test.ts` fails on any preset key with no control, and
+> `features/site/studioCoverage.test.ts` fails on any design key the storefront reads without one.
+> Add the control in the same change as the design key — never allowlist around the test.
+
+> [!IMPORTANT]
+> **Every aspect of the public website must be editable in the designer (Studio).** No hard-coded
+> colours in storefront code: use a design key (`design.x || "#hex"`) or a theme variable
+> (`var(--token, #hex)`) — the hex may only be a fallback. Every section default needs a Content
+> field (lists are edited as blocks). `features/site/designerCoverage.test.ts` enforces both,
+> alongside `studioCoverage`, `storeCopy.coverage`, `studioTargets` and `themeLibrary` tests.
+> Tailwind colour classes count too: every one the storefront uses (incl. `hover:`/`focus:`/
+> `group-hover:`/`selection:`/`md:` variants) must be listed in `features/site/storefrontColorClasses.ts`,
+> which `colorUtilityCss` in `themeTokens.ts` re-points at a Studio token (greys → text/muted/surface,
+> black → overlay/page colour, hues → accent/success/warning/danger). `designerCoverage.test.ts` fails
+> on an unlisted or unmappable class — add it to the list rather than hard-coding a colour.
+
+**Custom pages share one look:** Studio › Style › **Custom pages** (`page*` design keys, `sitePageStyle`
+in `PageView.tsx`) sets eyebrow, title size/case/colour, text size/colour, alignment and column
+width for every custom page. Each "Page content" section follows it unless its **Style this page on
+its own** switch (`ownStyle`) is on; pages without that section render the same component. Default is the Riso "Ruled" layout (Option D): no small "Page" label (`pageShowEyebrow`
+off), the title lined up with the header (`pageWidth: "header"`, same width as `StorefrontPageHeader`), a line
+under it (`pageShowRule`, `pageRuleColor/Width/Spacing`) and a readable text column (`pageTextMeasure`). Title
+font/size px (desktop + phone)/weight and top spacing are `pageTitleFont`, `pageTitleSizePx*`, `pageTitleWeight`,
+`pageTopSpacing`; the Page content section has the same fields for "Style this page on its own".
+
+> [!IMPORTANT]
+> **Sentences that reach shoppers indirectly are copy too.** Error messages (`new Error("…")`),
+> notices (`setNotice`/`setError`), `window.prompt`, SEO titles/descriptions, template-literal
+> `aria-label`/`alt`s and renderer word-fallbacks must all come from `getCopy()` (Studio › Text & labels —
+> groups *Checkout*, *Order tracking*, *Reviews*, *Sections*, **Site & sharing**) or, inside
+> `SectionComponents.tsx`, from `sectionFallbacks.ts` (`fb("Type.field")`, each backed by a Content
+> field; use `??` so clearing a field blanks it). `noHardwiredMessages.test.ts` and
+> `components/sectionFallbacks.test.ts` enforce this; `designerCoverage.test.ts` also rejects literal
+> `rgb()/rgba()/hsl()` (use `rgba(var(--accent-rgb, …), a)` or a design key). Behaviour numbers
+> (low-stock thresholds, recently-viewed count, search-result cap) and the no-photo placeholder image
+> are Studio › Style controls read with `designNumber()` / `placeholderImage()`. Site name, default
+> title/description and share image live in Text & labels › **Site & sharing** and Style › Logo &
+> wordmark › **Share image**; `lib/seo.ts` reads them via `setSiteIdentity` (published by `useSiteData`).
+> No sample books or announcements are shown to shoppers; empty sections show their "how to fill me" sample
+> only in the Studio preview (`sampleInPreview`/`sampleHtml`, guarded by `components/noSampleContent.test.tsx`).
+> Footer policy link/page titles are Text & labels › Footer (`policyTitle*`).
+
+**Click-to-edit in the preview:** sections carry `data-fm-section`; every other storefront region carries `data-studio-target="style:<groupId>|copy:<Group>|menus:<panel>|pages"` + `data-studio-label`. In Edit mode the preview bridge (`studio/previewBridge.ts`) outlines it, and a click sends `STUDIO_TARGET` (several targets → a small in-preview menu); `StudioEditor.tsx` switches tab and opens/flashes the matching `Group id` / `data-studio-panel`. New storefront regions must carry a target — `studioTargets.test.ts` checks every target points at a real panel.
+
+**Category drop-downs:** a shop category can sit under another (`parentId`, Studio › Menus › Shop categories ›
+**Sits under**, one level deep — `navItems.ts` `parentOf`/`childCategories`). A parent with sub-categories renders as
+`features/site/NavDropdown.tsx` in every header (All + each sub-category); `bookInCategory(book, cat, allCats)` makes a
+parent include its sub-categories' books. Books are filed in Books › edit › Organize (chips show `Parent › Child`).
+Style › Navigation links has the drop-down controls (`navDropdown*`, `navFlatSubcategories`); the "All" word is
+Text & labels › Header (`navDropdownAll`). `/collections/:slug` renders `MainSite` (same header/footer) opened on that
+category — the standalone `CollectionPage` is no longer routed.
+
+**One storefront shell:** `MainSite` renders a single Riso header/footer for every view; the Home view swaps the catalog grid for `design.heroPage.sections`. Studio › Sections (Home) › **Show a Home page** toggles `showHero` (off = open straight on the catalog). The legacy hero header/`HeroCarousel` were removed — don't re-add a second header.
+
+**Shop card title & price:** Studio › Style › **Product cards & grid** has colour, size (desktop + phone), weight, font and letter-spacing controls for the card title and price (`productTitleColor`, `cardTitle*`, `productPriceColor`, `cardPrice*`), plus the boxed-tag and old-price colours. `features/site/cardTypography.ts` turns them into CSS (emitted by `StorefrontThemeStyle`); cards opt in with the `fm-card-title` / `fm-card-price-wrap` / `fm-card-price` / `fm-card-price-tag` / `fm-card-price-old` classes — the shop grid, collection, wishlist, search, related-books and recently-viewed cards and the **Product grid** / **Product showcase grid** sections do. When a Style card colour is set it wins over a section's own colour; empty = the section's colour. Add those classes to any new book card — `features/site/cardClasses.test.tsx` renders every section with sample books and fails on a book title without `fm-card-title`.
+
+**Product page (catalogue card):** `features/site/BookDetail.tsx` renders the Riso "catalogue card" layout —
+breadcrumb, thumbnail rail + framed photo + "Fig. n" caption, one bordered buy card (tag, title, price,
+stock line | formats, qty, Add to bag, wishlist, share), then Description / Details / Reviews tabs (or
+accordions) with Details as a label | value record. Every piece is a Studio › Style › **Product page · buy
+card & details** control (`pdp*` keys, turned into CSS by `features/site/productPageStyle.ts`, `fm-pdp-*`
+classes); its words are in Text & labels › Product page (`pdp*` copy keys). The old trust-signal lines
+(`productTrust*`, `showTrustSignals`) were removed at the owner's request — don't re-add them.
+
+**Every Style control must reach every surface (and the preview iframe):** the card title/price and small-print CSS comes from one place, `features/site/StorefrontOverrides.tsx` (`storefrontOverridesCss`). `StorefrontThemeStyle` renders it, and so do `MainSite`'s `TypographyTokens` and `BookDetail` — any new storefront root that injects its own token `<style>` must render `<StorefrontOverrides>` too. `storefrontOverrides.test.ts` fails on a surface that skips it and on any `STYLE_GROUPS` control that nothing on the storefront reads (wire it or delete it — don't allow-list). Custom code (Style › Custom code) is injected by `features/site/customCode.ts` on public pages only — never in the preview, checkout or admin.
+
+**Small print:** Studio › Style › **Small print & labels** (`smallPrint*` keys, `features/site/smallPrint.ts`) sets a minimum size, colour, case, letter spacing and font for every tiny `text-[8px]…text-[11px]` label at once.
+
+**Click focus:** clicking a preview region pins an "Editing: <label>" card at the top of Studio › Style with only that element's controls (`STYLE_TARGET_FIELDS` in `styleSchema.ts` gathers fields across groups by key; labels not listed show their whole group). **Show all style settings** returns to the full list.
+
+**Fonts:** Studio › Style › **Typography** has Google Fonts pickers (heading, body, header & menu `navFont`, logo `wordmarkFont`) fed by the curated list in `features/site/fonts.ts` (Riso trio Anton / Archivo / DM Mono first; `googleFontHref` uses only weights each family serves).
+
 **Riso Noir storefront:** the public site defaults to the Riso Press look on black with white text
 (`src/app/features/site/risoNoir.ts` → `RISO_NOIR_TOKENS`, `withRisoNoirDefault`; theme-library
 preset `lyricalmyrical-riso-noir`). `RISO_STOREFRONT_CSS` in `themeTokens.ts` must stay token-driven
@@ -268,7 +402,7 @@ If tokens change there, update `riso.css` to match.
 - `src/app/lib/useFocusTrap.ts` — shared by admin dialogs and the storefront cart drawer.
 
 **Migrated (built from these components):** shell, Login, Reviews, Activity Logs,
-Orders list + detail, Overview, Books catalog, Discounts, Pages, Settings › General,
+Orders list + detail, Overview, Books catalog, Discounts, Settings › General,
 Payments, Shipping (profiles/zones/rates + dialogs), Notifications (+ Inventory sync). `Dashboard.tsx` renders migrated pages
 outside the legacy wrapper via its `migrated` flag — add new ones there.
 

@@ -49,7 +49,8 @@ service cloud.firestore {
         && request.resource.data.customer.email is string
         && request.resource.data.items is list
         && request.resource.data.items.size() > 0
-        && request.resource.data.items.size() <= 50);
+        && request.resource.data.items.size() <= 50
+        && (!('orderNote' in request.resource.data) || (request.resource.data.orderNote is string && request.resource.data.orderNote.size() <= 500)));
       allow update, delete: if isAdmin();
     }
     match /theme-versions/{versionId} {
@@ -85,6 +86,16 @@ service cloud.firestore {
     }
     match /newsletter/{docId} {
       allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+    match /stockAlerts/{alertId} {
+      // Shoppers can sign up for a back-in-stock email; only admin (and Functions) can read/change.
+      allow create: if request.resource.data.keys().hasOnly(["email", "bookId", "bookTitle", "variantId", "variantName", "status", "createdAt"])
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.email.matches(".+@.+\\..+")
+        && request.resource.data.bookId is string
+        && request.resource.data.status == "waiting";
       allow read, update, delete: if isAdmin();
     }
     match /reviews/{reviewId} {

@@ -1,10 +1,11 @@
 import { motion, AnimatePresence } from "motion/react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon, ShoppingCart } from "lucide-react";
-import { Link, useNavigate, useLocation } from "react-router";
-import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyPages";
+import { Link, useNavigate, useLocation, useParams } from "react-router";
+import { POLICY_KEYS, policySlug, policyTitle } from "../features/site/policyPages";
 import { useCart } from "../CartContext";
-import { CATEGORIES, DEFAULT_IMAGE } from "../features/site/constants";
+import { CATEGORIES, placeholderImage, DEFAULT_SOCIAL } from "../features/site/constants";
+import { aspectRatioValue } from "../features/site/imageAspect";
 import {
   getFeaturedBooks,
   getFilteredItems,
@@ -18,10 +19,15 @@ import { useSiteData } from "../features/site/useSiteData";
 import { BootSplash } from "./BootSplash";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
+import { buildNavItems, categoryNames, childCategories, parentOf } from "../features/site/navItems";
+import { NavDropdown } from "../features/site/NavDropdown";
+import { navGap, navLinkStyle, useNavBelow } from "../features/site/headerNav";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
+import { StorefrontOverrides } from "../features/site/StorefrontOverrides";
 import { resolveFooterBadges } from "../features/site/paymentBadges";
 import { StoreMenu, FooterMenu } from "./StoreMenu";
-import { LogoMark } from "./LogoMark";
+import { LogoMark, wordmarkSecondaryStyle } from "./LogoMark";
+import { googleFontHref } from "../features/site/fonts";
 import { ThemeToggle } from "./theme/ThemeToggle";
 import { CurrencySelector, useCurrency } from "../CurrencyContext";
 import { addDoc, collection } from "firebase/firestore";
@@ -32,6 +38,7 @@ import { useSEO } from "../lib/seo";
 import { CatalogControls, applyCatalogControls, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { SearchOverlay } from "../features/site/SearchOverlay";
+import { designNumber } from "../features/site/designNumber";
 
 // ──────────────────────────────
 // Sticker-pill navigation (navStyle: "stickers") — asymmetric border radius,
@@ -41,10 +48,10 @@ import { SearchOverlay } from "../features/site/SearchOverlay";
 // ──────────────────────────────
 const STICKER_ROTATIONS = [-2, 1.5, 2, -1, 1, -1.5];
 const STICKER_ACTIVE_COLORS = [
-  { bg: "var(--accent, #e8402a)", text: "#ffffff" },
-  { bg: "var(--success, #34d399)", text: "#04150f" },
-  { bg: "var(--warning, #f5b942)", text: "#2b1a05" },
-  { bg: "var(--danger, #fb7185)", text: "#2b0810" },
+  { bg: "var(--accent, #e8402a)", text: "var(--on-accent, #ffffff)" },
+  { bg: "var(--success, #34d399)", text: "var(--on-success, #04150f)" },
+  { bg: "var(--warning, #f5b942)", text: "var(--on-accent, #2b1a05)" },
+  { bg: "var(--danger, #fb7185)", text: "var(--on-accent, #2b0810)" },
 ];
 const STICKER_PILL_CSS =
   ".fm-sticker-pill{transition:all .2s ease}.fm-sticker-pill:hover{transform:rotate(0deg) scale(1.08)!important;opacity:1!important}";
@@ -94,7 +101,7 @@ function MaintenancePage({ message, design }: { message?: string; design?: any }
   const c = (key: string) => getCopy(design, key);
 
   return (
-    <div data-fm-store className="fm-page min-h-screen text-white flex flex-col items-center justify-center gap-6 text-center px-6">
+    <div data-fm-store data-studio-target="copy:Maintenance page" data-studio-label="Maintenance page" className="fm-page min-h-screen text-white flex flex-col items-center justify-center gap-6 text-center px-6">
       <StorefrontThemeStyle design={design} />
       <span className="rotate-1 border-2 border-[var(--rp-outline)] bg-[var(--accent)] px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] text-[var(--on-accent)] shadow-[4px_4px_0_var(--rp-shadow-color)]">
         {c("maintenanceTag")}
@@ -113,121 +120,6 @@ function MaintenancePage({ message, design }: { message?: string; design?: any }
         </Link>
       </div>
     </div>
-  );
-}
-
-// ──────────────────────────────
-// About panel
-// ──────────────────────────────
-function AboutPanel({ settings, pages, onClose }: { settings: any; pages: any[]; onClose: () => void }) {
-  const navPages = (pages || []).filter(p => p.showInNav && p.status === "published");
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] flex justify-end"
-      onClick={onClose}
-    >
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <motion.aside
-        initial={{ x: "100%" }}
-        animate={{ x: 0 }}
-        exit={{ x: "100%" }}
-        transition={{ type: "spring", stiffness: 300, damping: 35 }}
-        onClick={(e) => e.stopPropagation()}
-        className="relative z-10 w-full max-w-md fm-surface border-l border-white/10 h-full overflow-y-auto flex flex-col"
-      >
-        <div className="flex justify-between items-center px-8 py-6 border-b border-white/10">
-          <span className="text-[10px] tracking-[0.5em] text-white/40 uppercase">{getCopy(settings?.design, "aboutTitle")}</span>
-          <button onClick={onClose} aria-label={getCopy(settings?.design, "aboutCloseAria")} className="p-2 hover:bg-white/5 rounded-full transition-colors">
-            <X size={18} className="text-white/60" />
-          </button>
-        </div>
-
-        <div className="flex-1 px-8 py-10 space-y-10">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight mb-4">
-              {settings?.info?.name || "Lyricalmyrical Books"}
-            </h2>
-            <p className="text-white/50 text-sm leading-relaxed">
-              {settings?.info?.description || 
-                getCopy(settings?.design, "aboutIntro")}
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="text-[9px] tracking-[0.5em] text-white/30 uppercase">{getCopy(settings?.design, "aboutMissionHeading")}</h3>
-            <p className="text-white/50 text-sm leading-relaxed">
-              {getCopy(settings?.design, "aboutMission")}
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="text-[9px] tracking-[0.5em] text-white/30 uppercase">{getCopy(settings?.design, "aboutContactHeading")}</h3>
-            {(settings?.info?.email || "lyricalmyricalbooks@gmail.com") && (
-              <a
-                href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
-                className="flex items-center gap-3 text-sm text-white/60 hover:text-white transition-colors"
-              >
-                <Mail size={14} />
-                {settings?.info?.email || "lyricalmyricalbooks@gmail.com"}
-              </a>
-            )}
-            {settings?.location?.city && (
-              <p className="text-sm text-white/40">
-                {settings.location.city}, {settings.location.state || settings.location.country}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="text-[9px] tracking-[0.5em] text-white/30 uppercase">{getCopy(settings?.design, "aboutFollowHeading")}</h3>
-            <a
-              href="https://www.instagram.com/lyricalmyricalbooks"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 text-sm text-white/60 hover:text-white transition-colors"
-            >
-              <Instagram size={14} />
-              @lyricalmyricalbooks
-            </a>
-            <a
-              href="https://www.instagram.com/julninja"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 text-sm text-white/60 hover:text-white transition-colors"
-            >
-              <Instagram size={14} />
-              @julninja (founder)
-            </a>
-          </div>
-
-          <div className="pt-6 border-t border-white/10 space-y-2 text-[10px] text-white/30 font-medium">
-            <Link to="/" className="block hover:text-white transition-colors">{getCopy(settings?.design, "aboutShopAll")}</Link>
-            {navPages.map(page => (
-              <Link 
-                key={page.id} 
-                to={`/page/${page.slug}`} 
-                onClick={onClose}
-                className="block hover:text-white transition-colors uppercase"
-              >
-                {page.title}
-              </Link>
-            ))}
-            {settings?.policies?.shipping && (
-              <p className="cursor-default">{getCopy(settings?.design, "aboutShippingNote")}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="px-8 py-6 border-t border-white/10">
-          <p className="text-[9px] tracking-widest text-white/20 uppercase">
-            © {new Date().getFullYear()} Lyricalmyrical Books
-          </p>
-        </div>
-      </motion.aside>
-    </motion.div>
   );
 }
 
@@ -263,7 +155,7 @@ function Newsletter({ design }: { design?: any }) {
   };
 
   return (
-    <div className="py-16 border-t border-white/10 text-center space-y-6">
+    <div data-studio-target="copy:Newsletter|style:footer" data-studio-label="Newsletter box" className="py-16 border-t border-white/10 text-center space-y-6">
       <div className="space-y-2">
         <h3 className="text-lg font-bold tracking-tight">{getCopy(design, "newsletterHeading")}</h3>
         <p className="text-white/40 text-xs tracking-widest max-w-sm mx-auto">
@@ -368,23 +260,28 @@ const PAYMENT_ICONS: Record<string, React.ReactNode> = {
 // ──────────────────────────────
 // Full footer
 // ──────────────────────────────
-function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: any[]; onAboutOpen: () => void }) {
+function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
   const navPages = (pages || []).filter(p => p.showInNav && p.status === "published");
   const rawDesign = settings?.design || {};
+  // Never configured → the house default; cleared on purpose in Studio → hidden.
+  const instagramUrl: string = (settings?.design?.social ?? DEFAULT_SOCIAL).instagram || "";
   const d = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? rawDesign.storefront : rawDesign;
   const fourCol = d?.footerLayout === "4col";
+  // "Multi-column footer" off → the columns stack into one.
+  const multiColumn = d?.footerColumns !== false;
   const headingFontFamily = d?.headingFont ? `'${d.headingFont}', serif` : undefined;
   return (
     <footer
+      data-studio-target="style:footer|copy:Footer" data-studio-label="Footer"
       className="border-t-2 border-white/30 bg-black/40"
       style={d?.footerBg ? { backgroundColor: d.footerBg } : undefined}
     >
-      <div className={`max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 ${fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/70`}>
+      <div className={`max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 ${!multiColumn ? "" : fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/70`}>
         {/* Col 1: Brand */}
-        <div className="space-y-4">
+        <div className="space-y-4" data-studio-target="copy:Footer|style:logo" data-studio-label="Footer brand">
           {d?.wordmarkStyle === "two-part" ? (
             <p className="text-white text-xl" style={{ fontFamily: headingFontFamily, fontWeight: d?.wordmarkWeight ?? 600, letterSpacing: "-0.01em" }}>
-              {d.wordmarkPrimary || "Lyricalmyrical"} <span className="opacity-60">{d.wordmarkSecondary || "Books"}</span>
+              {d.wordmarkPrimary || "Lyricalmyrical"} <span style={wordmarkSecondaryStyle(d)}>{d.wordmarkSecondary || "Books"}</span>
             </p>
           ) : (
             <p className="text-white font-bold tracking-widest text-xs">{getCopy(settings?.design, "footerWordmark")}</p>
@@ -395,13 +292,12 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
         </div>
 
         {/* Col 2: Navigation */}
-        <div className="space-y-3">
+        <div className="space-y-3" data-studio-target="menus:footer|copy:Footer|pages" data-studio-label="Footer links">
           <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerNavHeading")}</p>
           {settings?.design?.menus?.footer?.length > 0 ? (
             <FooterMenu items={settings.design.menus.footer} />
           ) : (
             <>
-              <button onClick={onAboutOpen} className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkAbout")}</button>
               <Link to="/" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkShop")}</Link>
               <Link to="/track" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkTrack")}</Link>
               {navPages.map(page => (
@@ -413,7 +309,7 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
                   {page.title}
                 </Link>
               ))}
-              <a href={settings?.design?.social?.instagram || "https://www.instagram.com/lyricalmyricalbooks"} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkInstagram")}</a>
+              {d?.showSocialInFooter !== false && instagramUrl && <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkInstagram")}</a>}
               <a
                 href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
                 className="block hover:text-white transition-colors"
@@ -425,17 +321,17 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
         </div>
 
         {/* Col 3: Policies / Info */}
-        <div className="space-y-3">
+        <div className="space-y-3" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer legal & location">
           <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLegalHeading")}</p>
           {POLICY_KEYS.filter((k) => (settings?.policies as any)?.[k]?.trim()).map((k) => (
-            <p key={k}><Link to={`/page/${policySlug(k)}`} className="hover:text-white transition-colors">{POLICY_TITLES[k]}</Link></p>
+            <p key={k}><Link to={`/page/${policySlug(k)}`} className="hover:text-white transition-colors">{policyTitle(settings?.design, k)}</Link></p>
           ))}
           {!fourCol && <p className="mt-6">{getCopy(settings?.design, "footerLocation")}</p>}
         </div>
 
         {/* Col 4: Location (4-column layout only) */}
         {fourCol && (
-          <div className="space-y-3">
+          <div className="space-y-3" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer location">
             <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLocationHeading")}</p>
             <p>{getCopy(settings?.design, "footerLocation")}</p>
             <a
@@ -455,7 +351,7 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
         </p>
 
         {resolveFooterBadges(d, settings).length > 0 && d?.showPaymentBadges !== false && (
-          <div className="flex items-center gap-4 text-white/55 select-none">
+          <div className="flex items-center gap-4 text-white/55 select-none" data-studio-target="style:paymentIcons|style:footer" data-studio-label="Payment icons">
             {resolveFooterBadges(d, settings).map((badgeId: string) => {
               const icon = PAYMENT_ICONS[badgeId];
               if (!icon) return null;
@@ -469,14 +365,16 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
         )}
 
         <div className="flex gap-4">
+          {instagramUrl && (
           <a
-            href={settings?.design?.social?.instagram || "https://www.instagram.com/lyricalmyricalbooks"}
+            href={instagramUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="text-white/55 hover:text-white transition-colors"
           >
             <Instagram size={14} />
           </a>
+          )}
           <a
             href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
             className="text-white/55 hover:text-white transition-colors"
@@ -486,154 +384,6 @@ function SiteFooter({ settings, pages, onAboutOpen }: { settings: any; pages: an
         </div>
       </div>
     </footer>
-  );
-}
-
-function HeroCarousel({ design, onEnterArchive }: { design: any; onEnterArchive: () => void }) {
-  const navigate = useNavigate();
-  const hero = design?.hero || {};
-  const cleanedSlides = (hero.slides || []).filter((slide: any) => {
-    const title = String(slide?.title || "").trim().toUpperCase();
-    const subtitle = String(slide?.subtitle || "").trim().toUpperCase();
-    const ctaText = String(slide?.ctaText || "").trim().toUpperCase();
-    const isTemplatePlaceholder =
-      title === "NEW SLIDE" &&
-      subtitle === "SUBTITLE HERE" &&
-      ctaText === "LEARN MORE";
-    return !isTemplatePlaceholder;
-  });
-
-  const slides = cleanedSlides.length > 0
-    ? cleanedSlides
-    : [{
-      id: "fallback",
-      imageUrl: "",
-      title: "F✶M",
-      subtitle: "PHOTOGRAPHY & ART BOOKS",
-      ctaText: "ENTER ARCHIVE",
-      ctaLink: "/shop",
-    }];
-
-  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
-  const activeSlide = slides[activeSlideIndex] || slides[0];
-  const autoRotate = hero.autoRotate ?? true;
-  const rotateMs = hero.rotateMs || 5000;
-
-  const carouselButtonBg = design?.buttonColor || design?.primaryColor || "#ffffff";
-  const carouselButtonText = design?.buttonTextColor || "#100f0d";
-  const carouselButtonRadius = Math.max(0, Math.min(999, design?.buttonRadius ?? 999));
-  const carouselButtonStyle = design?.buttonStyle || "solid";
-  const carouselButtonUppercase = design?.buttonUppercase ?? true;
-  const carouselButtonShadow = design?.buttonShadow ?? true;
-
-  useEffect(() => {
-    if (activeSlideIndex > slides.length - 1) {
-      setActiveSlideIndex(0);
-    }
-  }, [activeSlideIndex, slides.length]);
-
-  const alignClass = hero.align === "left"
-    ? "items-start text-left"
-    : hero.align === "right"
-      ? "items-end text-right"
-      : "items-center text-center";
-
-  const heightClass = "h-screen min-h-[680px]";
-
-  useEffect(() => {
-    if (!autoRotate || slides.length < 2) return;
-    const timer = window.setInterval(() => {
-      setActiveSlideIndex((idx) => (idx + 1) % slides.length);
-    }, rotateMs);
-    return () => window.clearInterval(timer);
-  }, [autoRotate, rotateMs, slides.length]);
-
-  const handleSlideCta = () => {
-    const link = activeSlide?.ctaLink || "/shop";
-    if (link === "/shop" || link === "/") {
-      onEnterArchive();
-      return;
-    }
-    navigate(link);
-  };
-
-  return (
-    <section className={`relative w-full overflow-hidden ${heightClass}`}>
-      {activeSlide?.imageUrl ? (
-        <img
-          key={activeSlide.id}
-          src={activeSlide.imageUrl}
-          alt={activeSlide.title || "Homepage hero"}
-          loading="eager"
-          decoding="async"
-          fetchPriority="high"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-      ) : (
-        <div className="absolute inset-0 fm-surface" />
-      )}
-      <div className="absolute inset-0" style={{ background: "black", opacity: hero.overlayOpacity ?? 0.45 }} />
-
-      <div className={`relative z-10 h-full flex flex-col justify-center px-8 md:px-16 ${alignClass}`}>
-        <div className="max-w-2xl">
-          {activeSlide?.badge && (
-            <span className="inline-flex mb-5 px-4 py-1.5 border border-white/30 rounded-full text-[9px] md:text-[10px] tracking-[0.35em] font-semibold uppercase">
-              {activeSlide.badge}
-            </span>
-          )}
-          <h1 className="text-5xl md:text-7xl font-black leading-none tracking-tight uppercase">{activeSlide?.title || "F✶M"}</h1>
-          <p className="mt-5 text-[11px] md:text-xs tracking-[0.35em] text-white/70 uppercase">{activeSlide?.subtitle || "PHOTOGRAPHY & ART BOOKS"}</p>
-          <div className={`mt-10 flex flex-wrap items-center gap-4 ${
-            hero.align === "left" ? "justify-start" : hero.align === "right" ? "justify-end" : "justify-center"
-          }`}>
-            <button
-              onClick={handleSlideCta}
-              className={`px-8 py-3 text-[10px] tracking-[0.3em] font-bold transition-transform hover:scale-[1.02] ${
-                carouselButtonShadow ? "shadow-xl" : ""
-              } ${carouselButtonUppercase ? "uppercase" : ""}`}
-              style={{
-                backgroundColor: carouselButtonStyle === "solid" ? carouselButtonBg : "transparent",
-                color: carouselButtonStyle === "solid" ? carouselButtonText : carouselButtonBg,
-                border: carouselButtonStyle !== "solid" ? `1px solid ${carouselButtonBg}` : "none",
-                borderRadius: carouselButtonRadius,
-              }}
-            >
-              {activeSlide?.ctaText || "ENTER ARCHIVE"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {slides.length > 1 && (
-        <>
-          <button
-            onClick={() => setActiveSlideIndex((prev) => (prev - 1 + slides.length) % slides.length)}
-            className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full border border-white/20 bg-black/30 flex items-center justify-center hover:bg-black/50"
-            aria-label={getCopy(design, "ariaPrevSlide")}
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <button
-            onClick={() => setActiveSlideIndex((prev) => (prev + 1) % slides.length)}
-            className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full border border-white/20 bg-black/30 flex items-center justify-center hover:bg-black/50"
-            aria-label={getCopy(design, "ariaNextSlide")}
-          >
-            <ChevronRight size={16} />
-          </button>
-
-          <div className="absolute bottom-8 left-0 right-0 z-20 flex justify-center gap-2">
-            {slides.map((slide: any, idx: number) => (
-              <button
-                key={slide.id || idx}
-                onClick={() => setActiveSlideIndex(idx)}
-                className={`h-1.5 rounded-full transition-all ${idx === activeSlideIndex ? "w-8 bg-white" : "w-3 bg-white/40"}`}
-                aria-label={`Go to slide ${idx + 1}`}
-              />
-            ))}
-          </div>
-        </>
-      )}
-    </section>
   );
 }
 
@@ -647,18 +397,19 @@ function useThemePreview(initialDesign: any) {
   useEffect(() => {
     // 1. Listen for iframe messages (legacy/standard)
     const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-      if (event.data && event.data.type === "THEME_UPDATE") {
+      if (!isPreview || event.origin !== window.location.origin || (window.parent !== window && event.source !== window.parent)) return;
+      if (event.data && (event.data.type === "THEME_UPDATE" || event.data.type === "STUDIO_PREVIEW_STATE")) {
         setDesignOverride(event.data.design);
-        if (isPreview) window.parent.postMessage({ type: "PREVIEW_READY" }, window.location.origin);
+
       }
     };
 
     // 2. Listen for BroadcastChannel (cross-tab sync)
+    // Preview only — otherwise a draft could leak into the admin's own normal storefront tabs.
     let bc: BroadcastChannel | null = null;
     try {
-      bc = new BroadcastChannel("site_preview_updates");
-      bc.onmessage = (event) => {
+      if (isPreview) bc = new BroadcastChannel("site_preview_updates");
+      if (bc) bc.onmessage = (event) => {
         if (event.data && event.data.type === "THEME_UPDATE") {
           setDesignOverride(event.data.design);
         }
@@ -689,7 +440,7 @@ function GoogleFontLoader({ font }: { font: string }) {
     const link = document.createElement("link");
     link.id = linkId;
     link.rel = "stylesheet";
-    link.href = `https://fonts.googleapis.com/css2?family=${font.replace(/\s+/g, "+")}:wght@400;500;600;700;800;900&display=swap`;
+    link.href = googleFontHref(font);
     document.head.appendChild(link);
   }, [font]);
   return null;
@@ -777,6 +528,9 @@ ${design?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(design) : "
   }
   // Density system: one control rescales the vertical rhythm of every section.
   const density = design?.density;
+  // Header & menu font: applies to the whole header (links, currency, cart). Empty = body font.
+  const navFont = design?.navFont;
+  if (navFont) css += `[data-fm-store] header[data-section="navigation"]{font-family:'${String(navFont).replace(/'/g, "")}',sans-serif;}\n`;
   if (density === "compact") {
     css += `[data-fm-store] [data-section-id] > section{padding-top:3rem;padding-bottom:3rem;}`;
   } else if (density === "spacious") {
@@ -786,7 +540,11 @@ ${design?.themeStyle === "riso" ? RISO_STOREFRONT_CSS + risoGrainCss(design) : "
     <>
       <GoogleFontLoader font={t.body} />
       <GoogleFontLoader font={t.heading} />
+      {navFont && <GoogleFontLoader font={navFont} />}
+      {design?.wordmarkFont && <GoogleFontLoader font={design.wordmarkFont} />}
       <style>{css}</style>
+      {/* Card title/price + small-print controls — the same layer every other storefront page renders. */}
+      <StorefrontOverrides design={design} />
     </>
   );
 }
@@ -821,14 +579,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   
   const legacyDesign = activeDesign;
   const heroDesign = legacyDesign.heroPage && Object.keys(legacyDesign.heroPage).length > 0
-    ? legacyDesign.heroPage
+    ? { ...legacyDesign, ...legacyDesign.heroPage }
     : legacyDesign;
   const storefrontDesign = legacyDesign.storefront && Object.keys(legacyDesign.storefront).length > 0
-    ? legacyDesign.storefront
+    ? { ...legacyDesign, ...legacyDesign.storefront }
     : legacyDesign;
-  const heroLogoDesign = resolveLogoDesign(legacyDesign.heroPage, [legacyDesign]);
   const storefrontLogoDesign = resolveLogoDesign(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
-  const heroLogoPosition = resolveLogoPosition(legacyDesign.heroPage, [legacyDesign]);
   const storefrontLogoPosition = resolveLogoPosition(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -840,21 +596,41 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     }
     return cat;
   }), [rawCategories]);
+  // Categories and in-menu pages share one header bar; Studio › Menus › Header bar order sets the sequence.
+  const navOrder = activeDesign?.navOrder || storefrontDesign?.navOrder || legacyDesign?.navOrder;
+  const navItems = useMemo(() => buildNavItems(categories, pages || [], navOrder), [categories, pages, navOrder]);
+  const headerRowRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  const navBelow = useNavBelow(storefrontDesign, headerRowRef, navRef);
 
-  const heroWasOff = useRef(false);
+  // "Skip straight to the shop": the homepage shows the catalog. Remember when we forced
+  // it, so switching the setting back (e.g. live in the Studio preview) returns to Home.
+  const forcedCatalog = useRef(false);
   useEffect(() => {
-    const heroOff = legacyDesign?.showHero === false;
-    if (heroOff && !showCatalog) {
+    if (legacyDesign?.showHero === false && !showCatalog) {
+      forcedCatalog.current = true;
       setShowCatalog(true);
-    } else if (!heroOff && heroWasOff.current && !isCatalogPreview) {
-      // The setting was switched back on while this page is open (live edit in the Studio preview):
-      // leave the shop view we were forced into so the homepage sections appear.
+    } else if (legacyDesign?.showHero !== false && showCatalog && forcedCatalog.current && !isCatalogPreview) {
+      forcedCatalog.current = false;
       setShowCatalog(false);
     }
-    heroWasOff.current = heroOff;
   }, [legacyDesign?.showHero, showCatalog, setShowCatalog, isCatalogPreview]);
 
   const [activeCategory, setActiveCategory] = useState<any>(categories[0]);
+  const pickCategory = (cat: any) => {
+    setActiveCategory(cat);
+    setShowCatalog(true);
+  };
+
+  // /collections/<slug> (header links on other pages, product breadcrumbs) opens this shop on that category.
+  const { slug: collectionSlug } = useParams();
+  useEffect(() => {
+    if (!collectionSlug) return;
+    const slugOf = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    const match = categories.find((c: any) => categoryNames(c).some((n: string) => slugOf(n) === collectionSlug));
+    if (match) pickCategory(match);
+    else setShowCatalog(true);
+  }, [collectionSlug, categories]);
 
   // Sync activeCategory if categories change
   useEffect(() => {
@@ -869,7 +645,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       }
     }
   }, [categories]);
-  const [showAbout, setShowAbout] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -888,13 +663,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     }
   }, [categories, activeCategory]);
 
-  const publications = useMemo(() => getPublications(getFeaturedBooks(books)), [books]);
   const baseFilteredItems = useMemo(
     () =>
       activeCategory === "ALL"
         ? getPublishedBooks(books)
-        : getFilteredItems(books, activeCategory, new Date().toISOString()),
-    [books, activeCategory],
+        : getFilteredItems(books, activeCategory, new Date().toISOString(), categories),
+    [books, activeCategory, categories],
   );
   const publishedBooks = useMemo(() => getPublishedBooks(books), [books]);
 
@@ -904,7 +678,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     const counts: Record<string, number> = { ALL: getPublishedBooks(books).length };
     for (const cat of categories) {
       const name = typeof cat === "string" ? cat : cat?.name;
-      if (name) counts[name] = getFilteredItems(books, cat, nowISO).length;
+      if (name) counts[name] = getFilteredItems(books, cat, nowISO, categories).length;
     }
     return counts;
   }, [books, categories]);
@@ -934,14 +708,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const { has: isWished, toggle: toggleWish, count: wishlistCount } = useWishlist();
 
   useSEO({
-    title: showCatalog ? "Archive" : undefined,
+    title: showCatalog ? getCopy(settings?.design, "seoArchiveTitle") : undefined,
     description: settings?.info?.description,
     image: settings?.assets?.profileUrl,
     type: "website",
     jsonLd: {
       "@context": "https://schema.org",
       "@type": "BookStore",
-      name: settings?.info?.name || "Lyricalmyrical Books",
+      name: settings?.info?.name || getCopy(settings?.design, "siteName"),
       url: settings?.info?.website,
       description: settings?.info?.description,
     },
@@ -951,19 +725,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   const heroHeaderLinks = heroDesign?.headerLinks || {};
   const storefrontHeaderLinks = storefrontDesign?.headerLinks || {};
-  const showEnterArchive = heroHeaderLinks.showEnterArchive ?? true;
-  const showInformation = showCatalog
-    ? (storefrontHeaderLinks.showInformation ?? true)
-    : (heroHeaderLinks.showInformation ?? true);
-  const showCustomPages = showCatalog
-    ? (storefrontHeaderLinks.showCustomPages ?? true)
-    : (heroHeaderLinks.showCustomPages ?? true);
-  const showBag = showCatalog
+  const showBag = !activeDesign?.hideCartButton && (showCatalog
     ? (storefrontHeaderLinks.showBag ?? true)
-    : (heroHeaderLinks.showBag ?? true);
-  const showSys = showCatalog
+    : (heroHeaderLinks.showBag ?? true));
+  const showSys = !activeDesign?.hideAdminLink && (showCatalog
     ? (storefrontHeaderLinks.showSys ?? true)
-    : (heroHeaderLinks.showSys ?? true);
+    : (heroHeaderLinks.showSys ?? true));
   const storefrontBg = storefrontDesign?.backgroundColor || "#000000";
   const storefrontText = storefrontDesign?.textColor || "#ffffff";
   const storefrontAccent = storefrontDesign?.primaryColor || "#e8402a";
@@ -996,16 +763,14 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontButtonUppercase = storefrontDesign?.buttonUppercase ?? true;
   const storefrontButtonShadow = storefrontDesign?.buttonShadow ?? true;
 
-  const heroAccent = heroDesign?.primaryColor || "#e8402a";
-  const heroButtonBg = heroDesign?.buttonColor || heroAccent;
-  const heroButtonText = heroDesign?.buttonTextColor || "#100f0d";
-  const heroButtonRadius = Math.max(0, Math.min(999, heroDesign?.buttonRadius ?? 999));
-  const heroButtonStyle = heroDesign?.buttonStyle || "solid";
-  const heroButtonUppercase = heroDesign?.buttonUppercase ?? true;
-  const heroButtonShadow = heroDesign?.buttonShadow ?? true;
   const storefrontCtaText = storefrontDesign?.productCTA || "VIEW";
   const soldOutLabel = storefrontDesign?.soldOutLabel || "SOLD OUT";
   const showCollectionMeta = storefrontDesign?.showCollectionMeta ?? true;
+  const cardRuleWidth = Math.max(0, Math.min(8, storefrontDesign?.catalogCardRuleWidth ?? 2));
+  // Studio › Style › Product cards & grid › Card style: editorial (default) · card (framed panel) · minimal (no frame, plain price).
+  const cardStyle = (storefrontDesign?.productCardStyle || "editorial") as "card" | "minimal" | "editorial";
+  const priceTagBoxed = (storefrontDesign?.catalogPriceStyle ?? (cardStyle === "minimal" ? "plain" : "boxed")) !== "plain";
+  const priceOnHover = storefrontDesign?.showPriceOnHover === true;
   const showSoldOutBadge = storefrontDesign?.showSoldOutBadge ?? true;
   const showSaleBadge = storefrontDesign?.showSaleBadge ?? true;
   const saleBadgeLabel = storefrontDesign?.saleBadgeLabel || "SALE";
@@ -1023,11 +788,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   const shopSectionSpacing = Math.max(24, Math.min(120, storefrontDesign?.sectionSpacing ?? 64));
   const imageAspect = storefrontDesign?.imageAspectRatio || (isReferenceCatalog ? "1:1" : "3:4");
-  const imageAspectClass = imageAspect === "1:1"
-    ? "aspect-square"
-    : imageAspect === "2:3"
-    ? "aspect-[2/3]"
-    : "aspect-[3/4]";
+  const imageAspectStyle = aspectRatioValue(imageAspect);
   const mobileColsClass = storefrontMobileColumns === 1 ? "grid-cols-1" : storefrontMobileColumns === 3 ? "grid-cols-3" : "grid-cols-2";
   const desktopColsClass =
     storefrontDesktopColumns === 2
@@ -1076,10 +837,84 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     return <MaintenancePage message={settings.maintenance.message} design={activeDesign} />;
   }
 
-  if (showCatalog) {
+  // One storefront shell (Riso header, footer) for every view. "Home" swaps the catalog
+  // grid for the Home template's sections; with no Home sections it shows the catalog.
+  const homeSections: any[] = heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections || [];
+  const onHome = !showCatalog && homeSections.length > 0;
+  const navBar = (
+              <nav ref={navRef} data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className={`hidden md:flex shrink-0 items-center ${navBelow ? "max-w-full flex-wrap gap-y-3 py-3" : "flex-nowrap"} ${storefrontDesign?.navStyle === "stickers" ? "gap-2" : ""}`} style={storefrontDesign?.navStyle === "stickers" ? undefined : { columnGap: navGap(storefrontDesign) }}>
+                {navItems.map((item, itemIdx) => {
+                  const stickers = storefrontDesign?.navStyle === "stickers";
+                  if (item.kind === "page") {
+                    return (
+                      <Link
+                        key={item.key}
+                        to={`/page/${item.page.slug}`}
+                        aria-current={location.pathname.endsWith(`/page/${item.page.slug}`) ? "page" : undefined}
+                        style={{
+                          ...navLinkStyle(storefrontDesign, location.pathname.endsWith(`/page/${item.page.slug}`), headerTextColor),
+                          ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx) : {}),
+                        }}
+                        className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  }
+                  const cat = item.category;
+                  const activeName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
+                  const isActive = activeName === item.label;
+                  const subs = item.children || [];
+                  // Sub-categories (Studio › Menus › Shop categories › "Sits under") → drop-down,
+                  // or their own links when Style › Navigation links › "no drop-down" is on.
+                  if (subs.length > 0 && storefrontDesign?.navFlatSubcategories) {
+                    return [item, ...subs.map((k: any) => ({ key: `cat:${k.id}`, label: k.name, category: k }))].map((c: any) => {
+                      const on = activeName === c.label;
+                      return (
+                        <button key={c.key} onClick={() => pickCategory(c.category)} aria-current={on ? "true" : undefined}
+                          style={{ ...navLinkStyle(storefrontDesign, on, headerTextColor), ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx, on) : {}) }}
+                          className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}>
+                          {c.label}
+                        </button>
+                      );
+                    });
+                  }
+                  if (subs.length > 0) {
+                    const branchActive = isActive || subs.some((k: any) => k.name === activeName);
+                    return (
+                      <NavDropdown
+                        key={item.key}
+                        design={storefrontDesign}
+                        copyDesign={activeDesign}
+                        label={item.label}
+                        linkStyle={{ ...navLinkStyle(storefrontDesign, branchActive, headerTextColor), ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx, branchActive) : {}) }}
+                        className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
+                        all={{ key: `${item.key}:all`, label: item.label, active: isActive, onSelect: () => pickCategory(cat) }}
+                        entries={subs.map((k: any) => ({ key: `cat:${k.id}`, label: k.name, active: activeName === k.name, onSelect: () => pickCategory(categories.find((c: any) => c.id === k.id) || k) }))}
+                      />
+                    );
+                  }
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => pickCategory(cat)}
+                      style={{
+                        ...navLinkStyle(storefrontDesign, isActive, headerTextColor),
+                        ...(stickers ? stickerPillStyle(storefrontDesign, itemIdx, isActive) : {}),
+                      }}
+                      className={`transition-all hover:!opacity-100 hover-text-accent ${stickers ? "fm-sticker-pill" : ""}`}
+                      aria-current={isActive ? "true" : undefined}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </nav>
+  );
+  {
     return (
       <div
-        data-fm-store
+        data-fm-store data-studio-target="style:colors|style:type|style:layout" data-studio-label="Page background, colours & fonts"
         className="min-h-screen overflow-y-auto selection:bg-white selection:text-black"
         style={{ fontFamily: `'${resolveTypography(storefrontDesign).body}', sans-serif`, backgroundColor: storefrontBg, color: storefrontText }}
       >
@@ -1091,6 +926,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           storefrontDesign?.announcementScrolling ? (
             <div
               data-section="announcements"
+              data-studio-target="style:header" data-studio-label="Announcement bar"
               className="overflow-hidden py-2.5 sticky top-0 z-[60]"
               style={{
                 backgroundColor: storefrontDesign?.announcementBg || "#e8402a",
@@ -1116,6 +952,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
           ) : (
             <div
               data-section="announcements"
+              data-studio-target="style:header" data-studio-label="Announcement bar"
               className="text-center py-2.5 px-6 text-[10px] tracking-[0.3em] font-bold uppercase sticky top-0 z-[60]"
               style={{
                 backgroundColor: storefrontDesign?.announcementBg || "#e8402a",
@@ -1129,6 +966,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
         <header
           data-section="navigation"
+          data-studio-target="style:header|menus:header-order|copy:Header" data-studio-label="Header"
           className={`${storefrontDesign?.stickyHeader ?? true ? "sticky" : "relative"} ${showAnnouncement && announcementMsg ? "top-10" : "top-0"} z-50 transition-all duration-500 ${isHeaderTransparent ? "border-transparent" : isReferenceCatalog ? "" : "backdrop-blur-xl border-b"}`}
           style={{
             backgroundColor: headerBgColor,
@@ -1143,7 +981,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   className="text-left font-black tracking-tight leading-none hover:opacity-80 transition-opacity"
                   style={{ color: headerTextColor, textTransform: storefrontDesign?.brandTransform || "none", fontSize: `clamp(${catalogMastheadMobile}px, 5vw, ${catalogMastheadDesktop}px)` }}
                 >
-                  {catalogMastheadText}
+                  <span data-studio-target="style:catalogLayout|style:logo" data-studio-label="Masthead">{catalogMastheadText}</span>
                 </button>
                 {showBag && catalogCartPlacement === "top-right" && (
                   <button
@@ -1162,20 +1000,37 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 )}
               </div>
               <div className="mt-6" style={{ borderTop: `${storefrontHeaderRuleWidth}px solid ${storefrontDesign?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
-              <div className="py-5 flex flex-wrap items-center text-base font-black" style={{ columnGap: catalogNavGapDesktop, rowGap: catalogNavGapMobile }}>
-                {categories.filter((c: any) => c.showInNav !== false).slice(0, storefrontDesign?.referenceCategoryLimit ?? 1).map((cat: any) => {
+              <div data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className="py-5 flex flex-wrap items-center text-base font-black" style={{ columnGap: catalogNavGapDesktop, rowGap: catalogNavGapMobile }}>
+                {categories.filter((c: any) => c.showInNav !== false && !parentOf(c, categories)).slice(0, storefrontDesign?.referenceCategoryLimit ?? 1).map((cat: any) => {
                   const catName = typeof cat === "string" ? cat : cat.name;
-                  const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === catName;
+                  const activeName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
+                  const isActive = activeName === catName;
+                  const subs = childCategories(cat, categories).filter((k: any) => k.showInNav !== false);
+                  if (subs.length > 0) {
+                    const branchActive = isActive || subs.some((k: any) => k.name === activeName);
+                    return (
+                      <NavDropdown
+                        key={catName}
+                        design={storefrontDesign}
+                        copyDesign={activeDesign}
+                        studioTarget={false}
+                        label={catName}
+                        linkStyle={{ color: headerTextColor, fontSize: "inherit", fontWeight: "inherit", opacity: branchActive ? 1 : 0.7 }}
+                        className="hover:!opacity-100"
+                        all={{ key: `${catName}:all`, label: catName, active: isActive, onSelect: () => pickCategory(cat) }}
+                        entries={subs.map((k: any) => ({ key: `cat:${k.id}`, label: k.name, active: activeName === k.name, onSelect: () => pickCategory(categories.find((c: any) => c.id === k.id) || k) }))}
+                      />
+                    );
+                  }
                   return (
-                    <button key={catName} onClick={() => setActiveCategory(cat)} className={isActive ? "opacity-100" : "opacity-70 hover:opacity-100"}>
+                    <button key={catName} onClick={() => pickCategory(cat)} className={isActive ? "opacity-100" : "opacity-70 hover:opacity-100"}>
                       {catName}⌄
                     </button>
                   );
                 })}
-                {showCustomPages && (pages || []).filter((p: any) => p.showInNav && p.status === "published").map((page: any) => (
+                {(pages || []).filter((p: any) => p.showInNav && p.status === "published").map((page: any) => (
                   <Link key={page.id} to={`/page/${page.slug}`} className="hover:opacity-70 transition-opacity">{page.title}</Link>
                 ))}
-                {showInformation && <button onClick={() => setShowAbout(true)} className="hover:opacity-70 transition-opacity">{getCopy(activeDesign, "navAbout")}</button>}
                 <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity">{getCopy(activeDesign, "navSearch")}</button>
                 {showSys && (
                   <Link to="/admin" className="hover:opacity-70 transition-opacity opacity-40">{getCopy(activeDesign, "navAdmin")}</Link>
@@ -1189,44 +1044,20 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               <div style={{ borderTop: `${storefrontHeaderRuleWidth}px solid ${storefrontDesign?.borderColor || headerBorderColor || "#B1B1AA"}` }} />
             </div>
           ) : (
-          <div className="mx-auto px-6 py-4 flex items-center justify-between gap-4" style={{ maxWidth: storefrontMaxWidth }}>
+          <div ref={headerRowRef} className="mx-auto px-6 py-4 flex flex-nowrap items-center justify-between gap-4" style={{ maxWidth: storefrontMaxWidth }}>
             {/* Left Section */}
-            <div className={`flex items-center gap-8 md:gap-12 flex-1 ${storefrontLogoPosition === "center" ? "" : "flex-initial"}`}>
+            <div className={`flex min-w-0 items-center gap-8 md:gap-12 flex-1 ${storefrontLogoPosition === "center" ? "" : "flex-initial"}`}>
               {storefrontLogoPosition === "left" && (
                 <button 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
-                  className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                  data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
-                  <LogoMark design={storefrontLogoDesign} />
+                  <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
                 </button>
               )}
               
-              <nav className={`hidden md:flex ${storefrontDesign?.navStyle === "stickers" ? "gap-2 items-center" : "gap-6"}`}>
-                {categories.filter((c: any) => c.showInNav !== false).map((cat: any, catIdx: number) => {
-                  const catName = typeof cat === "string" ? cat : cat.name;
-                  const isActive = (typeof activeCategory === "string" ? activeCategory : activeCategory?.name) === catName;
-                  const stickers = storefrontDesign?.navStyle === "stickers";
-                  return (
-                    <button
-                      key={catName}
-                      onClick={() => setActiveCategory(cat)}
-                      style={{
-                        color: headerTextColor,
-                        ...(stickers ? stickerPillStyle(storefrontDesign, catIdx, isActive) : {}),
-                      }}
-                      className={`text-[10px] tracking-[0.2em] font-medium transition-all ${
-                        stickers ? "fm-sticker-pill" : ""
-                      } ${
-                        isActive ? "opacity-100" : "opacity-40 hover:opacity-80 hover-text-accent"
-                      }`}
-                      aria-current={isActive ? "true" : undefined}
-                    >
-                      {catName}
-                    </button>
-                  );
-                })}
-              </nav>
+              {!navBelow && navBar}
             </div>
 
             {/* Center Section (Logo) */}
@@ -1235,83 +1066,38 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 <button 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
-                  className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                  data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
-                  <LogoMark design={storefrontLogoDesign} />
+                  <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
                 </button>
               </div>
             )}
 
             {/* Right Section */}
-            <div className={`flex gap-6 md:gap-8 items-center flex-1 justify-end ${storefrontLogoPosition === "right" ? "flex-initial" : ""}`}>
+            <div data-hdr-fixed data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex shrink-0 flex-nowrap gap-6 md:gap-8 items-center flex-1 justify-end ${storefrontLogoPosition === "right" ? "flex-initial" : ""}`}>
               {storefrontLogoPosition === "right" && (
                 <button 
                   onClick={() => setShowCatalog(false)} 
                   style={{ color: headerTextColor }}
-                  className="text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
+                  data-hdr-fixed className="shrink-0 text-xs tracking-[0.3em] font-semibold hover:opacity-80 transition-opacity flex items-center"
                 >
-                  <LogoMark design={storefrontLogoDesign} />
+                  <span data-studio-target="style:logo" data-studio-label="Logo"><LogoMark design={storefrontLogoDesign} /></span>
                 </button>
               )}
 
-              {showCustomPages && (
-                storefrontDesign?.menus?.header?.length > 0 ? (
-                  <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={storefrontDesign.menus.header} /></div>
-                ) : (
-                <nav className="hidden lg:flex items-center gap-6 mr-2" style={{ color: headerTextColor }}>
-                  {pages.some((p:any) => p.showInNav && p.status === "published") && (
-                    <span className="text-[10px] tracking-[0.3em] font-bold opacity-25 uppercase select-none mr-2">
-                      {storefrontDesign?.navHeading || "INFO"}
-                    </span>
-                  )}
-                  {(pages || [])
-                    .filter((p: any) => p.showInNav && p.status === "published")
-                    .map((page: any, pageIdx: number) => (
-                      <Link
-                        key={page.id}
-                        to={`/page/${page.slug}`}
-                        className={`opacity-40 hover:opacity-100 transition-opacity whitespace-nowrap ${
-                          storefrontDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
-                        }`}
-                        style={{
-                          fontSize: storefrontDesign?.navLinkSize ? `${storefrontDesign.navLinkSize}px` : "10px",
-                          letterSpacing: storefrontDesign?.navLinkSpacing != null ? `${storefrontDesign.navLinkSpacing}em` : "0.2em",
-                          fontWeight: storefrontDesign?.navLinkWeight || undefined,
-                          textTransform: (storefrontDesign?.navLinkTransform as any) || "uppercase",
-                          ...(storefrontDesign?.navLinkColor && { color: storefrontDesign.navLinkColor }),
-                          ...(storefrontDesign?.navStyle === "stickers" ? stickerPillStyle(storefrontDesign, pageIdx + 2) : {}),
-                        }}
-                      >
-                        {page.title}
-                      </Link>
-                    ))}
-                </nav>
-                )
+              {storefrontDesign?.menus?.header?.length > 0 && (
+                <div className="mr-2" style={{ color: headerTextColor }}><StoreMenu items={storefrontDesign.menus.header} /></div>
               )}
 
-              {showInformation && (
-                <button
-                  onClick={() => setShowAbout(true)}
-                  style={{
-                    color: headerTextColor,
-                    ...(storefrontDesign?.navStyle === "stickers" ? stickerPillStyle(storefrontDesign, 3) : {}),
-                  }}
-                  className={`text-[10px] tracking-[0.2em] opacity-50 hover:opacity-100 transition-opacity hidden md:block ${
-                    storefrontDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
-                  }`}
-                >
-                  {getCopy(activeDesign, "navInformation")}
-                </button>
-              )}
-              <button
+              {!activeDesign?.hideHeaderSearch && <button
                 onClick={() => setSearchOpen(true)}
                 aria-label={getCopy(activeDesign, "ariaSearch")}
                 style={{ color: headerTextColor }}
                 className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-all opacity-50 hover:opacity-100"
               >
                 <SearchIcon size={14} />
-              </button>
-              <Link
+              </button>}
+              {!activeDesign?.hideHeaderWishlist && <Link
                 to="/wishlist"
                 aria-label={getCopy(activeDesign, "ariaWishlist")}
                 style={{ color: headerTextColor }}
@@ -1323,30 +1109,32 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     {wishlistCount}
                   </span>
                 )}
-              </Link>
-              <Link
+              </Link>}
+              {!activeDesign?.hideHeaderAccount && <Link
                 to="/account"
                 aria-label={getCopy(activeDesign, "ariaAccount")}
                 style={{ color: headerTextColor }}
                 className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-all opacity-50 hover:opacity-100"
               >
                 <UserIcon size={14} />
-              </Link>
-              <div className="hidden sm:flex items-center justify-center gap-2">
-                <CurrencySelector />
-                <ThemeToggle />
-              </div>
-              <Link
+              </Link>}
+              {(!activeDesign?.hideCurrencySelector || !activeDesign?.hideThemeToggle) && (
+                <div className="hidden sm:flex items-center justify-center gap-2">
+                  {!activeDesign?.hideCurrencySelector && <CurrencySelector label={getCopy(activeDesign, "currencyLabel")} ariaLabel={getCopy(activeDesign, "ariaCurrency")} />}
+                  {!activeDesign?.hideThemeToggle && <ThemeToggle label={getCopy(activeDesign, "ariaThemeToggle")} />}
+                </div>
+              )}
+              {showSys && <Link
                 to="/admin"
                 style={{ color: headerTextColor }}
-                className="hidden sm:flex items-center gap-1.5 text-[9px] tracking-[0.2em] font-bold transition-all uppercase mr-2 opacity-30 hover:opacity-100"
+                className="hidden sm:flex items-center gap-1.5 whitespace-nowrap text-[9px] tracking-[0.2em] font-bold transition-all uppercase mr-2 opacity-30 hover:opacity-100"
               >
-                Admin
-              </Link>
+                {getCopy(activeDesign, "navAdmin")}
+              </Link>}
               {showBag && (
                 <button
                   onClick={() => setIsCartOpen(true)}
-                  className={`group flex items-center gap-2 px-4 py-2 transition-all hover:scale-[1.02] store-btn-primary ${
+                  className={`group flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-2 transition-all hover:scale-[1.02] store-btn-primary ${
                     storefrontButtonShadow ? "shadow-lg" : ""
                   } ${storefrontDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""}`}
                   style={{
@@ -1378,21 +1166,43 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             </div>
           </div>
           )}
+          {!isReferenceCatalog && navBelow && (
+            <div className="border-t" style={{ borderColor: headerBorderColor }}>
+              <div className="mx-auto px-6" style={{ maxWidth: storefrontMaxWidth }}>{navBar}</div>
+            </div>
+          )}
         </header>
 
+        {onHome ? (
+          <main className="relative w-auto overflow-hidden">
+            <SectionList
+              sections={homeSections}
+              colorSchemes={heroDesign.colorSchemes?.length > 0 ? heroDesign.colorSchemes : activeDesign.colorSchemes}
+              books={books}
+              onCtaClick={() => setShowCatalog(true)}
+              onProductClick={(book: any) =>
+                navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
+              }
+              enableAnimations={heroDesign?.enableAnimations ?? true}
+              dataSection="homepage"
+              sharedBlocks={activeDesign.sharedBlocks || []}
+              design={activeDesign}
+            />
+          </main>
+        ) : (
         <main className="mx-auto px-6 py-12 md:py-20" style={{ maxWidth: isReferenceCatalog ? storefrontHeaderMaxWidth : storefrontMaxWidth }}>
           {/* Theme-editor sections authored for the storefront page template */}
           <TemplateSections design={activeDesign} templateId="storefront" books={books} />
 
           {/* Catalog heading + title count */}
           {(storefrontDesign?.catalogHeading || storefrontDesign?.showCatalogCount) && (
-            <div className="flex items-baseline justify-between flex-wrap gap-4 mb-8">
+            <div data-studio-target="style:catalog" data-studio-label="Catalog heading" className="flex items-baseline justify-between flex-wrap gap-4 mb-8">
               {storefrontDesign?.catalogHeading && (
                 <h1 className="text-3xl md:text-5xl tracking-tight m-0">{storefrontDesign.catalogHeading}</h1>
               )}
               {storefrontDesign?.showCatalogCount && (
                 <span className="text-xs fm-muted">
-                  {filteredItems.length} title{filteredItems.length === 1 ? "" : "s"}
+                  {getCopy(activeDesign, filteredItems.length === 1 ? "catalogCountOne" : "catalogCountMany", { count: filteredItems.length })}
                 </span>
               )}
             </div>
@@ -1400,7 +1210,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
           {/* Category filter chips */}
           {storefrontDesign?.showCategoryChips && (
-            <div className="flex gap-2.5 flex-wrap mb-10">
+            <div data-studio-target="menus:categories|style:catalog" data-studio-label="Category chips" className="flex gap-2.5 flex-wrap mb-10">
               {[{ name: "ALL", value: "ALL" as any }, ...categories.filter((c: any) => c.showInNav !== false).map((c: any) => ({ name: typeof c === "string" ? c : c.name, value: c }))].map((chip: any) => {
                 const isActive = chip.value === "ALL"
                   ? activeCategory === "ALL"
@@ -1409,7 +1219,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 return (
                   <button
                     key={chip.name}
-                    onClick={() => setActiveCategory(chip.value)}
+                    onClick={() => pickCategory(chip.value)}
                     aria-pressed={isActive}
                     className={`rounded-full border px-4 py-2 text-[11px] font-bold tracking-[0.06em] uppercase transition-colors ${
                       isActive ? "fm-active border-transparent" : "border-white/10 fm-muted hover:border-white/40"
@@ -1420,6 +1230,15 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   </button>
                 );
               })}
+              {navItems.filter((i) => i.kind === "page").map((i: any) => (
+                <Link
+                  key={i.key}
+                  to={`/page/${i.page.slug}`}
+                  className="rounded-full border border-white/10 fm-muted hover:border-white/40 px-4 py-2 text-[11px] font-bold tracking-[0.06em] uppercase transition-colors"
+                >
+                  {i.label}
+                </Link>
+              ))}
             </div>
           )}
 
@@ -1471,12 +1290,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             </p>
           )}
 
-          <div className={`grid ${mobileColsClass} ${desktopColsClass}`} style={{ gap: storefrontGridGap, rowGap: isReferenceCatalog ? Math.max(40, storefrontGridGap * 3) : shopSectionSpacing }}>
+          <div data-studio-target="style:products|style:catalogLayout|copy:Catalog & empty states" data-studio-label="Product grid" className={`grid ${mobileColsClass} ${desktopColsClass}`} style={{ gap: storefrontGridGap, rowGap: isReferenceCatalog ? Math.max(40, storefrontGridGap * 3) : shopSectionSpacing }}>
             {filteredItems.map((item: any, index: number) => {
               const slug = getBookSlug(item);
               const stock = item.stockLevel ?? 999;
               const isOutOfStock = stock === 0;
-              const isLowStock = stock > 0 && stock !== 999 && stock <= 5;
+              const isLowStock = stock > 0 && stock !== 999 && stock <= designNumber(activeDesign, "lowStockCardThreshold", 5);
               const onSale = !!item.isOnSale && item.salePrice > 0 && item.salePrice < (item.retailPrice ?? 0);
               const displayPrice = onSale ? item.salePrice : item.retailPrice;
               const isNewArrival = (() => {
@@ -1495,11 +1314,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     ? { duration: 0.8, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }
                     : { duration: 0 }
                   }
-                  className={`group relative transition-all duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""}`}
+                  className={`group relative transition-all duration-500 ${storefrontDesign?.productHoverEffect === "lift" ? "hover:-translate-y-2" : ""} ${cardStyle === "card" ? "fm-surface border border-white/10 p-3" : ""}`}
+                  style={cardStyle === "card" ? { borderRadius: storefrontCardRadius } : undefined}
                 >
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleWish(item.id); }}
-                    aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
+                    aria-label={getCopy(activeDesign, wished ? "wishlistRemoveAria" : "wishlistAddAria")}
                     className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full backdrop-blur-md flex items-center justify-center transition-colors ${
                       wished
                         ? "fm-favorite-active border"
@@ -1509,9 +1329,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     <Heart size={13} fill={wished ? "currentColor" : "none"} />
                   </button>
                   <Link to={`/books/${slug}`}>
-                    <div className={`relative ${imageAspectClass} fm-surface mb-4 overflow-hidden ${isReferenceCatalog ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius }}>
+                    <div className={`relative fm-surface mb-4 overflow-hidden ${isReferenceCatalog || cardStyle === "minimal" ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius, aspectRatio: imageAspectStyle }}>
                       <SkeletonImage
-                        src={item.photos?.[0]?.url || DEFAULT_IMAGE}
+                        src={item.photos?.[0]?.url || placeholderImage(activeDesign)}
                         alt={item.title}
                         className={`w-full h-full ${storefrontImageFit} transition-transform duration-700 ease-out ${storefrontDesign?.productHoverEffect === "zoom" ? "group-hover:scale-110" : ""}`}
                         style={{ objectPosition: `${catalogImageFocalX}% ${catalogImageFocalY}%` }}
@@ -1551,7 +1371,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                             }}
                             className="flex items-center gap-1 border backdrop-blur-md text-[8px] tracking-widest px-2 py-1 uppercase rounded-full"
                           >
-                            <Zap size={9} /> Only {stock} left
+                            <Zap size={9} /> {getCopy(activeDesign, "onlyLeft", { count: stock })}
                           </span>
                         )}
                       </div>
@@ -1570,30 +1390,41 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                         </span>
                       </div>
                     </div>
-                    <div className={isReferenceCatalog ? "px-0" : "px-1"}>
-                      <h3
-                        className={`${isReferenceCatalog ? "text-lg md:text-xl font-black tracking-tight" : "text-xs tracking-wider font-medium"} leading-tight text-white/90`}
-                        style={{ color: storefrontDesign?.productTitleColor || storefrontText, textTransform: storefrontTitleTransform }}
-                      >
-                        {item.title}
-                      </h3>
-                      <div className={`${isReferenceCatalog ? "mt-2 block space-y-1" : "mt-2 flex items-center justify-between"}`}>
-                        {showCollectionMeta ? (
-                          <span className={`${isReferenceCatalog ? "hidden" : "text-[10px] tracking-[0.1em] text-white/40"}`}>
-                            {item.genres?.[0] || item.categories?.[0] || "Publication"}
-                          </span>
-                        ) : (
-                          <span />
-                        )}
+                    <div
+                      data-studio-target="style:products"
+                      data-studio-label="Card title & price"
+                      className={cardRuleWidth > 0 ? "pt-3" : ""}
+                      style={cardRuleWidth > 0 ? { borderTop: `${cardRuleWidth}px solid rgba(var(--fg-rgb), 0.85)` } : undefined}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <h3
+                          className={`fm-card-title ${isReferenceCatalog ? "text-lg md:text-xl font-black tracking-tight" : "text-sm tracking-wider font-medium"} leading-tight min-w-0 break-words`}
+                          style={{ color: storefrontDesign?.productTitleColor || storefrontText, textTransform: storefrontTitleTransform }}
+                        >
+                          {item.title}
+                        </h3>
                         {displayPrice > 0 && (
-                          <span className={`${isReferenceCatalog ? "text-lg" : "text-[10px]"} flex items-center gap-1.5`} style={{ color: storefrontDesign?.productPriceColor || (isReferenceCatalog ? storefrontText : undefined) }}>
+                          <span
+                            className={`fm-card-price-wrap shrink-0 flex flex-col items-end leading-none font-mono tabular-nums ${priceOnHover ? "opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100" : ""}`}
+                            style={{ color: storefrontDesign?.productPriceColor || storefrontText }}
+                          >
+                            <span
+                              className={`fm-card-price ${priceTagBoxed ? "fm-card-price-tag px-2 py-1" : ""} text-sm md:text-base font-bold whitespace-nowrap`}
+                              style={priceTagBoxed ? { border: "2px solid currentColor" } : undefined}
+                            >
+                              {formatBookPrice(item)}
+                            </span>
                             {onSale && (
-                              <span className="text-white/30 line-through">{formatBookPrice(item, true)}</span>
+                              <span className="fm-card-price-old mt-1 text-[10px] line-through opacity-50">{formatBookPrice(item, true)}</span>
                             )}
-                            <span className={onSale ? "fm-success-text font-semibold" : "text-white/50"}>{formatBookPrice(item)}</span>
                           </span>
                         )}
                       </div>
+                      {showCollectionMeta && (
+                        <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.2em] text-white/50">
+                          {item.genres?.[0] || item.categories?.[0] || getCopy(activeDesign, "categoryFallback")}
+                        </p>
+                      )}
                     </div>
                   </Link>
                 </motion.article>
@@ -1601,6 +1432,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             })}
           </div>
         </main>
+        )}
 
         <GlobalSections
           design={activeDesign}
@@ -1610,248 +1442,16 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
           }
         />
-        <RecentlyViewedRow />
-        <Newsletter design={settings?.design} />
-        <SiteFooter settings={settings} pages={pages} onAboutOpen={() => setShowAbout(true)} />
+        {!onHome && !activeDesign?.hideRecentlyViewed && <RecentlyViewedRow />}
+        {!onHome && !activeDesign?.hideNewsletter && <Newsletter design={settings?.design} />}
+        <SiteFooter settings={settings} pages={pages} />
         {(storefrontDesign?.showPoweredBy ?? false) && (
-          <p className="text-center pb-8 text-[9px] tracking-[0.3em] uppercase opacity-50">{getCopy(activeDesign, "poweredBy")}</p>
+          <p data-studio-target="copy:Header|style:footer" data-studio-label="Powered-by line" className="text-center pb-8 text-[9px] tracking-[0.3em] uppercase opacity-50">{getCopy(activeDesign, "poweredBy")}</p>
         )}
-
-        {/* About panel */}
-        <AnimatePresence>
-          {showAbout && <AboutPanel settings={settings} pages={pages} onClose={() => setShowAbout(false)} />}
-        </AnimatePresence>
 
         <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} design={activeDesign} />
       </div>
     );
   }
 
-  // Homepage (hero) ──
-  const homeHeaderTextColor = scrolled ? (heroDesign?.headerColor || "#ffffff") : "#ffffff";
-
-  return (
-    <div
-      data-fm-store
-      className="min-h-screen w-full overflow-x-hidden relative selection:bg-white selection:text-black font-sans"
-      style={{ 
-        fontFamily: `'${resolveTypography(heroDesign).body}', sans-serif`,
-        backgroundColor: heroDesign?.backgroundColor || "#000000",
-        color: heroDesign?.textColor || "#ffffff"
-      }}
-    >
-      <TypographyTokens design={heroDesign} />
-      {storefrontDesign?.customCss && <style>{storefrontDesign.customCss}</style>}
-      {heroDesign?.navStyle === "stickers" && <style>{STICKER_PILL_CSS}</style>}
-      <header
-        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-6 transition-all duration-500 border-b ${scrolled ? "backdrop-blur-xl py-4" : "border-transparent bg-gradient-to-b from-black/70 to-transparent"}`}
-        style={{
-          backgroundColor: scrolled ? (heroDesign?.headerBg || "rgba(0,0,0,0.8)") : "transparent",
-          borderColor: scrolled ? (heroDesign?.headerColor ? `${heroDesign.headerColor}1a` : "rgba(255,255,255,0.05)") : "transparent",
-          color: homeHeaderTextColor
-        }}
-      >
-        {/* Left Section */}
-        <div className={`flex items-center gap-3 md:gap-8 flex-1 ${heroLogoPosition === "center" ? "" : "flex-initial"}`}>
-          {heroLogoPosition === "left" && (
-            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
-              <LogoMark design={heroLogoDesign} />
-            </button>
-          )}
-
-          {showEnterArchive && (
-            <button
-              onClick={() => setShowCatalog(true)}
-              style={{
-                color: homeHeaderTextColor,
-                ...(heroDesign?.navStyle === "stickers" ? stickerPillStyle(heroDesign, 1) : {}),
-              }}
-              className={`text-[10px] md:text-xs tracking-[0.3em] font-bold hover:opacity-75 transition-opacity ${
-                heroDesign?.navStyle === "stickers" ? "fm-sticker-pill opacity-70" : ""
-              }`}
-            >
-              {heroDesign?.enterArchiveLabel || getCopy(activeDesign, "navEnterArchive")}
-            </button>
-          )}
-        </div>
-
-        {/* Center Section (Logo) */}
-        {heroLogoPosition === "center" && (
-          <div className="flex-1 flex justify-center">
-            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
-              <LogoMark design={heroLogoDesign} />
-            </button>
-          </div>
-        )}
-
-        {/* Right Section */}
-        <div className={`flex gap-3 md:gap-8 items-center flex-1 justify-end ${heroLogoPosition === "right" ? "flex-initial" : ""}`}>
-          {heroLogoPosition === "right" && (
-            <button onClick={() => setShowCatalog(false)} className="text-xs tracking-[0.3em] font-semibold hover:text-neutral-400 transition-colors flex items-center">
-              <LogoMark design={heroLogoDesign} />
-            </button>
-          )}
-
-          {showInformation && (
-            <button
-              onClick={() => setShowAbout(true)}
-              style={{
-                color: homeHeaderTextColor,
-                ...(heroDesign?.navStyle === "stickers" ? stickerPillStyle(heroDesign, 3) : {}),
-              }}
-              className={`text-[10px] md:text-xs tracking-[0.2em] font-medium opacity-80 hover:opacity-100 transition-opacity hidden md:block ${
-                heroDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
-              }`}
-            >
-              {getCopy(activeDesign, "navInformation")}
-            </button>
-          )}
-          
-          {/* Custom Pages in Home Header */}
-          {showCustomPages && (
-            heroDesign?.menus?.header?.length > 0 ? (
-              <div style={{ color: homeHeaderTextColor }}><StoreMenu items={heroDesign.menus.header} /></div>
-            ) : (
-            <nav className="hidden lg:flex items-center gap-6" style={{ color: homeHeaderTextColor }}>
-              {pages.some((p: any) => p.showInNav && p.status === "published") && (
-                <span className="text-[10px] md:text-xs tracking-[0.3em] font-bold text-white/20 uppercase select-none mr-2">
-                  {heroDesign?.navHeading || "INFO"}
-                </span>
-              )}
-              {(pages || [])
-                .filter((p: any) => p.showInNav && p.status === "published")
-                .map((page: any, pageIdx: number) => (
-                  <Link
-                    key={page.id}
-                    to={`/page/${page.slug}`}
-                    className={`opacity-60 hover:opacity-100 transition-opacity ${
-                      heroDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""
-                    }`}
-                    style={{
-                      fontSize: heroDesign?.navLinkSize ? `${heroDesign.navLinkSize}px` : "10px",
-                      letterSpacing: heroDesign?.navLinkSpacing != null ? `${heroDesign.navLinkSpacing}em` : "0.2em",
-                      fontWeight: heroDesign?.navLinkWeight || "500",
-                      textTransform: (heroDesign?.navLinkTransform as any) || "uppercase",
-                      ...(heroDesign?.navLinkColor && { color: heroDesign.navLinkColor }),
-                      ...(heroDesign?.navStyle === "stickers" ? stickerPillStyle(heroDesign, pageIdx + 2) : {}),
-                    }}
-                  >
-                    {page.title}
-                  </Link>
-                ))}
-            </nav>
-            )
-          )}
-
-          <button
-            onClick={() => setSearchOpen(true)}
-            aria-label={getCopy(activeDesign, "ariaSearch")}
-            style={{ color: homeHeaderTextColor }}
-            className="hidden sm:flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-all opacity-70 hover:opacity-100"
-          >
-            <SearchIcon size={15} />
-          </button>
-          {showBag && (
-            <button
-              onClick={() => setIsCartOpen(true)}
-              className={`group flex items-center gap-2 px-5 py-2.5 transition-all hover:scale-[1.02] store-btn-primary ${
-                heroButtonShadow ? "shadow-lg" : ""
-              } ${heroDesign?.navStyle === "stickers" ? "fm-sticker-pill" : ""}`}
-              style={{
-                backgroundColor: heroButtonStyle === "solid" ? heroButtonBg : "transparent",
-                color: heroButtonStyle === "solid" ? heroButtonText : heroButtonBg,
-                border: heroButtonStyle !== "solid" ? `1px solid ${heroButtonBg}` : "none",
-                borderRadius: heroButtonRadius,
-                ...(heroDesign?.navStyle === "stickers"
-                  ? { borderRadius: heroDesign?.navPillRadius || "14px 4px 14px 4px", transform: "rotate(2deg)" }
-                  : {}),
-              }}
-            >
-              <span className={`text-[10px] tracking-[0.2em] font-bold ${heroButtonUppercase ? "uppercase" : ""}`}>
-                {bagLabel}
-              </span>
-              {cartCount > 0 && (
-                <span
-                  style={{
-                    backgroundColor: heroButtonStyle === "solid" ? heroButtonText : heroButtonBg,
-                    color: heroButtonStyle === "solid" ? heroButtonBg : heroButtonText,
-                  }}
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full transition-colors"
-                >
-                  {cartCount}
-                </span>
-              )}
-            </button>
-          )}
-          {showSys && (
-            <Link to="/admin" style={{ color: homeHeaderTextColor }} className="text-[10px] tracking-widest opacity-30 hover:opacity-100 transition-opacity">SYS</Link>
-          )}
-        </div>
-      </header>
-
-      <main className="relative w-auto overflow-hidden">
-        {(heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections) &&
-        (heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections).length > 0 ? (
-          <SectionList
-            sections={heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections}
-            colorSchemes={
-              heroDesign.colorSchemes && heroDesign.colorSchemes.length > 0
-                ? heroDesign.colorSchemes
-                : activeDesign.colorSchemes
-            }
-            books={books}
-            onCtaClick={() => setShowCatalog(true)}
-            onProductClick={(book: any) =>
-              navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
-            }
-            enableAnimations={heroDesign?.enableAnimations ?? true}
-            dataSection="homepage"
-          />
-        ) : (
-          /* Fallback to legacy structure */
-          <>
-            {(heroDesign?.hero?.enabled ?? true) ? (
-              <HeroCarousel design={heroDesign} onEnterArchive={() => setShowCatalog(true)} />
-            ) : (
-              <section className="h-screen min-h-[680px] flex flex-col items-center justify-center text-center px-8">
-                <p className="text-[12px] tracking-[0.3em] text-white/60 uppercase mb-6">
-                  {heroDesign?.heroSubtext || "Discover rare editions and exclusive prints."}
-                </p>
-                <button
-                  onClick={() => setShowCatalog(true)}
-                  className={`px-8 py-3 text-[10px] tracking-[0.3em] font-bold transition-transform hover:scale-[1.02] ${
-                    heroButtonShadow ? "shadow-xl" : ""
-                  } ${heroButtonUppercase ? "uppercase" : ""}`}
-                  style={{
-                    backgroundColor: heroButtonStyle === "solid" ? heroButtonBg : "transparent",
-                    color: heroButtonStyle === "solid" ? heroButtonText : heroButtonBg,
-                    border: heroButtonStyle !== "solid" ? `1px solid ${heroButtonBg}` : "none",
-                    borderRadius: heroButtonRadius,
-                  }}
-                >
-                  {heroDesign?.heroCTA || "ENTER ARCHIVE"}
-                </button>
-              </section>
-            )}
-          </>
-        )}
-      </main>
-
-      <GlobalSections
-        design={activeDesign}
-        books={books}
-        onCtaClick={() => setShowCatalog(true)}
-        onProductClick={(book: any) =>
-          navigate(`/books/${(book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`)
-        }
-      />
-
-      {/* About panel (available from homepage too) */}
-      <AnimatePresence>
-        {showAbout && <AboutPanel settings={settings} pages={pages} onClose={() => setShowAbout(false)} />}
-      </AnimatePresence>
-
-      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} design={activeDesign} />
-    </div>
-  );
 }

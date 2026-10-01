@@ -161,22 +161,22 @@ export const useCurrency = () => {
 };
 
 // Reusable CurrencySelector UI Dropdown Component
-export function CurrencySelector() {
+export function CurrencySelector({ label = "CURRENCY", ariaLabel = "Select currency" }: { label?: string; ariaLabel?: string } = {}) {
   const { currency, setCurrency } = useCurrency();
 
   return (
     <div className="flex items-center gap-1.5 bg-current/[0.05] hover:bg-current/[0.1] border border-current/[0.05] rounded-full px-3 py-1.5 transition-all text-current opacity-70 hover:opacity-100 group relative">
-      <span className="text-[8px] font-black tracking-widest uppercase opacity-60">CURRENCY</span>
+      <span className="text-[8px] font-black tracking-widest uppercase opacity-60">{label}</span>
       <div className="flex items-center gap-1">
         <select
           value={currency}
           onChange={(e) => setCurrency(e.target.value as Currency)}
-          aria-label="Select currency"
+          aria-label={ariaLabel}
           className="bg-transparent border-none outline-none text-[9px] font-black tracking-widest text-current cursor-pointer uppercase appearance-none pr-4"
         >
-          <option value="CAD" className="bg-[#050508] text-white">CAD</option>
-          <option value="USD" className="bg-[#050508] text-white">USD</option>
-          <option value="EUR" className="bg-[#050508] text-white">EUR</option>
+          <option value="CAD" className="bg-[var(--surface,#050508)] text-[var(--text-color,#fff)]">CAD</option>
+          <option value="USD" className="bg-[var(--surface,#050508)] text-[var(--text-color,#fff)]">USD</option>
+          <option value="EUR" className="bg-[var(--surface,#050508)] text-[var(--text-color,#fff)]">EUR</option>
         </select>
         <ChevronDown size={10} className="absolute right-3 pointer-events-none opacity-40 group-hover:opacity-80 transition-opacity" />
       </div>

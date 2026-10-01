@@ -30,6 +30,7 @@ import { useSEO } from "../../lib/seo";
 import { useWishlist } from "../../lib/wishlist";
 import { useSiteData } from "./useSiteData";
 import { getCopy } from "./storeCopy";
+import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { GlobalSections } from "../../components/sectionRender";
 import { adminApi } from "../../admin/api";
@@ -77,8 +78,19 @@ export default function AccountPage() {
 
   const { count: wishlistCount } = useWishlist();
   const { settings, books } = useSiteData();
+  const { formatPrice } = useCurrency();
+  // Order amounts are stored in CAD; show them in the shopper's chosen currency like the rest of the store.
+  // An order paid in another currency is shown in that currency, like the tracking page.
+  const money = (v: number | undefined, o?: any) => {
+    const n = Number(v) || 0;
+    if (o?.checkoutCurrency && o?.exchangeRate) {
+      const symbols: Record<string, string> = { CAD: "CA$ ", USD: "$ ", EUR: "€ " };
+      return `${symbols[o.checkoutCurrency] || "$ "}${(n * o.exchangeRate).toFixed(2)}`;
+    }
+    return formatPrice(n);
+  };
 
-  useSEO({ title: "Your Account", description: "Manage your account, orders and saved addresses." });
+  useSEO({ title: getCopy(settings?.design, "seoAccountTitle"), description: getCopy(settings?.design, "seoAccountDescription") });
 
   // Handle incoming Magic Link authentication on mount
   useEffect(() => {
@@ -87,16 +99,16 @@ export default function AccountPage() {
         setAuthLoading(true);
         let email = window.localStorage.getItem("emailForSignIn");
         if (!email) {
-          email = window.prompt("Please enter your email to confirm sign-in:");
+          email = window.prompt(getCopy(settings?.design, "accountConfirmEmailPrompt"));
         }
         if (email) {
           try {
             await signInWithEmailLink(auth, email, window.location.href);
             window.localStorage.removeItem("emailForSignIn");
-            toast.success("Successfully signed in with email link!");
+            toast.success(getCopy(settings?.design, "accountSignedInLink"));
           } catch (err: any) {
             console.error("Email link sign in error:", err);
-            toast.error(err.message || "Failed to sign in. Link may be expired.");
+            toast.error(err.message || getCopy(settings?.design, "accountSignInError"));
           }
         }
         setAuthLoading(false);
@@ -248,11 +260,11 @@ export default function AccountPage() {
       };
       await sendSignInLinkToEmail(auth, emailLinkInput.trim(), actionCodeSettings);
       window.localStorage.setItem("emailForSignIn", emailLinkInput.trim());
-      toast.success("Magic sign-in link dispatched! Check your email.");
+      toast.success(getCopy(settings?.design, "accountLinkSent"));
       setEmailLinkInput("");
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Failed to send magic link.");
+      toast.error(err.message || getCopy(settings?.design, "accountMagicLinkError"));
     } finally {
       setSendingLink(false);
     }
@@ -262,10 +274,10 @@ export default function AccountPage() {
     try {
       const provider = googleProvider || new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      toast.success("Successfully logged in!");
+      toast.success(getCopy(settings?.design, "accountSignedIn"));
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Google Authentication failed.");
+      toast.error(err.message || getCopy(settings?.design, "accountGoogleError"));
     }
   }
 
@@ -290,9 +302,9 @@ export default function AccountPage() {
       await setDoc(doc(db, "customers", user.uid), updatedProfile);
       setProfile(updatedProfile);
       setIsEditingAddress(false);
-      toast.success("Profile address updated successfully!");
+      toast.success(getCopy(settings?.design, "accountAddressSaved"));
     } catch (err: any) {
-      toast.error("Failed to save address details.");
+      toast.error(getCopy(settings?.design, "accountAddressError"));
     } finally {
       setLoadingData(false);
     }
@@ -300,7 +312,7 @@ export default function AccountPage() {
 
   const handleDownloadDigitalAsset = (order: any, itemId: string) => {
     if (!order.downloadToken) {
-      toast.error("Download token has expired or is invalid.");
+      toast.error(getCopy(settings?.design, "accountDownloadError"));
       return;
     }
     window.open(
@@ -326,7 +338,7 @@ export default function AccountPage() {
 
   if (authLoading) {
     return (
-      <div data-fm-store className="min-h-screen fm-page text-white flex items-center justify-center">
+      <div data-fm-store data-studio-target="copy:Customer account|style:colors" data-studio-label="Account page" className="min-h-screen fm-page text-white flex items-center justify-center">
         <StorefrontThemeStyle design={settings?.design} />
         <Loader2 size={24} className="animate-spin" style={{ color: "var(--accent)" }} />
       </div>
@@ -335,7 +347,7 @@ export default function AccountPage() {
 
   if (!user) {
     return (
-      <div data-fm-store className="min-h-screen fm-page text-white flex flex-col items-center justify-center px-6 relative overflow-hidden">
+      <div data-fm-store data-studio-target="copy:Customer account|style:colors" data-studio-label="Account page" className="min-h-screen fm-page text-white flex flex-col items-center justify-center px-6 relative overflow-hidden">
         <StorefrontThemeStyle design={settings?.design} />
         {/* Glow Effects */}
         <div className="absolute top-0 right-0 w-[500px] h-[500px] blur-[120px] rounded-full pointer-events-none" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.05)" }} />
@@ -399,7 +411,7 @@ export default function AccountPage() {
   }
 
   return (
-    <div data-fm-store className="min-h-screen fm-page text-white relative overflow-hidden pb-24">
+    <div data-fm-store data-studio-target="copy:Customer account|style:colors" data-studio-label="Account page" className="min-h-screen fm-page text-white relative overflow-hidden pb-24">
       <StorefrontThemeStyle design={settings?.design} />
       {/* Background glow */}
       <div className="fixed top-0 right-0 w-[600px] h-[600px] blur-[120px] rounded-full pointer-events-none -mr-64 -mt-64" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.05)" }} />
@@ -469,7 +481,7 @@ export default function AccountPage() {
                 onClick={() => setIsEditingAddress(!isEditingAddress)}
                 className="text-[9px] font-black tracking-[0.25em] text-cyan-400 hover:text-cyan-300 uppercase shrink-0"
               >
-                {isEditingAddress ? "CLOSE" : "MANAGE"}
+                {getCopy(settings?.design, isEditingAddress ? "accountClose" : "accountManage")}
               </button>
             </div>
           </div>
@@ -621,7 +633,7 @@ export default function AccountPage() {
                         <div>
                           <p className="text-xs font-black tracking-widest text-white">{o.orderId || o.id}</p>
                           <p className="text-[9px] tracking-widest fm-muted uppercase mt-1">
-                            {new Date(o.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })} · {(o.items || []).length} book{(o.items || []).length === 1 ? "" : "s"}
+                            {new Date(o.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })} · {getCopy(settings?.design, (o.items || []).length === 1 ? "accountBookCountOne" : "accountBookCountMany", { count: (o.items || []).length })}
                           </p>
                         </div>
                       </div>
@@ -649,7 +661,7 @@ export default function AccountPage() {
                                     : undefined
                                 }
                               >
-                                {o.fulfillmentStatus?.toUpperCase() || (o.status === 'completed' ? 'DELIVERED' : 'UNFULFILLED')}
+                                {o.fulfillmentStatus?.toUpperCase() || getCopy(settings?.design, o.status === 'completed' ? 'accountDelivered' : 'accountUnfulfilled')}
                               </span>
                             );
                           })()}
@@ -674,7 +686,7 @@ export default function AccountPage() {
                         </div>
                         
                         <div className="flex items-center gap-4">
-                          <span className="text-sm font-black text-white font-mono">CA${(o.total ?? 0).toFixed(2)}</span>
+                          <span className="text-sm font-black text-white font-mono">{money(o.total ?? 0, o)}</span>
                           {isExpanded ? <ChevronUp size={14} className="fm-muted" /> : <ChevronDown size={14} className="fm-muted" />}
                         </div>
                       </div>
@@ -730,7 +742,7 @@ export default function AccountPage() {
                                 </div>
                                 <div className="flex-grow min-w-0">
                                   <p className="text-[11px] font-black text-white uppercase tracking-wider truncate">{item.title}</p>
-                                  <p className="text-[9px] fm-muted font-mono mt-1">QTY: {item.quantity} × CA${item.price.toFixed(2)}</p>
+                                  <p className="text-[9px] fm-muted font-mono mt-1">{getCopy(settings?.design, "qtyLine", { qty: item.quantity })} × {money(item.price, o)}</p>
                                 </div>
                               </div>
                             ))}
@@ -743,7 +755,7 @@ export default function AccountPage() {
                             <div>
                               <p className="text-[9px] font-black tracking-[0.3em] text-cyan-400 uppercase">{getCopy(settings?.design, "accountDispatch")}</p>
                               <p className="text-xs font-mono fm-muted mt-2">
-                                Carrier: {o.trackingCarrier} <span className="mx-2 fm-muted">|</span> Code: {o.trackingNumber}
+                                {getCopy(settings?.design, "carrierLabel")} {o.trackingCarrier} <span className="mx-2 fm-muted">|</span> {getCopy(settings?.design, "trackingCodeLabel")} {o.trackingNumber}
                               </p>
                             </div>
                             <a 
@@ -752,7 +764,7 @@ export default function AccountPage() {
                               rel="noopener noreferrer"
                               className="px-6 py-3 fm-active hover:bg-slate-200 text-[9px] font-black tracking-widest uppercase rounded-xl transition-all flex items-center gap-2 shadow-lg"
                             >
-                              Track Package <ExternalLink size={12} />
+                              {getCopy(settings?.design, "accountTrackPackage")} <ExternalLink size={12} />
                             </a>
                           </div>
                         )}
@@ -772,27 +784,27 @@ export default function AccountPage() {
                           <div className="space-y-3 font-semibold fm-muted">
                             <div className="flex justify-between">
                               <span className="uppercase text-[9px] tracking-widest fm-muted">{getCopy(settings?.design, "summarySubtotal")}</span>
-                              <span className="font-mono text-white/80">CA${o.subtotal?.toFixed(2)}</span>
+                              <span className="font-mono text-white/80">{money(o.subtotal, o)}</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="uppercase text-[9px] tracking-widest fm-muted">{getCopy(settings?.design, "accountLogisticsFee")}</span>
-                              <span className="font-mono text-white/80">CA${o.shipping?.toFixed(2)}</span>
+                              <span className="font-mono text-white/80">{money(o.shipping, o)}</span>
                             </div>
                             {o.discount > 0 && (
                               <div className="flex justify-between fm-success-text">
                                 <span className="uppercase text-[9px] tracking-widest">{getCopy(settings?.design, "summaryDiscount")}</span>
-                                <span className="font-mono">-CA${o.discount?.toFixed(2)}</span>
+                                <span className="font-mono">-{money(o.discount, o)}</span>
                               </div>
                             )}
                             {o.tax > 0 && (
                               <div className="flex justify-between">
                                 <span className="uppercase text-[9px] tracking-widest fm-muted">{getCopy(settings?.design, "summaryTax")}</span>
-                                <span className="font-mono text-white/80">CA${o.tax?.toFixed(2)}</span>
+                                <span className="font-mono text-white/80">{money(o.tax, o)}</span>
                               </div>
                             )}
                             <div className="flex justify-between border-t border-white/5 pt-3 text-white font-black">
                               <span className="uppercase text-[9px] tracking-widest text-white/30">{getCopy(settings?.design, "summaryTotal")}</span>
-                              <span className="font-mono text-base">CA${o.total?.toFixed(2)}</span>
+                              <span className="font-mono text-base">{money(o.total, o)}</span>
                             </div>
                           </div>
                         </div>

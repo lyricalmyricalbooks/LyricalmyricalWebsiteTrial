@@ -1,13 +1,13 @@
 import { motion } from "motion/react";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
-import { readCachedDesign } from "../features/site/useSiteData";
+import { useLiveDesign } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
 
 /** Riso boot/loading splash — colors, wordmark and copy all come from the saved design. */
 export function BootSplash() {
-  const design = readCachedDesign();
+  const design = useLiveDesign();
   return (
-    <div data-fm-store className="fm-page h-screen w-full flex flex-col items-center justify-center relative overflow-hidden" style={{ color: "rgb(var(--fg-rgb))" }} aria-label={getCopy(design, "loadingAria")}>
+    <div data-fm-store data-studio-target="copy:Loading screen" data-studio-label="Loading screen" className="fm-page h-screen w-full flex flex-col items-center justify-center relative overflow-hidden" style={{ color: "rgb(var(--fg-rgb))" }} aria-label={getCopy(design, "loadingAria")}>
       <StorefrontThemeStyle design={design} />
       <div className="absolute -left-[8vw] top-[12vh] h-44 w-[62vw] -rotate-6 bg-[var(--accent)] opacity-90 mix-blend-screen" />
       <div className="absolute -right-[10vw] bottom-[10vh] h-48 w-[64vw] rotate-6 bg-[var(--accent-2)] opacity-80 mix-blend-screen" />
@@ -16,7 +16,7 @@ export function BootSplash() {
         animate={{ opacity: 1, y: 0 }}
         className="relative flex w-[min(86vw,34rem)] flex-col items-center"
       >
-        <span className="mb-7 rotate-1 border-2 border-[var(--rp-outline)] bg-[var(--warning)] px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] text-[#100f0d] shadow-[4px_4px_0_var(--accent)]">
+        <span className="mb-7 rotate-1 border-2 border-[var(--rp-outline)] bg-[var(--warning)] px-4 py-2 text-[10px] font-black uppercase tracking-[0.28em] text-[var(--on-accent,#100f0d)] shadow-[4px_4px_0_var(--accent)]">
           {getCopy(design, "loadingTag")}
         </span>
         <p className="text-center text-[clamp(3.4rem,12vw,7.5rem)] font-black uppercase leading-[0.72] tracking-[-0.075em] drop-shadow-[3px_3px_0_var(--accent)]">

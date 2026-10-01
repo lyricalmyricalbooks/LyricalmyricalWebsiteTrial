@@ -1,26 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useFocusTrap } from "../lib/useFocusTrap";
-import { usePrompt } from "./riso/components";
-import { useDraggable } from "@dnd-kit/core";
 import { SortableList, SortableRow } from "./dndSortable";
 import {
   ChevronDown,
-  ChevronRight,
   Plus,
   GripVertical,
   Copy,
   Trash2,
   Image as ImageIcon,
-  Palette as PaletteIcon,
   Upload,
-  Download,
   Eye,
   EyeOff,
 } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import RichTextEditor from "../components/RichTextEditor";
 import { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
-import { normalizeHexForColorInput } from "./ThemeEditorPro";
 import {
   BOX_SHADOW_OPTIONS,
   CORNER_RADIUS_OPTIONS,
@@ -29,6 +23,19 @@ import {
   SHAPE_DIVIDER_STYLES,
   IMAGE_FILTER_PRESETS,
 } from "../components/sectionStyleHelpers";
+
+function normalizeHexForColorInput(hex: string): string {
+  let clean = (hex || "").trim().toLowerCase();
+  if (clean.startsWith("#")) clean = clean.slice(1);
+  clean = clean.replace(/[^0-9a-f]/g, "");
+  if (clean.length === 3 || clean.length === 4) {
+    clean = clean[0] + clean[0] + clean[1] + clean[1] + clean[2] + clean[2];
+  } else if (clean.length === 8) {
+    clean = clean.slice(0, 6);
+  }
+  if (clean.length !== 6) return "#000000";
+  return "#" + clean;
+}
 
 export { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
 
@@ -49,6 +56,32 @@ export type SectionTypeMeta = {
 };
 
 export const SECTION_REGISTRY: SectionTypeMeta[] = [
+  {
+    type: "PageContentSection",
+    label: "Page content",
+    description: "This page's own title and text (written in Studio › Pages) — move it, restyle it, and add sections around it.",
+    category: "Layout",
+    defaults: { ownStyle: false, eyebrow: "PAGE", showEyebrow: false, showTitle: true, showBody: true, titleSize: "xl", bodySize: "md", align: "left", maxWidth: "header", showRule: true, ruleWidth: 2, ruleSpacing: 32, textMeasure: "readable" },
+  },
+  {
+    type: "CompositionSection",
+    label: "Flexible composition",
+    description: "Nested groups, text, images and buttons with responsive grid placement.",
+    category: "Layout",
+    defaults: {
+      title: "Flexible composition",
+      gridColumns: 12,
+      items: [
+        { id: "composition-group", type: "group", title: "Content group", children: [
+          { id: "composition-heading", type: "text", title: "A flexible story", body: "Build nested editorial layouts without a bespoke section." },
+          { id: "composition-button", type: "button", text: "Explore", url: "#shop" },
+        ] },
+      ],
+    },
+    blockType: "composition",
+    blockDefaults: { type: "text", title: "New block", body: "Add your content." },
+    blockLabel: "Content block",
+  },
   {
     type: "HeroSection",
     label: "Hero Banner",
@@ -589,173 +622,6 @@ export function getSectionMeta(type: string): SectionTypeMeta | undefined {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Section Library Modal — categorized
-// ─────────────────────────────────────────────────────────────────────────────
-
-export type SectionPreset = {
-  id: string;
-  name: string;
-  type: string;
-  settings: Record<string, any>;
-};
-
-function DraggableSectionCard({
-  meta,
-  onAdd,
-  onClose,
-}: {
-  meta: SectionTypeMeta;
-  onAdd: (type: string) => void;
-  onClose: () => void;
-}) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `lib:${meta.type}` });
-  return (
-    <button
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      style={{ opacity: isDragging ? 0.4 : 1 }}
-      onClick={() => {
-        onAdd(meta.type);
-        onClose();
-      }}
-      className="text-left p-4 bg-[var(--rp-surface)] border-2 border-[var(--rp-border)] hover:border-[var(--rp-border-strong)] hover:shadow-[var(--rp-shadow-sm)] transition-colors group min-h-[44px]"
-    >
-      <p className="text-sm font-bold uppercase tracking-tight mb-1" style={{ color: "var(--rp-text)" }}>{meta.label}</p>
-      <p className="text-xs leading-relaxed" style={{ color: "var(--rp-text-muted)" }}>{meta.description}</p>
-    </button>
-  );
-}
-
-export function NewSectionLibraryModal({
-  onAdd,
-  onClose,
-  presets = [],
-  onAddPreset,
-  onDeletePreset,
-}: {
-  onAdd: (type: string) => void;
-  onClose: () => void;
-  presets?: SectionPreset[];
-  onAddPreset?: (preset: SectionPreset) => void;
-  onDeletePreset?: (id: string) => void;
-}) {
-  const [search, setSearch] = useState("");
-  const dialogRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(dialogRef, true, onClose);
-  const categories = Array.from(new Set(SECTION_REGISTRY.map((s) => s.category)));
-  const filtered = SECTION_REGISTRY.filter(
-    (s) =>
-      !search ||
-      s.label.toLowerCase().includes(search.toLowerCase()) ||
-      s.description.toLowerCase().includes(search.toLowerCase()),
-  );
-  const filteredPresets = presets.filter(
-    (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.type.toLowerCase().includes(search.toLowerCase()),
-  );
-
-  return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[500] bg-black/70 flex items-center justify-center p-3 sm:p-6"
-        onClick={onClose}
-      >
-        <motion.div
-          initial={{ scale: 0.95, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.95, y: 20 }}
-          ref={dialogRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Section library"
-          tabIndex={-1}
-          className="bg-[var(--rp-surface)] text-[var(--rp-text)] border-2 border-[var(--rp-border-strong)] shadow-[var(--rp-shadow-pop)] w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="px-5 sm:px-8 pt-6 pb-4 border-b-2 border-[var(--rp-border-strong)] flex flex-wrap gap-3 items-center justify-between">
-            <div>
-              <p className="text-[10px] tracking-[0.3em] font-bold uppercase mb-1" style={{ color: "var(--rp-primary-text)", fontFamily: "var(--rp-font-mono)" }}>Section library</p>
-              <h3 className="text-2xl uppercase m-0" style={{ fontFamily: "var(--rp-font-display)" }}>Add a section</h3>
-            </div>
-            <input
-              aria-label="Search sections"
-              data-autofocus
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search sections…"
-              className="bg-[var(--rp-surface-2)] border-2 border-[var(--rp-border)] px-4 py-2 min-h-[44px] text-sm outline-none focus:border-[var(--rp-border-strong)] w-full sm:w-64 placeholder:text-[var(--rp-text-subtle)]" style={{ color: "var(--rp-text)" }}
-            />
-          </div>
-          <div className="overflow-y-auto p-5 sm:p-8 space-y-8">
-            {filteredPresets.length > 0 && onAddPreset && (
-              <div>
-                <p className="text-[10px] font-bold tracking-[0.3em] text-[var(--rp-warning)] uppercase mb-3">My presets</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {filteredPresets.map((preset) => (
-                    <div
-                      key={preset.id}
-                      className="relative text-left p-4 bg-[var(--rp-warning-tint)] border-2 border-[var(--rp-border)] hover:border-[var(--rp-border-strong)] transition-colors group"
-                    >
-                      <button
-                        onClick={() => {
-                          onAddPreset(preset);
-                          onClose();
-                        }}
-                        className="text-left w-full"
-                      >
-                        <p className="text-sm font-bold uppercase tracking-tight mb-1 pr-8" style={{ color: "var(--rp-text)" }}>{preset.name}</p>
-                        <p className="text-xs leading-relaxed" style={{ color: "var(--rp-text-muted)" }}>
-                          Saved {getSectionMeta(preset.type)?.label || preset.type.replace("Section", "")} with your content and styling.
-                        </p>
-                      </button>
-                      {onDeletePreset && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeletePreset(preset.id);
-                          }}
-                          title="Delete preset"
-                          aria-label={`Delete preset ${preset.name}`}
-                          className="absolute top-1 right-1 p-2.5 text-[var(--rp-text-muted)] hover:text-[var(--rp-danger)] hover:bg-[var(--rp-danger-tint)] opacity-60 group-hover:opacity-100 focus:opacity-100 transition-colors"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {categories.map((cat) => {
-              const items = filtered.filter((s) => s.category === cat);
-              if (items.length === 0) return null;
-              return (
-                <div key={cat}>
-                  <p className="text-[10px] font-bold tracking-[0.3em] uppercase mb-3" style={{ color: "var(--rp-text-muted)", fontFamily: "var(--rp-font-mono)" }}>{cat}</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {items.map((meta) => (
-                      <DraggableSectionCard
-                        key={meta.type}
-                        meta={meta}
-                        onAdd={onAdd}
-                        onClose={onClose}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Generic Blocks Editor — for sections with `items` / `slides` arrays
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -770,6 +636,18 @@ type BlockField =
   | { key: string; label: string; kind: "list"; itemLabel?: string; itemFields?: { key: string; label: string }[] };
 
 const BLOCK_FIELDS: Record<string, BlockField[]> = {
+  CompositionSection: [
+    { key: "type", label: "Block type", kind: "select", options: [
+      { value: "group", label: "Group / container" }, { value: "text", label: "Text" },
+      { value: "image", label: "Image" }, { value: "button", label: "Button" },
+    ] },
+    { key: "title", label: "Heading", kind: "text" },
+    { key: "body", label: "Body", kind: "textarea", rows: 4 },
+    { key: "imageUrl", label: "Image", kind: "image" },
+    { key: "alt", label: "Image description", kind: "text" },
+    { key: "text", label: "Button label", kind: "text" },
+    { key: "url", label: "Link", kind: "text" },
+  ],
   HeroSection: [],
   FeatureGridSection: [
     { key: "title", label: "Title", kind: "text" },
@@ -1335,7 +1213,7 @@ function normalizeListFieldValue(
  *    renders one labeled input per itemFields entry, value is a
  *    Record<string, string>[].
  */
-function BlockListFieldEditor({
+export function BlockListFieldEditor({
   field,
   value,
   onChange,
@@ -1505,7 +1383,7 @@ function BlockListFieldEditor({
   );
 }
 
-function BlockFieldEditor({
+export function BlockFieldEditor({
   field,
   value,
   onChange,
@@ -1537,7 +1415,7 @@ function BlockFieldEditor({
     return (
       <div>
         {labelEl}
-        <input
+        <input aria-label={field.label}
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
           className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
@@ -1550,7 +1428,7 @@ function BlockFieldEditor({
     return (
       <div>
         {labelEl}
-        <textarea
+        <textarea aria-label={field.label}
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
           rows={field.rows || 3}
@@ -1564,7 +1442,7 @@ function BlockFieldEditor({
     return (
       <div>
         {labelEl}
-        <textarea
+        <textarea aria-label={field.label}
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
           rows={5}
@@ -1581,14 +1459,14 @@ function BlockFieldEditor({
         {labelEl}
         <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-2 py-1.5">
           <div className="w-7 h-7 rounded-lg border border-neutral-200 relative overflow-hidden" style={{ background: value || "#000" }}>
-            <input
+            <input aria-label={field.label}
               type="color"
               value={value || "#000000"}
               onChange={(e) => onChange(e.target.value)}
               className="absolute inset-0 opacity-0 cursor-pointer scale-150"
             />
           </div>
-          <input
+          <input aria-label={field.label}
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             className="flex-1 bg-transparent outline-none text-[11px] font-bold uppercase"
@@ -1602,7 +1480,7 @@ function BlockFieldEditor({
     return (
       <div>
         {labelEl}
-        <input
+        <input aria-label={field.label}
           type="number"
           value={value ?? ""}
           min={field.min}
@@ -1619,7 +1497,7 @@ function BlockFieldEditor({
     return (
       <div>
         {labelEl}
-        <select
+        <select aria-label={field.label}
           value={value || field.options[0]?.value || ""}
           onChange={(e) => onChange(e.target.value)}
           className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
@@ -1643,13 +1521,13 @@ function BlockFieldEditor({
           <img src={value} className="w-full h-full object-cover" alt="" />
         </div>
       )}
-      <input
+      <input aria-label={field.label}
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         placeholder="https://… or upload"
         className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400 mb-1.5"
       />
-      <input
+      <input aria-label={field.label}
         ref={fileInputRef}
         type="file"
         accept="image/*"
@@ -2371,6 +2249,14 @@ export function SectionSettingsPanel({
             </button>
           ))}
         </div>
+        <div className="rounded-xl border border-neutral-200 p-3 space-y-3">
+          <p className="text-[9px] font-black tracking-widest text-neutral-400 uppercase">Phone overrides</p>
+          <label className="text-[10px] font-bold block">Top padding (px)<input type="number" min="0" max="240" value={settings.mobilePaddingTop ?? ""} placeholder={String(settings.paddingTop ?? 0)} onChange={(e) => onUpdate({ mobilePaddingTop: e.target.value === "" ? undefined : Number(e.target.value) })} className="mt-1 w-full bg-white border border-neutral-200 rounded-lg px-3 py-2" /></label>
+          <label className="text-[10px] font-bold block">Bottom padding (px)<input type="number" min="0" max="240" value={settings.mobilePaddingBottom ?? ""} placeholder={String(settings.paddingBottom ?? 0)} onChange={(e) => onUpdate({ mobilePaddingBottom: e.target.value === "" ? undefined : Number(e.target.value) })} className="mt-1 w-full bg-white border border-neutral-200 rounded-lg px-3 py-2" /></label>
+          <label className="text-[10px] font-bold block">Text scale (%)<input type="number" min="60" max="140" value={settings.mobileFontScale ?? ""} placeholder="100" onChange={(e) => onUpdate({ mobileFontScale: e.target.value === "" ? undefined : Number(e.target.value) })} className="mt-1 w-full bg-white border border-neutral-200 rounded-lg px-3 py-2" /></label>
+          <label className="text-[10px] font-bold block">Grid columns<input type="number" min="1" max="4" value={settings.mobileColumns ?? ""} placeholder="Automatic" onChange={(e) => onUpdate({ mobileColumns: e.target.value === "" ? undefined : Number(e.target.value) })} className="mt-1 w-full bg-white border border-neutral-200 rounded-lg px-3 py-2" /></label>
+          <p className="text-[8px] text-neutral-400">Shown in the phone preview and on shopper screens below 768px.</p>
+        </div>
       </div>
 
       {/* ── Scoped custom CSS ── */}
@@ -2401,207 +2287,6 @@ export function SectionSettingsPanel({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Color Schemes panel
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function ColorSchemesPanel({
-  schemes,
-  onChange,
-}: {
-  schemes: ColorScheme[];
-  onChange: (next: ColorScheme[]) => void;
-}) {
-  const list = schemes && schemes.length > 0 ? schemes : DEFAULT_COLOR_SCHEMES;
-
-  const updateScheme = (id: string, patch: Partial<ColorScheme>) => {
-    onChange(list.map((s) => (s.id === id ? { ...s, ...patch } : s)));
-  };
-
-  const addScheme = () => {
-    const id = `scheme-${Date.now().toString(36)}`;
-    onChange([...list, { id, name: `Scheme ${list.length + 1}`, background: "#ffffff", text: "#111111", accent: "#A855F7" }]);
-  };
-
-  const removeScheme = (id: string) => {
-    if (list.length <= 1) return;
-    onChange(list.filter((s) => s.id !== id));
-  };
-
-  return (
-    <div className="space-y-3">
-      <SortableList
-        items={list}
-        getId={(s) => s.id}
-        className="space-y-3"
-        onReorder={(next) => onChange(next)}
-      >
-        {list.map((scheme) => (
-          <SortableRow
-            key={scheme.id}
-            id={scheme.id}
-            className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 space-y-3"
-          >
-            {({ handleProps }) => (
-              <>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span {...handleProps} className="cursor-grab active:cursor-grabbing text-neutral-300">
-                      <GripVertical size={14} />
-                    </span>
-                    <input
-                      value={scheme.name}
-                      onChange={(e) => updateScheme(scheme.id, { name: e.target.value })}
-                      className="bg-transparent outline-none text-[12px] font-black text-white uppercase tracking-widest italic flex-1 min-w-0"
-                    />
-                  </div>
-                  <button
-                    onClick={() => removeScheme(scheme.id)}
-                    className="text-slate-600 hover:text-red-400 p-1"
-                    title="Remove"
-                    disabled={list.length <= 1}
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {(["background", "text", "accent"] as const).map((k) => (
-                    <div key={k}>
-                      <label className="text-[8px] font-black tracking-[0.25em] text-slate-500 uppercase block mb-1">{k}</label>
-                      <div className="flex items-center gap-2 bg-white/[0.04] border border-white/10 rounded-xl px-2 py-1.5">
-                        <div
-                          className="w-7 h-7 rounded-lg border border-white/10 relative overflow-hidden flex-shrink-0"
-                          style={{ background: scheme[k] }}
-                        >
-                          <input
-                            type="color"
-                            value={normalizeHexForColorInput(scheme[k])}
-                            onChange={(e) => updateScheme(scheme.id, { [k]: e.target.value })}
-                            className="absolute inset-0 opacity-0 cursor-pointer scale-150"
-                          />
-                        </div>
-                        <input
-                          value={scheme[k]}
-                          onChange={(e) => updateScheme(scheme.id, { [k]: e.target.value })}
-                          onBlur={(e) => updateScheme(scheme.id, { [k]: normalizeHexForColorInput(e.target.value) })}
-                          className="flex-1 min-w-0 bg-transparent text-[10px] font-bold text-white uppercase tracking-widest outline-none"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </SortableRow>
-        ))}
-      </SortableList>
-      <button
-        onClick={addScheme}
-        className="w-full py-3 rounded-2xl border-2 border-dashed border-white/10 hover:border-violet-500/40 hover:bg-violet-500/5 text-[10px] font-black tracking-[0.2em] text-violet-400 uppercase italic flex items-center justify-center gap-2"
-      >
-        <Plus size={12} strokeWidth={3} />
-        Add color scheme
-      </button>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Theme Import / Export buttons
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function ThemeIOButtons({
-  design,
-  onImport,
-  onDuplicate,
-}: {
-  design: any;
-  onImport: (next: any) => void;
-  onDuplicate?: (next: any) => void;
-}) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [askPrompt, promptNode] = usePrompt();
-
-  const exportTheme = () => {
-    try {
-      const blob = new Blob([JSON.stringify(design, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const stamp = new Date().toISOString().slice(0, 10);
-      a.download = `theme-${stamp}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast.error("Export failed");
-    }
-  };
-
-  const duplicateTheme = async () => {
-    const name = await askPrompt({ title: "Duplicate theme draft", label: "Draft name", defaultValue: `Copy ${new Date().toLocaleDateString()}`, confirmLabel: "Duplicate" });
-    if (!name) return;
-    const next = JSON.parse(JSON.stringify(design || {}));
-    next.themeName = name;
-    next.duplicatedFrom = design?.themeName || design?.name || "Current theme";
-    next.duplicatedAt = new Date().toISOString();
-    onDuplicate?.(next);
-  };
-
-  const importTheme = async (file: File) => {
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      if (!parsed || typeof parsed !== "object") throw new Error("invalid");
-      onImport(parsed);
-    } catch {
-      toast.error("Theme file is invalid JSON");
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-1">
-      {promptNode}
-      {onDuplicate && (
-        <button
-          type="button"
-          onClick={duplicateTheme}
-          title="Duplicate theme as draft"
-          className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all"
-        >
-          <Copy size={14} strokeWidth={2.5} />
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={exportTheme}
-        title="Export theme JSON"
-        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all"
-      >
-        <Download size={14} strokeWidth={2.5} />
-      </button>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="application/json"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) importTheme(f);
-          e.target.value = "";
-        }}
-      />
-      <button
-        type="button"
-        onClick={() => fileRef.current?.click()}
-        title="Import theme JSON"
-        className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 border border-white/5 text-white/40 hover:text-white hover:bg-white/10 hover:border-white/10 transition-all"
-      >
-        <Upload size={14} strokeWidth={2.5} />
-      </button>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Universal section editor — drives editing for every type via field schema
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2625,6 +2310,36 @@ const ALIGN_OPTIONS = [
 ];
 
 const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
+  PageContentSection: [
+    { key: "ownStyle", label: "Style this page on its own (off = match every page via Style › Custom pages)", kind: "toggle" },
+    { key: "showEyebrow", label: "Show small label above title", kind: "toggle" },
+    { key: "eyebrow", label: "Small label", kind: "text" },
+    { key: "showTitle", label: "Show page title", kind: "toggle" },
+    { key: "titleOverride", label: "Title (blank = the page's name)", kind: "text" },
+    { key: "titleSize", label: "Title size", kind: "select", options: [{ value: "sm", label: "Small" }, { value: "md", label: "Medium" }, { value: "lg", label: "Large" }, { value: "xl", label: "Extra large" }] },
+    { key: "titleUppercase", label: "Uppercase title", kind: "toggle" },
+    { key: "showBody", label: "Show page text", kind: "toggle" },
+    { key: "bodyOverride", label: "Text (blank = the text from Pages)", kind: "textarea", rows: 6 },
+    { key: "bodySize", label: "Text size", kind: "select", options: [{ value: "sm", label: "Small" }, { value: "md", label: "Medium" }, { value: "lg", label: "Large" }] },
+    { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
+    { key: "maxWidth", label: "Column width", kind: "select", options: [{ value: "header", label: "Line up with header" }, { value: "narrow", label: "Narrow" }, { value: "normal", label: "Medium" }, { value: "wide", label: "Wide" }, { value: "full", label: "Full width" }] },
+    { key: "textColor", label: "Text color", kind: "color" },
+    { key: "topSpacing", label: "Space above the title", kind: "range", min: 0, max: 160, step: 4, suffix: "px" },
+    { key: "titleFont", label: "Title font (Google Fonts name, blank = heading font)", kind: "text" },
+    { key: "titleSizePx", label: "Title size · desktop (0 = use Title size)", kind: "range", min: 0, max: 200, step: 2, suffix: "px" },
+    { key: "titleSizePxMobile", label: "Title size · phone (0 = same as desktop)", kind: "range", min: 0, max: 120, step: 2, suffix: "px" },
+    { key: "titleWeight", label: "Title weight (blank = extra bold)", kind: "select", options: [{ value: "", label: "Automatic" }, ...["300", "400", "500", "600", "700", "800", "900"].map((w) => ({ value: w, label: w }))] },
+    { key: "showRule", label: "Line under the title", kind: "toggle" },
+    { key: "ruleColor", label: "Line colour", kind: "color" },
+    { key: "ruleWidth", label: "Line thickness", kind: "range", min: 0, max: 8, step: 1, suffix: "px" },
+    { key: "ruleSpacing", label: "Space above and below the line", kind: "range", min: 0, max: 96, step: 2, suffix: "px" },
+    { key: "textMeasure", label: "Text line length", kind: "select", options: [{ value: "readable", label: "Readable (about 62 characters)" }, { value: "full", label: "Full column width" }] },
+  ],
+  CompositionSection: [
+    { key: "title", label: "Section heading", kind: "text" },
+    { key: "gridColumns", label: "Desktop grid columns", kind: "range", min: 1, max: 24, step: 1 },
+    { key: "gridGap", label: "Grid gap", kind: "range", min: 0, max: 80, step: 2, suffix: "px" },
+  ],
   HeroSection: [
     { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Headline", kind: "text" },
@@ -2717,6 +2432,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "accentColor", label: "Accent color", kind: "color" },
   ],
   ImageWithTextSection: [
+    { key: "imageAlt", label: "Image description (alt text)", kind: "text" },
     { key: "eyebrow", label: "Eyebrow label", kind: "text" },
     { key: "title", label: "Title", kind: "text" },
     { key: "body", label: "Body", kind: "textarea", rows: 4 },
@@ -2757,6 +2473,10 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
   ],
   SlideshowSection: [
+    { key: "slideTextColor", label: "Slide text & dots colour", kind: "color" },
+    { key: "prevAria", label: "Previous-slide button label (screen readers)", kind: "text" },
+    { key: "nextAria", label: "Next-slide button label (screen readers)", kind: "text" },
+    { key: "dotAria", label: "Slide dot label (screen readers, {n} = slide number)", kind: "text" },
     { key: "autoplay", label: "Autoplay", kind: "toggle" },
     { key: "autoplaySpeed", label: "Autoplay speed (ms)", kind: "number", min: 1500, max: 15000, step: 250 },
   ],
@@ -2854,6 +2574,10 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "ctaUrl", label: "CTA URL", kind: "text" },
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
     { key: "accentColor", label: "Accent", kind: "color" },
+    { key: "labelDays", label: "Label: days", kind: "text" },
+    { key: "labelHours", label: "Label: hours", kind: "text" },
+    { key: "labelMinutes", label: "Label: minutes", kind: "text" },
+    { key: "labelSeconds", label: "Label: seconds", kind: "text" },
   ],
   ContactFormSection: [
     { key: "eyebrow", label: "Eyebrow label", kind: "text" },
@@ -2862,6 +2586,10 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "buttonLabel", label: "Button label", kind: "text" },
     { key: "successMessage", label: "Thank-you message", kind: "text" },
     { key: "showPhone", label: "Show phone field", kind: "toggle" },
+    { key: "namePlaceholder", label: "Name field placeholder", kind: "text" },
+    { key: "emailPlaceholder", label: "Email field placeholder", kind: "text" },
+    { key: "phonePlaceholder", label: "Phone field placeholder", kind: "text" },
+    { key: "messagePlaceholder", label: "Message field placeholder", kind: "text" },
     { key: "accentColor", label: "Accent", kind: "color" },
   ],
   MapSection: [
@@ -2943,6 +2671,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "sectionTitle", label: "Section title", kind: "text" },
     { key: "sectionSubtitle", label: "Section subtitle", kind: "text" },
     { key: "highlightPlan", label: "Highlighted plan name", kind: "text" },
+    { key: "highlightLabel", label: "Highlight badge text", kind: "text" },
   ],
   ProductCoverCarouselSection: [
     { key: "title", label: "Wordmark headline", kind: "text" },
@@ -2958,6 +2687,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "autoplayMs", label: "Auto-advance speed (ms)", kind: "number", min: 1500, max: 15000, step: 250 },
     { key: "showDots", label: "Show dots", kind: "toggle" },
     { key: "scrimOpacity", label: "Bottom scrim darkness", kind: "range", min: 0, max: 1, step: 0.05 },
+    { key: "taglineColor", label: "Tagline color", kind: "color" },
     { key: "colorOverlay", label: "Color overlay", kind: "color" },
     { key: "colorOverlayOpacity", label: "Color overlay opacity", kind: "range", min: 0, max: 1, step: 0.05 },
     { key: "colorOverlayBlend", label: "Blend overlay into covers (duotone)", kind: "toggle" },
@@ -3013,6 +2743,9 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
   EphemeraRowSection: [
     { key: "align", label: "Alignment", kind: "select", options: ALIGN_OPTIONS },
     { key: "gap", label: "Object gap", kind: "range", min: 8, max: 80, step: 4, suffix: "px" },
+    { key: "ephemeraInkColor", label: "Ink colour (barcodes, spine shading)", kind: "color" },
+    { key: "ephemeraFilmColor", label: "Film negative base colour", kind: "color" },
+    { key: "ephemeraPaperColor", label: "Ticket colour (when a block has none)", kind: "color" },
   ],
 };
 
@@ -3053,7 +2786,7 @@ export function SectionFieldEditor({
       return (
         <div>
           {labelEl}
-          <input
+          <input aria-label={field.label}
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
@@ -3065,7 +2798,7 @@ export function SectionFieldEditor({
       return (
         <div>
           {labelEl}
-          <textarea
+          <textarea aria-label={field.label}
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             rows={field.kind === "html" ? 6 : (field as any).rows || 3}
@@ -3096,14 +2829,14 @@ export function SectionFieldEditor({
               className="w-7 h-7 rounded-lg border border-neutral-200 relative overflow-hidden"
               style={{ background: value || "#000" }}
             >
-              <input
+              <input aria-label={field.label}
                 type="color"
                 value={normalizeHexForColorInput(value || "#000000")}
                 onChange={(e) => onChange(e.target.value)}
                 className="absolute inset-0 opacity-0 cursor-pointer scale-150"
               />
             </div>
-            <input
+            <input aria-label={field.label}
               value={value || ""}
               onChange={(e) => onChange(e.target.value)}
               onBlur={(e) => {
@@ -3121,7 +2854,7 @@ export function SectionFieldEditor({
       return (
         <div>
           {labelEl}
-          <input
+          <input aria-label={field.label}
             type="number"
             value={value ?? ""}
             min={field.min}
@@ -3143,7 +2876,7 @@ export function SectionFieldEditor({
               {field.suffix || ""}
             </span>
           </div>
-          <input
+          <input aria-label={field.label}
             type="range"
             min={field.min}
             max={field.max}
@@ -3159,7 +2892,7 @@ export function SectionFieldEditor({
       return (
         <div>
           {labelEl}
-          <select
+          <select aria-label={field.label}
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
@@ -3191,7 +2924,7 @@ export function SectionFieldEditor({
       return (
         <div>
           {labelEl}
-          <input
+          <input aria-label={field.label}
             type="datetime-local"
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
@@ -3208,13 +2941,13 @@ export function SectionFieldEditor({
               <img src={value} className="w-full h-full object-cover" alt="" />
             </div>
           )}
-          <input
+          <input aria-label={field.label}
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
             placeholder="https://… or upload"
             className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400 mb-1.5"
           />
-          <input
+          <input aria-label={field.label}
             ref={fileInputRef}
             type="file"
             accept="image/*"

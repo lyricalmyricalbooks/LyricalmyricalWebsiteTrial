@@ -5,6 +5,7 @@ import {
   RISO_STOREFRONT_CSS,
   risoGrainCss,
   STOREFRONT_TOKEN_CSS,
+  colorUtilityCss,
 } from "./themeTokens";
 
 describe("hexToRgbTriplet", () => {
@@ -96,14 +97,30 @@ describe("STOREFRONT_TOKEN_CSS", () => {
   });
 
   it("maps the brand semantic hues (violet/emerald/cyan/amber/rose) onto tokens", () => {
-    expect(STOREFRONT_TOKEN_CSS).toContain(".bg-violet-500{background-color:var(--accent);}");
-    expect(STOREFRONT_TOKEN_CSS).toContain(".border-violet-500\\/30{border-color:rgba(var(--accent-rgb), 0.3);}");
-    expect(STOREFRONT_TOKEN_CSS).toContain(".text-emerald-400{color:var(--success);}");
-    expect(STOREFRONT_TOKEN_CSS).toContain(".bg-emerald-500\\/10{background-color:rgba(var(--success-rgb), 0.1);}");
-    expect(STOREFRONT_TOKEN_CSS).toContain(".text-cyan-400{color:var(--accent-2);}");
-    expect(STOREFRONT_TOKEN_CSS).toContain(".text-amber-400{color:var(--warning);}");
-    expect(STOREFRONT_TOKEN_CSS).toContain(".text-rose-400{color:var(--danger);}");
-    expect(STOREFRONT_TOKEN_CSS).toContain(".bg-purple-600{background-color:var(--accent);}");
+    expect(colorUtilityCss("bg-violet-500")).toContain(".bg-violet-500{background-color:var(--accent);}");
+    expect(colorUtilityCss("border-violet-500/30")).toContain(".border-violet-500\\/30{border-color:rgba(var(--accent-rgb), 0.3);}");
+    expect(colorUtilityCss("text-emerald-400")).toContain(".text-emerald-400{color:var(--success);}");
+    expect(colorUtilityCss("bg-emerald-500/10")).toContain(".bg-emerald-500\\/10{background-color:rgba(var(--success-rgb), 0.1);}");
+    expect(colorUtilityCss("text-cyan-400")).toContain(".text-cyan-400{color:var(--accent-2);}");
+    expect(colorUtilityCss("text-amber-400")).toContain(".text-amber-400{color:var(--warning);}");
+    expect(colorUtilityCss("text-rose-400")).toContain(".text-rose-400{color:var(--danger);}");
+    expect(colorUtilityCss("bg-purple-600")).toContain(".bg-purple-600{background-color:var(--accent);}");
+  });
+
+  it("maps greys, black and interaction variants onto tokens too", () => {
+    expect(colorUtilityCss("text-neutral-900")).toBe("[data-fm-store] .text-neutral-900{color:rgb(var(--fg-rgb));}");
+    expect(colorUtilityCss("text-neutral-400")).toContain("color:var(--muted);");
+    expect(colorUtilityCss("bg-neutral-100")).toContain("background-color:var(--surface-2);");
+    expect(colorUtilityCss("text-black")).toContain("color:var(--bg-color);");
+    expect(colorUtilityCss("hover:bg-neutral-800")).toBe("[data-fm-store] .hover\\:bg-neutral-800:hover{background-color:var(--surface);}");
+    expect(colorUtilityCss("group-hover:text-white")).toBe("[data-fm-store] .group:hover .group-hover\\:text-white{color:rgb(var(--fg-rgb));}");
+    expect(colorUtilityCss("placeholder:text-slate-400")).toContain("::placeholder{color:var(--muted);}");
+    expect(colorUtilityCss("md:from-black/80")).toBe("@media (width >= 48rem){[data-fm-store] .md\\:from-black\\/80{--tw-gradient-from:rgba(var(--overlay-rgb), 0.8);}}");
+    expect(colorUtilityCss("dark:bg-white")).toBeNull();
+  });
+
+  it("stays small: only classes the storefront uses are emitted", () => {
+    expect(STOREFRONT_TOKEN_CSS.length).toBeLessThan(40_000);
   });
 
   it("emits the new status tokens with defaults", () => {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
-import { readCachedDesign } from "../features/site/useSiteData";
+import { useLiveDesign } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
 
 const STORAGE_KEY = "lm:cookie-consent";
@@ -37,7 +37,7 @@ export function CookieConsent() {
   const [showDetails, setShowDetails] = useState(false);
   const [analytics, setAnalytics] = useState(false);
   const [marketing, setMarketing] = useState(false);
-  const design = readCachedDesign();
+  const design = useLiveDesign();
   const c = (key: string) => getCopy(design, key);
 
   useEffect(() => {
@@ -72,12 +72,13 @@ export function CookieConsent() {
           exit={{ y: 80, opacity: 0 }}
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           role="dialog"
+          data-studio-target="copy:Cookie banner|style:elements" data-studio-label="Cookie banner"
           aria-label={c("cookieAria")}
           aria-modal="false"
           className="fixed bottom-3 left-3 right-3 z-[150] overflow-hidden border-2 border-[var(--rp-outline)] bg-[var(--bg-color)] p-5 text-[rgb(var(--fg-rgb))] shadow-[6px_6px_0_var(--rp-shadow-color)] md:bottom-7 md:left-auto md:right-8 md:max-w-[30rem] md:p-6"
         >
           <StorefrontThemeStyle design={design} />
-          <p className="mb-3 inline-flex -rotate-1 border-2 border-[var(--rp-outline)] bg-[var(--warning)] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.28em] text-[#100f0d] shadow-[3px_3px_0_var(--rp-shadow-color)]">
+          <p className="mb-3 inline-flex -rotate-1 border-2 border-[var(--rp-outline)] bg-[var(--warning)] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.28em] text-[var(--on-accent,#100f0d)] shadow-[3px_3px_0_var(--rp-shadow-color)]">
             {c("cookieTag")}
           </p>
           <h2 className="mb-2 text-3xl uppercase leading-none" style={{ fontFamily: "var(--heading-font, 'Anton', Impact, sans-serif)", fontWeight: 400 }}>
@@ -126,7 +127,7 @@ export function CookieConsent() {
             </button>
             <button
               onClick={() => decide({ analytics: false, marketing: false })}
-              className={`min-w-[120px] flex-1 ${btn} bg-[rgb(var(--fg-rgb))] text-[var(--bg-color)] transition-colors hover:bg-[var(--warning)] hover:text-[#100f0d]`}
+              className={`min-w-[120px] flex-1 ${btn} bg-[rgb(var(--fg-rgb))] text-[var(--bg-color)] transition-colors hover:bg-[var(--warning)] hover:text-[var(--on-accent,#100f0d)]`}
             >
               {c("cookieReject")}
             </button>

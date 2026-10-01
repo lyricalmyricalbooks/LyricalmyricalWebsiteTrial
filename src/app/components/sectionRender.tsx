@@ -3,7 +3,9 @@ import { motion } from "motion/react";
 import { useNavigate } from "react-router";
 import * as Sections from "./SectionComponents";
 import { hexToRgbTriplet } from "../features/site/themeTokens";
+import { googleFontHref } from "../features/site/fonts";
 import { DEFAULT_COLOR_SCHEMES } from "../features/site/colorSchemes";
+import { SectionDesignContext } from "./sectionCopy";
 import {
   boxShadowValue,
   cornerRadiusValue,
@@ -38,7 +40,7 @@ function GoogleFontLoader({ font }: { font: string }) {
     const link = document.createElement("link");
     link.id = linkId;
     link.rel = "stylesheet";
-    link.href = `https://fonts.googleapis.com/css2?family=${font.replace(/\s+/g, "+")}:wght@400;500;600;700;800;900&display=swap`;
+    link.href = googleFontHref(font);
     document.head.appendChild(link);
   }, [font]);
   return null;
@@ -156,6 +158,9 @@ export type SectionListProps = {
   enableAnimations?: boolean;
   /** Value for the `data-section` attribute (used by the editor's click-to-edit). */
   dataSection?: string;
+  sharedBlocks?: any[];
+  /** The page design, so renderers can read shopper-facing helper words via getCopy. */
+  design?: any;
 };
 
 /**
@@ -170,18 +175,21 @@ export function SectionList({
   onProductClick,
   enableAnimations = true,
   dataSection = "homepage",
+  sharedBlocks = [],
+  design,
 }: SectionListProps) {
   const list = (sections || []).filter((section: any) => section.visible !== false && sectionInWindow(section));
   if (list.length === 0) return null;
   const schemes: any[] = colorSchemes && colorSchemes.length > 0 ? colorSchemes : DEFAULT_COLOR_SCHEMES;
 
   return (
+    <SectionDesignContext.Provider value={design || null}>
     <div className="flex flex-col">
       {list.map((section: any) => {
         const SectionComponent = (Sections as any)[section.type];
         if (!SectionComponent) return null;
 
-        const s = { ...(section.settings || {}), __sectionId: section.id };
+        const s = { ...(section.settings || {}), __sectionId: section.id, __sharedBlocks: sharedBlocks };
         const scheme = s.colorSchemeId ? schemes.find((sc: any) => sc.id === s.colorSchemeId) : null;
         const wrapperCls =
           [
@@ -218,6 +226,7 @@ export function SectionList({
             }}
           >
             <SectionFontOverride sectionId={section.id} settings={s} />
+            {(s.mobilePaddingTop != null || s.mobilePaddingBottom != null || s.mobileFontScale != null || s.mobileColumns != null) && <style>{`@media(max-width:767px){#section-${section.id}{${s.mobilePaddingTop != null ? `padding-top:${Number(s.mobilePaddingTop)}px!important;` : ""}${s.mobilePaddingBottom != null ? `padding-bottom:${Number(s.mobilePaddingBottom)}px!important;` : ""}${s.mobileFontScale != null ? `font-size:${Number(s.mobileFontScale)}%;` : ""}}${s.mobileColumns != null ? `#section-${section.id} .grid{grid-template-columns:repeat(${Math.max(1, Math.min(4, Number(s.mobileColumns)))},minmax(0,1fr))!important;}` : ""}}`}</style>}
             <SectionScopedCss sectionId={section.id} css={s.customCss} />
             {hasGlowHover && <style>{HOVER_GLOW_CSS}</style>}
             <ShapeDivider style={s.shapeDividerTop} position="top" color={s.shapeDividerTopColor} />
@@ -235,6 +244,7 @@ export function SectionList({
         );
       })}
     </div>
+    </SectionDesignContext.Provider>
   );
 }
 
@@ -281,6 +291,8 @@ export function TemplateSections({
       onProductClick={handlers.onProductClick}
       enableAnimations={enableAnimations ?? (design?.enableAnimations ?? true)}
       dataSection={templateId}
+      sharedBlocks={design?.sharedBlocks || []}
+      design={design}
     />
   );
 }
@@ -313,6 +325,8 @@ export function GlobalSections({
       onProductClick={onProductClick || handlers.onProductClick}
       enableAnimations={false}
       dataSection="globalSections"
+      sharedBlocks={design?.sharedBlocks || []}
+      design={design}
     />
   );
 }

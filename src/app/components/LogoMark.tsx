@@ -1,3 +1,5 @@
+import type React from "react";
+import { getCopy } from "../features/site/storeCopy";
 // ──────────────────────────────
 // Brand logo (image, tinted image, or wordmark text)
 //
@@ -8,6 +10,14 @@
 //   - logoText   : wordmark text shown when no image is uploaded
 //   - logoHeight : rendered height in px (clamped 20–64)
 // ──────────────────────────────
+// Second-word styling shared by the header wordmark and footer brand: an explicit
+// colour (wordmarkSecondaryColor) wins; otherwise it is dimmed unless the toggle is off.
+export function wordmarkSecondaryStyle(design: any, dim = 0.6): React.CSSProperties | undefined {
+  const color = design?.wordmarkSecondaryColor;
+  if (color) return { color };
+  return design?.wordmarkSecondaryMuted === false ? undefined : { opacity: dim };
+}
+
 export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defaultText?: string }) {
   const height = Math.max(20, Math.min(64, design?.logoHeight ?? 24));
   const logoColor = design?.logoColor;
@@ -22,7 +32,7 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
       <span
         className="flex items-baseline gap-2 whitespace-nowrap normal-case"
         style={{
-          ...(design?.headingFont ? { fontFamily: `'${design.headingFont}', serif` } : {}),
+          ...((design?.wordmarkFont || design?.headingFont) ? { fontFamily: `'${design.wordmarkFont || design.headingFont}', serif` } : {}),
           fontSize: `min(${size}rem, 6vw)`, // shrinks on phones so the header never overflows
           fontWeight: weight,
           letterSpacing: "-0.01em",
@@ -31,7 +41,7 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
         }}
       >
         <span>{design?.wordmarkPrimary || "Lyricalmyrical"}</span>
-        <span style={design?.wordmarkSecondaryMuted === false ? undefined : { opacity: 0.56 }}>
+        <span style={wordmarkSecondaryStyle(design, 0.56)}>
           {design?.wordmarkSecondary || "Books"}
         </span>
       </span>
@@ -44,7 +54,7 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
       const maskUrl = `url("${design.logoUrl}")`;
       return (
         <span
-          aria-label="Logo"
+          aria-label={getCopy(design, "logoAlt")}
           style={{
             display: "inline-block",
             height,
@@ -64,7 +74,7 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
         </span>
       );
     }
-    return <img src={design.logoUrl} alt="Logo" className="object-contain" style={{ height }} />;
+    return <img src={design.logoUrl} alt={getCopy(design, "logoAlt")} className="object-contain" style={{ height }} />;
   }
 
   return logoColor ? <span style={{ color: logoColor }}>{text}</span> : <>{text}</>;

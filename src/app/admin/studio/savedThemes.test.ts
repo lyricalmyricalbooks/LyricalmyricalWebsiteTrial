@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addSavedTheme, removeSavedTheme, savedThemesBytes, savedThemesFit, MAX_SAVED_THEMES, SAVED_THEMES_BUDGET_BYTES } from "./savedThemes";
+import { savedThemesBytes, savedThemesFit, SAVED_THEMES_BUDGET_BYTES, addSavedTheme, removeSavedTheme, renameSavedTheme, duplicateSavedTheme, serializeThemeFile, parseThemeFile, themeFileName, MAX_SAVED_THEMES } from "./savedThemes";
 
 describe("saved themes", () => {
   it("stores a detached, undefined-free copy", () => {
@@ -24,6 +24,28 @@ describe("saved themes", () => {
     expect(l[0].name).toBe("Untitled theme");
     expect(removeSavedTheme(l, l[0].id)).toEqual([]);
   });
+
+  it("renames, replacing a clashing name", () => {
+    let l = addSavedTheme([], "A", {});
+    l = addSavedTheme(l, "B", {});
+    const a = l.find((t) => t.name === "A")!;
+    expect(renameSavedTheme(l, a.id, "  ").map((t) => t.name).sort()).toEqual(["A", "B"]);
+    expect(renameSavedTheme(l, a.id, "b").map((t) => t.name)).toEqual(["b"]);
+  });
+  it("duplicates with a unique name and a detached design", () => {
+    let l = addSavedTheme([], "A", { v: 1 });
+    l = duplicateSavedTheme(l, l[0].id);
+    l = duplicateSavedTheme(l, l.find((t) => t.name === "A")!.id);
+    expect(l.map((t) => t.name).sort()).toEqual(["A", "A copy", "A copy 2"]);
+    expect(l[0].design).toEqual({ v: 1 });
+  });
+  it("round-trips a theme file and rejects junk", () => {
+    const text = serializeThemeFile({ name: "Autumn", design: { a: [1] } });
+    expect(parseThemeFile(text)).toEqual({ name: "Autumn", design: { a: [1] } });
+    expect("error" in parseThemeFile("nope")).toBe(true);
+    expect("error" in parseThemeFile('{"x":1}')).toBe(true);
+    expect(themeFileName({ name: "My Theme!" })).toBe("my-theme.theme.json");
+  });
   it("refuses to grow past the Firestore-safe budget", () => {
     // A realistic design is ~75 KB; seven of them would blow the 500 KB budget.
     const big = { blob: "x".repeat(75_000) };
@@ -32,7 +54,6 @@ describe("saved themes", () => {
     for (let i = 1; i < 7; i++) l = addSavedTheme(l, `T${i}`, big);
     expect(savedThemesBytes(l)).toBeGreaterThan(SAVED_THEMES_BUDGET_BYTES);
     expect(savedThemesFit(l)).toBe(false);
-    // deleting one gets back under budget
     expect(savedThemesFit(removeSavedTheme(l, l[0].id).slice(0, 5))).toBe(true);
   });
 });

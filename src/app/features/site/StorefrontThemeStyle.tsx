@@ -1,3 +1,5 @@
+import { googleFontHref } from "./fonts";
+import { storefrontOverridesCss, storefrontOverridesFontNames } from "./StorefrontOverrides";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, RISO_CHECKOUT_DARK_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS, hexToRgbTriplet } from "./themeTokens";
 
 /**
@@ -38,6 +40,7 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
     }
     [data-fm-store]{font-family:var(--body-font);}
     [data-fm-store] :where(h1,h2,h3,h4,h5,h6){font-family:var(--heading-font);${d.headingWeight ? `font-weight:${d.headingWeight};` : ""}}
+    ${d.navFont ? `[data-fm-store] header[data-section="navigation"]{font-family:'${String(d.navFont).replace(/'/g, "")}',${"sans-serif"};}` : ""}
     [data-fm-store] a:hover{color:var(--link-hover-color);}
     [data-fm-store] .custom-btn{background-color:var(--btn-bg) !important;color:var(--btn-text) !important;}
     [data-fm-store] .custom-btn:hover{background-color:var(--btn-hover-bg) !important;color:var(--btn-hover-text) !important;}
@@ -74,8 +77,18 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
     ? `[data-fm-checkout] .bg-white{background-color:${d.surfaceRaisedColor || "#ffffff"} !important;}`
     : "";
 
-  // Riso on a dark canvas: turn the conventional white checkout markup into white-on-black.
-  const darkCheckoutCss = d.themeStyle === "riso" && lum >= 0.5 ? RISO_CHECKOUT_DARK_CSS : "";
+  // Any dark canvas: turn the conventional white checkout markup into the theme's colours, so its
+  // greys follow the storefront tokens (which re-point them) instead of staying on white paper.
+  const darkCheckoutCss = lum >= 0.5 ? RISO_CHECKOUT_DARK_CSS : "";
 
-  return <style>{css}{customCss}{checkoutCss}{lightThemePaperCss}{darkCheckoutCss}</style>;
+  // Merchant overrides for book-card title/price and the tiny "small print" text. They come after the
+  // token layer so they win, and only exist when a Studio control has been set.
+  const fontNames = Array.from(new Set([d.headingFont, d.font || d.bodyFont, d.navFont, d.wordmarkFont, ...storefrontOverridesFontNames(d)].filter(Boolean).map(String)));
+  const overridesCss = storefrontOverridesCss(d);
+  return (
+    <>
+      {fontNames.map(n => <link key={n} rel="stylesheet" href={googleFontHref(n)} />)}
+      <style>{css}{overridesCss}{customCss}{checkoutCss}{lightThemePaperCss}{darkCheckoutCss}</style>
+    </>
+  );
 }

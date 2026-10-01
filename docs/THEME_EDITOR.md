@@ -28,8 +28,18 @@ The editor is **not** a blank slate. It already supports:
   All-pages changes are copied to every static and dynamic template while
   preserving each template's section stack.
 - **Section presets** (save/reuse a configured section).
-- **Live preview** via an iframe `postMessage` channel (`THEME_UPDATE`) with
-  click-to-edit (the preview can request a section be opened in the editor).
+- **Live preview** via an iframe `postMessage` channel with click-to-edit (the
+  preview can request a section be opened in the editor). `STUDIO_PREVIEW_STATE`
+  sends the complete unsaved design plus current books, published pages and
+  non-design settings, so colors, navigation and newly created pages update
+  together without an iframe reload. Studio also directly dispatches the same
+  event into its same-origin iframe as a delivery fallback, preventing iframe
+  timing from leaving the canvas on published colours; `THEME_UPDATE` remains
+  supported for legacy callers. The snapshot is JSON-cloned first (`toCloneable`,
+  dropping Firestore `_lastDoc`) because an uncloneable book made every post throw.
+  **Preview in new tab** sends the same snapshot over
+  `BroadcastChannel("studio_preview")` to a top-level `?preview=true` window
+  (`features/site/previewTab.ts`), which re-dispatches it as a window message.
 - **Import/export** of a theme design as JSON (in `ThemeEditorPro`).
 - A **token/CSS-variable layer** applied to every storefront surface.
 
@@ -46,6 +56,7 @@ The editor is **not** a blank slate. It already supports:
 | `src/app/components/MainSite.tsx` | Renders the homepage/storefront. Uses `SectionList` for `heroPage.sections` and the shared `GlobalSections` from `sectionRender`. |
 | `src/app/features/site/StorefrontThemeStyle.tsx` + `themeTokens` | Injects the semantic token / CSS-variable layer onto any storefront surface via the `[data-fm-store]` attribute. |
 | `src/app/admin/api.ts` | Persistence: `getSettings`, `updateSettings(settings, { publish })`, `schedulePublish`. |
+| `src/app/admin/studio/studioModel.ts` | Immutable Studio state, recursive block-tree operations (three levels), linked shared-block resolution, normalization, and undo/redo. |
 
 ## The section/block contract (read before adding a section)
 
@@ -109,7 +120,9 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
   `design.page.sections` otherwise; `design["page:<slug>"].hidePageBody`
   suppresses the legacy title + body HTML so a page can be fully
   section-built. Fully backward compatible — pages without a per-page stack
-  behave exactly as before.
+  behave exactly as before. Custom pages use the themed storefront header
+  (logo, header menu, published in-header pages, wishlist and account controls),
+  and newly created pages opt into that header navigation by default.
 - **Full-theme presets** (`THEME_LIBRARY` in `ThemeEditor.tsx`) may carry a
   `global` record; `applyThemePreset` bulk-writes those keys to the design
   root and **every static/dynamic page surface** in one undo step via
@@ -215,6 +228,11 @@ library → verify), then check it off.
       `theme.css` fixes unreadable violet/blue active states in legacy panels.
       Draft/publish separation is covered by `admin/themeDraft.test.ts`.
       Known follow-up: the editor's panels are still legacy markup on the compat layer.
+- [x] **Product page — Riso catalogue card (September 2026).** `BookDetail.tsx` uses a breadcrumb,
+      thumbnail rail + framed photo + caption, one bordered buy card and full-width details tabs.
+      Every part is in Studio › Style › **Product page · buy card & details** (`pdp*` keys →
+      `features/site/productPageStyle.ts`, tested by `productPageStyle.test.ts`); words in Text & labels ›
+      Product page. Trust-signal lines removed.
 - [x] **Riso Noir (September 2026) — full public-site Riso redesign on black.** The
       storefront now defaults to Riso Press on black with white text and the flare
       `#e8402a` accent (ink text on flare fills). `features/site/risoNoir.ts` holds the shared
@@ -255,18 +273,20 @@ library → verify), then check it off.
       `resolveFooterBadges`). Style › Theme look › **My themes** saves/loads/deletes whole-design
       copies (`settings.savedThemes`, max 10, `studio/savedThemes.ts`). Still open: recursive
       nested blocks with drag-and-drop.
-- [x] **Studio audit (30 Sep 2026)** — driven end to end in a browser harness. Fixed: Text & labels search
-      never expanded its groups (so double-click-a-string → jump-to-field couldn't focus anything);
-      the preview bridge shipped `/s+/` instead of `/\s+/` and `/{w+}/` instead of `/\{\w+\}/` (plain template
-      literal ate the backslashes — now `String.raw`, with `previewBridge.test.ts` checking the shipped
-      string), so `{count}`/`{year}` strings never matched; tabbing through an *unset* colour field wrote
-      `#000000` (and `transparent`/`rgba()` were mangled) — blank now stays blank; the Home preview showed the
-      shop when `design.showHero === false` with no Studio control — added Style › Layout & spacing ›
-      "Open on the homepage sections" plus a banner on Home with a one-click fix, and `MainSite` now leaves
-      the forced shop view when the setting flips back on; the preview iframe no longer counts visits / funnel
-      events as shopper traffic; unset sliders show the storefront's real default (`defaultValue` in
-      `styleSchema.ts`) instead of their minimum; Add-section dialog traps focus; My themes refuses to grow
-      past ~500 KB (each copy is a whole design and `settings/website` is one 1 MiB Firestore doc).
+- [x] **Studio visual editing workflow.** The active Studio has a sortable section
+      outline with explicit add positions and expandable sortable blocks. Preview
+      block selection opens its own inspector, including block fields, visibility,
+      duplicate and remove. Edit/Browse modes separate selection from storefront
+      interaction; device preview, selected product/collection, searchable settings,
+      page/global style scope and phone-sized editor navigation are available.
+      Draft saves capture an immutable snapshot, local unsaved work can be
+      recovered, and design writes replace the full map so cleared overrides
+      stay cleared. `studio/StudioEditor.tsx`, `StudioOutline.tsx`,
+      `StudioInspector.tsx`, `previewBridge.ts`, `useStudioPersistence.ts` and
+      `themeWrite.ts` own these behaviors. Fixture browser checks cover canvas
+      block selection, slideshow selection, keyboard reorder and save races;
+      authenticated Firestore save/publish remains to be checked in a live admin
+      session. Recursive blocks and canvas drag remain future milestones.
 - [x] Fixes found while verifying: token-layer selectors now also match roots that carry `data-fm-store` and `fm-page`/`fm-surface`/`text-white` on the SAME element (Account and Tracking never received the theme background before); Tracking text/placeholder contrast raised; `ProductCoverCarouselSection` text is pinned light
       over its image scrim (it was following the theme text colour), and Checkout restores
       literal paper for `bg-white` on light themes (the token layer maps `bg-white` to the
@@ -301,6 +321,8 @@ library → verify), then check it off.
       `ProductGridHeaderSection`'s "Featured" source now filters on
       `isFeatured` (it previously matched every book).
 
+- [x] **Studio audit (30 Sep 2026).** Browser-driven audit of Studio. Fixed: tabbing through an *unset* colour field wrote `#000000` (blank now stays blank; `transparent`/`rgba()` survive); the preview iframe no longer counts visits / funnel events as shopper traffic; unset sliders show the storefront default (`defaultValue` in `styleSchema.ts`); My themes refuses to grow past ~500 KB (each copy is a whole design and `settings/website` is one 1 MiB Firestore doc); dirty/unpublished compares memoised. Known gap: preview double-click→copy matching is exact-text, so strings with `{count}`/`{year}` placeholders never jump to their field.
+
 ### C. Live preview & editing UX
 - [x] Inline click-to-edit routes preview clicks to the correct section/template panel and keeps the selected section highlighted.
 - [x] Device preview toggle (desktop / tablet / mobile widths).
@@ -330,8 +352,15 @@ library → verify), then check it off.
       fields remain as a fallback for blocks that haven't been migrated to the
       list. (Full recursive multi-field nested blocks across more section types
       remains a follow-up.)
-- [~] Live preview channel (`THEME_UPDATE` postMessage) exists — extend it to
-      cover all edits (not only some) and all templates.
+- [x] Live preview channel (`THEME_UPDATE` postMessage) covers the full design
+      snapshot on every template. Studio also sends a schema-derived editable
+      field map, so safe text/textarea fields can be edited in the canvas even
+      when a renderer does not carry a handwritten `data-theme-field` hook.
+- [x] Studio iframe preview state is atomic: `STUDIO_PREVIEW_STATE` carries the
+      unsaved design, settings, books and published pages on every relevant
+      change and again after every preview navigation/ready handshake. This
+      keeps colors, menus, page content and newly created pages in sync without
+      relying on a second Firestore read or timing-sensitive iframe reload.
 - [x] Double-click-to-edit (`TEXT_EDIT` postMessage) now has broad `data-theme-field`
       coverage: nearly every section-level `text`/`textarea` field across the 27
       renderers in `SectionComponents.tsx` is wired (title/subtitle/eyebrow/CTA/body
@@ -361,8 +390,9 @@ library → verify), then check it off.
       skipped because it renders through `formatArticleDate()`, a display transform,
       so the visible text isn't the raw stored value, and `linkUrl` is skipped since
       it's only used as the card `href`, never rendered as text). Extending more
-      block-heavy sections (`MulticolumnSection`, etc.) with this now-proven pattern
-      is a follow-up.
+      block-heavy sections are covered by the schema-derived editable-field map,
+      including recursively nested blocks; transformed/composite strings remain
+      inspector-only.
 - [x] Per-section box fill, raised box fill, and line/border color controls now feed the storefront token layer so hard-coded card/form/divider utilities can be recolored from the editor.
 
 
@@ -371,21 +401,12 @@ library → verify), then check it off.
 After the reference-grid follow-through work, the next five highest-leverage
 Shopify/WordPress-parity improvements are:
 
-1. **Nested block drag/drop** — extend `BlocksEditor`'s new `kind: "list"`
-   sub-list pattern from flat plain-text rows to 2–3 levels of recursive,
-   multi-field blocks for columns, cards, and media/text groups, and adopt it
-   in more section types beyond `PricingTableSection`.
-2. **CSS-grid visual positioning** — add guarded grid coordinates, z-index, and
-   overlap controls for sections that need true visual layout rather than only
-   vertical order.
-3. **Per-breakpoint layout overrides** — store desktop/tablet/mobile placement
-   overrides and pair them with the existing device preview toggle so mobile
-   layouts can be intentionally edited.
-4. **Reusable shared blocks** — promote configured blocks into a cross-section
-   library so repeated cards, CTAs, and media/text groups can be updated once.
-5. **Live-preview iframe drag/drop** — let `data-fm-section` / `data-fm-block`
-   hooks in the preview itself become drag sources/targets, not just click
-   targets, so reordering can happen directly in the canvas.
+The September 2026 composition milestone completed the previous five items:
+recursive three-level blocks, linked shared blocks, breakpoint overrides,
+guarded CSS-grid placement, and direct section/block canvas drag/drop. The next
+five highest-leverage increments are asset processing, performance profiling,
+collaboration conflict handling, a complete theme-management workspace, and
+schema-valid AI composition authoring.
 
 > Mega-menu child/grandchild drag/drop (previously #2 on this list) shipped:
 > `MenuBuilderPanel` in `ThemeEditor.tsx` now uses `SortableList`/`SortableRow`
@@ -397,24 +418,39 @@ Shopify/WordPress-parity improvements are:
       Draft action that resets both Firestore and local editor history to the
       published storefront without changing what shoppers see.
 - [x] Import/export JSON exists (`ThemeEditorPro`) plus a friendly duplicate-theme draft flow in the theme toolbar.
-- [ ] Multiple saved themes (a library of full themes, not just presets), with
-      one active/published.
+- [x] Multiple saved themes: Studio › Style › Theme look › **My themes** (up to 10 full
+      designs) with Rename, Duplicate, Download as a `.theme.json` file and
+      **Import a theme file…** (`studio/savedThemes.ts`). Applying one loads it into the
+      undoable draft; the published site is the active theme until Publish.
 - [x] Version history / restore previous published versions: every Save Draft / Publish
       writes a snapshot to the admin-only `theme-versions` Firestore collection
       (`adminApi.saveThemeVersion`/`listThemeVersions`, last 30 kept, pruned on save),
-      loaded on editor open so history survives reloads. Restore loads a snapshot
-      into the working copy as an unsaved change; nothing goes live until Publish.
+      shown in Studio's History dialog so history survives reloads. Preview is
+      non-destructive; Restore loads a snapshot into the working copy as an
+      unsaved change, and nothing goes live until Publish.
+- [x] Publish and Discard use accessible admin dialogs with a concise inventory
+      of changed surfaces/settings instead of browser confirms. Ctrl/Cmd+S saves.
+- [x] Studio can copy/paste sections between templates and save configured
+      sections into the draft's reusable `sectionPresets` library.
+- [x] Sections support phone/desktop visibility, scheduled show windows, phone
+      padding/type/grid overrides, and direct drag reorder in the preview canvas.
+- [x] A pre-publish check flags empty content and missing image descriptions and
+      reminds editors of contrast and image-weight review.
 
 ### E. Visual layout & responsive engine (Fluid Engine / Wix Studio)
-- [ ] Nested blocks (block-in-block) in the schema, `BlocksEditor`, and
-      renderers — at least 2–3 levels deep.
-- [ ] Reusable shared blocks usable across any section ("theme blocks").
+- [x] Nested blocks (block-in-block) in the Studio model, outline, inspector,
+      and `CompositionSection` renderer — guarded to three levels deep.
+- [x] Reusable linked shared blocks can be promoted from or inserted into any
+      compatible section of the same renderer type. Content inherits from one
+      source while placement, visibility and responsive layout remain local.
 - [x] Emit stable `data-fm-section` / `data-fm-block` ids on rendered
       section and block nodes for reliable click-to-edit/hover-highlight.
-- [ ] CSS-Grid block positioning (start/end coords + `z-index` overlap) with
-      separate desktop/mobile grids and dynamic-row guardrails.
-- [ ] Per-breakpoint overrides + device preview toggle (also under C) with
-      auto `clamp()` typography.
+- [x] `CompositionSection` supports CSS-Grid row/column/span/`z-index`
+      positioning with separate desktop/tablet/mobile layouts and a three-level
+      tree guardrail.
+- [x] Block alignment/visibility and grid placement use the active
+      desktop/tablet/mobile preview as their editing scope, with inheritance
+      when an override is blank. Auto `clamp()` typography remains a later enhancement.
 - [x] Soft section/block limits with in-editor warnings (25 sections / 50
       blocks reference).
 

@@ -1,0 +1,141 @@
+import { describe, expect, it } from "vitest";
+import { normalizeDesign } from "./studioModel";
+import { applyPageStyle, buildPreviewState, createSnapshotWriter, deliverPreviewState, parseRecovery, previewRoute, updateBlocks, withDraftPage } from "./studioWorkflow";
+
+describe("Studio workflow", () => {
+  it("normalization is idempotent and never nests page surfaces inside one another", () => {
+    const initial = { primaryColor: "red", productPage: { sections: [] }, heroPage: { sections: [] } };
+    const once = normalizeDesign(initial);
+    expect(normalizeDesign(once)).toEqual(once);
+    expect(once.heroPage).not.toHaveProperty("productPage");
+  });
+  it("gives legacy hidden and visible blocks stable identity across normalization", () => {
+    const input = { heroPage: { sections: [{ id: "faq", type: "FAQSection", settings: { items: [{ hidden: true, question: "Hidden" }, { question: "Visible" }] } }] } };
+    const a = normalizeDesign(input);
+    const b = normalizeDesign(input);
+    const blocks = a.heroPage.sections[0].settings.items;
+    expect(blocks[0].id).toBeTruthy();
+    expect(blocks[1].id).toBeTruthy();
+    expect(blocks[1].id).not.toBe(blocks[0].id);
+    expect(b.heroPage.sections).toEqual(a.heroPage.sections);
+    expect(input.heroPage.sections[0].settings.items[0]).not.toHaveProperty("id");
+  });
+  it("edits a legacy blocks array without losing it or affecting siblings", () => {
+    const section = { id: "s", type: "FAQSection", settings: { blocks: [{ id: "a", question: "A" }, { id: "b", question: "B" }] } };
+    const next = updateBlocks(section, "items", blocks => blocks.map(b => b.id === "b" ? { ...b, question: "Edited" } : b));
+    expect(next.items.map((b: any) => b.question)).toEqual(["A", "Edited"]);
+    expect(section.settings.blocks[1].question).toBe("B");
+  });
+  it("page overrides preserve global values, other pages and section stacks", () => {
+    const d = { primaryColor: "red", heroPage: { sections: [1] }, storefront: { primaryColor: "blue" } };
+    const n = applyPageStyle(d, "heroPage", "primaryColor", "green");
+    expect(n.primaryColor).toBe("red");
+    expect(n.heroPage).toEqual({ sections: [1], primaryColor: "green" });
+    expect(n.storefront).toEqual({ primaryColor: "blue" });
+    expect(applyPageStyle(n, "heroPage", "primaryColor", undefined).heroPage).toEqual({ sections: [1] });
+  });
+  it("saves the captured snapshot and excludes edits made while awaiting persistence", async () => {
+    let finish!: () => void;
+    const pending = new Promise<void>(resolve => { finish = resolve; });
+    const writer = createSnapshotWriter();
+    const design = { title: "Before" };
+    let stored: any;
+    const first = writer.run(design, async snapshot => { await pending; stored = snapshot; });
+    design.title = "After";
+    expect(await writer.run(design, async () => { throw new Error("must not run"); })).toBeNull();
+    finish();
+    expect(await first).toEqual({ title: "Before" });
+    expect(stored).toEqual({ title: "Before" });
+    expect(await writer.run(design, async () => {})).toEqual({ title: "After" });
+  });
+  it("unlocks after failed persistence so the draft can be retried", async () => {
+    const writer = createSnapshotWriter();
+    await expect(writer.run({ a: 1 }, async () => { throw new Error("offline"); })).rejects.toThrow("offline");
+    expect(await writer.run({ a: 2 }, async () => {})).toEqual({ a: 2 });
+  });
+  it("rejects malformed recovery and recognizes a changed server baseline", () => {
+    expect(parseRecovery("{broken", { title: "Live" })).toBeNull();
+    expect(parseRecovery(JSON.stringify({ version: 1, design: "bad" }), {})).toBeNull();
+    const recovery = JSON.stringify({ version: 1, design: { title: "Local" }, base: JSON.stringify({ title: "Old" }), savedAt: 1 });
+    expect(parseRecovery(recovery, { title: "New" })?.conflict).toBe(true);
+    expect(parseRecovery(recovery, { title: "Local" })).toBeNull();
+  });
+  it("maps preview navigation under the deployed subpath", () => {
+    expect(previewRoute("/LyricalmyricalWebsiteTrial/books/poems?preview=true", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "productPage", product: "poems" });
+    expect(previewRoute("/LyricalmyricalWebsiteTrial/?catalog=true", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "storefront" });
+    expect(previewRoute("/LyricalmyricalWebsiteTrial/page/about", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "page:about" });
+    expect(previewRoute("/outside", "/LyricalmyricalWebsiteTrial/")).toBeNull();
+  });
+  it("sends a complete draft snapshot and excludes pages shoppers cannot see", () => {
+    const design = { primaryColor: "#f00" };
+    const books = [{ id: "book-1" }];
+    const state = buildPreviewState(
+      { design: { primaryColor: "#000" }, payments: { stripe: { connected: true } } },
+      design,
+      [{ id: "live", status: "published" }, { id: "draft", status: "draft" }],
+      books,
+    );
+    expect(state).toMatchObject({
+      type: "STUDIO_PREVIEW_STATE",
+      design,
+      settings: { design, draftDesign: design, payments: { stripe: { connected: true } } },
+      pages: [{ id: "live", status: "published" }],
+      books,
+    });
+  });
+  it("overlays the unsaved Studio › Pages edit onto the preview's page list only", () => {
+    const pages = [{ id: "a", slug: "about", title: "About", status: "published" }];
+    expect(withDraftPage(pages, null)).toBe(pages);
+    expect(withDraftPage(pages, { id: "a", slug: "about", title: "About us" })[0].title).toBe("About us");
+    expect(pages[0].title).toBe("About");
+    const added = withDraftPage(pages, { slug: "journal", title: "Journal", status: "published" });
+    expect(added.map((p: any) => p.slug)).toEqual(["about", "journal"]);
+    expect(withDraftPage(pages, { title: "No slug yet" })).toBe(pages);
+  });
+  it("strips live Firestore snapshots so the preview message can be cloned", () => {
+    // Admin book lists carry `_lastDoc` (a Firestore DocumentSnapshot with functions); postMessage
+    // throws DataCloneError on it, which silently stopped every preview update once books loaded.
+    const books = [{ id: "b1", title: "Altrove", _lastDoc: { ref: () => null } }];
+    const pages = [{ id: "p1", status: "published", _lastDoc: { get: () => null } }];
+    expect(() => structuredClone(books)).toThrow();
+    const state = buildPreviewState({}, { productTitleColor: "#3245D2" }, pages, books);
+    expect(() => structuredClone(state)).not.toThrow();
+    expect(state.books).toEqual([{ id: "b1", title: "Altrove" }]);
+    expect(state.pages).toEqual([{ id: "p1", status: "published" }]);
+  });
+  it("still dispatches the same-origin fallback when postMessage throws", () => {
+    const origin = "https://shop.example";
+    let dispatched = 0;
+    const frame = {
+      location: { origin },
+      postMessage: () => { throw new Error("DataCloneError"); },
+      dispatchEvent: () => { dispatched += 1; return true; },
+    } as unknown as Window;
+    deliverPreviewState(frame, buildPreviewState({}, {}, [], []), origin);
+    expect(dispatched).toBe(1);
+  });
+  it("delivers the unsaved snapshot through postMessage and a same-origin fallback", () => {
+    const origin = "https://shop.example";
+    const state = buildPreviewState({}, { primaryColor: "#f00" }, [], []);
+    const received: MessageEvent[] = [];
+    const frame = {
+      location: { origin },
+      postMessage: (data: any, origin: string) => received.push(new MessageEvent("message", { data, origin })),
+      dispatchEvent: (event: MessageEvent) => { received.push(event); return true; },
+    } as unknown as Window;
+    deliverPreviewState(frame, state, origin);
+    expect(received).toHaveLength(2);
+    expect(received.every((event) => event.data.design.primaryColor === "#f00")).toBe(true);
+  });
+  it("does not directly dispatch into a cross-origin preview", () => {
+    let posts = 0, dispatches = 0;
+    const frame = {
+      location: { origin: "https://other.example" },
+      postMessage: () => { posts += 1; },
+      dispatchEvent: () => { dispatches += 1; return true; },
+    } as unknown as Window;
+    deliverPreviewState(frame, buildPreviewState({}, {}, [], []), "https://shop.example");
+    expect(posts).toBe(1);
+    expect(dispatches).toBe(0);
+  });
+});

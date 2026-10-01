@@ -1,10 +1,11 @@
-import { DEFAULT_BOOKS, DEFAULT_IMAGE } from "./constants";
+import { placeholderImage } from "./constants";
 import type { Book } from "./types";
+import { bookInCategory } from "./navItems";
 
 const LOGO_DESIGN_FIELDS = [
   "logoUrl", "logoText", "logoColor", "logoTint", "logoHeight",
   // Two-part wordmark support (LogoMark renders these when wordmarkStyle is "two-part")
-  "wordmarkStyle", "wordmarkPrimary", "wordmarkSecondary", "wordmarkSize", "wordmarkWeight", "wordmarkSecondaryMuted", "headingFont",
+  "wordmarkStyle", "wordmarkPrimary", "wordmarkSecondary", "wordmarkSize", "wordmarkWeight", "wordmarkSecondaryMuted", "wordmarkSecondaryColor", "headingFont",
 ] as const;
 
 function firstConfiguredValue(field: (typeof LOGO_DESIGN_FIELDS)[number], designs: any[]) {
@@ -28,23 +29,23 @@ export function resolveLogoPosition(surfaceDesign: any, fallbackDesigns: any[] =
 
 export function getFeaturedBooks(books: Book[]) {
   const featuredBooks = books.filter((book) => book.status === "published" && book.isFeatured).slice(0, 4);
-  return featuredBooks.length > 0 ? featuredBooks : DEFAULT_BOOKS.slice(0, 4);
+  // Nothing starred as featured → show the first published books rather than invented ones.
+  return featuredBooks.length > 0 ? featuredBooks : books.filter((book) => book.status === "published").slice(0, 4);
 }
 
-export function getPublications(books: Book[]) {
+export function getPublications(books: Book[], design?: any) {
   return books.map((book) => ({
     title: book.title.toUpperCase(),
-    image: book.photos?.[0]?.url || DEFAULT_IMAGE,
+    image: book.photos?.[0]?.url || placeholderImage(design),
   }));
 }
 
-export function getFilteredItems(books: Book[], activeCategory: any, nowISO: string) {
-  const categoryName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
+export function getFilteredItems(books: Book[], activeCategory: any, nowISO: string, allCategories: any[] = []) {
   return books.filter(
     (book) =>
       book.status === "published" &&
       (!book.scheduleDate || book.scheduleDate <= nowISO) &&
-      (book.categories?.includes(categoryName) || categoryName === "PUBLICATIONS"),
+      bookInCategory(book, activeCategory, allCategories),
   );
 }
 

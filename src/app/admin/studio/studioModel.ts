@@ -3,6 +3,16 @@
 // editor never mutates state in place.
 
 export type Section = { id: string; type: string; visible?: boolean; settings: Record<string, any> };
+export type StudioBlock = {
+  id: string;
+  type?: "group" | "text" | "image" | "button";
+  children?: StudioBlock[];
+  sharedBlockId?: string;
+  responsive?: Record<"desktop" | "tablet" | "mobile", Record<string, any>>;
+  grid?: Record<"desktop" | "tablet" | "mobile", Record<string, number>>;
+  [key: string]: any;
+};
+export type SharedBlock = { id: string; name: string; sectionType?: string; block: StudioBlock; updatedAt: string };
 
 /** Where a list of sections lives inside `design`. */
 export type SectionTarget = { kind: "template"; id: string } | { kind: "global" };
@@ -13,6 +23,65 @@ export const newId = () =>
     : `s_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v ?? null));
+
+export const MAX_BLOCK_DEPTH = 3;
+
+/** Normalizes legacy flat blocks and recursive composition blocks without mutating. */
+export function normalizeBlocks(blocks: any[], parent = "block", depth = 0): StudioBlock[] {
+  if (!Array.isArray(blocks) || depth >= MAX_BLOCK_DEPTH) return [];
+  return blocks.filter(b => b && typeof b === "object").map((block, index) => {
+    const id = block.id || `${parent}-${index}`;
+    const children = normalizeBlocks(block.children, id, depth + 1);
+    return { ...block, id, ...(children.length ? { children } : { children: undefined }) };
+  });
+}
+
+export function findBlock(blocks: StudioBlock[], id: string): StudioBlock | undefined {
+  for (const block of blocks || []) {
+    if (block.id === id) return block;
+    const child = findBlock(block.children || [], id);
+    if (child) return child;
+  }
+}
+
+export function mapBlock(blocks: StudioBlock[], id: string, fn: (block: StudioBlock) => StudioBlock): StudioBlock[] {
+  return (blocks || []).map(block => block.id === id
+    ? fn(block)
+    : block.children?.length ? { ...block, children: mapBlock(block.children, id, fn) } : block);
+}
+
+export function removeBlock(blocks: StudioBlock[], id: string): StudioBlock[] {
+  return (blocks || []).filter(block => block.id !== id).map(block => block.children?.length
+    ? { ...block, children: removeBlock(block.children, id) } : block);
+}
+
+export function addChildBlock(blocks: StudioBlock[], parentId: string, child: StudioBlock): StudioBlock[] {
+  return mapBlock(blocks, parentId, block => ({ ...block, children: [...(block.children || []), child] }));
+}
+
+/** Moves a block before a sibling at the same nesting level. */
+export function moveBlockBefore(blocks: StudioBlock[], movingId: string, beforeId: string): StudioBlock[] {
+  const from = blocks.findIndex(block => block.id === movingId), to = blocks.findIndex(block => block.id === beforeId);
+  if (from >= 0 && to >= 0 && from !== to) {
+    const next = [...blocks], [moving] = next.splice(from, 1);
+    next.splice(from < to ? to - 1 : to, 0, moving); return next;
+  }
+  return blocks.map(block => block.children?.length
+    ? { ...block, children: moveBlockBefore(block.children, movingId, beforeId) } : block);
+}
+
+export function freshBlockIds(block: StudioBlock): StudioBlock {
+  return { ...clone(block), id: newId(), children: (block.children || []).map(freshBlockIds) };
+}
+
+/** Linked shared blocks inherit source content while keeping placement/layout overrides. */
+export function resolveSharedBlocks(blocks: StudioBlock[], library: SharedBlock[] = []): StudioBlock[] {
+  return normalizeBlocks(blocks).map(block => {
+    const source = block.sharedBlockId ? library.find(item => item.id === block.sharedBlockId)?.block : undefined;
+    const merged = source ? { ...clone(source), ...block, id: block.id, sharedBlockId: block.sharedBlockId } : block;
+    return { ...merged, children: resolveSharedBlocks(merged.children || [], library) };
+  });
+}
 
 /** Immutable deep set: setPath(obj, "a.b.c", 1). `undefined` deletes the key. */
 export function setPath<T extends Record<string, any>>(obj: T, path: string, value: any): T {
@@ -44,20 +113,30 @@ export function getPath(obj: any, path: string, fallback?: any) {
 export function normalizeDesign(incoming: any, defaults: any = {}) {
   const inc = incoming || {};
   const merged = { ...defaults, ...inc };
-  const { heroPage: _h, storefront: _s, ...surfaceBase } = merged;
-  return {
+  const normalized: any = {
     ...merged,
     heroPage: {
-      ...surfaceBase,
       sections: inc.heroPage?.sections || inc.heroPage?.homepageSections || inc.homepageSections || [],
       ...(inc.heroPage || {}),
     },
     storefront: {
-      ...surfaceBase,
       sections: inc.storefront?.sections || inc.storefront?.homepageSections || [],
       ...(inc.storefront || {}),
     },
   };
+  const identify = (sections: any[]) => sections.map((section, index) => {
+    const id = section.id || `legacy-section-${index}`;
+    const settings = { ...(section.settings || {}) };
+    for (const key of ["items", "slides", "blocks"]) {
+      if (Array.isArray(settings[key])) settings[key] = normalizeBlocks(settings[key], `${id}-${key}`);
+    }
+    return { ...section, id, settings };
+  });
+  if (Array.isArray(normalized.globalSections)) normalized.globalSections = identify(normalized.globalSections);
+  for (const key of Object.keys(normalized)) {
+    if (Array.isArray(normalized[key]?.sections)) normalized[key] = { ...normalized[key], sections: identify(normalized[key].sections) };
+  }
+  return normalized;
 }
 
 export function targetKey(t: SectionTarget) {
@@ -99,7 +178,7 @@ export function duplicateSection(list: Section[], id: string): { list: Section[]
   for (const key of Object.keys(copy.settings || {})) {
     const v = copy.settings[key];
     if (Array.isArray(v) && v.every((b) => b && typeof b === "object" && "id" in b)) {
-      copy.settings[key] = v.map((b: any) => ({ ...b, id: newId() }));
+      copy.settings[key] = v.map((b: any) => freshBlockIds(b));
     }
   }
   return { list: insertSection(list, copy, i + 1), newId: copy.id };
@@ -125,8 +204,8 @@ export function patchBlockField(list: Section[], sectionId: string, blockId: str
     const settings = { ...(s.settings || {}) };
     for (const k of Object.keys(settings)) {
       const arr = settings[k];
-      if (Array.isArray(arr) && arr.some((b) => b && b.id === blockId)) {
-        settings[k] = arr.map((b: any) => (b.id === blockId ? { ...b, [key]: value } : b));
+      if (Array.isArray(arr) && findBlock(arr, blockId)) {
+        settings[k] = mapBlock(arr, blockId, (b) => ({ ...b, [key]: value }));
       }
     }
     return { ...s, settings };

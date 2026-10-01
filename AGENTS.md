@@ -98,11 +98,27 @@ Bring general best-practices, grounded in what this repo already does:
 
 ## Theme editor — go all the way to Shopify parity
 
+> The **Studio editor** (`src/app/admin/studio/StudioEditor.tsx`) is the default Design editor users see; put every new design feature there first. `ThemeEditor.tsx` is legacy (`?editor=legacy`). See CLAUDE.md › Theme editor.
+
 The `/admin` theme editor is the most-requested area to "make as good as
 Shopify." It is **already large and capable** (~11k lines: sections/blocks,
 drag-and-drop, color schemes, fonts, draft/publish, live preview). The failure
 mode here is **stopping after one small increment**. Don't. When asked to
 enhance it:
+
+The default Settings → Design experience is `studio/StudioEditor.tsx`: its
+section/block outline, inspector, Edit/Browse preview and draft workflow are
+the primary editing surfaces. Keep the legacy `ThemeEditor.tsx` contracts in
+sync where shared registry controls or renderers change. Custom pages created
+in Studio join the storefront header by default, and their public routes render
+the themed storefront header. The iframe preview receives the unsaved design,
+settings, catalog and published-page collection as one live snapshot; preserve
+that full-state contract when adding Studio-editable storefront data. Snapshot
+delivery uses `postMessage` plus a same-origin message-event fallback so iframe
+load timing cannot strand the preview on the published design; keep the snapshot
+structured-clone safe (`toCloneable`) and mirror it to the **Preview in new tab**
+window over `BroadcastChannel("studio_preview")` (`features/site/previewTab.ts`).
+New book cards must carry the `fm-card-*` classes (`cardClasses.test.tsx`).
 
 1. **Read `docs/THEME_EDITOR.md` first**, plus the whole section/block system —
    `ThemeEditor.tsx`, `ThemeEditorExtensions.tsx` (the `SECTION_REGISTRY`),
@@ -130,6 +146,10 @@ enhance it:
    Visual and feature controls expose **All pages / This page only** scope.
    All-pages writes must update every static/dynamic template while preserving
    its page-specific section stack.
+   Studio composition blocks may nest three levels, carry breakpoint-specific
+   grid/alignment/visibility overrides, and link to `design.sharedBlocks` for
+   synchronized reuse across compatible section renderers. Preserve local placement overrides when editing a linked
+   source, and keep recursive operations immutable and depth-guarded.
 3. **Work the roadmap, complete a milestone end-to-end.** Pick a checklist item
    from the roadmap in `docs/THEME_EDITOR.md` (sections-everywhere, more section
    types, live-preview/UX, theme management), finish it fully, then **tick it off
@@ -142,12 +162,44 @@ enhance it:
 When prompting this agent, naming a specific roadmap milestone gets the most
 complete result.
 
+> [!IMPORTANT]
+> **Everything shopper-facing must be editable in Studio — nothing "built into the site".**
+> Any storefront element (box, row, link, heading, text) needs a Studio control to hide/show it
+> and its words in Text & labels (`COPY_SCHEMA`). Add the toggle to `STYLE_GROUPS` in
+> `studio/styleSchema.ts` (default = current behaviour) in the same change that adds the element.
+
+> [!IMPORTANT]
+> **Sentences that reach shoppers indirectly are copy too.** Error messages (`new Error("…")`),
+> notices (`setNotice`/`setError`), `window.prompt`, SEO titles/descriptions, template-literal
+> `aria-label`/`alt`s and renderer word-fallbacks must all come from `getCopy()` (Studio › Text & labels —
+> groups *Checkout*, *Order tracking*, *Reviews*, *Sections*, **Site & sharing**) or, inside
+> `SectionComponents.tsx`, from `sectionFallbacks.ts` (`fb("Type.field")`, each backed by a Content
+> field; use `??` so clearing a field blanks it). `noHardwiredMessages.test.ts` and
+> `components/sectionFallbacks.test.ts` enforce this; `designerCoverage.test.ts` also rejects literal
+> `rgb()/rgba()/hsl()` (use `rgba(var(--accent-rgb, …), a)` or a design key). Behaviour numbers
+> (low-stock thresholds, recently-viewed count, search-result cap) and the no-photo placeholder image
+> are Studio › Style controls read with `designNumber()` / `placeholderImage()`. Site name, default
+> title/description and share image live in Text & labels › **Site & sharing** and Style › Logo &
+> wordmark › **Share image**; `lib/seo.ts` reads them via `setSiteIdentity` (published by `useSiteData`).
+> No sample books or announcements are shown to shoppers; empty sections show their "how to fill me" sample
+> only in the Studio preview (`sampleInPreview`/`sampleHtml`, guarded by `components/noSampleContent.test.tsx`).
+> Footer policy link/page titles are Text & labels › Footer (`policyTitle*`).
+
+A Studio › Style control is not done until it visibly changes the live preview on every surface that shows the element: card title/price and small-print rules come from the shared `features/site/StorefrontOverrides.tsx`, which every storefront root that writes its own token `<style>` (MainSite, BookDetail, `StorefrontThemeStyle`) must render; `storefrontOverrides.test.ts` enforces this and fails on any Style control nothing reads.
+
+New storefront regions must carry `data-studio-target` + `data-studio-label` so clicking them in the Studio preview opens their settings (see CLAUDE.md › Click-to-edit in the preview).
+
 ## Storefront look (Riso Noir)
 
 The public site defaults to Riso Press on black/white with a flare accent. Keep it token-driven:
 no literal colours in `RISO_STOREFRONT_CSS`, RGB triplet variables stay comma-separated, and any new
 shopper-facing string needs a `COPY_SCHEMA` entry + `getCopy` call so it is editable in the theme
 editor (see `docs/THEME_EDITOR.md` › Riso Noir). Payment UI stays conventional and legible.
+
+## Product page
+
+The book page is the Riso "catalogue card" layout; every part of it is a `pdp*` control in Studio ›
+Style › Product page · buy card & details (see CLAUDE.md). Trust-signal lines were removed on purpose.
 
 ## Working rules
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowLeft, Heart } from "lucide-react";
 import { useSiteData } from "./useSiteData";
-import { DEFAULT_IMAGE } from "./constants";
+import { placeholderImage } from "./constants";
 import { CatalogControls, applyCatalogControls, type SortKey } from "./CatalogControls";
 import { useWishlist } from "../../lib/wishlist";
 import { useSEO } from "../../lib/seo";
@@ -10,6 +10,7 @@ import { funnelApi } from "../../lib/commerce";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { getCopy } from "./storeCopy";
+import { bookInCategory, categoryNames, catName } from "./navItems";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -25,25 +26,24 @@ export default function CollectionPage() {
   const [inStockOnly, setInStockOnly] = useState(false);
 
   const categories = settings?.design?.categories || [];
-  const categoryName = useMemo(() => {
-    const list = (categories || []).map((c: any) => (typeof c === "string" ? c : c.name));
-    return list.find((n: string) => slugify(n) === slug) || (slug || "").toUpperCase();
-  }, [categories, slug]);
+  // A collection URL keeps working after a category is renamed: match the slug
+  // against the current name and any earlier name.
+  const category = useMemo(
+    () =>
+      (categories || []).find((c: any) => categoryNames(c).some((n: string) => slugify(n) === slug)) ||
+      (slug || "").toUpperCase(),
+    [categories, slug],
+  );
+  const categoryName = catName(category);
 
   const items = useMemo(() => {
-    const base = books.filter(
-      b =>
-        b.status === "published" &&
-        ((b.categories || []).includes(categoryName) ||
-          (b as any).genres?.includes(categoryName) ||
-          categoryName === "PUBLICATIONS"),
-    );
+    const base = books.filter(b => b.status === "published" && bookInCategory(b, category, categories));
     return applyCatalogControls(base, query, sort, inStockOnly, [0, Infinity]);
-  }, [books, categoryName, query, sort, inStockOnly]);
+  }, [books, category, query, sort, inStockOnly]);
 
   useSEO({
-    title: `${categoryName} Collection`,
-    description: `Browse the ${categoryName.toLowerCase()} collection from Lyricalmyrical Books.`,
+    title: getCopy(settings?.design, "seoCollectionTitle", { category: categoryName }),
+    description: getCopy(settings?.design, "seoCollectionDescription", { category: categoryName.toLowerCase() }),
     type: "website",
   });
 
@@ -61,7 +61,7 @@ export default function CollectionPage() {
 
   if (loading) {
     return (
-      <div data-fm-store className="min-h-screen fm-page text-white flex items-center justify-center">
+      <div data-fm-store data-studio-target="copy:Collection & wishlist pages|style:catalog" data-studio-label="Collection page" className="min-h-screen fm-page text-white flex items-center justify-center">
         <StorefrontThemeStyle design={settings?.design} />
         <p className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "pageLoading")}</p>
       </div>
@@ -69,7 +69,7 @@ export default function CollectionPage() {
   }
 
   return (
-    <div data-fm-store className="min-h-screen fm-page text-white">
+    <div data-fm-store data-studio-target="copy:Collection & wishlist pages|style:catalog" data-studio-label="Collection page" className="min-h-screen fm-page text-white">
       <StorefrontThemeStyle design={settings?.design} />
       <header className="border-b border-white/10 px-6 py-5 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-[10px] tracking-[0.3em] text-white/50 hover:text-white uppercase">
@@ -127,7 +127,7 @@ export default function CollectionPage() {
                 <Link to={`/books/${bSlug}`} className="block">
                   <div className="relative aspect-[3/4] fm-surface rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
                     <img
-                      src={(book as any).photos?.[0]?.url || DEFAULT_IMAGE}
+                      src={(book as any).photos?.[0]?.url || placeholderImage(settings?.design)}
                       alt={book.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
@@ -137,10 +137,12 @@ export default function CollectionPage() {
                       </div>
                     )}
                   </div>
-                  <h3 className="text-[11px] tracking-widest uppercase text-white/80">{book.title}</h3>
-                  {book.retailPrice ? (
-                    <p className="text-[10px] text-white/40 mt-1">{formatBookPrice(book)}</p>
-                  ) : null}
+                  <div data-studio-target="style:products" data-studio-label="Card title & price">
+                    <h3 className="fm-card-title text-[11px] tracking-widest uppercase text-white/80">{book.title}</h3>
+                    {book.retailPrice ? (
+                      <p className="fm-card-price-wrap fm-card-price text-[10px] text-white/40 mt-1">{formatBookPrice(book)}</p>
+                    ) : null}
+                  </div>
                 </Link>
               </article>
             );

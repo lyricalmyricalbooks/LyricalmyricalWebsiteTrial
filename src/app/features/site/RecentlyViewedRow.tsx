@@ -1,7 +1,8 @@
 import { Link } from "react-router";
 import { useRecentlyViewed } from "../../lib/recentlyViewed";
 import { useSiteData } from "./useSiteData";
-import { DEFAULT_IMAGE } from "./constants";
+import { placeholderImage } from "./constants";
+import { designNumber } from "./designNumber";
 import { getCopy } from "./storeCopy";
 
 export default function RecentlyViewedRow({ excludeId }: { excludeId?: string }) {
@@ -12,12 +13,12 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
     .filter(id => id !== excludeId)
     .map(id => books.find(b => b.id === id))
     .filter(Boolean)
-    .slice(0, 6) as any[];
+    .slice(0, Math.max(1, designNumber(settings?.design, "recentlyViewedCount", 6))) as any[];
 
   if (items.length === 0 || (settings?.design as any)?.showRecentlyViewed === false) return null;
 
   return (
-    <section className="border-t border-white/[0.06]">
+    <section className="border-t border-white/[0.06]" data-studio-target="copy:Collection & wishlist pages|style:footer" data-studio-label="Recently viewed">
       <div className="max-w-8xl mx-auto px-6 py-14">
         <div className="flex items-center gap-6 mb-8">
           <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">
@@ -32,13 +33,13 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
               <Link key={book.id} to={`/books/${slug}`} className="group">
                 <div className="relative aspect-[3/4] fm-surface rounded-xl overflow-hidden border border-white/[0.05]">
                   <img
-                    src={book.photos?.[0]?.url || DEFAULT_IMAGE}
+                    src={book.photos?.[0]?.url || placeholderImage(settings?.design)}
                     alt={book.title}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     loading="lazy"
                   />
                 </div>
-                <p className="mt-2 text-[9px] font-black tracking-widest uppercase text-white/40 group-hover:text-white/80 transition-colors leading-tight">
+                <p className="fm-card-title mt-2 text-[9px] font-black tracking-widest uppercase text-white/40 group-hover:text-white/80 transition-colors leading-tight" data-studio-target="style:products" data-studio-label="Card title & price">
                   {book.title}
                 </p>
               </Link>

@@ -6,7 +6,7 @@ import { STYLE_GROUPS } from "../../admin/studio/styleSchema";
 // otherwise a merchant can see the effect but has no control to change it.
 const EDITED_ELSEWHERE = new Set([
   // Studio › Menus / Sections / Text & labels, or fixed by the preset itself
-  "themeStyle", "font", "letterSpacing", "wordmarkStyle",
+  "themeStyle", "letterSpacing", "wordmarkStyle",
 ]);
 
 describe("Studio covers the default look", () => {
@@ -24,10 +24,10 @@ import { join } from "node:path";
 // Structured data edited through dedicated Studio tabs (Sections / Menus / Text), internal
 // bookkeeping, or non-design objects that happen to share a variable name.
 const NOT_STYLE_CONTROLS = new Set([
-  "copy", "menus", "sections", "globalSections", "homepageSections", "altSections", "social", "categories",
+  "copy", "menus", "sections", "globalSections", "homepageSections", "altSections", "social", "categories", "navOrder",
   "colorSchemes", "hero", "headerLinks", "sectionPresets", "heroPage", "storefront", "productPage",
   "collectionPage", "cartPage", "page", "page404", "typeScale", "mobileOverrides", "themeLibraryPreset",
-  "font", "fontSize", "data", "id", "trim", "logoUrl", "footerBadges",
+  "fontSize", "data", "id", "trim", "logoUrl", "footerBadges", "sharedBlocks",
 ]);
 
 function publicSources(dir: string, out: string[] = []): string[] {

@@ -4,7 +4,7 @@ import { Heart, ArrowLeft, ShoppingBag, Trash2 } from "lucide-react";
 import { useWishlist } from "../../lib/wishlist";
 import { useSiteData } from "./useSiteData";
 import { useCart } from "../../CartContext";
-import { DEFAULT_IMAGE } from "./constants";
+import { placeholderImage } from "./constants";
 import { useSEO } from "../../lib/seo";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
@@ -18,8 +18,8 @@ export default function WishlistPage() {
   const { formatBookPrice } = useCurrency();
 
   useSEO({
-    title: "Your Wishlist",
-    description: "Books you've saved for later from Lyricalmyrical Books.",
+    title: getCopy(settings?.design, "seoWishlistTitle"),
+    description: getCopy(settings?.design, "seoWishlistDescription"),
   });
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export default function WishlistPage() {
 
   if (loading) {
     return (
-      <div data-fm-store className="min-h-screen fm-page text-white flex items-center justify-center">
+      <div data-fm-store data-studio-target="copy:Collection & wishlist pages" data-studio-label="Wishlist page" className="min-h-screen fm-page text-white flex items-center justify-center">
         <StorefrontThemeStyle design={settings?.design} />
         <p className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "pageLoading")}</p>
       </div>
@@ -40,7 +40,7 @@ export default function WishlistPage() {
   }
 
   return (
-    <div data-fm-store className="min-h-screen fm-page text-white">
+    <div data-fm-store data-studio-target="copy:Collection & wishlist pages" data-studio-label="Wishlist page" className="min-h-screen fm-page text-white">
       <StorefrontThemeStyle design={settings?.design} />
       <header className="border-b border-white/10 px-6 py-5 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-[10px] tracking-[0.3em] text-white/50 hover:text-white uppercase">
@@ -74,7 +74,7 @@ export default function WishlistPage() {
                 <Link to={`/books/${slug}`} className="block">
                   <div className="relative aspect-[3/4] fm-surface rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
                     <img
-                      src={(book as any).photos?.[0]?.url || DEFAULT_IMAGE}
+                      src={(book as any).photos?.[0]?.url || placeholderImage(settings?.design)}
                       alt={book.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
@@ -84,10 +84,12 @@ export default function WishlistPage() {
                       </div>
                     )}
                   </div>
-                  <h3 className="text-[11px] tracking-widest uppercase text-white/80">{book.title}</h3>
-                  {book.retailPrice ? (
-                    <p className="text-[10px] text-white/40 mt-1">{formatBookPrice(book)}</p>
-                  ) : null}
+                  <div data-studio-target="style:products" data-studio-label="Card title & price">
+                    <h3 className="fm-card-title text-[11px] tracking-widest uppercase text-white/80">{book.title}</h3>
+                    {book.retailPrice ? (
+                      <p className="fm-card-price-wrap fm-card-price text-[10px] text-white/40 mt-1">{formatBookPrice(book)}</p>
+                    ) : null}
+                  </div>
                 </Link>
                 <div className="flex items-center gap-2 mt-3">
                   <button

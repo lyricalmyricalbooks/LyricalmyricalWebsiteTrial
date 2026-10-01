@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { Search, X } from "lucide-react";
 import { useCurrency } from "../../CurrencyContext";
+import { designNumber } from "./designNumber";
 import { getCopy } from "./storeCopy";
 
 type Book = any;
@@ -86,9 +87,9 @@ export function SearchOverlay({
       .map(b => ({ book: b, s: score(b, q) }))
       .filter(x => x.s > 0)
       .sort((a, b) => b.s - a.s)
-      .slice(0, 8)
+      .slice(0, Math.max(1, designNumber(design, "searchResultLimit", 8)))
       .map(x => x.book);
-  }, [query, books]);
+  }, [query, books, design]);
 
   return (
     <AnimatePresence>
@@ -101,6 +102,7 @@ export function SearchOverlay({
           className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-start justify-center pt-24 px-4"
           onClick={onClose}
           role="dialog"
+          data-studio-target="copy:Search & filters" data-studio-label="Search overlay"
           aria-modal="true"
           aria-label={c("searchDialogAria")}
         >
@@ -163,13 +165,13 @@ export function SearchOverlay({
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white truncate">{b.title}</p>
+                      <p className="fm-card-title text-sm text-white truncate" data-studio-target="style:products" data-studio-label="Card title & price">{b.title}</p>
                       {b.authorName && (
                         <p className="text-[11px] text-white/40 truncate">{b.authorName}</p>
                       )}
                     </div>
                     {price != null && (
-                      <span className="text-[11px] tracking-widest text-white/60 font-mono">
+                      <span className="fm-card-price-wrap fm-card-price text-[11px] tracking-widest text-white/60 font-mono" data-studio-target="style:products" data-studio-label="Card title & price">
                         {formatBookPrice(b)}
                       </span>
                     )}

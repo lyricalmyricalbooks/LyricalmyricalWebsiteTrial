@@ -87,7 +87,7 @@ export function CatalogControls({
 }) {
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(design, key, vars);
   return (
-    <div className="mb-10 space-y-4">
+    <div className="mb-10 space-y-4" data-studio-target="style:catalog|copy:Search & filters" data-studio-label="Search, sort & stock bar">
       <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
         <div className="relative flex-1">
           <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" />

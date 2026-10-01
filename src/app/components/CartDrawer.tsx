@@ -46,7 +46,8 @@ export function CartDrawer() {
 
   // Resolve storefront design settings (flat or nested under `.storefront`).
   const rawDesign = (settings as any)?.design || {};
-  const design = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? rawDesign.storefront : rawDesign;
+  // Merge (not replace) so root-only keys still apply — same resolution as MainSite's storefrontDesign.
+  const design = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? { ...rawDesign, ...rawDesign.storefront } : rawDesign;
   const showFreeShipBar = design.showFreeShipBar ?? true;
   const showTrustBadges = design.showCartTrustBadges ?? true;
 
@@ -91,6 +92,7 @@ export function CartDrawer() {
           <motion.div
             ref={drawerRef}
             role="dialog"
+            data-studio-target="copy:Cart|style:checkout" data-studio-label="Cart drawer"
             aria-modal="true"
             aria-label={getCopy(design, "cartTitle")}
             tabIndex={-1}
@@ -160,10 +162,10 @@ export function CartDrawer() {
                         const atLimit = typeof item.stockLimit === "number" && item.stockLimit !== 999 && item.quantity >= item.stockLimit;
                         return (
                           <div>
-                            <div className="flex items-center gap-1 bg-neutral-50 px-1 rounded-full" style={surfaceStyle} role="group" aria-label={`Quantity for ${item.title}`}>
-                              <button onClick={() => updateQuantity(item.id, item.variantId, -1)} disabled={item.quantity <= 1} aria-label={`Decrease quantity of ${item.title}`} className="hover:text-neutral-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center disabled:opacity-30"><Minus size={12} /></button>
+                            <div className="flex items-center gap-1 bg-neutral-50 px-1 rounded-full" style={surfaceStyle} role="group" aria-label={getCopy(design, "cartQtyAria", { title: item.title })}>
+                              <button onClick={() => updateQuantity(item.id, item.variantId, -1)} disabled={item.quantity <= 1} aria-label={getCopy(design, "cartDecreaseAria", { title: item.title })} className="hover:text-neutral-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center disabled:opacity-30"><Minus size={12} /></button>
                               <span className="text-[11px] font-bold w-6 text-center" aria-live="polite" aria-atomic="true">{item.quantity}</span>
-                              <button onClick={() => updateQuantity(item.id, item.variantId, 1)} disabled={atLimit} aria-label={`Increase quantity of ${item.title}`} className="hover:text-neutral-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center disabled:opacity-30"><PlusIcon size={12} /></button>
+                              <button onClick={() => updateQuantity(item.id, item.variantId, 1)} disabled={atLimit} aria-label={getCopy(design, "cartIncreaseAria", { title: item.title })} className="hover:text-neutral-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center disabled:opacity-30"><PlusIcon size={12} /></button>
                             </div>
                             {atLimit && <p className="text-[9px] tracking-widest uppercase mt-1" role="status" style={{ color: "var(--low-inventory-color, #b4271a)" }}>{getCopy(design, "cartOnlyAvailable", { count: item.stockLimit as number })}</p>}
                           </div>
@@ -171,7 +173,7 @@ export function CartDrawer() {
                       })()}
                       <button
                         onClick={() => removeFromCart(item.id, item.variantId)}
-                        aria-label={`Remove ${item.title} from cart`}
+                        aria-label={getCopy(design, "cartRemoveAria", { title: item.title })}
                         className={`min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors ${drawerDark ? "text-white/40 hover:text-white" : "text-neutral-300 hover:text-black"}`}
                       >
                         <Trash2 size={12} />
