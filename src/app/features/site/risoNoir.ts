@@ -59,7 +59,7 @@ export const RISO_NOIR_TOKENS: Record<string, any> = {
   pageRuleWidth: 2, pageRuleSpacing: 32, pageTextMeasure: "readable",
   pdpSpecsStyle: "record", pdpCardShadowOffset: 8, pdpCardPadding: 24, pdpMetaSize: 11,
   // Optional storefront elements (all on).
-  showRecentlyViewed: true, showRelatedProducts: true, showBreadcrumbs: true, showCookieBanner: true,
+  showRecentlyViewed: true, showRelatedProducts: true, showBreadcrumbs: true, showCookieBanner: true, showUnderConstruction: false,
   // Footer extras off by default: payment-badge row and the "Powered by" line.
   showPaymentBadges: false, showPoweredBy: false,
 };
