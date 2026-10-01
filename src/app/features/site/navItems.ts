@@ -71,6 +71,22 @@ export function renameCategory(cats: any[], index: number, nextName: string): an
   });
 }
 
+/** Move a category by one slot while preserving its stable id and hierarchy. */
+export function moveCategory(cats: any[], index: number, delta: number): any[] {
+  const nextIndex = index + delta;
+  if (index < 0 || index >= cats.length || nextIndex < 0 || nextIndex >= cats.length) return cats;
+  const next = [...cats];
+  [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+  return next;
+}
+
+/** Remove a category and promote its direct children to top-level categories. */
+export function removeCategory(cats: any[], categoryId: string): any[] {
+  return normalizeCategories(cats)
+    .filter((category) => category.id !== categoryId)
+    .map((category) => category.parentId === categoryId ? { ...category, parentId: null } : category);
+}
+
 export function buildNavItems(categories: any[], pages: any[], order?: string[]): NavItem[] {
   const items: NavItem[] = [];
   (categories || []).forEach((c, i) => {

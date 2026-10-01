@@ -9,7 +9,7 @@ import {
   getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, DEFAULT_COLOR_SCHEMES,
 } from "../ThemeEditorExtensions";
 import { CATEGORIES } from "../../features/site/constants";
-import { buildNavItems, childCategories, moveNavItem, parentOf, renameCategory, reslotPages } from "../../features/site/navItems";
+import { buildNavItems, childCategories, moveCategory, moveNavItem, parentOf, removeCategory, renameCategory, reslotPages } from "../../features/site/navItems";
 import { COPY_SCHEMA, DEFAULT_COPY } from "../../features/site/storeCopy";
 import { MENU_LINK_TYPES, newMenuItem, type MenuItem } from "../../features/site/storeMenu";
 import {
@@ -204,11 +204,7 @@ function CategoriesPanel({ design, onChange }: { design: any; onChange: (cats: a
   const raw: any[] = Array.isArray(design.categories) ? design.categories : [...CATEGORIES];
   const cats = raw.map((c, i) => (typeof c === "string" ? { id: `cat-${i}`, name: c, description: "", showInNav: true } : c));
   const patch = (i: number, p: Record<string, any>) => onChange(cats.map((c, j) => (j === i ? { ...c, ...p } : c)));
-  const move = (i: number, d: number) => {
-    const j = i + d;
-    if (j < 0 || j >= cats.length) return;
-    const c = [...cats]; [c[i], c[j]] = [c[j], c[i]]; onChange(c);
-  };
+  const move = (i: number, d: number) => onChange(moveCategory(cats, i, d));
   return (
     <div className="p-4 space-y-3 border-b border-neutral-200" data-studio-panel="menus:categories">
       <div>
@@ -222,7 +218,7 @@ function CategoriesPanel({ design, onChange }: { design: any; onChange: (cats: a
             <button className={iconBtn} onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move category up"><ChevronUp size={14} /></button>
             <button className={iconBtn} onClick={() => move(i, 1)} disabled={i === cats.length - 1} aria-label="Move category down"><ChevronDown size={14} /></button>
             <button className={iconBtn} aria-label="Delete category"
-              onClick={() => { if (window.confirm(`Delete the "${c.name || "Untitled"}" category? Books keep their data; you can re-add it later.`)) onChange(cats.filter((_, j) => j !== i).map((k) => (k.parentId === c.id ? { ...k, parentId: null } : k))); }}><Trash2 size={14} /></button>
+              onClick={() => { if (window.confirm(`Delete the "${c.name || "Untitled"}" category? Books keep their data; you can re-add it later.`)) onChange(removeCategory(cats, c.id)); }}><Trash2 size={14} /></button>
           </div>
           <label className="flex items-center gap-2 text-xs">
             <input type="checkbox" checked={c.showInNav !== false} onChange={(e) => patch(i, { showInNav: e.target.checked })} />
