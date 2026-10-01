@@ -28,6 +28,7 @@ type NotificationSettings = {
   order_refunded: TemplateFields;
   customer_welcome: TemplateFields;
   delivery_update: TemplateFields;
+  contact_reply: TemplateFields;
 };
 
 const DEFAULT_SETTINGS: NotificationSettings = {
@@ -78,6 +79,13 @@ const DEFAULT_SETTINGS: NotificationSettings = {
     signoff: "Warmly,\nThe Lyricalmyrical Team",
     enabled: true
   },
+  contact_reply: {
+    subject: "We got your message",
+    body: "Hi {{customer_name}},\n\nThanks for getting in touch with Lyricalmyrical Books! We've received your message and will reply as soon as we can.\n\nYour message:\n{{message}}",
+    buttonText: "",
+    signoff: "Warmly,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
@@ -94,7 +102,8 @@ const TABS = [
   { id: "order_cancelled", label: "Order Cancelled" },
   { id: "order_refunded", label: "Order Refunded" },
   { id: "customer_welcome", label: "Welcome" },
-  { id: "delivery_update", label: "Delivery" }
+  { id: "delivery_update", label: "Delivery" },
+  { id: "contact_reply", label: "Message received" }
 ] as const;
 
 function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand">, data: NotificationSettings) {
@@ -115,6 +124,8 @@ function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand"
     .replace(/\{\{total_price\}\}/g, "45.00")
     .replace(/\{\{email\}\}/g, "julianne.smith@gmail.com")
     .replace(/\{\{status\}\}/g, "out for delivery")
+    .replace(/\{\{subject\}\}/g, "Stocking your books")
+    .replace(/\{\{message\}\}/g, "Hello! Do you sell wholesale to independent bookshops?")
     .replace(/\{\{tracking_url\}\}/g, "#")
     .replace(/\{\{cart_url\}\}/g, "#")
     .replace(/\{\{order_url\}\}/g, "#")
@@ -232,7 +243,7 @@ export function NotificationEditor() {
   const [saving, setSaving] = useState(false);
   const [original, setOriginal] = useState("");
   const [resendDraft, setResendDraft] = useState("");
-  const [group, setGroup] = useState<"orders" | "cart" | "account">("orders");
+  const [group, setGroup] = useState<"orders" | "cart" | "account" | "contact">("orders");
   
   // Test Email states
   const [testEmail, setTestEmail] = useState("");
@@ -257,7 +268,8 @@ export function NotificationEditor() {
           order_cancelled: { ...DEFAULT_SETTINGS.order_cancelled, ...(dbData.order_cancelled || {}) },
           order_refunded: { ...DEFAULT_SETTINGS.order_refunded, ...(dbData.order_refunded || {}) },
           customer_welcome: { ...DEFAULT_SETTINGS.customer_welcome, ...(dbData.customer_welcome || {}) },
-          delivery_update: { ...DEFAULT_SETTINGS.delivery_update, ...(dbData.delivery_update || {}) }
+          delivery_update: { ...DEFAULT_SETTINGS.delivery_update, ...(dbData.delivery_update || {}) },
+          contact_reply: { ...DEFAULT_SETTINGS.contact_reply, ...(dbData.contact_reply || {}) }
         };
         setData(loaded);
         setOriginal(JSON.stringify(loaded));
@@ -374,7 +386,8 @@ export function NotificationEditor() {
     order_cancelled: ["{{customer_name}}", "{{order_id}}"],
     order_refunded: ["{{customer_name}}", "{{order_id}}", "{{total_price}}"],
     customer_welcome: ["{{customer_name}}", "{{email}}"],
-    delivery_update: ["{{customer_name}}", "{{order_id}}", "{{status}}", "{{tracking_carrier}}", "{{tracking_number}}", "{{tracking_url}}"]
+    delivery_update: ["{{customer_name}}", "{{order_id}}", "{{status}}", "{{tracking_carrier}}", "{{tracking_number}}", "{{tracking_url}}"],
+    contact_reply: ["{{customer_name}}", "{{email}}", "{{subject}}", "{{message}}"]
   };
 
   if (loading) return <LoadingState label="Loading notification templates…" />;
@@ -385,9 +398,10 @@ export function NotificationEditor() {
     orders: { label: "Orders", ids: ["order_confirmation", "shipping_confirmation", "delivery_update", "order_cancelled", "order_refunded"] },
     cart: { label: "Cart", ids: ["abandoned_cart"] },
     account: { label: "Account", ids: ["customer_welcome"] },
+    contact: { label: "Contact form", ids: ["contact_reply"] },
   } as const;
   const groupTabs = TABS.filter((t) => (GROUPS[group].ids as readonly string[]).includes(t.id));
-  const pickGroup = (g: "orders" | "cart" | "account") => {
+  const pickGroup = (g: "orders" | "cart" | "account" | "contact") => {
     setGroup(g);
     setActiveTab(GROUPS[g].ids[0] as any);
     if (!testEmail && auth.currentUser?.email) setTestEmail(auth.currentUser.email);

@@ -17,6 +17,7 @@ import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import { ShopSettings } from "./ShopSettings";
 import { StudioEditor } from "./studio/StudioEditor";
 import ReviewsModeration from "./ReviewsModeration";
+import Messages from "./Messages";
 import { adminApi } from "./api";
 import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
@@ -213,7 +214,7 @@ export function Dashboard() {
   ];
 
   // Pages fully built from Riso components render outside the legacy compatibility layer.
-  const migrated = activeTab === "reviews" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping"));
+  const migrated = activeTab === "reviews" || activeTab === "messages" || activeTab === "orders" || activeTab === "customers" || activeTab === "inventory" || activeTab === "overview" || activeTab === "analytics" || activeTab === "catalog" || activeTab === "discounts" || activeTab === "payments" || activeTab === "shipping" || (activeTab === "settings" && (settingsTab === "general" || settingsTab === "notifications" || settingsTab === "payments" || settingsTab === "shipping"));
   const content = (() => {
     switch (activeTab) {
       case "overview":
@@ -224,6 +225,7 @@ export function Dashboard() {
       case "inventory": return <Inventory />;
       case "discounts": return <Discounts />;
       case "reviews": return <ReviewsModeration />;
+      case "messages": return <Messages />;
       case "orders":
         return selectedOrder ? (
           <OrderDetail orderId={selectedOrder.id} onClose={() => setSelectedOrder(null)} />
