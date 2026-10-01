@@ -2476,6 +2476,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "slideTextColor", label: "Slide text & dots colour", kind: "color" },
     { key: "prevAria", label: "Previous-slide button label (screen readers)", kind: "text" },
     { key: "nextAria", label: "Next-slide button label (screen readers)", kind: "text" },
+    { key: "dotAria", label: "Slide dot label (screen readers, {n} = slide number)", kind: "text" },
     { key: "autoplay", label: "Autoplay", kind: "toggle" },
     { key: "autoplaySpeed", label: "Autoplay speed (ms)", kind: "number", min: 1500, max: 15000, step: 250 },
   ],

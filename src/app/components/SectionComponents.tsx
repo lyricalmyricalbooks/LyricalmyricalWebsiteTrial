@@ -410,6 +410,11 @@ const BANNER_POSITIONS: Record<string, string> = {
   "bottom-right": "items-end justify-end",
 };
 
+const inStudioPreview = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
+/** Empty sections show a "how to fill me" sample only in the Studio preview — shoppers never see sample content. */
+const sampleInPreview = <T,>(items: T[], sample: T[]): T[] => (items.length ? items : inStudioPreview() ? sample : []);
+const sampleHtml = (html: string | undefined, sample: string) => html || (inStudioPreview() ? sample : "");
+
 /** Site-relative links keep ?preview=true so a Studio preview never reloads into the live design. */
 function keepPreviewParam(href: string) {
   if (typeof window === "undefined" || new URLSearchParams(window.location.search).get("preview") !== "true") return href;
@@ -510,7 +515,7 @@ export function FeatureGridSection({ settings, enableAnimations }: any) {
           </div>
         </AnimationContainer>
         <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
-          {(items.length ? items : [{ title: "Feature One", description: "Describe your value." }]).map((item: any, idx: number) => (
+          {sampleInPreview(items, [{ title: "Feature One", description: "Describe your value." }]).map((item: any, idx: number) => (
             <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.1}>
               <div {...blockEditAttrs(item, idx)} className="p-6 bg-white/[0.03] border border-white/10 rounded-2xl">
                 {item.icon && <div className="text-3xl mb-3">{item.icon}</div>}
@@ -591,7 +596,7 @@ export function TestimonialsSection({ settings, enableAnimations }: any) {
             )}
           </div>
           <div className="grid md:grid-cols-2 gap-6">
-            {(items.length ? items : [{ quote: "An incredible independent shop.", author: "Customer" }]).map((item: any, idx: number) => (
+            {sampleInPreview(items, [{ quote: "An incredible independent shop.", author: "Customer" }]).map((item: any, idx: number) => (
               <div
                 key={idx}
                 {...blockEditAttrs(item, idx)}
@@ -629,7 +634,7 @@ export function FAQSection({ settings, enableAnimations }: any) {
             )}
           </div>
           <div className="space-y-3">
-            {(items.length ? items : [{ question: "Sample question?", answer: "Sample answer." }]).map((item: any, idx: number) => (
+            {sampleInPreview(items, [{ question: "Sample question?", answer: "Sample answer." }]).map((item: any, idx: number) => (
               <details key={idx} {...blockEditAttrs(item, idx)} className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
                 <summary className="text-sm font-bold text-white cursor-pointer" style={bStyle(settings)} data-theme-field="question">{item.question}</summary>
                 <p className="text-white/60 text-sm mt-3" style={bStyle(settings)} data-theme-field="answer">{item.answer}</p>
@@ -746,7 +751,7 @@ export function RichTextSection({ settings, enableAnimations }: any) {
           <div
             className={`${mw(settings, "max-w-3xl")} mx-auto prose prose-invert ${align === "left" ? "text-left" : align === "right" ? "text-right" : "text-center"}`}
             style={bStyle(settings)}
-            dangerouslySetInnerHTML={{ __html: settings.html || "<p>Use this rich text section to share information with your customers.</p>" }}
+            dangerouslySetInnerHTML={{ __html: sampleHtml(settings.html, "<p>Use this rich text section to share information with your customers.</p>") }}
           />
         </AnimationContainer>
       </div>
@@ -942,7 +947,7 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
           </button>
           <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-2">
             {slides.map((_: any, i: number) => (
-              <button key={i} onClick={() => setActive(i)} aria-label={"Go to slide " + (i + 1)} className={`w-2 h-2 rounded-full transition-all ${i === active ? "bg-white w-6" : "bg-white/40"}`} />
+              <button key={i} onClick={() => setActive(i)} aria-label={(settings.dotAria ?? fb("SlideshowSection.dotAria")).replace("{n}", String(i + 1))} className={`w-2 h-2 rounded-full transition-all ${i === active ? "bg-white w-6" : "bg-white/40"}`} />
             ))}
           </div>
         </>
@@ -1764,9 +1769,9 @@ export function BlogPostsSection({ settings, enableAnimations }: any) {
   const items = visibleBlocks(settings.items || settings.blocks || []);
   const columns = Math.max(1, Math.min(4, settings.columns ?? 3));
   const align = aClass(settings);
-  const cards = items.length ? items : [
+  const cards = sampleInPreview(items, [
     { title: "Add an article", date: "", excerpt: "Create article cards in the blocks editor to share news, releases, and reading guides.", imageUrl: "", linkUrl: "#" },
-  ];
+  ]);
 
   return (
     <section style={bgStyle(settings)}>
@@ -2100,7 +2105,7 @@ export function RowSection({ settings, enableAnimations }: any) {
             className="grid grid-cols-1 md:[grid-template-columns:var(--row-template)]"
             style={{ ["--row-template" as any]: template, gap, alignItems }}
           >
-            {(blocks.length ? blocks : [{ kind: "text", title: "Add columns", body: "Use the Row section to combine text, images, buttons and video side by side." }]).map(
+            {sampleInPreview(blocks, [{ kind: "text", title: "Add columns", body: "Use the Row section to combine text, images, buttons and video side by side." }]).map(
               (block: any, idx: number) => (
                 <RowBlock key={idx} block={block} blockIndex={idx} accentFallback={settings.accentColor} settings={settings} />
               ),
@@ -2399,7 +2404,7 @@ export function PageContentSection({ settings: own, enableAnimations }: any) {
   const title = settings.titleOverride || page?.title || fb("PageContentSection.page.title");
   const body = settings.bodyOverride
     ? settings.bodyOverride.split(/\n{2,}/).map((p: string) => `<p>${p.replace(/[<>&]/g, (c: string) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" } as any)[c]).replace(/\n/g, "<br/>")}</p>`).join("")
-    : page?.body || "<p>Your page text appears here. Write it in Studio › Pages.</p>";
+    : sampleHtml(page?.body, "<p>Your page text appears here. Write it in Studio › Pages.</p>");
   // Option D "Ruled" pieces — each value comes from Style › Custom pages or the section's own fields.
   const lineUp = settings.maxWidth === "header";
   const headerWidth = pageNum(settings.headerWidth, 900, 1600) ?? 1200;

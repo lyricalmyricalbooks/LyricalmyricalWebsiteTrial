@@ -53,7 +53,7 @@ export function PageView() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   // Store policies (Settings › General) are served as synthetic pages at /page/policy-<key>.
-  const policyPage = policyPageFor(slug, (settings as any)?.policies);
+  const policyPage = policyPageFor(slug, (settings as any)?.policies, (settings as any)?.design);
 
   useEffect(() => {
     if (!slug) return;

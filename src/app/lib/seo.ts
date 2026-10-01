@@ -71,6 +71,8 @@ export function useSEO(seo: SEO) {
     setMeta('meta[property="og:type"]', "content", type);
     if (url) setMeta('meta[property="og:url"]', "content", url);
     if (image) setMeta('meta[property="og:image"]', "content", image);
+    setMeta('meta[property="og:site_name"]', "content", getCopy(design, "siteName"));
+    setMeta('meta[name="author"]', "content", getCopy(design, "siteName"));
     setMeta('meta[name="twitter:title"]', "content", title);
     setMeta('meta[name="twitter:description"]', "content", description);
     if (image) setMeta('meta[name="twitter:image"]', "content", image);

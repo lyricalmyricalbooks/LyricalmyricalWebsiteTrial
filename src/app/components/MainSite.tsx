@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon, ShoppingCart } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router";
-import { POLICY_KEYS, POLICY_TITLES, policySlug } from "../features/site/policyPages";
+import { POLICY_KEYS, policySlug, policyTitle } from "../features/site/policyPages";
 import { useCart } from "../CartContext";
 import { CATEGORIES, placeholderImage, DEFAULT_SOCIAL } from "../features/site/constants";
 import { aspectRatioValue } from "../features/site/imageAspect";
@@ -324,7 +324,7 @@ function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
         <div className="space-y-3" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer legal & location">
           <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLegalHeading")}</p>
           {POLICY_KEYS.filter((k) => (settings?.policies as any)?.[k]?.trim()).map((k) => (
-            <p key={k}><Link to={`/page/${policySlug(k)}`} className="hover:text-white transition-colors">{POLICY_TITLES[k]}</Link></p>
+            <p key={k}><Link to={`/page/${policySlug(k)}`} className="hover:text-white transition-colors">{policyTitle(settings?.design, k)}</Link></p>
           ))}
           {!fourCol && <p className="mt-6">{getCopy(settings?.design, "footerLocation")}</p>}
         </div>

@@ -314,7 +314,9 @@ font/size px (desktop + phone)/weight and top spacing are `pageTitleFont`, `page
 > are Studio › Style controls read with `designNumber()` / `placeholderImage()`. Site name, default
 > title/description and share image live in Text & labels › **Site & sharing** and Style › Logo &
 > wordmark › **Share image**; `lib/seo.ts` reads them via `setSiteIdentity` (published by `useSiteData`).
-> No sample books or announcements are shown to shoppers.
+> No sample books or announcements are shown to shoppers; empty sections show their "how to fill me" sample
+> only in the Studio preview (`sampleInPreview`/`sampleHtml`, guarded by `components/noSampleContent.test.tsx`).
+> Footer policy link/page titles are Text & labels › Footer (`policyTitle*`).
 
 **Click-to-edit in the preview:** sections carry `data-fm-section`; every other storefront region carries `data-studio-target="style:<groupId>|copy:<Group>|menus:<panel>|pages"` + `data-studio-label`. In Edit mode the preview bridge (`studio/previewBridge.ts`) outlines it, and a click sends `STUDIO_TARGET` (several targets → a small in-preview menu); `StudioEditor.tsx` switches tab and opens/flashes the matching `Group id` / `data-studio-panel`. New storefront regions must carry a target — `studioTargets.test.ts` checks every target points at a real panel.
 

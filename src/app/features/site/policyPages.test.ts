@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { policyHtml, policyPageFor } from "./policyPages";
+import { policyHtml, policyPageFor, policyTitle } from "./policyPages";
 
 describe("policyPages", () => {
   it("escapes HTML and builds paragraphs", () => {
@@ -10,5 +10,11 @@ describe("policyPages", () => {
     expect(policyPageFor("policy-returns", { returns: "  " })).toBeNull();
     expect(policyPageFor("policy-bogus", { returns: "x" } as any)).toBeNull();
     expect(policyPageFor("about", {})).toBeNull();
+  });
+  it("takes link/page titles from Text & labels", () => {
+    const design = { copy: { policyTitleReturns: "Refunds" } };
+    expect(policyTitle(design, "returns")).toBe("Refunds");
+    expect(policyTitle(undefined, "terms")).toBe("Terms of Service");
+    expect(policyPageFor("policy-returns", { returns: "30 days" }, design)).toMatchObject({ title: "Refunds" });
   });
 });
