@@ -171,6 +171,9 @@ export function Checkout() {
   const [discountCode, setDiscountCode]       = useState("");
   // Hidden behind a "Have a code?" link so shoppers without one don't leave to hunt for one.
   const [discountOpen, setDiscountOpen]       = useState(false);
+  // Order summary on phones starts collapsed unless Studio says otherwise.
+  const [summaryOpen, setSummaryOpen]         = useState(false);
+  useEffect(() => { if (settings?.design?.checkoutSummaryOpenOnPhones) setSummaryOpen(true); }, [settings?.design?.checkoutSummaryOpenOnPhones]);
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
   const [discountError, setDiscountError]     = useState("");
   const [shippoRatesLoading, setShippoRatesLoading] = useState(false);
@@ -1450,7 +1453,14 @@ export function Checkout() {
         </main>
 
         <aside className="order-first border-b border-slate-200 bg-slate-50 px-5 py-7 sm:px-8 lg:order-none lg:border-b-0 lg:px-10 lg:py-12">
-          <div className="mx-auto max-w-2xl lg:sticky lg:top-8">
+          {/* Phones: a one-line bar (summary + total) so the form comes first; tap to open. */}
+          <button type="button" onClick={() => setSummaryOpen(o => !o)} aria-expanded={summaryOpen}
+            data-studio-target="style:checkout|copy:Checkout" data-studio-label="Phone order summary bar"
+            className="mx-auto -my-2 flex w-full max-w-2xl items-center justify-between gap-3 py-2 text-sm font-medium text-slate-900 lg:hidden">
+            <span className="flex items-center gap-2">{c(summaryOpen ? "coHideSummary" : "coShowSummary")} <span aria-hidden="true">{summaryOpen ? "▴" : "▾"}</span></span>
+            <span className="text-base font-semibold">{formatPrice(finalTotal)}</span>
+          </button>
+          <div className={`mx-auto max-w-2xl lg:sticky lg:top-8 lg:block ${summaryOpen ? "mt-6 block" : "hidden"}`}>
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">{c("coSummary")}</h2>
               {/* ⚡ Bolt: Replace O(N) array iterations in render with O(1) memoized value */}
