@@ -881,7 +881,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           {tab === "organize" && (
             <SectionCard title="Categories & tags" description="Categories build the shop menus — pick every one this book belongs in (e.g. Publications › Books). Sub-categories are set in Design › Menus › Shop categories. Tags power search.">
               <div className="be-chips" role="group" aria-label="Categories">
-                {Array.from(new Set([...categories, ...(formData.categories || []), "Photography", "Contemporary", "Artist Book", "Zine", "Archive"])).map((cat) => {
+                {categories.map((cat) => {
                   const on = (formData.categories || []).includes(cat);
                   const parent = categoryParents[cat];
                   return <button key={cat} type="button" aria-pressed={on} className={`be-chip ${on ? "is-on" : ""}`} onClick={() => toggleCategory(cat)}>{on ? "✓ " : ""}{parent ? `${parent} › ` : ""}{cat}</button>;
