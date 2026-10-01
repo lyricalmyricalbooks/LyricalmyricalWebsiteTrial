@@ -6,7 +6,10 @@ function isCanadaPostRate(rate) {
 }
 
 function canadaPostLabelRates(rates, limit = 5) {
-  return (rates || []).filter(isCanadaPostRate).sort((a, b) => Number(a.amount) - Number(b.amount)).slice(0, limit);
+  return (rates || [])
+    .filter(rate => isCanadaPostRate(rate) && rate?.object_id && Number.isFinite(Number(rate.amount)) && Number(rate.amount) >= 0)
+    .sort((a, b) => Number(a.amount) - Number(b.amount))
+    .slice(0, limit);
 }
 
 module.exports = { canadaPostLabelRates, isCanadaPostRate };

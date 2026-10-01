@@ -32,6 +32,7 @@ const loadLegacy = () => import("../../lib/legacyFirebase");
 import { CATEGORIES } from "../features/site/constants";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS, withRisoNoirDefault } from "../features/site/risoNoir";
 import type { Book, Page, SiteSettings } from "../features/site/types";
+import { shopCategoryWrite } from "./categoryWrite";
 
 export const adminApi = {
   // Authentication
@@ -429,10 +430,9 @@ export const adminApi = {
   // design map (which could otherwise discard unrelated unsaved design work).
   updateShopCategories: async (categories: any[]) => {
     const docRef = doc(db, "settings", "website");
-    const snapshot = JSON.parse(JSON.stringify(categories));
-    await setDoc(docRef, { design: { categories: snapshot }, draftDesign: { categories: snapshot } },
-      { mergeFields: ["design.categories", "draftDesign.categories"] });
-    await adminApi.recordAuditLog("settings", `Updated shop categories (${snapshot.length})`).catch(error => console.warn("Categories saved; audit log unavailable", error));
+    const { payload, options } = shopCategoryWrite(categories);
+    await setDoc(docRef, payload, options);
+    await adminApi.recordAuditLog("settings", `Updated shop categories (${payload.design.categories.length})`).catch(error => console.warn("Categories saved; audit log unavailable", error));
   },
 
   // Flip the storefront "under construction" wall live, keeping the Studio

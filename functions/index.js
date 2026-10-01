@@ -2804,6 +2804,10 @@ exports.createShippingLabel = onRequest(
         res.status(400).json({ error: "Test orders are excluded from fulfillment." });
         return;
       }
+      if (mode === "purchase" && (order.labelUrl || order.trackingNumber)) {
+        res.status(409).json({ error: "This order already has a shipping label. Download the existing label instead of buying another one." });
+        return;
+      }
       if (!order.customer || !order.customer.address) {
         res.status(400).json({ error: "Order has no customer address data" });
         return;
