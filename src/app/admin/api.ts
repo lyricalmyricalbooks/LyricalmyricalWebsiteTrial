@@ -673,6 +673,19 @@ export const adminApi = {
     return result;
   },
 
+  registerStripePaymentDomain: async (origin: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await fetch(functionUrl("registerStripePaymentDomain"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ origin }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Couldn't register the domain with Stripe.");
+    return result as { domain: string; applePay: string; googlePay: string };
+  },
+
   getOrderById: async (id: string) => {
     const docRef = doc(db, "orders", id);
     const snap = await getDoc(docRef);

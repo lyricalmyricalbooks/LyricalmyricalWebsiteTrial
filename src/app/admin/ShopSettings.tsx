@@ -1501,6 +1501,20 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
                 <Toggle label="Google Pay" checked={!!stripe.googlePay} onChange={(v) => updateStripe({ googlePay: v })} />
               </div>
               <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
+                <div className="rp-sect">Apple Pay &amp; Google Pay</div>
+                <p className="rp-hint" style={{ marginTop: 0 }}>
+                  Wallet buttons only show in the card form once this site's address is registered with Stripe. Save your Stripe keys first.
+                </p>
+                <SecondaryButton size="sm" onClick={async () => {
+                  try {
+                    const r = await adminApi.registerStripePaymentDomain(window.location.origin);
+                    toast.success(`${r.domain}: Apple Pay ${r.applePay}, Google Pay ${r.googlePay}`);
+                  } catch (err: any) {
+                    toast.error(err.message);
+                  }
+                }}>Register this site with Stripe</SecondaryButton>
+              </div>
+              <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
                 <div className="rp-sect">Webhook health</div>
                 <p className="rp-hint" style={{ margin: 0 }}>
                   Delivery status isn't reported inside this admin. Check that the <span className="rp-mono">stripeWebhook</span> endpoint shows recent successful deliveries in the Stripe Dashboard under Developers → Webhooks. If paid orders stay “unpaid”, the webhook is the first place to look.

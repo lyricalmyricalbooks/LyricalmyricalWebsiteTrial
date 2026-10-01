@@ -21,6 +21,33 @@ import { auth, db } from "../lib/firebase";
 import { StorefrontThemeStyle } from "./features/site/StorefrontThemeStyle";
 import { getCopy } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
+import { StripeEmbeddedPanel } from "./features/site/StripeEmbeddedPanel";
+import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
+
+// ─── State / province drop-down for countries with a fixed list ──────────────
+function RegionField({ value, onChange, label, choose, regions }: { value: string; onChange: (v: string) => void; label: string; choose: string; regions: [string, string][] }) {
+  // Saved addresses may hold the full name ("Ontario"); match it to its code.
+  const match = regions.find(([code, name]) => code === value.toUpperCase() || name.toLowerCase() === value.toLowerCase());
+  return (
+    <div className="relative">
+      <select
+        value={match ? match[0] : ""}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={label}
+        autoComplete="address-level1"
+        required
+        className="peer w-full rounded-lg border border-slate-300 bg-white px-3.5 pb-2 pt-6 text-sm text-slate-900 outline-none transition focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)] appearance-none cursor-pointer"
+      >
+        <option value="" className="bg-white text-slate-900">{choose}</option>
+        {regions.map(([code, name]) => (
+          <option key={code} value={code} className="bg-white text-slate-900">{name}</option>
+        ))}
+      </select>
+      <label className="absolute left-3.5 top-2 text-xs text-slate-500 pointer-events-none">{label}</label>
+      <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-xs">▾</span>
+    </div>
+  );
+}
 
 // ─── Country selector (matches Field styling) ─────────────────────────────────
 function CountryField({ value, onChange, label = "Country" }: { value: string; onChange: (v: string) => void; label?: string }) {
@@ -124,6 +151,13 @@ export function Checkout() {
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(checkoutDesign, key, vars);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
   const [successOrder, setSuccessOrder] = useState<any>(null);
+  // Client secret for Stripe Embedded Checkout once the order is created.
+  const [embeddedSecret, setEmbeddedSecret] = useState<string>("");
+  const stripePublicKey: string = (settings?.payments?.testMode
+    ? settings?.payments?.stripe?.testPublicKey
+    : settings?.payments?.stripe?.publicKey) || "";
+  // Studio › Style › Checkout: card form on this page (default) or Stripe's own page.
+  const useEmbeddedStripe = Boolean(stripePublicKey) && !checkoutDesign.stripeRedirect;
 
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -151,7 +185,7 @@ export function Checkout() {
               address: {
                 street: data.defaultAddress?.street || prev.address.street,
                 city: data.defaultAddress?.city || prev.address.city,
-                state: data.defaultAddress?.state || prev.address.state,
+                state: cleanRegion(data.defaultAddress?.state) || prev.address.state,
                 zip: data.defaultAddress?.zip || prev.address.zip,
                 country: data.defaultAddress?.country || prev.address.country,
               }
@@ -254,7 +288,7 @@ export function Checkout() {
               address: {
                 street: cartData.customer.address?.street || prev.address.street,
                 city: cartData.customer.address?.city || prev.address.city,
-                state: cartData.customer.address?.state || prev.address.state,
+                state: cleanRegion(cartData.customer.address?.state) || prev.address.state,
                 zip: cartData.customer.address?.zip || prev.address.zip,
                 country: cartData.customer.address?.country || prev.address.country,
               }
@@ -765,6 +799,16 @@ export function Checkout() {
     return () => clearTimeout(t);
   }, [customer.email, cart, cartTotal]);
 
+  // Fill an empty (or "Please select") state/province from the postal code.
+  useEffect(() => {
+    const current = cleanRegion(customer.address.state);
+    if (current) return;
+    const guess = provinceFromPostal(customer.address.country, customer.address.zip);
+    if (guess || current !== customer.address.state) {
+      setCustomer(prev => ({ ...prev, address: { ...prev.address, state: guess } }));
+    }
+  }, [customer.address.zip, customer.address.country, customer.address.state]);
+
   const handleCompletePurchase = async () => {
     if (!customer.name || !customer.email || !customer.address.street || !customer.address.city || !customer.address.state || !customer.address.zip) {
       setNotice({ tone: "error", text: c("coErrShippingFields") });
@@ -875,7 +919,7 @@ export function Checkout() {
       const sessionResponse = await fetch(functionUrl("createStripeCheckoutSession"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
+        body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, embedded: useEmbeddedStripe }),
       });
 
       if (!sessionResponse.ok) {
@@ -884,6 +928,11 @@ export function Checkout() {
       }
 
       const sessionData = await sessionResponse.json();
+      if (useEmbeddedStripe && sessionData.clientSecret) {
+        setEmbeddedSecret(sessionData.clientSecret);
+        setIsCompleting(false);
+        return;
+      }
       if (sessionData.url) {
         window.location.href = sessionData.url;
       } else {
@@ -906,11 +955,32 @@ export function Checkout() {
     }
 
     let cancelled = false;
+    const stripeSessionId = params.get("session_id") || "";
+    // Drop the one-time return flags so a refresh doesn't replay this landing.
+    window.history.replaceState(null, "", `${window.location.pathname}?order_id=${encodeURIComponent(oid)}&success=true`);
     setOrderNumber(oid);
     setIsSuccess(true);
 
     (async () => {
       try {
+        if (stripeSessionId.startsWith("cs_")) {
+          // Ask Stripe whether this session was actually completed. "open" means
+          // the shopper came back without paying — send them back to the form.
+          const statusRes = await fetch(functionUrl("getStripeCheckoutStatus"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: oid, sessionId: stripeSessionId }),
+          }).catch(() => null);
+          const statusData = statusRes && statusRes.ok ? await statusRes.json() : null;
+          if (cancelled) return;
+          if (statusData?.status === "open" || statusData?.status === "expired") {
+            window.history.replaceState(null, "", window.location.pathname);
+            setIsSuccess(false);
+            setOrderNumber("");
+            setNotice({ tone: "info", text: c("coPaymentNotFinished") });
+            return;
+          }
+        }
         if (isPayPalReturn) {
           const paypalOrderId = params.get("token");
           if (!paypalOrderId) throw new Error(c("coErrPaypalToken"));
@@ -1105,12 +1175,14 @@ export function Checkout() {
             <section>
               <StepBadge n={c("coStepOf", { n: 2 })} label={c("coDelivery")} />
               <div className="space-y-3">
-                <CountryField label={c("coCountry")} value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v } })} />
+                <CountryField label={c("coCountry")} value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v, state: v === customer.address.country ? customer.address.state : "" } })} />
                 <Field label={c("coName")} value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
                 <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <Field label={c("coCity")} value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required />
-                  <Field label={c("coState")} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" required />
+                  {regionsFor(customer.address.country)
+                    ? <RegionField label={c("coState")} choose={c("coStateChoose")} regions={regionsFor(customer.address.country)!} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} />
+                    : <Field label={c("coState")} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" required />}
                   <Field label={c("coZip")} value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" required />
                 </div>
                 <Field label={c("coPhone")} type="tel" value={customer.phone} onChange={v => setCustomer({ ...customer, phone: v })} autoComplete="tel" inputMode="tel" />
@@ -1189,10 +1261,25 @@ export function Checkout() {
                         {['VISA', 'MC', 'AMEX'].map(card => <span key={card} className="rounded border border-slate-300 bg-white px-1.5 py-1 text-[9px] font-bold text-slate-600">{card}</span>)}
                       </div>
                     </div>
-                    {selectedPaymentMethod === "stripe" && (
+                    {selectedPaymentMethod === "stripe" && embeddedSecret && (
+                      <div className="border-t border-slate-200 p-2">
+                        <StripeEmbeddedPanel
+                          publishableKey={stripePublicKey}
+                          clientSecret={embeddedSecret}
+                          loadingText={c("coStripeLoading")}
+                          errorText={c("coStripeLoadError")}
+                          style={{
+                            background: checkoutDesign.stripeFormBg || undefined,
+                            padding: checkoutDesign.stripeFormPadding != null ? `${checkoutDesign.stripeFormPadding}px` : undefined,
+                            borderRadius: checkoutDesign.checkoutInputRadius != null ? `${checkoutDesign.checkoutInputRadius}px` : undefined,
+                          }}
+                        />
+                      </div>
+                    )}
+                    {selectedPaymentMethod === "stripe" && !embeddedSecret && (
                       <div className="border-t border-slate-200 px-6 py-7 text-center">
                         <CreditCard size={34} strokeWidth={1.4} className="mx-auto mb-3 text-slate-400" />
-                        <p className="text-sm text-slate-600">{c("coStripeNote")}</p>
+                        <p className="text-sm text-slate-600">{c(useEmbeddedStripe ? "coStripeEmbeddedNote" : "coStripeNote")}</p>
                       </div>
                     )}
                   </label>
@@ -1222,6 +1309,12 @@ export function Checkout() {
                   <span aria-hidden="true">{notice.tone === "error" ? "✕ " : "ℹ "}</span>{notice.text}
                 </div>
               )}
+              {embeddedSecret && selectedPaymentMethod === "stripe" ? (
+                <button type="button" onClick={() => setEmbeddedSecret("")}
+                  className="w-full rounded-lg border border-slate-300 px-6 py-3 text-sm font-medium text-slate-600 transition hover:opacity-80">
+                  {c("coStripeEditOrder")}
+                </button>
+              ) : (
               <button
                 type="button"
                 onClick={handleCompletePurchase}
@@ -1230,6 +1323,7 @@ export function Checkout() {
               >
                 {isCompleting ? <><Loader2 size={18} className="animate-spin" /> {c("coProcessing")}</> : <><Lock size={16} /> {paymentLabel}</>}
               </button>
+              )}
               <div className="mt-4 flex items-start justify-center gap-2 text-center text-xs leading-5 text-slate-500">
                 <ShieldCheck size={16} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
                 <p>{c("coPrivacyNote")}</p>
