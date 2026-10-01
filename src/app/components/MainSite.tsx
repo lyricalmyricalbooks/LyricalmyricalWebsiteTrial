@@ -21,7 +21,7 @@ import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT
 import { getCopy } from "../features/site/storeCopy";
 import { buildNavItems, categoryNames, childCategories, parentOf } from "../features/site/navItems";
 import { NavDropdown } from "../features/site/NavDropdown";
-import { contentMaxWidth, navGap, navLinkStyle, useNavBelow } from "../features/site/headerNav";
+import { contentMaxWidth, navLineProps, navLinkStyle, useNavBelow, useNavFit } from "../features/site/headerNav";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { StorefrontOverrides } from "../features/site/StorefrontOverrides";
 import { resolveFooterBadges } from "../features/site/paymentBadges";
@@ -602,6 +602,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const headerRowRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
   const navBelow = useNavBelow(storefrontDesign, headerRowRef, navRef);
+  const navFit = useNavFit(storefrontDesign, navRef, navBelow);
+  const navLine = navLineProps(storefrontDesign, navBelow, navFit);
 
   // "Skip straight to the shop": the homepage shows the catalog. Remember when we forced
   // it, so switching the setting back (e.g. live in the Studio preview) returns to Home.
@@ -842,7 +844,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const homeSections: any[] = heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections || [];
   const onHome = !showCatalog && homeSections.length > 0;
   const navBar = (
-              <nav ref={navRef} data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className={`hidden md:flex shrink-0 items-center ${navBelow ? "max-w-full flex-wrap gap-y-3 py-3" : "flex-nowrap"} ${storefrontDesign?.navStyle === "stickers" ? "gap-2" : ""}`} style={storefrontDesign?.navStyle === "stickers" ? undefined : { columnGap: navGap(storefrontDesign) }}>
+              <nav ref={navRef} data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className={`hidden md:flex shrink-0 items-center ${navLine.className} ${storefrontDesign?.navStyle === "stickers" ? "gap-2" : ""}`} style={storefrontDesign?.navStyle === "stickers" ? { ["--nav-fit" as any]: navLine.style["--nav-fit" as any] } : navLine.style}>
                 {navItems.map((item, itemIdx) => {
                   const stickers = storefrontDesign?.navStyle === "stickers";
                   if (item.kind === "page") {
