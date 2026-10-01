@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from "motion/react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon, ShoppingCart } from "lucide-react";
-import { Link, useNavigate, useLocation } from "react-router";
+import { Link, useNavigate, useLocation, useParams } from "react-router";
 import { POLICY_KEYS, policySlug, policyTitle } from "../features/site/policyPages";
 import { useCart } from "../CartContext";
 import { CATEGORIES, placeholderImage, DEFAULT_SOCIAL } from "../features/site/constants";
@@ -19,7 +19,7 @@ import { useSiteData } from "../features/site/useSiteData";
 import { BootSplash } from "./BootSplash";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
-import { buildNavItems, childCategories, parentOf } from "../features/site/navItems";
+import { buildNavItems, categoryNames, childCategories, parentOf } from "../features/site/navItems";
 import { NavDropdown } from "../features/site/NavDropdown";
 import { navGap, navLinkStyle, useNavBelow } from "../features/site/headerNav";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
@@ -621,6 +621,16 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     setActiveCategory(cat);
     setShowCatalog(true);
   };
+
+  // /collections/<slug> (header links on other pages, product breadcrumbs) opens this shop on that category.
+  const { slug: collectionSlug } = useParams();
+  useEffect(() => {
+    if (!collectionSlug) return;
+    const slugOf = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    const match = categories.find((c: any) => categoryNames(c).some((n: string) => slugOf(n) === collectionSlug));
+    if (match) pickCategory(match);
+    else setShowCatalog(true);
+  }, [collectionSlug, categories]);
 
   // Sync activeCategory if categories change
   useEffect(() => {

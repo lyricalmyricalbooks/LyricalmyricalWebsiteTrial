@@ -21,7 +21,6 @@ const Checkout = lazy(() => import("./Checkout").then(m => ({ default: m.Checkou
 const BookDetail = lazy(() => import("./features/site/BookDetail"));
 const PageView = lazy(() => import("./features/site/PageView").then(m => ({ default: m.PageView })));
 const WishlistPage = lazy(() => import("./features/site/Wishlist"));
-const CollectionPage = lazy(() => import("./features/site/CollectionPage"));
 const AccountPage = lazy(() => import("./features/site/Account"));
 const OrderTracking = lazy(() => import("./features/site/OrderTracking"));
 
@@ -108,7 +107,17 @@ export default function App() {
                     />
                   } />
                   <Route path="/books/:slug" element={<BookDetail />} />
-                  <Route path="/collections/:slug" element={<CollectionPage />} />
+                  {/* A category link opens the normal shop (same header + footer) filtered to that category. */}
+                  <Route path="/collections/:slug" element={
+                    <MainSite
+                      setShowCatalog={setShowCatalog}
+                      showCatalog={showCatalog}
+                      setCurrentPage={setCurrentPage}
+                      currentPage={currentPage}
+                      nextPage={nextPage}
+                      prevPage={prevPage}
+                    />
+                  } />
                   <Route path="/wishlist" element={<WishlistPage />} />
                   <Route path="/account/*" element={<AccountPage />} />
                   <Route path="/page/:slug" element={<PageView />} />

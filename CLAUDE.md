@@ -325,7 +325,8 @@ font/size px (desktop + phone)/weight and top spacing are `pageTitleFont`, `page
 `features/site/NavDropdown.tsx` in every header (All + each sub-category); `bookInCategory(book, cat, allCats)` makes a
 parent include its sub-categories' books. Books are filed in Books › edit › Organize (chips show `Parent › Child`).
 Style › Navigation links has the drop-down controls (`navDropdown*`, `navFlatSubcategories`); the "All" word is
-Text & labels › Header (`navDropdownAll`).
+Text & labels › Header (`navDropdownAll`). `/collections/:slug` renders `MainSite` (same header/footer) opened on that
+category — the standalone `CollectionPage` is no longer routed.
 
 **One storefront shell:** `MainSite` renders a single Riso header/footer for every view; the Home view swaps the catalog grid for `design.heroPage.sections`. Studio › Sections (Home) › **Show a Home page** toggles `showHero` (off = open straight on the catalog). The legacy hero header/`HeroCarousel` were removed — don't re-add a second header.
 
