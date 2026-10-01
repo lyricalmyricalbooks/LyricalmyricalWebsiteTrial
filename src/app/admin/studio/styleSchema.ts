@@ -2,10 +2,12 @@
 // Fields use the same shape as section fields, so they render through the
 // shared SectionFieldEditor. Keys may be dotted paths (e.g. "social.instagram").
 
+// `defaultValue` is what the storefront itself uses when the key is unset, so an untouched slider or
+// toggle shows the real setting instead of its minimum / "off".
 export type StyleField =
-  | { key: string; label: string; kind: "text" | "textarea" | "color" | "toggle" | "image" | "html" }
-  | { key: string; label: string; kind: "range" | "number"; min: number; max: number; step?: number; suffix?: string }
-  | { key: string; label: string; kind: "select"; options: { value: string; label: string }[] };
+  | { key: string; label: string; defaultValue?: any; kind: "text" | "textarea" | "color" | "toggle" | "image" | "html" }
+  | { key: string; label: string; defaultValue?: any; kind: "range" | "number"; min: number; max: number; step?: number; suffix?: string }
+  | { key: string; label: string; defaultValue?: any; kind: "select"; options: { value: string; label: string }[] };
 
 export type StyleGroup = { id: string; title: string; hint?: string; fields: StyleField[] };
 
@@ -67,6 +69,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     id: "layout",
     title: "Layout & spacing",
     fields: [
+      { key: "showHero", label: "Open on the homepage sections (off = open straight to the shop)", kind: "toggle", defaultValue: true },
       { key: "containerWidth", label: "Content width", kind: "range", min: 800, max: 1800, step: 20, suffix: "px" },
       { key: "sectionSpacing", label: "Space between sections", kind: "range", min: 0, max: 160, step: 4, suffix: "px" },
       { key: "cardRadius", label: "Card corner radius", kind: "range", min: 0, max: 40, step: 1, suffix: "px" },
@@ -174,19 +177,19 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "catalogLayoutStyle", label: "Layout", kind: "select", options: [{ value: "modern", label: "Modern" }, { value: "reference", label: "Reference" }] },
       { key: "catalogMastheadText", label: "Masthead text (replaces the wordmark)", kind: "text" },
       { key: "brandTransform", label: "Masthead text case", kind: "select", options: [{ value: "none", label: "None" }, { value: "uppercase", label: "Uppercase" }, { value: "lowercase", label: "Lowercase" }, { value: "capitalize", label: "Capitalize" }] },
-      { key: "catalogMastheadDesktop", label: "Masthead size (desktop)", kind: "range", min: 28, max: 96, step: 1, suffix: "px" },
-      { key: "catalogMastheadMobile", label: "Masthead size (phone)", kind: "range", min: 20, max: 64, step: 1, suffix: "px" },
+      { key: "catalogMastheadDesktop", label: "Masthead size (desktop)", kind: "range", defaultValue: 58, min: 28, max: 96, step: 1, suffix: "px" },
+      { key: "catalogMastheadMobile", label: "Masthead size (phone)", kind: "range", defaultValue: 38, min: 20, max: 64, step: 1, suffix: "px" },
       { key: "catalogHeaderWidth", label: "Header width", kind: "range", min: 900, max: 1800, step: 20, suffix: "px" },
       { key: "catalogHeaderRuleWidth", label: "Header rule thickness", kind: "range", min: 0, max: 8, step: 1, suffix: "px" },
-      { key: "catalogNavGapDesktop", label: "Nav spacing (desktop)", kind: "range", min: 12, max: 80, step: 1, suffix: "px" },
-      { key: "catalogNavGapMobile", label: "Nav spacing (phone)", kind: "range", min: 8, max: 40, step: 1, suffix: "px" },
+      { key: "catalogNavGapDesktop", label: "Nav spacing (desktop)", kind: "range", defaultValue: 40, min: 12, max: 80, step: 1, suffix: "px" },
+      { key: "catalogNavGapMobile", label: "Nav spacing (phone)", kind: "range", defaultValue: 18, min: 8, max: 40, step: 1, suffix: "px" },
       { key: "catalogTitleTransform", label: "Book title case", kind: "select", options: [{ value: "none", label: "None" }, { value: "uppercase", label: "Uppercase" }, { value: "capitalize", label: "Capitalize" }] },
       { key: "catalogImageFit", label: "Cover image fit", kind: "select", options: [{ value: "cover", label: "Cover" }, { value: "contain", label: "Contain" }] },
-      { key: "catalogImageFocalX", label: "Cover focus (left↔right)", kind: "range", min: 0, max: 100, step: 1, suffix: "%" },
-      { key: "catalogImageFocalY", label: "Cover focus (top↔bottom)", kind: "range", min: 0, max: 100, step: 1, suffix: "%" },
+      { key: "catalogImageFocalX", label: "Cover focus (left↔right)", kind: "range", defaultValue: 50, min: 0, max: 100, step: 1, suffix: "%" },
+      { key: "catalogImageFocalY", label: "Cover focus (top↔bottom)", kind: "range", defaultValue: 50, min: 0, max: 100, step: 1, suffix: "%" },
       { key: "catalogCartPlacement", label: "Cart button placement", kind: "select", options: [{ value: "top-right", label: "Top right" }, { value: "nav-end", label: "Nav end" }] },
       { key: "catalogCartTotalPlaceholder", label: "Empty cart total text", kind: "text" },
-      { key: "referenceCategoryLimit", label: "Max categories in the nav", kind: "range", min: 1, max: 12, step: 1 },
+      { key: "referenceCategoryLimit", label: "Max categories in the nav", kind: "range", defaultValue: 1, min: 1, max: 12, step: 1 },
     ],
   },
   {
@@ -195,9 +198,9 @@ export const STYLE_GROUPS: StyleGroup[] = [
     fields: [
       { key: "navHeading", label: "Nav heading (before page links)", kind: "text" },
       { key: "navLinkColor", label: "Link color", kind: "color" },
-      { key: "navLinkSize", label: "Link size", kind: "range", min: 8, max: 20, step: 1, suffix: "px" },
+      { key: "navLinkSize", label: "Link size", kind: "range", defaultValue: 10, min: 8, max: 20, step: 1, suffix: "px" },
       { key: "navLinkWeight", label: "Link weight", kind: "select", options: weights },
-      { key: "navLinkSpacing", label: "Link letter spacing", kind: "range", min: 0, max: 0.6, step: 0.02, suffix: "em" },
+      { key: "navLinkSpacing", label: "Link letter spacing", kind: "range", defaultValue: 0.2, min: 0, max: 0.6, step: 0.02, suffix: "em" },
       { key: "navLinkTransform", label: "Link case", kind: "select", options: [{ value: "", label: "Inherit" }, { value: "none", label: "None" }, { value: "uppercase", label: "Uppercase" }, { value: "lowercase", label: "Lowercase" }, { value: "capitalize", label: "Capitalize" }] },
       { key: "navPillRadius", label: "Sticker pill corners (CSS radius)", kind: "text" },
       { key: "navPillRotate", label: "Tilt sticker pills", kind: "toggle" },
@@ -218,7 +221,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "productImageShadow", label: "Image shadow", kind: "select", options: [{ value: "none", label: "None" }, { value: "sm", label: "Sm" }, { value: "md", label: "Md" }, { value: "lg", label: "Lg" }, { value: "xl", label: "Xl" }] },
       { key: "productImageHoverScale", label: "Image hover zoom", kind: "range", min: 1, max: 1.3, step: 0.01 },
       { key: "showAmbientGlow", label: "Ambient glow behind image", kind: "toggle" },
-      { key: "glowIntensity", label: "Glow strength", kind: "range", min: 0, max: 60, step: 1, suffix: "%" },
+      { key: "glowIntensity", label: "Glow strength", kind: "range", defaultValue: 18, min: 0, max: 60, step: 1, suffix: "%" },
       { key: "productImageGlowColor", label: "Glow color", kind: "color" },
       { key: "productDetailsLayout", label: "Details layout", kind: "select", options: [{ value: "sections", label: "Sections" }, { value: "tabs", label: "Tabs" }, { value: "accordions", label: "Accordions" }] },
       { key: "productCtaWidth", label: "Add-to-bag width", kind: "select", options: [{ value: "full", label: "Full" }, { value: "auto", label: "Auto" }] },
@@ -246,7 +249,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "saleBadgeLabel", label: "Sale badge text", kind: "text" },
       { key: "showNewBadge", label: "New badge", kind: "toggle" },
       { key: "newBadgeLabel", label: "New badge text", kind: "text" },
-      { key: "newBadgeDays", label: "“New” for how many days", kind: "range", min: 1, max: 180, step: 1 },
+      { key: "newBadgeDays", label: "“New” for how many days", kind: "range", defaultValue: 30, min: 1, max: 180, step: 1 },
       { key: "soldOutLabel", label: "Sold-out text", kind: "text" },
       { key: "cartLabel", label: "Cart label", kind: "text" },
       { key: "heroCTA", label: "Hero button text", kind: "text" },

@@ -255,6 +255,18 @@ library → verify), then check it off.
       `resolveFooterBadges`). Style › Theme look › **My themes** saves/loads/deletes whole-design
       copies (`settings.savedThemes`, max 10, `studio/savedThemes.ts`). Still open: recursive
       nested blocks with drag-and-drop.
+- [x] **Studio audit (30 Sep 2026)** — driven end to end in a browser harness. Fixed: Text & labels search
+      never expanded its groups (so double-click-a-string → jump-to-field couldn't focus anything);
+      the preview bridge shipped `/s+/` instead of `/\s+/` and `/{w+}/` instead of `/\{\w+\}/` (plain template
+      literal ate the backslashes — now `String.raw`, with `previewBridge.test.ts` checking the shipped
+      string), so `{count}`/`{year}` strings never matched; tabbing through an *unset* colour field wrote
+      `#000000` (and `transparent`/`rgba()` were mangled) — blank now stays blank; the Home preview showed the
+      shop when `design.showHero === false` with no Studio control — added Style › Layout & spacing ›
+      "Open on the homepage sections" plus a banner on Home with a one-click fix, and `MainSite` now leaves
+      the forced shop view when the setting flips back on; the preview iframe no longer counts visits / funnel
+      events as shopper traffic; unset sliders show the storefront's real default (`defaultValue` in
+      `styleSchema.ts`) instead of their minimum; Add-section dialog traps focus; My themes refuses to grow
+      past ~500 KB (each copy is a whole design and `settings/website` is one 1 MiB Firestore doc).
 - [x] Fixes found while verifying: token-layer selectors now also match roots that carry `data-fm-store` and `fm-page`/`fm-surface`/`text-white` on the SAME element (Account and Tracking never received the theme background before); Tracking text/placeholder contrast raised; `ProductCoverCarouselSection` text is pinned light
       over its image scrim (it was following the theme text colour), and Checkout restores
       literal paper for `bg-white` on light themes (the token layer maps `bg-white` to the

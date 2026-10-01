@@ -841,11 +841,18 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     return cat;
   }), [rawCategories]);
 
+  const heroWasOff = useRef(false);
   useEffect(() => {
-    if (legacyDesign?.showHero === false && !showCatalog) {
+    const heroOff = legacyDesign?.showHero === false;
+    if (heroOff && !showCatalog) {
       setShowCatalog(true);
+    } else if (!heroOff && heroWasOff.current && !isCatalogPreview) {
+      // The setting was switched back on while this page is open (live edit in the Studio preview):
+      // leave the shop view we were forced into so the homepage sections appear.
+      setShowCatalog(false);
     }
-  }, [legacyDesign?.showHero, showCatalog, setShowCatalog]);
+    heroWasOff.current = heroOff;
+  }, [legacyDesign?.showHero, showCatalog, setShowCatalog, isCatalogPreview]);
 
   const [activeCategory, setActiveCategory] = useState<any>(categories[0]);
 

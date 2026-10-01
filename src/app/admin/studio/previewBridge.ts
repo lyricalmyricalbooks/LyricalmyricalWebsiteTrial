@@ -6,7 +6,9 @@
 // Double-clicking any other storefront text (footer, cart drawer, account, checkout…) is matched
 // against the editable copy strings and reported as COPY_SELECT {key} so the editor can jump to it.
 
-export const PREVIEW_BRIDGE_SOURCE = `(function(){
+// String.raw: this is JavaScript for the iframe, so `\s` / `\w` / `\{` must reach it untouched.
+// (In a plain template literal they silently lose the backslash — `/\s+/` became `/s+/`.)
+export const PREVIEW_BRIDGE_SOURCE = String.raw`(function(){
   if (window.__studioBridge) return; window.__studioBridge = true;
   var O = window.location.origin, selected = null;
   function q(el, sel){ return el && el.closest ? el.closest(sel) : null; }
@@ -31,7 +33,7 @@ export const PREVIEW_BRIDGE_SOURCE = `(function(){
   });
   var copyMap = [];
   function norm(t){ return String(t||'').replace(/\s+/g,' ').trim().toLowerCase(); }
-  function esc(t){ return t.replace(/[.*+?^$()|\\[\\]\\\\{}]/g,'\\\\$&'); }
+  function esc(t){ return t.replace(/[.*+?^$()|\[\]\\{}]/g,'\\$&'); }
   function findCopy(el){
     for (var n = el, i = 0; n && n !== document.body && i < 4; n = n.parentElement, i++) {
       var t = norm(n.textContent); if (!t || t.length > 400) continue;

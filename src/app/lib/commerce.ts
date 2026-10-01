@@ -172,8 +172,13 @@ export const abandonedCartApi = {
 // ──────────────────────────────────────────────────────────────
 // Funnel analytics
 // ──────────────────────────────────────────────────────────────
+// The Studio preview iframe runs the real storefront; it must not count as shopper traffic.
+const inEditorPreview = () =>
+  typeof window !== "undefined" && window.location.search.includes("preview=true");
+
 export const funnelApi = {
   track: async (event: "view" | "add_to_cart" | "checkout_start" | "purchase") => {
+    if (inEditorPreview()) return;
     const today = new Date().toISOString().split("T")[0];
     const ref = doc(db, "analytics", today);
     try {
@@ -188,7 +193,7 @@ export const funnelApi = {
   },
 
   trackCategory: async (categoryName: string) => {
-    if (!categoryName) return;
+    if (!categoryName || inEditorPreview()) return;
     const today = new Date().toISOString().split("T")[0];
     const ref = doc(db, "analytics", today);
     try {

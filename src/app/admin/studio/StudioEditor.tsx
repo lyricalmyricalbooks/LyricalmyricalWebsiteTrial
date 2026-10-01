@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useFocusTrap } from "../../lib/useFocusTrap";
 import {
   ArrowLeft, ChevronDown, ChevronUp, Copy, Eye, EyeOff, Monitor, Plus, Redo2, Search, Smartphone,
   Tablet, Trash2, Undo2, X,
@@ -18,7 +19,7 @@ import {
 import { STATIC_SURFACES, STYLE_GROUPS, applyGlobalStyle, readStyle } from "./styleSchema";
 import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
-import { addSavedTheme, removeSavedTheme, type SavedTheme } from "./savedThemes";
+import { addSavedTheme, removeSavedTheme, savedThemesFit, type SavedTheme } from "./savedThemes";
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "../ThemeEditorBuilder";
 import { applyThemeKeysToSurfaces } from "../themeScope";
@@ -39,6 +40,8 @@ const iconBtn =
 
 function Group({ title, hint, children, open: initial = false }: { title: string; hint?: string; children: any; open?: boolean }) {
   const [open, setOpen] = useState(initial);
+  // Text search passes open={Boolean(query)}; without this the matching groups stay collapsed.
+  useEffect(() => setOpen(initial), [initial]);
   return (
     <section className="border-b border-neutral-200">
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
@@ -66,17 +69,19 @@ function sectionTitle(s: Section) {
 // ── Add-section picker ─────────────────────────────────────────────────────
 function AddSectionDialog({ onPick, onClose }: { onPick: (type: string) => void; onClose: () => void }) {
   const [q, setQ] = useState("");
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, onClose);
   const list = SECTION_REGISTRY.filter(
     (s) => !q || `${s.label} ${s.description} ${s.category}`.toLowerCase().includes(q.toLowerCase()),
   );
   const cats = Array.from(new Set(list.map((s) => s.category)));
   return (
     <div className="fixed inset-0 z-[400] bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Add section"
-      onKeyDown={(e) => e.key === "Escape" && onClose()}>
-      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl">
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div ref={dialogRef} className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl">
         <div className="flex items-center gap-3 p-4 border-b">
           <Search size={16} className="text-neutral-400" />
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search sections…"
+          <input data-autofocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search sections…"
             className="flex-1 outline-none text-sm" aria-label="Search sections" />
           <button className={iconBtn} onClick={onClose} aria-label="Close"><X size={16} /></button>
         </div>
@@ -268,8 +273,8 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
     () => [...STATIC_SURFACES, ...templates.filter((t) => t.pageSlug).map((t) => t.id)],
     [templates],
   );
-  const dirtyDraft = !sameDesign(design, savedDraft);
-  const unpublished = !sameDesign(design, published);
+  const dirtyDraft = useMemo(() => !sameDesign(design, savedDraft), [design, savedDraft]);
+  const unpublished = useMemo(() => !sameDesign(design, published), [design, published]);
 
   const say = (kind: "ok" | "err", text: string) => {
     setToast({ kind, text });
@@ -321,7 +326,12 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
   const saveCurrentAsTheme = () => {
     const name = window.prompt("Name this theme (it saves the whole design: style, text, menus and sections):", "");
     if (name === null) return;
-    persistThemes(addSavedTheme(savedThemes, name, designRef.current), `Saved “${name.trim() || "Untitled theme"}” to My themes.`);
+    const next = addSavedTheme(savedThemes, name, designRef.current);
+    if (!savedThemesFit(next)) {
+      say("err", "Not enough room for another saved theme. Delete one under My themes, then try again.");
+      return;
+    }
+    persistThemes(next, `Saved “${name.trim() || "Untitled theme"}” to My themes.`);
   };
   const applySavedTheme = (t: SavedTheme) => {
     if (!window.confirm(`Replace the current draft with “${t.name}”? This changes sections, text and style. You can Undo (Ctrl+Z) until you save.`)) return;
@@ -543,6 +553,12 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
                 <p className="text-xs text-neutral-500 px-1">
                   {showGlobal ? "These sections appear on every page." : `Sections on the “${template.label}” page. Click one here or in the preview to edit it.`}
                 </p>
+                {!showGlobal && template.id === "heroPage" && design.showHero === false && (
+                  <div role="note" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 space-y-2">
+                    <p><b>These sections aren’t on your live homepage.</b> “Open on the homepage sections” is switched off, so shoppers land straight on the shop and the preview shows the shop too.</p>
+                    <button type="button" className={btn} onClick={() => setStyle("showHero", true)}>Show the homepage sections</button>
+                  </div>
+                )}
                 {sections.map((s, i) => {
                   const t = sectionTitle(s);
                   const on = s.id === selectedId;
@@ -623,7 +639,7 @@ export function StudioEditor({ settings, onExit, onPersisted }: {
               <Group key={g.id} title={g.title} hint={g.hint} open={false}>
                 {g.fields.map((f) => (
                   <SectionFieldEditor key={f.key} field={f as any}
-                    value={readStyle(design, f.key) ?? readStyle(defaults, f.key)}
+                    value={readStyle(design, f.key) ?? readStyle(defaults, f.key) ?? (f as any).defaultValue}
                     onChange={(v) => setStyle(f.key, v)}
                     uploadFile={(file) => adminApi.uploadFile(file, `design/${Date.now()}_${file.name}`)} />
                 ))}

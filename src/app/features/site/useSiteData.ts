@@ -77,7 +77,8 @@ export function useSiteData() {
         });
 
         const sessionKey = `fm_visit_${new Date().toISOString().split("T")[0]}`;
-        if (!sessionStorage.getItem(sessionKey)) {
+        // The editor's preview iframe is not a shopper visit.
+        if (!isPreview && !sessionStorage.getItem(sessionKey)) {
           adminApi.recordVisit();
           sessionStorage.setItem(sessionKey, "true");
         }
