@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { useCart } from "./CartContext";
 import {
   ChevronLeft, Tag, ShieldCheck, X, AlertCircle,
-  Package, Truck, CreditCard, CheckCircle2, Loader2, Lock, Building
+  Package, Truck, CreditCard, CheckCircle2, Loader2, Lock, Building, Check
 } from "lucide-react";
 import { motion } from "motion/react";
 import { adminApi } from "./admin/api";
@@ -24,6 +24,8 @@ import { DEFAULT_SETTINGS } from "./features/site/constants";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { searchAddresses, type AddressSuggestion } from "./features/site/addressSuggest";
 import { arrivalDateLabel, freeShippingGap } from "./features/site/checkoutNudges";
+import { guessCountryName, parsePinned } from "./features/site/countryPicker";
+import { CountryField } from "./features/site/CountryField";
 import { designNumber } from "./features/site/designNumber";
 import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
 
@@ -52,25 +54,6 @@ function RegionField({ value, onChange, label, choose, regions }: { value: strin
   );
 }
 
-// ─── Country selector (matches Field styling) ─────────────────────────────────
-function CountryField({ value, onChange, label = "Country" }: { value: string; onChange: (v: string) => void; label?: string }) {
-  return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={label}
-        className="peer w-full rounded-lg border border-slate-300 bg-white px-3.5 pb-2 pt-6 text-sm text-slate-900 outline-none transition focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)] appearance-none cursor-pointer"
-      >
-        {COUNTRIES.map((c) => (
-          <option key={c.code} value={c.name} className="bg-white text-slate-900">{c.name}</option>
-        ))}
-      </select>
-      <label className="absolute left-3.5 top-2 text-xs text-slate-500 pointer-events-none">{label}</label>
-      <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-xs">▾</span>
-    </div>
-  );
-}
 
 // ─── Reusable input ───────────────────────────────────────────────────────────
 function Field({
@@ -195,7 +178,7 @@ export function Checkout() {
 
   const [customer, setCustomer] = useState({
     name: "", email: "", phone: "",
-    address: { street: "", city: "", state: "", zip: "", country: "United States" }
+    address: { street: "", city: "", state: "", zip: "", country: guessCountryName() || "Canada" }
   });
 
   const [shippingCost, setShippingCost] = useState(0);
@@ -217,6 +200,7 @@ export function Checkout() {
     ? settings?.payments?.stripe?.testPublicKey
     : settings?.payments?.stripe?.publicKey) || "";
   // Studio › Style › Checkout: card form on this page (default) or Stripe's own page.
+  const pinnedCountryCodes = useMemo(() => parsePinned(checkoutDesign.checkoutPinnedCountries || undefined), [checkoutDesign.checkoutPinnedCountries]);
   const useCardForm = Boolean(stripePublicKey) && !checkoutDesign.stripeRedirect;
 
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -1295,7 +1279,10 @@ export function Checkout() {
             <section>
               <StepBadge n={c("coStepOf", { n: 2 })} label={c("coDelivery")} />
               <div className="space-y-3">
-                <CountryField label={c("coCountry")} value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v, state: v === customer.address.country ? customer.address.state : "" } })} />
+                <CountryField label={c("coCountry")}
+                  pinnedCodes={pinnedCountryCodes} showFlags={!checkoutDesign.hideCountryFlags}
+                  words={{ search: c("coCountrySearch"), popular: c("coCountryPopular"), all: c("coCountryAll"), none: (q: string) => c("coCountryNone", { query: q }) }}
+                  value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v, state: v === customer.address.country ? customer.address.state : "" } })} />
                 <Field label={c("coName")} value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
                 {checkoutDesign.hideAddressSuggestions
                   ? <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
