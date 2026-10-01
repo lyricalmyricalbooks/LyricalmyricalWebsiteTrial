@@ -73,7 +73,7 @@ export default function WishlistPage() {
               <article key={book.id} className="group">
                 <Link to={`/books/${slug}`} className="block">
                   <div className="relative aspect-[3/4] fm-surface rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={(book as any).photos?.[0]?.url || placeholderImage(settings?.design)}
                       alt={book.title}
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"

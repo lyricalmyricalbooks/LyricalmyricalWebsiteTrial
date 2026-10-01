@@ -340,7 +340,7 @@ export default function OrderTracking() {
                   {order.items.map((item: any, idx: number) => (
                     <div key={idx} className="flex gap-6 items-center">
                       <div className="w-14 aspect-[3/4] fm-surface-2 rounded-lg overflow-hidden border border-white/10 shrink-0">
-                        <img src={item.photoUrl} alt={item.title} className="w-full h-full object-cover" />
+                        <img loading="lazy" decoding="async" src={item.photoUrl} alt={item.title} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-black text-white uppercase tracking-wider truncate leading-tight">{item.title}</p>

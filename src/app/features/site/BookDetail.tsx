@@ -995,7 +995,7 @@ export default function BookDetail() {
                       </div>
                       <span className="text-white/20 font-black text-lg">+</span>
                       <div className="w-16 fm-surface rounded-xl border border-white/10 shadow-lg shrink-0 overflow-hidden" style={{ aspectRatio: productImageAspect }}>
-                        <img src={bundleBook.photos?.[0]?.url || placeholderImage(settings?.design)} alt={bundleBook.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
+                        <img loading="lazy" decoding="async" src={bundleBook.photos?.[0]?.url || placeholderImage(settings?.design)} alt={bundleBook.title} className="w-full h-full" style={{ objectFit: productImageFit }} />
                       </div>
                     </div>
 
