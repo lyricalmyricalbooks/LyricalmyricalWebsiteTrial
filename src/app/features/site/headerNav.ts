@@ -19,6 +19,13 @@ export function navLinkStyle(design: any, active: boolean, color?: string): CSSP
   };
 }
 
+/**
+ * Width of the storefront content column — Studio › Style › Layout › "Content width"
+ * (`containerWidth`). The header, product page and shop grid all use it so their left
+ * edges line up with the logo.
+ */
+export const contentMaxWidth = (design: any) => Math.max(900, Math.min(1600, Number(design?.containerWidth ?? 1200)));
+
 /** Gap between header nav links (px). */
 export const navGap = (design: any) => Math.max(4, Math.min(64, Number(design?.navGap ?? 28)));
 

@@ -12,6 +12,7 @@ import { useCart } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
 import { StorefrontPageHeader } from "./StorefrontPageHeader";
+import { contentMaxWidth } from "./headerNav";
 import { SiteFooter } from "../../components/MainSite";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 import { getCopy } from "./storeCopy";
@@ -152,6 +153,8 @@ export default function BookDetail() {
   // Merge top-level design with storefront-level overrides so tokens can be set
   // at either level (storefront wins).
   const tokenSource = { ...(settings?.design || {}), ...(storefrontDesign || {}) };
+  // Same column as the header (Style › Layout › Content width) so the page lines up with the logo.
+  const pageMaxWidth = contentMaxWidth(tokenSource);
 
   // Catalogue-card layout (Studio › Style › Product page · buy card & details).
   const pdpShowBackLink   = tokenSource.pdpShowBackLink   ?? true;
@@ -493,7 +496,7 @@ export default function BookDetail() {
 
       {/* ── hero layout ── */}
       <main className="relative z-10">
-        <div className="max-w-8xl mx-auto px-4 sm:px-6 pt-2 pb-12 lg:pb-20">
+        <div className="mx-auto px-6 pt-2 pb-12 lg:pb-20" style={{ maxWidth: pageMaxWidth }}>
           {/* ── back link (Studio › Style › Product page · "Show Back link") ── */}
           {pdpShowBackLink && (
             <button
@@ -993,7 +996,7 @@ export default function BookDetail() {
         {/* ── Related books ── */}
         {showRelatedProducts && otherBooks.length > 0 && (
           <section data-section="products" className="relative z-10 mt-16 border-t border-white/[0.06]">
-            <div className="max-w-8xl mx-auto px-6 py-20">
+            <div className="mx-auto px-6 py-20" style={{ maxWidth: pageMaxWidth }}>
               <div className="flex items-center gap-6 mb-12">
                 <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">
                   {getCopy(settings?.design, "relatedHeading")}
