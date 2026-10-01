@@ -350,6 +350,13 @@ classes); its words are in Text & labels › Product page (`pdp*` copy keys). Th
 
 **Photo shapes:** Studio › Style › **Product cards & grid** has **Image shape (proportions)** (12 ratios, 3:4 … 21:9 … 9:16 — `PHOTO_RATIOS` in `features/site/photoShapes.ts`, also used by the Product grid / Product showcase grid / cover carousel sections) and **Image outline** (`photoOutline`: arch, window, pill, circle/oval, leaf, hexagon, octagon, diamond, cut corners, slanted). The product page has its own **Photo shape** / **Photo outline** (`productImageAspect`, `productPhotoOutline`; "Same as shop grid" by default). Outlines are CSS from `photoOutlineCss` (via `StorefrontOverrides`); new photo frames opt in with `fm-photo-frame` (shop cards) or `fm-photo-frame-pdp` (product photos).
 
+**Shopping bag (cart drawer):** `components/CartDrawer.tsx` is a Riso "order slip" — ruled header, free-shipping
+meter, numbered line items (photo, title, per-copy price, line total, qty stepper, Remove), "Complete your collection"
+card, then Subtotal / Shipping / Total ledger, trust badges and checkout button. Every piece is a Studio › Style ›
+**Cart drawer (shopping bag)** control (`cartDrawer*` keys + `showFreeShipBar`/`freeShipThreshold`/`showCartTrustBadges`,
+CSS from `features/site/cartDrawerStyle.ts`, `fm-bag-*` classes); words are Text & labels › Cart. Each region carries
+its own click-to-edit target (Bag heading, Free-shipping bar, Bag line items, Bag suggestion, Bag total & checkout).
+
 **Small print:** Studio › Style › **Small print & labels** (`smallPrint*` keys, `features/site/smallPrint.ts`) sets a minimum size, colour, case, letter spacing and font for every tiny `text-[8px]…text-[11px]` label at once.
 
 **Click focus:** clicking a preview region pins an "Editing: <label>" card at the top of Studio › Style with only that element's controls (`STYLE_TARGET_FIELDS` in `styleSchema.ts` gathers fields across groups by key; labels not listed show their whole group). **Show all style settings** returns to the full list.
