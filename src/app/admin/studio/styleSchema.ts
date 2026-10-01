@@ -335,7 +335,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     title: "Product page · buy card & details",
     hint: "The bordered buy card, photo rail and caption, breadcrumb and the Description / Details / Reviews tabs. Leave a colour empty to follow the theme.",
     fields: [
-      { key: "pdpShowBackLink", label: "Show “Back” link in the header", kind: "toggle" },
+      { key: "pdpShowBackLink", label: "Show “Back” link above the breadcrumb", kind: "toggle" },
       { key: "pdpShowBreadcrumb", label: "Show breadcrumb (Shop / category / title)", kind: "toggle" },
       { key: "pdpCardBg", label: "Card background", kind: "color" },
       { key: "pdpCardBorderColor", label: "Card border colour", kind: "color" },

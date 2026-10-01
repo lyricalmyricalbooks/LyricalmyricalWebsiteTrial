@@ -11,6 +11,8 @@ import {
 import { useCart } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
+import { StorefrontPageHeader } from "./StorefrontPageHeader";
+import { SiteFooter } from "../../components/MainSite";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 import { getCopy } from "./storeCopy";
 import { designNumber } from "./designNumber";
@@ -50,7 +52,7 @@ function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string
 export default function BookDetail() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { books, settings, loading } = useSiteData();
+  const { books, settings, pages, loading } = useSiteData();
   const { addToCart, setIsCartOpen, cartCount } = useCart();
   const { formatPrice, formatBookPrice, getBookPrice } = useCurrency();
 
@@ -486,68 +488,24 @@ export default function BookDetail() {
         />
       )}
 
-      {/* ── sticky header ── */}
-      <header
-        data-section="navigation"
-        className="sticky top-0 z-50 border-b backdrop-blur-2xl transition-all duration-300"
-        style={{
-          backgroundColor: headerBgColor,
-          borderColor: headerBorderColor,
-        }}
-      >
-        <div className="max-w-8xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
-          {pdpShowBackLink && <button
-            onClick={() => navigate(-1)}
-            style={{ color: headerTextColor }}
-            aria-label={getCopy(settings?.design, "backToCatalog")}
-            className="flex items-center gap-2.5 opacity-60 hover:opacity-100 transition-opacity group min-w-[44px] min-h-[44px] shrink-0"
-          >
-            <ArrowLeft size={15} className="group-hover:-translate-x-1 transition-transform" />
-            <span className="hidden sm:inline text-[9px] font-black tracking-[0.35em] uppercase">{getCopy(settings?.design, "backToCatalog")}</span>
-          </button>}
-
-          <Link
-            to="/"
-            style={{ color: headerTextColor }}
-            className="text-[11px] font-black tracking-[0.3em] opacity-80 hover:opacity-100 transition-opacity min-w-0 overflow-hidden text-ellipsis"
-          >
-            <LogoMark design={logoDesign} />
-          </Link>
-
-          <button
-            onClick={() => setIsCartOpen(true)}
-            className={`flex items-center gap-2.5 px-4 py-2.5 transition-all group hover:scale-[1.02] custom-btn ${
-              buttonShadow ? "shadow-md" : ""
-            }`}
-            style={{
-              "--btn-bg": buttonStyle === "solid" ? buttonBg : "transparent",
-              "--btn-text": buttonStyle === "solid" ? buttonText : buttonBg,
-              "--btn-border": buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
-              borderRadius: buttonRadius,
-            } as React.CSSProperties}
-          >
-            <ShoppingBag size={14} className="transition-colors text-current" />
-            <span className="text-[9px] font-black tracking-[0.25em] uppercase transition-colors text-current">
-              {getCopy(settings?.design, "cartLabel")}
-            </span>
-            {cartCount > 0 && (
-              <span
-                className="text-[8px] font-black px-1.5 py-0.5 rounded-full transition-colors"
-                style={{
-                  backgroundColor: buttonStyle === "solid" ? "var(--btn-text)" : "var(--btn-bg)",
-                  color: buttonStyle === "solid" ? "var(--btn-bg)" : "var(--btn-text)",
-                }}
-              >
-                {cartCount}
-              </span>
-            )}
-          </button>
-        </div>
-      </header>
+      {/* ── the same header + footer as the rest of the shop ── */}
+      <StorefrontPageHeader design={settings?.design} pages={pages} books={books} />
 
       {/* ── hero layout ── */}
       <main className="relative z-10">
         <div className="max-w-8xl mx-auto px-4 sm:px-6 pt-2 pb-12 lg:pb-20">
+          {/* ── back link (Studio › Style › Product page · "Show Back link") ── */}
+          {pdpShowBackLink && (
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              aria-label={getCopy(settings?.design, "backToCatalog")}
+              className="fm-pdp-meta mt-4 mb-2 inline-flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity"
+            >
+              <ArrowLeft size={13} aria-hidden="true" />
+              {getCopy(settings?.design, "backToCatalog")}
+            </button>
+          )}
           {/* ── breadcrumb ── */}
           {pdpShowBreadcrumb && (
             <nav
@@ -1108,13 +1066,8 @@ export default function BookDetail() {
 
         <GlobalSections design={settings?.design} books={books} />
 
-        {/* ── Footer ── */}
-        <footer className="relative z-10 border-t border-white/[0.06] py-10 text-center">
-          <p className="text-[9px] font-black tracking-[0.4em] text-white/20 uppercase">
-            {getCopy(settings?.design, "footerCopyright")}
-          </p>
-        </footer>
       </main>
+      <SiteFooter settings={settings} pages={pages} />
     </div>
   );
 }
