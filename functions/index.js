@@ -20,6 +20,7 @@ const { risoButton, risoLayout } = require("./emailTheme");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
+const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -624,7 +625,7 @@ async function resolveShipping(items, order, profiles, freeShipping) {
         parcels: [{ length: "10", width: "8", height: "2", distance_unit: "in", weight: Math.max(0.1, totalWeightLb).toFixed(1), mass_unit: "lb" }],
         async: false,
       }, shippoToken);
-      const carrierQuotes = (shipment.rates || []).map(rate => ({
+      const carrierQuotes = canadaPostLabelRates(shipment.rates || []).map(rate => ({
         name: `${rate.provider || ""} ${rate.servicelevel?.name || rate.servicelevel?.token || "Shipping"}`.trim(),
         price: Number(rate.amount),
       })).filter(rate => Number.isFinite(rate.price));
@@ -2626,7 +2627,7 @@ exports.getShippoRates = onRequest(
         async: false
       }, shippoToken);
 
-      const rates = shipment.rates || [];
+      const rates = canadaPostLabelRates(shipment.rates || []);
       const formattedRates = rates.map(r => {
         const providerName = r.provider || "";
         const serviceName = r.servicelevel?.name || r.servicelevel?.token || "Shipping";
@@ -2635,11 +2636,11 @@ exports.getShippoRates = onRequest(
           price: parseFloat(r.amount),
           base: parseFloat(r.amount),
           additional: 0,
-          deliveryDays: r.days ? String(r.days) : (r.duration_terms ? r.duration_terms : "3-7"),
+          deliveryDays: Number.isFinite(Number(r.estimated_days)) ? String(r.estimated_days) : (r.duration_terms || ""),
         };
       });
 
-      res.status(200).json({ rates: formattedRates });
+      res.status(200).json({ rates: formattedRates, useRegularRates: false });
     } catch (err) {
       console.error("getShippoRates failed:", err);
       res.status(500).json({ error: err.message });
@@ -2779,7 +2780,7 @@ exports.createShippingLabel = onRequest(
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
 
-    const { orderId, mode } = req.body;
+    const { orderId, mode, shipmentId, rateId } = req.body;
     if (!orderId) {
       res.status(400).json({ error: "Missing orderId" });
       return;
@@ -2881,6 +2882,33 @@ exports.createShippingLabel = onRequest(
         email: order.customer.email
       };
 
+      if (mode === "purchase") {
+        if (!shipmentId || !rateId) {
+          res.status(400).json({ error: "Choose a Canada Post rate before buying the label." });
+          return;
+        }
+        const quotedShipment = await callShippo(`shipments/${encodeURIComponent(shipmentId)}/`, "GET", null, shippoToken);
+        const chosenRate = (quotedShipment.rates || []).find(rate => rate.object_id === rateId);
+        if (!chosenRate || !isCanadaPostRate(chosenRate)) {
+          res.status(400).json({ error: "That Canada Post rate is no longer available. Refresh the choices and try again." });
+          return;
+        }
+        const transaction = await callShippo("transactions/", "POST", { rate: chosenRate.object_id, async: false }, shippoToken);
+        if (transaction.status !== "SUCCESS") {
+          const messages = (transaction.messages || []).map(message => message.text).join(", ");
+          throw new Error(`Transaction creation failed: ${transaction.status} - ${messages}`);
+        }
+        const trackingNumber = transaction.tracking_number;
+        const trackingCarrier = transaction.tracking_provider || "Canada Post";
+        const labelUrl = transaction.label_url;
+        await orderRef.update({ labelUrl, trackingNumber, trackingCarrier, updatedAt: new Date().toISOString(), activity: [
+          ...(order.activity || []),
+          { type: "note", message: `Shipping Label #${trackingNumber} generated via dashboard. Carrier: ${trackingCarrier}.`, createdAt: new Date().toISOString() }
+        ] });
+        res.status(200).json({ labelUrl, trackingNumber, trackingCarrier });
+        return;
+      }
+
       // Push-to-Shippo mode: stage a pre-filled Order in the Shippo dashboard
       // (no label purchased) and return the site URL for the admin to finish.
       if (mode === "shippoOrder") {
@@ -2962,6 +2990,19 @@ exports.createShippingLabel = onRequest(
       const rates = shipment.rates || [];
       if (rates.length === 0) {
         throw new Error("No shipping rates returned by Shippo.");
+      }
+
+      if (mode === "rates") {
+        const canadaPostRates = canadaPostLabelRates(rates);
+        res.status(200).json({ shipmentId: shipment.object_id, rates: canadaPostRates.map(rate => ({
+          id: rate.object_id,
+          name: rate.servicelevel?.name || "Canada Post",
+          amount: Number(rate.amount),
+          currency: rate.currency || "CAD",
+          estimatedDays: Number.isFinite(Number(rate.estimated_days)) ? Number(rate.estimated_days) : null,
+          durationTerms: rate.duration_terms || ""
+        })) });
+        return;
       }
 
       // 5. Select cheapest rate

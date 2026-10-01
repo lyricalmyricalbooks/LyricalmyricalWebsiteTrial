@@ -652,8 +652,12 @@ export function Checkout() {
 
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data.rates) && data.rates.length > 0) {
-            setAvailableRates(data.rates);
+          if (Array.isArray(data.rates) && (data.rates.length > 0 || data.useRegularRates === false)) {
+            const canadaPostRates = data.rates
+              .filter((rate: any) => /^canada post\b/i.test(String(rate.name || "")))
+              .sort((a: any, b: any) => Number(a.price) - Number(b.price))
+              .slice(0, 5);
+            setAvailableRates(canadaPostRates);
             setShippoRatesLoading(false);
             return;
           }
