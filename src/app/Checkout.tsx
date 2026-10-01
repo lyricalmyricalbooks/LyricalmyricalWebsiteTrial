@@ -28,6 +28,7 @@ import { guessCountryName, parsePinned } from "./features/site/countryPicker";
 import { CountryField } from "./features/site/CountryField";
 import { designNumber } from "./features/site/designNumber";
 import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
+import { readSiteCache } from "./features/site/siteCache";
 
 // ─── State / province drop-down for countries with a fixed list ──────────────
 function RegionField({ value, onChange, label, choose, regions }: { value: string; onChange: (v: string) => void; label: string; choose: string; regions: [string, string][] }) {
@@ -188,8 +189,12 @@ export function Checkout() {
   const [taxCost, setTaxCost] = useState(0);
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [taxRates, setTaxRates] = useState<any[]>([]);
-  const [books, setBooks] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>(null);
+  // Reuse the storefront's same-session snapshot immediately. Checkout still
+  // refreshes in the background, but returning to/from it no longer waits for
+  // duplicate settings and catalog reads before it can paint.
+  const cachedSite = useMemo(() => readSiteCache(), []);
+  const [books, setBooks] = useState<any[]>(() => cachedSite?.books || []);
+  const [settings, setSettings] = useState<any>(() => cachedSite?.settings || null);
   // Until the saved settings arrive (or if they never do) checkout wears the Riso Noir defaults.
   const checkoutDesign = settings?.design ?? DEFAULT_SETTINGS.design;
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(checkoutDesign, key, vars);
