@@ -424,6 +424,17 @@ export const adminApi = {
     await adminApi.recordAuditLog("settings", `Updated settings: ${Object.keys(settings).join(", ")}`).catch(error => console.warn("Settings saved; audit log unavailable", error));
   },
 
+  // Categories are catalog structure, not a theme draft. Keep the published
+  // storefront and Studio working copy in lockstep without replacing either
+  // design map (which could otherwise discard unrelated unsaved design work).
+  updateShopCategories: async (categories: any[]) => {
+    const docRef = doc(db, "settings", "website");
+    const snapshot = JSON.parse(JSON.stringify(categories));
+    await setDoc(docRef, { design: { categories: snapshot }, draftDesign: { categories: snapshot } },
+      { mergeFields: ["design.categories", "draftDesign.categories"] });
+    await adminApi.recordAuditLog("settings", `Updated shop categories (${snapshot.length})`).catch(error => console.warn("Categories saved; audit log unavailable", error));
+  },
+
   // Flip the storefront "under construction" wall live, keeping the Studio
   // draft in step so the next Publish doesn't silently undo it.
   setUnderConstruction: async (on: boolean) => {

@@ -119,6 +119,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [authors, setAuthors] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [categoryDefinitions, setCategoryDefinitions] = useState<any[]>([]);
   // Sub-category name → its parent's name (Studio › Menus › Shop categories › "Sits under").
   const [categoryParents, setCategoryParents] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -133,6 +134,9 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const [tab, setTab] = useState<BookTab>("details");
   const [dragOver, setDragOver] = useState(false);
   const [tagInput, setTagInput] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [newCategoryParent, setNewCategoryParent] = useState("");
+  const [savingCategory, setSavingCategory] = useState(false);
   const saveRef = useRef<() => void>(() => {});
 
   const sensors = useSensors(
@@ -344,6 +348,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       // Draft first so categories just added in Studio › Menus › Shop categories show up before publishing.
       const siteCats = settings?.draftDesign?.categories || settings?.design?.categories || CATEGORIES;
       const all = normalizeCategories(Array.isArray(siteCats) ? siteCats : [...CATEGORIES]);
+      setCategoryDefinitions(all);
       // PUBLICATIONS already shows every book, so it isn't something to file a book under.
       const pickable = all.filter((c: any) => c?.name && c.name !== 'PUBLICATIONS');
       setCategories(pickable.map((c: any) => c.name));
@@ -577,6 +582,42 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           : [...currentCats, cat]
       };
     });
+  };
+
+  const createCategory = async () => {
+    const name = newCategory.trim();
+    if (!name) return;
+    if (categoryDefinitions.some((category) => category.name?.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      toast.error("That category already exists.");
+      return;
+    }
+    const category = {
+      id: `cat-${crypto.randomUUID()}`,
+      name,
+      description: "",
+      showInNav: true,
+      ...(newCategoryParent ? { parentId: newCategoryParent } : {}),
+    };
+    const next = [...categoryDefinitions, category];
+    setSavingCategory(true);
+    try {
+      await adminApi.updateShopCategories(next);
+      setCategoryDefinitions(next);
+      setCategories((current) => [...current, name]);
+      setCategoryParents((current) => ({
+        ...current,
+        [name]: newCategoryParent ? categoryDefinitions.find((item) => item.id === newCategoryParent)?.name || "" : "",
+      }));
+      setFormData((current: any) => ({ ...current, categories: [...new Set([...(current.categories || []), name])] }));
+      setNewCategory("");
+      setNewCategoryParent("");
+      toast.success(`Created ${name} and assigned it to this book.`);
+    } catch (error) {
+      console.error("Failed to create category", error);
+      toast.error("Could not create the category. Try again.");
+    } finally {
+      setSavingCategory(false);
+    }
   };
 
   const set = (name: string, value: any) => setFormData((prev: any) => ({ ...prev, [name]: value }));
@@ -879,7 +920,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           )}
 
           {tab === "organize" && (
-            <SectionCard title="Categories & tags" description="Categories build the shop menus — pick every one this book belongs in (e.g. Publications › Books). Sub-categories are set in Design › Menus › Shop categories. Tags power search.">
+            <SectionCard title="Categories & tags" description="Categories build the shop menus — pick every one this book belongs in. New categories created here are published to the shop and added to Design › Menus automatically. Tags power search.">
               <div className="be-chips" role="group" aria-label="Categories">
                 {categories.map((cat) => {
                   const on = (formData.categories || []).includes(cat);
@@ -887,6 +928,22 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                   return <button key={cat} type="button" aria-pressed={on} className={`be-chip ${on ? "is-on" : ""}`} onClick={() => toggleCategory(cat)}>{on ? "✓ " : ""}{parent ? `${parent} › ` : ""}{cat}</button>;
                 })}
               </div>
+              {categories.length === 0 && <p className="be-category-empty">No assignable categories yet. Create the first one below.</p>}
+              <div className="be-category-create" aria-label="Create a shop category">
+                <TextField label="New category" placeholder="e.g. Zines" value={newCategory} onChange={(event) => setNewCategory(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void createCategory(); } }} />
+                <SelectField label="Sits under (optional)" value={newCategoryParent} onChange={(event) => setNewCategoryParent(event.target.value)}>
+                  <option value="">Top-level category</option>
+                  {categoryDefinitions.filter((category) => !parentOf(category, categoryDefinitions)).map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </SelectField>
+                <button type="button" className="rp-btn rp-btn-secondary" disabled={!newCategory.trim() || savingCategory} onClick={() => void createCategory()}>
+                  {savingCategory ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Plus size={14} aria-hidden />}
+                  Create & assign
+                </button>
+              </div>
+              <p className="be-category-help">Category changes appear on the public storefront immediately and stay in sync with the Studio designer.</p>
               <div className="be-tags">
                 <span className="be-label-xs">Tags</span>
                 <div className="be-chips">
