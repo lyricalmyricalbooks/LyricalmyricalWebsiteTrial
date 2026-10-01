@@ -106,6 +106,10 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "footerLinkInstagram", label: "Link: Instagram", default: "Instagram" },
       { key: "footerLinkContact", label: "Link: Contact", default: "Contact" },
       { key: "footerLegalHeading", label: "Legal heading", default: "Legal" },
+      { key: "policyTitleShipping", label: "Policy link & page title: Shipping", default: "Shipping Policy" },
+      { key: "policyTitleReturns", label: "Policy link & page title: Returns", default: "Returns Policy" },
+      { key: "policyTitlePrivacy", label: "Policy link & page title: Privacy", default: "Privacy Policy" },
+      { key: "policyTitleTerms", label: "Policy link & page title: Terms", default: "Terms of Service" },
       { key: "footerLocationHeading", label: "Location heading (4-column footer)", default: "Location" },
       { key: "footerLocation", label: "Location line", default: "Toronto, Canada" },
       {

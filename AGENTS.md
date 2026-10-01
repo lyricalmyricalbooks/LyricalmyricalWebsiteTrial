@@ -181,7 +181,9 @@ complete result.
 > are Studio › Style controls read with `designNumber()` / `placeholderImage()`. Site name, default
 > title/description and share image live in Text & labels › **Site & sharing** and Style › Logo &
 > wordmark › **Share image**; `lib/seo.ts` reads them via `setSiteIdentity` (published by `useSiteData`).
-> No sample books or announcements are shown to shoppers.
+> No sample books or announcements are shown to shoppers; empty sections show their "how to fill me" sample
+> only in the Studio preview (`sampleInPreview`/`sampleHtml`, guarded by `components/noSampleContent.test.tsx`).
+> Footer policy link/page titles are Text & labels › Footer (`policyTitle*`).
 
 A Studio › Style control is not done until it visibly changes the live preview on every surface that shows the element: card title/price and small-print rules come from the shared `features/site/StorefrontOverrides.tsx`, which every storefront root that writes its own token `<style>` (MainSite, BookDetail, `StorefrontThemeStyle`) must render; `storefrontOverrides.test.ts` enforces this and fails on any Style control nothing reads.
 

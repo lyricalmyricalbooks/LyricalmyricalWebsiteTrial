@@ -21,6 +21,7 @@ export const SECTION_FALLBACKS: Record<string, string> = {
   "MulticolumnSection.item.title": "Column",
   "SlideshowSection.prevAria": "Previous slide",
   "SlideshowSection.nextAria": "Next slide",
+  "SlideshowSection.dotAria": "Go to slide {n}",
   "VideoSection.title": "Video",
   "LogoListSection.item.alt": "Logo",
   "CollapsibleSection.item.heading": "Heading",
