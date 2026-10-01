@@ -115,6 +115,13 @@ npm run logs
 ## Cloud Functions (`functions/index.js`)
 
 - `createStripeCheckoutSession` — secure Stripe session creation.
+  With `paymentElement: true` it creates a server-priced PaymentIntent instead, for the card form
+  shown directly on the checkout page (`features/site/StripeCardForm.tsx`, Stripe Payment Element,
+  deferred intent); `stripeWebhook` marks those paid on `payment_intent.succeeded` (metadata
+  `checkout: "payment_element"`). `body.action` = `status` / `registerPaymentDomain` serve the
+  return-page check and the wallet-domain button (no new public functions: the CI deploy account
+  can't set IAM on them). Studio › Style › Checkout › "Send card payments to Stripe’s own page"
+  switches back to hosted Checkout.
 - `stripeWebhook` — the **only** thing that marks orders paid; it also
   decrements stock, counts discount redemptions, and records revenue. Orders are
   created `unpaid` first.
