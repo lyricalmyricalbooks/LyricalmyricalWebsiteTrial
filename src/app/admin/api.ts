@@ -24,11 +24,11 @@ import {
   GoogleAuthProvider,
   signInWithCredential,
 } from "firebase/auth";
-import { db, auth, storage, googleProvider } from "../../lib/firebase";
+import { db, auth, googleProvider } from "../../lib/firebase";
 import { functionUrl } from "../lib/functionsBase";
-import { legacyDb, legacyAuth } from "../../lib/legacyFirebase";
-import { ref as dbRef, get as dbGet } from "firebase/database";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+// Storage + the legacy Realtime Database are admin-only and heavy; they are
+// imported on demand so the public storefront bundle never downloads them.
+const loadLegacy = () => import("../../lib/legacyFirebase");
 import { CATEGORIES } from "../features/site/constants";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS, withRisoNoirDefault } from "../features/site/risoNoir";
 import type { Book, Page, SiteSettings } from "../features/site/types";
@@ -50,7 +50,10 @@ export const adminApi = {
       // so inventory sync can access the RTDB without a second login popup.
       try {
         const credential = GoogleAuthProvider.credentialFromResult(result);
-        if (credential) await signInWithCredential(legacyAuth, credential);
+        if (credential) {
+          const { legacyAuth } = await loadLegacy();
+          await signInWithCredential(legacyAuth, credential);
+        }
       } catch (legacyErr) {
         console.warn("Could not auto-sign into legacy project:", legacyErr);
       }
@@ -203,7 +206,11 @@ export const adminApi = {
 
   // Uploads
   uploadFile: async (file: File, path: string) => {
-    const storageRef = ref(storage, path);
+    const [{ getStorage, ref, uploadBytes, getDownloadURL }, { getApp }] = await Promise.all([
+      import("firebase/storage"),
+      import("firebase/app"),
+    ]);
+    const storageRef = ref(getStorage(getApp()), path);
     const snapshot = await uploadBytes(storageRef, file);
     return await getDownloadURL(snapshot.ref);
   },
@@ -1170,6 +1177,10 @@ export const adminApi = {
     // 1.  Ensure we are authenticated against the LEGACY project.
     //     We try to re-use the credential obtained at login; if the
     //     legacyAuth session expired we trigger a silent popup.
+    const [{ legacyDb, legacyAuth }, { ref: dbRef, get: dbGet }] = await Promise.all([
+      loadLegacy(),
+      import("firebase/database"),
+    ]);
     if (!legacyAuth.currentUser) {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });

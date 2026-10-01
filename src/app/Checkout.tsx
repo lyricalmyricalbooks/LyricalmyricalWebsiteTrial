@@ -1256,7 +1256,7 @@ export function Checkout() {
               {cart.map(item => (
                 <div key={`${item.id}-${item.variantId || "default"}`} className="flex items-center gap-4">
                   <div className="relative h-16 w-14 shrink-0 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
-                    <img src={item.photoUrl} alt="" className="h-full w-full rounded object-cover" />
+                    <img loading="lazy" decoding="async" src={item.photoUrl} alt="" className="h-full w-full rounded object-cover" />
                     <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-600 px-1 text-xs font-semibold text-white">{item.quantity}</span>
                   </div>
                   <div className="min-w-0 flex-1">

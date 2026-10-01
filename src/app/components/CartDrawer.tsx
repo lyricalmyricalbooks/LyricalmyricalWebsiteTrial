@@ -204,7 +204,7 @@ export function CartDrawer() {
                   <p className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase mb-4" style={mutedStyle}>{getCopy(design, "cartUpsellHeading")}</p>
                   <div className="flex gap-6 bg-neutral-50 p-4 rounded-2xl group/rec relative" style={surfaceStyle}>
                     <div className="w-16 aspect-[3/4] bg-neutral-200 overflow-hidden flex-shrink-0" style={surfaceStyle}>
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={recommendedBook.photos?.[0]?.url || ""}
                         alt={recommendedBook.title}
                         className={`w-full h-full object-cover transition-all duration-500 ${grayscaleThumbs ? "grayscale group-hover/rec:grayscale-0" : ""}`}
