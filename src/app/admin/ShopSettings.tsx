@@ -46,6 +46,7 @@ import { COUNTRIES, CONTINENTS, describeZoneGeography } from "../features/site/s
 import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPES, starterZones } from "./shippingHealth";
 import { quoteShipping } from "../features/site/shippingEngine";
 import { paymentHealth } from "./paymentHealth";
+import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames } from "./shippingCountries";
 
 const PURPLE = "#A855F7";
 
@@ -422,24 +423,7 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
       </section>
     </div>
   );
-}const COUNTRIES_LIST = [
-  "Canada", "United States", "United Kingdom", "Rest of World",
-  "Albania", "Algeria", "Andorra", "Angola", "Argentina", "Armenia", "Australia", "Austria",
-  "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belgium", "Bermuda", "Bolivia", "Bosnia", "Brazil", "Bulgaria",
-  "Cambodia", "Chile", "China", "Colombia", "Costa Rica", "Croatia", "Cyprus", "Czech Republic",
-  "Denmark", "Dominican Republic", "Ecuador", "Egypt", "Estonia", "Finland", "France", "Georgia", "Germany", "Greece",
-  "Hong Kong", "Hungary", "Iceland", "India", "Indonesia", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan",
-  "Kenya", "Kuwait", "Latvia", "Lebanon", "Liechtenstein", "Lithuania", "Luxembourg", "Malaysia", "Malta", "Mexico", "Monaco", "Montenegro", "Morocco",
-  "Netherlands", "New Zealand", "Norway", "Oman", "Pakistan", "Panama", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar",
-  "Romania", "Saudi Arabia", "Serbia", "Singapore", "Slovakia", "Slovenia", "South Africa", "South Korea", "Spain", "Sri Lanka", "Sweden", "Switzerland",
-  "Taiwan", "Thailand", "Trinidad and Tobago", "Tunisia", "Turkey", "Ukraine", "United Arab Emirates", "Uruguay", "Venezuela", "Vietnam"
-];
-
-const REGIONAL_PRESETS: Record<string, string[]> = {
-  "North America": ["Canada", "United States", "Mexico"],
-  "Europe": ["United Kingdom", "Austria", "Belgium", "Bulgaria", "Croatia", "Cyprus", "Czech Republic", "Denmark", "Estonia", "Finland", "France", "Germany", "Greece", "Hungary", "Iceland", "Ireland", "Italy", "Latvia", "Liechtenstein", "Lithuania", "Luxembourg", "Malta", "Monaco", "Netherlands", "Norway", "Poland", "Portugal", "Romania", "Slovakia", "Slovenia", "Spain", "Sweden", "Switzerland", "Turkey", "Ukraine"],
-  "Asia/Pacific": ["Australia", "New Zealand", "China", "Hong Kong", "India", "Indonesia", "Japan", "Malaysia", "Philippines", "Singapore", "South Korea", "Taiwan", "Thailand", "Vietnam"]
-};
+}
 
 function ZoneGeographyPicker({
   countries, continents, restOfWorld, setCountries, setContinents, setRestOfWorld,
@@ -782,7 +766,9 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   // Zones helper
   const openZoneModal = (zone: any = null) => {
     if (zone) {
-      setActiveZone(JSON.parse(JSON.stringify(zone)));
+      const copy = JSON.parse(JSON.stringify(zone));
+      copy.countries = (copy.countries || []).map(countryName);
+      setActiveZone(copy);
     } else {
       setActiveZone({
         id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36),
@@ -913,6 +899,13 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   const money = (n: any) => `$${Number(n || 0).toFixed(2)}`;
   const shippoConnected = !!shippoConfig?.configured;
   const shippingSummary = useMemo(() => summarizeShipping(profiles, books), [profiles, books]);
+  const countriesAssignedElsewhere = activeZone
+    ? assignedCountryNames(editingProfile?.zones || [], activeZone.id)
+    : new Set<string>();
+  const remainingCountries = activeZone
+    ? remainingCountryNames(editingProfile?.zones || [], activeZone.id)
+    : [];
+  const countryGroups = groupedCountries(countrySearch);
 
   // Dialogs shared by the list and editor views
   const dialogs = editingProfile ? (
@@ -953,21 +946,48 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
             <div>
               <div className="rp-sect">Regional presets</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {Object.keys(REGIONAL_PRESETS).map((regionName) => (
-                  <SecondaryButton key={regionName} size="sm"
-                    onClick={() => setActiveZone((prev: any) => ({ ...prev, countries: Array.from(new Set([...prev.countries, ...REGIONAL_PRESETS[regionName]])) }))}>
-                    + {regionName}
+                {CONTINENTS.map((continent) => (
+                  <SecondaryButton key={continent} size="sm"
+                    onClick={() => setActiveZone((prev: any) => ({
+                      ...prev,
+                      countries: Array.from(new Set([
+                        ...prev.countries,
+                        ...COUNTRIES.filter((country) => country.continent === continent && !countriesAssignedElsewhere.has(country.name)).map((country) => country.name),
+                      ])),
+                    }))}>
+                    + {continent}
                   </SecondaryButton>
                 ))}
+                <PrimaryButton size="sm" disabled={remainingCountries.length === 0}
+                  onClick={() => setActiveZone((prev: any) => ({ ...prev, countries: remainingCountries }))}>
+                  Select all remaining worldwide ({remainingCountries.length})
+                </PrimaryButton>
                 <DestructiveButton size="sm" onClick={() => setActiveZone((prev: any) => ({ ...prev, countries: [] }))}>Clear selection</DestructiveButton>
               </div>
             </div>
             <SearchField label="Search countries" placeholder="Search countries…" value={countrySearch} onChange={(e) => setCountrySearch(e.target.value)} />
             <p className="rp-hint" role="status" style={{ margin: 0 }}>{activeZone.countries.length} countr{activeZone.countries.length === 1 ? "y" : "ies"} selected</p>
-            <div style={{ maxHeight: 280, overflowY: "auto", display: "grid", gap: 0, gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", border: "1px solid var(--rp-border)", padding: "4px 12px" }}>
-              {COUNTRIES_LIST.filter((c) => c.toLowerCase().includes(countrySearch.toLowerCase())).map((c) => (
-                <Checkbox key={c} label={c} checked={activeZone.countries.includes(c)}
-                  onChange={() => setActiveZone((prev: any) => ({ ...prev, countries: prev.countries.includes(c) ? prev.countries.filter((x: string) => x !== c) : [...prev.countries, c] }))} />
+            <div style={{ maxHeight: 360, overflowY: "auto", border: "1px solid var(--rp-border)", padding: "4px 12px" }}>
+              {countryGroups.map(({ continent, countries }) => (
+                <section key={continent} aria-labelledby={`shipping-continent-${continent.replace(/\s/g, "-")}`} style={{ padding: "10px 0" }}>
+                  <div className="rp-sect" id={`shipping-continent-${continent.replace(/\s/g, "-")}`} style={{ marginBottom: 6 }}>{continent}</div>
+                  <div style={{ display: "grid", gap: 0, gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+                    {countries.map((country) => {
+                      const unavailable = countriesAssignedElsewhere.has(country.name);
+                      return (
+                        <Checkbox key={country.code}
+                          label={`${country.name}${unavailable ? " — in another zone" : ""}`}
+                          checked={activeZone.countries.includes(country.name)} disabled={unavailable}
+                          onChange={() => setActiveZone((prev: any) => ({
+                            ...prev,
+                            countries: prev.countries.includes(country.name)
+                              ? prev.countries.filter((name: string) => name !== country.name)
+                              : [...prev.countries, country.name],
+                          }))} />
+                      );
+                    })}
+                  </div>
+                </section>
               ))}
             </div>
           </div>
