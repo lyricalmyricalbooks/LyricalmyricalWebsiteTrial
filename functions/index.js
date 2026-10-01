@@ -839,6 +839,9 @@ exports.createStripeCheckoutSession = onRequest(
       return;
     }
 
+    if (req.body?.action === "status") return handleCheckoutStatus(req, res);
+    if (req.body?.action === "registerPaymentDomain") return handleRegisterPaymentDomain(req, res);
+
     const { orderId, currency: reqCurrency, returnUrl, embedded } = req.body;
     const checkoutCurrency = (reqCurrency || "cad").toLowerCase();
     if (!orderId) {
@@ -1123,14 +1126,10 @@ exports.createStripeCheckoutSession = onRequest(
 // the webhook stays the single source of truth for payment.
 // Admin-only: register the storefront domain with Stripe so Apple Pay and
 // Google Pay appear in the card form. Only allowed origins can be registered.
-exports.registerStripePaymentDomain = onRequest(
-  { secrets: [STRIPE_SECRET_KEY] },
-  async (req, res) => {
-    if (applyCors(req, res)) return;
-    if (req.method !== "POST") {
-      res.status(405).send("Method Not Allowed");
-      return;
-    }
+// Served through createStripeCheckoutSession (body.action) so no new public
+// function needs deploying — the CI deploy account can't set IAM on new ones.
+async function handleRegisterPaymentDomain(req, res) {
+  {
     if (!await requireAdmin(req, res)) return;
     const origin = ALLOWED_ORIGINS.find(o => o === req.body?.origin);
     if (!origin) {
@@ -1166,16 +1165,12 @@ exports.registerStripePaymentDomain = onRequest(
       res.status(500).json({ error: err.message });
     }
   }
-);
+}
 
-exports.getStripeCheckoutStatus = onRequest(
-  { secrets: [STRIPE_SECRET_KEY] },
-  async (req, res) => {
-    if (applyCors(req, res)) return;
-    if (req.method !== "POST") {
-      res.status(405).send("Method Not Allowed");
-      return;
-    }
+// Served through createStripeCheckoutSession (body.action) so no new public
+// function needs deploying — the CI deploy account can't set IAM on new ones.
+async function handleCheckoutStatus(req, res) {
+  {
     const { orderId, sessionId } = req.body || {};
     if (typeof orderId !== "string" || typeof sessionId !== "string" || !sessionId.startsWith("cs_")) {
       res.status(400).json({ error: "Missing orderId or sessionId" });
@@ -1201,7 +1196,7 @@ exports.getStripeCheckoutStatus = onRequest(
       res.status(500).json({ error: err.message });
     }
   }
-);
+}
 
 // ──────────────────────────────────────────────────────────────
 // 2. HTTP Endpoint: Stripe Payment Webhook (Secure)
