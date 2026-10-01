@@ -493,6 +493,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coEnterAddress", label: "Shipping methods placeholder", default: "Enter your delivery address to see available shipping methods." },
       { key: "coStripeNote", label: "Card redirect note", default: "After you click “Pay securely,” you’ll complete your card payment on Stripe’s secure checkout." },
       { key: "coStripeEmbeddedNote", label: "Card form note (before Pay securely)", default: "Click “Pay securely” and the secure card form will open right here." },
+      { key: "coStateChoose", label: "State / province drop-down placeholder", default: "Choose…" },
       { key: "coStripeLoading", label: "Card form loading", default: "Loading secure card form…" },
       { key: "coStripeLoadError", label: "Card form failed to load", default: "The card form couldn’t load. Refresh the page or try again." },
       { key: "coStripeEditOrder", label: "Card form — edit order button", default: "Change delivery or order details" },

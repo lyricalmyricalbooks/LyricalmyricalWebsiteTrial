@@ -1121,6 +1121,53 @@ exports.createStripeCheckoutSession = onRequest(
 // Read-only status check for the checkout return page. Only reports on a
 // session that belongs to the given order, and never marks anything paid —
 // the webhook stays the single source of truth for payment.
+// Admin-only: register the storefront domain with Stripe so Apple Pay and
+// Google Pay appear in the card form. Only allowed origins can be registered.
+exports.registerStripePaymentDomain = onRequest(
+  { secrets: [STRIPE_SECRET_KEY] },
+  async (req, res) => {
+    if (applyCors(req, res)) return;
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+    if (!await requireAdmin(req, res)) return;
+    const origin = ALLOWED_ORIGINS.find(o => o === req.body?.origin);
+    if (!origin) {
+      res.status(400).json({ error: "That address isn't an allowed storefront origin." });
+      return;
+    }
+    const domainName = new URL(origin).hostname;
+    if (domainName === "localhost" || domainName === "127.0.0.1") {
+      res.status(400).json({ error: "Wallets can't be registered for localhost." });
+      return;
+    }
+    try {
+      const settingsDoc = await db.collection("settings").doc("website").get();
+      const settings = settingsDoc.exists ? settingsDoc.data() : {};
+      const testMode = settings.payments?.testMode || false;
+      const stripeSettings = settings.payments?.stripe || {};
+      const stripeSecret = testMode
+        ? stripeSettings.testSecretKey
+        : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
+      if (!stripeSecret) throw new Error("Stripe is not configured.");
+      const stripe = new Stripe(stripeSecret);
+      const existing = await stripe.paymentMethodDomains.list({ domain_name: domainName, limit: 1 });
+      let domain = existing.data[0];
+      if (!domain) domain = await stripe.paymentMethodDomains.create({ domain_name: domainName, enabled: true });
+      else domain = await stripe.paymentMethodDomains.validate(domain.id);
+      res.status(200).json({
+        domain: domainName,
+        applePay: domain.apple_pay?.status || "unknown",
+        googlePay: domain.google_pay?.status || "unknown",
+      });
+    } catch (err) {
+      console.error("Payment domain registration failed:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
 exports.getStripeCheckoutStatus = onRequest(
   { secrets: [STRIPE_SECRET_KEY] },
   async (req, res) => {

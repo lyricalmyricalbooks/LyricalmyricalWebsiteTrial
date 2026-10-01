@@ -19,3 +19,12 @@ describe("provinceFromPostal", () => {
     expect(cleanRegion(" ON ")).toBe("ON");
   });
 });
+
+describe("regionsFor", () => {
+  it("lists every code provinceFromPostal can return", async () => {
+    const { regionsFor } = await import("./postalRegion");
+    const ca = regionsFor("Canada")!.map(r => r[0]);
+    for (const code of ["M6G3H1", "V6B1A1", "X0A0H0", "X1A0A1", "A1A1A1"]) expect(ca).toContain(provinceFromPostal("Canada", code));
+    expect(regionsFor("France")).toBeNull();
+  });
+});

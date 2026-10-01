@@ -22,7 +22,32 @@ import { StorefrontThemeStyle } from "./features/site/StorefrontThemeStyle";
 import { getCopy } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
 import { StripeEmbeddedPanel } from "./features/site/StripeEmbeddedPanel";
-import { provinceFromPostal, cleanRegion } from "./features/site/postalRegion";
+import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
+
+// ─── State / province drop-down for countries with a fixed list ──────────────
+function RegionField({ value, onChange, label, choose, regions }: { value: string; onChange: (v: string) => void; label: string; choose: string; regions: [string, string][] }) {
+  // Saved addresses may hold the full name ("Ontario"); match it to its code.
+  const match = regions.find(([code, name]) => code === value.toUpperCase() || name.toLowerCase() === value.toLowerCase());
+  return (
+    <div className="relative">
+      <select
+        value={match ? match[0] : ""}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={label}
+        autoComplete="address-level1"
+        required
+        className="peer w-full rounded-lg border border-slate-300 bg-white px-3.5 pb-2 pt-6 text-sm text-slate-900 outline-none transition focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)] appearance-none cursor-pointer"
+      >
+        <option value="" className="bg-white text-slate-900">{choose}</option>
+        {regions.map(([code, name]) => (
+          <option key={code} value={code} className="bg-white text-slate-900">{name}</option>
+        ))}
+      </select>
+      <label className="absolute left-3.5 top-2 text-xs text-slate-500 pointer-events-none">{label}</label>
+      <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none text-xs">▾</span>
+    </div>
+  );
+}
 
 // ─── Country selector (matches Field styling) ─────────────────────────────────
 function CountryField({ value, onChange, label = "Country" }: { value: string; onChange: (v: string) => void; label?: string }) {
@@ -1150,12 +1175,14 @@ export function Checkout() {
             <section>
               <StepBadge n={c("coStepOf", { n: 2 })} label={c("coDelivery")} />
               <div className="space-y-3">
-                <CountryField label={c("coCountry")} value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v } })} />
+                <CountryField label={c("coCountry")} value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v, state: v === customer.address.country ? customer.address.state : "" } })} />
                 <Field label={c("coName")} value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
                 <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <Field label={c("coCity")} value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required />
-                  <Field label={c("coState")} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" required />
+                  {regionsFor(customer.address.country)
+                    ? <RegionField label={c("coState")} choose={c("coStateChoose")} regions={regionsFor(customer.address.country)!} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} />
+                    : <Field label={c("coState")} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" required />}
                   <Field label={c("coZip")} value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" required />
                 </div>
                 <Field label={c("coPhone")} type="tel" value={customer.phone} onChange={v => setCustomer({ ...customer, phone: v })} autoComplete="tel" inputMode="tel" />
