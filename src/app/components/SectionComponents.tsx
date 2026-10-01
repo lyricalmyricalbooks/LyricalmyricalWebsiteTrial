@@ -8,6 +8,7 @@ import { textGradientStyle, hoverEffectClassName, hoverEffectGlowStyle, imageFil
 import { resolveSharedBlocks } from "../admin/studio/studioModel";
 import { fb } from "./sectionFallbacks";
 import { useSectionCopy } from "./sectionCopy";
+import { aspectRatioValue } from "../features/site/imageAspect";
 
 // ──────────────────────────────
 // Animation helper
@@ -1223,7 +1224,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
   const items = candidates.slice(0, limit);
   const cols = Math.max(2, Math.min(6, settings.columnsDesktop ?? 3));
   const mobileCols = Math.max(1, Math.min(3, settings.columnsMobile ?? 1));
-  const aspect = settings.imageAspectRatio === "2:3" ? "2 / 3" : settings.imageAspectRatio === "3:4" ? "3 / 4" : "1 / 1";
+  const aspect = aspectRatioValue(settings.imageAspectRatio, "1 / 1");
   const text = settings.textColor || "#ffffff";
   const rule = settings.ruleColor || "#B1B1AA";
   const bg = settings.backgroundColor || "#000000";
@@ -1446,11 +1447,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
   const items = filterBooksBySource(books, settings).slice(0, Math.max(1, Math.min(24, settings.productLimit ?? 12)));
   const cols = Math.max(1, Math.min(4, settings.columnsDesktop ?? 3));
   const mobileCols = Math.max(1, Math.min(2, settings.columnsMobile ?? 1));
-  const aspect =
-    settings.imageAspectRatio === "1:1" ? "1 / 1"
-    : settings.imageAspectRatio === "3:4" ? "3 / 4"
-    : settings.imageAspectRatio === "2:3" ? "2 / 3"
-    : "4 / 5";
+  const aspect = aspectRatioValue(settings.imageAspectRatio, "4 / 5");
   const overlayColor = settings.overlayColor || "";
   const overlayOpacity = Math.max(0, Math.min(1, settings.overlayOpacity ?? 0.22));
   const gridId = `showcase-grid-${settings.__sectionId || "section"}`;

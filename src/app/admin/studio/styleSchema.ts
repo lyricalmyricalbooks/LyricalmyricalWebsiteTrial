@@ -3,6 +3,7 @@
 // shared SectionFieldEditor. Keys may be dotted paths (e.g. "social.instagram").
 
 import { FONT_SELECT_OPTIONS } from "../../features/site/fonts";
+import { PHOTO_OUTLINE_OPTIONS, PHOTO_RATIO_OPTIONS } from "../../features/site/photoShapes";
 
 // `defaultValue` is what the storefront itself uses when the key is unset, so an untouched slider or
 // toggle shows the real setting instead of its minimum / "off".
@@ -23,7 +24,7 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Card title & price": /^(productTitleColor|productPriceColor|cardTitle|cardPrice|catalogPriceStyle|catalogTitleTransform|catalogCardRuleWidth)/,
   "Buy card": /^(pdpCard|pdpShowTag|pdpTag|pdpTitle|pdpPrice|pdpShowStock|pdpStock|productCta|addToBagLabel|showQtyStepper|showSocialShare|showBackInStock)/,
   "Product title & price": /^(pdpTitle|pdpPrice|productTitleSize|productSubtitleWeight)/,
-  "Product photos": /^(pdpThumb|pdpPhoto|pdpShowCaption|productImage|productBorderRadius|showZoom)/,
+  "Product photos": /^(productPhotoOutline|pdpThumb|pdpPhoto|pdpShowCaption|productImage|productBorderRadius|showZoom)/,
   "Product details tabs": /^(pdpDetailsPlacement|pdpSpecsStyle|pdpTab|pdpPanel|productDetailsLayout|showSpecs)/,
   "Breadcrumb": /^(pdpShowBreadcrumb|pdpShowBackLink|pdpMeta)/,
 };
@@ -137,7 +138,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "placeholderImageUrl", label: "Image shown for books with no photo", kind: "image" },
       { key: "lowStockCardThreshold", label: "Show “low stock” when this many or fewer are left (cards)", kind: "number", min: 1, max: 100, step: 1 },
       { key: "productHoverEffect", label: "Hover effect", kind: "select", options: opts("none", "zoom", "lift") },
-      { key: "imageAspectRatio", label: "Image shape", kind: "select", options: ["3:4", "2:3", "4:5", "1:1", "16:9"].map((v) => ({ value: v, label: v })) },
+      { key: "imageAspectRatio", label: "Image shape (proportions)", kind: "select", options: PHOTO_RATIO_OPTIONS },
+      { key: "photoOutline", label: "Image outline (arch, circle, hexagon…)", kind: "select", options: PHOTO_OUTLINE_OPTIONS },
       { key: "productColumnsDesktop", label: "Columns (desktop)", kind: "range", min: 2, max: 6, step: 1 },
       { key: "productColumnsMobile", label: "Columns (phone)", kind: "range", min: 1, max: 3, step: 1 },
       { key: "catalogGridGap", label: "Gap between cards", kind: "range", min: 8, max: 72, step: 2, suffix: "px" },
@@ -309,7 +311,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "productTitleSize", label: "Title size", kind: "select", options: [{ value: "medium", label: "Medium" }, { value: "large", label: "Large" }, { value: "xlarge", label: "Xlarge" }] },
       { key: "productSubtitleWeight", label: "Subtitle weight", kind: "select", options: [{ value: "light", label: "Light" }, { value: "medium", label: "Medium" }, { value: "bold", label: "Bold" }] },
       { key: "productImageMaxWidth", label: "Photo size (max width)", kind: "range", min: 320, max: 900, step: 10, suffix: "px" },
-      { key: "productImageAspect", label: "Photo shape", kind: "select", options: [{ value: "grid", label: "Same as shop grid" }, ...["3:4", "2:3", "4:5", "1:1", "16:9"].map((v) => ({ value: v, label: v }))] },
+      { key: "productImageAspect", label: "Photo shape (proportions)", kind: "select", options: [{ value: "grid", label: "Same as shop grid" }, ...PHOTO_RATIO_OPTIONS] },
+      { key: "productPhotoOutline", label: "Photo outline (arch, circle, hexagon…)", kind: "select", options: [{ value: "grid", label: "Same as shop grid" }, ...PHOTO_OUTLINE_OPTIONS] },
       { key: "productImageFit", label: "Photo fit", kind: "select", options: [{ value: "cover", label: "Full bleed (fill & crop)" }, { value: "contain", label: "Fit whole image" }] },
       { key: "productImageShadow", label: "Image shadow", kind: "select", options: [{ value: "none", label: "None" }, { value: "sm", label: "Sm" }, { value: "md", label: "Md" }, { value: "lg", label: "Lg" }, { value: "xl", label: "Xl" }] },
       { key: "productImageHoverScale", label: "Image hover zoom", kind: "range", min: 1, max: 1.3, step: 0.01 },
