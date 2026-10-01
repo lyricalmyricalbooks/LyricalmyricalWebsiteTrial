@@ -419,6 +419,13 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "stripeFormBg", label: "Card payment form background", kind: "color" },
       { key: "stripeFormPadding", label: "Card payment form padding", kind: "range", min: 0, max: 32, step: 2, suffix: "px" },
       { key: "checkoutInputRadius", label: "Checkout field corner radius", kind: "range", min: 0, max: 24, step: 1, suffix: "px" },
+      { key: "checkoutHeadingFont", label: "Checkout heading font (Contact, Delivery…)", kind: "select", options: [{ value: "", label: "Same as heading font" }, ...FONT_SELECT_OPTIONS] },
+      { key: "checkoutFont", label: "Checkout text font", kind: "select", options: [{ value: "", label: "Same as body font" }, ...FONT_SELECT_OPTIONS] },
+      { key: "checkoutFieldFont", label: "Checkout form field font (incl. card form)", kind: "select", options: [{ value: "", label: "Same as checkout text" }, ...FONT_SELECT_OPTIONS] },
+      { key: "checkoutFieldBg", label: "Checkout field background", kind: "color" },
+      { key: "checkoutFieldText", label: "Checkout field text", kind: "color" },
+      { key: "checkoutFieldBorder", label: "Checkout field border", kind: "color" },
+      { key: "hideAddressSuggestions", label: "Turn off address suggestions while typing", kind: "toggle" },
     ],
   },
   {

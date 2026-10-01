@@ -58,6 +58,24 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
   const hasCheckoutOverrides = Boolean(
     d.checkoutAccentColor || d.checkoutBgColor || d.checkoutInputRadius != null
   );
+  // Checkout fonts + field colours (Studio › Style › Checkout & cart drawer). The autofill rule
+  // keeps the browser's own tint (a navy box in Chrome) from overriding the field colour.
+  const fieldBg = d.checkoutFieldBg || "var(--surface, #0a0a0a)";
+  const fieldText = d.checkoutFieldText || "inherit";
+  const checkoutTypeCss = `
+    ${d.checkoutFont ? `[data-fm-checkout]{ font-family:${fontStack(d.checkoutFont)} !important; }` : ''}
+    ${d.checkoutHeadingFont ? `[data-fm-checkout] h1, [data-fm-checkout] h2, [data-fm-checkout] h3 { font-family:${fontStack(d.checkoutHeadingFont)} !important; }` : ''}
+    ${d.checkoutFieldFont ? `[data-fm-checkout] input, [data-fm-checkout] select, [data-fm-checkout] textarea, [data-fm-checkout] .fm-address-suggest { font-family:${fontStack(d.checkoutFieldFont)} !important; }` : ''}
+    ${d.checkoutFieldBg ? `[data-fm-checkout] input, [data-fm-checkout] select, [data-fm-checkout] textarea { background-color:${d.checkoutFieldBg} !important; }` : ''}
+    ${d.checkoutFieldText ? `[data-fm-checkout] input, [data-fm-checkout] select, [data-fm-checkout] textarea { color:${d.checkoutFieldText} !important; }` : ''}
+    ${d.checkoutFieldBorder ? `[data-fm-checkout] input, [data-fm-checkout] select, [data-fm-checkout] textarea { border-color:${d.checkoutFieldBorder} !important; }` : ''}
+    [data-fm-checkout] input:-webkit-autofill, [data-fm-checkout] input:-webkit-autofill:hover, [data-fm-checkout] input:-webkit-autofill:focus {
+      -webkit-box-shadow: 0 0 0 1000px ${fieldBg} inset !important;
+      -webkit-text-fill-color: ${fieldText === "inherit" ? "currentColor" : fieldText} !important;
+      caret-color: currentColor;
+      transition: background-color 9999s ease-out 0s;
+    }
+  `;
   const checkoutCss = hasCheckoutOverrides
     ? `
     [data-fm-checkout]{
@@ -83,12 +101,12 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
 
   // Merchant overrides for book-card title/price and the tiny "small print" text. They come after the
   // token layer so they win, and only exist when a Studio control has been set.
-  const fontNames = Array.from(new Set([d.headingFont, d.font || d.bodyFont, d.navFont, d.wordmarkFont, ...storefrontOverridesFontNames(d)].filter(Boolean).map(String)));
+  const fontNames = Array.from(new Set([d.headingFont, d.font || d.bodyFont, d.navFont, d.wordmarkFont, d.checkoutFont, d.checkoutHeadingFont, d.checkoutFieldFont, ...storefrontOverridesFontNames(d)].filter(Boolean).map(String)));
   const overridesCss = storefrontOverridesCss(d);
   return (
     <>
       {fontNames.map(n => <link key={n} rel="stylesheet" href={googleFontHref(n)} />)}
-      <style>{css}{overridesCss}{customCss}{checkoutCss}{lightThemePaperCss}{darkCheckoutCss}</style>
+      <style>{css}{overridesCss}{customCss}{checkoutCss}{lightThemePaperCss}{darkCheckoutCss}{checkoutTypeCss}</style>
     </>
   );
 }
