@@ -260,7 +260,7 @@ const PAYMENT_ICONS: Record<string, React.ReactNode> = {
 // ──────────────────────────────
 // Full footer
 // ──────────────────────────────
-function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
+export function SiteFooter({ settings, pages }: { settings: any; pages: any[] }) {
   const navPages = (pages || []).filter(p => p.showInNav && p.status === "published");
   const rawDesign = settings?.design || {};
   // Never configured → the house default; cleared on purpose in Studio → hidden.
