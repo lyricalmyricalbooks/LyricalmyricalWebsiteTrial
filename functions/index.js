@@ -16,6 +16,7 @@ const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { Resend } = require("resend");
+const { risoButton, risoLayout } = require("./emailTheme");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
@@ -173,6 +174,7 @@ async function sendEmail({ to, subject, html, secret }) {
   let fromName = "Lyricalmyrical Books";
   let fromEmail = "orders@lyricalmyricalbooks.com";
   let replyTo = null;
+  let brand = {};
 
   try {
     const settingsDoc = await db.collection("settings").doc("website").get();
@@ -195,12 +197,19 @@ async function sendEmail({ to, subject, html, secret }) {
       const notifications = notificationsDoc.data() || {};
       if (notifications.resendApiKey) apiKey = notifications.resendApiKey;
       if (notifications.brand && notifications.brand.resendApiKey) apiKey = notifications.brand.resendApiKey;
+      brand = notifications.brand || {};
     }
   } catch (err) {
     console.warn("Failed to load notifications custom API Key:", err);
   }
 
   const resend = new Resend(apiKey);
+
+  // Every email gets the Riso Press shell (light/dark, accent and logo from Notifications › Email branding);
+  // templates from compileEmailTemplate are already full documents.
+  if (html && !/<html[\s>]/i.test(html)) {
+    html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme });
+  }
 
   // If using a Resend onboarding key, force the sender to onboarding@resend.dev
   if (apiKey && apiKey.startsWith("re_onb_")) {
@@ -1721,7 +1730,8 @@ exports.downloadDigitalAsset = onRequest(
 const DEFAULT_NOTIFICATIONS = {
   brand: {
     logoUrl: "",
-    brandColor: "#7C3AED"
+    brandColor: "#e8402a",
+    emailTheme: "light"
   },
   order_confirmation: {
     subject: "Order confirmed: {{order_id}}",
@@ -1827,7 +1837,7 @@ function getTrackingUrl(carrier, trackingNum) {
 function compileEmailTemplate(templateId, settings, vars, additionalSection) {
   const brand = settings.brand || {};
   const logoUrl = brand.logoUrl || "";
-  const brandColor = brand.brandColor || "#7C3AED";
+  const brandColor = brand.brandColor || "#e8402a";
   
   const template = settings[templateId] || DEFAULT_NOTIFICATIONS[templateId];
   let subject = template.subject || DEFAULT_NOTIFICATIONS[templateId].subject;
@@ -1842,16 +1852,7 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
     body = body.replace(regex, value || "");
   }
 
-  let ctaButtonHtml = "";
-  if (buttonText && vars.button_url) {
-    ctaButtonHtml = `
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${vars.button_url}" style="background-color: ${brandColor}; color: #ffffff; padding: 12px 30px; text-decoration: none; font-size: 13px; font-weight: bold; border-radius: 8px; letter-spacing: 0.1em; text-transform: uppercase; display: inline-block;">
-          ${buttonText}
-        </a>
-      </div>
-    `;
-  }
+  const ctaButtonHtml = buttonText && vars.button_url ? risoButton(vars.button_url, buttonText, brandColor, brand.emailTheme) : "";
 
   let itemsTableHtml = "";
   if (vars.items_table) {
@@ -1861,70 +1862,13 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
   const finalBody = body.replace(/\n/g, "<br/>");
   const signoffHtml = signoff.replace(/\n/g, "<br/>");
 
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-          background-color: #f6f6f9;
-          color: #333333;
-          margin: 0;
-          padding: 20px;
-          line-height: 1.6;
-        }
-        .container {
-          max-width: 600px;
-          margin: 0 auto;
-          background: #ffffff;
-          padding: 40px;
-          border-radius: 16px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        }
-        .header {
-          text-align: center;
-          margin-bottom: 30px;
-        }
-        .logo {
-          max-height: 40px;
-          width: auto;
-        }
-        .content {
-          font-size: 14px;
-        }
-        .footer {
-          margin-top: 40px;
-          text-align: center;
-          font-size: 11px;
-          color: #999999;
-          border-top: 1px solid #eeeeee;
-          padding-top: 20px;
-          letter-spacing: 0.05em;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          ${logoUrl ? `<img src="${logoUrl}" class="logo" alt="Logo" />` : `<h2 style="margin: 0; font-weight: 800; letter-spacing: -0.03em; color: #111;">Lyricalmyrical</h2>`}
-        </div>
-        <div class="content">
-          <p>${finalBody}</p>
-          ${ctaButtonHtml}
-          ${itemsTableHtml}
-          ${additionalSection || ""}
-          <p style="margin-top: 30px; font-weight: 500; color: #555555;">${signoffHtml}</p>
-        </div>
-        <div class="footer">
-          &copy; ${new Date().getFullYear()} Lyricalmyrical Books. All rights reserved.
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
+  const html = risoLayout(`
+    <p style="margin-top:0;">${finalBody}</p>
+    ${ctaButtonHtml}
+    ${itemsTableHtml}
+    ${additionalSection || ""}
+    <p style="margin-top:30px;font-weight:600;">${signoffHtml}</p>
+  `, { logoUrl, accent: brandColor, theme: brand.emailTheme });
 
   return { subject, html };
 }
