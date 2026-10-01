@@ -57,8 +57,16 @@ describe("storefront has no hard-wired messages", () => {
           && /(^|\.)(settings|s|block|item|d|design)\b/.test(n.left.getText()) && /\.(title|subtitle|ctaText|buttonLabel|description|body|eyebrow|label|text|tagline|heading|placeholder|prevAria|nextAria)\b/.test(n.left.getText())) { const t = literalOf(n.right); if (t && wordyOrSingle(t)) found.push(`${at(n.right)} fallback “${t}”`); }
         // Template-literal accessible names: aria-label={`Go to cover ${n}`}
         if (ts.isJsxAttribute(n) && /^(aria-label|alt|title|placeholder)$/.test(n.name.getText()) && n.initializer && ts.isJsxExpression(n.initializer) && n.initializer.expression) {
-          const e = n.initializer.expression;
-          if (ts.isTemplateExpression(e) && /[A-Za-z]{3,}/.test(e.head.text + e.templateSpans.map((s) => s.literal.text).join(""))) found.push(`${at(n)} ${n.name.getText()} template “${e.getText().slice(0, 60)}”`);
+          // Also each branch of a ternary: aria-label={soldOut ? `${t} is sold out` : `Add ${t}`}
+          const branches = (e: ts.Expression): ts.Expression[] => { while (ts.isParenthesizedExpression(e)) e = e.expression; return ts.isConditionalExpression(e) ? [...branches(e.whenTrue), ...branches(e.whenFalse)] : [e]; };
+          for (const e of branches(n.initializer.expression)) {
+            if (ts.isTemplateExpression(e) && /[A-Za-z]{3,}/.test(e.head.text + e.templateSpans.map((s) => s.literal.text).join(""))) found.push(`${at(n)} ${n.name.getText()} template “${e.getText().slice(0, 60)}”`);
+          }
+        }
+        // Tab titles: document.title = "Shop name" / `${x} | Shop name` (use useSEO — Text & labels › Site & sharing).
+        if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && n.left.getText() === "document.title") {
+          const t = literalOf(n.right) ?? (ts.isTemplateExpression(n.right) ? n.right.head.text + n.right.templateSpans.map((s) => s.literal.text).join(" ") : undefined);
+          if (t && /[A-Za-z]{3,}/.test(t)) found.push(`${at(n)} document.title “${t}”`);
         }
         ts.forEachChild(n, visit);
       };

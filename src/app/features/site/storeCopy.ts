@@ -531,6 +531,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "sectionNoVideo", label: "Empty video placeholder", default: "No Video" },
       { key: "sectionGoToCover", label: "Cover carousel dot — screen-reader label", default: "Go to cover {n}", hint: "Use {n} for the cover number." },
       { key: "sectionViewBook", label: "Book link — screen-reader label", default: "View {title}", hint: "Use {title} for the book title." },
+      { key: "sectionQuickAddAria", label: "Quick-add button — screen-reader label", default: "Add {title} to bag", hint: "Use {title} for the book title." },
+      { key: "sectionSoldOutAria", label: "Quick-add button (sold out) — screen-reader label", default: "{title} is sold out", hint: "Use {title} for the book title." },
     ],
   },
   {

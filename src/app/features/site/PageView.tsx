@@ -11,6 +11,7 @@ import { policyPageFor } from "./policyPages";
 import { getCopy } from "./storeCopy";
 import { StorefrontPageHeader } from "./StorefrontPageHeader";
 import { googleFontHref } from "./fonts";
+import { useSEO } from "../../lib/seo";
 
 
 /**
@@ -65,26 +66,19 @@ export function PageView() {
           setNotFound(true);
         } else {
           setPage(p);
-          // Set SEO metadata
-          document.title = `${p.seoTitle || p.title} | Lyricalmyrical Books`;
-
-          let metaDesc = document.querySelector('meta[name="description"]');
-          if (!metaDesc) {
-            metaDesc = document.createElement('meta');
-            metaDesc.setAttribute('name', 'description');
-            document.head.appendChild(metaDesc);
-          }
-          metaDesc.setAttribute('content', p.metaDescription || p.body?.substring(0, 160).replace(/[#*]/g, '') || "");
         }
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
-
-    return () => {
-      // Restore default title on unmount
-      document.title = "Lyricalmyrical Books";
-    };
   }, [slug]);
+
+  // Tab title + description follow Text & labels › Site & sharing (title format, site name).
+  const seoPage: any = policyPage || page;
+  useSEO({
+    title: seoPage ? seoPage.seoTitle || seoPage.title : undefined,
+    description: seoPage ? seoPage.metaDescription || String(seoPage.body || "").replace(/<[^>]+>/g, " ").replace(/[#*]/g, "").replace(/\s+/g, " ").trim().substring(0, 160) : undefined,
+    type: "article",
+  });
 
   useEffect(() => {
     // Announce ready for preview updates

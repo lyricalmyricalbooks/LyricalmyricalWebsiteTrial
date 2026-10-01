@@ -1529,7 +1529,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                     {settings.showQuickAdd !== false && (
                       <button
                         type="button"
-                        aria-label={soldOut ? `${book.title} is sold out` : `Add ${book.title} to bag`}
+                        aria-label={sc(soldOut ? "sectionSoldOutAria" : "sectionQuickAddAria", { title: book.title })}
                         disabled={soldOut}
                         onClick={(e: any) => {
                           e.stopPropagation();
