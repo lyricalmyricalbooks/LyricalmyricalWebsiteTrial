@@ -2996,6 +2996,37 @@ exports.onOrderCreated = onDocumentCreated(
 // ──────────────────────────────────────────────────────────────
 // 11. Customer Welcome Trigger
 // ──────────────────────────────────────────────────────────────
+// Storefront contact form (ContactFormSection) → email the shop.
+const escContact = (v) => String(v == null ? "" : v)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+exports.onContactMessage = onDocumentCreated(
+  { document: "contactMessages/{messageId}", secrets: [RESEND_API_KEY] },
+  async event => {
+    const m = event.data?.data() || {};
+    if (!m.email || !m.message) return;
+    const html = `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+        <h2 style="margin-top:0;">New message from your website</h2>
+        <p><strong>From:</strong> ${escContact(m.name)} &lt;<a href="mailto:${escContact(m.email)}">${escContact(m.email)}</a>&gt;${m.phone ? ` · ${escContact(m.phone)}` : ""}</p>
+        ${m.subject ? `<p><strong>Subject:</strong> ${escContact(m.subject)}</p>` : ""}
+        <p style="white-space:pre-wrap;border-left:3px solid #ccc;padding-left:12px;">${escContact(m.message)}</p>
+        ${m.page ? `<p style="color:#888;font-size:12px;">Sent from ${escContact(m.page)}</p>` : ""}
+      </div>`;
+    try {
+      await sendEmail({
+        to: ADMIN_TO,
+        subject: `[CONTACT] ${String(m.subject || m.name || "New message").slice(0, 120)}`,
+        html,
+        secret: RESEND_API_KEY.value(),
+      });
+      await event.data.ref.update({ status: "emailed" });
+    } catch (err) {
+      console.error("Contact message email failed", err);
+    }
+  }
+);
+
 exports.onCustomerCreated = onDocumentCreated(
   { document: "customers/{customerId}", secrets: [RESEND_API_KEY] },
   async event => {
