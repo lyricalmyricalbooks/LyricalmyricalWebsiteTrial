@@ -419,6 +419,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "cartDrawerBorder", label: "Cart drawer dividers", kind: "color" },
       { key: "showFreeShipBar", label: "Free-shipping progress bar", kind: "toggle" },
       { key: "freeShipThreshold", label: "Free shipping over", kind: "number", min: 0, max: 1000, step: 5 },
+      { key: "showCartRecommendations", label: "“You may also like” picks in the cart drawer", kind: "toggle" },
+      { key: "cartRecommendationCount", label: "How many picks to show", kind: "range", defaultValue: 1, min: 1, max: 3, step: 1 },
       { key: "showCartTrustBadges", label: "Secure / Tracked / Returns badges", kind: "toggle" },
     ],
   },

@@ -61,7 +61,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "cartFreeShipAway", label: "Free-shipping progress", default: "{amount} away from free shipping", hint: "Use {amount} for the remaining price." },
       { key: "cartFreeShipQualified", label: "Free-shipping reached", default: "You qualify for free shipping" },
       { key: "cartContinue", label: "Continue-shopping button", default: "Continue shopping" },
-      { key: "cartUpsellHeading", label: "Upsell heading", default: "Complete your collection" },
+      { key: "cartUpsellHeading", label: "Recommendations heading", default: "Complete your collection", hint: "Shown above the “you may also like” picks." },
       { key: "cartUpsellAdd", label: "Upsell add button", default: "+ Add to Bag" },
       { key: "cartOnlyAvailable", label: "Stock-limit warning", default: "Only {count} available", hint: "Use {count} for the stock left." },
       { key: "trustSecureLabel", label: "Trust badge 1", default: "Secure" },

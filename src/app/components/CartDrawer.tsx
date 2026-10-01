@@ -7,6 +7,8 @@ import { getCopy } from "../features/site/storeCopy";
 import { useCurrency } from "../CurrencyContext";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { useFocusTrap } from "../lib/useFocusTrap";
+import { cartRecommendations } from "../features/site/cartRecommendations";
+import { designNumber } from "../features/site/designNumber";
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
 
 export function CartDrawer() {
@@ -18,38 +20,17 @@ export function CartDrawer() {
   // Dialog behaviour: focus moves in, Tab is contained, Escape closes, focus returns to the opener.
   useFocusTrap(drawerRef, isCartOpen, () => setIsCartOpen(false));
 
-  // ⚡ Bolt: Cache books by ID for O(1) lookups during cart iteration
-  // Measured impact: Eliminates O(N*M) complexity when finding cart item categories.
-  const booksMap = useMemo(() => {
-    return new Map((books || []).map(b => [b.id, b]));
-  }, [books]);
-
-  // Find a recommended book for "Complete your collection"
-  const cartIds = new Set(cart.map((i) => i.id));
-  const candidateBooks = (books || []).filter((b) => !cartIds.has(b.id) && b.status === "published");
-
-  // Find match in same category if possible
-  const cartCategories = new Set(
-    cart.flatMap((i) => {
-      const match = booksMap.get(i.id);
-      return match?.categories || [];
-    })
-  );
-
-  let recommendedBook = candidateBooks.find((b) =>
-    b.categories?.some((cat) => cartCategories.has(cat))
-  );
-
-  if (!recommendedBook && candidateBooks.length > 0) {
-    recommendedBook = candidateBooks[0]; // fallback
-  }
-
   // Resolve storefront design settings (flat or nested under `.storefront`).
   const rawDesign = (settings as any)?.design || {};
   // Merge (not replace) so root-only keys still apply — same resolution as MainSite's storefrontDesign.
   const design = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? { ...rawDesign, ...rawDesign.storefront } : rawDesign;
   const showFreeShipBar = design.showFreeShipBar ?? true;
   const showTrustBadges = design.showCartTrustBadges ?? true;
+  const showRecommendations = design.showCartRecommendations ?? true;
+  const recommendations = useMemo(
+    () => (showRecommendations ? cartRecommendations(books, cart, designNumber(design, "cartRecommendationCount", 1)) : []),
+    [showRecommendations, books, cart, design.cartRecommendationCount],
+  );
 
   const buttonBg = design?.buttonColor || design?.primaryColor || "#000000";
   const buttonText = design?.buttonTextColor || "#ffffff";
@@ -199,10 +180,12 @@ export function CartDrawer() {
               )}
 
               {/* Complete your Collection recommendation card */}
-              {cart.length > 0 && recommendedBook && (
+              {cart.length > 0 && recommendations.length > 0 && (
                 <div className="pt-6 border-t border-neutral-100 mt-8" style={borderStyle}>
                   <p className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase mb-4" style={mutedStyle}>{getCopy(design, "cartUpsellHeading")}</p>
-                  <div className="flex gap-6 bg-neutral-50 p-4 rounded-2xl group/rec relative" style={surfaceStyle}>
+                  <div className="space-y-3">
+                  {recommendations.map((recommendedBook) => (
+                  <div key={recommendedBook.id} className="flex gap-6 bg-neutral-50 p-4 rounded-2xl group/rec relative" style={surfaceStyle}>
                     <div className="w-16 aspect-[3/4] bg-neutral-200 overflow-hidden flex-shrink-0" style={surfaceStyle}>
                       <img loading="lazy" decoding="async"
                         src={recommendedBook.photos?.[0]?.url || ""}
@@ -230,6 +213,8 @@ export function CartDrawer() {
                         {getCopy(design, "cartUpsellAdd")}
                       </button>
                     </div>
+                  </div>
+                  ))}
                   </div>
                 </div>
               )}

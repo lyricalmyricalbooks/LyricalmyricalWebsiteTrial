@@ -59,7 +59,19 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/page/about</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
     <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/page/submissions</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/page/contact</loc>
     <lastmod>2026-10-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
@@ -72,7 +84,7 @@
   </url>
   <url>
     <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/page/history-of-lyricalmyrical</loc>
-    <lastmod>2026-09-30</lastmod>
+    <lastmod>2026-10-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
