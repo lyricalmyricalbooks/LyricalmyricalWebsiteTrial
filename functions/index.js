@@ -1863,6 +1863,13 @@ const DEFAULT_NOTIFICATIONS = {
     signoff: "Warmly,\nThe Lyricalmyrical Team",
     enabled: true
   },
+  contact_reply: {
+    subject: "We got your message",
+    body: "Hi {{customer_name}},\n\nThanks for getting in touch with Lyricalmyrical Books! We've received your message and will reply as soon as we can.\n\nYour message:\n{{message}}",
+    buttonText: "",
+    signoff: "Warmly,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
   delivery_update: {
     subject: "Delivery Update: Your order is {{status}}",
     body: "Hi {{customer_name}},\n\nYour package tracking status has been updated: {{status}}.\n\nCarrier: {{tracking_carrier}}\nTracking: {{tracking_number}}",
@@ -3094,6 +3101,63 @@ exports.onOrderCreated = onDocumentCreated(
 // ──────────────────────────────────────────────────────────────
 // 11. Customer Welcome Trigger
 // ──────────────────────────────────────────────────────────────
+// Storefront contact form (ContactFormSection) → email the shop.
+const escContact = (v) => String(v == null ? "" : v)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+exports.onContactMessage = onDocumentCreated(
+  { document: "contactMessages/{messageId}", secrets: [RESEND_API_KEY] },
+  async event => {
+    const m = event.data?.data() || {};
+    if (!m.email || !m.message) return;
+    const html = `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+        <h2 style="margin-top:0;">New message from your website</h2>
+        <p><strong>From:</strong> ${escContact(m.name)} &lt;<a href="mailto:${escContact(m.email)}">${escContact(m.email)}</a>&gt;${m.phone ? ` · ${escContact(m.phone)}` : ""}</p>
+        ${m.subject ? `<p><strong>Subject:</strong> ${escContact(m.subject)}</p>` : ""}
+        <p style="white-space:pre-wrap;border-left:3px solid #ccc;padding-left:12px;">${escContact(m.message)}</p>
+        ${m.page ? `<p style="color:#888;font-size:12px;">Sent from ${escContact(m.page)}</p>` : ""}
+      </div>`;
+    try {
+      await sendEmail({
+        to: ADMIN_TO,
+        subject: `[CONTACT] ${String(m.subject || m.name || "New message").slice(0, 120)}`,
+        html,
+        secret: RESEND_API_KEY.value(),
+      });
+      // Don't undo an admin who already opened/archived it in Messages.
+      await db.runTransaction(async (tx) => {
+        const cur = await tx.get(event.data.ref);
+        if (cur.exists && cur.get("status") === "new") tx.update(event.data.ref, { status: "emailed" });
+      });
+    } catch (err) {
+      console.error("Contact message email failed", err);
+    }
+
+    // Confirmation to the visitor (Settings › Notifications › Contact form › Message received).
+    const notificationSettings = await loadNotificationSettings();
+    if (notificationSettings.contact_reply?.enabled === false) return;
+    // Escape visitor text, and double "$" so String.replace keeps it literal.
+    const safe = (v) => escContact(v).replace(/\$/g, "$$$$");
+    const compiled = compileEmailTemplate("contact_reply", notificationSettings, {
+      customer_name: safe(m.name || "there"),
+      email: safe(m.email),
+      subject: safe(m.subject),
+      message: safe(m.message),
+    });
+    try {
+      await sendEmail({
+        to: m.email,
+        subject: compiled.subject.replace(/&lt;|&gt;|&amp;|&quot;/g, (x) => ({ "&lt;": "<", "&gt;": ">", "&amp;": "&", "&quot;": '"' }[x])),
+        html: compiled.html,
+        secret: RESEND_API_KEY.value(),
+      });
+    } catch (err) {
+      console.error("Contact confirmation email failed", err);
+    }
+  }
+);
+
 exports.onCustomerCreated = onDocumentCreated(
   { document: "customers/{customerId}", secrets: [RESEND_API_KEY] },
   async event => {
@@ -3157,6 +3221,8 @@ exports.sendTestEmail = onRequest(
         total_price: "45.00",
         email: "julianne.smith@gmail.com",
         status: "out for delivery",
+        subject: "Stocking your books",
+        message: "Hello! Do you sell wholesale to independent bookshops?",
         tracking_url: "https://www.canadapost-postescanada.ca/track-reperage/en",
         cart_url: "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/checkout",
         button_url: "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/account",
