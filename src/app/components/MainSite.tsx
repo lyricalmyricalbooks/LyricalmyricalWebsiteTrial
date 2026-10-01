@@ -56,6 +56,12 @@ const STICKER_ACTIVE_COLORS = [
 const STICKER_PILL_CSS =
   ".fm-sticker-pill{transition:all .2s ease}.fm-sticker-pill:hover{transform:rotate(0deg) scale(1.08)!important;opacity:1!important}";
 
+export function storefrontCategories(value: unknown) {
+  return (Array.isArray(value) ? value : CATEGORIES).filter(
+    (category: any) => typeof category === "string" || (category && typeof category === "object"),
+  );
+}
+
 function stickerPillStyle(design: any, index: number, active = false): CSSProperties {
   const rotate = design?.navPillRotate === false ? 0 : STICKER_ROTATIONS[index % STICKER_ROTATIONS.length];
   const activeColors = design?.navPillActivePalette === false
@@ -589,7 +595,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   // Prioritize global categories if they exist (new behavior), otherwise fall back to storefront or legacy
-  const rawCategories = activeDesign?.categories || storefrontDesign?.categories || legacyDesign?.categories || CATEGORIES;
+  // Published designs can outlive older editor schemas. Never let a malformed
+  // legacy category value crash the storefront when returning from checkout.
+  const rawCategories = storefrontCategories(activeDesign?.categories || storefrontDesign?.categories || legacyDesign?.categories);
   const categories = useMemo(() => rawCategories.map((cat: any, i: number) => {
     if (typeof cat === "string") {
       return { id: `cat-${i}`, name: cat, description: "", showInNav: true };

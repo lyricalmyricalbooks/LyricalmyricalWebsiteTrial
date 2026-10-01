@@ -1,6 +1,6 @@
-import { useState, lazy, Suspense, useEffect } from "react";
+import { useState, lazy, Suspense, useEffect, type ReactNode } from "react";
 import { motion } from "motion/react";
-import { BrowserRouter, Routes, Route } from "react-router";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router";
 import { CartProvider } from "./CartContext";
 import { CurrencyProvider } from "./CurrencyContext";
 import { Toaster } from "react-hot-toast";
@@ -23,6 +23,11 @@ const PageView = lazy(() => import("./features/site/PageView").then(m => ({ defa
 const WishlistPage = lazy(() => import("./features/site/Wishlist"));
 const AccountPage = lazy(() => import("./features/site/Account"));
 const OrderTracking = lazy(() => import("./features/site/OrderTracking"));
+
+function RouteErrorBoundary({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  return <ErrorBoundary resetKey={location.key}>{children}</ErrorBoundary>;
+}
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState(0);
@@ -79,7 +84,7 @@ export default function App() {
       <CurrencyProvider>
         <CartProvider>
           <BrowserRouter basename={ROUTER_BASENAME}>
-          <ErrorBoundary>
+          <RouteErrorBoundary>
           <CartDrawer />
           <CookieConsent />
           <Suspense fallback={<BootSplash />}>
@@ -126,7 +131,7 @@ export default function App() {
                   <Route path="/track" element={<OrderTracking />} />
                 </Routes>
           </Suspense>
-          </ErrorBoundary>
+          </RouteErrorBoundary>
           </BrowserRouter>
         </CartProvider>
       </CurrencyProvider>
