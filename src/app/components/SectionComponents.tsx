@@ -54,13 +54,14 @@ function compositionBreakpointCss(blocks: any[], sectionId: string) {
     const id = safe(block.id); if (!id) return;
     for (const [device, query] of [["tablet", "(max-width:1023px)"], ["mobile", "(max-width:767px)"]] as const) {
       const grid = block.grid?.[device] || {}, responsive = block.responsive?.[device] || {};
+      // !important: the desktop placement is an inline style, which would otherwise beat these rules.
       const body = [
         grid.column ? `grid-column:${grid.column} / span ${grid.span || 4}` : "",
         grid.row ? `grid-row:${grid.row} / span ${grid.rowSpan || 1}` : "",
         grid.z != null ? `z-index:${grid.z}` : "",
         responsive.align ? `text-align:${responsive.align}` : "",
         responsive.hidden ? "display:none" : "",
-      ].filter(Boolean).join(";");
+      ].filter(Boolean).map(rule => `${rule}!important`).join(";");
       if (body) rules.push(`@media ${query}{#section-${safe(sectionId)} [data-fm-block="${id}"]{${body}}}`);
     }
     walk(block.children || []);

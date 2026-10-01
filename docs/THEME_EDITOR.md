@@ -273,6 +273,14 @@ library → verify), then check it off.
       `resolveFooterBadges`). Style › Theme look › **My themes** saves/loads/deletes whole-design
       copies (`settings.savedThemes`, max 10, `studio/savedThemes.ts`). Still open: recursive
       nested blocks with drag-and-drop.
+- [x] **Studio "Find anything" (October 2026).** Top bar **Find** button / **Ctrl+K** (⌘K) opens one search
+      over every Style control, every Text & labels string (by label *and* current wording), the Menus panels,
+      each page and the sections on it, and the main actions (Save, Publish, History, phone preview…).
+      `studio/studioSearch.ts` (pure, tested) builds and ranks the index — every typed word must match, titles
+      beat location beats hidden keywords, and owner words work ("colour", "phone" ↔ mobile, "go live" →
+      Publish). `StudioSearch.tsx` is the palette; `StudioEditor.goToResult` opens the right tab, expands the
+      group, scrolls to and flashes the field (`data-style-key` / `data-copy-key`), selects a section, or opens
+      a page in Studio › Pages (`StudioPages` `openSlug`). New Style/Text controls are picked up automatically.
 - [x] **Studio visual editing workflow.** The active Studio has a sortable section
       outline with explicit add positions and expandable sortable blocks. Preview
       block selection opens its own inspector, including block fields, visibility,
@@ -464,7 +472,17 @@ schema-valid AI composition authoring.
 
 ### G. AI authoring & custom code
 - [ ] Prompt → registry-valid section/block JSON inserted as a draft.
-- [ ] Desktop → mobile breakpoint/typography auto-generation.
+- [x] Desktop → mobile breakpoint/typography auto-generation (October 2026). `studio/autoMobile.ts`
+      (pure, tested) fills phone values the owner hasn't set: phone top/bottom spacing (~55% of desktop),
+      a smaller large heading (`mobileHeadingSize`, rendered as a phone-only `h1,h2` rule in `sectionRender.tsx`),
+      fewer grid columns, and — for **Flexible composition** — stacked tablet (two-up) and phone (one per row)
+      block placement in reading order. Own values are kept unless **Redo all phone values** is used; **Reset
+      phone layout** removes them. Entry points: Sections tab › **Auto-fit page for phones** (whole page),
+      section › **Layout & style** › **Phone & tablet layout** (one section), and Find anything › "Auto-fit this
+      page for phones". Fixed along the way: tablet/phone grid rules in `compositionBreakpointCss` are now
+      `!important` — the desktop placement is an inline style, so previously per-device grid overrides never won.
+      `phoneLayout.test.tsx` guards the storefront output. Remaining: auto `clamp()` body typography and a
+      visual diff of the phone result.
 - [x] Custom CSS panel (global + per-section) via the token layer / scoped section style injection.
 - [ ] Deferred custom JS hook (post first-paint) for widgets/analytics.
 
