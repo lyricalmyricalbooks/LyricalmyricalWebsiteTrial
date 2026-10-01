@@ -5,7 +5,7 @@ import { useCart } from "../../CartContext";
 import { CurrencySelector } from "../../CurrencyContext";
 import { LogoMark } from "../../components/LogoMark";
 import { StoreMenu } from "../../components/StoreMenu";
-import { navGap, navLinkStyle, useNavBelow } from "./headerNav";
+import { contentMaxWidth, navGap, navLinkStyle, useNavBelow } from "./headerNav";
 import { buildNavItems } from "./navItems";
 import { NavDropdown } from "./NavDropdown";
 import { SearchOverlay } from "./SearchOverlay";
@@ -29,7 +29,7 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
   );
   const headerColor = storefront.headerColor || storefront.textColor || "var(--text)";
   const headerBg = storefront.headerBg || storefront.backgroundColor || "var(--background)";
-  const maxWidth = Math.max(900, Math.min(1600, storefront.containerWidth ?? 1200));
+  const maxWidth = contentMaxWidth(storefront);
   const showAdmin = !storefront.hideAdminLink && (storefront.headerLinks?.showSys ?? true);
 
   const rowRef = useRef<HTMLDivElement>(null);

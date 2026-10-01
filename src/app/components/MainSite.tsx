@@ -21,7 +21,7 @@ import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT
 import { getCopy } from "../features/site/storeCopy";
 import { buildNavItems, categoryNames, childCategories, parentOf } from "../features/site/navItems";
 import { NavDropdown } from "../features/site/NavDropdown";
-import { navGap, navLinkStyle, useNavBelow } from "../features/site/headerNav";
+import { contentMaxWidth, navGap, navLinkStyle, useNavBelow } from "../features/site/headerNav";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { StorefrontOverrides } from "../features/site/StorefrontOverrides";
 import { resolveFooterBadges } from "../features/site/paymentBadges";
@@ -276,7 +276,7 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
       className="border-t-2 border-white/30 bg-black/40"
       style={d?.footerBg ? { backgroundColor: d.footerBg } : undefined}
     >
-      <div className={`max-w-7xl mx-auto px-6 py-12 grid grid-cols-1 ${!multiColumn ? "" : fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/70`}>
+      <div style={{ maxWidth: contentMaxWidth(d) }} className={`mx-auto px-6 py-12 grid grid-cols-1 ${!multiColumn ? "" : fourCol ? "md:grid-cols-4" : "md:grid-cols-3"} gap-10 text-[11px] text-white/70`}>
         {/* Col 1: Brand */}
         <div className="space-y-4" data-studio-target="copy:Footer|style:logo" data-studio-label="Footer brand">
           {d?.wordmarkStyle === "two-part" ? (
@@ -345,7 +345,7 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
       </div>
 
       {/* Bottom bar */}
-      <div className="border-t border-white/20 max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+      <div style={{ maxWidth: contentMaxWidth(d) }} className="border-t border-white/20 mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
         <p className="text-[9px] tracking-widest text-white/55 uppercase">
           {getCopy(settings?.design, "footerCopyright")}
         </p>
@@ -736,7 +736,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const storefrontAccent = storefrontDesign?.primaryColor || "#e8402a";
   const storefrontButtonBg = storefrontDesign?.buttonColor || storefrontAccent;
   const storefrontButtonText = storefrontDesign?.buttonTextColor || "#100f0d";
-  const storefrontMaxWidth = Math.max(900, Math.min(1600, storefrontDesign?.containerWidth ?? 1200));
+  const storefrontMaxWidth = contentMaxWidth(storefrontDesign);
   // Default legacy storefronts into the requested photo-reference design. The
   // previous implementation only changed sites after a merchant manually applied
   // the preset, so existing published Firestore designs still rendered the old

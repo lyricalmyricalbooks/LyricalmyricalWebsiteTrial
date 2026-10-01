@@ -4,6 +4,7 @@ import { useSiteData } from "./useSiteData";
 import { placeholderImage } from "./constants";
 import { designNumber } from "./designNumber";
 import { getCopy } from "./storeCopy";
+import { contentMaxWidth } from "./headerNav";
 
 export default function RecentlyViewedRow({ excludeId }: { excludeId?: string }) {
   const { ids } = useRecentlyViewed();
@@ -19,7 +20,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
 
   return (
     <section className="border-t border-white/[0.06]" data-studio-target="copy:Collection & wishlist pages|style:footer" data-studio-label="Recently viewed">
-      <div className="max-w-8xl mx-auto px-6 py-14">
+      <div className="mx-auto px-6 py-14" style={{ maxWidth: contentMaxWidth({ ...(settings?.design || {}), ...((settings?.design as any)?.storefront || {}) }) }}>
         <div className="flex items-center gap-6 mb-8">
           <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">
             {getCopy(settings?.design, "recentlyViewedHeading")}
