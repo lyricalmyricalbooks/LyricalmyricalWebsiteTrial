@@ -1329,7 +1329,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     <Heart size={13} fill={wished ? "currentColor" : "none"} />
                   </button>
                   <Link to={`/books/${slug}`}>
-                    <div className={`relative fm-surface mb-4 overflow-hidden ${isReferenceCatalog || cardStyle === "minimal" ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius, aspectRatio: imageAspectStyle }}>
+                    <div className={`relative fm-surface fm-photo-frame mb-4 overflow-hidden ${isReferenceCatalog || cardStyle === "minimal" ? "" : "border border-white/5 shadow-2xl"}`} style={{ borderRadius: storefrontCardRadius, aspectRatio: imageAspectStyle }}>
                       <SkeletonImage
                         src={item.photos?.[0]?.url || placeholderImage(activeDesign)}
                         alt={item.title}

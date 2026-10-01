@@ -602,7 +602,7 @@ export default function BookDetail() {
                   <figure className="m-0 min-w-0">
                     {/* Main image */}
                     <div
-                      className={`relative overflow-hidden fm-surface fm-pdp-frame transition-all duration-300 ${
+                      className={`relative overflow-hidden fm-surface fm-pdp-frame fm-photo-frame-pdp transition-all duration-300 ${
                         productImageShadow === "none" ? "shadow-none" :
                         productImageShadow === "sm" ? "shadow-sm" :
                         productImageShadow === "md" ? "shadow-md" :
@@ -728,7 +728,7 @@ export default function BookDetail() {
               ) : (
                 <div className={productImageLayout === "grid" ? "grid grid-cols-2 gap-4" : "space-y-4"}>
                   {photos.map((photo: any, i: number) => (
-                    <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame overflow-hidden`} style={{ aspectRatio: productImageAspect, borderRadius: `${productBorderRadius}px` }}>
+                    <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame fm-photo-frame-pdp overflow-hidden`} style={{ aspectRatio: productImageAspect, borderRadius: `${productBorderRadius}px` }}>
                       <img src={photo.url} alt={getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">

@@ -15,6 +15,7 @@ import {
 import { motion } from "motion/react";
 import RichTextEditor from "../components/RichTextEditor";
 import { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
+import { PHOTO_RATIO_OPTIONS } from "../features/site/photoShapes";
 import {
   BOX_SHADOW_OPTIONS,
   CORNER_RADIUS_OPTIONS,
@@ -2525,11 +2526,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "columnsMobile", label: "Mobile columns", kind: "range", min: 1, max: 3, step: 1 },
     { key: "gridGap", label: "Column gap", kind: "range", min: 8, max: 72, step: 2, suffix: "px" },
     { key: "rowGap", label: "Row gap", kind: "range", min: 24, max: 120, step: 2, suffix: "px" },
-    { key: "imageAspectRatio", label: "Image aspect ratio", kind: "select", options: [
-      { value: "1:1", label: "Square" },
-      { value: "3:4", label: "Portrait" },
-      { value: "2:3", label: "Tall" },
-    ] },
+    { key: "imageAspectRatio", label: "Image aspect ratio", kind: "select", options: PHOTO_RATIO_OPTIONS },
     { key: "imageFit", label: "Image fit", kind: "select", options: [
       { value: "cover", label: "Cover" },
       { value: "contain", label: "Contain" },
@@ -2713,12 +2710,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "productLimit", label: "Product limit", kind: "range", min: 1, max: 24, step: 1 },
     { key: "columnsDesktop", label: "Desktop columns", kind: "range", min: 1, max: 4, step: 1 },
     { key: "columnsMobile", label: "Mobile columns", kind: "range", min: 1, max: 2, step: 1 },
-    { key: "imageAspectRatio", label: "Cover aspect ratio", kind: "select", options: [
-      { value: "4:5", label: "Book (4:5)" },
-      { value: "3:4", label: "Portrait (3:4)" },
-      { value: "2:3", label: "Tall (2:3)" },
-      { value: "1:1", label: "Square" },
-    ] },
+    { key: "imageAspectRatio", label: "Cover aspect ratio", kind: "select", options: PHOTO_RATIO_OPTIONS },
     { key: "showCategoryTag", label: "Show category tag", kind: "toggle" },
     { key: "showQuickAdd", label: "Show quick-add button", kind: "toggle" },
     { key: "showPrices", label: "Show prices", kind: "toggle" },
