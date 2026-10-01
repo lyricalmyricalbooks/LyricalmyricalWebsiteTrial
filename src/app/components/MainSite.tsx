@@ -917,7 +917,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     return (
       <div
         data-fm-store data-studio-target="style:colors|style:type|style:layout" data-studio-label="Page background, colours & fonts"
-        className="min-h-screen overflow-y-auto selection:bg-white selection:text-black"
+        className="flex min-h-screen flex-col overflow-y-auto selection:bg-white selection:text-black"
         style={{ fontFamily: `'${resolveTypography(storefrontDesign).body}', sans-serif`, backgroundColor: storefrontBg, color: storefrontText }}
       >
         <TypographyTokens design={storefrontDesign} />
@@ -1176,7 +1176,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         </header>
 
         {onHome ? (
-          <main className="relative w-auto overflow-hidden">
+          <main className="relative w-auto flex-1 overflow-hidden">
             <SectionList
               sections={homeSections}
               colorSchemes={heroDesign.colorSchemes?.length > 0 ? heroDesign.colorSchemes : activeDesign.colorSchemes}
@@ -1192,7 +1192,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             />
           </main>
         ) : (
-        <main className="mx-auto px-6 py-12 md:py-20" style={{ maxWidth: isReferenceCatalog ? storefrontHeaderMaxWidth : storefrontMaxWidth }}>
+        <main className="mx-auto w-full flex-1 px-6 py-12 md:py-20" style={{ maxWidth: isReferenceCatalog ? storefrontHeaderMaxWidth : storefrontMaxWidth }}>
           {/* Theme-editor sections authored for the storefront page template */}
           <TemplateSections design={activeDesign} templateId="storefront" books={books} />
 
