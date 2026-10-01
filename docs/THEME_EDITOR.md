@@ -321,6 +321,8 @@ library → verify), then check it off.
       `ProductGridHeaderSection`'s "Featured" source now filters on
       `isFeatured` (it previously matched every book).
 
+- [x] **Studio audit (30 Sep 2026).** Browser-driven audit of Studio. Fixed: tabbing through an *unset* colour field wrote `#000000` (blank now stays blank; `transparent`/`rgba()` survive); the preview iframe no longer counts visits / funnel events as shopper traffic; unset sliders show the storefront default (`defaultValue` in `styleSchema.ts`); My themes refuses to grow past ~500 KB (each copy is a whole design and `settings/website` is one 1 MiB Firestore doc); dirty/unpublished compares memoised. Known gap: preview double-click→copy matching is exact-text, so strings with `{count}`/`{year}` placeholders never jump to their field.
+
 ### C. Live preview & editing UX
 - [x] Inline click-to-edit routes preview clicks to the correct section/template panel and keeps the selected section highlighted.
 - [x] Device preview toggle (desktop / tablet / mobile widths).

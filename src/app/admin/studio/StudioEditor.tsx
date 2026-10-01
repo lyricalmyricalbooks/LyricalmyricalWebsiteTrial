@@ -21,7 +21,7 @@ import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, r
 import { StudioPages } from "./StudioPages";
 import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
-import { addSavedTheme, duplicateSavedTheme, parseThemeFile, removeSavedTheme, renameSavedTheme, serializeThemeFile, themeFileName, type SavedTheme } from "./savedThemes";
+import { addSavedTheme, duplicateSavedTheme, savedThemesBytes, savedThemesFit, parseThemeFile, removeSavedTheme, renameSavedTheme, serializeThemeFile, themeFileName, type SavedTheme } from "./savedThemes";
 import { PAYMENT_BADGE_OPTIONS, resolveFooterBadges } from "../../features/site/paymentBadges";
 import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyThemeKeysToSurfaces } from "../themeScope";
@@ -382,8 +382,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     () => [...STATIC_SURFACES, ...templates.filter((t) => t.pageSlug).map((t) => t.id)],
     [templates],
   );
-  const dirtyDraft = !sameDesign(design, savedDraft);
-  const unpublished = !sameDesign(design, published);
+  const dirtyDraft = useMemo(() => !sameDesign(design, savedDraft), [design, savedDraft]);
+  const unpublished = useMemo(() => !sameDesign(design, published), [design, published]);
 
   const say = (kind: "ok" | "err", text: string) => {
     setToast({ kind, text });
@@ -453,6 +453,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     say("ok", `“${theme.name}” applied to the draft — Publish to make it live.`);
   };
   const persistThemes = async (next: SavedTheme[], okText: string) => {
+    // Every saved theme is a full design and settings/website is one 1 MiB Firestore doc: refuse to grow
+    // past the budget (shrinking, e.g. delete, is always allowed).
+    if (savedThemesBytes(next) > savedThemesBytes(savedThemes) && !savedThemesFit(next)) {
+      say("err", "Not enough room for another saved theme. Delete one under My themes, then try again.");
+      return;
+    }
     try { await adminApi.updateSettings({ savedThemes: next }); setSavedThemes(next); say("ok", okText); }
     catch (err: any) { say("err", `Could not save themes: ${err?.message || err}`); }
   };

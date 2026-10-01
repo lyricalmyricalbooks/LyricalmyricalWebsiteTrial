@@ -27,6 +27,18 @@ describe("applyGlobalStyle", () => {
     expect(new Set(keys).size).toBe(keys.length);
     expect(readStyle({ social: { x: 1 } }, "social.x")).toBe(1);
   });
+  it("controls that read as 0/off when unset declare the storefront's real default", () => {
+    const f = (k: string) => STYLE_GROUPS.flatMap((g) => g.fields).find((x) => x.key === k) as any;
+    expect(f("catalogImageFocalX").defaultValue).toBe(50);
+    expect(f("newBadgeDays").defaultValue).toBe(30);
+    // a default must sit inside its own slider range
+    for (const g of STYLE_GROUPS) for (const x of g.fields as any[]) {
+      if (x.kind === "range" && x.defaultValue !== undefined) {
+        expect(x.defaultValue, x.key).toBeGreaterThanOrEqual(x.min);
+        expect(x.defaultValue, x.key).toBeLessThanOrEqual(x.max);
+      }
+    }
+  });
 });
 
 describe("Studio style schema structure", () => {

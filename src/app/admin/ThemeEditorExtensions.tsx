@@ -2839,7 +2839,12 @@ export function SectionFieldEditor({
             <input aria-label={field.label}
               value={value || ""}
               onChange={(e) => onChange(e.target.value)}
-              onBlur={(e) => onChange(normalizeHexForColorInput(e.target.value))}
+              onBlur={(e) => {
+                // Only tidy things that are meant to be hex ("abc", "#AABBCC", "aabbcc"). Blank must stay
+                // blank (= inherit) and non-hex CSS colors (transparent, rgba(), var(--x)) must survive.
+                const typed = e.target.value.trim();
+                if (/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.test(typed)) onChange(normalizeHexForColorInput(typed));
+              }}
               className="flex-1 bg-transparent outline-none text-[11px] font-bold uppercase"
             />
           </div>
