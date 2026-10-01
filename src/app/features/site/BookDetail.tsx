@@ -1,3 +1,4 @@
+import { catName, categoryNames } from "./navItems";
 import { motion, AnimatePresence } from "motion/react";
 import { Fragment, useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -305,7 +306,10 @@ export default function BookDetail() {
 
   // ── catalogue-card helpers ─────────────────────────────────────────────────
   const bk            = (book || {}) as any;
-  const categoryLabel: string | undefined = bk.genres?.[0] || bk.categories?.[0];
+  // Only real shop categories (Studio › Menus › Shop categories) — never old genre tags like "Photography".
+  const shopCats      = (settings?.design?.categories || []).filter((c: any) => !categoryNames(c).includes("PUBLICATIONS"));
+  const shopCat       = shopCats.find((c: any) => (bk.categories || []).some((t: string) => categoryNames(c).includes(t)));
+  const categoryLabel: string | undefined = shopCat ? catName(shopCat) : undefined;
   const alignCls      = productAlignment === "center" ? "items-center text-center" : "items-start text-left";
   const showThumbRail = photos.length > 1 && pdpThumbPosition !== "hidden";
   const isLowStock    = stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10);
