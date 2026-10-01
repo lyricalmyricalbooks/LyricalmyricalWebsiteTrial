@@ -174,7 +174,6 @@ export function Checkout() {
   const [discountOpen, setDiscountOpen]       = useState(false);
   // Order summary on phones starts collapsed unless Studio says otherwise.
   const [summaryOpen, setSummaryOpen]         = useState(false);
-  useEffect(() => { if (settings?.design?.checkoutSummaryOpenOnPhones) setSummaryOpen(true); }, [settings?.design?.checkoutSummaryOpenOnPhones]);
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
   const [discountError, setDiscountError]     = useState("");
   const [shippoRatesLoading, setShippoRatesLoading] = useState(false);
@@ -197,6 +196,7 @@ export function Checkout() {
   const [settings, setSettings] = useState<any>(() => cachedSite?.settings || null);
   // Until the saved settings arrive (or if they never do) checkout wears the Riso Noir defaults.
   const checkoutDesign = settings?.design ?? DEFAULT_SETTINGS.design;
+  useEffect(() => { if (settings?.design?.checkoutSummaryOpenOnPhones) setSummaryOpen(true); }, [settings?.design?.checkoutSummaryOpenOnPhones]);
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(checkoutDesign, key, vars);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
   const [successOrder, setSuccessOrder] = useState<any>(null);
