@@ -96,6 +96,7 @@ export const STOREFRONT_COLOR_CLASSES: readonly string[] = [
   "hover:bg-slate-200",
   "hover:bg-slate-50",
   "bg-slate-100",
+  "bg-slate-200",
   "hover:bg-slate-800",
   "hover:bg-violet-500",
   "hover:bg-white/10",

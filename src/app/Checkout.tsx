@@ -23,6 +23,8 @@ import { getCopy } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { searchAddresses, type AddressSuggestion } from "./features/site/addressSuggest";
+import { arrivalDateLabel, freeShippingGap } from "./features/site/checkoutNudges";
+import { designNumber } from "./features/site/designNumber";
 import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
 
 // ─── State / province drop-down for countries with a fixed list ──────────────
@@ -184,6 +186,8 @@ export function Checkout() {
   const [orderNumber, setOrderNumber]   = useState("");
 
   const [discountCode, setDiscountCode]       = useState("");
+  // Hidden behind a "Have a code?" link so shoppers without one don't leave to hunt for one.
+  const [discountOpen, setDiscountOpen]       = useState(false);
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
   const [discountError, setDiscountError]     = useState("");
   const [shippoRatesLoading, setShippoRatesLoading] = useState(false);
@@ -576,6 +580,42 @@ export function Checkout() {
   const [availableRates, setAvailableRates] = useState<any[]>([]);
   const [selectedRateName, setSelectedRateName] = useState<string>("");
 
+  const shippingItemsForCart = () => cart.map((item) => {
+    const book: any = booksMap.get(item.id);
+    const variant = item.variantId ? (book?.variants || []).find((v: any) => v.id === item.variantId) : null;
+    return {
+      price: item.price,
+      quantity: item.quantity,
+      shippingProfileId: item.shippingProfileId || null,
+      weightGrams: parseWeightGrams(variant?.weight) ?? parseWeightGrams(book?.weight),
+    };
+  });
+
+  // "Add CA$X more for free shipping" — only when the real shipping rules would
+  // actually make this delivery free at that total (checked with the same engine).
+  const freeShipNudge = useMemo(() => {
+    if (checkoutDesign.hideCheckoutFreeShipNudge || cart.length === 0 || shippingProfiles.length === 0) return null;
+    const selected = availableRates.find(r => r.name === selectedRateName) || availableRates[0];
+    if (!selected || selected.price === 0 || selected.pickup) return null;
+    const candidates = new Set<number>();
+    shippingProfiles.forEach((p: any) => {
+      if (Number(p.freeShippingOver) > 0) candidates.add(Number(p.freeShippingOver));
+      (p.zones || []).forEach((z: any) => (z.rates || []).forEach((r: any) => { if (Number(r.freeOver) > 0) candidates.add(Number(r.freeOver)); }));
+    });
+    const country = customer.address.country || "Canada";
+    const base = shippingItemsForCart();
+    for (const t of [...candidates].filter(t => t > cartTotal).sort((a, b) => a - b).slice(0, 6)) {
+      const gap = freeShippingGap(cartTotal, t);
+      if (!gap) continue;
+      const probe = [...base, { price: gap, quantity: 1, shippingProfileId: cart[0]?.shippingProfileId || null, weightGrams: 0 }];
+      const quotes = quoteShipping(probe, { country }, shippingProfiles);
+      const same = quotes.find(q => q.name === selected.name);
+      if ((same ? same.price : quotes[0]?.price) === 0) return { gap, threshold: t };
+    }
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, cartTotal, shippingProfiles, availableRates, selectedRateName, customer.address.country, checkoutDesign.hideCheckoutFreeShipNudge]);
+
   const calculateStaticProfileRates = () => {
     if (cart.length === 0 || shippingProfiles.length === 0) {
       setAvailableRates([]);
@@ -584,16 +624,7 @@ export function Checkout() {
     }
     // Same engine the server uses to charge the order (parity-tested); weights
     // come from the catalog so weight-based rates quote identically.
-    const items = cart.map((item) => {
-      const book: any = booksMap.get(item.id);
-      const variant = item.variantId ? (book?.variants || []).find((v: any) => v.id === item.variantId) : null;
-      return {
-        price: item.price,
-        quantity: item.quantity,
-        shippingProfileId: item.shippingProfileId || null,
-        weightGrams: parseWeightGrams(variant?.weight) ?? parseWeightGrams(book?.weight),
-      };
-    });
+    const items = shippingItemsForCart();
     const quotes = quoteShipping(items, { country: customer.address.country || "Canada" }, shippingProfiles);
     setAvailableRates(quotes.map((q) => ({ name: q.name, price: q.price, deliveryDays: q.deliveryDays, pickup: q.type === "pickup" })));
   };
@@ -1193,8 +1224,9 @@ export function Checkout() {
   const hasStripe = Boolean(settings?.payments?.stripe?.connected);
   const hasPaypal = Boolean(settings?.payments?.paypal?.connected);
   const enabledManualMethods = (settings?.payments?.manualMethods || []).filter((method: any) => method.enabled);
+  const showTotalOnPay = !checkoutDesign.hidePayButtonTotal && cart.length > 0;
   const paymentLabel = selectedPaymentMethod === "stripe"
-    ? c("coPay")
+    ? (showTotalOnPay ? c("coPayWithTotal", { total: formatPrice(finalTotal) }) : c("coPay"))
     : selectedPaymentMethod === "paypal"
       ? c("coPayPal")
       : c("coPlaceOrder");
@@ -1307,7 +1339,7 @@ export function Checkout() {
                         />
                         <div>
                           <p className="text-sm font-medium text-slate-900">{rate.name}</p>
-                          {rate.pickup ? <p className="mt-0.5 text-xs text-slate-500">{c("coPickup")}</p> : rate.deliveryDays && <p className="mt-0.5 text-xs text-slate-500">{c("coEstimated", { days: rate.deliveryDays })}</p>}
+                          {rate.pickup ? <p className="mt-0.5 text-xs text-slate-500">{c("coPickup")}</p> : rate.deliveryDays && <p className="mt-0.5 text-xs text-slate-500">{(!checkoutDesign.hideCheckoutArrivalDate && arrivalDateLabel(rate.deliveryDays)) ? c("coArrivesBy", { date: arrivalDateLabel(rate.deliveryDays)! }) : c("coEstimated", { days: rate.deliveryDays })}</p>}
                         </div>
                       </div>
                       <span className="text-sm font-semibold text-slate-900">{rate.price === 0 ? c("coFree") : formatPrice(rate.price)}</span>
@@ -1413,6 +1445,9 @@ export function Checkout() {
               >
                 {isCompleting ? <><Loader2 size={18} className="animate-spin" /> {c("coProcessing")}</> : <><Lock size={16} /> {paymentLabel}</>}
               </button>
+              {c("coGuarantee") && (
+                <p className="mt-3 text-center text-sm font-medium text-slate-700" data-studio-target="copy:Checkout" data-studio-label="Promise under Pay button">{c("coGuarantee")}</p>
+              )}
               <div className="mt-4 flex items-start justify-center gap-2 text-center text-xs leading-5 text-slate-500">
                 <ShieldCheck size={16} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
                 <p>{c("coPrivacyNote")}</p>
@@ -1445,6 +1480,9 @@ export function Checkout() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-slate-900">{item.title}</p>
                     {item.variantName && <p className="mt-0.5 text-xs text-slate-500">{item.variantName}</p>}
+                    {!checkoutDesign.hideCheckoutLowStock && typeof item.stockLimit === "number" && item.stockLimit > 0 && item.stockLimit <= designNumber(checkoutDesign, "lowStockProductThreshold", 3) && (
+                      <p className="mt-0.5 text-xs font-medium" style={{ color: "var(--warning, #b45309)" }}>{c("coOnlyLeft", { count: item.stockLimit })}</p>
+                    )}
                   </div>
                   <span className="text-sm font-medium text-slate-900">{formatPrice(item.price * item.quantity)}</span>
                 </div>
@@ -1453,6 +1491,12 @@ export function Checkout() {
 
             <div className="my-7 border-t border-slate-200" />
 
+            {!(checkoutDesign.alwaysShowDiscountBox || discountOpen || appliedDiscount || discountCode) ? (
+              <button type="button" onClick={() => setDiscountOpen(true)} data-studio-target="copy:Checkout" data-studio-label="Discount code link"
+                className="flex items-center gap-2 text-sm font-medium text-slate-600 underline-offset-4 hover:underline">
+                <Tag size={15} /> {c("coHaveCode")}
+              </button>
+            ) : (
             <div className="flex gap-3">
               <div className="relative flex-1">
                 <Tag size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1474,6 +1518,7 @@ export function Checkout() {
                 </button>
               )}
             </div>
+            )}
             {discountError && <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} />{discountError}</p>}
             {appliedDiscount && <p className="mt-2 flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--success)" }}><CheckCircle2 size={13} />{c("coDiscountApplied", { code: appliedDiscount.code })}</p>}
 
@@ -1486,6 +1531,14 @@ export function Checkout() {
                 <span>{c("summaryShipping")}{getActiveShippingDetails()?.serviceName ? ` · ${getActiveShippingDetails()?.serviceName}` : ""}</span>
                 <span className="font-medium text-slate-900">{isFreeShipping || shippingCost === 0 ? c("coFree") : formatPrice(finalShipping)}</span>
               </div>
+              {freeShipNudge && (
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5" data-studio-target="style:checkout|copy:Checkout" data-studio-label="Free-shipping nudge">
+                  <p className="text-xs font-medium text-slate-700">{c("coFreeShipGap", { amount: formatPrice(freeShipNudge.gap) })}</p>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+                    <div className="h-full fm-accent-bg" style={{ width: `${Math.min(100, Math.max(4, (cartTotal / freeShipNudge.threshold) * 100))}%` }} />
+                  </div>
+                </div>
+              )}
               <div className="flex justify-between text-slate-600"><span>{c("summaryTax")}</span><span className="font-medium text-slate-900">{taxCost > 0 ? formatPrice(taxCost) : c("coTaxLater")}</span></div>
             </div>
 
