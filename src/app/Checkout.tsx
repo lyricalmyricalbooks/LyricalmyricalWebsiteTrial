@@ -966,10 +966,10 @@ export function Checkout() {
         if (stripeSessionId.startsWith("cs_")) {
           // Ask Stripe whether this session was actually completed. "open" means
           // the shopper came back without paying — send them back to the form.
-          const statusRes = await fetch(functionUrl("getStripeCheckoutStatus"), {
+          const statusRes = await fetch(functionUrl("createStripeCheckoutSession"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderId: oid, sessionId: stripeSessionId }),
+            body: JSON.stringify({ action: "status", orderId: oid, sessionId: stripeSessionId }),
           }).catch(() => null);
           const statusData = statusRes && statusRes.ok ? await statusRes.json() : null;
           if (cancelled) return;
