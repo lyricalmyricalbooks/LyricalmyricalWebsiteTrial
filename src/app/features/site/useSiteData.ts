@@ -182,7 +182,7 @@ export function useSiteData() {
  */
 export function readCachedDesign(): Record<string, any> {
   const previewDesign = isPreviewUrl() ? (window as any).__studioPreviewDesign : null;
-  const design = (previewDesign || readCache()?.settings?.design) as Record<string, any> | undefined;
+  const design = (previewDesign || readSiteCache()?.settings?.design) as Record<string, any> | undefined;
   const base = design && typeof design === "object" ? design : RISO_NOIR_TOKENS;
   return withRisoNoirDefault(base) || RISO_NOIR_TOKENS;
 }
