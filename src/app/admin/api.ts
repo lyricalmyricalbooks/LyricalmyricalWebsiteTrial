@@ -524,6 +524,9 @@ export const adminApi = {
       rates: []
     },
     design: {
+      // On by default on the product page (Style › Product page layout / Storefront elements).
+      showRelatedProducts: true,
+      showRecentlyViewed: true,
       // Custom pages (Studio › Style › Custom pages): on by default, so the toggles show as on.
       pageShowEyebrow: true, pageTitleUppercase: true,
       primaryColor: "#e8402a",

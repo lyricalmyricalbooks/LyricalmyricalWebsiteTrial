@@ -203,7 +203,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     title: "Footer & social links",
     fields: [
       { key: "hideNewsletter", label: "Hide the “Join the Archive” sign-up box", kind: "toggle" },
-      { key: "hideRecentlyViewed", label: "Hide the “Recently viewed” row", kind: "toggle" },
+      { key: "hideRecentlyViewed", label: "Hide the “Recently viewed” row on the shop page", kind: "toggle" },
       { key: "footerColumns", label: "Multi-column footer", kind: "toggle" },
       { key: "footerLayout", label: "Footer columns", kind: "select", options: [{ value: "3col", label: "3 columns" }, { value: "4col", label: "4 columns (with location)" }] },
       { key: "footerBg", label: "Footer background", kind: "color" },
@@ -321,7 +321,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "addToBagLabel", label: "Add-to-bag text", kind: "text" },
       { key: "showBundleWidget", label: "“Frequently bought together”", kind: "toggle" },
       { key: "productBundleLayout", label: "Bundle style", kind: "select", options: [{ value: "bordered", label: "Bordered" }, { value: "card", label: "Card" }, { value: "glassmorphic", label: "Glassmorphic" }] },
-      { key: "showRelatedProducts", label: "Related products", kind: "toggle" },
+      { key: "showRelatedProducts", label: "“From the Archive” row (related books)", kind: "toggle" },
       { key: "showSpecs", label: "Specifications", kind: "toggle" },
       { key: "showSocialShare", label: "Share button", kind: "toggle" },
       { key: "showBackInStock", label: "“Notify me when back in stock” box (sold-out items)", kind: "toggle" },
@@ -436,7 +436,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     title: "Storefront elements",
     hint: "Show or hide whole parts of the public site.",
     fields: [
-      { key: "showRecentlyViewed", label: "Recently viewed row (product page)", kind: "toggle" },
+      { key: "showRecentlyViewed", label: "“Recently viewed” row (product page)", kind: "toggle" },
       { key: "showBreadcrumbs", label: "Breadcrumbs (collection pages)", kind: "toggle" },
       { key: "showCookieBanner", label: "Cookie banner (keep on where law requires it)", kind: "toggle" },
     ],
