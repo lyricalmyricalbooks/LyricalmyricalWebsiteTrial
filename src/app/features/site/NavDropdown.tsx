@@ -105,7 +105,8 @@ export function NavDropdown({ design, copyDesign, label, linkStyle, className, a
         className={`inline-flex items-center gap-1.5 ${className || ""}`}
       >
         {label}
-        <ChevronDown size={Math.max(10, Number(linkStyle.fontSize ?? 11) + 2)} strokeWidth={3} aria-hidden="true"
+        {/* em-sized so it follows the link size (which may be a calc() when the bar shrinks to fit) */}
+        <ChevronDown size="1.2em" strokeWidth={3} aria-hidden="true"
           style={{ transition: "transform .15s", transform: open ? "rotate(180deg)" : undefined }} />
       </button>
       {open && pos && (
