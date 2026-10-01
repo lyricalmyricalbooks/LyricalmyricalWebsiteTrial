@@ -827,7 +827,7 @@ export const adminApi = {
     return result;
   },
 
-  setShippoDynamicRates: async (enabled: boolean) => {
+  setShippoDynamicRates: async (enabled: boolean, countries?: string[]) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to save Shippo settings.");
 
@@ -837,7 +837,7 @@ export const adminApi = {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${idToken}`,
       },
-      body: JSON.stringify({ enabled }),
+      body: JSON.stringify({ enabled, ...(countries ? { countries } : {}) }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Failed to update Shippo dynamic rates setting.");

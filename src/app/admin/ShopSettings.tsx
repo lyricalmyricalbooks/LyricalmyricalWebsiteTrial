@@ -645,6 +645,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   const [shippoConfig, setShippoConfig] = useState<any | null>(null);
   const [shippoLoading, setShippoLoading] = useState(true);
   const [shippoSaving, setShippoSaving] = useState(false);
+  const [carrierCountrySearch, setCarrierCountrySearch] = useState("");
   const [shippoMessage, setShippoMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Search/Filters
@@ -1082,13 +1083,42 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
               <Toggle label="Live carrier rates at checkout" checked={shippoConfig?.dynamicRatesEnabled ?? false}
                 onChange={async (enabled) => {
                   try {
-                    await adminApi.setShippoDynamicRates(enabled);
+                    await adminApi.setShippoDynamicRates(enabled, shippoConfig?.dynamicRateCountries || []);
                     setShippoConfig((prev: any) => ({ ...prev, dynamicRatesEnabled: enabled }));
                     toast.success(enabled ? "Dynamic shipping rates enabled" : "Dynamic shipping rates disabled");
                   } catch (err: any) {
                     toast.error(err.message || "Failed to update Shippo settings");
                   }
                 }} />
+              {shippoConfig?.dynamicRatesEnabled && (
+                <div className="rp-stack" style={{ gap: 10, padding: 16, border: "1px solid var(--rp-border)", background: "var(--rp-canvas)" }}>
+                  <div>
+                    <strong>Countries using live rates</strong>
+                    <p className="rp-hint" style={{ margin: "4px 0 0" }}>Only checked countries request Shippo rates. Every other country uses your regular shipping profiles and zones.</p>
+                  </div>
+                  <SearchField label="Search live-rate countries" value={carrierCountrySearch} onChange={(e) => setCarrierCountrySearch(e.target.value)} placeholder="Search countries…" />
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 8, maxHeight: 260, overflowY: "auto", padding: 4 }}>
+                    {COUNTRIES.filter((country) => country.name.toLowerCase().includes(carrierCountrySearch.trim().toLowerCase())).map((country) => {
+                      const selected = (shippoConfig?.dynamicRateCountries || []).includes(country.code);
+                      return (
+                        <Checkbox key={country.code} label={country.name} checked={selected} onChange={async () => {
+                          const countries = selected
+                            ? shippoConfig.dynamicRateCountries.filter((code: string) => code !== country.code)
+                            : [...(shippoConfig?.dynamicRateCountries || []), country.code];
+                          try {
+                            await adminApi.setShippoDynamicRates(true, countries);
+                            setShippoConfig((prev: any) => ({ ...prev, dynamicRateCountries: countries }));
+                            toast.success(`${country.name} ${selected ? "removed from" : "added to"} live rates`);
+                          } catch (err: any) {
+                            toast.error(err.message || "Failed to update live-rate countries");
+                          }
+                        }} />
+                      );
+                    })}
+                  </div>
+                  {(shippoConfig?.dynamicRateCountries || []).length === 0 && <p role="status" className="rp-hint" style={{ margin: 0 }}>No countries selected — all destinations currently use regular shipping rates.</p>}
+                </div>
+              )}
             </div>
           )}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "flex-end" }}>
