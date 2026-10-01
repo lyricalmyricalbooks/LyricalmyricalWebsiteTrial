@@ -42,6 +42,11 @@ The editor is **not** a blank slate. It already supports:
   (`features/site/previewTab.ts`), which re-dispatches it as a window message.
 - **Import/export** of a theme design as JSON (in `ThemeEditorPro`).
 - A **token/CSS-variable layer** applied to every storefront surface.
+- **Shared shop categories** edited in Studio › Menus, with create, assign,
+  reorder and delete controls also available in the admin book editor. Catalog
+  changes update the published storefront and Studio working copy atomically
+  without replacing unrelated design fields; deleting a parent promotes its
+  children so navigation never retains orphaned category references.
 
 ## Architecture map
 

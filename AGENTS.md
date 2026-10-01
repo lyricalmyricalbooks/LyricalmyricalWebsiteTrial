@@ -118,6 +118,11 @@ delivery uses `postMessage` plus a same-origin message-event fallback so iframe
 load timing cannot strand the preview on the published design; keep the snapshot
 structured-clone safe (`toCloneable`) and mirror it to the **Preview in new tab**
 window over `BroadcastChannel("studio_preview")` (`features/site/previewTab.ts`).
+
+Shop categories are shared catalog structure. Admins can manage them in Studio ›
+Menus › Shop categories or create, assign, reorder and delete them in a book's
+Categories & tags tab; the book workflow must update the live storefront and
+Studio draft together without replacing unrelated design fields.
 New book cards must carry the `fm-card-*` classes (`cardClasses.test.tsx`).
 Studio's **Find anything** (Ctrl/Cmd+K, `studioSearch.ts`) indexes `STYLE_GROUPS`/`COPY_SCHEMA` automatically — a new control needs a
 plain-English label so shop owners can find it. **Auto-fit for phones** (`autoMobile.ts`) writes phone/tablet overrides; keep it in sync

@@ -8,6 +8,8 @@ import {
   Trash2, 
   ExternalLink,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Plus,
   Loader2,
   Copy,
@@ -35,7 +37,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { adminApi } from "./api";
 import { CATEGORIES } from "../features/site/constants";
-import { normalizeCategories, parentOf } from "../features/site/navItems";
+import { moveCategory, normalizeCategories, parentOf, removeCategory } from "../features/site/navItems";
 import { Book, Variant } from "../features/site/types";
 import { useCurrency } from "../CurrencyContext";
 import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs } from "./riso/components";
@@ -119,6 +121,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [authors, setAuthors] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [categoryDefinitions, setCategoryDefinitions] = useState<any[]>([]);
   // Sub-category name → its parent's name (Studio › Menus › Shop categories › "Sits under").
   const [categoryParents, setCategoryParents] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -133,6 +136,9 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const [tab, setTab] = useState<BookTab>("details");
   const [dragOver, setDragOver] = useState(false);
   const [tagInput, setTagInput] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [newCategoryParent, setNewCategoryParent] = useState("");
+  const [savingCategory, setSavingCategory] = useState(false);
   const saveRef = useRef<() => void>(() => {});
 
   const sensors = useSensors(
@@ -344,6 +350,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       // Draft first so categories just added in Studio › Menus › Shop categories show up before publishing.
       const siteCats = settings?.draftDesign?.categories || settings?.design?.categories || CATEGORIES;
       const all = normalizeCategories(Array.isArray(siteCats) ? siteCats : [...CATEGORIES]);
+      setCategoryDefinitions(all);
       // PUBLICATIONS already shows every book, so it isn't something to file a book under.
       const pickable = all.filter((c: any) => c?.name && c.name !== 'PUBLICATIONS');
       setCategories(pickable.map((c: any) => c.name));
@@ -577,6 +584,75 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           : [...currentCats, cat]
       };
     });
+  };
+
+  const createCategory = async () => {
+    const name = newCategory.trim();
+    if (!name) return;
+    if (categoryDefinitions.some((category) => category.name?.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      toast.error("That category already exists.");
+      return;
+    }
+    const category = {
+      id: `cat-${crypto.randomUUID()}`,
+      name,
+      description: "",
+      showInNav: true,
+      ...(newCategoryParent ? { parentId: newCategoryParent } : {}),
+    };
+    const next = [...categoryDefinitions, category];
+    setSavingCategory(true);
+    try {
+      await adminApi.updateShopCategories(next);
+      setCategoryDefinitions(next);
+      setCategories((current) => [...current, name]);
+      setCategoryParents((current) => ({
+        ...current,
+        [name]: newCategoryParent ? categoryDefinitions.find((item) => item.id === newCategoryParent)?.name || "" : "",
+      }));
+      setFormData((current: any) => ({ ...current, categories: [...new Set([...(current.categories || []), name])] }));
+      setNewCategory("");
+      setNewCategoryParent("");
+      toast.success(`Created ${name} and assigned it to this book.`);
+    } catch (error) {
+      console.error("Failed to create category", error);
+      toast.error("Could not create the category. Try again.");
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const saveCategoryOrder = async (next: any[], message: string) => {
+    setSavingCategory(true);
+    try {
+      await adminApi.updateShopCategories(next);
+      setCategoryDefinitions(next);
+      const pickable = next.filter((category) => category?.name && category.name !== "PUBLICATIONS");
+      setCategories(pickable.map((category) => category.name));
+      setCategoryParents(Object.fromEntries(pickable.map((category) => {
+        const parentId = parentOf(category, next);
+        return [category.name, parentId ? next.find((parent) => parent.id === parentId)?.name || "" : ""];
+      })));
+      toast.success(message);
+      return true;
+    } catch (error) {
+      console.error("Failed to update categories", error);
+      toast.error("Could not update the categories. Try again.");
+      return false;
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const deleteCategory = async (category: any) => {
+    if (!window.confirm(`Delete the "${category.name}" category? It will leave the shop menu, but other books keep their category data.`)) return;
+    const next = removeCategory(categoryDefinitions, category.id);
+    if (await saveCategoryOrder(next, `Deleted ${category.name}.`)) {
+      setFormData((current: any) => ({
+        ...current,
+        categories: (current.categories || []).filter((name: string) => name !== category.name),
+      }));
+    }
   };
 
   const set = (name: string, value: any) => setFormData((prev: any) => ({ ...prev, [name]: value }));
@@ -879,12 +955,52 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           )}
 
           {tab === "organize" && (
-            <SectionCard title="Categories & tags" description="Categories build the shop menus — pick every one this book belongs in (e.g. Publications › Books). Sub-categories are set in Design › Menus › Shop categories. Tags power search.">
+            <SectionCard title="Categories & tags" description="Categories build the shop menus — pick every one this book belongs in. New categories created here are published to the shop and added to Design › Menus automatically. Tags power search.">
               <div className="be-chips" role="group" aria-label="Categories">
                 {categories.map((cat) => {
                   const on = (formData.categories || []).includes(cat);
                   const parent = categoryParents[cat];
                   return <button key={cat} type="button" aria-pressed={on} className={`be-chip ${on ? "is-on" : ""}`} onClick={() => toggleCategory(cat)}>{on ? "✓ " : ""}{parent ? `${parent} › ` : ""}{cat}</button>;
+                })}
+              </div>
+              {categories.length === 0 && <p className="be-category-empty">No assignable categories yet. Create the first one below.</p>}
+              <div className="be-category-create" aria-label="Create a shop category">
+                <TextField label="New category" placeholder="e.g. Zines" value={newCategory} onChange={(event) => setNewCategory(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void createCategory(); } }} />
+                <SelectField label="Sits under (optional)" value={newCategoryParent} onChange={(event) => setNewCategoryParent(event.target.value)}>
+                  <option value="">Top-level category</option>
+                  {categoryDefinitions.filter((category) => !parentOf(category, categoryDefinitions)).map((category) => (
+                    <option key={category.id} value={category.id}>{category.name}</option>
+                  ))}
+                </SelectField>
+                <button type="button" className="rp-btn rp-btn-secondary" disabled={!newCategory.trim() || savingCategory} onClick={() => void createCategory()}>
+                  {savingCategory ? <Loader2 size={14} className="animate-spin" aria-hidden /> : <Plus size={14} aria-hidden />}
+                  Create & assign
+                </button>
+              </div>
+              <p className="be-category-help">Category changes appear on the public storefront immediately and stay in sync with the Studio designer.</p>
+              <div className="be-category-manager">
+                <div className="be-category-manager-head">
+                  <div>
+                    <span className="be-label-xs">Shop category order</span>
+                    <p>Reorder or delete categories here. Children are promoted to top level when their parent is deleted.</p>
+                  </div>
+                  {savingCategory && <Loader2 size={16} className="animate-spin" aria-label="Saving categories" />}
+                </div>
+                {categoryDefinitions.map((category, index) => {
+                  const parentId = parentOf(category, categoryDefinitions);
+                  const parent = parentId ? categoryDefinitions.find((item) => item.id === parentId) : null;
+                  return (
+                    <div className="be-category-row" key={category.id}>
+                      <span className="be-category-row-name">{parent ? `${parent.name} › ` : ""}{category.name}</span>
+                      <button type="button" className="rp-icon-btn" disabled={savingCategory || index === 0} aria-label={`Move ${category.name} up`}
+                        onClick={() => void saveCategoryOrder(moveCategory(categoryDefinitions, index, -1), `Moved ${category.name} up.`)}><ChevronUp size={16} aria-hidden /></button>
+                      <button type="button" className="rp-icon-btn" disabled={savingCategory || index === categoryDefinitions.length - 1} aria-label={`Move ${category.name} down`}
+                        onClick={() => void saveCategoryOrder(moveCategory(categoryDefinitions, index, 1), `Moved ${category.name} down.`)}><ChevronDown size={16} aria-hidden /></button>
+                      <button type="button" className="rp-icon-btn be-category-delete" disabled={savingCategory} aria-label={`Delete ${category.name}`}
+                        onClick={() => void deleteCategory(category)}><Trash2 size={16} aria-hidden /></button>
+                    </div>
+                  );
                 })}
               </div>
               <div className="be-tags">

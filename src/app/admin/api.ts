@@ -1,4 +1,5 @@
 import { themeWrite } from "./themeWrite";
+import { shopCategoryWrite } from "./shopCategories";
 import { 
   collection, 
   getDocs, 
@@ -422,6 +423,16 @@ export const adminApi = {
     // The primary write already succeeded. An audit failure must not report a
     // failed publish and encourage a duplicate operation.
     await adminApi.recordAuditLog("settings", `Updated settings: ${Object.keys(settings).join(", ")}`).catch(error => console.warn("Settings saved; audit log unavailable", error));
+  },
+
+  // Categories are catalog structure, not a theme draft. Keep the published
+  // storefront and Studio working copy in lockstep without replacing either
+  // design map (which could otherwise discard unrelated unsaved design work).
+  updateShopCategories: async (categories: any[]) => {
+    const docRef = doc(db, "settings", "website");
+    const write = shopCategoryWrite(categories);
+    await setDoc(docRef, write.payload, write.options);
+    await adminApi.recordAuditLog("settings", `Updated shop categories (${categories.length})`).catch(error => console.warn("Categories saved; audit log unavailable", error));
   },
 
   // Flip the storefront "under construction" wall live, keeping the Studio

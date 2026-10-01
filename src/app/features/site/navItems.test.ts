@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookInCategory, buildNavItems, moveNavItem, renameCategory } from "./navItems";
+import { bookInCategory, buildNavItems, moveCategory, moveNavItem, removeCategory, renameCategory } from "./navItems";
 
 const cats = [
   { id: "a", name: "PUBLICATIONS", showInNav: true },
@@ -44,6 +44,25 @@ describe("renameCategory", () => {
   it("keeps PUBLICATIONS as the show-everything category even after a rename", () => {
     const next = renameCategory(cats, 0, "ALL BOOKS");
     expect(bookInCategory({ categories: [] }, next[0])).toBe(true);
+  });
+});
+
+describe("category management", () => {
+  it("reorders categories without changing their data", () => {
+    expect(moveCategory(cats, 1, -1).map((category) => category.id)).toEqual(["b", "a", "c"]);
+    expect(moveCategory(cats, 0, -1)).toBe(cats);
+  });
+
+  it("deletes a category and promotes its children instead of orphaning them", () => {
+    const tree = [
+      { id: "parent", name: "Parent" },
+      { id: "child", name: "Child", parentId: "parent" },
+      { id: "other", name: "Other" },
+    ];
+    expect(removeCategory(tree, "parent")).toEqual([
+      { id: "child", name: "Child", parentId: null },
+      { id: "other", name: "Other" },
+    ]);
   });
 });
 

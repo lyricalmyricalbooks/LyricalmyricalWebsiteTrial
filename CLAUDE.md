@@ -158,7 +158,10 @@ profile, rate dialog).
 > The big `ThemeEditor.tsx` described below is only the legacy editor (opens with `?editor=legacy`).
 > **Always add or change theme/design features in the Studio editor first** — the user only sees
 > Studio. Shop categories (the storefront category bar) are edited in Studio › **Menus** ›
-> **Shop categories**. Custom pages (About, Journal…) also live only in Studio › **Pages** tab
+> **Shop categories**. They can also be created while editing a book in **Categories & tags**;
+> that catalog workflow can assign, reorder and delete categories, publishes changes immediately,
+> and synchronizes Studio's working copy.
+> Custom pages (About, Journal…) also live only in Studio › **Pages** tab
 > (`studio/StudioPages.tsx`); there is **no** separate Pages screen in the admin nav — do not
 > re-add one. New pages join the storefront header by default, and their public
 > routes render the themed storefront header. Walkthroughs must use Studio's
