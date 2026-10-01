@@ -3,8 +3,9 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db, auth } from "../../lib/firebase";
 import { functionUrl } from "../lib/functionsBase";
 import toast from "react-hot-toast";
+import { risoButton, risoLayout } from "./emailTheme";
 import {
-  LoadingState, PrimaryButton, SaveBar, SectionCard, SectionHead, SecondaryButton, StatusBadge, Tabs, TextArea, TextField, Toggle,
+  LoadingState, PrimaryButton, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle,
 } from "./riso/components";
 
 type TemplateFields = {
@@ -19,6 +20,7 @@ type NotificationSettings = {
   brand: {
     logoUrl: string;
     brandColor: string;
+    emailTheme?: "light" | "dark";
     resendApiKey?: string;
   };
   order_confirmation: TemplateFields;
@@ -34,7 +36,8 @@ type NotificationSettings = {
 const DEFAULT_SETTINGS: NotificationSettings = {
   brand: {
     logoUrl: "",
-    brandColor: "#7C3AED",
+    brandColor: "#e8402a",
+    emailTheme: "light",
     resendApiKey: ""
   },
   order_confirmation: {
@@ -108,8 +111,7 @@ const TABS = [
 
 function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand">, data: NotificationSettings) {
   const brand = data.brand || {};
-  const logoUrl = brand.logoUrl || "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=100&fit=crop";
-  const brandColor = brand.brandColor || "#7C3AED";
+  const brandColor = brand.brandColor || "#e8402a";
   
   const template = data[templateId] || DEFAULT_SETTINGS[templateId];
   const body = template.body || "";
@@ -131,16 +133,7 @@ function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand"
     .replace(/\{\{order_url\}\}/g, "#")
     .replace(/\n/g, "<br/>");
 
-  let ctaButtonHtml = "";
-  if (buttonText) {
-    ctaButtonHtml = `
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="#" style="background-color: ${brandColor}; color: #ffffff; padding: 12px 30px; text-decoration: none; font-size: 13px; font-weight: bold; border-radius: 8px; letter-spacing: 0.1em; text-transform: uppercase; display: inline-block;">
-          ${buttonText}
-        </a>
-      </div>
-    `;
-  }
+  const ctaButtonHtml = buttonText ? risoButton("#", buttonText, brandColor, brand.emailTheme) : "";
 
   let itemsTableHtml = "";
   if (templateId === "order_confirmation" || templateId === "abandoned_cart") {
@@ -171,69 +164,12 @@ function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand"
 
   let signoffHtml = signoff.replace(/\n/g, "<br/>");
 
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-          background-color: #f6f6f9;
-          color: #333333;
-          margin: 0;
-          padding: 20px;
-          line-height: 1.6;
-        }
-        .container {
-          max-width: 600px;
-          margin: 0 auto;
-          background: #ffffff;
-          padding: 40px;
-          border-radius: 16px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        }
-        .header {
-          text-align: center;
-          margin-bottom: 30px;
-        }
-        .logo {
-          max-height: 40px;
-          width: auto;
-        }
-        .content {
-          font-size: 14px;
-        }
-        .footer {
-          margin-top: 40px;
-          text-align: center;
-          font-size: 11px;
-          color: #999999;
-          border-top: 1px solid #eeeeee;
-          padding-top: 20px;
-          letter-spacing: 0.05em;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          ${logoUrl ? `<img src="${logoUrl}" class="logo" alt="Logo" />` : `<h2 style="margin: 0; font-weight: 800; letter-spacing: -0.03em; color: #111;">Lyricalmyrical</h2>`}
-        </div>
-        <div class="content">
-          <p>${finalBody}</p>
-          ${ctaButtonHtml}
-          ${itemsTableHtml}
-          <p style="margin-top: 30px; font-weight: 500; color: #555555;">${signoffHtml}</p>
-        </div>
-        <div class="footer">
-          &copy; ${new Date().getFullYear()} Lyricalmyrical Books. All rights reserved.
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
+  return risoLayout(`
+    <p style="margin-top:0;">${finalBody}</p>
+    ${ctaButtonHtml}
+    ${itemsTableHtml}
+    <p style="margin-top:30px;font-weight:600;">${signoffHtml}</p>
+  `, { logoUrl: brand.logoUrl || "", accent: brandColor, theme: brand.emailTheme });
 }
 
 export function NotificationEditor() {
@@ -333,7 +269,7 @@ export function NotificationEditor() {
     handleFieldChange("enabled", !isCurrentlyEnabled);
   };
 
-  const handleBrandChange = (field: "logoUrl" | "brandColor" | "resendApiKey", val: string) => {
+  const handleBrandChange = (field: "logoUrl" | "brandColor" | "emailTheme" | "resendApiKey", val: string) => {
     setData(prev => ({
       ...prev,
       brand: {
@@ -417,11 +353,16 @@ export function NotificationEditor() {
           <div className="rp-field">
             <label className="rp-label" htmlFor="brand-color">Brand accent color</label>
             <div style={{ display: "flex", gap: 8 }}>
-              <input id="brand-color" type="color" aria-label="Pick brand accent color" value={data.brand?.brandColor || "#7C3AED"} onChange={(e) => handleBrandChange("brandColor", e.target.value)}
+              <input id="brand-color" type="color" aria-label="Pick brand accent color" value={data.brand?.brandColor || "#e8402a"} onChange={(e) => handleBrandChange("brandColor", e.target.value)}
                 style={{ width: 48, height: 44, padding: 2, border: "1px solid var(--rp-border)", background: "var(--rp-input-bg)" }} />
-              <input className="rp-input rp-mono" aria-label="Brand accent color hex" value={data.brand?.brandColor || ""} placeholder="#7C3AED" onChange={(e) => handleBrandChange("brandColor", e.target.value)} />
+              <input className="rp-input rp-mono" aria-label="Brand accent color hex" value={data.brand?.brandColor || ""} placeholder="#e8402a" onChange={(e) => handleBrandChange("brandColor", e.target.value)} />
             </div>
           </div>
+          <SelectField label="Email theme" value={data.brand?.emailTheme === "dark" ? "dark" : "light"} onChange={(e) => handleBrandChange("emailTheme", e.target.value)}
+            hint="Riso Press look: Light = cream paper, ink text · Dark = black paper, white text.">
+            <option value="light">Light (newsprint)</option>
+            <option value="dark">Dark (Riso Noir)</option>
+          </SelectField>
           <TextField label="Resend API key" type="password" value={resendDraft}
             placeholder={data.brand?.resendApiKey ? "Stored — enter a new key to replace it" : "re_…"}
             hint={data.brand?.resendApiKey ? "✓ A key is stored. It is never shown here." : "Optional if the RESEND_API_KEY Functions secret is set."}
