@@ -426,6 +426,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "checkoutFieldText", label: "Checkout field text", kind: "color" },
       { key: "checkoutFieldBorder", label: "Checkout field border", kind: "color" },
       { key: "hideAddressSuggestions", label: "Turn off address suggestions while typing", kind: "toggle" },
+      { key: "checkoutPinnedCountries", label: "Countries shown first in the country list (2-letter codes, e.g. CA, US, GB, FR)", kind: "text" },
+      { key: "hideCountryFlags", label: "Hide flags in the country list", kind: "toggle" },
       { key: "hidePayButtonTotal", label: "Hide the order total on the Pay button", kind: "toggle" },
       { key: "alwaysShowDiscountBox", label: "Always show the discount code box (instead of a link)", kind: "toggle" },
       { key: "hideCheckoutFreeShipNudge", label: "Hide “add more for free shipping” in the order summary", kind: "toggle" },
