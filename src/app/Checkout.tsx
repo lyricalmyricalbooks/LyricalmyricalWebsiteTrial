@@ -1,5 +1,5 @@
 import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router";
 import { useCart } from "./CartContext";
 import {
@@ -21,7 +21,7 @@ import { auth, db } from "../lib/firebase";
 import { StorefrontThemeStyle } from "./features/site/StorefrontThemeStyle";
 import { getCopy } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
-import { StripeEmbeddedPanel } from "./features/site/StripeEmbeddedPanel";
+import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
 
 // ─── State / province drop-down for countries with a fixed list ──────────────
@@ -118,7 +118,7 @@ function StepBadge({ n, label }: { n: string; label: string }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 export function Checkout() {
   const { cart, cartTotal, cartCount, clearCart, setCart } = useCart();
-  const { currency, formatPrice } = useCurrency();
+  const { currency, formatPrice, convertPrice } = useCurrency();
 
   const [isApplying, setIsApplying]     = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -151,13 +151,15 @@ export function Checkout() {
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(checkoutDesign, key, vars);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
   const [successOrder, setSuccessOrder] = useState<any>(null);
-  // Client secret for Stripe Embedded Checkout once the order is created.
-  const [embeddedSecret, setEmbeddedSecret] = useState<string>("");
+  // Stripe card form shown on this page; a failed attempt keeps its order +
+  // PaymentIntent so retrying with the same bag doesn't create another order.
+  const cardFormRef = useRef<StripeCardFormHandle>(null);
+  const pendingCardOrder = useRef<{ key: string; orderId: string; clientSecret: string } | null>(null);
   const stripePublicKey: string = (settings?.payments?.testMode
     ? settings?.payments?.stripe?.testPublicKey
     : settings?.payments?.stripe?.publicKey) || "";
   // Studio › Style › Checkout: card form on this page (default) or Stripe's own page.
-  const useEmbeddedStripe = Boolean(stripePublicKey) && !checkoutDesign.stripeRedirect;
+  const useCardForm = Boolean(stripePublicKey) && !checkoutDesign.stripeRedirect;
 
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -815,6 +817,14 @@ export function Checkout() {
       return;
     }
     setNotice(null);
+    const payingByCardForm = useCardForm && selectedPaymentMethod === "stripe";
+    if (payingByCardForm) {
+      const cardError = await cardFormRef.current?.validate();
+      if (cardError) {
+        setNotice({ tone: "error", text: cardError });
+        return;
+      }
+    }
     setIsCompleting(true);
     try {
       // 1. Verify and Validate address using Shippo API Cloud Function
@@ -890,7 +900,9 @@ export function Checkout() {
       // Save customer email in localStorage to recover cart on payment success landing
       localStorage.setItem("last_customer_email", customer.email);
       
-      const orderId = await adminApi.createOrder(orderData);
+      const cardKey = JSON.stringify([orderData.items, orderData.total, orderData.customer, currency]);
+      const reuse = payingByCardForm && pendingCardOrder.current?.key === cardKey ? pendingCardOrder.current : null;
+      const orderId = reuse ? reuse.orderId : await adminApi.createOrder(orderData);
 
       if (isManual) {
         window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${orderId}&manual=true`;
@@ -916,10 +928,36 @@ export function Checkout() {
       // for Stripe's success/cancel redirects.
       const returnUrl = `${window.location.origin}${import.meta.env.BASE_URL}checkout`;
 
+      const successUrl = `${returnUrl}?success=true&order_id=${encodeURIComponent(orderId)}`;
+
+      if (payingByCardForm) {
+        let clientSecret = reuse?.clientSecret || "";
+        if (!clientSecret) {
+          const intentResponse = await fetch(functionUrl("createStripeCheckoutSession"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, paymentElement: true }),
+          });
+          const intentData = await intentResponse.json();
+          if (!intentResponse.ok || !intentData.clientSecret) throw new Error(intentData.error || c("coStripeError"));
+          clientSecret = intentData.clientSecret;
+          pendingCardOrder.current = { key: cardKey, orderId, clientSecret };
+        }
+        const result = await cardFormRef.current!.confirm(clientSecret, successUrl);
+        if (result.error) {
+          setNotice({ tone: "error", text: result.error });
+          setIsCompleting(false);
+          return;
+        }
+        pendingCardOrder.current = null;
+        window.location.href = `${successUrl}&payment_intent=${encodeURIComponent(result.paymentIntentId || "")}`;
+        return;
+      }
+
       const sessionResponse = await fetch(functionUrl("createStripeCheckoutSession"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, embedded: useEmbeddedStripe }),
+        body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
       });
 
       if (!sessionResponse.ok) {
@@ -928,11 +966,6 @@ export function Checkout() {
       }
 
       const sessionData = await sessionResponse.json();
-      if (useEmbeddedStripe && sessionData.clientSecret) {
-        setEmbeddedSecret(sessionData.clientSecret);
-        setIsCompleting(false);
-        return;
-      }
       if (sessionData.url) {
         window.location.href = sessionData.url;
       } else {
@@ -956,6 +989,7 @@ export function Checkout() {
 
     let cancelled = false;
     const stripeSessionId = params.get("session_id") || "";
+    const stripeIntentId = params.get("payment_intent") || "";
     // Drop the one-time return flags so a refresh doesn't replay this landing.
     window.history.replaceState(null, "", `${window.location.pathname}?order_id=${encodeURIComponent(oid)}&success=true`);
     setOrderNumber(oid);
@@ -963,13 +997,13 @@ export function Checkout() {
 
     (async () => {
       try {
-        if (stripeSessionId.startsWith("cs_")) {
+        if (stripeSessionId.startsWith("cs_") || stripeIntentId.startsWith("pi_")) {
           // Ask Stripe whether this session was actually completed. "open" means
           // the shopper came back without paying — send them back to the form.
           const statusRes = await fetch(functionUrl("createStripeCheckoutSession"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "status", orderId: oid, sessionId: stripeSessionId }),
+            body: JSON.stringify({ action: "status", orderId: oid, sessionId: stripeSessionId, paymentIntentId: stripeIntentId }),
           }).catch(() => null);
           const statusData = statusRes && statusRes.ok ? await statusRes.json() : null;
           if (cancelled) return;
@@ -1261,11 +1295,13 @@ export function Checkout() {
                         {['VISA', 'MC', 'AMEX'].map(card => <span key={card} className="rounded border border-slate-300 bg-white px-1.5 py-1 text-[9px] font-bold text-slate-600">{card}</span>)}
                       </div>
                     </div>
-                    {selectedPaymentMethod === "stripe" && embeddedSecret && (
-                      <div className="border-t border-slate-200 p-2">
-                        <StripeEmbeddedPanel
+                    {selectedPaymentMethod === "stripe" && useCardForm && (
+                      <div className="border-t border-slate-200 px-4 py-4" onClick={e => e.preventDefault()}>
+                        <StripeCardForm
+                          ref={cardFormRef}
                           publishableKey={stripePublicKey}
-                          clientSecret={embeddedSecret}
+                          amountCents={Math.round(convertPrice(finalTotal) * 100)}
+                          currency={currency}
                           loadingText={c("coStripeLoading")}
                           errorText={c("coStripeLoadError")}
                           style={{
@@ -1276,10 +1312,10 @@ export function Checkout() {
                         />
                       </div>
                     )}
-                    {selectedPaymentMethod === "stripe" && !embeddedSecret && (
+                    {selectedPaymentMethod === "stripe" && !useCardForm && (
                       <div className="border-t border-slate-200 px-6 py-7 text-center">
                         <CreditCard size={34} strokeWidth={1.4} className="mx-auto mb-3 text-slate-400" />
-                        <p className="text-sm text-slate-600">{c(useEmbeddedStripe ? "coStripeEmbeddedNote" : "coStripeNote")}</p>
+                        <p className="text-sm text-slate-600">{c("coStripeNote")}</p>
                       </div>
                     )}
                   </label>
@@ -1309,12 +1345,6 @@ export function Checkout() {
                   <span aria-hidden="true">{notice.tone === "error" ? "✕ " : "ℹ "}</span>{notice.text}
                 </div>
               )}
-              {embeddedSecret && selectedPaymentMethod === "stripe" ? (
-                <button type="button" onClick={() => setEmbeddedSecret("")}
-                  className="w-full rounded-lg border border-slate-300 px-6 py-3 text-sm font-medium text-slate-600 transition hover:opacity-80">
-                  {c("coStripeEditOrder")}
-                </button>
-              ) : (
               <button
                 type="button"
                 onClick={handleCompletePurchase}
@@ -1323,7 +1353,6 @@ export function Checkout() {
               >
                 {isCompleting ? <><Loader2 size={18} className="animate-spin" /> {c("coProcessing")}</> : <><Lock size={16} /> {paymentLabel}</>}
               </button>
-              )}
               <div className="mt-4 flex items-start justify-center gap-2 text-center text-xs leading-5 text-slate-500">
                 <ShieldCheck size={16} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
                 <p>{c("coPrivacyNote")}</p>

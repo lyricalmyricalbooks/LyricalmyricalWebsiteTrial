@@ -851,7 +851,7 @@ exports.createStripeCheckoutSession = onRequest(
     if (req.body?.action === "status") return handleCheckoutStatus(req, res);
     if (req.body?.action === "registerPaymentDomain") return handleRegisterPaymentDomain(req, res);
 
-    const { orderId, currency: reqCurrency, returnUrl, embedded } = req.body;
+    const { orderId, currency: reqCurrency, returnUrl, embedded, paymentElement } = req.body;
     const checkoutCurrency = (reqCurrency || "cad").toLowerCase();
     if (!orderId) {
       res.status(400).json({ error: "Missing orderId" });
@@ -1078,6 +1078,23 @@ exports.createStripeCheckoutSession = onRequest(
         });
       }
 
+      // Payment Element on the checkout page: charge the same server-priced
+      // total through a PaymentIntent instead of a Checkout Session.
+      if (paymentElement) {
+        const amount = lineItems.reduce((sum, li) => sum + li.price_data.unit_amount * li.quantity, 0);
+        const intent = await stripe.paymentIntents.create({
+          amount,
+          currency: checkoutCurrency,
+          automatic_payment_methods: { enabled: true },
+          receipt_email: order.customer?.email || undefined,
+          description: `Order ${orderId}`,
+          metadata: { order_id: orderId, checkout: "payment_element" },
+        });
+        await orderRef.update({ stripePaymentIntentId: intent.id, updatedAt: new Date().toISOString() });
+        res.status(200).json({ clientSecret: intent.client_secret, amount, currency: checkoutCurrency });
+        return;
+      }
+
       // The storefront passes its own checkout URL (it may live under a
       // sub-path, e.g. GitHub Pages). Only accept it if it belongs to an
       // allowed origin; otherwise fall back to origin + /checkout.
@@ -1180,8 +1197,9 @@ async function handleRegisterPaymentDomain(req, res) {
 // function needs deploying — the CI deploy account can't set IAM on new ones.
 async function handleCheckoutStatus(req, res) {
   {
-    const { orderId, sessionId } = req.body || {};
-    if (typeof orderId !== "string" || typeof sessionId !== "string" || !sessionId.startsWith("cs_")) {
+    const { orderId, sessionId, paymentIntentId } = req.body || {};
+    const isIntent = typeof paymentIntentId === "string" && paymentIntentId.startsWith("pi_");
+    if (typeof orderId !== "string" || (!isIntent && (typeof sessionId !== "string" || !sessionId.startsWith("cs_")))) {
       res.status(400).json({ error: "Missing orderId or sessionId" });
       return;
     }
@@ -1194,6 +1212,17 @@ async function handleCheckoutStatus(req, res) {
         ? stripeSettings.testSecretKey
         : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
       if (!stripeSecret) throw new Error("Stripe is not configured.");
+      if (isIntent) {
+        const intent = await new Stripe(stripeSecret).paymentIntents.retrieve(paymentIntentId);
+        if (intent.metadata?.order_id !== orderId) {
+          res.status(404).json({ error: "Payment not found" });
+          return;
+        }
+        // Map onto the session vocabulary the storefront already understands.
+        const status = intent.status === "succeeded" || intent.status === "processing" ? "complete" : "open";
+        res.status(200).json({ status, paymentStatus: intent.status });
+        return;
+      }
       const session = await new Stripe(stripeSecret).checkout.sessions.retrieve(sessionId);
       if (session.client_reference_id !== orderId) {
         res.status(404).json({ error: "Session not found" });
@@ -1282,6 +1311,9 @@ exports.stripeWebhook = onRequest(
         await noteOnOrder(event.data.object.client_reference_id, "Stripe Checkout session expired without payment.");
       } else if (event.type === "checkout.session.async_payment_failed") {
         await noteOnOrder(event.data.object.client_reference_id, "Delayed payment failed (Stripe).", { paymentStatus: "failed" });
+      } else if (event.type === "payment_intent.payment_failed" && event.data.object?.metadata?.checkout === "payment_element") {
+        const reason = event.data.object.last_payment_error?.message || "unknown reason";
+        await noteOnOrder(event.data.object.metadata.order_id, `Card payment attempt failed (Stripe): ${reason}`);
       } else if (event.type === "charge.dispute.created") {
         const dispute = event.data.object;
         const piId = typeof dispute.payment_intent === "string" ? dispute.payment_intent : dispute.payment_intent?.id;
@@ -1300,8 +1332,21 @@ exports.stripeWebhook = onRequest(
       return;
     }
 
-    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
-      const session = event.data.object;
+    const isElementPayment = event.type === "payment_intent.succeeded"
+      && event.data.object?.metadata?.checkout === "payment_element";
+    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded" || isElementPayment) {
+      // A succeeded Payment Element intent is shaped into the session fields used below.
+      const session = isElementPayment
+        ? {
+          id: null,
+          client_reference_id: event.data.object.metadata.order_id,
+          payment_status: "paid",
+          payment_intent: event.data.object.id,
+          livemode: event.data.object.livemode,
+          amount_total: event.data.object.amount_received ?? event.data.object.amount,
+          currency: event.data.object.currency,
+        }
+        : event.data.object;
       const orderId = session.client_reference_id;
       // completed can fire before delayed methods settle; only paid sessions count.
       const settled = session.payment_status === "paid" || session.payment_status === "no_payment_required";
@@ -1360,7 +1405,7 @@ exports.stripeWebhook = onRequest(
               updatedAt: now,
               activity: [
                 ...(order.activity || []),
-                { type: "event", message: "Payment completed (Stripe Webhook)", createdAt: now }
+                { type: "event", message: isElementPayment ? "Payment completed (Stripe card form)" : "Payment completed (Stripe Webhook)", createdAt: now }
               ]
             });
 
