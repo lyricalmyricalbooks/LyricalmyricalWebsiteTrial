@@ -23,3 +23,16 @@ describe("header nav on one line", () => {
     expect(navLineProps({ navGap: 30 }, true, 1).style.columnGap).toBe("calc(30px * var(--nav-fit, 1))");
   });
 });
+
+describe("drop-down chevron follows the link size", async () => {
+  const { createElement: h } = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { StaticRouter } = await import("react-router");
+  const { NavDropdown } = await import("./NavDropdown");
+  it("never renders a NaN-sized (huge) chevron when the link size is a calc()", () => {
+    const html = renderToStaticMarkup(h(StaticRouter, { location: "/" },
+      h(NavDropdown, { design: {}, label: "Publications", linkStyle: navLinkStyle({ navLinkSize: 11 }, false), all: { to: "/collections/publications", label: "All" }, entries: [] } as any)));
+    expect(html).not.toContain("NaN");
+    expect(html).toContain('width="1.2em"');
+  });
+});
