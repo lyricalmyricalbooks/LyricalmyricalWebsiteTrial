@@ -6,6 +6,7 @@ import { CurrencyProvider } from "./CurrencyContext";
 import { Toaster } from "react-hot-toast";
 import { CartDrawer } from "./components/CartDrawer";
 import { CookieConsent } from "./components/CookieConsent";
+import { UnderConstructionWall } from "./components/UnderConstructionWall";
 import { ThemeProvider } from "./components/theme/ThemeProvider";
 import { BootSplash } from "./components/BootSplash";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -87,6 +88,7 @@ export default function App() {
           <RouteErrorBoundary>
           <CartDrawer />
           <CookieConsent />
+          <UnderConstructionWall />
           <Suspense fallback={<BootSplash />}>
                 <Toaster 
                   position="top-center" 

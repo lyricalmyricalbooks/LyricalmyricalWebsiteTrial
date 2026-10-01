@@ -228,6 +228,22 @@ export const COPY_SCHEMA: CopyGroup[] = [
     ],
   },
   {
+    group: "Under construction",
+    fields: [
+      { key: "ucAria", label: "Accessible label", default: "Site under construction" },
+      { key: "ucTag", label: "Sticker tag", default: "Press is running" },
+      { key: "ucHeading", label: "Heading (first part)", default: "Under" },
+      { key: "ucHeadingAccent", label: "Heading (accent part)", default: "construction." },
+      {
+        key: "ucBody", label: "Description", multiline: true,
+        default: "We're inking the plates and pulling fresh proofs. The shop will be back shortly — thanks for your patience.",
+      },
+      { key: "ucEmail", label: "Contact email (leave empty to hide the button)", default: "" },
+      { key: "ucButton", label: "Contact button", default: "Get in touch" },
+      { key: "ucFootnote", label: "Footnote", default: "Lyricalmyrical Books — printed matter" },
+    ],
+  },
+  {
     group: "Cookie banner",
     fields: [
       { key: "cookieAria", label: "Accessible label", default: "Cookie consent" },
