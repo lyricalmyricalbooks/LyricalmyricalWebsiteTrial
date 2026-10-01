@@ -286,6 +286,8 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "navLinkOpacity", label: "Inactive link brightness", kind: "range", min: 0.1, max: 1, step: 0.05 },
       { key: "navPlacement", label: "Category bar position", kind: "select", options: [{ value: "auto", label: "Auto (own row when it doesn’t fit)" }, { value: "inline", label: "Always beside logo" }, { value: "below", label: "Always full-width row below" }] },
       { key: "navGap", label: "Space between links", kind: "range", min: 4, max: 64, step: 1, suffix: "px" },
+      { key: "navLineMode", label: "When links don’t fit on one line", kind: "select", options: [{ value: "fit", label: "Shrink to fit on one line" }, { value: "scroll", label: "One line, scroll sideways" }, { value: "wrap", label: "Wrap onto a second line" }] },
+      { key: "navFitMin", label: "Shrink no smaller than", kind: "range", min: 50, max: 100, step: 5, suffix: "%" },
       { key: "navLinkTransform", label: "Link case", kind: "select", options: [{ value: "", label: "Inherit" }, { value: "none", label: "None" }, { value: "uppercase", label: "Uppercase" }, { value: "lowercase", label: "Lowercase" }, { value: "capitalize", label: "Capitalize" }] },
       { key: "navPillRadius", label: "Sticker pill corners (CSS radius)", kind: "text" },
       { key: "navPillRotate", label: "Tilt sticker pills", kind: "toggle" },

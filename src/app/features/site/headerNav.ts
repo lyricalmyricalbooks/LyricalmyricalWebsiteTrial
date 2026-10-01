@@ -10,7 +10,8 @@ export function navLinkStyle(design: any, active: boolean, color?: string): CSSP
   const idle = Math.max(0.1, Math.min(1, Number(d.navLinkOpacity ?? 0.6)));
   return {
     color: d.navLinkColor || color,
-    fontSize: d.navLinkSize ?? 11,
+    // Scaled by --nav-fit when "Shrink to fit on one line" is on (see useNavFit).
+    fontSize: `calc(${Number(d.navLinkSize ?? 11)}px * var(--nav-fit, 1))`,
     fontWeight: Number(d.navLinkWeight ?? 800),
     letterSpacing: `${d.navLinkSpacing ?? 0.22}em`,
     textTransform: (d.navLinkTransform || "uppercase") as CSSProperties["textTransform"],
@@ -28,6 +29,63 @@ export const contentMaxWidth = (design: any) => Math.max(900, Math.min(1600, Num
 
 /** Gap between header nav links (px). */
 export const navGap = (design: any) => Math.max(4, Math.min(64, Number(design?.navGap ?? 28)));
+
+/**
+ * Studio › Style › Navigation links › "When links don't fit on one line" (`navLineMode`):
+ * fit (default) shrinks text + spacing so every link stays on one line; scroll keeps one line and
+ * scrolls sideways; wrap lets links flow onto a second line.
+ */
+export const navLineMode = (design: any): "fit" | "scroll" | "wrap" =>
+  design?.navLineMode === "wrap" || design?.navLineMode === "scroll" ? design.navLineMode : "fit";
+
+/** Smallest shrink "fit" will apply (as a share of the chosen size); beyond it the row scrolls. */
+export const navFitMin = (design: any) => Math.max(0.5, Math.min(1, Number(design?.navFitMin ?? 70) / 100));
+
+/** Gap as CSS, scaled with the link text in "fit" mode. */
+export const navGapCss = (design: any) => `calc(${navGap(design)}px * var(--nav-fit, 1))`;
+
+/** Shrink factor that makes the nav's natural width fit its row (1 = no shrink). */
+export function fitScale(naturalWidth: number, available: number, min = 0.7): number {
+  if (!(naturalWidth > 0) || !(available > 0) || naturalWidth <= available) return 1;
+  return Math.max(min, Math.floor((available / naturalWidth) * 100) / 100);
+}
+
+/** Classes + style for the nav element for the chosen line mode. */
+export function navLineProps(design: any, below: boolean, fit: number) {
+  const mode = navLineMode(design);
+  const cls = !below ? "flex-nowrap" : mode === "wrap" ? "max-w-full flex-wrap gap-y-3 py-3" : "max-w-full flex-nowrap py-3 overflow-x-auto";
+  return { className: cls, style: { columnGap: navGapCss(design), ["--nav-fit" as any]: String(fit) } };
+}
+
+/** Measures the nav and returns the --nav-fit factor for "fit" mode (only when it sits on its own row). */
+export function useNavFit(design: any, navRef: RefObject<HTMLElement | null>, below: boolean) {
+  const mode = navLineMode(design);
+  const min = navFitMin(design);
+  const [fit, setFit] = useState(1);
+  useLayoutEffect(() => {
+    if (mode !== "fit" || !below) { setFit(1); return; }
+    const nav = navRef.current;
+    if (!nav) return;
+    let current = 1;
+    const measure = () => {
+      const parent = nav.parentElement;
+      if (!parent) return;
+      const ps = getComputedStyle(parent);
+      const avail = parent.clientWidth - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight);
+      const natural = nav.scrollWidth / current; // text + gaps scale linearly with --nav-fit
+      const next = fitScale(natural, avail - 2, min);
+      if (Math.abs(next - current) >= 0.01) { current = next; setFit(next); }
+    };
+    measure();
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    if (nav.parentElement) ro?.observe(nav.parentElement);
+    const fonts = document.fonts;
+    fonts?.addEventListener?.("loadingdone", measure);
+    window.addEventListener("resize", measure);
+    return () => { ro?.disconnect(); fonts?.removeEventListener?.("loadingdone", measure); window.removeEventListener("resize", measure); };
+  }, [mode, min, below, navRef, design?.navLinkSize, design?.navGap, design?.navLinkSpacing]);
+  return fit;
+}
 
 const HEADER_FIT_BUFFER = 96;
 

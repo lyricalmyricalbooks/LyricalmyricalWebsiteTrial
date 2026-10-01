@@ -5,7 +5,7 @@ import { useCart } from "../../CartContext";
 import { CurrencySelector } from "../../CurrencyContext";
 import { LogoMark } from "../../components/LogoMark";
 import { StoreMenu } from "../../components/StoreMenu";
-import { contentMaxWidth, navGap, navLinkStyle, useNavBelow } from "./headerNav";
+import { contentMaxWidth, navLineProps, navLinkStyle, useNavBelow, useNavFit } from "./headerNav";
 import { buildNavItems } from "./navItems";
 import { NavDropdown } from "./NavDropdown";
 import { SearchOverlay } from "./SearchOverlay";
@@ -35,14 +35,16 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
   const rowRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
   const navBelow = useNavBelow(storefront, rowRef, navRef);
+  const navFit = useNavFit(storefront, navRef, navBelow);
+  const navLine = navLineProps(storefront, navBelow, navFit);
   const navBar = (
             <nav
               ref={navRef}
               aria-label={getCopy(design, "ariaMainNavigation")}
               data-studio-target="menus:header-order|menus:categories|style:navlinks"
               data-studio-label="Category bar"
-              className={`hidden shrink-0 items-center md:flex ${navBelow ? "max-w-full flex-wrap gap-y-3 py-3" : "flex-nowrap"}`}
-              style={{ columnGap: navGap(storefront) }}
+              className={`hidden shrink-0 items-center md:flex ${navLine.className}`}
+              style={navLine.style}
             >
               {navItems.map((item) => {
                 const isPage = item.kind === "page";
