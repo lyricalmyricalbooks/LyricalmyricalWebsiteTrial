@@ -509,6 +509,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coCountryPopular", label: "Country picker — top group heading", default: "Popular" },
       { key: "coCountryAll", label: "Country picker — full list heading", default: "All countries" },
       { key: "coCountryNone", label: "Country picker — no match", default: "No country matches “{query}”", hint: "Use {query} for what was typed." },
+      { key: "coShowSummary", label: "Phone summary bar — closed", default: "Show order summary" },
+      { key: "coHideSummary", label: "Phone summary bar — open", default: "Hide order summary" },
       { key: "coStateChoose", label: "State / province drop-down placeholder", default: "Choose…" },
       { key: "coStripeLoading", label: "Card form loading", default: "Loading secure card form…" },
       { key: "coStripeLoadError", label: "Card form failed to load", default: "The card form couldn’t load. Refresh the page or try again." },

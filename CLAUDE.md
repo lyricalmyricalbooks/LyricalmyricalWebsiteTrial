@@ -63,7 +63,7 @@ src/
     lib/                    seo, wishlist, recentlyViewed, functionsBase helpers
   lib/                      firebase.ts, legacyFirebase.ts
   styles/                   Tailwind/global CSS, fonts
-functions/                  Firebase Cloud Functions (Node 20, separate package)
+functions/                  Firebase Cloud Functions (Node 22, separate package)
   index.js                  All functions (Stripe, webhook, emails, sweeps)
   shippingGeo.js            Shipping zone matching
 scripts/                    generate-sitemap, check-readability, verify-admin
