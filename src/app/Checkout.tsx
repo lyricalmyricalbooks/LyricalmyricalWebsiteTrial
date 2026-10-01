@@ -1215,7 +1215,8 @@ export function Checkout() {
   // ── Main checkout ───────────────────────────────────────────────────────────
   const hasStripe = Boolean(settings?.payments?.stripe?.connected);
   const hasPaypal = Boolean(settings?.payments?.paypal?.connected);
-  const enabledManualMethods = (settings?.payments?.manualMethods || []).filter((method: any) => method.enabled);
+  const configuredManualMethods = settings?.payments?.manualMethods;
+  const enabledManualMethods = (Array.isArray(configuredManualMethods) ? configuredManualMethods : []).filter((method: any) => method.enabled);
   const showTotalOnPay = !checkoutDesign.hidePayButtonTotal && cart.length > 0;
   const paymentLabel = selectedPaymentMethod === "stripe"
     ? (showTotalOnPay ? c("coPayWithTotal", { total: formatPrice(finalTotal) }) : c("coPay"))

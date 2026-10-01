@@ -11,7 +11,19 @@ export type SiteCachePayload = {
 export function readSiteCache(): SiteCachePayload | null {
   try {
     const cached = sessionStorage.getItem(SITE_CACHE_KEY);
-    return cached ? JSON.parse(cached) as SiteCachePayload : null;
+    if (!cached) return null;
+
+    const parsed: unknown = JSON.parse(cached);
+    // This cache survives client-side navigation and may have been written by
+    // an older release. Never allow a stale or partially-written snapshot to
+    // become authoritative component state: product and checkout pages both
+    // iterate these collections during their first render.
+    if (!parsed || typeof parsed !== "object") return null;
+    const payload = parsed as Partial<SiteCachePayload>;
+    if (!Array.isArray(payload.books) || !Array.isArray(payload.pages)) return null;
+    if (!payload.settings || typeof payload.settings !== "object" || Array.isArray(payload.settings)) return null;
+
+    return payload as SiteCachePayload;
   } catch {
     return null;
   }
