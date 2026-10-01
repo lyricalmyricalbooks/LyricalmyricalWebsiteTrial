@@ -9,7 +9,7 @@ import {
   getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, DEFAULT_COLOR_SCHEMES,
 } from "../ThemeEditorExtensions";
 import { CATEGORIES } from "../../features/site/constants";
-import { buildNavItems, childCategories, moveNavItem, parentOf, renameCategory } from "../../features/site/navItems";
+import { buildNavItems, childCategories, moveNavItem, parentOf, renameCategory, reslotPages } from "../../features/site/navItems";
 import { COPY_SCHEMA, DEFAULT_COPY } from "../../features/site/storeCopy";
 import { MENU_LINK_TYPES, newMenuItem, type MenuItem } from "../../features/site/storeMenu";
 import {
@@ -974,6 +974,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
             {leftTab === "pages" && (
               <StudioPages pages={pages} setPages={setPages} say={say} onDraft={setDraftPage}
+                onReorder={(ordered) => {
+                  const raw: any[] = Array.isArray(design.categories) ? design.categories : [...CATEGORIES];
+                  const cats = raw.map((c, i) => (typeof c === "string" ? { id: `cat-${i}`, name: c, description: "", showInNav: true } : c));
+                  setStyle("navOrder", reslotPages(buildNavItems(cats, ordered, design.navOrder), ordered));
+                }}
                 onEditSections={(slug) => { setShowGlobal(false); setTemplateId(`page:${slug}`); setSelectedId(null); setLeftTab("sections"); }} />
             )}
 

@@ -842,7 +842,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const homeSections: any[] = heroDesign.sections || heroDesign.homepageSections || activeDesign.homepageSections || [];
   const onHome = !showCatalog && homeSections.length > 0;
   const navBar = (
-              <nav ref={navRef} data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className={`hidden md:flex shrink-0 flex-nowrap items-center ${navBelow ? "max-w-full overflow-x-auto py-3" : ""} ${storefrontDesign?.navStyle === "stickers" ? "gap-2" : ""}`} style={storefrontDesign?.navStyle === "stickers" ? undefined : { columnGap: navGap(storefrontDesign) }}>
+              <nav ref={navRef} data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className={`hidden md:flex shrink-0 items-center ${navBelow ? "max-w-full flex-wrap gap-y-3 py-3" : "flex-nowrap"} ${storefrontDesign?.navStyle === "stickers" ? "gap-2" : ""}`} style={storefrontDesign?.navStyle === "stickers" ? undefined : { columnGap: navGap(storefrontDesign) }}>
                 {navItems.map((item, itemIdx) => {
                   const stickers = storefrontDesign?.navStyle === "stickers";
                   if (item.kind === "page") {

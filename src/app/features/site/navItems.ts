@@ -80,7 +80,8 @@ export function buildNavItems(categories: any[], pages: any[], order?: string[])
       .filter((k) => k.showInNav !== false);
     items.push({ kind: "category", key: catKey(c, i), label: catName(c), category: c, children });
   });
-  (pages || [])
+  [...(pages || [])]
+    .sort((a, b) => (a?.order ?? 0) - (b?.order ?? 0))
     .filter((p) => p?.showInNav && p.status === "published")
     .forEach((p) => items.push({ kind: "page", key: pageKey(p), label: p.title, page: p }));
   if (!Array.isArray(order) || order.length === 0) return items;
@@ -90,6 +91,13 @@ export function buildNavItems(categories: any[], pages: any[], order?: string[])
   };
   // Array.prototype.sort is stable, so unlisted items keep their default order.
   return [...items].sort((a, b) => rank(a.key) - rank(b.key));
+}
+
+/** navOrder that keeps categories where they are and puts pages, in their own slots, in `orderedPages` order. */
+export function reslotPages(items: NavItem[], orderedPages: any[]): string[] {
+  const pageKeys = orderedPages.map((p) => pageKey(p)).filter((k) => items.some((i) => i.key === k));
+  let n = 0;
+  return items.map((i) => (i.kind === "page" ? pageKeys[n++] ?? i.key : i.key));
 }
 
 /** New navOrder after moving the item at `index` by `delta` within the visible list. */

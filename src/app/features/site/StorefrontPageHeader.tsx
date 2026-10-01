@@ -41,7 +41,7 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
               aria-label={getCopy(design, "ariaMainNavigation")}
               data-studio-target="menus:header-order|menus:categories|style:navlinks"
               data-studio-label="Category bar"
-              className={`hidden shrink-0 flex-nowrap items-center md:flex ${navBelow ? "max-w-full overflow-x-auto py-3" : ""}`}
+              className={`hidden shrink-0 items-center md:flex ${navBelow ? "max-w-full flex-wrap gap-y-3 py-3" : "flex-nowrap"}`}
               style={{ columnGap: navGap(storefront) }}
             >
               {navItems.map((item) => {

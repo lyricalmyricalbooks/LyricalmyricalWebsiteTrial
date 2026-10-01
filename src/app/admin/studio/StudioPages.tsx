@@ -22,10 +22,12 @@ const QUILL_MODULES = {
 type Say = (kind: "ok" | "err", text: string) => void;
 
 /** Custom storefront pages, managed inside the Studio editor (Pages tab). Pages save immediately — they are not part of the theme draft. */
-export function StudioPages({ pages, setPages, say, onEditSections, onDraft }: {
+export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onReorder }: {
   pages: Page[]; setPages: (fn: (p: Page[]) => Page[]) => void; say: Say; onEditSections: (slug: string) => void;
   /** Receives the page being edited (unsaved) so the preview can show it before Save; null when closed. */
   onDraft?: (page: Partial<Page> | null) => void;
+  /** Called with the pages in their new order after an up/down move, so the header bar follows. */
+  onReorder?: (ordered: Page[]) => void;
 }) {
   const [editing, setEditing] = useState<Partial<Page> | null>(null);
   const [original, setOriginal] = useState("");
@@ -68,7 +70,9 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft }: {
     if (!updates.length) return;
     try {
       await Promise.all(updates.map((u) => adminApi.updatePage(u.id, { ...pages.find((p) => p.id === u.id), order: u.order })));
-      setPages((prev) => prev.map((p) => { const u = updates.find((x) => x.id === p.id); return u ? { ...p, order: u.order } : p; }));
+      const next = pages.map((p) => { const u = updates.find((x) => x.id === p.id); return u ? { ...p, order: u.order } : p; });
+      setPages(() => next);
+      onReorder?.([...next].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
     } catch { say("err", "Could not reorder pages."); }
   }
 
