@@ -157,6 +157,12 @@ profile, rate dialog).
 > routes render the themed storefront header. Walkthroughs must use Studio's
 > labels, not legacy legacy-editor tabs.
 
+**Find anything:** the Studio top bar **Find** button (or Ctrl/Cmd+K) searches every Style control, Text & labels
+string, Menus panel, page, section and action (`studio/studioSearch.ts` + `StudioSearch.tsx`; `goToResult` in
+`StudioEditor.tsx` navigates). It indexes `STYLE_GROUPS` and `COPY_SCHEMA`, so new controls are findable with no extra
+work — give them clear labels. **Auto-fit for phones** (`studio/autoMobile.ts`) fills phone/tablet values from the
+desktop design: Sections tab › *Auto-fit page for phones*, or section › Layout & style › *Phone & tablet layout*.
+
 Studio's Sections outline supports sortable sections and blocks. Canvas clicks
 open their inspector; **Edit mode** selects content and **Browse mode** lets
 storefront links and controls work. **Style** has searchable controls with

@@ -22,12 +22,14 @@ const QUILL_MODULES = {
 type Say = (kind: "ok" | "err", text: string) => void;
 
 /** Custom storefront pages, managed inside the Studio editor (Pages tab). Pages save immediately — they are not part of the theme draft. */
-export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onReorder }: {
+export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onReorder, openSlug }: {
   pages: Page[]; setPages: (fn: (p: Page[]) => Page[]) => void; say: Say; onEditSections: (slug: string) => void;
   /** Receives the page being edited (unsaved) so the preview can show it before Save; null when closed. */
   onDraft?: (page: Partial<Page> | null) => void;
   /** Called with the pages in their new order after an up/down move, so the header bar follows. */
   onReorder?: (ordered: Page[]) => void;
+  /** Opens this page's editor (set by Studio's Find anything); `nonce` re-triggers the same slug. */
+  openSlug?: { slug: string; nonce: number } | null;
 }) {
   const [editing, setEditing] = useState<Partial<Page> | null>(null);
   const [original, setOriginal] = useState("");
@@ -42,6 +44,11 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
 
   const open = (p: Partial<Page>, fresh: boolean) => { setEditing(p); setOriginal(JSON.stringify(p)); setIsNew(fresh); setSlugEdited(!fresh); setError(""); };
   const openNew = () => open({ title: "", slug: "", body: "", status: "published", showInNav: true, order: pages.length, seoTitle: "", metaDescription: "" }, true);
+  useEffect(() => {
+    if (!openSlug) return;
+    const page = pages.find((p) => p.slug === openSlug.slug);
+    if (page) open(page, false);
+  }, [openSlug?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   const back = () => { if (dirty && !window.confirm("Discard your unsaved changes to this page?")) return; setEditing(null); };
 
   async function save() {

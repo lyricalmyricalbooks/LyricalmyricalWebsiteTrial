@@ -6,14 +6,16 @@ import { IconButton, useFocusTrap } from "../riso/components";
 import { findBlock, freshBlockIds, mapBlock, removeBlock, type Section, type SharedBlock } from "./studioModel";
 import { updateBlocks } from "./studioWorkflow";
 import { blockLabel } from "./StudioOutline";
+import { autoFitSection, resetPhoneLayout } from "./autoMobile";
 
-export function StudioInspector({ section, blockId, colorSchemes, device, sharedBlocks, onSaveShared, onPatchShared, onInsertShared, onPatch, onSelectBlock, onDuplicate, onDelete, onToggle, onClose }: {
+export function StudioInspector({ section, blockId, colorSchemes, device, sharedBlocks, onSaveShared, onPatchShared, onInsertShared, onPatch, onSelectBlock, onDuplicate, onDelete, onToggle, onClose, onNotice }: {
   section: Section; blockId: string | null; colorSchemes: any[];
   device: "desktop" | "tablet" | "mobile"; sharedBlocks: SharedBlock[];
   onSaveShared: (blockId: string, name: string) => void; onInsertShared: (shared: SharedBlock) => void;
   onPatchShared: (sharedId: string, patch: Record<string, any>) => void;
   onPatch: (patch: Record<string, any>) => void; onSelectBlock: (id: string | null) => void;
   onDuplicate: () => void; onDelete: () => void; onToggle: () => void; onClose: () => void;
+  onNotice?: (text: string) => void;
 }) {
   const [tab, setTab] = useState("content");
   const [search, setSearch] = useState("");
@@ -41,6 +43,18 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   const patchResponsive = (group: "responsive" | "grid", field: string, value: any) => patchBlock({
     [group]: { ...(block?.[group] || {}), [device]: { ...(block?.[group]?.[device] || {}), [field]: value } },
   });
+  const fitPhone = (overwrite: boolean) => {
+    const r = autoFitSection(section, overwrite);
+    if (!Object.keys(r.value).length) { onNotice?.(r.changes.length ? `${r.changes[0]}. Nothing else needed changing.` : "This section already looks right on phones — nothing to change."); return; }
+    onPatch(r.value);
+    onNotice?.(`Phone layout updated: ${r.changes.join("; ")}. Switch to the phone preview to check it; Undo (Ctrl+Z) reverts.`);
+  };
+  const resetPhone = () => {
+    const patch = resetPhoneLayout(section);
+    if (!Object.keys(patch).length) { onNotice?.("This section has no phone or tablet overrides to reset."); return; }
+    onPatch(patch);
+    onNotice?.("Phone and tablet overrides removed from this section.");
+  };
   const title = block ? blockLabel(block, blocks.indexOf(block), meta?.blockLabel) : meta?.label || section.type;
   return <aside ref={ref} className="studio-inspector" role={overlay ? "dialog" : undefined} aria-modal={overlay || undefined} aria-label="Content settings" tabIndex={-1}>
     <header className="studio-inspector-head">
@@ -86,7 +100,16 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
         </div>}
       </>}
       {!block && sharedBlocks.some(shared => !shared.sectionType || shared.sectionType === section.type) && <div className="studio-control-card"><strong>Shared blocks</strong><p className="studio-hint">Insert a compatible linked instance. Editing its source updates every placement.</p>{sharedBlocks.filter(shared => !shared.sectionType || shared.sectionType === section.type).map(shared => <button key={shared.id} className="studio-link-button" onClick={() => onInsertShared(shared)}>+ {shared.name}</button>)}</div>}
-      {tab === "design" && <SectionSettingsPanel settings={section.settings} onUpdate={onPatch} colorSchemes={colorSchemes} />}
+      {tab === "design" && <>
+        <div className="studio-control-card" data-studio-panel="phone-layout">
+          <strong>Phone &amp; tablet layout</strong>
+          <p className="studio-hint">Works out phone spacing, heading size{section.type === "CompositionSection" ? ", and stacked block placement for phones and tablets" : " and columns"} from your desktop design. Values you set yourself are kept.</p>
+          <button className="studio-link-button" onClick={() => fitPhone(false)}>Auto-fit this section for phones</button>
+          <button className="studio-link-button" onClick={() => fitPhone(true)}>Redo all phone values (replaces mine)</button>
+          <button className="studio-link-button" onClick={resetPhone}>Reset phone layout</button>
+        </div>
+        <SectionSettingsPanel settings={section.settings} onUpdate={onPatch} colorSchemes={colorSchemes} />
+      </>}
     </div>
   </aside>;
 }

@@ -119,6 +119,9 @@ load timing cannot strand the preview on the published design; keep the snapshot
 structured-clone safe (`toCloneable`) and mirror it to the **Preview in new tab**
 window over `BroadcastChannel("studio_preview")` (`features/site/previewTab.ts`).
 New book cards must carry the `fm-card-*` classes (`cardClasses.test.tsx`).
+Studio's **Find anything** (Ctrl/Cmd+K, `studioSearch.ts`) indexes `STYLE_GROUPS`/`COPY_SCHEMA` automatically — a new control needs a
+plain-English label so shop owners can find it. **Auto-fit for phones** (`autoMobile.ts`) writes phone/tablet overrides; keep it in sync
+with the phone keys the renderers read (`mobilePadding*`, `mobileColumns`, `mobileHeadingSize`, block `grid.tablet/mobile`).
 
 1. **Read `docs/THEME_EDITOR.md` first**, plus the whole section/block system —
    `ThemeEditor.tsx`, `ThemeEditorExtensions.tsx` (the `SECTION_REGISTRY`),
