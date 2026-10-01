@@ -585,8 +585,54 @@ async function paypalRequest(config, path, options = {}) {
 // charges the one the customer selected (order.shippingMethod), else the
 // cheapest. Profiles without zones keep the legacy flat calculation. Returns
 // { cost, method } or throws when the destination can't be served.
-function resolveShipping(items, order, profiles, freeShipping) {
+async function resolveShipping(items, order, profiles, freeShipping) {
   const address = order.customer && order.customer.address;
+  if (!freeShipping && address) {
+    const configDoc = await SHIPPO_CONFIG_DOC.get();
+    const config = configDoc.exists ? configDoc.data() || {} : {};
+    const destinationCountry = getCountryCode(address.country);
+    const enabledCountries = Array.isArray(config.dynamicRateCountries) ? config.dynamicRateCountries : [];
+    if (config.dynamicRatesEnabled === true && enabledCountries.includes(destinationCountry)) {
+      const shippoToken = await getShippoToken();
+      if (!shippoToken) throw new Error("Live carrier rates are temporarily unavailable. Please try again.");
+      const settingsDoc = await db.collection("settings").doc("website").get();
+      const settings = settingsDoc.data() || {};
+      const origin = settings.location || {};
+      const totalWeightLb = items.reduce((sum, item) => {
+        const grams = Number(item.weightGrams);
+        return sum + ((Number.isFinite(grams) && grams > 0 ? grams / 453.592 : 1.5) * (item.quantity || 1));
+      }, 0);
+      const shipment = await callShippo("shipments/", "POST", {
+        address_from: {
+          name: settings.info?.name || "Lyricalmyrical Books",
+          street1: origin.street || "456 Montrose Ave",
+          city: origin.city || "Toronto",
+          state: getStateCode(origin.state || "ON"),
+          zip: origin.zip || "M6G3H1",
+          country: getCountryCode(origin.country || "CA"),
+          phone: "6474096863",
+          email: "lyricalmyricalbooks@gmail.com",
+        },
+        address_to: {
+          name: order.customer?.name || "Customer",
+          street1: address.street,
+          city: address.city,
+          state: getStateCode(address.state),
+          zip: address.zip,
+          country: destinationCountry,
+        },
+        parcels: [{ length: "10", width: "8", height: "2", distance_unit: "in", weight: Math.max(0.1, totalWeightLb).toFixed(1), mass_unit: "lb" }],
+        async: false,
+      }, shippoToken);
+      const carrierQuotes = (shipment.rates || []).map(rate => ({
+        name: `${rate.provider || ""} ${rate.servicelevel?.name || rate.servicelevel?.token || "Shipping"}`.trim(),
+        price: Number(rate.amount),
+      })).filter(rate => Number.isFinite(rate.price));
+      const pickedCarrier = pickQuote(carrierQuotes, order.shippingMethod);
+      if (!pickedCarrier) throw new Error("That live carrier rate is no longer available. Please review the shipping options and try again.");
+      return { cost: pickedCarrier.price, method: pickedCarrier.name };
+    }
+  }
   const hasZones = profiles.some((p) => Array.isArray(p.zones) && p.zones.length);
   if (!hasZones) {
     return { cost: freeShipping ? 0 : calculateShipping(items, address, profiles), method: order.shippingMethod || null };
@@ -637,7 +683,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
   }
   const profilesSnap = await db.collection("shipping-profiles").get();
   const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  const shipResult = resolveShipping(items, order, profiles, appliedDiscount?.type === "freeship");
+  const shipResult = await resolveShipping(items, order, profiles, appliedDiscount?.type === "freeship");
   const shipping = shipResult.cost;
 
   const settingsDoc = await db.collection("settings").doc("website").get();
@@ -950,7 +996,7 @@ exports.createStripeCheckoutSession = onRequest(
       let shippingCost;
       let shippingMethodCharged;
       try {
-        const shipResult = resolveShipping(items, order, profiles, appliedDiscount && appliedDiscount.type === "freeship");
+        const shipResult = await resolveShipping(items, order, profiles, appliedDiscount && appliedDiscount.type === "freeship");
         shippingCost = shipResult.cost;
         shippingMethodCharged = shipResult.method;
       } catch (shipErr) {
@@ -2432,6 +2478,7 @@ exports.getShippoConfig = onRequest({ secrets: [SHIPPO_API_TOKEN] }, async (req,
       lastFour: config?.lastFour || (fallbackToken ? fallbackToken.slice(-4) : null),
       updatedAt: config?.updatedAt || null,
       dynamicRatesEnabled: config?.dynamicRatesEnabled ?? false,
+      dynamicRateCountries: Array.isArray(config?.dynamicRateCountries) ? config.dynamicRateCountries : [],
     });
   } catch (err) {
     console.error("getShippoConfig failed:", err);
@@ -2450,6 +2497,9 @@ exports.setShippoDynamicRates = onRequest(async (req, res) => {
   if (!adminUser) return;
 
   const enabled = Boolean(req.body?.enabled);
+  const dynamicRateCountries = Array.isArray(req.body?.countries)
+    ? [...new Set(req.body.countries.map(country => String(country).trim().toUpperCase()).filter(country => /^[A-Z]{2}$/.test(country)))].slice(0, 250)
+    : null;
 
   try {
     const configDoc = await SHIPPO_CONFIG_DOC.get();
@@ -2457,10 +2507,15 @@ exports.setShippoDynamicRates = onRequest(async (req, res) => {
     await SHIPPO_CONFIG_DOC.set({
       ...current,
       dynamicRatesEnabled: enabled,
+      ...(dynamicRateCountries ? { dynamicRateCountries } : {}),
       updatedAt: new Date().toISOString(),
       updatedBy: adminUser.email,
     });
-    res.status(200).json({ success: true, dynamicRatesEnabled: enabled });
+    res.status(200).json({
+      success: true,
+      dynamicRatesEnabled: enabled,
+      dynamicRateCountries: dynamicRateCountries ?? current.dynamicRateCountries ?? [],
+    });
   } catch (err) {
     console.error("setShippoDynamicRates failed:", err);
     res.status(500).json({ error: "Unable to update Shippo dynamic rates setting." });
@@ -2488,6 +2543,13 @@ exports.getShippoRates = onRequest(
       const config = configDoc.exists ? configDoc.data() : {};
       if (config.dynamicRatesEnabled !== true) {
         res.status(400).json({ error: "Dynamic rates are disabled" });
+        return;
+      }
+
+      const destinationCountry = getCountryCode(address.country);
+      const enabledCountries = Array.isArray(config.dynamicRateCountries) ? config.dynamicRateCountries : [];
+      if (!enabledCountries.includes(destinationCountry)) {
+        res.status(200).json({ rates: [], useRegularRates: true });
         return;
       }
 
@@ -2570,6 +2632,7 @@ exports.getShippoRates = onRequest(
         const serviceName = r.servicelevel?.name || r.servicelevel?.token || "Shipping";
         return {
           name: `${providerName} ${serviceName}`.trim(),
+          price: parseFloat(r.amount),
           base: parseFloat(r.amount),
           additional: 0,
           deliveryDays: r.days ? String(r.days) : (r.duration_terms ? r.duration_terms : "3-7"),
@@ -2608,8 +2671,16 @@ exports.saveShippoConfig = onRequest(async (req, res) => {
       lastFour: apiToken.slice(-4),
       updatedAt,
       updatedBy: adminUser.email,
+    }, { merge: true });
+    const saved = (await SHIPPO_CONFIG_DOC.get()).data() || {};
+    res.status(200).json({
+      configured: true,
+      source: "firebase",
+      lastFour: apiToken.slice(-4),
+      updatedAt,
+      dynamicRatesEnabled: saved.dynamicRatesEnabled ?? false,
+      dynamicRateCountries: Array.isArray(saved.dynamicRateCountries) ? saved.dynamicRateCountries : [],
     });
-    res.status(200).json({ configured: true, source: "firebase", lastFour: apiToken.slice(-4), updatedAt });
   } catch (err) {
     console.error("saveShippoConfig failed:", err);
     res.status(500).json({ error: "Unable to save the Shippo API key." });

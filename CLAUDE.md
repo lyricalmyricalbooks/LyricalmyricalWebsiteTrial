@@ -146,8 +146,10 @@ keeps them identical, so change both together. Rate `type`: flat | order | weigh
 pickup, plus conditions (order total / cart grams / item count), `freeOver`, `handlingFee`; profiles
 add `freeShippingOver`, `handlingFee`, `defaultItemWeightG`. The server charges the quote matching
 the customer's `shippingMethod` (else cheapest) and rejects unservable destinations; profiles with no
-zones fall back to legacy flat `calculateShipping`. Live Shippo quotes are shown only when no zones
-exist (charged = displayed). Admin UI: Settings › Shipping › profile editor (Profile rules, Test this
+zones fall back to legacy flat `calculateShipping`. Live Shippo quotes can be enabled for an explicit
+country allowlist in Settings › Shipping › Carrier & labels; all other countries use the regular
+profile/zone path. Selected live quotes are fetched and validated again server-side so the charged
+amount matches checkout. Admin UI: Settings › Shipping › profile editor (Profile rules, Test this
 profile, rate dialog).
 
 ## Theme editor

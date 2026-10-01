@@ -623,11 +623,10 @@ export function Checkout() {
 
   useEffect(() => {
     const addr = customer.address;
-    // Zone/rate profiles are what the server charges, so show exactly those.
-    // Live carrier quotes are only a fallback for stores with no zone setup,
-    // because the charged amount must equal the amount displayed.
-    const hasConfiguredZones = shippingProfiles.some((p) => Array.isArray(p.zones) && p.zones.length > 0);
-    if (hasConfiguredZones || !addr.street?.trim() || !addr.city?.trim() || !addr.state?.trim() || !addr.zip?.trim() || cart.length === 0) {
+    // The backend decides whether this destination is opted into live rates.
+    // Countries outside that allowlist return no live rates and follow the
+    // regular profile/zone path below.
+    if (!addr.street?.trim() || !addr.city?.trim() || !addr.state?.trim() || !addr.zip?.trim() || cart.length === 0) {
       calculateStaticProfileRates();
       return;
     }
