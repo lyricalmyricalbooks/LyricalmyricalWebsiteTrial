@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { googleFontHref } from "./fonts";
 import { loadStripe, type Stripe, type StripeElements } from "@stripe/stripe-js";
 
 export type StripeCardFormHandle = {
@@ -29,8 +30,10 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
   currency: string;
   loadingText: string;
   errorText: string;
+  /** Google Font used inside Stripe's fields (Studio › Checkout form field font). */
+  fontName?: string;
   style?: React.CSSProperties;
-}>(function StripeCardForm({ publishableKey, amountCents, currency, loadingText, errorText, style }, ref) {
+}>(function StripeCardForm({ publishableKey, amountCents, currency, loadingText, errorText, fontName, style }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const stripeRef = useRef<Stripe | null>(null);
   const elementsRef = useRef<StripeElements | null>(null);
@@ -49,6 +52,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
           mode: "payment",
           amount: safeAmount,
           currency: currency.toLowerCase(),
+          fonts: fontName ? [{ cssSrc: googleFontHref(fontName) }] : [],
           appearance: {
             theme: "flat",
             variables: {
@@ -57,6 +61,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
               colorText: getComputedStyle(el).color,
               colorDanger: tokenColor(el, "var(--danger, #b4271a)"),
               borderRadius: "0px",
+              ...(fontName ? { fontFamily: `'${fontName.replace(/'/g, "")}', system-ui, sans-serif` } : {}),
             },
           },
         });
@@ -75,7 +80,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
     return () => { cancelled = true; element?.destroy(); elementsRef.current = null; };
     // amount/currency changes are pushed with elements.update below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publishableKey]);
+  }, [publishableKey, fontName]);
 
   useEffect(() => {
     elementsRef.current?.update({ amount: safeAmount, currency: currency.toLowerCase() });

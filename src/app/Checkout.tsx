@@ -22,6 +22,7 @@ import { StorefrontThemeStyle } from "./features/site/StorefrontThemeStyle";
 import { getCopy } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
+import { searchAddresses, type AddressSuggestion } from "./features/site/addressSuggest";
 import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
 
 // ─── State / province drop-down for countries with a fixed list ──────────────
@@ -101,6 +102,59 @@ function Field({
         }`}>
         {label}
       </label>
+    </div>
+  );
+}
+
+// ─── Street address with suggestions while typing ────────────────────────────
+function AddressField({ label, value, country, onChange, onPick, listLabel, attribution }: {
+  label: string; value: string; country: string;
+  onChange: (v: string) => void; onPick: (s: AddressSuggestion) => void;
+  listLabel: string; attribution: string;
+}) {
+  const [items, setItems] = useState<AddressSuggestion[]>([]);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const typed = useRef(false);
+
+  useEffect(() => {
+    if (!typed.current || value.trim().length < 4) { setItems([]); return; }
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      searchAddresses(value, country, ctrl.signal)
+        .then(list => { setItems(list); setActive(-1); setOpen(list.length > 0); })
+        .catch(() => {});
+    }, 300);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [value, country]);
+
+  const pick = (s: AddressSuggestion) => { typed.current = false; setOpen(false); setItems([]); onPick(s); };
+
+  return (
+    <div className="relative"
+      onKeyDown={e => {
+        if (!open || items.length === 0) return;
+        if (e.key === "ArrowDown") { e.preventDefault(); setActive(a => (a + 1) % items.length); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); setActive(a => (a <= 0 ? items.length - 1 : a - 1)); }
+        else if (e.key === "Enter" && active >= 0) { e.preventDefault(); pick(items[active]); }
+        else if (e.key === "Escape") setOpen(false);
+      }}
+      onBlur={() => setTimeout(() => setOpen(false), 150)}>
+      <Field label={label} value={value} onChange={v => { typed.current = true; onChange(v); }} autoComplete="street-address" required />
+      {open && (
+        <ul role="listbox" aria-label={listLabel} data-studio-target="style:checkout" data-studio-label="Address suggestions"
+          className="fm-address-suggest absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-lg border border-slate-300 bg-white shadow-lg">
+          {items.map((s, i) => (
+            <li key={s.label} role="option" aria-selected={i === active}>
+              <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => pick(s)}
+                className={`block w-full px-3.5 py-2.5 text-left text-sm text-slate-900 ${i === active ? "bg-slate-100" : "hover:bg-slate-50"}`}>
+                {s.label}
+              </button>
+            </li>
+          ))}
+          {attribution && <li className="px-3.5 py-1.5 text-[10px] text-slate-500">{attribution}</li>}
+        </ul>
+      )}
     </div>
   );
 }
@@ -1211,7 +1265,12 @@ export function Checkout() {
               <div className="space-y-3">
                 <CountryField label={c("coCountry")} value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v, state: v === customer.address.country ? customer.address.state : "" } })} />
                 <Field label={c("coName")} value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
-                <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
+                {checkoutDesign.hideAddressSuggestions
+                  ? <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
+                  : <AddressField label={c("coAddress")} value={customer.address.street} country={customer.address.country}
+                      listLabel={c("coAddressSuggestions")} attribution={c("coAddressAttribution")}
+                      onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: v } }))}
+                      onPick={sug => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: sug.street, city: sug.city || prev.address.city, state: sug.state || prev.address.state, zip: sug.zip || prev.address.zip, country: sug.country || prev.address.country } }))} />}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <Field label={c("coCity")} value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required />
                   {regionsFor(customer.address.country)
@@ -1304,6 +1363,7 @@ export function Checkout() {
                           currency={currency}
                           loadingText={c("coStripeLoading")}
                           errorText={c("coStripeLoadError")}
+                          fontName={checkoutDesign.checkoutFieldFont || checkoutDesign.checkoutFont || checkoutDesign.font || checkoutDesign.bodyFont || undefined}
                           style={{
                             background: checkoutDesign.stripeFormBg || undefined,
                             padding: checkoutDesign.stripeFormPadding != null ? `${checkoutDesign.stripeFormPadding}px` : undefined,
