@@ -240,6 +240,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       },
       { key: "ucEmail", label: "Contact email (leave empty to hide the button)", default: "" },
       { key: "ucButton", label: "Contact button", default: "Get in touch" },
+      { key: "ucAdmin", label: "Admin button", default: "Admin" },
       { key: "ucFootnote", label: "Footnote", default: "Lyricalmyrical Books — printed matter" },
     ],
   },

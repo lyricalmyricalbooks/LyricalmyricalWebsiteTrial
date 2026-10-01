@@ -424,6 +424,15 @@ export const adminApi = {
     await adminApi.recordAuditLog("settings", `Updated settings: ${Object.keys(settings).join(", ")}`).catch(error => console.warn("Settings saved; audit log unavailable", error));
   },
 
+  // Flip the storefront "under construction" wall live, keeping the Studio
+  // draft in step so the next Publish doesn't silently undo it.
+  setUnderConstruction: async (on: boolean) => {
+    const docRef = doc(db, "settings", "website");
+    await setDoc(docRef, { design: { showUnderConstruction: on }, draftDesign: { showUnderConstruction: on } },
+      { mergeFields: ["design.showUnderConstruction", "draftDesign.showUnderConstruction"] });
+    await adminApi.recordAuditLog("settings", `Under construction wall ${on ? "on" : "off"}`).catch(error => console.warn("Saved; audit log unavailable", error));
+  },
+
   // Replace the work-in-progress theme with the currently published theme.
   // Keeping draftDesign populated (rather than deleting it) makes subsequent
   // editor loads deterministic and prevents an old draft from resurfacing.

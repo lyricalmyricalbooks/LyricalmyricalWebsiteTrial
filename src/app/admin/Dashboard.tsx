@@ -21,7 +21,7 @@ import Messages from "./Messages";
 import { adminApi } from "./api";
 import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
-  IconButton, Dialog, ToastProvider, SyncChip, useOnline, type NavEntry,
+  IconButton, Dialog, ToastProvider, Toggle, SyncChip, useOnline, type NavEntry,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog } from "./riso/shellParts";
 import { NAV, PAGE_COPY } from "./riso/nav";
@@ -92,6 +92,23 @@ export function Dashboard() {
     });
     return () => unsubscribe();
   }, []);
+
+  const [ucSaving, setUcSaving] = useState(false);
+  async function toggleUnderConstruction(on: boolean) {
+    if (!window.confirm(on ? "Hide the shop behind the “under construction” wall now?" : "Take the wall down and open the shop?")) return;
+    setUcSaving(true);
+    try {
+      await adminApi.setUnderConstruction(on);
+      const patch = (d: any) => ({ ...(d || {}), showUnderConstruction: on });
+      setSettings((p: any) => p && ({ ...p, design: patch(p.design), draftDesign: patch(p.draftDesign) }));
+      setOriginalSettings((p: any) => p && ({ ...p, design: patch(p.design), draftDesign: patch(p.draftDesign) }));
+    } catch (e) {
+      console.error(e);
+      window.alert("Couldn't change the under construction wall. Please try again.");
+    } finally {
+      setUcSaving(false);
+    }
+  }
 
   async function loadSettings() {
     console.log("Loading settings...");
@@ -303,6 +320,12 @@ export function Dashboard() {
                 <span className="rp-status-dot" aria-hidden />
                 {settings?.maintenanceMode ? "Storefront in maintenance" : "Storefront live"}
               </span>
+              <Toggle
+                label={settings?.design?.showUnderConstruction ? "Under construction: ON" : "Under construction"}
+                checked={!!settings?.design?.showUnderConstruction}
+                disabled={!settings || ucSaving}
+                onChange={toggleUnderConstruction}
+              />
               <SecondaryButton className="rp-hide-sm" icon={<Globe size={16} aria-hidden />} onClick={openSite}>View Site</SecondaryButton>
               <PrimaryButton icon={<Plus size={16} aria-hidden />} aria-label="Add Book" onClick={handleAddBook}>
                 <span className="rp-btn-label">Add Book</span>

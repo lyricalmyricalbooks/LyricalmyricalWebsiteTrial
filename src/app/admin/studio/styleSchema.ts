@@ -519,6 +519,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "showBreadcrumbs", label: "Breadcrumbs (collection pages)", kind: "toggle" },
       { key: "showCookieBanner", label: "Cookie banner (keep on where law requires it)", kind: "toggle" },
       { key: "showUnderConstruction", label: "Under construction wall (hides the whole shop from visitors)", kind: "toggle" },
+      { key: "showUnderConstructionAdmin", label: "“Admin” button on the under construction wall", kind: "toggle" },
     ],
   },
   {

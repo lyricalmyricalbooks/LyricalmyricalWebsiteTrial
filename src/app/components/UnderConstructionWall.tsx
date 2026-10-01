@@ -1,4 +1,4 @@
-import { useLocation } from "react-router";
+import { Link, useLocation } from "react-router";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { useLiveDesign } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
@@ -47,6 +47,14 @@ export function UnderConstructionWall() {
           >
             {c("ucButton")}
           </a>
+        )}
+        {design?.showUnderConstructionAdmin !== false && (
+          <Link
+            to="/admin"
+            className="ml-3 mt-8 inline-block border-2 border-[var(--rp-outline)] px-5 py-3 font-mono text-[11px] font-black uppercase tracking-[0.2em] transition-transform hover:-translate-y-0.5"
+          >
+            {c("ucAdmin")}
+          </Link>
         )}
         <p className="mt-8 font-mono text-[10px] uppercase tracking-[0.25em] opacity-60">{c("ucFootnote")}</p>
       </div>
