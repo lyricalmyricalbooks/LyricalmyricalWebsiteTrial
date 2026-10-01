@@ -839,7 +839,7 @@ exports.createStripeCheckoutSession = onRequest(
       return;
     }
 
-    const { orderId, currency: reqCurrency, returnUrl } = req.body;
+    const { orderId, currency: reqCurrency, returnUrl, embedded } = req.body;
     const checkoutCurrency = (reqCurrency || "cad").toLowerCase();
     if (!orderId) {
       res.status(400).json({ error: "Missing orderId" });
@@ -1093,13 +1093,64 @@ exports.createStripeCheckoutSession = onRequest(
         },
         // Shorten the unpaid-stock-hold window: session dies after 30 minutes.
         expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-        success_url: `${checkoutBase}${joiner}success=true&order_id=${orderId}`,
-        cancel_url: `${checkoutBase}${joiner}canceled=true`,
+        // Embedded mode keeps the card form on the storefront's checkout page;
+        // the webhook still receives checkout.session.completed either way.
+        ...(embedded
+          ? {
+            ui_mode: "embedded",
+            return_url: `${checkoutBase}${joiner}success=true&order_id=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
+          }
+          : {
+            success_url: `${checkoutBase}${joiner}success=true&order_id=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${checkoutBase}${joiner}canceled=true`,
+          }),
       });
 
-      res.status(200).json({ sessionId: session.id, url: session.url });
+      res.status(200).json({
+        sessionId: session.id,
+        url: session.url || null,
+        clientSecret: embedded ? session.client_secret : null,
+      });
     } catch (err) {
       console.error("Stripe Session Creation Failed:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+);
+
+// Read-only status check for the checkout return page. Only reports on a
+// session that belongs to the given order, and never marks anything paid —
+// the webhook stays the single source of truth for payment.
+exports.getStripeCheckoutStatus = onRequest(
+  { secrets: [STRIPE_SECRET_KEY] },
+  async (req, res) => {
+    if (applyCors(req, res)) return;
+    if (req.method !== "POST") {
+      res.status(405).send("Method Not Allowed");
+      return;
+    }
+    const { orderId, sessionId } = req.body || {};
+    if (typeof orderId !== "string" || typeof sessionId !== "string" || !sessionId.startsWith("cs_")) {
+      res.status(400).json({ error: "Missing orderId or sessionId" });
+      return;
+    }
+    try {
+      const settingsDoc = await db.collection("settings").doc("website").get();
+      const settings = settingsDoc.exists ? settingsDoc.data() : {};
+      const testMode = settings.payments?.testMode || false;
+      const stripeSettings = settings.payments?.stripe || {};
+      const stripeSecret = testMode
+        ? stripeSettings.testSecretKey
+        : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
+      if (!stripeSecret) throw new Error("Stripe is not configured.");
+      const session = await new Stripe(stripeSecret).checkout.sessions.retrieve(sessionId);
+      if (session.client_reference_id !== orderId) {
+        res.status(404).json({ error: "Session not found" });
+        return;
+      }
+      res.status(200).json({ status: session.status, paymentStatus: session.payment_status });
+    } catch (err) {
+      console.error("Stripe status check failed:", err);
       res.status(500).json({ error: err.message });
     }
   }
