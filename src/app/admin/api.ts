@@ -15,6 +15,7 @@ import {
   getCountFromServer,
   startAfter,
   writeBatch,
+  runTransaction,
   deleteField,
 } from "firebase/firestore";
 import { 
@@ -30,6 +31,8 @@ import { functionUrl } from "../lib/functionsBase";
 // imported on demand so the public storefront bundle never downloads them.
 const loadLegacy = () => import("../../lib/legacyFirebase");
 import { CATEGORIES } from "../features/site/constants";
+import { categoryBookPatch, directlyAssigned, type CategoryAction } from "./studio/categoryManager";
+import { normalizeCategories } from "../features/site/navItems";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS, withRisoNoirDefault } from "../features/site/risoNoir";
 import type { Book, Page, SiteSettings } from "../features/site/types";
 
@@ -111,6 +114,41 @@ export const adminApi = {
   },
 
   // Books
+  // Full catalog, including drafts and records without createdAt, for category management.
+  getCategoryBooks: async () => {
+    const snap = await getDocs(collection(db, "books"));
+    return snap.docs.map(d => ({ ...d.data(), id: d.id }));
+  },
+
+  updateCategoryBooks: async (ids: string[], source: any, action: CategoryAction, target?: any) => {
+    if (auth.currentUser?.email !== "lyricalmyricalbooks@gmail.com") throw new Error("Admin sign-in is required.");
+    const unique = [...new Set(ids)];
+    if (unique.length > 400) throw new Error("More than 400 books are assigned here. Use Edit → Assigned here to move or remove up to 400 at a time, then retry deletion. No books were changed.");
+    if (!source?.name || (action === "move" && (!target?.name || target.id === source.id))) throw new Error("Choose a different destination category.");
+    if (!["add", "remove", "move"].includes(action)) throw new Error("Choose a valid category action.");
+    // Read fresh tag fields and commit atomically. Concurrent catalog edits are
+    // retried, and inventory/prices/other book fields are never included in the patch.
+    return runTransaction(db, async transaction => {
+      const settings = await transaction.get(doc(db, "settings", "website"));
+      const live = normalizeCategories(settings.data()?.design?.categories ?? [...CATEGORIES]);
+      const liveSource = live.find(c => c.id === source.id);
+      const liveTarget = action === "move" ? live.find(c => c.id === target.id) : liveSource;
+      if (!liveSource || ((action === "add" || action === "move") && !liveTarget))
+        throw new Error("Publish newly added categories before saving their book assignments.");
+      const effectiveSource = { ...source, aliases: [...new Set([...(source.aliases || []), liveSource.name, ...(liveSource.aliases || [])])] };
+      const snapshots = await Promise.all(unique.map(id => transaction.get(doc(db, "books", id))));
+      if (snapshots.some(s => !s.exists())) throw new Error("A selected book was deleted. Reload the catalog and try again.");
+      return snapshots.map(snapshot => {
+        const book = snapshot.data();
+        if (action !== "add" && !directlyAssigned(book, effectiveSource)) return { ...book, id: snapshot.id };
+        // Add uses the published name, so Discard Draft cannot orphan the tags.
+        const patch = categoryBookPatch(book, action === "add" ? liveSource : effectiveSource, action, liveTarget);
+        transaction.update(snapshot.ref, { ...patch, updatedAt: new Date().toISOString() });
+        return { ...book, ...patch, id: snapshot.id };
+      });
+    });
+  },
+
   getBooks: async (limitCount = 50, lastVisible = null) => {
     let q = query(collection(db, "books"), orderBy("createdAt", "desc"), limit(limitCount));
     if (lastVisible) {

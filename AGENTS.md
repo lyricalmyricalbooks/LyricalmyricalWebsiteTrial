@@ -99,6 +99,17 @@ Bring general best-practices, grounded in what this repo already does:
 
 ## Theme editor — go all the way to Shopify parity
 
+Studio › Menus › Shop categories provides searchable Edit/Delete, descriptions,
+optional images, direct book counts, visibility, parent placement and order.
+Category details use Studio's draft/publish workflow. Book assignments save live
+through explicit actions, using published names so Discard Draft cannot orphan
+books; publish new categories before assigning books. Category deletion preserves
+books and promotes children, with keep/remove/move assignment choices. Cleanup
+refreshes catalog membership; transactions update only categories/genres/updatedAt
+and support up to 400 books per save. For larger categories, use Edit › Assigned
+here in groups of up to 400 before deleting. The picker includes the full catalog
+(drafts too), and counts exclude parent roll-ups and PUBLICATIONS' automatic view.
+
 > The **Studio editor** (`src/app/admin/studio/StudioEditor.tsx`) is the default Design editor users see; put every new design feature there first. `ThemeEditor.tsx` is legacy (`?editor=legacy`). See CLAUDE.md › Theme editor.
 
 The `/admin` theme editor is the most-requested area to "make as good as

@@ -9,7 +9,7 @@ import {
   getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, DEFAULT_COLOR_SCHEMES,
 } from "../ThemeEditorExtensions";
 import { CATEGORIES } from "../../features/site/constants";
-import { buildNavItems, childCategories, moveNavItem, parentOf, renameCategory, reslotPages } from "../../features/site/navItems";
+import { buildNavItems, childCategories, moveNavItem, parentOf, reslotPages } from "../../features/site/navItems";
 import { COPY_SCHEMA, DEFAULT_COPY } from "../../features/site/storeCopy";
 import { MENU_LINK_TYPES, newMenuItem, type MenuItem } from "../../features/site/storeMenu";
 import {
@@ -19,6 +19,8 @@ import {
 } from "./studioModel";
 import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, type StyleField, type StyleGroup } from "./styleSchema";
 import { StudioPages } from "./StudioPages";
+import { StudioCategories } from "./StudioCategories";
+import { categoryNavOrder } from "./categoryManager";
 import { PREVIEW_BRIDGE_SOURCE } from "./previewBridge";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS } from "../../features/site/risoNoir";
 import { addSavedTheme, duplicateSavedTheme, savedThemesBytes, savedThemesFit, parseThemeFile, removeSavedTheme, renameSavedTheme, serializeThemeFile, themeFileName, type SavedTheme } from "./savedThemes";
@@ -28,7 +30,7 @@ import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY, PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
 import { StudioOutline } from "./StudioOutline";
 import { StudioInspector } from "./StudioInspector";
-import { StudioSearch } from "./StudioSearch";
+import { StudioSearch } from "./StudioSearch.tsx";
 import { buildStudioIndex, type SearchEntry } from "./studioSearch";
 import { autoFitSections } from "./autoMobile";
 import { applyPageStyle, buildPreviewState, deliverPreviewState, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, withDraftPage } from "./studioWorkflow";
@@ -199,70 +201,6 @@ function MenuRow({ item, pages, depth, onChange, onRemove, onMove }: {
   );
 }
 
-// ── Shop categories (the category bar in the storefront header) ───────────
-function CategoriesPanel({ design, onChange }: { design: any; onChange: (cats: any[]) => void }) {
-  const raw: any[] = Array.isArray(design.categories) ? design.categories : [...CATEGORIES];
-  const cats = raw.map((c, i) => (typeof c === "string" ? { id: `cat-${i}`, name: c, description: "", showInNav: true } : c));
-  const patch = (i: number, p: Record<string, any>) => onChange(cats.map((c, j) => (j === i ? { ...c, ...p } : c)));
-  const move = (i: number, d: number) => {
-    const j = i + d;
-    if (j < 0 || j >= cats.length) return;
-    const c = [...cats]; [c[i], c[j]] = [c[j], c[i]]; onChange(c);
-  };
-  return (
-    <div className="p-4 space-y-3 border-b border-neutral-200" data-studio-panel="menus:categories">
-      <div>
-        <p className="text-sm font-bold">Shop categories</p>
-        <p className="text-xs text-neutral-500">The names in the shop's category bar (Publications, Ephemera…). Rename, hide, reorder or delete them here. Renaming keeps every book that was filed under the old name. Set <b>Sits under</b> to turn a category into a drop-down item (e.g. Books and Zines under Publications).</p>
-      </div>
-      {cats.map((c, i) => (
-        <div key={c.id || i} className="border border-neutral-200 rounded-lg p-2 space-y-2 bg-white">
-          <div className="flex items-center gap-1">
-            <CategoryNameInput name={c.name} onCommit={(v) => onChange(renameCategory(cats, i, v))} />
-            <button className={iconBtn} onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move category up"><ChevronUp size={14} /></button>
-            <button className={iconBtn} onClick={() => move(i, 1)} disabled={i === cats.length - 1} aria-label="Move category down"><ChevronDown size={14} /></button>
-            <button className={iconBtn} aria-label="Delete category"
-              onClick={() => { if (window.confirm(`Delete the "${c.name || "Untitled"}" category? Books keep their data; you can re-add it later.`)) onChange(cats.filter((_, j) => j !== i).map((k) => (k.parentId === c.id ? { ...k, parentId: null } : k))); }}><Trash2 size={14} /></button>
-          </div>
-          <label className="flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={c.showInNav !== false} onChange={(e) => patch(i, { showInNav: e.target.checked })} />
-            Show in the shop menu
-          </label>
-          <label className="flex items-center gap-2 text-xs">
-            <span className="shrink-0">Sits under</span>
-            <select value={parentOf(c, cats) || ""} disabled={childCategories(c, cats).length > 0}
-              onChange={(e) => patch(i, { parentId: e.target.value || null })}
-              aria-label={`Parent of ${c.name || "category"}`}
-              className="flex-1 min-w-0 border border-neutral-200 rounded-md px-2 h-8 text-xs bg-white disabled:opacity-60">
-              <option value="">Nothing — its own spot in the menu</option>
-              {cats.filter((p) => p.id !== c.id && !parentOf(p, cats)).map((p) => (
-                <option key={p.id} value={p.id}>{p.name || "Untitled"} (drop-down)</option>
-              ))}
-            </select>
-          </label>
-          {childCategories(c, cats).length > 0 && (
-            <p className="text-[11px] text-neutral-500">Drop-down: All, {childCategories(c, cats).map((k) => k.name).join(", ")}. Choose which books go where in Books › edit a book › Organize › Categories.</p>
-          )}
-        </div>
-      ))}
-      <button className={btn} onClick={() => onChange([...cats, { id: `cat-${Date.now()}`, name: "NEW CATEGORY", description: "", showInNav: true }])}><Plus size={14} /> Add category</button>
-    </div>
-  );
-}
-
-// Edits locally and commits on blur/Enter, so a rename is recorded once (not per keystroke).
-function CategoryNameInput({ name, onCommit }: { name: string; onCommit: (v: string) => void }) {
-  const [draft, setDraft] = useState(name);
-  useEffect(() => setDraft(name), [name]);
-  const done = () => { if (draft.trim() && draft.trim() !== name) onCommit(draft); else setDraft(name); };
-  return (
-    <input value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={done}
-      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setDraft(name); (e.target as HTMLInputElement).blur(); } }}
-      aria-label="Category name" placeholder="Category name"
-      className="flex-1 min-w-0 border border-neutral-200 rounded-md px-2 h-8 text-xs" />
-  );
-}
-
 // ── Header bar order (categories + in-menu pages, one sequence) ────────────
 function NavOrderPanel({ design, pages, onChange }: { design: any; pages: any[]; onChange: (order: string[]) => void }) {
   const raw: any[] = Array.isArray(design.categories) ? design.categories : [...CATEGORIES];
@@ -398,7 +336,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // load pages + books for the preview pickers
   useEffect(() => {
     adminApi.getPages().then((p: any[]) => setPages(p || [])).catch(() => {});
-    adminApi.getBooks().then((b: any[]) => { const published = (b || []).filter(x => x.status === "published" || !x.status); setBooks(published); setProductSlug(published[0]?.slug || ""); }).catch(() => say("err", "Could not load preview products. Reopen Studio to retry."));
+    adminApi.getCategoryBooks().then((b: any[]) => { const published = (b || []).filter(x => x.status === "published" || !x.status); setBooks(published); setProductSlug(published[0]?.slug || ""); }).catch(() => say("err", "Could not load preview products. Reopen Studio to retry."));
   }, []);
   const loadVersions = useCallback(async () => {
     try { setVersions(await adminApi.listThemeVersions() as ThemeVersion[]); }
@@ -1072,7 +1010,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
             {leftTab === "menus" && (
               <>
-                <CategoriesPanel design={design} onChange={(c) => setStyle("categories", c)} />
+                <StudioCategories design={design} published={published} onChange={(c) => setStyle("categories", c)}
+                  onReorder={(c) => change(d => ({ ...d, categories: c, navOrder: categoryNavOrder(d.categories ?? [...CATEGORIES], c, pages, d.navOrder) }))}
+                  onBooksChanged={(all) => setBooks(all.filter(b => b.status === "published" || !b.status))} />
                 <NavOrderPanel design={design} pages={pages} onChange={(o) => setStyle("navOrder", o)} />
                 <MenusPanel design={design} pages={pages} onChange={(m) => setStyle("menus", m)} />
               </>

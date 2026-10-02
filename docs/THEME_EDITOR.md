@@ -14,6 +14,15 @@ increment and stopping.
 
 ## What already exists (don't rebuild it)
 
+- [x] Studio › Menus category management: searchable Edit/Delete, descriptions,
+  optional images, direct assignment counts, visibility, hierarchy and menu order;
+  full-catalog book picker with add/remove/move and safe deletion choices.
+  Category details remain draft/publish edits. Explicit book saves update live
+  tags atomically (up to 400 books), anchored to published category names so
+  Discard Draft cannot orphan assignments. New categories must be published first.
+  Deletion preserves books, promotes children and refreshes membership before/after
+  cleanup. For more than 400 members, use Edit › Assigned here in groups first.
+
 The editor is **not** a blank slate. It already supports:
 
 - A **section + block** model with per-section/per-block settings schemas.

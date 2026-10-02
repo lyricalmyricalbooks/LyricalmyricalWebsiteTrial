@@ -168,6 +168,17 @@ profile, rate dialog).
 > routes render the themed storefront header. Walkthroughs must use Studio's
 > labels, not legacy legacy-editor tabs.
 
+Studio › Menus › Shop categories has a searchable category manager with explicit
+Edit/Delete, descriptions, optional images, visibility, parent placement and order.
+Counts show direct assignments (including aliases); parent roll-ups and the
+automatic PUBLICATIONS all-books view are separate. The picker reads the entire
+catalog, including drafts and records without createdAt. Category details follow
+Save draft/Publish; book assignments have an explicit live Save action, use the
+published category name, and cannot target unpublished categories. Bulk writes
+read fresh tags in an atomic transaction (up to 400 books), touching only
+categories/genres/updatedAt. Deletion keeps all books, promotes children and offers
+keep/remove/move assignments, refreshing membership before and after cleanup.
+For larger categories, use Edit › Assigned here in groups of up to 400 first.
 **Find anything:** the Studio top bar **Find** button (or Ctrl/Cmd+K) searches every Style control, Text & labels
 string, Menus panel, page, section and action (`studio/studioSearch.ts` + `StudioSearch.tsx`; `goToResult` in
 `StudioEditor.tsx` navigates). It indexes `STYLE_GROUPS` and `COPY_SCHEMA`, so new controls are findable with no extra
