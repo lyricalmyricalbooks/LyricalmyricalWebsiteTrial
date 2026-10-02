@@ -2,8 +2,9 @@ import { useState, useEffect, useMemo } from "react";
 import { Download, Trash2 } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
-import { matchesOrderTab, ORDER_TABS } from "./orderTabs";
-import { orderApi, FULFILLMENT_LABELS, type FulfillmentStatus } from "../lib/commerce";
+import { WORK_QUEUES, queueOf, packingKey, addressIssues } from "./fulfillment";
+import { printOrders } from "./orderPrint";
+import { orderApi, type FulfillmentStatus } from "../lib/commerce";
 import {
   Checkbox, ConfirmDialog, DataTable, DestructiveButton, EmptyState, ErrorState, FilterBar, LoadingState,
   Pagination, PrimaryButton, SearchField, SectionCard, SecondaryButton, SelectField, StatusBadge, Tabs,
@@ -18,13 +19,14 @@ const orderSearchCache = new WeakMap<any, string>();
 export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("To ship");
+  const [activeTab, setActiveTab] = useState("Needs attention");
   const [searchQuery, setSearchQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [bulkStatus, setBulkStatus] = useState<FulfillmentStatus>("processing");
+  const [busy, setBusy] = useState(false);
+  const [batchResults, setBatchResults] = useState<string[]>([]);
   const [failed, setFailed] = useState(false);
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState<"newest" | "oldest" | "total-desc" | "total-asc">("newest");
+  const [sort, setSort] = useState<"newest" | "oldest" | "total-desc" | "total-asc">("oldest");
   const [range, setRange] = useState<"all" | "7" | "30" | "90">("all");
   const [confirmDeleteTests, setConfirmDeleteTests] = useState(false);
   const [orderType, setOrderType] = useState<"production" | "test" | "all">("production");
@@ -85,15 +87,20 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
   };
 
   const handleBulkUpdate = async () => {
-    if (selected.size === 0) return;
-    try {
-      await orderApi.bulkSetStatus(Array.from(selected), bulkStatus);
-      toast.success(`Updated ${selected.size} order${selected.size === 1 ? "" : "s"} → ${FULFILLMENT_LABELS[bulkStatus]}`);
-      setSelected(new Set());
-      loadOrders();
-    } catch {
-      toast.error("Bulk update failed");
+    if (busy) return;
+    setBusy(true);
+    const results: string[] = [];
+    const succeeded = new Set<string>();
+    for (const id of selected) {
+      const o = ordersMap.get(id);
+      try {
+        await adminApi.fulfillmentAction(id, "pack", { packingKey: packingKey(o) });
+        succeeded.add(id); results.push(`${o?.orderId || id}: packed`);
+      } catch (err: any) { results.push(`${o?.orderId || id}: ${err.message || "Could not save"}`); }
     }
+    setBatchResults(results);
+    setSelected(prev => new Set([...prev].filter(id => !succeeded.has(id))));
+    await loadOrders(); setBusy(false);
   };
 
   useEffect(() => {
@@ -103,7 +110,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
   async function loadOrders() {
     setFailed(false);
     try {
-      const data = await adminApi.getOrders();
+      const data = await adminApi.getFulfillmentOrders();
       setOrders(data);
     } catch (err) {
       console.error("Failed to load orders", err);
@@ -120,7 +127,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
   const filteredOrders = useMemo(() => {
     const q = searchQuery.toLowerCase();
     return orders.filter(o => {
-      const matchesTab = matchesOrderTab(o, activeTab);
+      const matchesTab = (activeTab === "All orders" || queueOf(o) === activeTab);
 
       const matchesOrderType =
         orderType === "all" ||
@@ -133,7 +140,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
       if (q) {
         let haystack = orderSearchCache.get(o);
         if (!haystack) {
-          haystack = ((o.orderId || "") + " " + (o.customer?.name || "")).toLowerCase();
+          haystack = ((o.orderId || "") + " " + (o.customer?.name || "") + " " + (o.customer?.email || "") + " " + (o.trackingNumber || "")).toLowerCase();
           orderSearchCache.set(o, haystack);
         }
         if (!haystack.includes(q)) {
@@ -153,7 +160,7 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
   const tabCounts = useMemo(() => {
     const c: Record<string, number> = {};
     const base = orders.filter(o => orderType === "all" || (orderType === "test" ? o.isTest === true : o.isTest !== true));
-    ORDER_TABS.forEach(t => { c[t] = base.filter(o => matchesOrderTab(o, t)).length; });
+    WORK_QUEUES.forEach(t => { c[t] = base.filter(o => (t === "All orders" || queueOf(o) === t)).length; });
     return c;
   }, [orders, orderType]);
 
@@ -188,16 +195,16 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
         <div className="rp-hint">{o.customer?.email}</div>
       </div>
     ) },
-    { key: "items", header: "Items", numeric: true, render: o => o.items?.length || 0 },
+    { key: "items", header: "Items", numeric: true, render: o => (o.items || []).reduce((n: number, i: any) => n + Number(i.quantity || 0), 0) },
     { key: "total", header: "Total", numeric: true, render: o => `CA$${Number(o.total || 0).toFixed(2)}` },
     { key: "payment", header: "Payment", render: o => (
-      <StatusBadge tone={o.paymentStatus === "paid" ? "success" : "danger"}>{o.paymentStatus === "paid" ? "Paid" : "Unpaid"}</StatusBadge>
+      <StatusBadge tone={o.paymentStatus === "paid" ? "success" : "danger"}>{o.paymentStatus === "paid" ? "Paid" : String(o.paymentStatus || "Unpaid").replace(/_/g, " ")}</StatusBadge>
     ) },
     { key: "fulfillment", header: "Fulfillment", render: o => (
-      <StatusBadge tone={fulfillmentTone(fulfillmentOf(o))}>{FULFILLMENT_LABELS[fulfillmentOf(o)]}</StatusBadge>
+      <StatusBadge tone={fulfillmentTone(fulfillmentOf(o))}>{queueOf(o)}</StatusBadge>
     ) },
     { key: "address", header: "Address", render: o => (
-      o.addressVerified === false ? <StatusBadge tone="warning">Check address</StatusBadge>
+      addressIssues(o).length > 0 ? <StatusBadge tone="warning">Check address</StatusBadge>
         : o.addressVerified === true ? <StatusBadge tone="success">Verified</StatusBadge>
         : <StatusBadge>Unchecked</StatusBadge>
     ) },
@@ -206,9 +213,10 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
 
   return (
     <div className="rp-stack">
+      <SectionCard title="Fulfillment desk" description="Work oldest orders first. Review addresses, check the books, then buy a label and confirm dispatch."><p className="rp-hint">Packing and label purchase do not mark an order shipped. Unpaid orders wait for verified payment.</p></SectionCard>
       <FilterBar>
         <div className="rp-grow">
-          <SearchField label="Search orders" placeholder="Search order ID or customer name…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+          <SearchField label="Search orders" placeholder="Search order, customer, email or tracking…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
         </div>
         <SelectField label="Order type" hideLabel value={orderType}
           onChange={e => { setOrderType(e.target.value as any); setSelected(new Set()); }}>
@@ -231,8 +239,10 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
         <SecondaryButton icon={<Download size={16} aria-hidden />} onClick={handleExportCsv}>Export CSV</SecondaryButton>
       </FilterBar>
 
+      {batchResults.length > 0 && <SectionCard title="Batch preparation results"><ul aria-live="polite">{batchResults.map((r, i) => <li key={i}>{r}</li>)}</ul></SectionCard>}
+
       <Tabs label="Order status" value={activeTab} onChange={setActiveTab}
-        tabs={ORDER_TABS.map(t => ({ id: t, label: t, count: t === "All orders" ? undefined : tabCounts[t] }))} />
+        tabs={WORK_QUEUES.map(t => ({ id: t, label: t, count: t === "All orders" ? undefined : tabCounts[t] }))} />
 
       <SectionCard flush title="Orders" description={`${filteredOrders.length} order${filteredOrders.length === 1 ? "" : "s"} · totals are shown as recorded by the payment webhook`}
         actions={filteredOrders.length > 0 && (
@@ -244,10 +254,10 @@ export function Orders({ onSelectOrder }: { onSelectOrder: (order: any) => void 
             )}
             {selected.size > 0 && noTestSelection && (
               <>
-                <SelectField label="Set fulfillment status" hideLabel value={bulkStatus} onChange={e => setBulkStatus(e.target.value as FulfillmentStatus)}>
-                  {(Object.keys(FULFILLMENT_LABELS) as FulfillmentStatus[]).map(k => <option key={k} value={k}>{FULFILLMENT_LABELS[k]}</option>)}
-                </SelectField>
-                <PrimaryButton size="sm" onClick={handleBulkUpdate}>Apply to {selected.size}</PrimaryButton>
+                <SecondaryButton size="sm" disabled={busy} onClick={() => printOrders(orders.filter(o => selected.has(o.id)))}>Print packing slips</SecondaryButton>
+                <SecondaryButton size="sm" disabled={busy} onClick={() => printOrders(orders.filter(o => selected.has(o.id)), true)}>Combined pick list</SecondaryButton>
+                <PrimaryButton size="sm" disabled={busy} onClick={handleBulkUpdate}>{busy ? "Saving…" : "Confirm selected orders packed"}</PrimaryButton>
+                <span className="rp-hint">Confirm only after checking every item. Orders with blockers stay selected.</span>
               </>
             )}
             {selected.size > 0 && <SecondaryButton size="sm" onClick={() => setSelected(new Set())}>Clear</SecondaryButton>}

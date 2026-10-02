@@ -33,6 +33,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    // Publisher packing, holds and internal notes never appear in guest tracking.
+    match /order-operations/{orderId} {
+      allow read, write: if isAdmin();
+    }
     match /orders/{orderId} {
       // Single-document fetch with a known order ID acts as token-like access
       // for guest order tracking. Listing/querying is restricted: admins see

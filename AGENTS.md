@@ -263,3 +263,17 @@ Phone navigation is a keyboard-accessible disclosure shared by the homepage and 
 
 Checkout rejects placeholder/wrong-mode publishable keys and disables payment until an inline Stripe Element is ready. Teardown is idempotent and exception-safe. Admin payment readiness reports invalid keys. Server totals and webhook-only paid-order/inventory authority are unchanged. A production payment is still unverified until the owner configures valid Stripe credentials and completes a sandbox order, webhook, refund, email and fulfillment walkthrough. Public placeholder content still needs owner review.
 
+
+## Publisher fulfillment desk (2 October 2026)
+
+Orders reads the full paginated catalog of orders and private `order-operations` records.
+Queues: Needs attention, Ready to pack, Ready to ship, In transit, Completed, Unpaid and All orders; oldest first.
+Address review, country/province diagnostics, customer-confirmed corrections, item packing checklists, holds,
+parcel presets (browser-local), batch packing with individual results, combined pick lists and separate packing slips
+prepare orders for explicit tracked dispatch. Labels never dispatch an order. Terminal/refunded orders cannot be prepared.
+Payment remains webhook-controlled; the order detail no longer offers Mark as paid. New internal notes and operational
+history live in admin-only `order-operations`, never the guest-readable order. Older public activity is not migrated.
+Private document ID reads and collection listing need no composite indexes. Deploy Firestore rules before the frontend.
+Deploy updated Functions with the frontend: label requests recheck preparation and claim money-spending purchases
+transactionally; uncertain purchase failures stay locked for Shippo reconciliation to prevent duplicate charges.
+Address correction is disabled after label purchase. Stripe totals, inventory and refund authority are unchanged.

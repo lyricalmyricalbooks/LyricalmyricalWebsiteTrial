@@ -1,3 +1,4 @@
+import { addressKey, addressIssues, packingKey, dispatchProblem, queueOf } from "./fulfillment";
 import { themeWrite } from "./themeWrite";
 import { 
   collection, 
@@ -706,6 +707,78 @@ export const adminApi = {
   },
 
   // ORDERS
+  getFulfillmentOrders: async () => {
+    const orders: any[] = [];
+    let cursor: any = null;
+    while (true) {
+      const page = await adminApi.getOrders(200, cursor);
+      orders.push(...page);
+      if (page.length < 200) break;
+      cursor = page[page.length - 1]._lastDoc;
+    }
+    const operations = await getDocs(collection(db, "order-operations"));
+    const byId = new Map(operations.docs.map(d => [d.id, d.data()]));
+    return orders.map(o => ({ ...o, operations: byId.get(o.id) || {} }));
+  },
+
+  correctOrderAddress: async (id: string, address: any, originalKey: string) => {
+    await runTransaction(db, async tx => {
+      const ref = doc(db, "orders", id);
+      const privateRef = doc(db, "order-operations", id);
+      const snap = await tx.get(ref);
+      const privateSnap = await tx.get(privateRef);
+      if (!snap.exists()) throw new Error("Order no longer exists.");
+      const o: any = snap.data();
+      if (o.status === "completed" || o.status === "cancelled" || o.paymentStatus !== "paid" || o.isTest || o.labelUrl || ["shipped", "out_for_delivery", "delivered"].includes(o.fulfillmentStatus)) throw new Error("Address changes are unavailable after label purchase or dispatch.");
+      if (addressKey(o) !== originalKey) throw new Error("The address changed. Reload the order first.");
+      const cleaned = Object.fromEntries(["street", "city", "state", "zip", "country"].map(k => [k, String(address[k] || "").trim().slice(0, 200)]));
+      const problems = addressIssues({ customer: { address: cleaned } });
+      if (problems.length) throw new Error(problems.join(" "));
+      const now = new Date().toISOString();
+      tx.update(ref, { "customer.address": cleaned, addressVerified: deleteField(), addressError: deleteField(), updatedAt: now });
+      const data = privateSnap.data() || {};
+      if (data.labelPurchasePending) throw new Error("Wait for label purchase reconciliation before correcting the address.");
+      tx.set(privateRef, { ...data, addressReviewed: "", updatedAt: now, activity: [...(data.activity || []), { type: "event", message: "Shipping address corrected. A new review is required.", createdAt: now }] });
+    });
+  },
+
+  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "dispatch", payload: any = {}) => {
+    await runTransaction(db, async tx => {
+      const ref = doc(db, "orders", id);
+      const privateRef = doc(db, "order-operations", id);
+      const snap = await tx.get(ref);
+      const privateSnap = await tx.get(privateRef);
+      if (!snap.exists()) throw new Error("Order no longer exists.");
+      const operations: any = privateSnap.data() || {};
+      const o: any = { ...snap.data(), operations };
+      const now = new Date().toISOString();
+      if (o.paymentStatus !== "paid" || o.status === "cancelled" || o.isTest === true || ["cancelled", "refunded"].includes(o.fulfillmentStatus)) throw new Error("Only active paid production orders can be prepared.");
+      let message = "";
+      if (action === "review") {
+        if (queueOf(o) === "In transit" || queueOf(o) === "Completed") throw new Error("This order has already been dispatched.");
+        if (addressIssues(o).length) throw new Error(addressIssues(o).join(" "));
+        if (payload.addressKey !== addressKey(o)) throw new Error("The address changed. Reload and review it again.");
+        operations.addressReviewed = addressKey(o); message = "Shipping address reviewed by publisher.";
+      } else if (action === "pack") {
+        if (queueOf(o) !== "Ready to pack") throw new Error("Review the address and release any hold before packing.");
+        if (payload.packingKey !== packingKey(o)) throw new Error("Items changed. Reload the checklist.");
+        operations.packed = packingKey(o); operations.packedAt = now; message = "All items packed and checked.";
+        tx.update(ref, { fulfillmentStatus: "processing", updatedAt: now });
+      } else if (action === "hold") {
+        if (!["Needs attention", "Ready to pack", "Ready to ship"].includes(queueOf(o))) throw new Error("Only undispatched orders can be held.");
+        if (!String(payload.reason || "").trim()) throw new Error("Enter a hold reason.");
+        operations.hold = String(payload.reason).trim().slice(0, 500); message = `Order held: ${operations.hold}`;
+      } else if (action === "release") { operations.hold = ""; message = "Fulfillment hold released.";
+      } else if (action === "dispatch") {
+        const problem = dispatchProblem(o); if (problem) throw new Error(problem);
+        if (!String(payload.trackingNumber || "").trim() || !String(payload.trackingCarrier || "").trim()) throw new Error("Enter the carrier and tracking number.");
+        tx.update(ref, { status: "completed", fulfillmentStatus: "shipped", trackingNumber: String(payload.trackingNumber).trim(), trackingCarrier: String(payload.trackingCarrier).trim(), shippedAt: now, updatedAt: now });
+        message = `Dispatched via ${payload.trackingCarrier}. Tracking: ${payload.trackingNumber}`;
+      }
+      tx.set(privateRef, { ...operations, updatedAt: now, activity: [...(operations.activity || []), { type: "event", message, createdAt: now }] });
+    });
+  },
+
   getOrders: async (limitCount = 50, lastVisible = null) => {
     let q = query(collection(db, "orders"), orderBy("createdAt", "desc"), limit(limitCount));
     if (lastVisible) {
@@ -748,7 +821,8 @@ export const adminApi = {
     const docRef = doc(db, "orders", id);
     const snap = await getDoc(docRef);
     if (!snap.exists()) return null;
-    return { id: snap.id, ...snap.data() };
+    const operations = await getDoc(doc(db, "order-operations", id));
+    return { id: snap.id, ...snap.data(), operations: operations.data() || {} };
   },
 
   createOrder: async (order: any) => {
@@ -790,24 +864,20 @@ export const adminApi = {
   },
 
   addOrderNote: async (id: string, message: string) => {
-    const docRef = doc(db, "orders", id);
-    const snap = await getDoc(docRef);
-    if (!snap.exists()) return;
-    const activity = snap.data().activity || [];
-    await updateDoc(docRef, {
-      activity: [...activity, { type: "note", message, createdAt: new Date().toISOString() }],
-      updatedAt: new Date().toISOString()
+    await runTransaction(db, async tx => {
+      const ref = doc(db, "order-operations", id);
+      const snap = await tx.get(ref);
+      const data = snap.data() || {};
+      tx.set(ref, { ...data, activity: [...(data.activity || []), { type: "note", message: message.trim().slice(0, 2000), createdAt: new Date().toISOString() }] });
     });
   },
 
   addOrderEvent: async (id: string, message: string) => {
-    const docRef = doc(db, "orders", id);
-    const snap = await getDoc(docRef);
-    if (!snap.exists()) return;
-    const activity = snap.data().activity || [];
-    await updateDoc(docRef, {
-      activity: [...activity, { type: "event", message, createdAt: new Date().toISOString() }],
-      updatedAt: new Date().toISOString()
+    await runTransaction(db, async tx => {
+      const ref = doc(db, "order-operations", id);
+      const snap = await tx.get(ref);
+      const data = snap.data() || {};
+      tx.set(ref, { ...data, activity: [...(data.activity || []), { type: "event", message, createdAt: new Date().toISOString() }] });
     });
   },
 
@@ -904,13 +974,13 @@ export const adminApi = {
     return await response.json();
   },
 
-  getCanadaPostLabelRates: async (orderId: string) => {
+  getCanadaPostLabelRates: async (orderId: string, parcel?: any) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to view label rates.");
     const response = await fetch(functionUrl("createShippingLabel"), {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
-      body: JSON.stringify({ orderId, mode: "rates" }),
+      body: JSON.stringify({ orderId, mode: "rates", parcel }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Failed to load Canada Post rates.");
