@@ -517,3 +517,5 @@ Bug / edge case the change introduced · the next logical feature · offline & s
 - Prefer action over investigation when intent is clear.
 - If the user asks for something, assume they know what they want.
 - Only ask clarifying questions if the request is genuinely ambiguous.
+
+Live carrier choices show up to five distinct Canada Post methods, cheapest first, using the lowest quote for each service. Server quote selection sorts prices before resolving duplicate service names.

@@ -628,7 +628,7 @@ async function resolveShipping(items, order, profiles, freeShipping) {
       const carrierQuotes = (shipment.rates || []).map(rate => ({
         name: `${rate.provider || ""} ${rate.servicelevel?.name || rate.servicelevel?.token || "Shipping"}`.trim(),
         price: Number(rate.amount),
-      })).filter(rate => Number.isFinite(rate.price));
+      })).filter(rate => Number.isFinite(rate.price)).sort((a, b) => a.price - b.price);
       const pickedCarrier = pickQuote(carrierQuotes, order.shippingMethod);
       if (!pickedCarrier) throw new Error("That live carrier rate is no longer available. Please review the shipping options and try again.");
       return { cost: pickedCarrier.price, method: pickedCarrier.name };
