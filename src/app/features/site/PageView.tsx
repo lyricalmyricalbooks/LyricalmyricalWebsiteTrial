@@ -1,6 +1,7 @@
+import { SiteFooter } from "../../components/MainSite";
+import { NotFoundContent } from "./NotFoundPage";
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router";
-import { ArrowLeft } from "lucide-react";
+import { useParams } from "react-router";
 import { adminApi } from "../../admin/api";
 import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
@@ -52,24 +53,19 @@ export function PageView() {
   const { settings, books, pages, loading: siteLoading } = useSiteData();
   const [page, setPage] = useState<Page | null>(null);
   const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
   // Store policies (Settings › General) are served as synthetic pages at /page/policy-<key>.
   const policyPage = policyPageFor(slug, (settings as any)?.policies, (settings as any)?.design);
 
   useEffect(() => {
     if (!slug) return;
+    let cancelled = false;
     setLoading(true);
-    adminApi
-      .getPageBySlug(slug)
-      .then((p) => {
-        if (!p || p.status !== "published") {
-          setNotFound(true);
-        } else {
-          setPage(p);
-        }
-      })
-      .catch(() => setNotFound(true))
-      .finally(() => setLoading(false));
+    setPage(null);
+    adminApi.getPageBySlug(slug)
+      .then(p => { if (!cancelled) setPage(p?.status === "published" ? p : null); })
+      .catch(() => { if (!cancelled) setPage(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [slug]);
 
   // Tab title + description follow Text & labels › Site & sharing (title format, site name).
@@ -125,22 +121,7 @@ export function PageView() {
   }
 
   const shown = previewPage || page || policyPage;
-  if (!shown) {
-    return (
-      <div data-fm-store data-studio-target="copy:Custom pages & 404|pages" data-studio-label="Not-found page" className="min-h-screen fm-page text-white flex flex-col items-center justify-center gap-4">
-        <StorefrontThemeStyle design={settings?.design} />
-        <p className="text-7xl font-black text-white/30" data-theme-field="notFoundCode">{getCopy(settings?.design, "notFoundCode")}</p>
-        <p className="text-white/60 font-medium">{getCopy(settings?.design, "notFoundTitle")}</p>
-        <Link
-          to="/"
-          className="mt-4 flex items-center gap-2 text-xs font-bold tracking-widest text-white/60 hover:text-white transition-colors"
-        >
-          <ArrowLeft size={14} />
-          {getCopy(settings?.design, "notFoundBack")}
-        </Link>
-      </div>
-    );
-  }
+  if (!shown) return <NotFoundContent design={settings?.design} />;
 
   const isHistoryPage = /^(history|history-of-lm)$/.test(slug || "");
   const plainBody = shown.body?.replace(/<[^>]*>/g, "").trim() || "";
@@ -175,11 +156,7 @@ export function PageView() {
 
       <GlobalSections design={settings?.design} books={books} />
 
-      <footer className="mt-auto px-8 py-8 text-center">
-        <p className={`text-[10px] tracking-widest ${themed ? "opacity-40" : "text-neutral-300"}`}>
-          {getCopy(settings?.design, "footerCopyright")}
-        </p>
-      </footer>
+      {d.showPageFooter !== false && <SiteFooter settings={settings} pages={pages} />}
     </div>
   );
 }

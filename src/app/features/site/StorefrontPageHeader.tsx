@@ -1,3 +1,4 @@
+import { MobileStorefrontNav } from "./MobileStorefrontNav";
 import { Heart, Search, User as UserIcon } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
@@ -167,6 +168,7 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
             <div className="mx-auto px-6" style={{ maxWidth }}>{navBar}</div>
           </div>
         )}
+      <MobileStorefrontNav design={design} pages={pages} onSearch={() => setSearchOpen(true)} />
       </header>
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={books} design={design} />
     </>

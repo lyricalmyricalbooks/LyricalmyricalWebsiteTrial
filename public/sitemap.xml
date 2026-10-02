@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/</loc>
-    <lastmod>2026-10-01</lastmod>
+    <lastmod>2026-10-02</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
@@ -17,49 +17,61 @@
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/sss</loc>
-    <lastmod>2026-09-30</lastmod>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/0Jpsj0tPFRj0mztWugHN</loc>
+    <lastmod>2026-10-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/sss</loc>
-    <lastmod>2026-09-30</lastmod>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/35go3RBtXRJDwV2Czqqo</loc>
+    <lastmod>2026-10-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/test</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/altrove-copy</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/ZjixXdeKLnsnVkZhHMvF</loc>
     <lastmod>2026-09-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/altrove</loc>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/o2biTvudbbRdCLwlfrKo</loc>
     <lastmod>2026-09-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/altrove</loc>
-    <lastmod>2026-09-30</lastmod>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/ukQTaqGkqTAI4PYamdFm</loc>
+    <lastmod>2026-10-01</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/altrove</loc>
-    <lastmod>2026-09-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/sss</loc>
-    <lastmod>2026-09-30</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/page/about</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
   </url>
   <url>
     <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/page/submissions</loc>
+    <lastmod>2026-10-01</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  <url>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/page/contact</loc>
     <lastmod>2026-10-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
@@ -72,7 +84,7 @@
   </url>
   <url>
     <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/page/history-of-lyricalmyrical</loc>
-    <lastmod>2026-09-30</lastmod>
+    <lastmod>2026-10-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
