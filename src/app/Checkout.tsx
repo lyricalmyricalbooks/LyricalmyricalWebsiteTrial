@@ -1,3 +1,4 @@
+import { canadaPostRates } from "./features/site/canadaPostRates";
 import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router";
@@ -653,7 +654,7 @@ export function Checkout() {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data.rates) && data.rates.length > 0) {
-            setAvailableRates(data.rates);
+            setAvailableRates(canadaPostRates(data.rates));
             setShippoRatesLoading(false);
             return;
           }

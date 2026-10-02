@@ -220,3 +220,5 @@ Style › Product page · buy card & details (see CLAUDE.md). Trust-signal lines
   stay consistent.
 - Validate before shipping: `npm run build` should succeed, and exercise the
   affected flow (storefront purchase path or admin action) end-to-end.
+
+Live carrier choices show up to five distinct Canada Post methods, cheapest first, using the lowest quote for each service. Server quote selection sorts prices before resolving duplicate service names.
