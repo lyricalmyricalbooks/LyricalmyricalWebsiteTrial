@@ -102,7 +102,7 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
           className="px-6 py-2.5 text-center text-[10px] font-bold uppercase tracking-[0.3em]"
           style={{ backgroundColor: storefront.announcementBg || "var(--accent)", color: storefront.announcementColor || "var(--on-accent)" }}
         >
-          {storefront.announcementText}
+          <span data-studio-style-text="announcementText" data-studio-edit-value={storefront.announcementText}>{storefront.announcementText}</span>
         </div>
       )}
       <header
@@ -145,7 +145,7 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
             )}
             {showAdmin && (
               <Link to="/admin" className="mr-2 hidden items-center gap-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.2em] opacity-30 transition-all hover:opacity-100 sm:flex">
-                {getCopy(design, "navAdmin")}
+                <span data-studio-copy="navAdmin">{getCopy(design, "navAdmin")}</span>
               </Link>
             )}
             {!storefront.hideCartButton && (

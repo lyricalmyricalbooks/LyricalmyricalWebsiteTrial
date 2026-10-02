@@ -209,6 +209,16 @@ A Studio › Style control is not done until it visibly changes the live preview
 
 New storefront regions must carry `data-studio-target` + `data-studio-label` so clicking them in the Studio preview opens their settings (see CLAUDE.md › Click-to-edit in the preview).
 
+Studio's **Shared layout** workspace groups announcement, header, navigation,
+footer and shared-section controls. In Edit mode, double-click plain text in the
+iframe (or focus its edit hook and press Enter), then choose **Done** to commit
+one undoable draft change or **Cancel** / Escape to restore it. Typing keeps the
+preview stable; Save, Publish and Exit wait until the edit finishes. Announcement,
+wordmark, masthead and footer labels edit their existing Studio fields. Linked
+block text updates its shared source while placement stays local. Formatted HTML
+and templated labels open the inspector instead of flattening their content.
+Browse mode restores normal interaction and removes editing focus hooks.
+
 ## Storefront look (Riso Noir)
 
 The public site defaults to Riso Press on black/white with a flare accent. Keep it token-driven:

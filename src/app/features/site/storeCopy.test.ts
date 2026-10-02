@@ -28,6 +28,10 @@ describe('getCopy', () => {
     expect(getCopy({}, defaultKey)).toBe(expectedValue);
   });
 
+  it('honors an intentionally cleared copy override instead of restoring legacy or default words', () => {
+    expect(getCopy({copy:{footerAbout:''},footerAbout:'Legacy description'}, 'footerAbout')).toBe('');
+  });
+
   it('should return empty string when key is not found anywhere', () => {
     expect(getCopy({}, 'nonExistentKey')).toBe('');
   });

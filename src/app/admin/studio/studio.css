@@ -136,3 +136,8 @@
 @media (max-width: 767px) { .studio-sidebar { width: 100%; } .studio-panel-navigation { grid-template-columns: repeat(3, minmax(0, 1fr)); } .studio-topbar .studio-tools-menu > span { display: none; } }
 
 .studio-row-menu button:disabled { opacity: .4; cursor: not-allowed; }
+.studio-inline-status { padding: 10px 16px; font-size: 12px; line-height: 1.5; background: var(--rp-primary-tint); color: var(--rp-primary-text); border-bottom: 1px solid var(--rp-divider); }
+.studio-shared-layout { padding: 12px; display: grid; gap: 12px; }
+.studio-shared-layout .rp-card-body { display: flex; flex-wrap: wrap; gap: 8px; }
+.studio-shared-layout .rp-card-title { font-size: 15px; }
+.studio-shared-layout .rp-card-desc { font-size: 11px; }

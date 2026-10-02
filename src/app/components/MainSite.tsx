@@ -288,25 +288,25 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
         <div className="space-y-4" data-studio-target="copy:Footer|style:logo" data-studio-label="Footer brand">
           {d?.wordmarkStyle === "two-part" ? (
             <p className="text-white text-xl" style={{ fontFamily: headingFontFamily, fontWeight: d?.wordmarkWeight ?? 600, letterSpacing: "-0.01em" }}>
-              {d.wordmarkPrimary || "Lyricalmyrical"} <span style={wordmarkSecondaryStyle(d)}>{d.wordmarkSecondary || "Books"}</span>
+              <span data-studio-style-text="wordmarkPrimary">{d.wordmarkPrimary ?? "Lyricalmyrical"}</span> <span data-studio-style-text="wordmarkSecondary" style={wordmarkSecondaryStyle(d)}>{d.wordmarkSecondary ?? "Books"}</span>
             </p>
           ) : (
-            <p className="text-white font-bold tracking-widest text-xs">{getCopy(settings?.design, "footerWordmark")}</p>
+            <p className="text-white font-bold tracking-widest text-xs"><span data-studio-copy="footerWordmark">{getCopy(settings?.design, "footerWordmark")}</span></p>
           )}
           <p className="leading-relaxed max-w-xs">
-            {settings?.info?.description || getCopy(settings?.design, "footerAbout")}
+            <span data-studio-copy="footerAbout">{settings?.design?.copy?.footerAbout != null ? getCopy(settings?.design, "footerAbout") : settings?.info?.description || getCopy(settings?.design, "footerAbout")}</span>
           </p>
         </div>
 
         {/* Col 2: Navigation */}
         <div className="space-y-3" data-studio-target="menus:footer|copy:Footer|pages" data-studio-label="Footer links">
-          <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerNavHeading")}</p>
+          <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerNavHeading">{getCopy(settings?.design, "footerNavHeading")}</span></p>
           {settings?.design?.menus?.footer?.length > 0 ? (
             <FooterMenu items={settings.design.menus.footer} />
           ) : (
             <>
-              <Link to="/" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkShop")}</Link>
-              <Link to="/track" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkTrack")}</Link>
+              <Link to="/" className="block hover:text-white transition-colors"><span data-studio-copy="footerLinkShop">{getCopy(settings?.design, "footerLinkShop")}</span></Link>
+              <Link to="/track" className="block hover:text-white transition-colors"><span data-studio-copy="footerLinkTrack">{getCopy(settings?.design, "footerLinkTrack")}</span></Link>
               {navPages.map(page => (
                 <Link
                   key={page.id}
@@ -316,12 +316,12 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
                   {page.title}
                 </Link>
               ))}
-              {d?.showSocialInFooter !== false && instagramUrl && <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">{getCopy(settings?.design, "footerLinkInstagram")}</a>}
+              {d?.showSocialInFooter !== false && instagramUrl && <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors"><span data-studio-copy="footerLinkInstagram">{getCopy(settings?.design, "footerLinkInstagram")}</span></a>}
               <a
                 href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
                 className="block hover:text-white transition-colors"
               >
-                {getCopy(settings?.design, "footerLinkContact")}
+                <span data-studio-copy="footerLinkContact">{getCopy(settings?.design, "footerLinkContact")}</span>
               </a>
             </>
           )}
@@ -329,18 +329,18 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
 
         {/* Col 3: Policies / Info */}
         <div className="space-y-3" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer legal & location">
-          <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLegalHeading")}</p>
+          <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerLegalHeading">{getCopy(settings?.design, "footerLegalHeading")}</span></p>
           {POLICY_KEYS.filter((k) => (settings?.policies as any)?.[k]?.trim()).map((k) => (
             <p key={k}><Link to={`/page/${policySlug(k)}`} className="hover:text-white transition-colors">{policyTitle(settings?.design, k)}</Link></p>
           ))}
-          {!fourCol && <p className="mt-6">{getCopy(settings?.design, "footerLocation")}</p>}
+          {!fourCol && <p className="mt-6"><span data-studio-copy="footerLocation">{getCopy(settings?.design, "footerLocation")}</span></p>}
         </div>
 
         {/* Col 4: Location (4-column layout only) */}
         {fourCol && (
           <div className="space-y-3" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer location">
-            <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4">{getCopy(settings?.design, "footerLocationHeading")}</p>
-            <p>{getCopy(settings?.design, "footerLocation")}</p>
+            <p className="text-white/55 text-[9px] uppercase tracking-[0.4em] mb-4"><span data-studio-copy="footerLocationHeading">{getCopy(settings?.design, "footerLocationHeading")}</span></p>
+            <p><span data-studio-copy="footerLocation">{getCopy(settings?.design, "footerLocation")}</span></p>
             <a
               href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
               className="block hover:text-white transition-colors"
@@ -354,7 +354,7 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
       {/* Bottom bar */}
       <div style={{ maxWidth: contentMaxWidth(d) }} className="border-t border-white/20 mx-auto px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
         <p className="text-[9px] tracking-widest text-white/55 uppercase">
-          {getCopy(settings?.design, "footerCopyright")}
+          <span data-studio-copy="footerCopyright">{getCopy(settings?.design, "footerCopyright")}</span>
         </p>
 
         {resolveFooterBadges(d, settings).length > 0 && d?.showPaymentBadges !== false && (
@@ -766,7 +766,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const catalogNavGapDesktop = Math.max(12, Math.min(80, storefrontDesign?.catalogNavGapDesktop ?? 40));
   const catalogNavGapMobile = Math.max(8, Math.min(48, storefrontDesign?.catalogNavGapMobile ?? 18));
   const catalogCartPlacement = storefrontDesign?.catalogCartPlacement || "top-right";
-  const catalogMastheadText = storefrontDesign?.catalogMastheadText || settings?.info?.name || "Lyricalmyrical Books";
+  const catalogMastheadText = storefrontDesign?.catalogMastheadText ?? settings?.info?.name ?? "Lyricalmyrical Books";
   const catalogImageFocalX = Math.max(0, Math.min(100, storefrontDesign?.catalogImageFocalX ?? 50));
   const catalogImageFocalY = Math.max(0, Math.min(100, storefrontDesign?.catalogImageFocalY ?? 50));
   const storefrontButtonRadius = Math.max(0, Math.min(999, storefrontDesign?.buttonRadius ?? 999));
@@ -791,7 +791,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const bagLabel = storefrontDesign?.cartLabel || "BAG";
   const showAnnouncement = storefrontDesign?.showAnnouncement ?? !isReferenceCatalog;
   const showCatalogControls = storefrontDesign?.showCatalogControls ?? !isReferenceCatalog;
-  const announcementMsg = storefrontDesign?.announcementText || settings?.announcements?.[0]?.message;
+  const announcementMsg = storefrontDesign?.announcementText ?? settings?.announcements?.[0]?.message;
   
   const headerTextColor = isHeaderTransparent ? storefrontText : (storefrontDesign?.headerColor || storefrontText);
   const headerBgColor = isHeaderTransparent ? "transparent" : (storefrontDesign?.headerBg || `${storefrontBg}${(storefrontDesign?.headerStyle || "minimal") === "full" ? "f5" : "b3"}`);
@@ -954,7 +954,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 }}
               >
                 {[0, 1].map((copy) => (
-                  <span key={copy} aria-hidden={copy === 1} className="px-8 whitespace-nowrap">
+                  <span key={copy} aria-hidden={copy === 1} data-studio-style-text={copy === 0 ? "announcementText" : undefined} data-studio-edit-value={announcementMsg} className="px-8 whitespace-nowrap">
                     {Array.from({ length: 4 }).map(() => announcementMsg).join("        ")}
                   </span>
                 ))}
@@ -970,7 +970,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 color: storefrontDesign?.announcementColor || "#100f0d",
               }}
             >
-              {announcementMsg}
+              <span data-studio-style-text="announcementText" data-studio-edit-value={announcementMsg}>{announcementMsg}</span>
             </div>
           )
         )}
@@ -992,7 +992,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                   className="text-left font-black tracking-tight leading-none hover:opacity-80 transition-opacity"
                   style={{ color: headerTextColor, textTransform: storefrontDesign?.brandTransform || "none", fontSize: `clamp(${catalogMastheadMobile}px, 5vw, ${catalogMastheadDesktop}px)` }}
                 >
-                  <span data-studio-target="style:catalogLayout|style:logo" data-studio-label="Masthead">{catalogMastheadText}</span>
+                  <span data-studio-target="style:catalogLayout|style:logo" data-studio-label="Masthead" data-studio-style-text="catalogMastheadText">{catalogMastheadText}</span>
                 </button>
                 {showBag && catalogCartPlacement === "top-right" && (
                   <button
@@ -1042,9 +1042,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 {(pages || []).filter((p: any) => p.showInNav && p.status === "published").map((page: any) => (
                   <Link key={page.id} to={`/page/${page.slug}`} className="hover:opacity-70 transition-opacity">{page.title}</Link>
                 ))}
-                <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity">{getCopy(activeDesign, "navSearch")}</button>
+                <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity"><span data-studio-copy="navSearch">{getCopy(activeDesign, "navSearch")}</span></button>
                 {showSys && (
-                  <Link to="/admin" className="hover:opacity-70 transition-opacity opacity-40">{getCopy(activeDesign, "navAdmin")}</Link>
+                  <Link to="/admin" className="hover:opacity-70 transition-opacity opacity-40"><span data-studio-copy="navAdmin">{getCopy(activeDesign, "navAdmin")}</span></Link>
                 )}
                 {showBag && catalogCartPlacement === "nav-end" && (
                   <button onClick={() => setIsCartOpen(true)} className="hover:opacity-70 transition-opacity">
@@ -1140,7 +1140,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 style={{ color: headerTextColor }}
                 className="hidden sm:flex items-center gap-1.5 whitespace-nowrap text-[9px] tracking-[0.2em] font-bold transition-all uppercase mr-2 opacity-30 hover:opacity-100"
               >
-                {getCopy(activeDesign, "navAdmin")}
+                <span data-studio-copy="navAdmin">{getCopy(activeDesign, "navAdmin")}</span>
               </Link>}
               {showBag && (
                 <button

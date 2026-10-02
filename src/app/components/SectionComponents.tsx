@@ -754,6 +754,7 @@ export function RichTextSection({ settings, enableAnimations }: any) {
           <div
             className={`${mw(settings, "max-w-3xl")} mx-auto prose prose-invert ${align === "left" ? "text-left" : align === "right" ? "text-right" : "text-center"}`}
             style={bStyle(settings)}
+            data-theme-field="html"
             dangerouslySetInnerHTML={{ __html: sampleHtml(settings.html, "<p>Use this rich text section to share information with your customers.</p>") }}
           />
         </AnimationContainer>

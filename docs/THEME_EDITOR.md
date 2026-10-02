@@ -389,38 +389,20 @@ library → verify), then check it off.
       change and again after every preview navigation/ready handshake. This
       keeps colors, menus, page content and newly created pages in sync without
       relying on a second Firestore read or timing-sensitive iframe reload.
-- [x] Double-click-to-edit (`TEXT_EDIT` postMessage) now has broad `data-theme-field`
-      coverage: nearly every section-level `text`/`textarea` field across the 27
-      renderers in `SectionComponents.tsx` is wired (title/subtitle/eyebrow/CTA/body
-      copy, etc.), not just a handful of sections. The injected preview script also
-      shows a dashed hover outline on editable fields and supports Escape-to-cancel
-      (reverts to the pre-edit value and emits a final `TEXT_EDIT` so editor state
-      matches). Intentionally still unwired: `richtext`/`html` fields (would corrupt
-      markup via `textContent`), `FeaturedProductSection` (renders live product data, not
-      themed settings), `MarqueeSection`'s `text`/`separator` (rendered as a
-      repeated/joined composite string, not a 1:1 field-to-node mapping), and
-      `ProductGridHeaderSection`'s `cartLabel` (pre-existing composite text node
-      shared with `cartTotalText`).
-- [x] Block-level (array-item) double-click-to-edit: the `TEXT_EDIT` protocol now
-      carries an optional `blockId`, resolved in the injected preview script by
-      walking up to the closest `[data-fm-block]`/`[data-block-id]` ancestor of the
-      double-clicked field (the same `closest()` lookup the existing `SECTION_SELECT`
-      click handler already used). On the parent side, a truthy `blockId` is matched
-      against the section's blocks array (via `getBlocksKey(section.type)`) — first by
-      real `block.id`, falling back to parsing the `block-N` synthetic id — and only
-      that block's field is updated; a falsy/absent `blockId` keeps writing
-      `section.settings[settingKey]` exactly as before (non-breaking, additive).
-      Initial renderer coverage: `TestimonialsSection` (`quote`/`author`/`role`),
-      `FAQSection` (`question`/`answer`), and `SlideshowSection` (`eyebrow`/`title`/
-      `subtitle`/`ctaText`, gated on the currently displayed slide via `blockEditAttrs(slide, active)`).
-      Also covered: `FeatureGridSection` (`title`/`description`; `icon` intentionally
-      skipped — low value) and `BlogPostsSection` (`title`/`excerpt`/`tag`; `date` is
-      skipped because it renders through `formatArticleDate()`, a display transform,
-      so the visible text isn't the raw stored value, and `linkUrl` is skipped since
-      it's only used as the card `href`, never rendered as text). Extending more
-      block-heavy sections are covered by the schema-derived editable-field map,
-      including recursively nested blocks; transformed/composite strings remain
-      inspector-only.
+- [x] Atomic inline text editing in Studio: double-click plain section/block text,
+      announcement messages, mastheads, wordmarks and footer labels, or focus an
+      edit hook and press Enter. Done commits one `INLINE_TEXT_COMMIT` against
+      the latest draft; Cancel/Escape restores the original. One Undo reverses
+      the edit. Multiline text preserves line breaks and letter case. Preview
+      snapshots pause while typing so React cannot replace the active caret.
+      Save, Publish and Exit wait for completion. Formatted HTML and templated
+      labels route to the inspector; product data and composite labels remain
+      inspector-only. Linked block edits update their shared source and preserve
+      local placement. Browse mode removes editing focus/tooltip hooks.
+- [x] Shared layout workspace groups announcement, header, navigation, footer
+      and shared-section controls with direct links to existing settings and
+      text groups. This organizes the controls; header/footer section placement
+      remains a separate roadmap item.
 - [x] Per-section box fill, raised box fill, and line/border color controls now feed the storefront token layer so hard-coded card/form/divider utilities can be recolored from the editor.
 
 
