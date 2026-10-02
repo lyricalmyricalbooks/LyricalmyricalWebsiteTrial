@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, LayoutTemplate, Plus, Trash2 } from "lucide-react";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { adminApi } from "../api";
 import { duplicatePage, movePage, seoHints } from "../pageInsights";
 import type { Page } from "../../features/site/types";
+import { reconcileSavedPage } from "./studioWorkflow";
 
 const btn =
   "inline-flex items-center gap-1.5 px-3 h-9 text-xs font-bold border border-neutral-300 rounded-lg bg-white hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed";
@@ -22,7 +23,7 @@ const QUILL_MODULES = {
 type Say = (kind: "ok" | "err", text: string) => void;
 
 /** Custom storefront pages, managed inside the Studio editor (Pages tab). Pages save immediately — they are not part of the theme draft. */
-export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onReorder, openSlug }: {
+export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onReorder, openSlug, active = true, onBusy, loadError = false, onRetryLoad }: {
   pages: Page[]; setPages: (fn: (p: Page[]) => Page[]) => void; say: Say; onEditSections: (slug: string) => void;
   /** Receives the page being edited (unsaved) so the preview can show it before Save; null when closed. */
   onDraft?: (page: Partial<Page> | null) => void;
@@ -30,12 +31,17 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
   onReorder?: (ordered: Page[]) => void;
   /** Opens this page's editor (set by Studio's Find anything); `nonce` re-triggers the same slug. */
   openSlug?: { slug: string; nonce: number } | null;
+  active?: boolean;
+  onBusy?: (busy: boolean) => void;
+  loadError?: boolean;
+  onRetryLoad?: () => void;
 }) {
   const [editing, setEditing] = useState<Partial<Page> | null>(null);
   const [original, setOriginal] = useState("");
   const [isNew, setIsNew] = useState(false);
   const [slugEdited, setSlugEdited] = useState(false);
   const [saving, setSaving] = useState(false);
+  const locked = useRef(false);
   const [error, setError] = useState("");
   const dirty = !!editing && JSON.stringify(editing) !== original;
   useEffect(() => { onDraft?.(dirty ? editing : null); }, [dirty, editing, onDraft]);
@@ -49,25 +55,36 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
     const page = pages.find((p) => p.slug === openSlug.slug);
     if (page) open(page, false);
   }, [openSlug?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
-  const back = () => { if (dirty && !window.confirm("Discard your unsaved changes to this page?")) return; setEditing(null); };
+  const back = () => { if (locked.current) return; if (dirty && !window.confirm("Discard your unsaved changes to this page?")) return; setEditing(null); };
 
   async function save() {
-    if (!editing) return;
+    if (!editing || locked.current) return;
     if (!editing.title?.trim()) return setError("Give the page a title.");
     if (!editing.slug?.trim()) return setError("A URL slug is required.");
     if (pages.some((p) => p.slug === editing.slug && p.id !== editing.id)) return setError("Another page already uses this slug.");
-    setError(""); setSaving(true);
+    const captured = JSON.parse(JSON.stringify(editing));
+    locked.current = true; setError(""); setSaving(true); onBusy?.(true);
     try {
       let next: Page;
-      if (isNew) { next = await adminApi.createPage(editing); setPages((prev) => [...prev, next]); setIsNew(false); }
-      else { next = await adminApi.updatePage(editing.id!, editing); setPages((prev) => prev.map((p) => (p.id === next.id ? next : p))); }
-      setEditing(next); setOriginal(JSON.stringify(next));
-      say("ok", "Page saved.");
-    } catch (e: any) { say("err", e?.message || "Could not save the page."); } finally { setSaving(false); }
+      if (isNew) { next = await adminApi.createPage(captured); setPages((prev) => [...prev, next]); setIsNew(false); setSlugEdited(true); }
+      else { next = await adminApi.updatePage(captured.id!, captured); setPages((prev) => prev.map((p) => (p.id === next.id ? next : p))); }
+      setEditing(current => reconcileSavedPage(current, captured, next)); setOriginal(JSON.stringify(next));
+      say("ok", "Page saved. Any newer edits remain unsaved.");
+    } catch (e: any) { say("err", e?.message || "Could not save the page."); }
+    finally { locked.current = false; setSaving(false); onBusy?.(false); }
   }
 
+  useEffect(() => {
+    if (!active) return;
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") { event.preventDefault(); save(); }
+    };
+    window.addEventListener("keydown", shortcut);
+    return () => window.removeEventListener("keydown", shortcut);
+  });
+
   async function remove(p: Partial<Page>) {
-    if (!p.id || !window.confirm(`Delete “${p.title}”? It will be removed from the storefront and its menu. This cannot be undone.`)) return;
+    if (locked.current || !p.id || !window.confirm(`Delete “${p.title}”? It will be removed from the storefront and its menu. This cannot be undone.`)) return;
     try { await adminApi.deletePage(p.id); setPages((prev) => prev.filter((x) => x.id !== p.id)); setEditing(null); say("ok", "Page deleted."); }
     catch { say("err", "Could not delete the page."); }
   }
@@ -88,7 +105,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
     return (
       <div className="p-4 space-y-4">
         <div className="flex items-center gap-2">
-          <button className={btn} onClick={back}><ArrowLeft size={14} /> All pages</button>
+          <button className={btn} onClick={back} disabled={saving}><ArrowLeft size={14} /> All pages</button>
           {!isNew && editing.status === "published" && (
             <a className={btn} href={publicUrl(editing.slug)} target="_blank" rel="noreferrer"><ExternalLink size={13} /> View</a>
           )}
@@ -126,8 +143,8 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
         </div>
         <div className="flex flex-wrap items-center gap-2 border-t border-neutral-200 pt-3 sticky bottom-0 bg-white pb-2">
           <button className={btnPrimary} onClick={save} disabled={saving || (!dirty && !isNew)}>{saving ? "Saving…" : isNew ? "Create page" : "Save page"}</button>
-          {!isNew && editing.slug && <button className={btn} onClick={() => onEditSections(editing.slug!)}><LayoutTemplate size={13} /> Design sections</button>}
-          {!isNew && <button className={`${btn} text-red-700`} onClick={() => remove(editing)}><Trash2 size={13} /> Delete</button>}
+          {!isNew && editing.slug && <button className={btn} disabled={saving} onClick={() => onEditSections(editing.slug!)}><LayoutTemplate size={13} /> Design sections</button>}
+          {!isNew && <button className={`${btn} text-red-700`} disabled={saving} onClick={() => remove(editing)}><Trash2 size={13} /> Delete</button>}
           {dirty && <span className="text-[11px] text-neutral-500">Unsaved changes</span>}
         </div>
       </div>
@@ -136,6 +153,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
 
   return (
     <div className="p-4 space-y-3">
+      {loadError && <div role="alert" className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between gap-3"><span>Pages could not be loaded. Your existing list is preserved.</span><button className={btn} onClick={onRetryLoad}>Retry</button></div>}
       <div>
         <p className="text-sm font-bold">Pages</p>
         <p className="text-xs text-neutral-500">Write About, Shipping or Journal pages. New pages are included in the storefront header by default. Pages save straight away and don't need Publish. Use “Design sections” to lay out a page with banners and galleries.</p>

@@ -200,6 +200,14 @@ and `features/site/previewTab.ts` (started in `main.tsx`) re-dispatches it as a 
 `PREVIEW_READY`, and keeps `?preview=true` on in-app navigation. Unsaved Studio › Pages edits ride
 along in the snapshot (`withDraftPage`) without being saved.
 
+Preview canvas actions resolve section ownership and block arrays from the
+current draft, including global sections and dynamic `page:<slug>` templates.
+Linked compositions inherit source children when a placement has no child
+override. Studio Pages stays mounted across editor tabs; unsaved page edits are
+protected on exit, typing during a save is retained, and Ctrl/Cmd+S saves the
+active page. Page-load failures expose Retry. Pre-publish checks inspect global
+and nested content, and identify image-size and contrast review as manual checks.
+
 Studio also supports three-level recursive composition blocks through the
 **Flexible composition** section. Groups can contain text, image, button, or
 more group blocks; the active desktop/tablet/mobile preview controls local

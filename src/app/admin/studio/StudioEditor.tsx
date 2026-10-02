@@ -28,11 +28,12 @@ import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY, PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
 import { StudioOutline } from "./StudioOutline";
 import { StudioInspector } from "./StudioInspector";
-import { StudioSearch } from "./StudioSearch";
+import { StudioSearch } from "./StudioSearch.tsx";
 import { buildStudioIndex, type SearchEntry } from "./studioSearch";
 import { autoFitSections } from "./autoMobile";
-import { applyPageStyle, buildPreviewState, deliverPreviewState, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, withDraftPage } from "./studioWorkflow";
+import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, withDraftPage } from "./studioWorkflow";
 import { useStudioPersistence } from "./useStudioPersistence";
+import { designChecks as buildDesignChecks } from "./studioChecks";
 import { Dialog, SecondaryButton } from "../riso/components";
 import "./studio.css";
 
@@ -55,16 +56,8 @@ function describeChanges(from: any, to: any): string[] {
   return out.length ? out : ["No saved design differences"];
 }
 
-function designChecks(design: any): { tone: "ok" | "warn"; text: string }[] {
-  const sections = Object.values(design || {}).flatMap((v: any) => Array.isArray(v?.sections) ? v.sections : [] as any[]);
-  const results: { tone: "ok" | "warn"; text: string }[] = [];
-  const empty = sections.filter((s: any) => !(s.settings?.title || s.settings?.heading || s.settings?.text || s.settings?.imageUrl || Object.values(s.settings || {}).some(Array.isArray))).length;
-  results.push({ tone: empty ? "warn" : "ok", text: empty ? `${empty} section${empty === 1 ? " is" : "s are"} empty or may lack meaningful content.` : "No obviously empty sections." });
-  const missingAlt = sections.filter((s: any) => Object.keys(s.settings || {}).some(k => /image.*url/i.test(k) && s.settings[k]) && !Object.keys(s.settings || {}).some(k => /alt/i.test(k) && s.settings[k])).length;
-  results.push({ tone: missingAlt ? "warn" : "ok", text: missingAlt ? `${missingAlt} image section${missingAlt === 1 ? " needs" : "s need"} an image description.` : "Image descriptions look complete." });
-  results.push({ tone: "ok", text: "Theme images use responsive storefront loading; verify uploaded hero images stay below 200 KB." });
-  results.push({ tone: "ok", text: "Color controls retain the editor's contrast indicators; review any warning badges before publishing." });
-  return results;
+function designChecks(design: any) {
+  return buildDesignChecks(design, { sectionFields: getSectionFields, blockFields: getBlockFields, blocksKey: getBlocksKey });
 }
 
 const DEVICE_W = { desktop: "100%", tablet: "820px", mobile: "390px" } as const;
@@ -334,6 +327,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [savedDraft, setSavedDraft] = useState<any>(design);
   const [published, setPublished] = useState<any>(() => normalizeDesign(settings?.design, defaults));
   const [pages, setPages] = useState<any[]>([]);
+  const [pageLoadError, setPageLoadError] = useState(false);
+  const [pageBusy, setPageBusy] = useState(false);
   const [books, setBooks] = useState<any[]>([]);
   // The page open in Studio › Pages with unsaved edits — shown in the preview only, never saved from here.
   const [draftPage, setDraftPage] = useState<any | null>(null);
@@ -396,10 +391,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
 
   // load pages + books for the preview pickers
-  useEffect(() => {
-    adminApi.getPages().then((p: any[]) => setPages(p || [])).catch(() => {});
-    adminApi.getBooks().then((b: any[]) => { const published = (b || []).filter(x => x.status === "published" || !x.status); setBooks(published); setProductSlug(published[0]?.slug || ""); }).catch(() => say("err", "Could not load preview products. Reopen Studio to retry."));
+  const loadPages = useCallback(async () => {
+    setPageLoadError(false);
+    try { setPages(await adminApi.getPages() || []); }
+    catch { setPageLoadError(true); say("err", "Could not load pages for Studio preview. Check your connection and retry."); }
   }, []);
+  useEffect(() => {
+    loadPages();
+    adminApi.getBooks().then((b: any[]) => { const published = (b || []).filter(x => x.status === "published" || !x.status); setBooks(published); setProductSlug(published[0]?.slug || ""); }).catch(() => say("err", "Could not load preview products. Reopen Studio to retry."));
+  }, [loadPages]);
   const loadVersions = useCallback(async () => {
     try { setVersions(await adminApi.listThemeVersions() as ThemeVersion[]); }
     catch { say("err", "Could not load version history. Check your connection and try again."); }
@@ -651,22 +651,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         setMobilePanel("settings");
       }
       if (d.type === "SECTION_MOVE" && d.sectionId && d.beforeId) {
-        const from = sections.findIndex(s => s.id === d.sectionId), to = sections.findIndex(s => s.id === d.beforeId);
-        if (from >= 0 && to >= 0 && from !== to) {
-          const next = [...sections]; const [moved] = next.splice(from, 1); next.splice(from < to ? to - 1 : to, 0, moved); setList(() => next);
-        }
+        change(current => applyCanvasAction(current, d, getBlocksKey));
       }
       if (d.type === "BLOCK_MOVE" && d.sectionId && d.blockId && d.beforeId) {
-        const section = sections.find(s => s.id === d.sectionId); if (!section) return;
-        const key = getBlocksKey(section.type), blocks = section.settings[key] || section.settings.blocks || [];
-        setList(list => patchSectionSettings(list, section.id, { [key]: moveBlockBefore(blocks, d.blockId, d.beforeId) }));
+        change(current => applyCanvasAction(current, d, getBlocksKey));
       }
       if (d.type === "ADD_BLOCK" && d.sectionId) {
-        const section = sections.find(s => s.id === d.sectionId); if (!section) return;
-        const meta = getSectionMeta(section.type); if (!meta?.blockType) return;
-        const key = getBlocksKey(section.type), block = { ...JSON.parse(JSON.stringify(meta.blockDefaults || {})), id: newId() };
-        setList(list => patchSectionSettings(list, section.id, { [key]: [...(section.settings[key] || []), block] }));
-        setSelectedId(section.id); setBlockId(block.id); setMobilePanel("settings");
+        const owner = findSectionOwner(designRef.current, d.sectionId);
+        const meta = owner && getSectionMeta(owner.section.type); if (!owner || !meta?.blockType) return;
+        const block = { ...JSON.parse(JSON.stringify(meta.blockDefaults || {})), id: newId() };
+        change(current => applyCanvasAction(current, d, getBlocksKey, block));
+        setSelectedId(d.sectionId); setBlockId(block.id); setMobilePanel("settings");
       }
       if (d.type === "TEXT_EDIT_START") inlineStart.current = designRef.current;
       if (d.type === "TEXT_EDIT_END") {
@@ -696,23 +691,24 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     restore: next => change(() => normalizeDesign(next, defaults)), say,
   });
   const exit = () => {
-    if (dirtyDraft && !window.confirm("You have unsaved edits. Leave without saving?")) return;
+    if (pageBusy) { say("err", "Wait for the page save to finish before leaving Studio."); return; }
+    if ((dirtyDraft || draftPage) && !window.confirm("You have unsaved edits. Leave without saving?")) return;
     onExit();
   };
 
   // warn on tab close, keyboard shortcuts
   useEffect(() => {
-    const before = (e: BeforeUnloadEvent) => { if (dirtyDraft) { e.preventDefault(); e.returnValue = ""; } };
+    const before = (e: BeforeUnloadEvent) => { if (dirtyDraft || draftPage || pageBusy) { e.preventDefault(); e.returnValue = ""; } };
     window.addEventListener("beforeunload", before);
     return () => window.removeEventListener("beforeunload", before);
-  }, [dirtyDraft]);
+  }, [dirtyDraft, draftPage, pageBusy]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
       const typing = /input|textarea|select/i.test((e.target as HTMLElement)?.tagName || "") || (e.target as HTMLElement)?.isContentEditable;
       if (busy === "discard") { e.preventDefault(); return; }
       if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setFindOpen(true); return; }
-      if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); saveDraft(); }
+      if (mod && e.key.toLowerCase() === "s" && leftTab !== "pages") { e.preventDefault(); saveDraft(); }
       else if (mod && e.key.toLowerCase() === "z" && !typing) { e.preventDefault(); setHist((h) => (e.shiftKey ? redo(h) : undo(h))); }
     };
     window.addEventListener("keydown", key);
@@ -877,6 +873,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
       <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
       {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={dismissRecovery}>Discard local recovery</SecondaryButton></div>}
+      {draftPage && leftTab !== "pages" && <div className="studio-recovery" role="status"><span>{pageBusy ? "Saving" : "Unsaved edits to"} page “{draftPage.title || draftPage.slug || "Untitled"}”. {pageBusy ? "Wait for the save to finish." : "Return to Pages to review and save it."}</span>{!pageBusy && <SecondaryButton onClick={() => setLeftTab("pages")}>Return to Pages</SecondaryButton>}</div>}
       {toast && (
         <div role={toast.kind === "err" ? "alert" : "status"}
           className={`absolute top-16 left-1/2 -translate-x-1/2 z-[350] px-4 py-2 rounded-lg text-sm font-bold shadow-lg ${toast.kind === "err" ? "bg-red-600 text-white" : "bg-neutral-900 text-white"}`}>
@@ -1060,15 +1057,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               </div>
             )}
 
-            {leftTab === "pages" && (
-              <StudioPages pages={pages} setPages={setPages} say={say} onDraft={setDraftPage} openSlug={openPage}
+            <div hidden={leftTab !== "pages"}>
+              <StudioPages pages={pages} setPages={setPages} say={say} onDraft={setDraftPage} openSlug={openPage} onBusy={setPageBusy}
+                loadError={pageLoadError} onRetryLoad={loadPages}
+                active={leftTab === "pages"}
                 onReorder={(ordered) => {
                   const raw: any[] = Array.isArray(design.categories) ? design.categories : [...CATEGORIES];
                   const cats = raw.map((c, i) => (typeof c === "string" ? { id: `cat-${i}`, name: c, description: "", showInNav: true } : c));
                   setStyle("navOrder", reslotPages(buildNavItems(cats, ordered, design.navOrder), ordered));
                 }}
                 onEditSections={(slug) => { setShowGlobal(false); setTemplateId(`page:${slug}`); setSelectedId(null); setLeftTab("sections"); }} />
-            )}
+            </div>
 
             {leftTab === "menus" && (
               <>
