@@ -1,3 +1,4 @@
+const { checkoutCarrierRates } = require("./checkoutCarrierRates");
 /**
  * Firebase Cloud Functions for Lyricalmyrical Books
  *
@@ -625,11 +626,8 @@ async function resolveShipping(items, order, profiles, freeShipping) {
         parcels: [{ length: "10", width: "8", height: "2", distance_unit: "in", weight: Math.max(0.1, totalWeightLb).toFixed(1), mass_unit: "lb" }],
         async: false,
       }, shippoToken);
-      const carrierQuotes = (shipment.rates || []).map(rate => ({
-        name: `${rate.provider || ""} ${rate.servicelevel?.name || rate.servicelevel?.token || "Shipping"}`.trim(),
-        price: Number(rate.amount),
-      })).filter(rate => Number.isFinite(rate.price));
-      const pickedCarrier = pickQuote(carrierQuotes, order.shippingMethod);
+      const carrierQuotes = checkoutCarrierRates(shipment.rates || []);
+      const pickedCarrier = carrierQuotes.find(rate => rate.name === order.shippingMethod);
       if (!pickedCarrier) throw new Error("That live carrier rate is no longer available. Please review the shipping options and try again.");
       return { cost: pickedCarrier.price, method: pickedCarrier.name };
     }
@@ -2627,18 +2625,7 @@ exports.getShippoRates = onRequest(
         async: false
       }, shippoToken);
 
-      const rates = shipment.rates || [];
-      const formattedRates = rates.map(r => {
-        const providerName = r.provider || "";
-        const serviceName = r.servicelevel?.name || r.servicelevel?.token || "Shipping";
-        return {
-          name: `${providerName} ${serviceName}`.trim(),
-          price: parseFloat(r.amount),
-          base: parseFloat(r.amount),
-          additional: 0,
-          deliveryDays: r.days ? String(r.days) : (r.duration_terms ? r.duration_terms : "3-7"),
-        };
-      });
+      const formattedRates = checkoutCarrierRates(shipment.rates || []);
 
       res.status(200).json({ rates: formattedRates });
     } catch (err) {

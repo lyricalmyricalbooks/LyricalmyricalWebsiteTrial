@@ -14,6 +14,7 @@ import { useSEO } from "./lib/seo";
 import { useCurrency } from "./CurrencyContext";
 import { COUNTRIES } from "./features/site/shippingZones";
 import { quoteShipping, parseWeightGrams } from "./features/site/shippingEngine";
+import { normalizeCheckoutRates } from "./features/site/checkoutCarrierRates";
 import { TemplateSections, GlobalSections } from "./components/sectionRender";
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, getDoc, collection } from "firebase/firestore";
@@ -618,7 +619,7 @@ export function Checkout() {
     // come from the catalog so weight-based rates quote identically.
     const items = shippingItemsForCart();
     const quotes = quoteShipping(items, { country: customer.address.country || "Canada" }, shippingProfiles);
-    setAvailableRates(quotes.map((q) => ({ name: q.name, price: q.price, deliveryDays: q.deliveryDays, pickup: q.type === "pickup" })));
+    setAvailableRates(quotes.map((q) => ({ name: q.name, price: q.price, deliveryDays: q.deliveryDays, pickup: q.type === "pickup" })).sort((a, b) => a.price - b.price));
   };
 
   useEffect(() => {
@@ -653,7 +654,7 @@ export function Checkout() {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data.rates) && data.rates.length > 0) {
-            setAvailableRates(data.rates);
+            setAvailableRates(normalizeCheckoutRates(data.rates));
             setShippoRatesLoading(false);
             return;
           }
