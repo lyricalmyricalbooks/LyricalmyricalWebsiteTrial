@@ -60,6 +60,10 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
       <div><small>{block ? `${meta?.label} / Block` : "SECTION"}</small><h2>{title}</h2></div>
       <IconButton label="Close settings" onClick={onClose}><X size={17} /></IconButton>
     </header>
+    <div className="studio-edit-context" role="status">
+      <strong>{device === "mobile" ? "Phone" : device === "tablet" ? "Tablet" : "Desktop"} preview</strong>
+      <span>Content is shared across devices. Responsive layout overrides apply to this size.</span>
+    </div>
     <div className="studio-inspector-actions">
       {block && <IconButton label="Back to section" onClick={() => onSelectBlock(null)}><ArrowLeft size={15} /></IconButton>}
       <IconButton label={block ? (block.hidden ? "Show block" : "Hide block") : section.visible === false ? "Show section" : "Hide section"} onClick={block ? () => patchBlock({ hidden: !block.hidden }) : onToggle}>{(block ? block.hidden : section.visible === false) ? <EyeOff size={15} /> : <Eye size={15} />}</IconButton>

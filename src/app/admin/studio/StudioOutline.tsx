@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Copy, Eye, EyeOff, GripVertical, Plus, Trash2 } from "lucide-react";
 import { SortableList, SortableRow } from "../dndSortable";
 import { getBlocksKey, getBlockFields, getSectionMeta } from "../ThemeEditorExtensions";
 import { IconButton, SecondaryButton } from "../riso/components";
 import { addChildBlock, mapBlock, newId, type Section, type StudioBlock } from "./studioModel";
+import { outlineMatches } from "./studioNavigation";
 import { updateBlocks } from "./studioWorkflow";
 
 export function blockLabel(block: any, index: number, fallback = "Block") {
@@ -45,35 +46,62 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
   onAdd: (index: number) => void; onDuplicate: (id: string) => void;
   onDelete: (id: string) => void; onToggle: (id: string) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const searching = Boolean(query.trim());
+  const matches = sections.filter(s => outlineMatches(s, query, getSectionMeta(s.type)?.label));
+  const previousSelection = useRef(selectedId);
+  useEffect(() => {
+    if (previousSelection.current === selectedId) return;
+    previousSelection.current = selectedId;
+    const selected = sections.find(s => s.id === selectedId);
+    if (selected && !outlineMatches(selected, query, getSectionMeta(selected.type)?.label)) setQuery("");
+  }, [selectedId, sections, query]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   useEffect(() => { if (selectedId && blockId) setExpanded(prev => new Set([...prev, selectedId])); }, [selectedId, blockId]);
   const insert = (index: number) => <button className="studio-insert" onClick={() => onAdd(index)} aria-label={`Add section at position ${index + 1}`}><Plus size={12} /> Add section here</button>;
   return <div className="studio-outline">
+    <div className="studio-outline-tools">
+      <input className="studio-search" aria-label="Search sections and blocks" placeholder="Find a section or block…" value={query} onChange={e => setQuery(e.target.value)} />
+      <div className="studio-outline-controls"><span role="status">{matches.length} of {sections.length} sections</span>
+        <button onClick={() => setExpanded(new Set(sections.map(s => s.id)))}>Expand all</button>
+        <button onClick={() => { setQuery(""); setExpanded(new Set()); }}>Collapse all</button>
+      </div>
+      {searching && <><p className="studio-hint">Matching sections include their blocks. Clear search to reorder the full page.</p><button className="studio-reset" onClick={() => setQuery("")}>Clear search</button></>}
+    </div>
     <p className="studio-hint">Drag a handle to reorder. Select a section or expand it to edit individual blocks.</p>
     {sections.length >= 25 && <p role="status" className="studio-hint">{sections.length} sections — consider fewer sections for a faster page.</p>}
-    {insert(0)}
-    <SortableList items={sections} getId={s => s.id} onReorder={onReorder}>
+    {!searching && insert(0)}
+    <SortableList items={sections} getId={s => s.id} onReorder={next => { if (!searching) onReorder(next); }}>
       {sections.map((section, index) => {
+        if (!outlineMatches(section, query, getSectionMeta(section.type)?.label)) return null;
         const meta = getSectionMeta(section.type);
         const key = getBlocksKey(section.type);
         const blocks = section.settings[key] || section.settings.blocks || [];
         const supportsBlocks = Boolean(meta?.blockType && getBlockFields(section.type).length);
-        const open = expanded.has(section.id);
+        const open = searching || expanded.has(section.id);
         const patchBlocks = (fn: (blocks: any[]) => any[]) => onPatch(section.id, updateBlocks(section, key, fn));
         return <div key={section.id}>
           <SortableRow id={section.id} className="studio-tree-section">
             {({ handleProps }) => <>
               <div className="studio-tree-row" data-selected={selectedId === section.id && !blockId} data-hidden={section.visible === false}>
-                <button {...handleProps} className="studio-grip" aria-label={`Reorder ${meta?.label || section.type}`}><GripVertical size={15} /></button>
+                <button {...(searching ? {} : handleProps)} disabled={searching} className="studio-grip" aria-label={`Reorder ${meta?.label || section.type}`}><GripVertical size={15} /></button>
                 {supportsBlocks && <button className="studio-expand" aria-label={`Expand ${meta?.label}`} aria-expanded={open} onClick={() => setExpanded(prev => {
                   const next = new Set(prev); next.has(section.id) ? next.delete(section.id) : next.add(section.id); return next;
                 })}><ChevronDown size={14} style={{ transform: open ? undefined : "rotate(-90deg)" }} /></button>}
                 <button className="studio-tree-label" aria-current={selectedId === section.id && !blockId} onClick={() => onSelect(section.id)}>
-                  <strong>{meta?.label || section.type}</strong>
-                  <small>{section.settings.title || section.settings.heading || (supportsBlocks ? `${blocks.length} blocks` : "Section")}</small>
+                  <strong>{index + 1}. {meta?.label || section.type}</strong>
+                  <small>{section.visible === false ? "Hidden · " : ""}{section.settings.title || section.settings.heading || (supportsBlocks ? `${blocks.length} blocks` : "Section")}</small>
                 </button>
                 <IconButton label={section.visible === false ? "Show section" : "Hide section"} onClick={() => onToggle(section.id)}>{section.visible === false ? <EyeOff size={14} /> : <Eye size={14} />}</IconButton>
                 <details className="studio-row-menu"><summary aria-label={`Actions for ${meta?.label}`}>···</summary><div>
+                  {!searching && <>
+                    <button disabled={index === 0} onClick={() => {
+                      const next = [...sections]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; onReorder(next);
+                    }}>Move up</button>
+                    <button disabled={index === sections.length - 1} onClick={() => {
+                      const next = [...sections]; [next[index], next[index + 1]] = [next[index + 1], next[index]]; onReorder(next);
+                    }}>Move down</button>
+                  </>}
                   <button onClick={() => onDuplicate(section.id)}><Copy size={13} /> Duplicate</button>
                   <button onClick={() => onDelete(section.id)}><Trash2 size={13} /> Remove</button>
                 </div></details>
@@ -87,10 +115,11 @@ export function StudioOutline({ sections, selectedId, blockId, onSelect, onReord
               </div>}
             </>}
           </SortableRow>
-          {insert(index + 1)}
+          {!searching && insert(index + 1)}
         </div>;
       })}
     </SortableList>
+    {searching && !matches.length && <p className="studio-empty">No sections or blocks match “{query}”.</p>}
     {!sections.length && <p className="studio-empty">Start with a section. Your page’s built-in content remains available.</p>}
   </div>;
 }

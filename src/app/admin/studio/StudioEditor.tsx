@@ -35,8 +35,10 @@ import { buildStudioIndex, type SearchEntry } from "./studioSearch";
 import { autoFitSections } from "./autoMobile";
 import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, withDraftPage } from "./studioWorkflow";
 import { useStudioPersistence } from "./useStudioPersistence";
+import { ActionMenu, Dialog, SecondaryButton } from "../riso/components";
+import { filterSettingGroups } from "./studioNavigation";
 import { designChecks as buildDesignChecks } from "./studioChecks";
-import { Dialog, SecondaryButton } from "../riso/components";
+
 import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages";
@@ -279,6 +281,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [blockId, setBlockId] = useState<string | null>(null);
   const [mode, setMode] = useState<"edit" | "browse">("edit");
   const [mobilePanel, setMobilePanel] = useState("preview");
+  const [styleCategory, setStyleCategory] = useState<string | null>(null);
+  const [textCategory, setTextCategory] = useState<string | null>(null);
   const [styleSearch, setStyleSearch] = useState("");
   // Region clicked in the preview → a pinned "Editing: <label>" card with only that region's controls.
   const [styleFocus, setStyleFocus] = useState<{ id: string; label: string } | null>(null);
@@ -560,9 +564,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         if (!tab) return;
         setMobilePanel("outline");
         setSelectedId(null); setBlockId(null);
-        if (tab === "style") setStyleSearch("");
+        if (tab === "style") { setStyleSearch(""); setStyleCategory(null); }
         setStyleFocus(tab === "style" && STYLE_GROUPS.some(g => g.id === rest) ? { id: rest, label: typeof d.label === "string" && d.label ? d.label : (STYLE_GROUPS.find(g => g.id === rest)?.title || rest) } : null);
-        if (tab === "text") setCopyFilter("");
+        if (tab === "text") { setCopyFilter(""); setTextCategory(rest); }
         setLeftTab(tab);
         const panel = kind === "menus" && (rest === "header" || rest === "footer") ? "menus:links" : tab === "style" && STYLE_GROUPS.some(g => g.id === rest) ? "style-focus" : target;
         setFocus(f => ({ id: target, nonce: f.nonce + 1 }));
@@ -740,16 +744,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const t = entry.target;
     setMobilePanel("outline");
     if (t.type === "action") { runAction(t.id); return; }
-    if (t.type === "tab") { setLeftTab(t.tab); setStyleFocus(null); return; }
+    if (t.type === "tab") { setLeftTab(t.tab); setStyleFocus(null); setSelectedId(null); setBlockId(null); return; }
     if (t.type === "style") {
-      setSelectedId(null); setBlockId(null); setStyleSearch(""); setStyleFocus(null); setLeftTab("style");
+      setSelectedId(null); setBlockId(null); setStyleSearch(""); setStyleCategory(t.groupId); setStyleFocus(null); setLeftTab("style");
       const panel = `style:${t.groupId}`;
       setFocus(f => ({ id: panel, nonce: f.nonce + 1 }));
       flashPanel(t.key ? `[data-style-key="${CSS.escape(t.key)}"]` : `[data-studio-panel="${CSS.escape(panel)}"]`, Boolean(t.key));
       return;
     }
     if (t.type === "copy") {
-      setLeftTab("text"); setSelectedId(null); setBlockId(null);
+      setTextCategory(t.group); setLeftTab("text"); setSelectedId(null); setBlockId(null);
       setCopyFilter(t.key || "");
       setFocus(f => ({ id: `copy:${t.group}`, nonce: f.nonce + 1 }));
       flashPanel(t.key ? `[data-copy-key="${CSS.escape(t.key)}"]` : `[data-studio-panel="${CSS.escape(`copy:${t.group}`)}"]`, Boolean(t.key));
@@ -766,8 +770,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (t.type === "page") { setLeftTab("pages"); setOpenPage({ slug: t.slug, nonce: Date.now() }); }
   };
 
-  const sidebarTabs: [LeftTab, string][] = [["sections", "Sections"], ["style", "Style"], ["text", "Text & labels"], ["menus", "Menus"], ["pages", "Pages"]];
+  const sidebarTabs: [LeftTab, string][] = [["sections", "Page layout"], ["style", "Theme settings"], ["text", "Text & labels"], ["menus", "Navigation"], ["pages", "Pages"]];
   const q = copyFilter.trim().toLowerCase();
+  const visibleStyleGroups = filterSettingGroups(STYLE_GROUPS, styleSearch, styleCategory);
+  const panelTitle = sidebarTabs.find(([id]) => id === leftTab)?.[1];
 
   return (
     <div className="rp studio-editor" data-rp-appearance={appearance} data-studio-editor data-mobile-panel={mobilePanel}>
@@ -795,16 +801,19 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           ))}
         </div>
         <button className={btn} aria-pressed={mode === "browse"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}>{mode === "edit" ? "Edit mode" : "Browse mode"}</button>
-        <button className={btn} onClick={openPreviewTab} title="Open your unsaved draft full-screen in a new tab. It updates as you edit; shoppers never see it."><ExternalLink size={14} /> Preview in new tab</button>
+
         <button className={iconBtn} disabled={!hist.past.length} onClick={() => setHist(undo)} aria-label="Undo (Ctrl+Z)"><Undo2 size={15} /></button>
         <button className={iconBtn} disabled={!hist.future.length} onClick={() => setHist(redo)} aria-label="Redo (Ctrl+Shift+Z)"><Redo2 size={15} /></button>
         <div className="flex-1" />
         <span className="text-xs font-bold px-2 py-1 rounded-full bg-neutral-100" role="status">
           {dirtyDraft ? "Unsaved changes" : unpublished ? "Draft saved · not live" : "Live"}
         </span>
-        <button className={btn} onClick={() => { setHistoryOpen(true); loadVersions(); }}><History size={14} /> History</button>
-        <button className={btn} onClick={() => setChecksOpen(true)}><ShieldCheck size={14} /> Check</button>
-        <button className={btn} disabled={!unpublished || busy !== null} onClick={() => setConfirmAction("discard")}>Discard draft</button>
+        <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
+          { label: "Preview in new tab", icon: <ExternalLink size={14} />, onSelect: openPreviewTab },
+          { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
+          { label: "Check before publishing", icon: <ShieldCheck size={14} />, onSelect: () => setChecksOpen(true) },
+          ...(unpublished && busy === null ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
+        ]} /></div>
         <button className={btn} disabled={!dirtyDraft || busy !== null} onClick={saveDraft}>{busy === "draft" ? "Saving…" : "Save draft"}</button>
         <button className={btnPrimary} disabled={(!unpublished && !dirtyDraft) || busy !== null} onClick={() => setConfirmAction("publish")}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
       </header>
@@ -824,11 +833,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       <div className="studio-workspace" {...(busy === "discard" ? { inert: "" } : {})}>
         {/* left column */}
         <nav className="studio-sidebar" aria-label="Editor panels">
-          <div className="grid grid-cols-5 border-b" role="tablist">
+          <div className="studio-panel-navigation" aria-label="Design tools">
             {sidebarTabs.map(([id, label]) => (
-              <button key={id} role="tab" aria-selected={leftTab === id} onClick={() => { setLeftTab(id); setStyleFocus(null); }}
-                className={`py-3 text-[11px] font-bold leading-tight px-1 ${leftTab === id ? "border-b-2 border-neutral-900" : "text-neutral-500 hover:bg-neutral-50"}`}>{label}</button>
+              <button key={id} aria-pressed={leftTab === id} onClick={() => { setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); }}>
+                {label}
+              </button>
             ))}
+          </div>
+          <div className="studio-panel-context">
+            <strong>{panelTitle}</strong>
+            <span>{showGlobal ? "Shared sections · every page" : template.label}{leftTab === "sections" ? ` · ${sections.length} sections` : ""}</span>
+            <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : "Create pages and edit their content or layout."}</small>
           </div>
           <div className="flex-1 overflow-auto">
             {leftTab === "sections" && template.id === "heroPage" && (
@@ -862,7 +877,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               <button className={btn} disabled={!sections.length} onClick={() => autoFitPage(false)} title="Works out phone spacing, heading sizes, columns and stacked blocks for every section on this page. Anything you set yourself is kept."><Smartphone size={13} /> Auto-fit page for phones</button>
               {(design.sectionPresets || []).map((p: any) => <button key={p.id} className={btn} onClick={() => addPreset(p)}>+ {p.name}</button>)}
             </div>}
-            {leftTab === "sections" && <StudioOutline
+            {leftTab === "sections" && <StudioOutline key={showGlobal ? "__global" : template.id}
               sections={sections} selectedId={selectedId} blockId={blockId}
               onSelect={(id, block) => { setSelectedId(id); setBlockId(block || null); setMobilePanel("settings"); highlight(id, true, block || null); }}
               onReorder={list => setList(() => list)} onPatch={(id, patch) => setList(list => patchSectionSettings(list, id, patch))}
@@ -873,8 +888,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               <label>Editing scope<select aria-label="Style scope" value={styleScope} onChange={e => setStyleScope(e.target.value as any)}><option value="all">All pages</option><option value="page">This page only: {template.label}</option></select></label>
               {styleSearch && <button className={btn} onClick={() => setStyleSearch("")}>Clear search</button>}
             </div>}
-            {leftTab === "style" && !styleSearch && (
-              <Group title="Theme look · All pages" open
+            {leftTab === "style" && !styleSearch && !styleCategory && !styleFocus && (
+              <Group title="Theme look · All pages"
                 hint={`Current look: ${design.themeLibraryPreset === RISO_NOIR_ID ? "Riso Noir" : riso ? "Riso Press" : "Standard / custom"}. One click sets every color, font and print detail below; you can still change each one afterwards.`}>
                 <button type="button" className={`${btnPrimary} w-full justify-center`} onClick={applyNoirLook}>Apply Riso Noir (black &amp; white)</button>
                 <button type="button" className={`${btn} w-full justify-center`} onClick={installNoirHome}>Also install the Noir homepage layout</button>
@@ -915,7 +930,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               </Group>
             )}
 
-            {leftTab === "style" && !styleSearch && !styleFocus && (
+            {leftTab === "style" && !styleSearch && !styleCategory && !styleFocus && (
               <Group id="style:paymentIcons" title="Payment icons · All pages" hint="Pick which payment logos the footer shows. Checkout itself always offers the methods enabled in Settings › Payments.">
                 {PAYMENT_BADGE_OPTIONS.map((o) => {
                   const cur = resolveFooterBadges(design, settings);
@@ -932,6 +947,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               </Group>
             )}
 
+            {leftTab === "style" && !styleFocus && !styleSearch.trim() && <div className="studio-category-browser">
+              {styleCategory ? <button className="studio-back" onClick={() => setStyleCategory(null)}><ArrowLeft size={14} /> All theme settings</button> : <>
+                <p className="studio-hint">Settings categories</p>
+                {STYLE_GROUPS.map(g => <button className="studio-category-link" key={g.id} onClick={() => setStyleCategory(g.id)}><span>{g.title}</span><small>{g.fields.length} settings →</small></button>)}
+              </>}
+            </div>}
             {leftTab === "style" && styleFocus && !styleSearch && (() => {
               const focusGroup = STYLE_GROUPS.find(g => g.id === styleFocus.id)!;
               const pattern = STYLE_TARGET_FIELDS[styleFocus.label];
@@ -946,7 +967,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                       <p className="text-sm font-bold">{styleFocus.label}</p>
                       <p className="text-xs text-neutral-500 mt-0.5">{picked.length} settings for this element{styleScope === "page" ? "" : " · all pages"}</p>
                     </div>
-                    <button type="button" className={btn} onClick={() => setStyleFocus(null)}>Show all style settings</button>
+                    <button type="button" className={btn} onClick={() => { setStyleFocus(null); setStyleCategory(null); }}>Back to theme settings</button>
                   </div>
                   <div className="px-4 pb-4 space-y-4">
                     {picked.map(({ g, f }) => renderStyleField(g, f))}
@@ -954,11 +975,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 </div>
               );
             })()}
-            {leftTab === "style" && !styleFocus && STYLE_GROUPS.map(g => {
-              const fields = g.fields.filter(f => (g.title + " " + f.label + " " + f.key).toLowerCase().includes(styleSearch.toLowerCase()));
+            {leftTab === "style" && !styleFocus && (styleCategory || styleSearch.trim()) && visibleStyleGroups.map(g => {
+              const fields = g.fields;
               if (!fields.length) return null;
               const local = styleScope === "page" && PAGE_STYLE_GROUPS.has(g.id);
-              return <Group key={g.id} id={`style:${g.id}`} title={g.title} hint={local ? "This page only. Reset a field to inherit its global value." : "All pages"} open={Boolean(styleSearch)}>
+              return <Group key={g.id} id={`style:${g.id}`} title={g.title} hint={local ? "This page only. Reset a field to inherit its global value." : "All pages"} open={Boolean(styleSearch || styleCategory)}>
                 {fields.map(f => renderStyleField(g, f))}
               </Group>;
             })}
@@ -970,11 +991,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   <input value={copyFilter} onChange={(e) => setCopyFilter(e.target.value)} placeholder="Search any label or message…"
                     aria-label="Search text" className="w-full h-9 border border-neutral-300 rounded-lg px-3 text-xs" />
                 </div>
+                {!q && <div className="studio-category-browser">
+                  {textCategory ? <button className="studio-back" onClick={() => setTextCategory(null)}><ArrowLeft size={14} /> All text categories</button> : COPY_SCHEMA.map(g => <button className="studio-category-link" key={g.group} onClick={() => setTextCategory(g.group)}><span>{g.group}</span><small>{g.fields.length} labels →</small></button>)}
+                </div>}
+                {q && !COPY_SCHEMA.some(g => g.fields.some(f => `${f.label} ${g.group} ${f.default} ${f.key}`.toLowerCase().includes(q))) && <p className="studio-empty">No matching text. Try a shorter word or clear search.</p>}
                 {COPY_SCHEMA.map((g) => {
+                  if (!q && g.group !== textCategory) return null;
                   const fs = g.fields.filter((f) => !q || `${f.label} ${g.group} ${f.default} ${f.key}`.toLowerCase().includes(q));
                   if (!fs.length) return null;
                   return (
-                    <Group key={g.group} id={`copy:${g.group}`} title={g.group} open={Boolean(q)}>
+                    <Group key={g.group} id={`copy:${g.group}`} title={g.group} open={Boolean(q || textCategory)}>
                       {fs.map((f) => {
                         const val = design.copy?.[f.key] ?? "";
                         const Tag: any = f.multiline ? "textarea" : "input";

@@ -539,6 +539,17 @@ Bug / edge case the change introduced · the next logical feature · offline & s
 
 Live carrier choices show up to five distinct Canada Post methods, cheapest first, using the lowest quote for each service. Server quote selection sorts prices before resolving duplicate service names.
 
+## Studio organization
+
+Studio organization milestone: Page layout, Theme settings, Text & labels, Navigation and Pages
+use readable navigation with page context. Theme settings and text browse by category; search spans
+categories and Find anything/click-to-edit opens the owning category. The page outline searches
+section and nested-block content, expands matching sections, numbers original positions and offers
+Expand/Collapse all and explicit Move up/down actions. Section reorder is disabled while searching to preserve the complete stack.
+The toolbar keeps page/device, undo/redo, draft state, Save draft and Publish visible; Theme actions
+holds preview, history, checks and guarded discard. Inspector device context distinguishes shared
+content from responsive layout overrides. Existing draft/publish persistence is unchanged.
+
 ## Public storefront readiness repairs (2 October 2026)
 
 Public product links retain unique slugs and use immutable book IDs when slugs collide; catalog records are never rewritten. The storefront reads the entire paginated catalog and the sitemap uses the same route resolver. Unknown URLs show editable recovery content. Custom pages share the support/policy footer, with **Show page footer** in Studio > Style > Custom pages.
@@ -546,3 +557,4 @@ Public product links retain unique slugs and use immutable book IDs when slugs c
 Phone navigation is a keyboard-accessible disclosure shared by the homepage and standalone page/product header. Studio > Style > Header & announcement bar > **Show phone navigation** controls visibility; existing header visibility controls apply inside it. Studio > Text & labels > Header > **Mobile menu** controls its label. Missing-page visibility controls live in Style > Custom pages; words remain in Text & labels > Custom pages & 404.
 
 Checkout rejects placeholder/wrong-mode publishable keys and disables payment until an inline Stripe Element is ready. Teardown is idempotent and exception-safe. Admin payment readiness reports invalid keys. Server totals and webhook-only paid-order/inventory authority are unchanged. A production payment is still unverified until the owner configures valid Stripe credentials and completes a sandbox order, webhook, refund, email and fulfillment walkthrough. Public placeholder content still needs owner review.
+

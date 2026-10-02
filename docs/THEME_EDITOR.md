@@ -440,6 +440,23 @@ schema-valid AI composition authoring.
 > `MenuBuilderPanel` in `ThemeEditor.tsx` now uses `SortableList`/`SortableRow`
 > for top-level items, sub-links, and mega-menu column links alike.
 
+### Studio usability and organization — DONE
+
+- [x] Readable workspace navigation and page context.
+- [x] Category browsing for Style and Text with cross-category search and click-to-edit/search routing.
+- [x] Searchable section/block outline, original positions, hidden-state labels, expand/collapse controls and safe filtered ordering.
+- [x] Primary editing/publishing toolbar plus accessible secondary Theme actions menu.
+- [x] Explicit inspector device context; shared content remains distinct from breakpoint-specific layout.
+
+Studio organization milestone: Page layout, Theme settings, Text & labels, Navigation and Pages
+use readable navigation with page context. Theme settings and text browse by category; search spans
+categories and Find anything/click-to-edit opens the owning category. The page outline searches
+section and nested-block content, expands matching sections, numbers original positions and offers
+Expand/Collapse all and explicit Move up/down actions. Section reorder is disabled while searching to preserve the complete stack.
+The toolbar keeps page/device, undo/redo, draft state, Save draft and Publish visible; Theme actions
+holds preview, history, checks and guarded discard. Inspector device context distinguishes shared
+content from responsive layout overrides. Existing draft/publish persistence is unchanged.
+
 ### D. Theme management
 - [x] Draft/publish + scheduled publish now include a clear Live/Draft/Unsaved
       state, persistent unpublished-change detection, and a guarded Discard
