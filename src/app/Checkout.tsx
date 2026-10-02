@@ -1,4 +1,5 @@
 import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
+import { checkoutLiveRates } from "./features/site/checkoutRates";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router";
 import { useCart } from "./CartContext";
@@ -618,7 +619,7 @@ export function Checkout() {
     // come from the catalog so weight-based rates quote identically.
     const items = shippingItemsForCart();
     const quotes = quoteShipping(items, { country: customer.address.country || "Canada" }, shippingProfiles);
-    setAvailableRates(quotes.map((q) => ({ name: q.name, price: q.price, deliveryDays: q.deliveryDays, pickup: q.type === "pickup" })));
+    setAvailableRates(quotes.map((q) => ({ name: q.name, price: q.price, deliveryDays: q.deliveryDays, pickup: q.type === "pickup" })).sort((a, b) => a.price - b.price));
   };
 
   useEffect(() => {
@@ -652,8 +653,9 @@ export function Checkout() {
 
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data.rates) && data.rates.length > 0) {
-            setAvailableRates(data.rates);
+          const liveRates = checkoutLiveRates(Array.isArray(data.rates) ? data.rates : []);
+          if (liveRates.length > 0) {
+            setAvailableRates(liveRates);
             setShippoRatesLoading(false);
             return;
           }
