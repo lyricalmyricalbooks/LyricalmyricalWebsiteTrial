@@ -1,0 +1,336 @@
+/* Order screens: one contextual fulfillment action, quiet supporting information. */
+.fw-detail,
+.fw-list {
+  min-width: 0;
+}
+.fw-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.fw-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.fw-toolbar-actions,
+.fw-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.fw-panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--rp-divider);
+}
+.fw-panel-head h2 {
+  font: 400 24px/1.1 var(--rp-font-display);
+  text-transform: uppercase;
+  margin: 0;
+}
+.fw-step {
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--rp-divider);
+}
+.fw-step:last-child {
+  border-bottom: 0;
+}
+.fw-step[data-active="true"] {
+  background: var(--rp-surface-sunken);
+}
+.fw-step-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.fw-step-heading h3 {
+  font: 700 var(--rp-text-base) / 1.4 var(--rp-font-body);
+  margin: 0;
+}
+.fw-step-heading > .rp-btn {
+  margin-left: auto;
+}
+.fw-step-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  color: var(--rp-text-muted);
+  border: 1px solid var(--rp-border);
+}
+.fw-address {
+  display: grid;
+  gap: 3px;
+  margin: 16px 0;
+  font-style: normal;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.fw-summary {
+  margin: 12px 0 0;
+  color: var(--rp-text-muted);
+  font-size: var(--rp-text-sm);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.fw-actions {
+  margin-top: 18px;
+}
+.fw-problems {
+  background: var(--rp-warning-tint);
+  color: var(--rp-text);
+  padding: 14px 18px;
+  font-size: var(--rp-text-sm);
+  line-height: 1.6;
+}
+ul.fw-problems {
+  padding-left: 32px;
+}
+.fw-notice {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 24px;
+  margin: 0;
+  background: var(--rp-surface-sunken);
+  border-bottom: 1px solid var(--rp-divider);
+  line-height: 1.6;
+}
+.fw-notice p {
+  margin: 3px 0 0;
+}
+.fw-items {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+}
+.fw-items li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rp-divider);
+}
+.fw-items li:last-child {
+  border-bottom: 0;
+}
+.fw-items img {
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--rp-border);
+}
+.fw-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.fw-item-name > span {
+  display: block;
+  margin-top: 3px;
+}
+.fw-quantity {
+  flex-shrink: 0;
+  font-family: var(--rp-font-mono);
+  font-weight: 600;
+}
+.fw-item-check {
+  flex-shrink: 0;
+  color: var(--rp-text-muted);
+}
+.fw-notes {
+  border-top: 1px solid var(--rp-divider);
+  padding: 18px 0;
+}
+.fw-notes > summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 8px 0;
+}
+.fw-notes > summary:focus-visible {
+  outline: 2px solid var(--rp-primary);
+  outline-offset: 4px;
+}
+.fw-note-form {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  margin: 16px 0;
+}
+.fw-note-form > div {
+  flex: 1;
+  min-width: 0;
+}
+.fw-activity {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.fw-activity li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rp-divider);
+}
+.fw-activity p {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+.fw-dialog-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.fw-selection {
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  background: var(--rp-surface-sunken);
+  border-bottom: 1px solid var(--rp-divider);
+}
+.fw-list .rp-tabs {
+  flex-wrap: nowrap;
+  width: 100%;
+  overflow-x: auto;
+}
+.fw-list .rp-tab {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.fw-phone-orders {
+  display: none;
+}
+@media (max-width: 800px) {
+  .fw-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .fw-panel-head,
+  .fw-step {
+    padding: 18px;
+  }
+  .fw-panel-head h2 {
+    font-size: 22px;
+  }
+  .fw-note-form {
+    flex-wrap: wrap;
+  }
+  .fw-note-form > div {
+    flex-basis: 100%;
+  }
+  .fw-actions .rp-btn {
+    flex: 1 1 auto;
+  }
+  .fw-toolbar-actions {
+    gap: 8px;
+  }
+  .fw-list .rp-filter-bar > .rp-grow {
+    flex-basis: 100%;
+  }
+  .fw-desktop-orders {
+    display: none;
+  }
+  .fw-phone-orders {
+    display: block;
+  }
+  .fw-phone-order {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 18px;
+    border-bottom: 1px solid var(--rp-divider);
+  }
+  .fw-phone-order > div {
+    flex: 1;
+    min-width: 0;
+  }
+  .fw-phone-order button {
+    color: var(--rp-primary-text);
+    background: none;
+    border: 0;
+    padding: 0;
+    font: 600 var(--rp-text-base) / 1.5 var(--rp-font-mono);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .fw-phone-order p {
+    margin: 6px 0;
+    overflow-wrap: anywhere;
+  }
+  .fw-phone-order-meta {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+    align-items: center;
+  }
+  .fw-phone-order button:focus-visible {
+    outline: 2px solid var(--rp-primary);
+    outline-offset: 4px;
+  }
+}
+
+.fw-filter-fields {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.fw-phone-filter,
+.fw-phone-queue {
+  display: none;
+}
+.fw-phone-queue .rp-field,
+.fw-phone-queue select {
+  width: 100%;
+}
+.fw-address-details {
+  margin-top: 12px;
+}
+.fw-address-details > summary {
+  cursor: pointer;
+  font-size: var(--rp-text-sm);
+  color: var(--rp-text-muted);
+}
+@media (max-width: 800px) {
+  .fw-filter-fields,
+  .fw-queue-tabs {
+    display: none;
+  }
+  .fw-phone-filter {
+    display: inline-flex;
+  }
+  .fw-phone-queue {
+    display: block;
+  }
+  .fw-list .rp-filter-bar {
+    margin-bottom: 0;
+  }
+}
+
+.fw-detail {
+  font-size: var(--rp-text-md);
+}
+.fw-detail .rp-hint,
+.fw-list .rp-hint,
+.fw-summary,
+.fw-address-details > summary {
+  font-size: var(--rp-text-base);
+  line-height: 1.5;
+}
+.fw-step-heading h3,
+.fw-item-name > strong,
+.fw-quantity {
+  font-size: var(--rp-text-md);
+}

@@ -290,3 +290,13 @@ Private document ID reads and collection listing need no composite indexes. Depl
 Deploy updated Functions with the frontend: label requests recheck preparation and claim money-spending purchases
 transactionally; uncertain purchase failures stay locked for Shippo reconciliation to prevent duplicate charges.
 Address correction is disabled after label purchase. Stripe totals, inventory and refund authority are unchanged.
+
+## Fulfillment workspace UX repair (2 October 2026)
+
+Order detail uses one sequential FulfillmentWorkbench: shipping address, books to pack, shipping/dispatch.
+Only the current step exposes its primary action; completed address details expand in place. Parcel setup
+and tracked dispatch use focused Riso dialogs; preset naming is collapsed. Holds and refunds are under
+More order actions, with refund details and explicit final confirmation. Customer/payment summaries are
+secondary; activity and internal notes are collapsed. Phones render order cards and a Work queue selector,
+with Filter & sort in a dialog. Batch packing asks for confirmation and retains per-order outcomes.
+The private operations, label purchase safeguards, payment authority and server data contracts are unchanged.
