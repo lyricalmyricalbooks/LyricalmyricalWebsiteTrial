@@ -48,3 +48,13 @@
   background: #273647;
 }
 @import './theme.css';
+
+/* Phones: iOS Safari zooms the page when a focused field's text is under 16px.
+   Keep form fields at 16px on phone-sized screens so tapping a box never zooms. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
+  }
+}

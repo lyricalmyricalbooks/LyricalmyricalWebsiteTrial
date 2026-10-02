@@ -435,7 +435,7 @@ export default function AccountPage() {
         {/* Customer Header Info */}
         <section className="glass-card rounded-[2.5rem] border border-white/5 p-8 flex items-center gap-6">
           {user.photoURL ? (
-            <img src={user.photoURL} className="w-16 h-16 rounded-full border border-white/10" alt="" />
+            <img loading="lazy" decoding="async" src={user.photoURL} className="w-16 h-16 rounded-full border border-white/10" alt="" />
           ) : (
             <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xl font-black uppercase" style={{ color: "var(--accent)" }}>
               {(user.displayName || user.email || "?")[0]}
@@ -738,7 +738,7 @@ export default function AccountPage() {
                             {o.items?.map((item: any, idx: number) => (
                               <div key={idx} className="flex gap-4 items-center">
                                 <div className="w-10 aspect-[3/4] fm-surface rounded-md overflow-hidden border border-white/5 shrink-0">
-                                  <img src={item.photoUrl} alt="" className="w-full h-full object-cover" />
+                                  <img loading="lazy" decoding="async" src={item.photoUrl} alt="" className="w-full h-full object-cover" />
                                 </div>
                                 <div className="flex-grow min-w-0">
                                   <p className="text-[11px] font-black text-white uppercase tracking-wider truncate">{item.title}</p>

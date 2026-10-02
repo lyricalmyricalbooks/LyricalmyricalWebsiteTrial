@@ -2,37 +2,13 @@ import { useLocation } from "react-router";
 import { resolveSurfaceDesign } from "./surfaceDesign";
 import { useEffect, useMemo, useState } from "react";
 import { adminApi } from "../../admin/api";
-import { DEFAULT_SETTINGS, SITE_CACHE_KEY } from "./constants";
+import { DEFAULT_SETTINGS } from "./constants";
+import { readSiteCache, writeSiteCache } from "./siteCache";
 import type { Book, SiteSettings, Page } from "./types";
 import { RISO_NOIR_TOKENS, withRisoNoirDefault } from "./risoNoir";
 import { setSiteIdentity } from "../../lib/seo";
 import { applyCustomCode } from "./customCode";
 import { applyBackorderPolicy } from "./backorder";
-
-type CachePayload = {
-  books: Book[];
-  settings: SiteSettings;
-  pages: Page[];
-  cachedAt: string;
-};
-
-function readCache(): CachePayload | null {
-  try {
-    const cached = sessionStorage.getItem(SITE_CACHE_KEY);
-    if (!cached) return null;
-    return JSON.parse(cached) as CachePayload;
-  } catch {
-    return null;
-  }
-}
-
-function writeCache(payload: CachePayload) {
-  try {
-    sessionStorage.setItem(SITE_CACHE_KEY, JSON.stringify(payload));
-  } catch {
-    // ignore quota and private-mode errors
-  }
-}
 
 const isPreviewUrl = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
 
@@ -46,7 +22,7 @@ const previewSnapshot = (): PreviewSnapshot | null => (isPreviewUrl() ? (window 
 
 export function useSiteData() {
   const location = useLocation();
-  const cached = typeof window !== "undefined" ? readCache() : null;
+  const cached = typeof window !== "undefined" ? readSiteCache() : null;
   const snap = previewSnapshot();
   const [books, setBooks] = useState<Book[]>(snap?.books || cached?.books || []);
   const [settings, setSettings] = useState<SiteSettings>(() => {
@@ -93,7 +69,7 @@ export function useSiteData() {
         setBooks(snapNow?.books || safeBooks);
         setSettings(snapNow?.settings ? { ...safeSettings, ...snapNow.settings, design: safeSettings.design } : safeSettings);
         setPages(snapNow?.pages || safePages);
-        if (!isPreview) writeCache({
+        if (!isPreview) writeSiteCache({
           books: safeBooks, 
           settings: safeSettings, 
           pages: safePages,
@@ -206,7 +182,7 @@ export function useSiteData() {
  */
 export function readCachedDesign(): Record<string, any> {
   const previewDesign = isPreviewUrl() ? (window as any).__studioPreviewDesign : null;
-  const design = (previewDesign || readCache()?.settings?.design) as Record<string, any> | undefined;
+  const design = (previewDesign || readSiteCache()?.settings?.design) as Record<string, any> | undefined;
   const base = design && typeof design === "object" ? design : RISO_NOIR_TOKENS;
   return withRisoNoirDefault(base) || RISO_NOIR_TOKENS;
 }

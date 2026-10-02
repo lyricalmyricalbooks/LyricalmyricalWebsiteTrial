@@ -63,7 +63,7 @@ src/
     lib/                    seo, wishlist, recentlyViewed, functionsBase helpers
   lib/                      firebase.ts, legacyFirebase.ts
   styles/                   Tailwind/global CSS, fonts
-functions/                  Firebase Cloud Functions (Node 20, separate package)
+functions/                  Firebase Cloud Functions (Node 22, separate package)
   index.js                  All functions (Stripe, webhook, emails, sweeps)
   shippingGeo.js            Shipping zone matching
 scripts/                    generate-sitemap, check-readability, verify-admin
@@ -115,6 +115,13 @@ npm run logs
 ## Cloud Functions (`functions/index.js`)
 
 - `createStripeCheckoutSession` — secure Stripe session creation.
+  With `paymentElement: true` it creates a server-priced PaymentIntent instead, for the card form
+  shown directly on the checkout page (`features/site/StripeCardForm.tsx`, Stripe Payment Element,
+  deferred intent); `stripeWebhook` marks those paid on `payment_intent.succeeded` (metadata
+  `checkout: "payment_element"`). `body.action` = `status` / `registerPaymentDomain` serve the
+  return-page check and the wallet-domain button (no new public functions: the CI deploy account
+  can't set IAM on them). Studio › Style › Checkout › "Send card payments to Stripe’s own page"
+  switches back to hosted Checkout.
 - `stripeWebhook` — the **only** thing that marks orders paid; it also
   decrements stock, counts discount redemptions, and records revenue. Orders are
   created `unpaid` first.
@@ -139,8 +146,10 @@ keeps them identical, so change both together. Rate `type`: flat | order | weigh
 pickup, plus conditions (order total / cart grams / item count), `freeOver`, `handlingFee`; profiles
 add `freeShippingOver`, `handlingFee`, `defaultItemWeightG`. The server charges the quote matching
 the customer's `shippingMethod` (else cheapest) and rejects unservable destinations; profiles with no
-zones fall back to legacy flat `calculateShipping`. Live Shippo quotes are shown only when no zones
-exist (charged = displayed). Admin UI: Settings › Shipping › profile editor (Profile rules, Test this
+zones fall back to legacy flat `calculateShipping`. Live Shippo quotes can be enabled for an explicit
+country allowlist in Settings › Shipping › Carrier & labels; all other countries use the regular
+profile/zone path. Selected live quotes are fetched and validated again server-side so the charged
+amount matches checkout. Admin UI: Settings › Shipping › profile editor (Profile rules, Test this
 profile, rate dialog).
 
 ## Theme editor
@@ -151,7 +160,9 @@ profile, rate dialog).
 > The big `ThemeEditor.tsx` described below is only the legacy editor (opens with `?editor=legacy`).
 > **Always add or change theme/design features in the Studio editor first** — the user only sees
 > Studio. Shop categories (the storefront category bar) are edited in Studio › **Menus** ›
-> **Shop categories**. Custom pages (About, Journal…) also live only in Studio › **Pages** tab
+> **Shop categories**. They can also be created while editing a book in **Categories & tags**;
+> that catalog workflow publishes the category immediately and synchronizes Studio's working copy.
+> Custom pages (About, Journal…) also live only in Studio › **Pages** tab
 > (`studio/StudioPages.tsx`); there is **no** separate Pages screen in the admin nav — do not
 > re-add one. New pages join the storefront header by default, and their public
 > routes render the themed storefront header. Walkthroughs must use Studio's
@@ -168,6 +179,11 @@ read fresh tags in an atomic transaction (up to 400 books), touching only
 categories/genres/updatedAt. Deletion keeps all books, promotes children and offers
 keep/remove/move assignments, refreshing membership before and after cleanup.
 For larger categories, use Edit › Assigned here in groups of up to 400 first.
+**Find anything:** the Studio top bar **Find** button (or Ctrl/Cmd+K) searches every Style control, Text & labels
+string, Menus panel, page, section and action (`studio/studioSearch.ts` + `StudioSearch.tsx`; `goToResult` in
+`StudioEditor.tsx` navigates). It indexes `STYLE_GROUPS` and `COPY_SCHEMA`, so new controls are findable with no extra
+work — give them clear labels. **Auto-fit for phones** (`studio/autoMobile.ts`) fills phone/tablet values from the
+desktop design: Sections tab › *Auto-fit page for phones*, or section › Layout & style › *Phone & tablet layout*.
 
 Studio's Sections outline supports sortable sections and blocks. Canvas clicks
 open their inspector; **Edit mode** selects content and **Browse mode** lets
@@ -354,6 +370,15 @@ classes); its words are in Text & labels › Product page (`pdp*` copy keys). Th
 
 **Every Style control must reach every surface (and the preview iframe):** the card title/price and small-print CSS comes from one place, `features/site/StorefrontOverrides.tsx` (`storefrontOverridesCss`). `StorefrontThemeStyle` renders it, and so do `MainSite`'s `TypographyTokens` and `BookDetail` — any new storefront root that injects its own token `<style>` must render `<StorefrontOverrides>` too. `storefrontOverrides.test.ts` fails on a surface that skips it and on any `STYLE_GROUPS` control that nothing on the storefront reads (wire it or delete it — don't allow-list). Custom code (Style › Custom code) is injected by `features/site/customCode.ts` on public pages only — never in the preview, checkout or admin.
 
+**Photo shapes:** Studio › Style › **Product cards & grid** has **Image shape (proportions)** (12 ratios, 3:4 … 21:9 … 9:16 — `PHOTO_RATIOS` in `features/site/photoShapes.ts`, also used by the Product grid / Product showcase grid / cover carousel sections) and **Image outline** (`photoOutline`: arch, window, pill, circle/oval, leaf, hexagon, octagon, diamond, cut corners, slanted). The product page has its own **Photo shape** / **Photo outline** (`productImageAspect`, `productPhotoOutline`; "Same as shop grid" by default). Outlines are CSS from `photoOutlineCss` (via `StorefrontOverrides`); new photo frames opt in with `fm-photo-frame` (shop cards) or `fm-photo-frame-pdp` (product photos).
+
+**Shopping bag (cart drawer):** `components/CartDrawer.tsx` is a Riso "order slip" — ruled header, free-shipping
+meter, numbered line items (photo, title, per-copy price, line total, qty stepper, Remove), "Complete your collection"
+card, then Subtotal / Shipping / Total ledger, trust badges and checkout button. Every piece is a Studio › Style ›
+**Cart drawer (shopping bag)** control (`cartDrawer*` keys + `showFreeShipBar`/`freeShipThreshold`/`showCartTrustBadges`,
+CSS from `features/site/cartDrawerStyle.ts`, `fm-bag-*` classes); words are Text & labels › Cart. Each region carries
+its own click-to-edit target (Bag heading, Free-shipping bar, Bag line items, Bag suggestion, Bag total & checkout).
+
 **Small print:** Studio › Style › **Small print & labels** (`smallPrint*` keys, `features/site/smallPrint.ts`) sets a minimum size, colour, case, letter spacing and font for every tiny `text-[8px]…text-[11px]` label at once.
 
 **Click focus:** clicking a preview region pins an "Editing: <label>" card at the top of Studio › Style with only that element's controls (`STYLE_TARGET_FIELDS` in `styleSchema.ts` gathers fields across groups by key; labels not listed show their whole group). **Show all style settings** returns to the full list.
@@ -503,3 +528,5 @@ Bug / edge case the change introduced · the next logical feature · offline & s
 - Prefer action over investigation when intent is clear.
 - If the user asks for something, assume they know what they want.
 - Only ask clarifying questions if the request is genuinely ambiguous.
+
+Live carrier choices show up to five distinct Canada Post methods, cheapest first, using the lowest quote for each service. Server quote selection sorts prices before resolving duplicate service names.

@@ -710,6 +710,10 @@
 .book-editor-riso .be-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .book-editor-riso .be-chip { min-height: 38px; padding: 0 14px; background: var(--rp-surface); border: var(--rp-stroke) solid var(--rp-border); color: var(--rp-text-muted); font: 600 var(--rp-text-sm) var(--rp-font-body); cursor: pointer; }
 .book-editor-riso .be-chip.is-on { background: var(--rp-primary); color: var(--rp-on-primary, #100f0d); border-color: var(--rp-border-strong); }
+.book-editor-riso .be-category-create { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto; align-items: end; gap: 12px; margin-top: 18px; padding: 16px; border: var(--rp-hair) solid var(--rp-divider); background: var(--rp-surface-muted); }
+.book-editor-riso .be-category-create .rp-btn { min-height: 42px; }
+.book-editor-riso .be-category-help, .book-editor-riso .be-category-empty { margin: 8px 0 0; color: var(--rp-text-muted); font: 500 var(--rp-text-xs) var(--rp-font-body); }
+@media (max-width: 760px) { .book-editor-riso .be-category-create { grid-template-columns: 1fr; } }
 .book-editor-riso .be-tags { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; padding-top: 16px; border-top: var(--rp-hair) solid var(--rp-divider); }
 .book-editor-riso .be-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; border: var(--rp-stroke) solid var(--rp-border-strong); background: var(--rp-surface); font-size: var(--rp-text-sm); font-weight: 600; }
 .book-editor-riso .be-tag button { display: grid; place-items: center; width: 24px; height: 24px; background: none; border: 0; cursor: pointer; }

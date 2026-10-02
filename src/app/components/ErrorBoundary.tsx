@@ -11,7 +11,7 @@ function cachedDesign(): any {
  * Last-resort guard so a rendering error shows a readable message instead of a blank page.
  * Inside the Studio preview iframe it also tells the editor what went wrong (PREVIEW_ERROR).
  */
-export class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: string }, { error: Error | null }> {
   state = { error: null as Error | null };
 
   static getDerivedStateFromError(error: Error) {
@@ -25,6 +25,15 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
         window.parent.postMessage({ type: "PREVIEW_ERROR", message: String(error?.message || error) }, window.location.origin);
       }
     } catch { /* ignore */ }
+  }
+
+  componentDidUpdate(previous: Readonly<{ children: ReactNode; resetKey?: string }>) {
+    // A render failure on one route must not poison every later route. This is
+    // especially important at checkout: the shopper must always be able to
+    // return to the store without a full reload or losing their in-memory bag.
+    if (this.state.error && previous.resetKey !== this.props.resetKey) {
+      this.setState({ error: null });
+    }
   }
 
   render() {

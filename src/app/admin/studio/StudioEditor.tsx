@@ -30,6 +30,9 @@ import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY, PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
 import { StudioOutline } from "./StudioOutline";
 import { StudioInspector } from "./StudioInspector";
+import { StudioSearch } from "./StudioSearch.tsx";
+import { buildStudioIndex, type SearchEntry } from "./studioSearch";
+import { autoFitSections } from "./autoMobile";
 import { applyPageStyle, buildPreviewState, deliverPreviewState, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, withDraftPage } from "./studioWorkflow";
 import { useStudioPersistence } from "./useStudioPersistence";
 import { Dialog, SecondaryButton } from "../riso/components";
@@ -296,6 +299,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [confirmAction, setConfirmAction] = useState<"publish" | "discard" | null>(null);
   const [checksOpen, setChecksOpen] = useState(false);
   const [copiedSection, setCopiedSection] = useState<Section | null>(null);
+  const [findOpen, setFindOpen] = useState(false);
+  const [openPage, setOpenPage] = useState<{ slug: string; nonce: number } | null>(null);
   const inlineStart = useRef<any>(null);
 
   const [toast, setToast] = useState<Toast>(null);
@@ -437,7 +442,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const renderStyleField = (g: StyleGroup, f: StyleField) => {
     const local = styleScope === "page" && PAGE_STYLE_GROUPS.has(g.id);
     return (
-      <div key={f.key} className="studio-field">
+      <div key={f.key} className="studio-field" data-style-key={f.key}>
         <SectionFieldEditor field={f as any}
           value={(local ? readStyle(design[template.id], f.key) : undefined) ?? readStyle(design, f.key) ?? readStyle(defaults, f.key)}
           onChange={v => setScopedStyle(g.id, f.key, v)}
@@ -644,6 +649,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       const mod = e.ctrlKey || e.metaKey;
       const typing = /input|textarea|select/i.test((e.target as HTMLElement)?.tagName || "") || (e.target as HTMLElement)?.isContentEditable;
       if (busy === "discard") { e.preventDefault(); return; }
+      if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setFindOpen(true); return; }
       if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); saveDraft(); }
       else if (mod && e.key.toLowerCase() === "z" && !typing) { e.preventDefault(); setHist((h) => (e.shiftKey ? redo(h) : undo(h))); }
     };
@@ -690,6 +696,80 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     setList(l => insertSection(l, clone, l.length)); setSelectedId(clone.id);
   };
 
+  // ── Find anything (Ctrl/Cmd+K): one search over every control, word, page, section and action ──
+  const searchIndex = useMemo(() => buildStudioIndex({
+    styleGroups: STYLE_GROUPS, copySchema: COPY_SCHEMA, templates, pages,
+    sectionsByTemplate: {
+      __global: getSections(design, { kind: "global" }),
+      ...Object.fromEntries(templates.map(t => [t.id, getSections(design, { kind: "template", id: t.id })])),
+    },
+    sectionLabel: (type: string) => getSectionMeta(type)?.label || type,
+  }), [design, templates, pages]);
+  useEffect(() => { if (leftTab !== "pages") setOpenPage(null); }, [leftTab]);
+
+  const flashPanel = (selector: string, focusInside = false) => setTimeout(() => {
+    const el = document.querySelector<HTMLElement>(selector);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("studio-flash");
+    setTimeout(() => el.classList.remove("studio-flash"), 1600);
+    if (focusInside) el.querySelector<HTMLElement>("input, textarea, select, button")?.focus({ preventScroll: true });
+  }, 160);
+  const autoFitPage = (overwrite = false) => {
+    const r = autoFitSections(sections, overwrite);
+    if (!r.touched) { say("ok", "Every section here already looks right on phones — nothing to change."); return; }
+    setList(() => r.value);
+    setDevice("mobile");
+    say("ok", `Auto-fitted ${r.touched} section${r.touched === 1 ? "" : "s"} for phones. Check the phone preview; Undo (Ctrl+Z) reverts.`);
+  };
+  const runAction = (id: string) => {
+    switch (id) {
+      case "save": if (dirtyDraft && busy === null) saveDraft(); else say("ok", "No unsaved changes to save."); break;
+      case "publish": if ((unpublished || dirtyDraft) && busy === null) setConfirmAction("publish"); else say("ok", "Nothing to publish — the live shop already matches this draft."); break;
+      case "discard": if (unpublished && busy === null) setConfirmAction("discard"); else say("ok", "No draft changes to discard."); break;
+      case "history": setHistoryOpen(true); loadVersions(); break;
+      case "check": setChecksOpen(true); break;
+      case "preview-tab": openPreviewTab(); break;
+      case "undo": setHist(undo); break;
+      case "redo": setHist(redo); break;
+      case "device-desktop": setDevice("desktop"); setMobilePanel("preview"); break;
+      case "device-tablet": setDevice("tablet"); setMobilePanel("preview"); break;
+      case "device-mobile": setDevice("mobile"); setMobilePanel("preview"); break;
+      case "mode-toggle": setMode(m => m === "edit" ? "browse" : "edit"); break;
+      case "autofit-page": setLeftTab("sections"); autoFitPage(false); break;
+      case "add-section": setLeftTab("sections"); setAdding(sections.length); break;
+    }
+  };
+  const goToResult = (entry: SearchEntry) => {
+    const t = entry.target;
+    setMobilePanel("outline");
+    if (t.type === "action") { runAction(t.id); return; }
+    if (t.type === "tab") { setLeftTab(t.tab); setStyleFocus(null); return; }
+    if (t.type === "style") {
+      setSelectedId(null); setBlockId(null); setStyleSearch(""); setStyleFocus(null); setLeftTab("style");
+      const panel = `style:${t.groupId}`;
+      setFocus(f => ({ id: panel, nonce: f.nonce + 1 }));
+      flashPanel(t.key ? `[data-style-key="${CSS.escape(t.key)}"]` : `[data-studio-panel="${CSS.escape(panel)}"]`, Boolean(t.key));
+      return;
+    }
+    if (t.type === "copy") {
+      setLeftTab("text"); setSelectedId(null); setBlockId(null);
+      setCopyFilter(t.key || "");
+      setFocus(f => ({ id: `copy:${t.group}`, nonce: f.nonce + 1 }));
+      flashPanel(t.key ? `[data-copy-key="${CSS.escape(t.key)}"]` : `[data-studio-panel="${CSS.escape(`copy:${t.group}`)}"]`, Boolean(t.key));
+      return;
+    }
+    if (t.type === "menus") { setLeftTab("menus"); setSelectedId(null); flashPanel(`[data-studio-panel="${CSS.escape(t.panel)}"]`); return; }
+    if (t.type === "template") { setSelectedId(null); setBlockId(null); setShowGlobal(false); setTemplateId(t.id); setLeftTab("sections"); return; }
+    if (t.type === "section") {
+      if (t.templateId === "__global") setShowGlobal(true); else { setShowGlobal(false); setTemplateId(t.templateId); }
+      setLeftTab("sections"); setSelectedId(t.sectionId); setBlockId(null); setMobilePanel("settings");
+      setTimeout(() => highlight(t.sectionId, true, null), 500);
+      return;
+    }
+    if (t.type === "page") { setLeftTab("pages"); setOpenPage({ slug: t.slug, nonce: Date.now() }); }
+  };
+
   const sidebarTabs: [LeftTab, string][] = [["sections", "Sections"], ["style", "Style"], ["text", "Text & labels"], ["menus", "Menus"], ["pages", "Pages"]];
   const q = copyFilter.trim().toLowerCase();
 
@@ -699,6 +779,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       <header className="studio-topbar">
         <button className={btn} onClick={exit}><ArrowLeft size={14} /> Exit</button>
         <strong className="studio-title">Design studio</strong>
+        <button className={btn} onClick={() => setFindOpen(true)} aria-label="Find anything (Ctrl+K)" title="Find any setting, word, page, section or action"><Search size={14} /> Find <kbd aria-hidden="true">Ctrl K</kbd></button>
         <select value={showGlobal ? "__global" : template.id}
           onChange={(e) => { const v = e.target.value; setSelectedId(null); setBlockId(null); if (v === "__global") setShowGlobal(true); else { setShowGlobal(false); setTemplateId(v); } setLeftTab("sections"); }}
           aria-label="Page to edit" className="h-9 border border-neutral-300 rounded-lg px-2 text-xs font-bold max-w-[220px]">
@@ -781,6 +862,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               <button className={btn} disabled={!selected} onClick={() => selected && setCopiedSection(JSON.parse(JSON.stringify(selected)))}><Copy size={13} /> Copy</button>
               <button className={btn} disabled={!copiedSection} onClick={pasteSection}><Clipboard size={13} /> Paste</button>
               <button className={btn} disabled={!selected} onClick={() => selected && saveSection(selected)}>Save section</button>
+              <button className={btn} disabled={!sections.length} onClick={() => autoFitPage(false)} title="Works out phone spacing, heading sizes, columns and stacked blocks for every section on this page. Anything you set yourself is kept."><Smartphone size={13} /> Auto-fit page for phones</button>
               {(design.sectionPresets || []).map((p: any) => <button key={p.id} className={btn} onClick={() => addPreset(p)}>+ {p.name}</button>)}
             </div>}
             {leftTab === "sections" && <StudioOutline
@@ -917,7 +999,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             )}
 
             {leftTab === "pages" && (
-              <StudioPages pages={pages} setPages={setPages} say={say} onDraft={setDraftPage}
+              <StudioPages pages={pages} setPages={setPages} say={say} onDraft={setDraftPage} openSlug={openPage}
                 onReorder={(ordered) => {
                   const raw: any[] = Array.isArray(design.categories) ? design.categories : [...CATEGORIES];
                   const cats = raw.map((c, i) => (typeof c === "string" ? { id: `cat-${i}`, name: c, description: "", showInNav: true } : c));
@@ -951,11 +1033,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <StudioInspector section={selected} blockId={blockId} onSelectBlock={setBlockId} colorSchemes={colorSchemes}
             device={device} sharedBlocks={design.sharedBlocks || []} onSaveShared={saveSharedBlock} onPatchShared={patchSharedBlock} onInsertShared={insertSharedBlock}
             onPatch={patchSelected} onDuplicate={() => dupSection(selected.id)} onDelete={() => delSection(selected.id)}
-            onToggle={() => setList((l) => toggleSection(l, selected.id))} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
+            onToggle={() => setList((l) => toggleSection(l, selected.id))} onNotice={(text) => say("ok", text)} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
         )}
       </div>
       </FocusContext.Provider>
 
+      <StudioSearch open={findOpen} onClose={() => setFindOpen(false)} index={searchIndex} onPick={goToResult} />
       {adding !== null && <AddSectionDialog onPick={addSection} onClose={() => setAdding(null)} />}
       <Dialog open={historyOpen} onClose={() => { setHistoryOpen(false); setHistoryPreview(null); }} title="Version history" description="Every saved draft and publish is kept here. Previewing never changes your draft." size="lg">
         <div className="space-y-2 max-h-[60vh] overflow-auto">

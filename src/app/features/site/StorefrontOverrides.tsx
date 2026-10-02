@@ -1,6 +1,7 @@
 import { googleFontHref } from "./fonts";
 import { cardFontNames, cardTypographyCss } from "./cardTypography";
 import { smallPrintCss, smallPrintFontNames } from "./smallPrint";
+import { photoOutlineCss } from "./photoShapes";
 
 // The Studio › Style controls that are turned into CSS rules (book-card title & price, small print)
 // live in ONE place so every storefront surface obeys them — the shop grid (MainSite), the standalone
@@ -9,7 +10,7 @@ import { smallPrintCss, smallPrintFontNames } from "./smallPrint";
 // (`storefrontOverrides.test.ts` fails otherwise).
 
 /** CSS for the merchant overrides. Empty until a control is set, so defaults are untouched. */
-export const storefrontOverridesCss = (design: any): string => smallPrintCss(design) + cardTypographyCss(design);
+export const storefrontOverridesCss = (design: any): string => smallPrintCss(design) + cardTypographyCss(design) + photoOutlineCss(design);
 
 /** Google Fonts the override controls may ask for. */
 export const storefrontOverridesFontNames = (design: any): string[] => [...cardFontNames(design), ...smallPrintFontNames(design)];

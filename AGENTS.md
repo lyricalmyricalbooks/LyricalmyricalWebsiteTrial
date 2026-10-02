@@ -36,7 +36,8 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
   `src/app/admin/riso/` (see CLAUDE.md) rather than legacy dark utility classes so they inherit its light canvas, panels, forms, tables and dialogs.
   Discounts use status tabs with live counts; Shipping uses Overview, Profiles,
   and Carrier & labels tabs, with checkout-readiness diagnostics driven by
-  `shippingHealth.ts`.
+  `shippingHealth.ts`. Carrier & labels also owns the country allowlist for
+  Shippo live rates; countries outside it keep using regular profile/zone rates.
 - `functions/index.js` — Cloud Functions: Stripe checkout/webhook, digital
   downloads, order emails, abandoned-cart sweep. `functions/shippingGeo.js` —
   shipping zones.
@@ -129,7 +130,15 @@ delivery uses `postMessage` plus a same-origin message-event fallback so iframe
 load timing cannot strand the preview on the published design; keep the snapshot
 structured-clone safe (`toCloneable`) and mirror it to the **Preview in new tab**
 window over `BroadcastChannel("studio_preview")` (`features/site/previewTab.ts`).
+
+Shop categories are shared catalog structure. Admins can manage them in Studio ›
+Menus › Shop categories or create-and-assign one in a book's Categories & tags
+tab; the book workflow must update the live storefront and Studio draft together
+without replacing unrelated design fields.
 New book cards must carry the `fm-card-*` classes (`cardClasses.test.tsx`).
+Studio's **Find anything** (Ctrl/Cmd+K, `studioSearch.ts`) indexes `STYLE_GROUPS`/`COPY_SCHEMA` automatically — a new control needs a
+plain-English label so shop owners can find it. **Auto-fit for phones** (`autoMobile.ts`) writes phone/tablet overrides; keep it in sync
+with the phone keys the renderers read (`mobilePadding*`, `mobileColumns`, `mobileHeadingSize`, block `grid.tablet/mobile`).
 
 1. **Read `docs/THEME_EDITOR.md` first**, plus the whole section/block system —
    `ThemeEditor.tsx`, `ThemeEditorExtensions.tsx` (the `SECTION_REGISTRY`),
@@ -222,3 +231,5 @@ Style › Product page · buy card & details (see CLAUDE.md). Trust-signal lines
   stay consistent.
 - Validate before shipping: `npm run build` should succeed, and exercise the
   affected flow (storefront purchase path or admin action) end-to-end.
+
+Live carrier choices show up to five distinct Canada Post methods, cheapest first, using the lowest quote for each service. Server quote selection sorts prices before resolving duplicate service names.

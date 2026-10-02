@@ -1,10 +1,11 @@
+import { canadaPostRates } from "./features/site/canadaPostRates";
 import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router";
 import { useCart } from "./CartContext";
 import {
   ChevronLeft, Tag, ShieldCheck, X, AlertCircle,
-  Package, Truck, CreditCard, CheckCircle2, Loader2, Lock, Building
+  Package, Truck, CreditCard, CheckCircle2, Loader2, Lock, Building, Check
 } from "lucide-react";
 import { motion } from "motion/react";
 import { adminApi } from "./admin/api";
@@ -21,19 +22,32 @@ import { auth, db } from "../lib/firebase";
 import { StorefrontThemeStyle } from "./features/site/StorefrontThemeStyle";
 import { getCopy } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
+import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
+import { searchAddresses, type AddressSuggestion } from "./features/site/addressSuggest";
+import { arrivalDateLabel, freeShippingGap } from "./features/site/checkoutNudges";
+import { guessCountryName, parsePinned } from "./features/site/countryPicker";
+import { CountryField } from "./features/site/CountryField";
+import { designNumber } from "./features/site/designNumber";
+import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
+import { readSiteCache } from "./features/site/siteCache";
 
-// ─── Country selector (matches Field styling) ─────────────────────────────────
-function CountryField({ value, onChange, label = "Country" }: { value: string; onChange: (v: string) => void; label?: string }) {
+// ─── State / province drop-down for countries with a fixed list ──────────────
+function RegionField({ value, onChange, label, choose, regions }: { value: string; onChange: (v: string) => void; label: string; choose: string; regions: [string, string][] }) {
+  // Saved addresses may hold the full name ("Ontario"); match it to its code.
+  const match = regions.find(([code, name]) => code === value.toUpperCase() || name.toLowerCase() === value.toLowerCase());
   return (
     <div className="relative">
       <select
-        value={value}
+        value={match ? match[0] : ""}
         onChange={(e) => onChange(e.target.value)}
         aria-label={label}
+        autoComplete="address-level1"
+        required
         className="peer w-full rounded-lg border border-slate-300 bg-white px-3.5 pb-2 pt-6 text-sm text-slate-900 outline-none transition focus:border-[color:var(--accent)] focus:ring-1 focus:ring-[color:var(--accent)] appearance-none cursor-pointer"
       >
-        {COUNTRIES.map((c) => (
-          <option key={c.code} value={c.name} className="bg-white text-slate-900">{c.name}</option>
+        <option value="" className="bg-white text-slate-900">{choose}</option>
+        {regions.map(([code, name]) => (
+          <option key={code} value={code} className="bg-white text-slate-900">{name}</option>
         ))}
       </select>
       <label className="absolute left-3.5 top-2 text-xs text-slate-500 pointer-events-none">{label}</label>
@@ -41,6 +55,7 @@ function CountryField({ value, onChange, label = "Country" }: { value: string; o
     </div>
   );
 }
+
 
 // ─── Reusable input ───────────────────────────────────────────────────────────
 function Field({
@@ -78,6 +93,59 @@ function Field({
   );
 }
 
+// ─── Street address with suggestions while typing ────────────────────────────
+function AddressField({ label, value, country, onChange, onPick, listLabel, attribution }: {
+  label: string; value: string; country: string;
+  onChange: (v: string) => void; onPick: (s: AddressSuggestion) => void;
+  listLabel: string; attribution: string;
+}) {
+  const [items, setItems] = useState<AddressSuggestion[]>([]);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const typed = useRef(false);
+
+  useEffect(() => {
+    if (!typed.current || value.trim().length < 4) { setItems([]); return; }
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      searchAddresses(value, country, ctrl.signal)
+        .then(list => { setItems(list); setActive(-1); setOpen(list.length > 0); })
+        .catch(() => {});
+    }, 300);
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, [value, country]);
+
+  const pick = (s: AddressSuggestion) => { typed.current = false; setOpen(false); setItems([]); onPick(s); };
+
+  return (
+    <div className="relative"
+      onKeyDown={e => {
+        if (!open || items.length === 0) return;
+        if (e.key === "ArrowDown") { e.preventDefault(); setActive(a => (a + 1) % items.length); }
+        else if (e.key === "ArrowUp") { e.preventDefault(); setActive(a => (a <= 0 ? items.length - 1 : a - 1)); }
+        else if (e.key === "Enter" && active >= 0) { e.preventDefault(); pick(items[active]); }
+        else if (e.key === "Escape") setOpen(false);
+      }}
+      onBlur={() => setTimeout(() => setOpen(false), 150)}>
+      <Field label={label} value={value} onChange={v => { typed.current = true; onChange(v); }} autoComplete="street-address" required />
+      {open && (
+        <ul role="listbox" aria-label={listLabel} data-studio-target="style:checkout" data-studio-label="Address suggestions"
+          className="fm-address-suggest absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-lg border border-slate-300 bg-white shadow-lg">
+          {items.map((s, i) => (
+            <li key={s.label} role="option" aria-selected={i === active}>
+              <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => pick(s)}
+                className={`block w-full px-3.5 py-2.5 text-left text-sm text-slate-900 ${i === active ? "bg-slate-100" : "hover:bg-slate-50"}`}>
+                {s.label}
+              </button>
+            </li>
+          ))}
+          {attribution && <li className="px-3.5 py-1.5 text-[10px] text-slate-500">{attribution}</li>}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ─── Step badge ───────────────────────────────────────────────────────────────
 function StepBadge({ n, label }: { n: string; label: string }) {
   return (
@@ -91,7 +159,7 @@ function StepBadge({ n, label }: { n: string; label: string }) {
 // ─── Main component ───────────────────────────────────────────────────────────
 export function Checkout() {
   const { cart, cartTotal, cartCount, clearCart, setCart } = useCart();
-  const { currency, formatPrice } = useCurrency();
+  const { currency, formatPrice, convertPrice } = useCurrency();
 
   const [isApplying, setIsApplying]     = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
@@ -103,6 +171,10 @@ export function Checkout() {
   const [orderNumber, setOrderNumber]   = useState("");
 
   const [discountCode, setDiscountCode]       = useState("");
+  // Hidden behind a "Have a code?" link so shoppers without one don't leave to hunt for one.
+  const [discountOpen, setDiscountOpen]       = useState(false);
+  // Order summary on phones starts collapsed unless Studio says otherwise.
+  const [summaryOpen, setSummaryOpen]         = useState(false);
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
   const [discountError, setDiscountError]     = useState("");
   const [shippoRatesLoading, setShippoRatesLoading] = useState(false);
@@ -110,20 +182,35 @@ export function Checkout() {
 
   const [customer, setCustomer] = useState({
     name: "", email: "", phone: "",
-    address: { street: "", city: "", state: "", zip: "", country: "United States" }
+    address: { street: "", city: "", state: "", zip: "", country: guessCountryName() || "Canada" }
   });
 
   const [shippingCost, setShippingCost] = useState(0);
   const [taxCost, setTaxCost] = useState(0);
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [taxRates, setTaxRates] = useState<any[]>([]);
-  const [books, setBooks] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>(null);
+  // Reuse the storefront's same-session snapshot immediately. Checkout still
+  // refreshes in the background, but returning to/from it no longer waits for
+  // duplicate settings and catalog reads before it can paint.
+  const cachedSite = useMemo(() => readSiteCache(), []);
+  const [books, setBooks] = useState<any[]>(() => cachedSite?.books || []);
+  const [settings, setSettings] = useState<any>(() => cachedSite?.settings || null);
   // Until the saved settings arrive (or if they never do) checkout wears the Riso Noir defaults.
   const checkoutDesign = settings?.design ?? DEFAULT_SETTINGS.design;
+  useEffect(() => { if (settings?.design?.checkoutSummaryOpenOnPhones) setSummaryOpen(true); }, [settings?.design?.checkoutSummaryOpenOnPhones]);
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(checkoutDesign, key, vars);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
   const [successOrder, setSuccessOrder] = useState<any>(null);
+  // Stripe card form shown on this page; a failed attempt keeps its order +
+  // PaymentIntent so retrying with the same bag doesn't create another order.
+  const cardFormRef = useRef<StripeCardFormHandle>(null);
+  const pendingCardOrder = useRef<{ key: string; orderId: string; clientSecret: string } | null>(null);
+  const stripePublicKey: string = (settings?.payments?.testMode
+    ? settings?.payments?.stripe?.testPublicKey
+    : settings?.payments?.stripe?.publicKey) || "";
+  // Studio › Style › Checkout: card form on this page (default) or Stripe's own page.
+  const pinnedCountryCodes = useMemo(() => parsePinned(checkoutDesign.checkoutPinnedCountries || undefined), [checkoutDesign.checkoutPinnedCountries]);
+  const useCardForm = Boolean(stripePublicKey) && !checkoutDesign.stripeRedirect;
 
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -151,7 +238,7 @@ export function Checkout() {
               address: {
                 street: data.defaultAddress?.street || prev.address.street,
                 city: data.defaultAddress?.city || prev.address.city,
-                state: data.defaultAddress?.state || prev.address.state,
+                state: cleanRegion(data.defaultAddress?.state) || prev.address.state,
                 zip: data.defaultAddress?.zip || prev.address.zip,
                 country: data.defaultAddress?.country || prev.address.country,
               }
@@ -254,7 +341,7 @@ export function Checkout() {
               address: {
                 street: cartData.customer.address?.street || prev.address.street,
                 city: cartData.customer.address?.city || prev.address.city,
-                state: cartData.customer.address?.state || prev.address.state,
+                state: cleanRegion(cartData.customer.address?.state) || prev.address.state,
                 zip: cartData.customer.address?.zip || prev.address.zip,
                 country: cartData.customer.address?.country || prev.address.country,
               }
@@ -486,6 +573,42 @@ export function Checkout() {
   const [availableRates, setAvailableRates] = useState<any[]>([]);
   const [selectedRateName, setSelectedRateName] = useState<string>("");
 
+  const shippingItemsForCart = () => cart.map((item) => {
+    const book: any = booksMap.get(item.id);
+    const variant = item.variantId ? (book?.variants || []).find((v: any) => v.id === item.variantId) : null;
+    return {
+      price: item.price,
+      quantity: item.quantity,
+      shippingProfileId: item.shippingProfileId || null,
+      weightGrams: parseWeightGrams(variant?.weight) ?? parseWeightGrams(book?.weight),
+    };
+  });
+
+  // "Add CA$X more for free shipping" — only when the real shipping rules would
+  // actually make this delivery free at that total (checked with the same engine).
+  const freeShipNudge = useMemo(() => {
+    if (checkoutDesign.hideCheckoutFreeShipNudge || cart.length === 0 || shippingProfiles.length === 0) return null;
+    const selected = availableRates.find(r => r.name === selectedRateName) || availableRates[0];
+    if (!selected || selected.price === 0 || selected.pickup) return null;
+    const candidates = new Set<number>();
+    shippingProfiles.forEach((p: any) => {
+      if (Number(p.freeShippingOver) > 0) candidates.add(Number(p.freeShippingOver));
+      (p.zones || []).forEach((z: any) => (z.rates || []).forEach((r: any) => { if (Number(r.freeOver) > 0) candidates.add(Number(r.freeOver)); }));
+    });
+    const country = customer.address.country || "Canada";
+    const base = shippingItemsForCart();
+    for (const t of [...candidates].filter(t => t > cartTotal).sort((a, b) => a - b).slice(0, 6)) {
+      const gap = freeShippingGap(cartTotal, t);
+      if (!gap) continue;
+      const probe = [...base, { price: gap, quantity: 1, shippingProfileId: cart[0]?.shippingProfileId || null, weightGrams: 0 }];
+      const quotes = quoteShipping(probe, { country }, shippingProfiles);
+      const same = quotes.find(q => q.name === selected.name);
+      if ((same ? same.price : quotes[0]?.price) === 0) return { gap, threshold: t };
+    }
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, cartTotal, shippingProfiles, availableRates, selectedRateName, customer.address.country, checkoutDesign.hideCheckoutFreeShipNudge]);
+
   const calculateStaticProfileRates = () => {
     if (cart.length === 0 || shippingProfiles.length === 0) {
       setAvailableRates([]);
@@ -494,27 +617,17 @@ export function Checkout() {
     }
     // Same engine the server uses to charge the order (parity-tested); weights
     // come from the catalog so weight-based rates quote identically.
-    const items = cart.map((item) => {
-      const book: any = booksMap.get(item.id);
-      const variant = item.variantId ? (book?.variants || []).find((v: any) => v.id === item.variantId) : null;
-      return {
-        price: item.price,
-        quantity: item.quantity,
-        shippingProfileId: item.shippingProfileId || null,
-        weightGrams: parseWeightGrams(variant?.weight) ?? parseWeightGrams(book?.weight),
-      };
-    });
+    const items = shippingItemsForCart();
     const quotes = quoteShipping(items, { country: customer.address.country || "Canada" }, shippingProfiles);
     setAvailableRates(quotes.map((q) => ({ name: q.name, price: q.price, deliveryDays: q.deliveryDays, pickup: q.type === "pickup" })));
   };
 
   useEffect(() => {
     const addr = customer.address;
-    // Zone/rate profiles are what the server charges, so show exactly those.
-    // Live carrier quotes are only a fallback for stores with no zone setup,
-    // because the charged amount must equal the amount displayed.
-    const hasConfiguredZones = shippingProfiles.some((p) => Array.isArray(p.zones) && p.zones.length > 0);
-    if (hasConfiguredZones || !addr.street?.trim() || !addr.city?.trim() || !addr.state?.trim() || !addr.zip?.trim() || cart.length === 0) {
+    // The backend decides whether this destination is opted into live rates.
+    // Countries outside that allowlist return no live rates and follow the
+    // regular profile/zone path below.
+    if (!addr.street?.trim() || !addr.city?.trim() || !addr.state?.trim() || !addr.zip?.trim() || cart.length === 0) {
       calculateStaticProfileRates();
       return;
     }
@@ -541,7 +654,7 @@ export function Checkout() {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data.rates) && data.rates.length > 0) {
-            setAvailableRates(data.rates);
+            setAvailableRates(canadaPostRates(data.rates));
             setShippoRatesLoading(false);
             return;
           }
@@ -765,12 +878,30 @@ export function Checkout() {
     return () => clearTimeout(t);
   }, [customer.email, cart, cartTotal]);
 
+  // Fill an empty (or "Please select") state/province from the postal code.
+  useEffect(() => {
+    const current = cleanRegion(customer.address.state);
+    if (current) return;
+    const guess = provinceFromPostal(customer.address.country, customer.address.zip);
+    if (guess || current !== customer.address.state) {
+      setCustomer(prev => ({ ...prev, address: { ...prev.address, state: guess } }));
+    }
+  }, [customer.address.zip, customer.address.country, customer.address.state]);
+
   const handleCompletePurchase = async () => {
     if (!customer.name || !customer.email || !customer.address.street || !customer.address.city || !customer.address.state || !customer.address.zip) {
       setNotice({ tone: "error", text: c("coErrShippingFields") });
       return;
     }
     setNotice(null);
+    const payingByCardForm = useCardForm && selectedPaymentMethod === "stripe";
+    if (payingByCardForm) {
+      const cardError = await cardFormRef.current?.validate();
+      if (cardError) {
+        setNotice({ tone: "error", text: cardError });
+        return;
+      }
+    }
     setIsCompleting(true);
     try {
       // 1. Verify and Validate address using Shippo API Cloud Function
@@ -846,7 +977,9 @@ export function Checkout() {
       // Save customer email in localStorage to recover cart on payment success landing
       localStorage.setItem("last_customer_email", customer.email);
       
-      const orderId = await adminApi.createOrder(orderData);
+      const cardKey = JSON.stringify([orderData.items, orderData.total, orderData.customer, currency]);
+      const reuse = payingByCardForm && pendingCardOrder.current?.key === cardKey ? pendingCardOrder.current : null;
+      const orderId = reuse ? reuse.orderId : await adminApi.createOrder(orderData);
 
       if (isManual) {
         window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${orderId}&manual=true`;
@@ -871,6 +1004,32 @@ export function Checkout() {
       // Pages the site sits under a sub-path, so origin alone is not enough
       // for Stripe's success/cancel redirects.
       const returnUrl = `${window.location.origin}${import.meta.env.BASE_URL}checkout`;
+
+      const successUrl = `${returnUrl}?success=true&order_id=${encodeURIComponent(orderId)}`;
+
+      if (payingByCardForm) {
+        let clientSecret = reuse?.clientSecret || "";
+        if (!clientSecret) {
+          const intentResponse = await fetch(functionUrl("createStripeCheckoutSession"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, paymentElement: true }),
+          });
+          const intentData = await intentResponse.json();
+          if (!intentResponse.ok || !intentData.clientSecret) throw new Error(intentData.error || c("coStripeError"));
+          clientSecret = intentData.clientSecret;
+          pendingCardOrder.current = { key: cardKey, orderId, clientSecret };
+        }
+        const result = await cardFormRef.current!.confirm(clientSecret, successUrl);
+        if (result.error) {
+          setNotice({ tone: "error", text: result.error });
+          setIsCompleting(false);
+          return;
+        }
+        pendingCardOrder.current = null;
+        window.location.href = `${successUrl}&payment_intent=${encodeURIComponent(result.paymentIntentId || "")}`;
+        return;
+      }
 
       const sessionResponse = await fetch(functionUrl("createStripeCheckoutSession"), {
         method: "POST",
@@ -906,11 +1065,33 @@ export function Checkout() {
     }
 
     let cancelled = false;
+    const stripeSessionId = params.get("session_id") || "";
+    const stripeIntentId = params.get("payment_intent") || "";
+    // Drop the one-time return flags so a refresh doesn't replay this landing.
+    window.history.replaceState(null, "", `${window.location.pathname}?order_id=${encodeURIComponent(oid)}&success=true`);
     setOrderNumber(oid);
     setIsSuccess(true);
 
     (async () => {
       try {
+        if (stripeSessionId.startsWith("cs_") || stripeIntentId.startsWith("pi_")) {
+          // Ask Stripe whether this session was actually completed. "open" means
+          // the shopper came back without paying — send them back to the form.
+          const statusRes = await fetch(functionUrl("createStripeCheckoutSession"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "status", orderId: oid, sessionId: stripeSessionId, paymentIntentId: stripeIntentId }),
+          }).catch(() => null);
+          const statusData = statusRes && statusRes.ok ? await statusRes.json() : null;
+          if (cancelled) return;
+          if (statusData?.status === "open" || statusData?.status === "expired") {
+            window.history.replaceState(null, "", window.location.pathname);
+            setIsSuccess(false);
+            setOrderNumber("");
+            setNotice({ tone: "info", text: c("coPaymentNotFinished") });
+            return;
+          }
+        }
         if (isPayPalReturn) {
           const paypalOrderId = params.get("token");
           if (!paypalOrderId) throw new Error(c("coErrPaypalToken"));
@@ -967,7 +1148,7 @@ export function Checkout() {
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(var(--accent-rgb,232,64,42),0.15)_0%,transparent_70%)] pointer-events-none" />
         <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", duration: 0.8 }}
           className="relative z-10 flex flex-col items-center max-w-md w-full">
-          <div className="w-24 h-24 rounded-[2rem] border flex items-center justify-center mb-10 shadow-[0_0_60px_rgba(124,58,237,0.3)]" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.2)", borderColor: "rgba(var(--accent-rgb), 0.3)" }}>
+          <div className="w-24 h-24 rounded-[2rem] border flex items-center justify-center mb-10 shadow-[0_0_60px_rgba(var(--accent-rgb),0.3)]" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.2)", borderColor: "rgba(var(--accent-rgb), 0.3)" }}>
             <CheckCircle2 size={44} style={{ color: "var(--accent)" }} />
           </div>
           <p className="text-[9px] font-black tracking-[0.5em] uppercase mb-4" style={{ color: "var(--accent)" }}>
@@ -1002,7 +1183,7 @@ export function Checkout() {
           )}
 
           <Link to="/"
-            className="flex items-center gap-3 hover:bg-violet-500 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase transition-all active:scale-95 shadow-[0_10px_40px_rgba(124,58,237,0.4)]" style={{ backgroundColor: "var(--accent)" }}>
+            className="flex items-center gap-3 hover:bg-violet-500 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase transition-all active:scale-95 shadow-[0_10px_40px_rgba(var(--accent-rgb),0.4)]" style={{ backgroundColor: "var(--accent)" }}>
             {c("coContinue")}
           </Link>
         </motion.div>
@@ -1034,9 +1215,11 @@ export function Checkout() {
   // ── Main checkout ───────────────────────────────────────────────────────────
   const hasStripe = Boolean(settings?.payments?.stripe?.connected);
   const hasPaypal = Boolean(settings?.payments?.paypal?.connected);
-  const enabledManualMethods = (settings?.payments?.manualMethods || []).filter((method: any) => method.enabled);
+  const configuredManualMethods = settings?.payments?.manualMethods;
+  const enabledManualMethods = (Array.isArray(configuredManualMethods) ? configuredManualMethods : []).filter((method: any) => method.enabled);
+  const showTotalOnPay = !checkoutDesign.hidePayButtonTotal && cart.length > 0;
   const paymentLabel = selectedPaymentMethod === "stripe"
-    ? c("coPay")
+    ? (showTotalOnPay ? c("coPayWithTotal", { total: formatPrice(finalTotal) }) : c("coPay"))
     : selectedPaymentMethod === "paypal"
       ? c("coPayPal")
       : c("coPlaceOrder");
@@ -1105,12 +1288,22 @@ export function Checkout() {
             <section>
               <StepBadge n={c("coStepOf", { n: 2 })} label={c("coDelivery")} />
               <div className="space-y-3">
-                <CountryField label={c("coCountry")} value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v } })} />
+                <CountryField label={c("coCountry")}
+                  pinnedCodes={pinnedCountryCodes} showFlags={!checkoutDesign.hideCountryFlags}
+                  words={{ search: c("coCountrySearch"), popular: c("coCountryPopular"), all: c("coCountryAll"), none: (q: string) => c("coCountryNone", { query: q }) }}
+                  value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v, state: v === customer.address.country ? customer.address.state : "" } })} />
                 <Field label={c("coName")} value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
-                <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
+                {checkoutDesign.hideAddressSuggestions
+                  ? <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
+                  : <AddressField label={c("coAddress")} value={customer.address.street} country={customer.address.country}
+                      listLabel={c("coAddressSuggestions")} attribution={c("coAddressAttribution")}
+                      onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: v } }))}
+                      onPick={sug => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: sug.street, city: sug.city || prev.address.city, state: sug.state || prev.address.state, zip: sug.zip || prev.address.zip, country: sug.country || prev.address.country } }))} />}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <Field label={c("coCity")} value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required />
-                  <Field label={c("coState")} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" required />
+                  {regionsFor(customer.address.country)
+                    ? <RegionField label={c("coState")} choose={c("coStateChoose")} regions={regionsFor(customer.address.country)!} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} />
+                    : <Field label={c("coState")} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" required />}
                   <Field label={c("coZip")} value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" required />
                 </div>
                 <Field label={c("coPhone")} type="tel" value={customer.phone} onChange={v => setCustomer({ ...customer, phone: v })} autoComplete="tel" inputMode="tel" />
@@ -1142,7 +1335,7 @@ export function Checkout() {
                         />
                         <div>
                           <p className="text-sm font-medium text-slate-900">{rate.name}</p>
-                          {rate.pickup ? <p className="mt-0.5 text-xs text-slate-500">{c("coPickup")}</p> : rate.deliveryDays && <p className="mt-0.5 text-xs text-slate-500">{c("coEstimated", { days: rate.deliveryDays })}</p>}
+                          {rate.pickup ? <p className="mt-0.5 text-xs text-slate-500">{c("coPickup")}</p> : rate.deliveryDays && <p className="mt-0.5 text-xs text-slate-500">{(!checkoutDesign.hideCheckoutArrivalDate && arrivalDateLabel(rate.deliveryDays)) ? c("coArrivesBy", { date: arrivalDateLabel(rate.deliveryDays)! }) : c("coEstimated", { days: rate.deliveryDays })}</p>}
                         </div>
                       </div>
                       <span className="text-sm font-semibold text-slate-900">{rate.price === 0 ? c("coFree") : formatPrice(rate.price)}</span>
@@ -1189,7 +1382,25 @@ export function Checkout() {
                         {['VISA', 'MC', 'AMEX'].map(card => <span key={card} className="rounded border border-slate-300 bg-white px-1.5 py-1 text-[9px] font-bold text-slate-600">{card}</span>)}
                       </div>
                     </div>
-                    {selectedPaymentMethod === "stripe" && (
+                    {selectedPaymentMethod === "stripe" && useCardForm && (
+                      <div className="border-t border-slate-200 px-4 py-4" onClick={e => e.preventDefault()}>
+                        <StripeCardForm
+                          ref={cardFormRef}
+                          publishableKey={stripePublicKey}
+                          amountCents={Math.round(convertPrice(finalTotal) * 100)}
+                          currency={currency}
+                          loadingText={c("coStripeLoading")}
+                          errorText={c("coStripeLoadError")}
+                          fontName={checkoutDesign.checkoutFieldFont || checkoutDesign.checkoutFont || checkoutDesign.font || checkoutDesign.bodyFont || undefined}
+                          style={{
+                            background: checkoutDesign.stripeFormBg || undefined,
+                            padding: checkoutDesign.stripeFormPadding != null ? `${checkoutDesign.stripeFormPadding}px` : undefined,
+                            borderRadius: checkoutDesign.checkoutInputRadius != null ? `${checkoutDesign.checkoutInputRadius}px` : undefined,
+                          }}
+                        />
+                      </div>
+                    )}
+                    {selectedPaymentMethod === "stripe" && !useCardForm && (
                       <div className="border-t border-slate-200 px-6 py-7 text-center">
                         <CreditCard size={34} strokeWidth={1.4} className="mx-auto mb-3 text-slate-400" />
                         <p className="text-sm text-slate-600">{c("coStripeNote")}</p>
@@ -1230,6 +1441,9 @@ export function Checkout() {
               >
                 {isCompleting ? <><Loader2 size={18} className="animate-spin" /> {c("coProcessing")}</> : <><Lock size={16} /> {paymentLabel}</>}
               </button>
+              {c("coGuarantee") && (
+                <p className="mt-3 text-center text-sm font-medium text-slate-700" data-studio-target="copy:Checkout" data-studio-label="Promise under Pay button">{c("coGuarantee")}</p>
+              )}
               <div className="mt-4 flex items-start justify-center gap-2 text-center text-xs leading-5 text-slate-500">
                 <ShieldCheck size={16} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
                 <p>{c("coPrivacyNote")}</p>
@@ -1245,7 +1459,14 @@ export function Checkout() {
         </main>
 
         <aside className="order-first border-b border-slate-200 bg-slate-50 px-5 py-7 sm:px-8 lg:order-none lg:border-b-0 lg:px-10 lg:py-12">
-          <div className="mx-auto max-w-2xl lg:sticky lg:top-8">
+          {/* Phones: a one-line bar (summary + total) so the form comes first; tap to open. */}
+          <button type="button" onClick={() => setSummaryOpen(o => !o)} aria-expanded={summaryOpen}
+            data-studio-target="style:checkout|copy:Checkout" data-studio-label="Phone order summary bar"
+            className="mx-auto -my-2 flex w-full max-w-2xl items-center justify-between gap-3 py-2 text-sm font-medium text-slate-900 lg:hidden">
+            <span className="flex items-center gap-2">{c(summaryOpen ? "coHideSummary" : "coShowSummary")} <span aria-hidden="true">{summaryOpen ? "▴" : "▾"}</span></span>
+            <span className="text-base font-semibold">{formatPrice(finalTotal)}</span>
+          </button>
+          <div className={`mx-auto max-w-2xl lg:sticky lg:top-8 lg:block ${summaryOpen ? "mt-6 block" : "hidden"}`}>
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">{c("coSummary")}</h2>
               {/* ⚡ Bolt: Replace O(N) array iterations in render with O(1) memoized value */}
@@ -1256,12 +1477,15 @@ export function Checkout() {
               {cart.map(item => (
                 <div key={`${item.id}-${item.variantId || "default"}`} className="flex items-center gap-4">
                   <div className="relative h-16 w-14 shrink-0 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
-                    <img src={item.photoUrl} alt="" className="h-full w-full rounded object-cover" />
+                    <img loading="lazy" decoding="async" src={item.photoUrl} alt="" className="h-full w-full rounded object-cover" />
                     <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-600 px-1 text-xs font-semibold text-white">{item.quantity}</span>
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-slate-900">{item.title}</p>
                     {item.variantName && <p className="mt-0.5 text-xs text-slate-500">{item.variantName}</p>}
+                    {!checkoutDesign.hideCheckoutLowStock && typeof item.stockLimit === "number" && item.stockLimit > 0 && item.stockLimit <= designNumber(checkoutDesign, "lowStockProductThreshold", 3) && (
+                      <p className="mt-0.5 text-xs font-medium" style={{ color: "var(--warning, #b45309)" }}>{c("coOnlyLeft", { count: item.stockLimit })}</p>
+                    )}
                   </div>
                   <span className="text-sm font-medium text-slate-900">{formatPrice(item.price * item.quantity)}</span>
                 </div>
@@ -1270,6 +1494,12 @@ export function Checkout() {
 
             <div className="my-7 border-t border-slate-200" />
 
+            {!(checkoutDesign.alwaysShowDiscountBox || discountOpen || appliedDiscount || discountCode) ? (
+              <button type="button" onClick={() => setDiscountOpen(true)} data-studio-target="copy:Checkout" data-studio-label="Discount code link"
+                className="flex items-center gap-2 text-sm font-medium text-slate-600 underline-offset-4 hover:underline">
+                <Tag size={15} /> {c("coHaveCode")}
+              </button>
+            ) : (
             <div className="flex gap-3">
               <div className="relative flex-1">
                 <Tag size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -1291,6 +1521,7 @@ export function Checkout() {
                 </button>
               )}
             </div>
+            )}
             {discountError && <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} />{discountError}</p>}
             {appliedDiscount && <p className="mt-2 flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--success)" }}><CheckCircle2 size={13} />{c("coDiscountApplied", { code: appliedDiscount.code })}</p>}
 
@@ -1303,6 +1534,14 @@ export function Checkout() {
                 <span>{c("summaryShipping")}{getActiveShippingDetails()?.serviceName ? ` · ${getActiveShippingDetails()?.serviceName}` : ""}</span>
                 <span className="font-medium text-slate-900">{isFreeShipping || shippingCost === 0 ? c("coFree") : formatPrice(finalShipping)}</span>
               </div>
+              {freeShipNudge && (
+                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5" data-studio-target="style:checkout|copy:Checkout" data-studio-label="Free-shipping nudge">
+                  <p className="text-xs font-medium text-slate-700">{c("coFreeShipGap", { amount: formatPrice(freeShipNudge.gap) })}</p>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+                    <div className="h-full fm-accent-bg" style={{ width: `${Math.min(100, Math.max(4, (cartTotal / freeShipNudge.threshold) * 100))}%` }} />
+                  </div>
+                </div>
+              )}
               <div className="flex justify-between text-slate-600"><span>{c("summaryTax")}</span><span className="font-medium text-slate-900">{taxCost > 0 ? formatPrice(taxCost) : c("coTaxLater")}</span></div>
             </div>
 

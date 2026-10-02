@@ -15,6 +15,7 @@ import {
 import { motion } from "motion/react";
 import RichTextEditor from "../components/RichTextEditor";
 import { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
+import { PHOTO_RATIO_OPTIONS } from "../features/site/photoShapes";
 import {
   BOX_SHADOW_OPTIONS,
   CORNER_RADIUS_OPTIONS,
@@ -411,7 +412,7 @@ export const SECTION_REGISTRY: SectionTypeMeta[] = [
   {
     type: "ContactFormSection",
     label: "Contact Form",
-    description: "Name, email, message form.",
+    description: "Name, email, message form — messages are emailed to you.",
     category: "Engagement",
     defaults: {
       title: "Get in touch",
@@ -2254,6 +2255,7 @@ export function SectionSettingsPanel({
           <label className="text-[10px] font-bold block">Top padding (px)<input type="number" min="0" max="240" value={settings.mobilePaddingTop ?? ""} placeholder={String(settings.paddingTop ?? 0)} onChange={(e) => onUpdate({ mobilePaddingTop: e.target.value === "" ? undefined : Number(e.target.value) })} className="mt-1 w-full bg-white border border-neutral-200 rounded-lg px-3 py-2" /></label>
           <label className="text-[10px] font-bold block">Bottom padding (px)<input type="number" min="0" max="240" value={settings.mobilePaddingBottom ?? ""} placeholder={String(settings.paddingBottom ?? 0)} onChange={(e) => onUpdate({ mobilePaddingBottom: e.target.value === "" ? undefined : Number(e.target.value) })} className="mt-1 w-full bg-white border border-neutral-200 rounded-lg px-3 py-2" /></label>
           <label className="text-[10px] font-bold block">Text scale (%)<input type="number" min="60" max="140" value={settings.mobileFontScale ?? ""} placeholder="100" onChange={(e) => onUpdate({ mobileFontScale: e.target.value === "" ? undefined : Number(e.target.value) })} className="mt-1 w-full bg-white border border-neutral-200 rounded-lg px-3 py-2" /></label>
+          <label className="text-[10px] font-bold block">Heading size (px)<input type="number" min="12" max="120" value={settings.mobileHeadingSize ?? ""} placeholder={settings.headingSize != null ? String(settings.headingSize) : "Automatic"} onChange={(e) => onUpdate({ mobileHeadingSize: e.target.value === "" ? undefined : Number(e.target.value) })} className="mt-1 w-full bg-white border border-neutral-200 rounded-lg px-3 py-2" /></label>
           <label className="text-[10px] font-bold block">Grid columns<input type="number" min="1" max="4" value={settings.mobileColumns ?? ""} placeholder="Automatic" onChange={(e) => onUpdate({ mobileColumns: e.target.value === "" ? undefined : Number(e.target.value) })} className="mt-1 w-full bg-white border border-neutral-200 rounded-lg px-3 py-2" /></label>
           <p className="text-[8px] text-neutral-400">Shown in the phone preview and on shopper screens below 768px.</p>
         </div>
@@ -2524,11 +2526,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "columnsMobile", label: "Mobile columns", kind: "range", min: 1, max: 3, step: 1 },
     { key: "gridGap", label: "Column gap", kind: "range", min: 8, max: 72, step: 2, suffix: "px" },
     { key: "rowGap", label: "Row gap", kind: "range", min: 24, max: 120, step: 2, suffix: "px" },
-    { key: "imageAspectRatio", label: "Image aspect ratio", kind: "select", options: [
-      { value: "1:1", label: "Square" },
-      { value: "3:4", label: "Portrait" },
-      { value: "2:3", label: "Tall" },
-    ] },
+    { key: "imageAspectRatio", label: "Image aspect ratio", kind: "select", options: PHOTO_RATIO_OPTIONS },
     { key: "imageFit", label: "Image fit", kind: "select", options: [
       { value: "cover", label: "Cover" },
       { value: "contain", label: "Contain" },
@@ -2584,11 +2582,15 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "title", label: "Title", kind: "text" },
     { key: "subtitle", label: "Subtitle", kind: "text" },
     { key: "buttonLabel", label: "Button label", kind: "text" },
+    { key: "sendingLabel", label: "Button label while sending", kind: "text" },
     { key: "successMessage", label: "Thank-you message", kind: "text" },
+    { key: "errorMessage", label: "Error message (if sending fails)", kind: "text" },
     { key: "showPhone", label: "Show phone field", kind: "toggle" },
+    { key: "showSubject", label: "Show subject field", kind: "toggle" },
     { key: "namePlaceholder", label: "Name field placeholder", kind: "text" },
     { key: "emailPlaceholder", label: "Email field placeholder", kind: "text" },
     { key: "phonePlaceholder", label: "Phone field placeholder", kind: "text" },
+    { key: "subjectPlaceholder", label: "Subject field placeholder", kind: "text" },
     { key: "messagePlaceholder", label: "Message field placeholder", kind: "text" },
     { key: "accentColor", label: "Accent", kind: "color" },
   ],
@@ -2712,12 +2714,7 @@ const SECTION_FIELDS: Record<string, SectionFieldSchema[]> = {
     { key: "productLimit", label: "Product limit", kind: "range", min: 1, max: 24, step: 1 },
     { key: "columnsDesktop", label: "Desktop columns", kind: "range", min: 1, max: 4, step: 1 },
     { key: "columnsMobile", label: "Mobile columns", kind: "range", min: 1, max: 2, step: 1 },
-    { key: "imageAspectRatio", label: "Cover aspect ratio", kind: "select", options: [
-      { value: "4:5", label: "Book (4:5)" },
-      { value: "3:4", label: "Portrait (3:4)" },
-      { value: "2:3", label: "Tall (2:3)" },
-      { value: "1:1", label: "Square" },
-    ] },
+    { key: "imageAspectRatio", label: "Cover aspect ratio", kind: "select", options: PHOTO_RATIO_OPTIONS },
     { key: "showCategoryTag", label: "Show category tag", kind: "toggle" },
     { key: "showQuickAdd", label: "Show quick-add button", kind: "toggle" },
     { key: "showPrices", label: "Show prices", kind: "toggle" },

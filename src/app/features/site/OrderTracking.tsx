@@ -150,7 +150,7 @@ export default function OrderTracking() {
             >
               <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.04] to-transparent pointer-events-none" />
               <div className="text-center mb-10">
-                <div className="w-16 h-16 rounded-2xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center mb-6 mx-auto shadow-[0_0_40px_rgba(124,58,237,0.2)]">
+                <div className="w-16 h-16 rounded-2xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center mb-6 mx-auto shadow-[0_0_40px_rgba(var(--accent-rgb),0.2)]">
                   <Lock size={24} className="fm-accent-text" />
                 </div>
                 <h2 className="text-3xl font-black tracking-tighter uppercase italic">{getCopy(settings?.design, "trackTitle")}</h2>
@@ -192,7 +192,7 @@ export default function OrderTracking() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full fm-accent-bg hover:bg-violet-500 text-white py-5 rounded-2xl text-[10px] font-black tracking-[0.4em] uppercase transition-all active:scale-[0.98] disabled:opacity-60 shadow-[0_15px_40px_rgba(124,58,237,0.3)] flex items-center justify-center gap-3"
+                  className="w-full fm-accent-bg hover:bg-violet-500 text-white py-5 rounded-2xl text-[10px] font-black tracking-[0.4em] uppercase transition-all active:scale-[0.98] disabled:opacity-60 shadow-[0_15px_40px_rgba(var(--accent-rgb),0.3)] flex items-center justify-center gap-3"
                 >
                   {loading ? (
                     <><Loader2 size={16} className="animate-spin" /> {getCopy(settings?.design, "trackLoading")}</>
@@ -249,7 +249,7 @@ export default function OrderTracking() {
                       <div key={index} className="flex flex-col items-center md:items-start text-center md:text-left relative z-10 space-y-4">
                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 border
                           ${isCompleted 
-                            ? "bg-violet-500/20 border-violet-500/40 fm-accent-text shadow-[0_0_30px_rgba(124,58,237,0.25)]" 
+                            ? "bg-violet-500/20 border-violet-500/40 fm-accent-text shadow-[0_0_30px_rgba(var(--accent-rgb),0.25)]" 
                             : "bg-white/[0.03] border-white/10 text-white/50"
                           }
                           ${isActive ? "ring-2 ring-violet-500 ring-offset-4 ring-offset-[var(--bg-color,#050506)]" : ""}
@@ -340,7 +340,7 @@ export default function OrderTracking() {
                   {order.items.map((item: any, idx: number) => (
                     <div key={idx} className="flex gap-6 items-center">
                       <div className="w-14 aspect-[3/4] fm-surface-2 rounded-lg overflow-hidden border border-white/10 shrink-0">
-                        <img src={item.photoUrl} alt={item.title} className="w-full h-full object-cover" />
+                        <img loading="lazy" decoding="async" src={item.photoUrl} alt={item.title} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-black text-white uppercase tracking-wider truncate leading-tight">{item.title}</p>

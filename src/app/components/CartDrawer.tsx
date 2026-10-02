@@ -6,9 +6,13 @@ import { useSiteData } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
 import { useCurrency } from "../CurrencyContext";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
+import { cartDrawerCss, cartDrawerFontNames, cartDrawerWidth } from "../features/site/cartDrawerStyle";
+import { googleFontHref } from "../features/site/fonts";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
 
+// The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
+// features/site/cartDrawerStyle.ts); its words are Studio › Text & labels › Cart.
 export function CartDrawer() {
   const { cart, addToCart, removeFromCart, updateQuantity, cartTotal, isCartOpen, setIsCartOpen } = useCart();
   const navigate = useNavigate();
@@ -19,30 +23,13 @@ export function CartDrawer() {
   useFocusTrap(drawerRef, isCartOpen, () => setIsCartOpen(false));
 
   // ⚡ Bolt: Cache books by ID for O(1) lookups during cart iteration
-  // Measured impact: Eliminates O(N*M) complexity when finding cart item categories.
-  const booksMap = useMemo(() => {
-    return new Map((books || []).map(b => [b.id, b]));
-  }, [books]);
+  const booksMap = useMemo(() => new Map((books || []).map(b => [b.id, b])), [books]);
 
-  // Find a recommended book for "Complete your collection"
+  // "Complete your collection": a published book not in the bag, same category when possible.
   const cartIds = new Set(cart.map((i) => i.id));
   const candidateBooks = (books || []).filter((b) => !cartIds.has(b.id) && b.status === "published");
-
-  // Find match in same category if possible
-  const cartCategories = new Set(
-    cart.flatMap((i) => {
-      const match = booksMap.get(i.id);
-      return match?.categories || [];
-    })
-  );
-
-  let recommendedBook = candidateBooks.find((b) =>
-    b.categories?.some((cat) => cartCategories.has(cat))
-  );
-
-  if (!recommendedBook && candidateBooks.length > 0) {
-    recommendedBook = candidateBooks[0]; // fallback
-  }
+  const cartCategories = new Set(cart.flatMap((i) => booksMap.get(i.id)?.categories || []));
+  const recommendedBook = candidateBooks.find((b) => b.categories?.some((cat) => cartCategories.has(cat))) || candidateBooks[0];
 
   // Resolve storefront design settings (flat or nested under `.storefront`).
   const rawDesign = (settings as any)?.design || {};
@@ -50,34 +37,26 @@ export function CartDrawer() {
   const design = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? { ...rawDesign, ...rawDesign.storefront } : rawDesign;
   const showFreeShipBar = design.showFreeShipBar ?? true;
   const showTrustBadges = design.showCartTrustBadges ?? true;
-
-  const buttonBg = design?.buttonColor || design?.primaryColor || "#000000";
-  const buttonText = design?.buttonTextColor || "#ffffff";
-  const buttonRadius = Math.max(0, Math.min(999, design?.buttonRadius ?? 999));
-  const buttonStyle = design?.buttonStyle || "solid";
-  const buttonUppercase = design?.buttonUppercase ?? true;
-  const buttonShadow = design?.buttonShadow ?? true;
-
-  // Drawer surface theming — all optional; without cartDrawerBg the drawer
-  // renders exactly as before (white panel, neutral greys).
-  const drawerDark = !!design?.cartDrawerBg;
-  const drawerBg = design?.cartDrawerBg || "#ffffff";
-  const drawerText = design?.cartDrawerText || "#000000";
-  const drawerMuted = design?.cartDrawerMuted || (drawerDark ? "rgba(255,255,255,0.5)" : undefined);
-  const drawerSurface = design?.cartDrawerSurface || (drawerDark ? "rgba(255,255,255,0.06)" : undefined);
-  const drawerBorder = design?.cartDrawerBorder || (drawerDark ? "rgba(255,255,255,0.12)" : undefined);
-  const headingFontFamily = design?.headingFont ? `'${design.headingFont}', serif` : undefined;
-  // Thumbnails stay grayscale on the classic white drawer; a themed drawer
-  // shows covers in color unless the merchant re-enables grayscale.
-  const grayscaleThumbs = design?.cartDrawerGrayscaleThumbs ?? !drawerDark;
-
-  const mutedStyle = drawerMuted ? { color: drawerMuted } : undefined;
-  const surfaceStyle = drawerSurface ? { backgroundColor: drawerSurface } : undefined;
-  const borderStyle = drawerBorder ? { borderColor: drawerBorder } : undefined;
+  const showCount = design.cartDrawerShowCount ?? true;
+  const showNumbers = design.cartDrawerShowItemNumbers ?? true;
+  const showUnitPrice = design.cartDrawerShowUnitPrice ?? true;
+  const showLineTotal = design.cartDrawerShowLineTotal ?? true;
+  const showUpsell = design.cartDrawerShowUpsell ?? true;
+  const showSummary = design.cartDrawerShowSummary ?? true;
+  const showDeliveryNote = design.cartDrawerShowDeliveryNote ?? true;
+  const showArrow = design.cartDrawerShowCheckoutArrow ?? true;
+  const backdropBlur = design.cartDrawerBackdropBlur ?? true;
+  const qtyStyle = design.cartDrawerQtyStyle === "pill" ? "pill" : "boxes";
+  const removeAsIcon = design.cartDrawerRemoveStyle === "icon";
+  const fromLeft = design.cartDrawerSide === "left";
+  const grayscaleThumbs = design.cartDrawerGrayscaleThumbs ?? false;
+  const itemCount = cart.reduce((n, i) => n + (i.quantity || 0), 0);
 
   const FREE_SHIP_THRESHOLD = Math.max(0, design.freeShipThreshold ?? 100);
   const remaining = Math.max(0, FREE_SHIP_THRESHOLD - cartTotal);
   const progress = FREE_SHIP_THRESHOLD > 0 ? Math.min(100, (cartTotal / FREE_SHIP_THRESHOLD) * 100) : 100;
+  const pad2 = (n: number) => String(n).padStart(2, "0");
+  const goCheckout = () => { setIsCartOpen(false); navigate("/checkout"); };
 
   return (
     <AnimatePresence>
@@ -87,197 +66,156 @@ export function CartDrawer() {
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => setIsCartOpen(false)}
             aria-hidden="true"
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60]"
+            className={`fixed inset-0 z-[60] ${backdropBlur ? "backdrop-blur-sm" : ""}`}
+            style={{ backgroundColor: design.cartDrawerBackdropColor || "rgba(0, 0, 0, 0.55)" }}
           />
           <motion.div
             ref={drawerRef}
             role="dialog"
-            data-studio-target="copy:Cart|style:checkout" data-studio-label="Cart drawer"
+            data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Cart drawer"
             aria-modal="true"
             aria-label={getCopy(design, "cartTitle")}
             tabIndex={-1}
             data-fm-store
             data-fm-checkout
-            initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 h-screen w-full max-w-md z-[70] flex flex-col pt-24"
-            style={{ backgroundColor: drawerBg, color: drawerText, borderLeft: drawerDark ? "var(--rp-outline-w, 2px) solid var(--rp-outline, currentColor)" : undefined, boxShadow: drawerDark ? "-6px 0 0 var(--rp-shadow-color, transparent)" : "0 25px 50px -12px rgba(0,0,0,.25)" }}
+            initial={{ x: fromLeft ? "-100%" : "100%" }} animate={{ x: 0 }} exit={{ x: fromLeft ? "-100%" : "100%" }}
+            transition={{ type: "spring", damping: 28, stiffness: 220 }}
+            className={`fm-bag fixed top-0 h-[100dvh] w-full z-[70] flex flex-col ${fromLeft ? "left-0" : "right-0"}`}
+            style={{ maxWidth: cartDrawerWidth(design) }}
           >
             <StorefrontThemeStyle design={design} />
-            <div className="px-8 pb-4 flex justify-between items-center" style={{ backgroundColor: drawerBg }}>
-              <div>
-                <h3 className="text-2xl font-light tracking-tight" style={headingFontFamily ? { fontFamily: headingFontFamily } : undefined}>
-                  {getCopy(design, "cartTitle")}
-                </h3>
-                <p className="text-[10px] tracking-widest text-neutral-400 uppercase mt-1" style={mutedStyle}>{getCopy(design, "cartCountLabel", { count: cart.length })}</p>
+            <style>{cartDrawerCss(design)}</style>
+            {cartDrawerFontNames(design).map((n) => <link key={n} rel="stylesheet" href={googleFontHref(n)} />)}
+
+            {/* Header: title, count, close */}
+            <div data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Bag heading" className="fm-bag-pad fm-bag-head fm-bag-rule border-b pt-8 pb-5 flex justify-between items-start gap-4">
+              <div className="min-w-0">
+                <h2 className="fm-bag-title">{getCopy(design, "cartTitle")}</h2>
+                {showCount && cart.length > 0 && <p className="fm-bag-meta mt-2">{getCopy(design, "cartCountLabel", { count: itemCount })}</p>}
               </div>
               <button
                 onClick={() => setIsCartOpen(false)}
                 aria-label={getCopy(design, "cartCloseAria")}
-                className={`p-3 -m-1 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full transition-colors ${drawerDark ? "hover:bg-white/10" : "hover:bg-neutral-50"}`}
+                className="fm-bag-close shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            {/* Free shipping progress */}
+            {/* Free shipping meter */}
             {cart.length > 0 && showFreeShipBar && (
-              <div className="px-8 pb-4">
-                <div className="flex items-center gap-2 text-[10px] tracking-widest text-neutral-500 uppercase mb-2" style={mutedStyle}>
-                  <Truck size={12} />
-                  {remaining > 0 ? (
-                    <span>{getCopy(design, "cartFreeShipAway", { amount: formatPrice(remaining) })}</span>
-                  ) : (
-                    <span style={{ color: "var(--success)" }}>{getCopy(design, "cartFreeShipQualified")}</span>
-                  )}
+              <div data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Free-shipping bar" className="fm-bag-pad fm-bag-meter fm-bag-rule border-b py-4" role="status">
+                <div className="fm-bag-meta flex items-center gap-2 mb-2">
+                  <Truck size={13} aria-hidden="true" />
+                  <span>{remaining > 0 ? getCopy(design, "cartFreeShipAway", { amount: formatPrice(remaining) }) : getCopy(design, "cartFreeShipQualified")}</span>
                 </div>
-                <div className="h-1 bg-neutral-100 rounded-full overflow-hidden" style={surfaceStyle}>
-                  <div
-                    className={`h-full transition-all duration-500 ${remaining > 0 ? (drawerDark ? "" : "bg-black") : "fm-success-solid"}`}
-                    style={{
-                      width: `${progress}%`,
-                      ...(drawerDark && remaining > 0 ? { backgroundColor: "var(--accent, #e8402a)" } : {}),
-                    }}
-                  />
+                <div className="fm-bag-track" aria-hidden="true">
+                  <div className="fm-bag-fill" data-done={remaining > 0 ? undefined : ""} style={{ width: `${progress}%` }} />
                 </div>
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto px-8 space-y-8 scrollbar-hide py-4">
-              {cart.map((item) => (
-                <div key={`${item.id}-${item.variantId || ""}`} className="flex gap-6 group">
-                  <div className="w-24 aspect-[3/4] bg-neutral-100 overflow-hidden flex-shrink-0" style={surfaceStyle}>
-                    <img src={item.photoUrl} alt={item.title || ""} loading="lazy" decoding="async" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />
-                  </div>
-                  <div className="flex-1 flex flex-col justify-between py-1">
-                    <div>
-                      <h4 className="text-[11px] font-bold tracking-widest uppercase mb-1 leading-tight">{item.title}</h4>
-                      {item.variantName && (
-                        <p className="text-[9px] text-neutral-400 tracking-widest uppercase mb-1" style={mutedStyle}>{item.variantName}</p>
-                      )}
-                      <p className="text-[10px] text-neutral-400" style={mutedStyle}>{formatPrice(item.price)}</p>
-                    </div>
-                    <div className="flex items-center justify-between mt-4">
-                      {(() => {
-                        const atLimit = typeof item.stockLimit === "number" && item.stockLimit !== 999 && item.quantity >= item.stockLimit;
-                        return (
-                          <div>
-                            <div className="flex items-center gap-1 bg-neutral-50 px-1 rounded-full" style={surfaceStyle} role="group" aria-label={getCopy(design, "cartQtyAria", { title: item.title })}>
-                              <button onClick={() => updateQuantity(item.id, item.variantId, -1)} disabled={item.quantity <= 1} aria-label={getCopy(design, "cartDecreaseAria", { title: item.title })} className="hover:text-neutral-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center disabled:opacity-30"><Minus size={12} /></button>
-                              <span className="text-[11px] font-bold w-6 text-center" aria-live="polite" aria-atomic="true">{item.quantity}</span>
-                              <button onClick={() => updateQuantity(item.id, item.variantId, 1)} disabled={atLimit} aria-label={getCopy(design, "cartIncreaseAria", { title: item.title })} className="hover:text-neutral-400 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center disabled:opacity-30"><PlusIcon size={12} /></button>
-                            </div>
-                            {atLimit && <p className="text-[9px] tracking-widest uppercase mt-1" role="status" style={{ color: "var(--low-inventory-color, #b4271a)" }}>{getCopy(design, "cartOnlyAvailable", { count: item.stockLimit as number })}</p>}
+            <div className="flex-1 overflow-y-auto scrollbar-hide">
+              {/* Line items */}
+              {cart.length > 0 && (
+                <ul data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Bag line items" className="fm-bag-pad">
+                  {cart.map((item, idx) => {
+                    const atLimit = typeof item.stockLimit === "number" && item.stockLimit !== 999 && item.quantity >= item.stockLimit;
+                    return (
+                      <li key={`${item.id}-${item.variantId || ""}`} className="fm-bag-item flex gap-4 py-5">
+                        {showNumbers && <span className="fm-bag-num pt-0.5" aria-hidden="true">{pad2(idx + 1)}</span>}
+                        <div className="fm-bag-thumb">
+                          {item.photoUrl && <img src={item.photoUrl} alt="" loading="lazy" decoding="async" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />}
+                        </div>
+                        <div className="flex-1 min-w-0 flex flex-col gap-1">
+                          <div className="flex justify-between gap-3 items-start">
+                            <h3 className="fm-bag-name">{item.title}</h3>
+                            {showLineTotal && <span className="fm-bag-line">{formatPrice(item.price * item.quantity)}</span>}
                           </div>
-                        );
-                      })()}
-                      <button
-                        onClick={() => removeFromCart(item.id, item.variantId)}
-                        aria-label={getCopy(design, "cartRemoveAria", { title: item.title })}
-                        className={`min-w-[44px] min-h-[44px] flex items-center justify-center transition-colors ${drawerDark ? "text-white/40 hover:text-white" : "text-neutral-300 hover:text-black"}`}
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                          {item.variantName && <p className="fm-bag-meta">{item.variantName}</p>}
+                          {showUnitPrice && <p className="fm-bag-meta">{getCopy(design, "cartEachLabel", { price: formatPrice(item.price) })}</p>}
+                          <div className="flex items-center justify-between gap-3 mt-auto pt-2">
+                            <div className="fm-bag-qty" data-style={qtyStyle} role="group" aria-label={getCopy(design, "cartQtyAria", { title: item.title })}>
+                              <button onClick={() => updateQuantity(item.id, item.variantId, -1)} disabled={item.quantity <= 1} aria-label={getCopy(design, "cartDecreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><Minus size={12} /></button>
+                              <span className="fm-bag-qty-n" aria-live="polite" aria-atomic="true">{item.quantity}</span>
+                              <button onClick={() => updateQuantity(item.id, item.variantId, 1)} disabled={atLimit} aria-label={getCopy(design, "cartIncreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><PlusIcon size={12} /></button>
+                            </div>
+                            <button
+                              onClick={() => removeFromCart(item.id, item.variantId)}
+                              aria-label={getCopy(design, "cartRemoveAria", { title: item.title })}
+                              className="fm-bag-remove fm-bag-meta min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors"
+                            >
+                              {removeAsIcon ? <Trash2 size={14} aria-hidden="true" /> : getCopy(design, "cartRemoveLabel")}
+                            </button>
+                          </div>
+                          {atLimit && <p className="fm-bag-warn fm-bag-meta" role="status">{getCopy(design, "cartOnlyAvailable", { count: item.stockLimit as number })}</p>}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
               {cart.length === 0 && (
-                <div className="py-20 text-center space-y-4">
-                   <div className="w-16 h-16 bg-neutral-50 rounded-full flex items-center justify-center mx-auto" style={surfaceStyle}>
-                      <ShoppingBag size={24} className={drawerDark ? "text-white/30" : "text-neutral-200"} />
-                   </div>
-                   <p className="text-[10px] tracking-[.3em] text-neutral-300 uppercase italic" style={mutedStyle}>{getCopy(design, "cartEmpty")}</p>
-                   <button
-                     onClick={() => { setIsCartOpen(false); navigate("/"); }}
-                     className="mt-2 px-6 py-3 min-h-[44px] text-[10px] tracking-[.3em] font-bold uppercase border"
-                     style={{ borderColor: buttonBg, color: drawerText }}
-                   >
-                     {getCopy(design, "cartContinue")}
-                   </button>
+                <div className="fm-bag-pad py-20 flex flex-col items-center text-center gap-5">
+                  <div className="fm-bag-empty-icon w-16 h-16 flex items-center justify-center">
+                    <ShoppingBag size={24} aria-hidden="true" />
+                  </div>
+                  <p className="fm-bag-meta">{getCopy(design, "cartEmpty")}</p>
+                  <button onClick={() => { setIsCartOpen(false); navigate("/"); }} className="fm-bag-cta px-6 min-w-[220px] flex items-center justify-center gap-3">
+                    {getCopy(design, "cartContinue")}
+                  </button>
                 </div>
               )}
 
-              {/* Complete your Collection recommendation card */}
-              {cart.length > 0 && recommendedBook && (
-                <div className="pt-6 border-t border-neutral-100 mt-8" style={borderStyle}>
-                  <p className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase mb-4" style={mutedStyle}>{getCopy(design, "cartUpsellHeading")}</p>
-                  <div className="flex gap-6 bg-neutral-50 p-4 rounded-2xl group/rec relative" style={surfaceStyle}>
-                    <div className="w-16 aspect-[3/4] bg-neutral-200 overflow-hidden flex-shrink-0" style={surfaceStyle}>
-                      <img
-                        src={recommendedBook.photos?.[0]?.url || ""}
-                        alt={recommendedBook.title}
-                        className={`w-full h-full object-cover transition-all duration-500 ${grayscaleThumbs ? "grayscale group-hover/rec:grayscale-0" : ""}`}
-                      />
+              {/* Complete your collection */}
+              {cart.length > 0 && showUpsell && recommendedBook && (
+                <div data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Bag suggestion" className="fm-bag-pad fm-bag-rule border-t pt-6 pb-8">
+                  <p className="fm-bag-meta mb-4">{getCopy(design, "cartUpsellHeading")}</p>
+                  <div className="fm-bag-upsell flex gap-4 p-4 items-center">
+                    <div className="fm-bag-thumb" style={{ width: "56px" }}>
+                      {recommendedBook.photos?.[0]?.url && <img loading="lazy" decoding="async" src={recommendedBook.photos[0].url} alt="" className={`w-full h-full object-cover ${grayscaleThumbs ? "grayscale" : ""}`} />}
                     </div>
-                    <div className="flex-1 flex flex-col justify-between py-1">
-                      <div>
-                        <h4 className="text-[10px] font-bold tracking-widest uppercase mb-1 leading-tight">{recommendedBook.title}</h4>
-                        <p className="text-[9px] text-neutral-400" style={mutedStyle}>{formatPrice(recommendedBook.isOnSale ? recommendedBook.salePrice! : recommendedBook.retailPrice)}</p>
-                      </div>
-                      <button
-                        onClick={() => addToCart(recommendedBook)}
-                        className={`mt-3 w-fit text-[8px] font-black tracking-widest px-4 py-2 transition-all ${
-                          buttonShadow ? "shadow-md" : ""
-                        } ${buttonUppercase ? "uppercase" : ""}`}
-                        style={{
-                          backgroundColor: buttonStyle === "solid" ? buttonBg : "transparent",
-                          color: buttonStyle === "solid" ? buttonText : buttonBg,
-                          border: buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
-                          borderRadius: buttonRadius,
-                        }}
-                      >
-                        {getCopy(design, "cartUpsellAdd")}
-                      </button>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="fm-bag-name">{recommendedBook.title}</h3>
+                      <p className="fm-bag-meta mt-1">{formatPrice(recommendedBook.isOnSale ? recommendedBook.salePrice! : recommendedBook.retailPrice)}</p>
                     </div>
+                    <button onClick={() => addToCart(recommendedBook)} className="fm-bag-upsell-btn shrink-0 px-4 min-h-[44px]">
+                      {getCopy(design, "cartUpsellAdd")}
+                    </button>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="p-8 border-t border-neutral-100 space-y-4" style={{ backgroundColor: drawerBg, ...(borderStyle || {}) }}>
-               <div className="flex justify-between items-end">
-                  <span className="text-[10px] tracking-[.4em] text-neutral-400 uppercase" style={mutedStyle}>{getCopy(design, "cartTotalLabel")}</span>
-                  <span className="text-3xl font-light">{formatPrice(cartTotal)}</span>
-               </div>
+            {/* Summary ledger + checkout */}
+            {cart.length > 0 && (
+              <div data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Bag total & checkout" className="fm-bag-pad fm-bag-summary pt-5 pb-6 space-y-4">
+                {showSummary && (
+                  <div className="space-y-2">
+                    <div className="fm-bag-row fm-bag-meta"><span>{getCopy(design, "cartSubtotalLabel")}</span><span>{formatPrice(cartTotal)}</span></div>
+                    <div className="fm-bag-row fm-bag-meta"><span>{getCopy(design, "cartShippingLabel")}</span><span>{getCopy(design, "cartShippingValue")}</span></div>
+                  </div>
+                )}
+                <div className={`fm-bag-row ${showSummary ? "fm-bag-total pt-3" : ""}`}>
+                  <span className="fm-bag-meta">{getCopy(design, "cartTotalLabel")}</span>
+                  <span className="fm-bag-total-n">{formatPrice(cartTotal)}</span>
+                </div>
 
-               {/* Trust signals */}
-               {showTrustBadges && (
-               <div className="grid grid-cols-3 gap-2 text-[8px] tracking-widest text-neutral-400 uppercase" style={mutedStyle}>
-                  <div className="flex flex-col items-center gap-1 py-2">
-                    <Lock size={12} />
-                    <span>{getCopy(design, "trustSecureLabel")}</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-1 py-2">
-                    <Truck size={12} />
-                    <span>{getCopy(design, "trustTrackedLabel")}</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-1 py-2">
-                    <ShieldCheck size={12} />
-                    <span>{getCopy(design, "trustReturnsLabel")}</span>
-                  </div>
-               </div>
-               )}
+                {showTrustBadges && (
+                  <ul className="fm-bag-badges fm-bag-meta grid grid-cols-3 gap-2">
+                    <li className="flex items-center justify-center gap-1.5 py-2"><Lock size={12} aria-hidden="true" /><span>{getCopy(design, "trustSecureLabel")}</span></li>
+                    <li className="flex items-center justify-center gap-1.5 py-2"><Truck size={12} aria-hidden="true" /><span>{getCopy(design, "trustTrackedLabel")}</span></li>
+                    <li className="flex items-center justify-center gap-1.5 py-2"><ShieldCheck size={12} aria-hidden="true" /><span>{getCopy(design, "trustReturnsLabel")}</span></li>
+                  </ul>
+                )}
 
-                <button
-                  disabled={cart.length === 0}
-                  onClick={() => { setIsCartOpen(false); navigate("/checkout"); }}
-                  className={`w-full py-5 text-[10px] tracking-[.4em] font-bold transition-all flex items-center justify-center gap-3 disabled:opacity-30 hover:scale-[1.01] ${
-                    buttonShadow ? "shadow-2xl" : ""
-                  } ${buttonUppercase ? "uppercase" : ""}`}
-                  style={{
-                    backgroundColor: buttonStyle === "solid" ? buttonBg : "transparent",
-                    color: buttonStyle === "solid" ? buttonText : buttonBg,
-                    border: buttonStyle !== "solid" ? `1px solid ${buttonBg}` : "none",
-                    borderRadius: buttonRadius,
-                  }}
-                >
-                  {getCopy(design, "cartCheckoutButton")} <ArrowRight size={14} />
+                <button onClick={goCheckout} className="fm-bag-cta w-full flex items-center justify-center gap-3">
+                  {getCopy(design, "cartCheckoutButton")} {showArrow && <ArrowRight size={16} aria-hidden="true" />}
                 </button>
-               <p className="text-center text-[9px] text-neutral-400 tracking-widest" style={mutedStyle}>
-                 {getCopy(design, "cartDeliveryNote")}
-               </p>
-            </div>
+                {showDeliveryNote && <p className="fm-bag-meta text-center" style={{ textTransform: "none", letterSpacing: "0.02em" }}>{getCopy(design, "cartDeliveryNote")}</p>}
+              </div>
+            )}
           </motion.div>
         </>
       )}

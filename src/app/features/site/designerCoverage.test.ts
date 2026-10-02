@@ -50,11 +50,12 @@ describe("the public website is fully editable in Studio", () => {
       if (TOKEN_SOURCES.has(rel) || SHADOW_SOURCES.has(rel)) continue;
       readFileSync(file, "utf8").split("\n").forEach((line, i) => {
         if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
-        for (const m of line.matchAll(/\b(?:rgba?|hsla?)\(\s*[0-9]/g)) {
+        // `(?<![A-Za-z])`, not `\b`: in Tailwind arbitrary shadow values the colour follows an underscore (0_0_60px_rgba…).
+        for (const m of line.matchAll(/(?<![A-Za-z])(?:rgba?|hsla?)\(\s*[0-9]/g)) {
           const before = line.slice(0, m.index);
           if (/(\|\||\?\?)\s*(\(?[^()]*\?\s*)?[`"']?$/.test(before) || /var\(--[\w-]+,\s*$/.test(before)) continue;
           // Pure black shadows/scrims are depth cues, not palette colours.
-          if (/[Ss]hadow/.test(line) && /\b(?:rgba?)\(\s*0[ ,]+0[ ,]+0/.test(line.slice(m.index))) continue;
+          if (/[Ss]hadow/.test(line) && /(?:rgba?)\(\s*0[ ,_]+0[ ,_]+0/.test(line.slice(m.index))) continue;
           offenders.push(`${rel}:${i + 1}`);
         }
       });

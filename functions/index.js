@@ -16,9 +16,11 @@ const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { Resend } = require("resend");
+const { risoButton, risoLayout } = require("./emailTheme");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
+const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -173,6 +175,7 @@ async function sendEmail({ to, subject, html, secret }) {
   let fromName = "Lyricalmyrical Books";
   let fromEmail = "orders@lyricalmyricalbooks.com";
   let replyTo = null;
+  let brand = {};
 
   try {
     const settingsDoc = await db.collection("settings").doc("website").get();
@@ -195,12 +198,19 @@ async function sendEmail({ to, subject, html, secret }) {
       const notifications = notificationsDoc.data() || {};
       if (notifications.resendApiKey) apiKey = notifications.resendApiKey;
       if (notifications.brand && notifications.brand.resendApiKey) apiKey = notifications.brand.resendApiKey;
+      brand = notifications.brand || {};
     }
   } catch (err) {
     console.warn("Failed to load notifications custom API Key:", err);
   }
 
   const resend = new Resend(apiKey);
+
+  // Every email gets the Riso Press shell (light/dark, accent and logo from Notifications › Email branding);
+  // templates from compileEmailTemplate are already full documents.
+  if (html && !/<html[\s>]/i.test(html)) {
+    html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme });
+  }
 
   // If using a Resend onboarding key, force the sender to onboarding@resend.dev
   if (apiKey && apiKey.startsWith("re_onb_")) {
@@ -576,8 +586,54 @@ async function paypalRequest(config, path, options = {}) {
 // charges the one the customer selected (order.shippingMethod), else the
 // cheapest. Profiles without zones keep the legacy flat calculation. Returns
 // { cost, method } or throws when the destination can't be served.
-function resolveShipping(items, order, profiles, freeShipping) {
+async function resolveShipping(items, order, profiles, freeShipping) {
   const address = order.customer && order.customer.address;
+  if (!freeShipping && address) {
+    const configDoc = await SHIPPO_CONFIG_DOC.get();
+    const config = configDoc.exists ? configDoc.data() || {} : {};
+    const destinationCountry = getCountryCode(address.country);
+    const enabledCountries = Array.isArray(config.dynamicRateCountries) ? config.dynamicRateCountries : [];
+    if (config.dynamicRatesEnabled === true && enabledCountries.includes(destinationCountry)) {
+      const shippoToken = await getShippoToken();
+      if (!shippoToken) throw new Error("Live carrier rates are temporarily unavailable. Please try again.");
+      const settingsDoc = await db.collection("settings").doc("website").get();
+      const settings = settingsDoc.data() || {};
+      const origin = settings.location || {};
+      const totalWeightLb = items.reduce((sum, item) => {
+        const grams = Number(item.weightGrams);
+        return sum + ((Number.isFinite(grams) && grams > 0 ? grams / 453.592 : 1.5) * (item.quantity || 1));
+      }, 0);
+      const shipment = await callShippo("shipments/", "POST", {
+        address_from: {
+          name: settings.info?.name || "Lyricalmyrical Books",
+          street1: origin.street || "456 Montrose Ave",
+          city: origin.city || "Toronto",
+          state: getStateCode(origin.state || "ON"),
+          zip: origin.zip || "M6G3H1",
+          country: getCountryCode(origin.country || "CA"),
+          phone: "6474096863",
+          email: "lyricalmyricalbooks@gmail.com",
+        },
+        address_to: {
+          name: order.customer?.name || "Customer",
+          street1: address.street,
+          city: address.city,
+          state: getStateCode(address.state),
+          zip: address.zip,
+          country: destinationCountry,
+        },
+        parcels: [{ length: "10", width: "8", height: "2", distance_unit: "in", weight: Math.max(0.1, totalWeightLb).toFixed(1), mass_unit: "lb" }],
+        async: false,
+      }, shippoToken);
+      const carrierQuotes = (shipment.rates || []).map(rate => ({
+        name: `${rate.provider || ""} ${rate.servicelevel?.name || rate.servicelevel?.token || "Shipping"}`.trim(),
+        price: Number(rate.amount),
+      })).filter(rate => Number.isFinite(rate.price)).sort((a, b) => a.price - b.price);
+      const pickedCarrier = pickQuote(carrierQuotes, order.shippingMethod);
+      if (!pickedCarrier) throw new Error("That live carrier rate is no longer available. Please review the shipping options and try again.");
+      return { cost: pickedCarrier.price, method: pickedCarrier.name };
+    }
+  }
   const hasZones = profiles.some((p) => Array.isArray(p.zones) && p.zones.length);
   if (!hasZones) {
     return { cost: freeShipping ? 0 : calculateShipping(items, address, profiles), method: order.shippingMethod || null };
@@ -628,7 +684,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
   }
   const profilesSnap = await db.collection("shipping-profiles").get();
   const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  const shipResult = resolveShipping(items, order, profiles, appliedDiscount?.type === "freeship");
+  const shipResult = await resolveShipping(items, order, profiles, appliedDiscount?.type === "freeship");
   const shipping = shipResult.cost;
 
   const settingsDoc = await db.collection("settings").doc("website").get();
@@ -839,7 +895,10 @@ exports.createStripeCheckoutSession = onRequest(
       return;
     }
 
-    const { orderId, currency: reqCurrency, returnUrl } = req.body;
+    if (req.body?.action === "status") return handleCheckoutStatus(req, res);
+    if (req.body?.action === "registerPaymentDomain") return handleRegisterPaymentDomain(req, res);
+
+    const { orderId, currency: reqCurrency, returnUrl, embedded, paymentElement } = req.body;
     const checkoutCurrency = (reqCurrency || "cad").toLowerCase();
     if (!orderId) {
       res.status(400).json({ error: "Missing orderId" });
@@ -938,7 +997,7 @@ exports.createStripeCheckoutSession = onRequest(
       let shippingCost;
       let shippingMethodCharged;
       try {
-        const shipResult = resolveShipping(items, order, profiles, appliedDiscount && appliedDiscount.type === "freeship");
+        const shipResult = await resolveShipping(items, order, profiles, appliedDiscount && appliedDiscount.type === "freeship");
         shippingCost = shipResult.cost;
         shippingMethodCharged = shipResult.method;
       } catch (shipErr) {
@@ -1066,6 +1125,23 @@ exports.createStripeCheckoutSession = onRequest(
         });
       }
 
+      // Payment Element on the checkout page: charge the same server-priced
+      // total through a PaymentIntent instead of a Checkout Session.
+      if (paymentElement) {
+        const amount = lineItems.reduce((sum, li) => sum + li.price_data.unit_amount * li.quantity, 0);
+        const intent = await stripe.paymentIntents.create({
+          amount,
+          currency: checkoutCurrency,
+          automatic_payment_methods: { enabled: true },
+          receipt_email: order.customer?.email || undefined,
+          description: `Order ${orderId}`,
+          metadata: { order_id: orderId, checkout: "payment_element" },
+        });
+        await orderRef.update({ stripePaymentIntentId: intent.id, updatedAt: new Date().toISOString() });
+        res.status(200).json({ clientSecret: intent.client_secret, amount, currency: checkoutCurrency });
+        return;
+      }
+
       // The storefront passes its own checkout URL (it may live under a
       // sub-path, e.g. GitHub Pages). Only accept it if it belongs to an
       // allowed origin; otherwise fall back to origin + /checkout.
@@ -1093,17 +1169,119 @@ exports.createStripeCheckoutSession = onRequest(
         },
         // Shorten the unpaid-stock-hold window: session dies after 30 minutes.
         expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
-        success_url: `${checkoutBase}${joiner}success=true&order_id=${orderId}`,
-        cancel_url: `${checkoutBase}${joiner}canceled=true`,
+        // Embedded mode keeps the card form on the storefront's checkout page;
+        // the webhook still receives checkout.session.completed either way.
+        ...(embedded
+          ? {
+            ui_mode: "embedded",
+            return_url: `${checkoutBase}${joiner}success=true&order_id=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
+          }
+          : {
+            success_url: `${checkoutBase}${joiner}success=true&order_id=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${checkoutBase}${joiner}canceled=true`,
+          }),
       });
 
-      res.status(200).json({ sessionId: session.id, url: session.url });
+      res.status(200).json({
+        sessionId: session.id,
+        url: session.url || null,
+        clientSecret: embedded ? session.client_secret : null,
+      });
     } catch (err) {
       console.error("Stripe Session Creation Failed:", err);
       res.status(500).json({ error: err.message });
     }
   }
 );
+
+// Read-only status check for the checkout return page. Only reports on a
+// session that belongs to the given order, and never marks anything paid —
+// the webhook stays the single source of truth for payment.
+// Admin-only: register the storefront domain with Stripe so Apple Pay and
+// Google Pay appear in the card form. Only allowed origins can be registered.
+// Served through createStripeCheckoutSession (body.action) so no new public
+// function needs deploying — the CI deploy account can't set IAM on new ones.
+async function handleRegisterPaymentDomain(req, res) {
+  {
+    if (!await requireAdmin(req, res)) return;
+    const origin = ALLOWED_ORIGINS.find(o => o === req.body?.origin);
+    if (!origin) {
+      res.status(400).json({ error: "That address isn't an allowed storefront origin." });
+      return;
+    }
+    const domainName = new URL(origin).hostname;
+    if (domainName === "localhost" || domainName === "127.0.0.1") {
+      res.status(400).json({ error: "Wallets can't be registered for localhost." });
+      return;
+    }
+    try {
+      const settingsDoc = await db.collection("settings").doc("website").get();
+      const settings = settingsDoc.exists ? settingsDoc.data() : {};
+      const testMode = settings.payments?.testMode || false;
+      const stripeSettings = settings.payments?.stripe || {};
+      const stripeSecret = testMode
+        ? stripeSettings.testSecretKey
+        : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
+      if (!stripeSecret) throw new Error("Stripe is not configured.");
+      const stripe = new Stripe(stripeSecret);
+      const existing = await stripe.paymentMethodDomains.list({ domain_name: domainName, limit: 1 });
+      let domain = existing.data[0];
+      if (!domain) domain = await stripe.paymentMethodDomains.create({ domain_name: domainName, enabled: true });
+      else domain = await stripe.paymentMethodDomains.validate(domain.id);
+      res.status(200).json({
+        domain: domainName,
+        applePay: domain.apple_pay?.status || "unknown",
+        googlePay: domain.google_pay?.status || "unknown",
+      });
+    } catch (err) {
+      console.error("Payment domain registration failed:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+}
+
+// Served through createStripeCheckoutSession (body.action) so no new public
+// function needs deploying — the CI deploy account can't set IAM on new ones.
+async function handleCheckoutStatus(req, res) {
+  {
+    const { orderId, sessionId, paymentIntentId } = req.body || {};
+    const isIntent = typeof paymentIntentId === "string" && paymentIntentId.startsWith("pi_");
+    if (typeof orderId !== "string" || (!isIntent && (typeof sessionId !== "string" || !sessionId.startsWith("cs_")))) {
+      res.status(400).json({ error: "Missing orderId or sessionId" });
+      return;
+    }
+    try {
+      const settingsDoc = await db.collection("settings").doc("website").get();
+      const settings = settingsDoc.exists ? settingsDoc.data() : {};
+      const testMode = settings.payments?.testMode || false;
+      const stripeSettings = settings.payments?.stripe || {};
+      const stripeSecret = testMode
+        ? stripeSettings.testSecretKey
+        : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
+      if (!stripeSecret) throw new Error("Stripe is not configured.");
+      if (isIntent) {
+        const intent = await new Stripe(stripeSecret).paymentIntents.retrieve(paymentIntentId);
+        if (intent.metadata?.order_id !== orderId) {
+          res.status(404).json({ error: "Payment not found" });
+          return;
+        }
+        // Map onto the session vocabulary the storefront already understands.
+        const status = intent.status === "succeeded" || intent.status === "processing" ? "complete" : "open";
+        res.status(200).json({ status, paymentStatus: intent.status });
+        return;
+      }
+      const session = await new Stripe(stripeSecret).checkout.sessions.retrieve(sessionId);
+      if (session.client_reference_id !== orderId) {
+        res.status(404).json({ error: "Session not found" });
+        return;
+      }
+      res.status(200).json({ status: session.status, paymentStatus: session.payment_status });
+    } catch (err) {
+      console.error("Stripe status check failed:", err);
+      res.status(500).json({ error: err.message });
+    }
+  }
+}
 
 // ──────────────────────────────────────────────────────────────
 // 2. HTTP Endpoint: Stripe Payment Webhook (Secure)
@@ -1180,6 +1358,9 @@ exports.stripeWebhook = onRequest(
         await noteOnOrder(event.data.object.client_reference_id, "Stripe Checkout session expired without payment.");
       } else if (event.type === "checkout.session.async_payment_failed") {
         await noteOnOrder(event.data.object.client_reference_id, "Delayed payment failed (Stripe).", { paymentStatus: "failed" });
+      } else if (event.type === "payment_intent.payment_failed" && event.data.object?.metadata?.checkout === "payment_element") {
+        const reason = event.data.object.last_payment_error?.message || "unknown reason";
+        await noteOnOrder(event.data.object.metadata.order_id, `Card payment attempt failed (Stripe): ${reason}`);
       } else if (event.type === "charge.dispute.created") {
         const dispute = event.data.object;
         const piId = typeof dispute.payment_intent === "string" ? dispute.payment_intent : dispute.payment_intent?.id;
@@ -1198,8 +1379,21 @@ exports.stripeWebhook = onRequest(
       return;
     }
 
-    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
-      const session = event.data.object;
+    const isElementPayment = event.type === "payment_intent.succeeded"
+      && event.data.object?.metadata?.checkout === "payment_element";
+    if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded" || isElementPayment) {
+      // A succeeded Payment Element intent is shaped into the session fields used below.
+      const session = isElementPayment
+        ? {
+          id: null,
+          client_reference_id: event.data.object.metadata.order_id,
+          payment_status: "paid",
+          payment_intent: event.data.object.id,
+          livemode: event.data.object.livemode,
+          amount_total: event.data.object.amount_received ?? event.data.object.amount,
+          currency: event.data.object.currency,
+        }
+        : event.data.object;
       const orderId = session.client_reference_id;
       // completed can fire before delayed methods settle; only paid sessions count.
       const settled = session.payment_status === "paid" || session.payment_status === "no_payment_required";
@@ -1258,7 +1452,7 @@ exports.stripeWebhook = onRequest(
               updatedAt: now,
               activity: [
                 ...(order.activity || []),
-                { type: "event", message: "Payment completed (Stripe Webhook)", createdAt: now }
+                { type: "event", message: isElementPayment ? "Payment completed (Stripe card form)" : "Payment completed (Stripe Webhook)", createdAt: now }
               ]
             });
 
@@ -1721,7 +1915,8 @@ exports.downloadDigitalAsset = onRequest(
 const DEFAULT_NOTIFICATIONS = {
   brand: {
     logoUrl: "",
-    brandColor: "#7C3AED"
+    brandColor: "#e8402a",
+    emailTheme: "light"
   },
   order_confirmation: {
     subject: "Order confirmed: {{order_id}}",
@@ -1762,6 +1957,13 @@ const DEFAULT_NOTIFICATIONS = {
     subject: "Welcome to Lyricalmyrical Books!",
     body: "Hi {{customer_name}},\n\nThank you for creating an account with Lyricalmyrical Books! You can now log in to view your orders, save shipping addresses, and download digital library books.",
     buttonText: "Go to your account",
+    signoff: "Warmly,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
+  contact_reply: {
+    subject: "We got your message",
+    body: "Hi {{customer_name}},\n\nThanks for getting in touch with Lyricalmyrical Books! We've received your message and will reply as soon as we can.\n\nYour message:\n{{message}}",
+    buttonText: "",
     signoff: "Warmly,\nThe Lyricalmyrical Team",
     enabled: true
   },
@@ -1820,7 +2022,7 @@ function getTrackingUrl(carrier, trackingNum) {
 function compileEmailTemplate(templateId, settings, vars, additionalSection) {
   const brand = settings.brand || {};
   const logoUrl = brand.logoUrl || "";
-  const brandColor = brand.brandColor || "#7C3AED";
+  const brandColor = brand.brandColor || "#e8402a";
   
   const template = settings[templateId] || DEFAULT_NOTIFICATIONS[templateId];
   let subject = template.subject || DEFAULT_NOTIFICATIONS[templateId].subject;
@@ -1835,16 +2037,7 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
     body = body.replace(regex, value || "");
   }
 
-  let ctaButtonHtml = "";
-  if (buttonText && vars.button_url) {
-    ctaButtonHtml = `
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${vars.button_url}" style="background-color: ${brandColor}; color: #ffffff; padding: 12px 30px; text-decoration: none; font-size: 13px; font-weight: bold; border-radius: 8px; letter-spacing: 0.1em; text-transform: uppercase; display: inline-block;">
-          ${buttonText}
-        </a>
-      </div>
-    `;
-  }
+  const ctaButtonHtml = buttonText && vars.button_url ? risoButton(vars.button_url, buttonText, brandColor, brand.emailTheme) : "";
 
   let itemsTableHtml = "";
   if (vars.items_table) {
@@ -1854,70 +2047,13 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
   const finalBody = body.replace(/\n/g, "<br/>");
   const signoffHtml = signoff.replace(/\n/g, "<br/>");
 
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-          background-color: #f6f6f9;
-          color: #333333;
-          margin: 0;
-          padding: 20px;
-          line-height: 1.6;
-        }
-        .container {
-          max-width: 600px;
-          margin: 0 auto;
-          background: #ffffff;
-          padding: 40px;
-          border-radius: 16px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-        }
-        .header {
-          text-align: center;
-          margin-bottom: 30px;
-        }
-        .logo {
-          max-height: 40px;
-          width: auto;
-        }
-        .content {
-          font-size: 14px;
-        }
-        .footer {
-          margin-top: 40px;
-          text-align: center;
-          font-size: 11px;
-          color: #999999;
-          border-top: 1px solid #eeeeee;
-          padding-top: 20px;
-          letter-spacing: 0.05em;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          ${logoUrl ? `<img src="${logoUrl}" class="logo" alt="Logo" />` : `<h2 style="margin: 0; font-weight: 800; letter-spacing: -0.03em; color: #111;">Lyricalmyrical</h2>`}
-        </div>
-        <div class="content">
-          <p>${finalBody}</p>
-          ${ctaButtonHtml}
-          ${itemsTableHtml}
-          ${additionalSection || ""}
-          <p style="margin-top: 30px; font-weight: 500; color: #555555;">${signoffHtml}</p>
-        </div>
-        <div class="footer">
-          &copy; ${new Date().getFullYear()} Lyricalmyrical Books. All rights reserved.
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
+  const html = risoLayout(`
+    <p style="margin-top:0;">${finalBody}</p>
+    ${ctaButtonHtml}
+    ${itemsTableHtml}
+    ${additionalSection || ""}
+    <p style="margin-top:30px;font-weight:600;">${signoffHtml}</p>
+  `, { logoUrl, accent: brandColor, theme: brand.emailTheme });
 
   return { subject, html };
 }
@@ -2343,6 +2479,7 @@ exports.getShippoConfig = onRequest({ secrets: [SHIPPO_API_TOKEN] }, async (req,
       lastFour: config?.lastFour || (fallbackToken ? fallbackToken.slice(-4) : null),
       updatedAt: config?.updatedAt || null,
       dynamicRatesEnabled: config?.dynamicRatesEnabled ?? false,
+      dynamicRateCountries: Array.isArray(config?.dynamicRateCountries) ? config.dynamicRateCountries : [],
     });
   } catch (err) {
     console.error("getShippoConfig failed:", err);
@@ -2361,6 +2498,9 @@ exports.setShippoDynamicRates = onRequest(async (req, res) => {
   if (!adminUser) return;
 
   const enabled = Boolean(req.body?.enabled);
+  const dynamicRateCountries = Array.isArray(req.body?.countries)
+    ? [...new Set(req.body.countries.map(country => String(country).trim().toUpperCase()).filter(country => /^[A-Z]{2}$/.test(country)))].slice(0, 250)
+    : null;
 
   try {
     const configDoc = await SHIPPO_CONFIG_DOC.get();
@@ -2368,10 +2508,15 @@ exports.setShippoDynamicRates = onRequest(async (req, res) => {
     await SHIPPO_CONFIG_DOC.set({
       ...current,
       dynamicRatesEnabled: enabled,
+      ...(dynamicRateCountries ? { dynamicRateCountries } : {}),
       updatedAt: new Date().toISOString(),
       updatedBy: adminUser.email,
     });
-    res.status(200).json({ success: true, dynamicRatesEnabled: enabled });
+    res.status(200).json({
+      success: true,
+      dynamicRatesEnabled: enabled,
+      dynamicRateCountries: dynamicRateCountries ?? current.dynamicRateCountries ?? [],
+    });
   } catch (err) {
     console.error("setShippoDynamicRates failed:", err);
     res.status(500).json({ error: "Unable to update Shippo dynamic rates setting." });
@@ -2399,6 +2544,13 @@ exports.getShippoRates = onRequest(
       const config = configDoc.exists ? configDoc.data() : {};
       if (config.dynamicRatesEnabled !== true) {
         res.status(400).json({ error: "Dynamic rates are disabled" });
+        return;
+      }
+
+      const destinationCountry = getCountryCode(address.country);
+      const enabledCountries = Array.isArray(config.dynamicRateCountries) ? config.dynamicRateCountries : [];
+      if (!enabledCountries.includes(destinationCountry)) {
+        res.status(200).json({ rates: [], useRegularRates: true });
         return;
       }
 
@@ -2481,6 +2633,7 @@ exports.getShippoRates = onRequest(
         const serviceName = r.servicelevel?.name || r.servicelevel?.token || "Shipping";
         return {
           name: `${providerName} ${serviceName}`.trim(),
+          price: parseFloat(r.amount),
           base: parseFloat(r.amount),
           additional: 0,
           deliveryDays: r.days ? String(r.days) : (r.duration_terms ? r.duration_terms : "3-7"),
@@ -2519,8 +2672,16 @@ exports.saveShippoConfig = onRequest(async (req, res) => {
       lastFour: apiToken.slice(-4),
       updatedAt,
       updatedBy: adminUser.email,
+    }, { merge: true });
+    const saved = (await SHIPPO_CONFIG_DOC.get()).data() || {};
+    res.status(200).json({
+      configured: true,
+      source: "firebase",
+      lastFour: apiToken.slice(-4),
+      updatedAt,
+      dynamicRatesEnabled: saved.dynamicRatesEnabled ?? false,
+      dynamicRateCountries: Array.isArray(saved.dynamicRateCountries) ? saved.dynamicRateCountries : [],
     });
-    res.status(200).json({ configured: true, source: "firebase", lastFour: apiToken.slice(-4), updatedAt });
   } catch (err) {
     console.error("saveShippoConfig failed:", err);
     res.status(500).json({ error: "Unable to save the Shippo API key." });
@@ -2619,7 +2780,7 @@ exports.createShippingLabel = onRequest(
     const adminUser = await requireAdmin(req, res);
     if (!adminUser) return;
 
-    const { orderId, mode } = req.body;
+    const { orderId, mode, shipmentId, rateId } = req.body;
     if (!orderId) {
       res.status(400).json({ error: "Missing orderId" });
       return;
@@ -2721,6 +2882,33 @@ exports.createShippingLabel = onRequest(
         email: order.customer.email
       };
 
+      if (mode === "purchase") {
+        if (!shipmentId || !rateId) {
+          res.status(400).json({ error: "Choose a Canada Post rate before buying the label." });
+          return;
+        }
+        const quotedShipment = await callShippo(`shipments/${encodeURIComponent(shipmentId)}/`, "GET", null, shippoToken);
+        const chosenRate = (quotedShipment.rates || []).find(rate => rate.object_id === rateId);
+        if (!chosenRate || !isCanadaPostRate(chosenRate)) {
+          res.status(400).json({ error: "That Canada Post rate is no longer available. Refresh the choices and try again." });
+          return;
+        }
+        const transaction = await callShippo("transactions/", "POST", { rate: chosenRate.object_id, async: false }, shippoToken);
+        if (transaction.status !== "SUCCESS") {
+          const messages = (transaction.messages || []).map(message => message.text).join(", ");
+          throw new Error(`Transaction creation failed: ${transaction.status} - ${messages}`);
+        }
+        const trackingNumber = transaction.tracking_number;
+        const trackingCarrier = transaction.tracking_provider || "Canada Post";
+        const labelUrl = transaction.label_url;
+        await orderRef.update({ labelUrl, trackingNumber, trackingCarrier, updatedAt: new Date().toISOString(), activity: [
+          ...(order.activity || []),
+          { type: "note", message: `Shipping Label #${trackingNumber} generated via dashboard. Carrier: ${trackingCarrier}.`, createdAt: new Date().toISOString() }
+        ] });
+        res.status(200).json({ labelUrl, trackingNumber, trackingCarrier });
+        return;
+      }
+
       // Push-to-Shippo mode: stage a pre-filled Order in the Shippo dashboard
       // (no label purchased) and return the site URL for the admin to finish.
       if (mode === "shippoOrder") {
@@ -2802,6 +2990,19 @@ exports.createShippingLabel = onRequest(
       const rates = shipment.rates || [];
       if (rates.length === 0) {
         throw new Error("No shipping rates returned by Shippo.");
+      }
+
+      if (mode === "rates") {
+        const canadaPostRates = canadaPostLabelRates(rates);
+        res.status(200).json({ shipmentId: shipment.object_id, rates: canadaPostRates.map(rate => ({
+          id: rate.object_id,
+          name: rate.servicelevel?.name || "Canada Post",
+          amount: Number(rate.amount),
+          currency: rate.currency || "CAD",
+          estimatedDays: Number.isFinite(Number(rate.estimated_days)) ? Number(rate.estimated_days) : null,
+          durationTerms: rate.duration_terms || ""
+        })) });
+        return;
       }
 
       // 5. Select cheapest rate
@@ -2996,6 +3197,63 @@ exports.onOrderCreated = onDocumentCreated(
 // ──────────────────────────────────────────────────────────────
 // 11. Customer Welcome Trigger
 // ──────────────────────────────────────────────────────────────
+// Storefront contact form (ContactFormSection) → email the shop.
+const escContact = (v) => String(v == null ? "" : v)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+exports.onContactMessage = onDocumentCreated(
+  { document: "contactMessages/{messageId}", secrets: [RESEND_API_KEY] },
+  async event => {
+    const m = event.data?.data() || {};
+    if (!m.email || !m.message) return;
+    const html = `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+        <h2 style="margin-top:0;">New message from your website</h2>
+        <p><strong>From:</strong> ${escContact(m.name)} &lt;<a href="mailto:${escContact(m.email)}">${escContact(m.email)}</a>&gt;${m.phone ? ` · ${escContact(m.phone)}` : ""}</p>
+        ${m.subject ? `<p><strong>Subject:</strong> ${escContact(m.subject)}</p>` : ""}
+        <p style="white-space:pre-wrap;border-left:3px solid #ccc;padding-left:12px;">${escContact(m.message)}</p>
+        ${m.page ? `<p style="color:#888;font-size:12px;">Sent from ${escContact(m.page)}</p>` : ""}
+      </div>`;
+    try {
+      await sendEmail({
+        to: ADMIN_TO,
+        subject: `[CONTACT] ${String(m.subject || m.name || "New message").slice(0, 120)}`,
+        html,
+        secret: RESEND_API_KEY.value(),
+      });
+      // Don't undo an admin who already opened/archived it in Messages.
+      await db.runTransaction(async (tx) => {
+        const cur = await tx.get(event.data.ref);
+        if (cur.exists && cur.get("status") === "new") tx.update(event.data.ref, { status: "emailed" });
+      });
+    } catch (err) {
+      console.error("Contact message email failed", err);
+    }
+
+    // Confirmation to the visitor (Settings › Notifications › Contact form › Message received).
+    const notificationSettings = await loadNotificationSettings();
+    if (notificationSettings.contact_reply?.enabled === false) return;
+    // Escape visitor text, and double "$" so String.replace keeps it literal.
+    const safe = (v) => escContact(v).replace(/\$/g, "$$$$");
+    const compiled = compileEmailTemplate("contact_reply", notificationSettings, {
+      customer_name: safe(m.name || "there"),
+      email: safe(m.email),
+      subject: safe(m.subject),
+      message: safe(m.message),
+    });
+    try {
+      await sendEmail({
+        to: m.email,
+        subject: compiled.subject.replace(/&lt;|&gt;|&amp;|&quot;/g, (x) => ({ "&lt;": "<", "&gt;": ">", "&amp;": "&", "&quot;": '"' }[x])),
+        html: compiled.html,
+        secret: RESEND_API_KEY.value(),
+      });
+    } catch (err) {
+      console.error("Contact confirmation email failed", err);
+    }
+  }
+);
+
 exports.onCustomerCreated = onDocumentCreated(
   { document: "customers/{customerId}", secrets: [RESEND_API_KEY] },
   async event => {
@@ -3059,6 +3317,8 @@ exports.sendTestEmail = onRequest(
         total_price: "45.00",
         email: "julianne.smith@gmail.com",
         status: "out for delivery",
+        subject: "Stocking your books",
+        message: "Hello! Do you sell wholesale to independent bookshops?",
         tracking_url: "https://www.canadapost-postescanada.ca/track-reperage/en",
         cart_url: "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/checkout",
         button_url: "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/account",

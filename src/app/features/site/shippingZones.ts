@@ -14,6 +14,7 @@
 
 export type Continent =
   | "Africa"
+  | "Antarctica"
   | "Asia"
   | "Europe"
   | "North America"
@@ -22,6 +23,7 @@ export type Continent =
 
 export const CONTINENTS: Continent[] = [
   "Africa",
+  "Antarctica",
   "Asia",
   "Europe",
   "North America",
@@ -53,6 +55,12 @@ export const COUNTRIES: Country[] = [
   C("ZA", "South Africa", "Africa"), C("SS", "South Sudan", "Africa"), C("SD", "Sudan", "Africa"),
   C("TZ", "Tanzania", "Africa"), C("TG", "Togo", "Africa"), C("TN", "Tunisia", "Africa"),
   C("UG", "Uganda", "Africa"), C("ZM", "Zambia", "Africa"), C("ZW", "Zimbabwe", "Africa"),
+  C("YT", "Mayotte", "Africa"), C("RE", "Réunion", "Africa"), C("SH", "Saint Helena", "Africa"),
+  C("EH", "Western Sahara", "Africa"),
+  // Antarctica
+  C("AQ", "Antarctica", "Antarctica"), C("BV", "Bouvet Island", "Antarctica"),
+  C("TF", "French Southern Territories", "Antarctica"), C("HM", "Heard Island and McDonald Islands", "Antarctica"),
+  C("GS", "South Georgia and the South Sandwich Islands", "Antarctica"),
   // Asia
   C("AF", "Afghanistan", "Asia"), C("AM", "Armenia", "Asia"), C("AZ", "Azerbaijan", "Asia"),
   C("BH", "Bahrain", "Asia"), C("BD", "Bangladesh", "Asia"), C("BT", "Bhutan", "Asia"),
@@ -71,6 +79,7 @@ export const COUNTRIES: Country[] = [
   C("TJ", "Tajikistan", "Asia"), C("TH", "Thailand", "Asia"), C("TL", "Timor-Leste", "Asia"),
   C("TR", "Türkiye", "Asia"), C("TM", "Turkmenistan", "Asia"), C("AE", "United Arab Emirates", "Asia"),
   C("UZ", "Uzbekistan", "Asia"), C("VN", "Vietnam", "Asia"), C("YE", "Yemen", "Asia"),
+  C("IO", "British Indian Ocean Territory", "Asia"),
   // Europe
   C("AL", "Albania", "Europe"), C("AD", "Andorra", "Europe"), C("AT", "Austria", "Europe"),
   C("BY", "Belarus", "Europe"), C("BE", "Belgium", "Europe"), C("BA", "Bosnia and Herzegovina", "Europe"),
@@ -87,6 +96,10 @@ export const COUNTRIES: Country[] = [
   C("SK", "Slovakia", "Europe"), C("SI", "Slovenia", "Europe"), C("ES", "Spain", "Europe"),
   C("SE", "Sweden", "Europe"), C("CH", "Switzerland", "Europe"), C("UA", "Ukraine", "Europe"),
   C("GB", "United Kingdom", "Europe"), C("VA", "Vatican City", "Europe"),
+  C("AX", "Åland Islands", "Europe"), C("FO", "Faroe Islands", "Europe"),
+  C("GG", "Guernsey", "Europe"), C("GI", "Gibraltar", "Europe"),
+  C("IM", "Isle of Man", "Europe"), C("JE", "Jersey", "Europe"),
+  C("SJ", "Svalbard and Jan Mayen", "Europe"),
   // North America (incl. Central America & Caribbean)
   C("AG", "Antigua and Barbuda", "North America"), C("BS", "Bahamas", "North America"),
   C("BB", "Barbados", "North America"), C("BZ", "Belize", "North America"),
@@ -101,6 +114,14 @@ export const COUNTRIES: Country[] = [
   C("PR", "Puerto Rico", "North America"), C("KN", "Saint Kitts and Nevis", "North America"),
   C("LC", "Saint Lucia", "North America"), C("VC", "Saint Vincent and the Grenadines", "North America"),
   C("TT", "Trinidad and Tobago", "North America"), C("US", "United States", "North America"),
+  C("AI", "Anguilla", "North America"), C("AW", "Aruba", "North America"),
+  C("BL", "Saint Barthélemy", "North America"), C("BQ", "Bonaire, Sint Eustatius and Saba", "North America"),
+  C("KY", "Cayman Islands", "North America"), C("CW", "Curaçao", "North America"),
+  C("GP", "Guadeloupe", "North America"), C("MQ", "Martinique", "North America"),
+  C("MS", "Montserrat", "North America"), C("MF", "Saint Martin", "North America"),
+  C("PM", "Saint Pierre and Miquelon", "North America"), C("SX", "Sint Maarten", "North America"),
+  C("TC", "Turks and Caicos Islands", "North America"), C("VG", "British Virgin Islands", "North America"),
+  C("VI", "U.S. Virgin Islands", "North America"),
   // South America
   C("AR", "Argentina", "South America"), C("BO", "Bolivia", "South America"),
   C("BR", "Brazil", "South America"), C("CL", "Chile", "South America"),
@@ -108,12 +129,20 @@ export const COUNTRIES: Country[] = [
   C("GY", "Guyana", "South America"), C("PY", "Paraguay", "South America"),
   C("PE", "Peru", "South America"), C("SR", "Suriname", "South America"),
   C("UY", "Uruguay", "South America"), C("VE", "Venezuela", "South America"),
+  C("FK", "Falkland Islands", "South America"), C("GF", "French Guiana", "South America"),
   // Oceania
   C("AU", "Australia", "Oceania"), C("FJ", "Fiji", "Oceania"), C("KI", "Kiribati", "Oceania"),
   C("MH", "Marshall Islands", "Oceania"), C("FM", "Micronesia", "Oceania"), C("NR", "Nauru", "Oceania"),
   C("NZ", "New Zealand", "Oceania"), C("PW", "Palau", "Oceania"), C("PG", "Papua New Guinea", "Oceania"),
   C("WS", "Samoa", "Oceania"), C("SB", "Solomon Islands", "Oceania"), C("TO", "Tonga", "Oceania"),
   C("TV", "Tuvalu", "Oceania"), C("VU", "Vanuatu", "Oceania"),
+  C("AS", "American Samoa", "Oceania"), C("CX", "Christmas Island", "Oceania"),
+  C("CC", "Cocos (Keeling) Islands", "Oceania"), C("CK", "Cook Islands", "Oceania"),
+  C("PF", "French Polynesia", "Oceania"), C("GU", "Guam", "Oceania"),
+  C("NC", "New Caledonia", "Oceania"), C("NU", "Niue", "Oceania"),
+  C("NF", "Norfolk Island", "Oceania"), C("MP", "Northern Mariana Islands", "Oceania"),
+  C("PN", "Pitcairn", "Oceania"), C("TK", "Tokelau", "Oceania"),
+  C("UM", "U.S. Outlying Islands", "Oceania"), C("WF", "Wallis and Futuna", "Oceania"),
 ];
 
 // ⚡ Bolt: Cache lowercased country codes and names for O(1) lookups

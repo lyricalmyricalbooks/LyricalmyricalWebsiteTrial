@@ -7,7 +7,9 @@ import { resolveStaffNoteRows } from "../features/site/staffNotes";
 import { textGradientStyle, hoverEffectClassName, hoverEffectGlowStyle, imageFilterCss, imageObjectPositionFromFocal } from "./sectionStyleHelpers";
 import { resolveSharedBlocks } from "../admin/studio/studioModel";
 import { fb } from "./sectionFallbacks";
+import { submitContactMessage } from "../features/site/contactMessages";
 import { useSectionCopy } from "./sectionCopy";
+import { aspectRatioValue } from "../features/site/imageAspect";
 
 // ──────────────────────────────
 // Animation helper
@@ -54,13 +56,14 @@ function compositionBreakpointCss(blocks: any[], sectionId: string) {
     const id = safe(block.id); if (!id) return;
     for (const [device, query] of [["tablet", "(max-width:1023px)"], ["mobile", "(max-width:767px)"]] as const) {
       const grid = block.grid?.[device] || {}, responsive = block.responsive?.[device] || {};
+      // !important: the desktop placement is an inline style, which would otherwise beat these rules.
       const body = [
         grid.column ? `grid-column:${grid.column} / span ${grid.span || 4}` : "",
         grid.row ? `grid-row:${grid.row} / span ${grid.rowSpan || 1}` : "",
         grid.z != null ? `z-index:${grid.z}` : "",
         responsive.align ? `text-align:${responsive.align}` : "",
         responsive.hidden ? "display:none" : "",
-      ].filter(Boolean).join(";");
+      ].filter(Boolean).map(rule => `${rule}!important`).join(";");
       if (body) rules.push(`@media ${query}{#section-${safe(sectionId)} [data-fm-block="${id}"]{${body}}}`);
     }
     walk(block.children || []);
@@ -1222,7 +1225,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
   const items = candidates.slice(0, limit);
   const cols = Math.max(2, Math.min(6, settings.columnsDesktop ?? 3));
   const mobileCols = Math.max(1, Math.min(3, settings.columnsMobile ?? 1));
-  const aspect = settings.imageAspectRatio === "2:3" ? "2 / 3" : settings.imageAspectRatio === "3:4" ? "3 / 4" : "1 / 1";
+  const aspect = aspectRatioValue(settings.imageAspectRatio, "1 / 1");
   const text = settings.textColor || "#ffffff";
   const rule = settings.ruleColor || "#B1B1AA";
   const bg = settings.backgroundColor || "#000000";
@@ -1445,11 +1448,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
   const items = filterBooksBySource(books, settings).slice(0, Math.max(1, Math.min(24, settings.productLimit ?? 12)));
   const cols = Math.max(1, Math.min(4, settings.columnsDesktop ?? 3));
   const mobileCols = Math.max(1, Math.min(2, settings.columnsMobile ?? 1));
-  const aspect =
-    settings.imageAspectRatio === "1:1" ? "1 / 1"
-    : settings.imageAspectRatio === "3:4" ? "3 / 4"
-    : settings.imageAspectRatio === "2:3" ? "2 / 3"
-    : "4 / 5";
+  const aspect = aspectRatioValue(settings.imageAspectRatio, "4 / 5");
   const overlayColor = settings.overlayColor || "";
   const overlayOpacity = Math.max(0, Math.min(1, settings.overlayOpacity ?? 0.22));
   const gridId = `showcase-grid-${settings.__sectionId || "section"}`;
@@ -1903,7 +1902,33 @@ export function CountdownSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function ContactFormSection({ settings, enableAnimations }: any) {
-  const [submitted, setSubmitted] = useState(false);
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [form, setForm] = useState({ name: "", email: "", phone: "", subject: "", message: "", website: "" });
+  const set = (k: keyof typeof form) => (e: any) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const fieldCls = "w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30";
+  const submit = async (e: any) => {
+    e.preventDefault();
+    if (status === "sending") return;
+    // Bots fill the hidden field; pretend success so they move on.
+    if (form.website) { setStatus("sent"); return; }
+    // Never send from the Studio preview — show the thank-you state instead.
+    if (typeof window !== "undefined" && /[?&]preview=true/.test(window.location.search)) { setStatus("sent"); return; }
+    setStatus("sending");
+    try {
+      await submitContactMessage({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: settings.showPhone ? form.phone.trim() : "",
+        subject: settings.showSubject ? form.subject.trim() : "",
+        message: form.message.trim(),
+        page: typeof window !== "undefined" ? window.location.pathname : "",
+      });
+      setStatus("sent");
+    } catch (err) {
+      console.error("Contact form failed", err);
+      setStatus("error");
+    }
+  };
   return (
     <section style={bgStyle(settings)}>
       <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-2xl")}`} style={spacingStyle(settings)}>
@@ -1919,22 +1944,31 @@ export function ContactFormSection({ settings, enableAnimations }: any) {
               <p className="text-white/60 mt-3" style={bStyle(settings)} data-theme-field="subtitle">{settings.subtitle}</p>
             )}
           </div>
-          {submitted ? (
-            <div className="text-center text-white/80 py-12" data-theme-field="successMessage">{settings.successMessage ?? fb("ContactFormSection.successMessage")}</div>
+          {status === "sent" ? (
+            <div className="text-center text-white/80 py-12" role="status" data-theme-field="successMessage">{settings.successMessage ?? fb("ContactFormSection.successMessage")}</div>
           ) : (
-            <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }}>
-              <input type="text" required placeholder={settings.namePlaceholder ?? fb("ContactFormSection.namePlaceholder")} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
-              <input type="email" required placeholder={settings.emailPlaceholder ?? fb("ContactFormSection.emailPlaceholder")} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
+            <form className="space-y-3" onSubmit={submit}>
+              {/* Honeypot: hidden from people, filled in by spam bots. */}
+              <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="hidden" value={form.website} onChange={set("website")} />
+              <input type="text" required maxLength={120} autoComplete="name" aria-label={settings.namePlaceholder ?? fb("ContactFormSection.namePlaceholder")} placeholder={settings.namePlaceholder ?? fb("ContactFormSection.namePlaceholder")} value={form.name} onChange={set("name")} className={fieldCls} />
+              <input type="email" required maxLength={254} autoComplete="email" aria-label={settings.emailPlaceholder ?? fb("ContactFormSection.emailPlaceholder")} placeholder={settings.emailPlaceholder ?? fb("ContactFormSection.emailPlaceholder")} value={form.email} onChange={set("email")} className={fieldCls} />
               {settings.showPhone && (
-                <input type="tel" placeholder={settings.phonePlaceholder ?? fb("ContactFormSection.phonePlaceholder")} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30" />
+                <input type="tel" maxLength={40} autoComplete="tel" aria-label={settings.phonePlaceholder ?? fb("ContactFormSection.phonePlaceholder")} placeholder={settings.phonePlaceholder ?? fb("ContactFormSection.phonePlaceholder")} value={form.phone} onChange={set("phone")} className={fieldCls} />
               )}
-              <textarea required placeholder={settings.messagePlaceholder ?? fb("ContactFormSection.messagePlaceholder")} rows={5} className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-white outline-none focus:border-white/30 resize-none" />
+              {settings.showSubject && (
+                <input type="text" maxLength={200} aria-label={settings.subjectPlaceholder ?? fb("ContactFormSection.subjectPlaceholder")} placeholder={settings.subjectPlaceholder ?? fb("ContactFormSection.subjectPlaceholder")} value={form.subject} onChange={set("subject")} className={fieldCls} />
+              )}
+              <textarea required maxLength={5000} aria-label={settings.messagePlaceholder ?? fb("ContactFormSection.messagePlaceholder")} placeholder={settings.messagePlaceholder ?? fb("ContactFormSection.messagePlaceholder")} rows={5} value={form.message} onChange={set("message")} className={`${fieldCls} resize-none`} />
+              {status === "error" && (
+                <p className="text-sm text-red-400" role="alert" data-theme-field="errorMessage">{settings.errorMessage ?? fb("ContactFormSection.errorMessage")}</p>
+              )}
               <button
                 type="submit"
-                className="w-full py-4 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
+                disabled={status === "sending"}
+                className="w-full py-4 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase disabled:opacity-60"
                 style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
               >
-                <span data-theme-field="buttonLabel">{settings.buttonLabel ?? fb("ContactFormSection.buttonLabel")}</span>
+                <span data-theme-field="buttonLabel">{status === "sending" ? (settings.sendingLabel ?? fb("ContactFormSection.sendingLabel")) : (settings.buttonLabel ?? fb("ContactFormSection.buttonLabel"))}</span>
               </button>
             </form>
           )}

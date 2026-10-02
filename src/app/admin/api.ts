@@ -25,11 +25,11 @@ import {
   GoogleAuthProvider,
   signInWithCredential,
 } from "firebase/auth";
-import { db, auth, storage, googleProvider } from "../../lib/firebase";
+import { db, auth, googleProvider } from "../../lib/firebase";
 import { functionUrl } from "../lib/functionsBase";
-import { legacyDb, legacyAuth } from "../../lib/legacyFirebase";
-import { ref as dbRef, get as dbGet } from "firebase/database";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+// Storage + the legacy Realtime Database are admin-only and heavy; they are
+// imported on demand so the public storefront bundle never downloads them.
+const loadLegacy = () => import("../../lib/legacyFirebase");
 import { CATEGORIES } from "../features/site/constants";
 import { categoryBookPatch, directlyAssigned, type CategoryAction } from "./studio/categoryManager";
 import { normalizeCategories } from "../features/site/navItems";
@@ -53,7 +53,10 @@ export const adminApi = {
       // so inventory sync can access the RTDB without a second login popup.
       try {
         const credential = GoogleAuthProvider.credentialFromResult(result);
-        if (credential) await signInWithCredential(legacyAuth, credential);
+        if (credential) {
+          const { legacyAuth } = await loadLegacy();
+          await signInWithCredential(legacyAuth, credential);
+        }
       } catch (legacyErr) {
         console.warn("Could not auto-sign into legacy project:", legacyErr);
       }
@@ -241,7 +244,11 @@ export const adminApi = {
 
   // Uploads
   uploadFile: async (file: File, path: string) => {
-    const storageRef = ref(storage, path);
+    const [{ getStorage, ref, uploadBytes, getDownloadURL }, { getApp }] = await Promise.all([
+      import("firebase/storage"),
+      import("firebase/app"),
+    ]);
+    const storageRef = ref(getStorage(getApp()), path);
     const snapshot = await uploadBytes(storageRef, file);
     return await getDownloadURL(snapshot.ref);
   },
@@ -453,6 +460,26 @@ export const adminApi = {
     // The primary write already succeeded. An audit failure must not report a
     // failed publish and encourage a duplicate operation.
     await adminApi.recordAuditLog("settings", `Updated settings: ${Object.keys(settings).join(", ")}`).catch(error => console.warn("Settings saved; audit log unavailable", error));
+  },
+
+  // Categories are catalog structure, not a theme draft. Keep the published
+  // storefront and Studio working copy in lockstep without replacing either
+  // design map (which could otherwise discard unrelated unsaved design work).
+  updateShopCategories: async (categories: any[]) => {
+    const docRef = doc(db, "settings", "website");
+    const snapshot = JSON.parse(JSON.stringify(categories));
+    await setDoc(docRef, { design: { categories: snapshot }, draftDesign: { categories: snapshot } },
+      { mergeFields: ["design.categories", "draftDesign.categories"] });
+    await adminApi.recordAuditLog("settings", `Updated shop categories (${snapshot.length})`).catch(error => console.warn("Categories saved; audit log unavailable", error));
+  },
+
+  // Flip the storefront "under construction" wall live, keeping the Studio
+  // draft in step so the next Publish doesn't silently undo it.
+  setUnderConstruction: async (on: boolean) => {
+    const docRef = doc(db, "settings", "website");
+    await setDoc(docRef, { design: { showUnderConstruction: on }, draftDesign: { showUnderConstruction: on } },
+      { mergeFields: ["design.showUnderConstruction", "draftDesign.showUnderConstruction"] });
+    await adminApi.recordAuditLog("settings", `Under construction wall ${on ? "on" : "off"}`).catch(error => console.warn("Saved; audit log unavailable", error));
   },
 
   // Replace the work-in-progress theme with the currently published theme.
@@ -704,6 +731,19 @@ export const adminApi = {
     return result;
   },
 
+  registerStripePaymentDomain: async (origin: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await fetch(functionUrl("createStripeCheckoutSession"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "registerPaymentDomain", origin }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Couldn't register the domain with Stripe.");
+    return result as { domain: string; applePay: string; googlePay: string };
+  },
+
   getOrderById: async (id: string) => {
     const docRef = doc(db, "orders", id);
     const snap = await getDoc(docRef);
@@ -825,7 +865,7 @@ export const adminApi = {
     return result;
   },
 
-  setShippoDynamicRates: async (enabled: boolean) => {
+  setShippoDynamicRates: async (enabled: boolean, countries?: string[]) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to save Shippo settings.");
 
@@ -835,7 +875,7 @@ export const adminApi = {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${idToken}`,
       },
-      body: JSON.stringify({ enabled }),
+      body: JSON.stringify({ enabled, ...(countries ? { countries } : {}) }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Failed to update Shippo dynamic rates setting.");
@@ -862,6 +902,32 @@ export const adminApi = {
       throw new Error(err.error || "Failed to generate shipping label.");
     }
     return await response.json();
+  },
+
+  getCanadaPostLabelRates: async (orderId: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin to view label rates.");
+    const response = await fetch(functionUrl("createShippingLabel"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ orderId, mode: "rates" }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Failed to load Canada Post rates.");
+    return result;
+  },
+
+  buyCanadaPostLabel: async (orderId: string, shipmentId: string, rateId: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin to buy labels.");
+    const response = await fetch(functionUrl("createShippingLabel"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ orderId, mode: "purchase", shipmentId, rateId }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Failed to buy the Canada Post label.");
+    return result;
   },
 
   markOrderPaid: async (orderId: string) => {
@@ -1208,6 +1274,10 @@ export const adminApi = {
     // 1.  Ensure we are authenticated against the LEGACY project.
     //     We try to re-use the credential obtained at login; if the
     //     legacyAuth session expired we trigger a silent popup.
+    const [{ legacyDb, legacyAuth }, { ref: dbRef, get: dbGet }] = await Promise.all([
+      loadLegacy(),
+      import("firebase/database"),
+    ]);
     if (!legacyAuth.currentUser) {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
