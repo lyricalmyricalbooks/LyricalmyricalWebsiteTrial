@@ -15,3 +15,13 @@ describe("studio preview bridge source", () => {
     expect(norm("  Add  to\n  cart,\tplease ")).toBe("add to cart, please");
   });
 });
+
+it("preserves line breaks in plain-text editing without using visually transformed innerText", () => {
+  const match = PREVIEW_BRIDGE_SOURCE.match(/function plainText\(n\)\{[\s\S]*?\n  \}/);
+  expect(match).not.toBeNull();
+  const read = new Function(`return ${match![0]}`)();
+  const text = (value: string) => ({nodeType:3,nodeValue:value});
+  const element = (tagName: string, ...childNodes: any[]) => ({nodeType:1,tagName,childNodes});
+  expect(read(element("SPAN", text("Mixed Case"), element("DIV", text("Second line"))))).toBe("Mixed Case\nSecond line");
+  expect(read(element("SPAN", text("First"), element("BR"), text("Second")))).toBe("First\nSecond");
+});

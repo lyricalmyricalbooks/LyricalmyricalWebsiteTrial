@@ -633,7 +633,9 @@ export const DEFAULT_COPY: Record<string, string> = COPY_SCHEMA.reduce(
 export function getCopy(design: any, key: string, vars?: Record<string, string | number>): string {
   // Only strings count: a design key that happens to share a copy key's name must never crash a page.
   const str = (v: unknown) => (typeof v === "string" && v ? v : "");
-  const raw = str(design?.copy?.[key]) || str(design?.[key]) || DEFAULT_COPY[key] || "";
+  const override = design?.copy?.[key];
+  // A saved empty override is intentional, including text cleared directly in Studio.
+  const raw = typeof override === "string" ? override : str(design?.[key]) || DEFAULT_COPY[key] || "";
   const all: Record<string, string | number> = { year: new Date().getFullYear(), ...(vars || {}) };
   // {name} is the site name (Text & labels › Site & sharing) in every string that mentions it.
   if (!("name" in all) && key !== "siteName" && raw.includes("{name}")) all.name = getCopy(design, "siteName");

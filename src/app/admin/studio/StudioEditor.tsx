@@ -14,8 +14,8 @@ import { COPY_SCHEMA, DEFAULT_COPY } from "../../features/site/storeCopy";
 import { MENU_LINK_TYPES, newMenuItem, type MenuItem } from "../../features/site/storeMenu";
 import {
   commit, duplicateSection, findBlock, getSections, initHistory, insertSection, makeSection, mapBlock, moveBlockBefore, newId, normalizeDesign,
-  patchBlockField, patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo,
-  type Section, type SectionTarget, type SharedBlock,
+  patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo,
+  resolveSharedBlocks, type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
 import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, type StyleField, type StyleGroup } from "./styleSchema";
 import { StudioPages } from "./StudioPages";
@@ -36,12 +36,14 @@ import { autoFitSections } from "./autoMobile";
 import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, withDraftPage } from "./studioWorkflow";
 import { useStudioPersistence } from "./useStudioPersistence";
 import { ActionMenu, Dialog, SecondaryButton } from "../riso/components";
+import { applyInlineText, INLINE_STYLE_KEYS } from "./inlineText";
+import { StudioSharedLayout } from "./StudioSharedLayout";
 import { filterSettingGroups } from "./studioNavigation";
 import { designChecks as buildDesignChecks } from "./studioChecks";
 
 import "./studio.css";
 
-type LeftTab = "sections" | "style" | "text" | "menus" | "pages";
+type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "shared";
 type Toast = { kind: "ok" | "err"; text: string } | null;
 type ThemeVersion = { id: string; kind: "draft" | "published"; label: string; createdAt: string; design: any };
 
@@ -300,7 +302,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [copiedSection, setCopiedSection] = useState<Section | null>(null);
   const [findOpen, setFindOpen] = useState(false);
   const [openPage, setOpenPage] = useState<{ slug: string; nonce: number } | null>(null);
-  const inlineStart = useRef<any>(null);
+  const inlineEditingRef = useRef(false);
+  const [inlineEditing, setInlineEditing] = useState<string | null>(null);
 
   const [toast, setToast] = useState<Toast>(null);
   const [copyFilter, setCopyFilter] = useState("");
@@ -474,6 +477,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   // Full-screen "Preview in new tab" windows listen on this channel (features/site/previewTab.ts).
   const channelRef = useRef<BroadcastChannel | null>(null);
   const sendPreviewState = useCallback(() => {
+    if (inlineEditingRef.current) return;
     const previewDesign = historyPreview?.design || designRef.current;
     const state = buildPreviewState(settings, previewDesign, withDraftPage(pages, draftPage), books);
     try {
@@ -494,19 +498,20 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   useEffect(() => { const t = setTimeout(sendPreviewState, 100); return () => clearTimeout(t); }, [design, sendPreviewState]);
   // Tell the preview which strings are editable copy, so double-clicking one jumps to its field.
   const sendCopyMap = useCallback(() => {
-    const items = COPY_SCHEMA.flatMap((g) => g.fields.map((f) => ({ key: f.key, text: (designRef.current.copy?.[f.key] || DEFAULT_COPY[f.key] || "") })));
+    const items = COPY_SCHEMA.flatMap((g) => g.fields.map((f) => ({ key: f.key, group: g.group, label: f.label, multiline: Boolean(f.multiline), editable: !/[{}]/.test(designRef.current.copy?.[f.key] ?? DEFAULT_COPY[f.key] ?? ""), text: (designRef.current.copy?.[f.key] ?? DEFAULT_COPY[f.key] ?? "") })));
     try { iframeRef.current?.contentWindow?.postMessage({ type: "SET_COPY_MAP", items }, window.location.origin); } catch { /* ignore */ }
     const editable: any[] = [];
-    const scanBlocks = (section: Section, blocks: any[]) => (blocks || []).forEach((block: any) => {
-      for (const field of getBlockFields(section.type)) if ((field.kind === "text" || field.kind === "textarea") && block[field.key]) editable.push({ sectionId: section.id, blockId: block.id, key: field.key, text: String(block[field.key]) });
-      scanBlocks(section, block.children || []);
+    const scanBlocks = (section: Section, blocks: any[], linked = false) => (blocks || []).forEach((block: any) => {
+      for (const field of getBlockFields(section.type)) if (["text", "textarea", "html", "richtext"].includes(field.kind)) editable.push({ sectionId: section.id, blockId: block.id, shared: linked || Boolean(block.sharedBlockId), key: field.key, label: field.label, multiline: field.kind === "textarea", editable: field.kind === "text" || field.kind === "textarea", text: String(block[field.key] ?? "") });
+      scanBlocks(section, block.children || [], linked || Boolean(block.sharedBlockId));
     });
     const targets: SectionTarget[] = [{ kind: "global" }, ...templates.map(t => ({ kind: "template", id: t.id }) as SectionTarget)];
     for (const target of targets) for (const section of getSections(designRef.current, target)) {
-      for (const field of getSectionFields(section.type)) if ((field.kind === "text" || field.kind === "textarea") && section.settings[field.key]) editable.push({ sectionId: section.id, blockId: null, key: field.key, text: String(section.settings[field.key]) });
-      scanBlocks(section, section.settings[getBlocksKey(section.type)] || section.settings.blocks || []);
+      for (const field of getSectionFields(section.type)) if (["text", "textarea", "html", "richtext"].includes(field.kind)) editable.push({ sectionId: section.id, blockId: null, key: field.key, label: field.label, multiline: field.kind === "textarea", editable: field.kind === "text" || field.kind === "textarea", text: String(section.settings[field.key] ?? "") });
+      scanBlocks(section, resolveSharedBlocks(section.settings[getBlocksKey(section.type)] || section.settings.blocks || [], designRef.current.sharedBlocks || []));
     }
     try { iframeRef.current?.contentWindow?.postMessage({ type: "SET_EDIT_MAP", items: editable }, window.location.origin); } catch { /* ignore */ }
+    try { iframeRef.current?.contentWindow?.postMessage({ type: "SET_STYLE_TEXT_MAP", items: INLINE_STYLE_KEYS.map(key => ({ key, label: STYLE_GROUPS.flatMap(g => g.fields).find(f => f.key === key)?.label || key, multiline: key === "announcementText", editable: true })) }, window.location.origin); } catch { /* ignore */ }
   }, [templates]);
   // The edit map is a full scan of every section; run it only once typing/dragging settles, and when idle.
   useEffect(() => {
@@ -519,6 +524,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, [design, sendCopyMap]);
 
   const onIframeLoad = () => {
+    inlineEditingRef.current = false; setInlineEditing(null);
     try {
       const doc = iframeRef.current?.contentDocument;
       if (!doc) { setPreviewStatus("error"); return; }
@@ -605,23 +611,25 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         change(current => applyCanvasAction(current, d, getBlocksKey, block));
         setSelectedId(d.sectionId); setBlockId(block.id); setMobilePanel("settings");
       }
-      if (d.type === "TEXT_EDIT_START") inlineStart.current = designRef.current;
+      if (d.type === "TEXT_EDIT_START") { inlineEditingRef.current = true; setInlineEditing(typeof d.label === "string" ? d.label : "Text"); }
       if (d.type === "TEXT_EDIT_END") {
-        const before = inlineStart.current; inlineStart.current = null;
-        if (before) setHist(h => sameDesign(before, h.present) ? h : { past: [...h.past, before].slice(-100), present: h.present, future: [] });
+        inlineEditingRef.current = false; setInlineEditing(null);
+        setTimeout(() => sendPreviewRef.current(), 0);
       }
-      if (d.type === "TEXT_EDIT" && d.sectionId && d.settingKey && typeof d.value === "string") {
-        const scan: SectionTarget[] = [{ kind: "global" }, ...templates.map((t) => ({ kind: "template", id: t.id }) as SectionTarget)];
-        const tgt = scan.find((t) => getSections(designRef.current, t).some((s) => s.id === d.sectionId));
-        if (!tgt) return;
-        const section = getSections(designRef.current, tgt).find(s => s.id === d.sectionId)!;
-        const fields = d.blockId ? getBlockFields(section.type) : getSectionFields(section.type);
-        if (!fields.some(f => f.key === d.settingKey && (f.kind === "text" || f.kind === "textarea"))) return;
-        const edit = (dd: any) => setSections(dd, tgt, d.blockId
-          ? patchBlockField(getSections(dd, tgt), d.sectionId, d.blockId, d.settingKey, d.value)
-          : patchSectionSettings(getSections(dd, tgt), d.sectionId, { [d.settingKey]: d.value }));
-        if (inlineStart.current) setHist(h => ({ ...h, present: edit(h.present) })); else change(edit);
+      if (d.type === "INLINE_TEXT_COMMIT") change(current => applyInlineText(current, d, {
+        sectionFields: getSectionFields, blockFields: getBlockFields, blocksKey: getBlocksKey,
+        copyKeys: COPY_SCHEMA.flatMap(g => g.fields.map(f => f.key)), styleKeys: INLINE_STYLE_KEYS,
+        applyStyle: (dd, key, value) => applyGlobalStyle(dd, key, value, surfaceIds),
+      }));
+      if (d.type === "INLINE_TEXT_UNAVAILABLE") {
+        if (d.sectionId) {
+          const owner = findSectionOwner(designRef.current, d.sectionId);
+          if (owner) { setShowGlobal(owner.surface === "globalSections"); if (owner.surface !== "globalSections") setTemplateId(owner.surface); }
+          setLeftTab("sections"); setSelectedId(d.sectionId); setBlockId(d.blockId || null); setMobilePanel("settings");
+        } else if (d.kind === "copy") { setCopyFilter(d.key || ""); setLeftTab("text"); setMobilePanel("outline"); }
+        say("ok", "Formatted or templated text opens in the inspector so its structure is preserved.");
       }
+
     };
     window.addEventListener("message", h);
     return () => window.removeEventListener("message", h);
@@ -633,6 +641,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     restore: next => change(() => normalizeDesign(next, defaults)), say,
   });
   const exit = () => {
+    if (inlineEditingRef.current) { say("err", "Finish or cancel the preview text edit before leaving Studio."); return; }
     if (pageBusy) { say("err", "Wait for the page save to finish before leaving Studio."); return; }
     if ((dirtyDraft || draftPage) && !window.confirm("You have unsaved edits. Leave without saving?")) return;
     onExit();
@@ -640,7 +649,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
   // warn on tab close, keyboard shortcuts
   useEffect(() => {
-    const before = (e: BeforeUnloadEvent) => { if (dirtyDraft || draftPage || pageBusy) { e.preventDefault(); e.returnValue = ""; } };
+    const before = (e: BeforeUnloadEvent) => { if (dirtyDraft || draftPage || pageBusy || inlineEditingRef.current) { e.preventDefault(); e.returnValue = ""; } };
     window.addEventListener("beforeunload", before);
     return () => window.removeEventListener("beforeunload", before);
   }, [dirtyDraft, draftPage, pageBusy]);
@@ -649,6 +658,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       const mod = e.ctrlKey || e.metaKey;
       const typing = /input|textarea|select/i.test((e.target as HTMLElement)?.tagName || "") || (e.target as HTMLElement)?.isContentEditable;
       if (busy === "discard") { e.preventDefault(); return; }
+      if (inlineEditingRef.current && mod && ["s", "z", "y"].includes(e.key.toLowerCase())) { e.preventDefault(); return; }
       if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setFindOpen(true); return; }
       if (mod && e.key.toLowerCase() === "s" && leftTab !== "pages") { e.preventDefault(); saveDraft(); }
       else if (mod && e.key.toLowerCase() === "z" && !typing) { e.preventDefault(); setHist((h) => (e.shiftKey ? redo(h) : undo(h))); }
@@ -770,7 +780,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (t.type === "page") { setLeftTab("pages"); setOpenPage({ slug: t.slug, nonce: Date.now() }); }
   };
 
-  const sidebarTabs: [LeftTab, string][] = [["sections", "Page layout"], ["style", "Theme settings"], ["text", "Text & labels"], ["menus", "Navigation"], ["pages", "Pages"]];
+  const sidebarTabs: [LeftTab, string][] = [["sections", "Page layout"], ["shared", "Shared layout"], ["style", "Theme settings"], ["text", "Text & labels"], ["menus", "Navigation"], ["pages", "Pages"]];
   const q = copyFilter.trim().toLowerCase();
   const visibleStyleGroups = filterSettingGroups(STYLE_GROUPS, styleSearch, styleCategory);
   const panelTitle = sidebarTabs.find(([id]) => id === leftTab)?.[1];
@@ -779,7 +789,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     <div className="rp studio-editor" data-rp-appearance={appearance} data-studio-editor data-mobile-panel={mobilePanel}>
       {/* top bar */}
       <header className="studio-topbar">
-        <button className={btn} onClick={exit}><ArrowLeft size={14} /> Exit</button>
+        <button className={btn} disabled={Boolean(inlineEditing)} onClick={exit}><ArrowLeft size={14} /> Exit</button>
         <strong className="studio-title">Design studio</strong>
         <button className={btn} onClick={() => setFindOpen(true)} aria-label="Find anything (Ctrl+K)" title="Find any setting, word, page, section or action"><Search size={14} /> Find <kbd aria-hidden="true">Ctrl K</kbd></button>
         <select value={showGlobal ? "__global" : template.id}
@@ -802,8 +812,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         </div>
         <button className={btn} aria-pressed={mode === "browse"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}>{mode === "edit" ? "Edit mode" : "Browse mode"}</button>
 
-        <button className={iconBtn} disabled={!hist.past.length} onClick={() => setHist(undo)} aria-label="Undo (Ctrl+Z)"><Undo2 size={15} /></button>
-        <button className={iconBtn} disabled={!hist.future.length} onClick={() => setHist(redo)} aria-label="Redo (Ctrl+Shift+Z)"><Redo2 size={15} /></button>
+        <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.past.length} onClick={() => setHist(undo)} aria-label="Undo (Ctrl+Z)"><Undo2 size={15} /></button>
+        <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.future.length} onClick={() => setHist(redo)} aria-label="Redo (Ctrl+Shift+Z)"><Redo2 size={15} /></button>
         <div className="flex-1" />
         <span className="text-xs font-bold px-2 py-1 rounded-full bg-neutral-100" role="status">
           {dirtyDraft ? "Unsaved changes" : unpublished ? "Draft saved · not live" : "Live"}
@@ -812,13 +822,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           { label: "Preview in new tab", icon: <ExternalLink size={14} />, onSelect: openPreviewTab },
           { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
           { label: "Check before publishing", icon: <ShieldCheck size={14} />, onSelect: () => setChecksOpen(true) },
-          ...(unpublished && busy === null ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
+          ...(unpublished && busy === null && !inlineEditing ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
         ]} /></div>
-        <button className={btn} disabled={!dirtyDraft || busy !== null} onClick={saveDraft}>{busy === "draft" ? "Saving…" : "Save draft"}</button>
-        <button className={btnPrimary} disabled={(!unpublished && !dirtyDraft) || busy !== null} onClick={() => setConfirmAction("publish")}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
+        <button className={btn} disabled={Boolean(inlineEditing) || !dirtyDraft || busy !== null} onClick={saveDraft}>{busy === "draft" ? "Saving…" : "Save draft"}</button>
+        <button className={btnPrimary} disabled={Boolean(inlineEditing) || (!unpublished && !dirtyDraft) || busy !== null} onClick={() => setConfirmAction("publish")}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
       </header>
 
       <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
+      {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Choose Done to keep it or Cancel / Escape to revert before saving or publishing.</div>}
       {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={dismissRecovery}>Discard local recovery</SecondaryButton></div>}
       {draftPage && leftTab !== "pages" && <div className="studio-recovery" role="status"><span>{pageBusy ? "Saving" : "Unsaved edits to"} page “{draftPage.title || draftPage.slug || "Untitled"}”. {pageBusy ? "Wait for the save to finish." : "Return to Pages to review and save it."}</span>{!pageBusy && <SecondaryButton onClick={() => setLeftTab("pages")}>Return to Pages</SecondaryButton>}</div>}
       {toast && (
@@ -843,9 +854,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <div className="studio-panel-context">
             <strong>{panelTitle}</strong>
             <span>{showGlobal ? "Shared sections · every page" : template.label}{leftTab === "sections" ? ` · ${sections.length} sections` : ""}</span>
-            <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : "Create pages and edit their content or layout."}</small>
+            <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "shared" ? "Announcement, header, navigation and footer controls in one place." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : "Create pages and edit their content or layout."}</small>
           </div>
           <div className="flex-1 overflow-auto">
+            {leftTab === "shared" && <StudioSharedLayout globalCount={(design.globalSections || []).length}
+              onStyle={(id, label) => { setStyleScope("all"); setStyleSearch(""); setStyleCategory(id); setStyleFocus(label ? {id, label} : null); setLeftTab("style"); }}
+              onText={group => { setCopyFilter(""); setTextCategory(group); setLeftTab("text"); }}
+              onNavigation={() => setLeftTab("menus")}
+              onSections={() => { setShowGlobal(true); setSelectedId(null); setBlockId(null); setLeftTab("sections"); }} />}
             {leftTab === "sections" && template.id === "heroPage" && (
               <div className="m-3 p-3 rounded-lg border border-neutral-200 bg-white text-xs space-y-2">
                 <label className="flex items-center justify-between gap-3 font-bold text-sm">
@@ -1047,7 +1063,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
         {/* preview */}
         <main className="studio-canvas">
-          <div className="studio-canvas-status"><span>{template.label} · {device} · {mode === "edit" ? "Click anything in the preview to edit it" : "Browse your storefront"}</span><span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}</div>
+          <div className="studio-canvas-status"><span>{template.label} · {device} · {mode === "edit" ? "Double-click text to type · click other elements for settings" : "Browse your storefront"}</span><span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}</div>
           {template.id === "productPage" && !books.some(b => b.slug === productSlug) ? <p className="studio-empty">Choose an available product above to preview this template.</p> :
           <div className="studio-preview-frame" style={{ width: DEVICE_W[device], maxWidth: "100%" }}>
             <iframe ref={iframeRef} key={previewUrl + previewRevision} src={previewUrl} title="Live preview" onLoad={onIframeLoad} className="w-full h-full border-0" />

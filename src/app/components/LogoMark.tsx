@@ -40,9 +40,9 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
           ...(logoColor ? { color: logoColor } : {}),
         }}
       >
-        <span>{design?.wordmarkPrimary || "Lyricalmyrical"}</span>
-        <span style={wordmarkSecondaryStyle(design, 0.56)}>
-          {design?.wordmarkSecondary || "Books"}
+        <span data-studio-style-text="wordmarkPrimary">{design?.wordmarkPrimary ?? "Lyricalmyrical"}</span>
+        <span data-studio-style-text="wordmarkSecondary" style={wordmarkSecondaryStyle(design, 0.56)}>
+          {design?.wordmarkSecondary ?? "Books"}
         </span>
       </span>
     );
@@ -77,7 +77,7 @@ export function LogoMark({ design, defaultText = "F✶M" }: { design?: any; defa
     return <img src={design.logoUrl} alt={getCopy(design, "logoAlt")} className="object-contain" style={{ height }} />;
   }
 
-  return logoColor ? <span style={{ color: logoColor }}>{text}</span> : <>{text}</>;
+  return <span data-studio-style-text="logoText" style={logoColor ? { color: logoColor } : undefined}>{text}</span>;
 }
 
 export default LogoMark;

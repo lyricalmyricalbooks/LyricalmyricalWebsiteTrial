@@ -21,6 +21,7 @@ const weights = ["300", "400", "500", "600", "700", "800", "900"].map((w) => ({ 
 // controls. A label listed here gathers its fields from ANY group by key; other labels show their
 // whole target group.
 export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
+  "Announcement bar": /^(showAnnouncement|announcement)/,
   "Card title & price": /^(productTitleColor|productPriceColor|cardTitle|cardPrice|catalogPriceStyle|catalogTitleTransform|catalogCardRuleWidth)/,
   "Buy card": /^(pdpCard|pdpShowTag|pdpTag|pdpTitle|pdpPrice|pdpShowStock|pdpStock|productCta|addToBagLabel|showQtyStepper|showSocialShare|showBackInStock)/,
   "Product title & price": /^(pdpTitle|pdpPrice|productTitleSize|productSubtitleWeight)/,

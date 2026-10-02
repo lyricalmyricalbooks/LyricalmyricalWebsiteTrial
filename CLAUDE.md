@@ -228,6 +228,16 @@ shared content updates everywhere while placement stays local. The preview
 supports section and block drag/reorder plus schema-derived inline editing for
 safe text fields.
 
+Studio's **Shared layout** workspace groups announcement, header, navigation,
+footer and shared-section controls. In Edit mode, double-click plain text in the
+iframe (or focus its edit hook and press Enter), then choose **Done** to commit
+one undoable draft change or **Cancel** / Escape to restore it. Typing keeps the
+preview stable; Save, Publish and Exit wait until the edit finishes. Announcement,
+wordmark, masthead and footer labels edit their existing Studio fields. Linked
+block text updates its shared source while placement stays local. Formatted HTML
+and templated labels open the inspector instead of flattening their content.
+Browse mode restores normal interaction and removes editing focus hooks.
+
 A large (~11k-line) Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the
 section/block contract, and the Shopify-parity roadmap.

@@ -5,7 +5,7 @@
 
 import type { Section } from "./studioModel";
 
-export type StudioTab = "sections" | "style" | "text" | "menus" | "pages";
+export type StudioTab = "sections" | "style" | "text" | "menus" | "pages" | "shared";
 export type StudioActionId =
   | "save" | "publish" | "discard" | "history" | "check" | "preview-tab" | "undo" | "redo"
   | "device-desktop" | "device-tablet" | "device-mobile" | "mode-toggle" | "autofit-page" | "add-section";
@@ -95,6 +95,7 @@ const ACTIONS: { id: StudioActionId; title: string; keywords: string }[] = [
 ];
 
 const TABS: { tab: StudioTab; title: string; keywords: string }[] = [
+  { tab: "shared", title: "Shared layout", keywords: "announcement header navigation footer global sections" },
   { tab: "sections", title: "Sections", keywords: "page layout blocks homepage outline" },
   { tab: "style", title: "Style", keywords: "colors fonts spacing look design theme" },
   { tab: "text", title: "Text & labels", keywords: "words wording copy messages" },
