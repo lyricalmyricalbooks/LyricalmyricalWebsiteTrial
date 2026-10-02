@@ -75,11 +75,13 @@ export function freshBlockIds(block: StudioBlock): StudioBlock {
 }
 
 /** Linked shared blocks inherit source content while keeping placement/layout overrides. */
-export function resolveSharedBlocks(blocks: StudioBlock[], library: SharedBlock[] = []): StudioBlock[] {
-  return normalizeBlocks(blocks).map(block => {
+export function resolveSharedBlocks(blocks: StudioBlock[], library: SharedBlock[] = [], depth = 0): StudioBlock[] {
+  if (depth >= MAX_BLOCK_DEPTH) return [];
+  return normalizeBlocks(blocks, "block", depth).map(block => {
     const source = block.sharedBlockId ? library.find(item => item.id === block.sharedBlockId)?.block : undefined;
-    const merged = source ? { ...clone(source), ...block, id: block.id, sharedBlockId: block.sharedBlockId } : block;
-    return { ...merged, children: resolveSharedBlocks(merged.children || [], library) };
+    const merged = source ? { ...clone(source), ...block, id: block.id, sharedBlockId: block.sharedBlockId,
+      children: block.children ?? source.children } : block;
+    return { ...merged, children: resolveSharedBlocks(merged.children || [], library, depth + 1) };
   });
 }
 

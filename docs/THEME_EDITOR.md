@@ -345,6 +345,13 @@ library → verify), then check it off.
 - [x] **Studio audit (30 Sep 2026).** Browser-driven audit of Studio. Fixed: tabbing through an *unset* colour field wrote `#000000` (blank now stays blank; `transparent`/`rgba()` survive); the preview iframe no longer counts visits / funnel events as shopper traffic; unset sliders show the storefront default (`defaultValue` in `styleSchema.ts`); My themes refuses to grow past ~500 KB (each copy is a whole design and `settings/website` is one 1 MiB Firestore doc); dirty/unpublished compares memoised. Known gap: preview double-click→copy matching is exact-text, so strings with `{count}`/`{year}` placeholders never jump to their field.
 
 ### C. Live preview & editing UX
+- [x] Canvas drag actions resolve section ownership and blocks from the latest
+      draft, including global sections and custom-page templates, so delayed
+      preview events cannot overwrite newer edits. Linked nested blocks retain
+      their source children. Studio Pages keeps unsaved page edits mounted when
+      switching tabs, protects them on exit, and preserves typing during a save.
+      The pre-publish check scans nested content and reports manual image-size
+      and contrast review as warnings rather than claiming those checks passed.
 - [x] Inline click-to-edit routes preview clicks to the correct section/template panel and keeps the selected section highlighted.
 - [x] Device preview toggle (desktop / tablet / mobile widths).
 - [x] Visual/feature setting scope: **All pages** applies colors, typography,
@@ -639,3 +646,5 @@ Our renderers must stay shallow.
 ## Riso chrome (Phase 5 complete)
 
 The editor root is now `.rp` and follows the admin appearance (`appearance` prop from `Dashboard`). Top bar (Design studio heading, Live/Draft/Unsaved badge on `--rp-*` status tints), the tab strip (`role="tablist"`, 44px targets, flare active tab), left panel surface, shared primitives, and the section library (`role="dialog"`, focus trap, Escape, labelled search and delete controls) all use Riso tokens. Deeper panel bodies still carry legacy utility classes under the `.admin-reso` compat layer; migrate them panel by panel.
+
+- [x] **Public recovery and phone navigation (2 Oct 2026).** Shared phone menu with Studio visibility/copy controls; custom pages retain the shared policy footer with a page-footer toggle; wildcard recovery exposes existing 404 copy and message/back-link visibility controls. Checkout configuration errors remain editable in Text & labels > Checkout.

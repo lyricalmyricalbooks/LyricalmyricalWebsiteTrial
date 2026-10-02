@@ -114,6 +114,9 @@ export const STYLE_GROUPS: StyleGroup[] = [
     title: "Custom pages",
     hint: "One look for every custom page (About, History, Journal…). A page's Page content section can opt out with its own style.",
     fields: [
+      { key: "showPageFooter", label: "Show page footer", kind: "toggle", defaultValue: true },
+      { key: "showNotFoundMessage", label: "Show missing-page message", kind: "toggle", defaultValue: true },
+      { key: "showNotFoundBack", label: "Show return to store link", kind: "toggle", defaultValue: true },
       { key: "pageChromeStyle", label: "Page colours", kind: "select", options: [{ value: "theme", label: "Match the storefront" }, { value: "classic", label: "Classic white page" }] },
       { key: "pageShowEyebrow", label: "Show small label above title", kind: "toggle" },
       { key: "pageTitleSize", label: "Title size", kind: "select", options: [{ value: "sm", label: "Small" }, { value: "md", label: "Medium" }, { value: "lg", label: "Large" }, { value: "xl", label: "Extra large" }] },
@@ -198,6 +201,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "announcementTracking", label: "Announcement letter spacing", kind: "range", min: 0, max: 0.5, step: 0.02, suffix: "em" },
       { key: "announcementSpeed", label: "Ticker speed (seconds per loop)", kind: "range", min: 5, max: 90, step: 1 },
       { key: "navStyle", label: "Nav link style", kind: "select", options: [{ value: "default", label: "Plain" }, { value: "stickers", label: "Sticker pills" }] },
+      { key: "showMobileNavigation", label: "Show phone navigation", kind: "toggle", defaultValue: true },
       { key: "hideHeaderSearch", label: "Hide search icon", kind: "toggle" },
       { key: "hideHeaderWishlist", label: "Hide wishlist (heart) icon", kind: "toggle" },
       { key: "hideHeaderAccount", label: "Hide account icon", kind: "toggle" },

@@ -280,6 +280,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
   {
     group: "Header",
     fields: [
+      { key: "catalogLoadError", label: "Catalog load error", default: "The catalog could not be loaded. Please try again." },
+      { key: "navMenu", label: "Mobile menu", default: "Menu" },
       { key: "navSearch", label: "Nav: Search", default: "Search" },
       { key: "navAdmin", label: "Nav: Admin (debug only)", default: "Admin" },
       { key: "navDropdownAll", label: "Category drop-down: “All” link", default: "All" },
@@ -504,6 +506,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coEstimated", label: "Delivery estimate", default: "Estimated {days} business days", hint: "Use {days} for the number of days." },
       { key: "coFree", label: "Free shipping label", default: "Free" },
       { key: "coNoPayment", label: "No payment method message", multiline: true, default: "No payment method is currently available. Please contact the store before placing your order." },
+      { key: "coStripeConfigError", label: "Card payment configuration error", multiline: true, default: "Card payments are temporarily unavailable. Please contact the store or choose another payment method." },
       { key: "coPrivacyNote", label: "Payment privacy note", multiline: true, default: "Your payment details are submitted directly to the selected payment provider and are not stored by this shop." },
       { key: "coPackedNote", label: "Reassurance text", default: "You’ll receive an order confirmation and shipping updates by email." },
       { key: "coTestMode", label: "Test-mode banner", default: "Test mode is active. No real charges will be made." },

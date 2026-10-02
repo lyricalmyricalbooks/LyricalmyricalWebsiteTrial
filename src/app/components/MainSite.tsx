@@ -1,3 +1,4 @@
+import { MobileStorefrontNav } from "../features/site/MobileStorefrontNav";
 import { motion, AnimatePresence } from "motion/react";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon, ShoppingCart } from "lucide-react";
@@ -1181,6 +1182,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               <div className="mx-auto px-6" style={{ maxWidth: storefrontMaxWidth }}>{navBar}</div>
             </div>
           )}
+        <MobileStorefrontNav design={activeDesign} pages={pages} onSearch={() => setSearchOpen(true)} />
         </header>
 
         {onHome ? (

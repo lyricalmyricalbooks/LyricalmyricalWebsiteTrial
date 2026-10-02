@@ -3,7 +3,7 @@ import { ArrowLeft, Copy, Eye, EyeOff, Trash2, X } from "lucide-react";
 import { adminApi } from "../api";
 import { BlockFieldEditor, BlockListFieldEditor, getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, SectionFieldEditor, SectionSettingsPanel } from "../ThemeEditorExtensions";
 import { IconButton, useFocusTrap } from "../riso/components";
-import { findBlock, freshBlockIds, mapBlock, removeBlock, type Section, type SharedBlock } from "./studioModel";
+import { findBlock, freshBlockIds, mapBlock, removeBlock, resolveSharedBlocks, type Section, type SharedBlock } from "./studioModel";
 import { updateBlocks } from "./studioWorkflow";
 import { blockLabel } from "./StudioOutline";
 import { autoFitSection, resetPhoneLayout } from "./autoMobile";
@@ -32,8 +32,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   const key = getBlocksKey(section.type);
   const blocks = section.settings[key] || section.settings.blocks || [];
   const placement = blockId ? findBlock(blocks, blockId) : undefined;
-  const sharedSource = placement?.sharedBlockId ? sharedBlocks.find(s => s.id === placement.sharedBlockId)?.block : undefined;
-  const block = placement && sharedSource ? { ...sharedSource, ...placement, id: placement.id } : placement;
+  const block = placement ? resolveSharedBlocks([placement], sharedBlocks)[0] : undefined;
   const fields = (block ? getBlockFields(section.type) : getSectionFields(section.type)).filter(f => `${f.label} ${f.key}`.toLowerCase().includes(search.toLowerCase()));
   const uploadFile = useCallback((file: File) => adminApi.uploadFile(file, `sections/${section.id}_${Date.now()}`), [section.id]);
   const patchBlock = (patch: any) => {
