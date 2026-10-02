@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { googleFontHref } from "./fonts";
 import { loadStripe, type Stripe, type StripeElements } from "@stripe/stripe-js";
+import { createElementCleanup } from "./stripeLifecycle";
 
 export type StripeCardFormHandle = {
   /** Validates the form fields; returns an error message or null. */
@@ -30,23 +31,27 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
   currency: string;
   loadingText: string;
   errorText: string;
+  onStateChange?: (state: "loading" | "ready" | "error") => void;
   /** Google Font used inside Stripe's fields (Studio › Checkout form field font). */
   fontName?: string;
   style?: React.CSSProperties;
-}>(function StripeCardForm({ publishableKey, amountCents, currency, loadingText, errorText, fontName, style }, ref) {
+}>(function StripeCardForm({ publishableKey, amountCents, currency, loadingText, errorText, onStateChange, fontName, style }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const stripeRef = useRef<Stripe | null>(null);
   const elementsRef = useRef<StripeElements | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const safeAmount = Math.max(50, Math.round(amountCents || 0));
+  useEffect(() => { onStateChange?.(state); }, [state, onStateChange]);
 
   useEffect(() => {
     let cancelled = false;
-    let element: { destroy: () => void } | null = null;
+    let cleanup: (() => void) | null = null;
+    setState("loading");
     (async () => {
       try {
         const stripe = await loadStripe(publishableKey);
-        if (!stripe || cancelled || !host.current) return;
+        if (cancelled || !host.current) return;
+        if (!stripe) { setState("error"); return; }
         const el = host.current;
         const elements = stripe.elements({
           mode: "payment",
@@ -66,36 +71,39 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
           },
         });
         const payment = elements.create("payment", { layout: "tabs" });
+        cleanup = createElementCleanup(payment);
         payment.on("ready", () => !cancelled && setState("ready"));
         payment.on("loaderror", () => !cancelled && setState("error"));
         payment.mount(el);
         stripeRef.current = stripe;
         elementsRef.current = elements;
-        element = payment;
       } catch (err) {
         console.error("Card form failed to load", err);
         if (!cancelled) setState("error");
       }
     })();
-    return () => { cancelled = true; element?.destroy(); elementsRef.current = null; };
+    return () => { cancelled = true; cleanup?.(); elementsRef.current = null; stripeRef.current = null; };
     // amount/currency changes are pushed with elements.update below
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publishableKey, fontName]);
 
   useEffect(() => {
-    elementsRef.current?.update({ amount: safeAmount, currency: currency.toLowerCase() });
+    try { elementsRef.current?.update({ amount: safeAmount, currency: currency.toLowerCase() }); }
+    catch { setState("error"); }
   }, [safeAmount, currency]);
 
   useImperativeHandle(ref, () => ({
     validate: async () => {
-      if (!elementsRef.current) return errorText;
-      const { error } = await elementsRef.current.submit();
-      return error?.message || null;
+      if (state !== "ready" || !elementsRef.current) return errorText;
+      try {
+        const { error } = await elementsRef.current.submit();
+        return error?.message || null;
+      } catch { return errorText; }
     },
     confirm: async (clientSecret, returnUrl) => {
       const stripe = stripeRef.current;
       const elements = elementsRef.current;
-      if (!stripe || !elements) return { error: errorText };
+      if (state !== "ready" || !stripe || !elements) return { error: errorText };
       const result = await stripe.confirmPayment({
         elements,
         clientSecret,
@@ -105,7 +113,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
       if (result.error) return { error: result.error.message || errorText };
       return { paymentIntentId: result.paymentIntent?.id, status: result.paymentIntent?.status };
     },
-  }), [errorText]);
+  }), [errorText, state]);
 
   return (
     <div className="fm-stripe-card-form" style={style} data-studio-target="style:checkout" data-studio-label="Card payment form">

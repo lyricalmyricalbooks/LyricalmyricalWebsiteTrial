@@ -9,6 +9,8 @@ import { RISO_NOIR_TOKENS, withRisoNoirDefault } from "./risoNoir";
 import { setSiteIdentity } from "../../lib/seo";
 import { applyCustomCode } from "./customCode";
 import { applyBackorderPolicy } from "./backorder";
+import { resolveProductRoutes } from "./productRoutes";
+import { loadCatalog } from "./loadCatalog";
 
 const isPreviewUrl = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
 
@@ -39,7 +41,7 @@ export function useSiteData() {
     async function loadData() {
       try {
         const [bookResponse, settingsResponse, pagesResponse] = await Promise.all([
-          adminApi.getBooks(12),
+          loadCatalog((size, cursor) => adminApi.getBooks(size, cursor)),
           adminApi.getSettings(),
           adminApi.getPublishedPages(),
         ]);
@@ -170,7 +172,7 @@ export function useSiteData() {
   // Studio › Style › Custom code (public pages only; see customCode.ts).
   useEffect(() => { applyCustomCode(settings.design, location.pathname); }, [settings.design, location.pathname]);
 
-  const sellableBooks = useMemo(() => books.map(applyBackorderPolicy), [books]);
+  const sellableBooks = useMemo(() => resolveProductRoutes(books).map(applyBackorderPolicy), [books]);
 
   return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading };
 }

@@ -168,6 +168,17 @@ profile, rate dialog).
 > routes render the themed storefront header. Walkthroughs must use Studio's
 > labels, not legacy legacy-editor tabs.
 
+Studio › Menus › Shop categories has a searchable category manager with explicit
+Edit/Delete, descriptions, optional images, visibility, parent placement and order.
+Counts show direct assignments (including aliases); parent roll-ups and the
+automatic PUBLICATIONS all-books view are separate. The picker reads the entire
+catalog, including drafts and records without createdAt. Category details follow
+Save draft/Publish; book assignments have an explicit live Save action, use the
+published category name, and cannot target unpublished categories. Bulk writes
+read fresh tags in an atomic transaction (up to 400 books), touching only
+categories/genres/updatedAt. Deletion keeps all books, promotes children and offers
+keep/remove/move assignments, refreshing membership before and after cleanup.
+For larger categories, use Edit › Assigned here in groups of up to 400 first.
 **Find anything:** the Studio top bar **Find** button (or Ctrl/Cmd+K) searches every Style control, Text & labels
 string, Menus panel, page, section and action (`studio/studioSearch.ts` + `StudioSearch.tsx`; `goToResult` in
 `StudioEditor.tsx` navigates). It indexes `STYLE_GROUPS` and `COPY_SCHEMA`, so new controls are findable with no extra
@@ -527,3 +538,11 @@ Bug / edge case the change introduced · the next logical feature · offline & s
 - Only ask clarifying questions if the request is genuinely ambiguous.
 
 Live carrier choices show up to five distinct Canada Post methods, cheapest first, using the lowest quote for each service. Server quote selection sorts prices before resolving duplicate service names.
+
+## Public storefront readiness repairs (2 October 2026)
+
+Public product links retain unique slugs and use immutable book IDs when slugs collide; catalog records are never rewritten. The storefront reads the entire paginated catalog and the sitemap uses the same route resolver. Unknown URLs show editable recovery content. Custom pages share the support/policy footer, with **Show page footer** in Studio > Style > Custom pages.
+
+Phone navigation is a keyboard-accessible disclosure shared by the homepage and standalone page/product header. Studio > Style > Header & announcement bar > **Show phone navigation** controls visibility; existing header visibility controls apply inside it. Studio > Text & labels > Header > **Mobile menu** controls its label. Missing-page visibility controls live in Style > Custom pages; words remain in Text & labels > Custom pages & 404.
+
+Checkout rejects placeholder/wrong-mode publishable keys and disables payment until an inline Stripe Element is ready. Teardown is idempotent and exception-safe. Admin payment readiness reports invalid keys. Server totals and webhook-only paid-order/inventory authority are unchanged. A production payment is still unverified until the owner configures valid Stripe credentials and completes a sandbox order, webhook, refund, email and fulfillment walkthrough. Public placeholder content still needs owner review.

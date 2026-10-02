@@ -14,6 +14,15 @@ increment and stopping.
 
 ## What already exists (don't rebuild it)
 
+- [x] Studio › Menus category management: searchable Edit/Delete, descriptions,
+  optional images, direct assignment counts, visibility, hierarchy and menu order;
+  full-catalog book picker with add/remove/move and safe deletion choices.
+  Category details remain draft/publish edits. Explicit book saves update live
+  tags atomically (up to 400 books), anchored to published category names so
+  Discard Draft cannot orphan assignments. New categories must be published first.
+  Deletion preserves books, promotes children and refreshes membership before/after
+  cleanup. For more than 400 members, use Edit › Assigned here in groups first.
+
 The editor is **not** a blank slate. It already supports:
 
 - A **section + block** model with per-section/per-block settings schemas.
@@ -620,3 +629,5 @@ Our renderers must stay shallow.
 ## Riso chrome (Phase 5 complete)
 
 The editor root is now `.rp` and follows the admin appearance (`appearance` prop from `Dashboard`). Top bar (Design studio heading, Live/Draft/Unsaved badge on `--rp-*` status tints), the tab strip (`role="tablist"`, 44px targets, flare active tab), left panel surface, shared primitives, and the section library (`role="dialog"`, focus trap, Escape, labelled search and delete controls) all use Riso tokens. Deeper panel bodies still carry legacy utility classes under the `.admin-reso` compat layer; migrate them panel by panel.
+
+- [x] **Public recovery and phone navigation (2 Oct 2026).** Shared phone menu with Studio visibility/copy controls; custom pages retain the shared policy footer with a page-footer toggle; wildcard recovery exposes existing 404 copy and message/back-link visibility controls. Checkout configuration errors remain editable in Text & labels > Checkout.
