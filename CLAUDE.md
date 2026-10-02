@@ -157,6 +157,18 @@ profile, rate dialog).
 > routes render the themed storefront header. Walkthroughs must use Studio's
 > labels, not legacy legacy-editor tabs.
 
+Studio › Menus › Shop categories has a searchable category manager with explicit
+Edit/Delete, descriptions, optional images, visibility, parent placement and order.
+Counts show direct assignments (including aliases); parent roll-ups and the
+automatic PUBLICATIONS all-books view are separate. The picker reads the entire
+catalog, including drafts and records without createdAt. Category details follow
+Save draft/Publish; book assignments have an explicit live Save action, use the
+published category name, and cannot target unpublished categories. Bulk writes
+read fresh tags in an atomic transaction (up to 400 books), touching only
+categories/genres/updatedAt. Deletion keeps all books, promotes children and offers
+keep/remove/move assignments, refreshing membership before and after cleanup.
+For larger categories, use Edit › Assigned here in groups of up to 400 first.
+
 Studio's Sections outline supports sortable sections and blocks. Canvas clicks
 open their inspector; **Edit mode** selects content and **Browse mode** lets
 storefront links and controls work. **Style** has searchable controls with
