@@ -2,6 +2,27 @@ import { describe, expect, it } from "vitest";
 import { addChildBlock, findBlock, freshBlockIds, mapBlock, moveBlockBefore, normalizeBlocks, removeBlock, resolveSharedBlocks } from "./studioModel";
 
 describe("recursive Studio blocks", () => {
+  it("inherits nested shared content without losing local placement", () => {
+    const library: any[] = [{ id: "shared", name: "Group", updatedAt: "now", block: {
+      id: "source", type: "group", children: [{ id: "child", type: "text", text: "Original" }],
+    } }];
+    const placement = normalizeBlocks([{ id: "placement", sharedBlockId: "shared", hidden: true, grid: { desktop: { column: 3 } } }]);
+    expect(resolveSharedBlocks(placement, library)[0]).toMatchObject({
+      id: "placement", hidden: true, grid: { desktop: { column: 3 } }, children: [{ id: "child", text: "Original" }],
+    });
+    library[0].block.children[0].text = "Updated";
+    expect(resolveSharedBlocks(placement, library)[0].children?.[0].text).toBe("Updated");
+    expect(placement[0].children).toBeUndefined();
+  });
+
+  it("bounds recursively linked sources even when a source links to itself", () => {
+    const library: any[] = [{ id: "loop", name: "Loop", updatedAt: "now", block: {
+      id: "source", type: "group", children: [{ id: "child", sharedBlockId: "loop" }],
+    } }];
+    const resolved = resolveSharedBlocks([{ id: "placement", sharedBlockId: "loop" }], library);
+    expect(resolved[0].children?.[0].children?.[0].children).toEqual([]);
+  });
+
   const tree: any[] = [{ id: "parent", title: "Parent", children: [{ id: "child", title: "Child", children: [{ id: "leaf", title: "Leaf" }] }] }];
 
   it("finds, updates, inserts and removes at any supported depth", () => {

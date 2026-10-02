@@ -1,4 +1,51 @@
-import { sameDesign, setPath, type Section } from "./studioModel";
+import { moveBlockBefore, patchSectionSettings, sameDesign, setPath, type Section } from "./studioModel";
+
+/** Finds section ownership in the current design, including globals and page:<slug>. */
+export function sectionEntries(design: any): { surface: string; sections: Section[] }[] {
+  return [
+    ...(Array.isArray(design?.globalSections) ? [{ surface: "globalSections", sections: design.globalSections }] : []),
+    ...Object.entries(design || {}).flatMap(([surface, value]: [string, any]) =>
+      Array.isArray(value?.sections) ? [{ surface, sections: value.sections }] : []),
+  ];
+}
+
+export function findSectionOwner(design: any, sectionId: string) {
+  const owner = sectionEntries(design).find(entry => entry.sections.some(section => section.id === sectionId));
+  return owner && { ...owner, section: owner.sections.find(section => section.id === sectionId)! };
+}
+
+/** Applies preview drag actions against the latest immutable design snapshot. */
+export function applyCanvasAction(design: any, action: {
+  type: string; sectionId: string; blockId?: string; beforeId?: string;
+}, blocksKey: (type: string) => string, newBlock?: any) {
+  const owner = findSectionOwner(design, action.sectionId);
+  if (!owner) return design;
+  let sections = owner.sections;
+  if (action.type === "SECTION_MOVE") {
+    const from = sections.findIndex(section => section.id === action.sectionId);
+    const to = sections.findIndex(section => section.id === action.beforeId);
+    if (to < 0 || from === to) return design;
+    sections = [...sections];
+    const [moving] = sections.splice(from, 1);
+    sections.splice(from < to ? to - 1 : to, 0, moving);
+  } else {
+    const key = blocksKey(owner.section.type);
+    const blocks = owner.section.settings[key] || owner.section.settings.blocks || [];
+    if (action.type === "ADD_BLOCK" && newBlock) sections = patchSectionSettings(sections, action.sectionId, { [key]: [...blocks, newBlock] });
+    else if (action.type === "BLOCK_MOVE" && action.blockId && action.beforeId) {
+      sections = patchSectionSettings(sections, action.sectionId, { [key]: moveBlockBefore(blocks, action.blockId, action.beforeId) });
+    } else return design;
+  }
+  return owner.surface === "globalSections" ? { ...design, globalSections: sections }
+    : { ...design, [owner.surface]: { ...design[owner.surface], sections } };
+}
+
+/** Advance server fields while retaining edits made since the request started. */
+export function reconcileSavedPage<T extends Record<string, any>>(current: T | null, captured: T, saved: T): T | null {
+  if (!current) return null;
+  if (JSON.stringify(current) === JSON.stringify(captured)) return saved;
+  return { ...saved, ...current, id: saved.id, createdAt: saved.createdAt, updatedAt: saved.updatedAt };
+}
 
 export function updateBlocks(section: Section, key: string, update: (blocks: any[]) => any[]) {
   const blocks = section.settings[key] || section.settings.blocks || [];
