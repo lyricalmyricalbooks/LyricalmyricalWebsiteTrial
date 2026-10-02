@@ -1,8 +1,9 @@
+import { addressKey, addressIssues, packingKey, queueOf, dispatchProblem, isDigitalItem, physicalItems } from "./fulfillment";
+import { printOrders } from "./orderPrint";
 import { useState, useEffect } from "react";
 import { ArrowLeft, Copy, ExternalLink, Truck, Plus } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
-import { orderApi, FULFILLMENT_FLOW, FULFILLMENT_LABELS, type FulfillmentStatus } from "../lib/commerce";
 import {
   Checkbox, ConfirmDialog, Dialog, EmptyState, LoadingState, PrimaryButton, SecondaryButton, DestructiveButton,
   SectionCard, SectionHead, SelectField, StatusBadge, Tabs, TextField, type BadgeTone,
@@ -42,11 +43,18 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
   const [isVoiding, setIsVoiding] = useState(false);
   const [restockOnRefund, setRestockOnRefund] = useState(true);
   const [refundReason, setRefundReason] = useState("Customer request");
-  const [isMarkingPaid, setIsMarkingPaid] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [holdReason, setHoldReason] = useState("");
+  const [editAddress, setEditAddress] = useState<any>(null);
+  const [parcel, setParcel] = useState({ length: "10", width: "8", height: "2", weight: "1.5", distance_unit: "in", mass_unit: "lb" });
+  const [presetName, setPresetName] = useState("");
+  const [presets, setPresets] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem("publisher-parcels") || "[]"); } catch { return []; } });
   const [timelineFilter, setTimelineFilter] = useState<"all" | "event" | "note">("all");
-  const [confirming, setConfirming] = useState<null | "paid" | "refund" | "cancel">(null);
+  const [confirming, setConfirming] = useState<null | "refund" | "cancel">(null);
 
   useEffect(() => {
+    setChecked(new Set());
     loadOrder();
   }, [orderId]);
 
@@ -54,6 +62,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     try {
       const data = await adminApi.getOrderById(orderId);
       setOrder(data);
+      if (data) { setTrackingCarrier((data as any).trackingCarrier || "Canada Post"); setTrackingNumber((data as any).trackingNumber || ""); }
     } catch (err) {
       console.error(err);
     } finally {
@@ -66,6 +75,8 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
   const [trackingNumber, setTrackingNumber] = useState("");
   const [isShipping, setIsShipping] = useState(false);
 
+  useEffect(() => { setChecked(new Set()); }, [order ? packingKey(order) : ""]);
+
   const markAsShipped = async () => {
     if (!trackingNumber.trim()) {
       toast.error("Please enter a tracking number.");
@@ -73,17 +84,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     }
     setIsShipping(true);
     try {
-      await adminApi.updateOrder(orderId, {
-        status: "completed",
-        fulfillmentStatus: "shipped",
-        trackingCarrier,
-        trackingNumber: trackingNumber.trim(),
-        shippedAt: new Date().toISOString(),
-      });
-      await adminApi.addOrderEvent(
-        orderId,
-        `Order shipped via ${trackingCarrier}. Tracking: ${trackingNumber.trim()}`
-      );
+      await adminApi.fulfillmentAction(orderId, "dispatch", { trackingCarrier, trackingNumber });
       setShowShipForm(false);
       setTrackingNumber("");
       loadOrder();
@@ -96,13 +97,13 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
   };
 
   const handlePrintPackingSlip = () => {
-    window.print();
+    printOrders([order]);
   };
 
   const handlePushToShippo = async () => {
     setIsGeneratingLabel(true);
     try {
-      const result = await adminApi.getCanadaPostLabelRates(orderId);
+      const result = await adminApi.getCanadaPostLabelRates(orderId, parcel);
       setLabelRates(result.rates || []);
       setLabelShipmentId(result.shipmentId || "");
       setSelectedLabelRate(result.rates?.[0]?.id || "");
@@ -124,17 +125,18 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
       toast.success("Canada Post label purchased.");
     } catch (err: any) {
       toast.error(err.message || "Couldn't purchase the label.");
+      await loadOrder();
     } finally {
       setIsBuyingLabel(false);
     }
   };
 
   const handleAddNote = async () => {
-    if (!note) return;
-    await adminApi.addOrderNote(orderId, note);
-    setNote("");
-    loadOrder();
-    toast.success("Note added");
+    if (!note.trim() || working) return;
+    setWorking(true);
+    try { await adminApi.addOrderNote(orderId, note); setNote(""); await loadOrder(); toast.success("Note added"); }
+    catch (err: any) { toast.error(err.message || "Could not save note."); }
+    finally { setWorking(false); }
   };
 
   const handleRefund = async () => {
@@ -168,21 +170,20 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
     }
   };
 
-  const handleMarkAsPaid = async () => {
-    setConfirming(null);
-    setIsMarkingPaid(true);
-    try {
-      await adminApi.markOrderPaid(orderId);
-      toast.success("Order marked as paid — confirmation email sent");
-      loadOrder();
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Failed to mark order as paid.");
-    } finally {
-      setIsMarkingPaid(false);
-    }
+  const perform = async (action: "review" | "pack" | "hold" | "release", payload: any = {}) => {
+    if (working) return;
+    setWorking(true);
+    try { await adminApi.fulfillmentAction(orderId, action, payload); await loadOrder(); toast.success("Fulfillment updated"); }
+    catch (err: any) { toast.error(err.message || "Could not save fulfillment."); }
+    finally { setWorking(false); }
   };
-
+  const saveAddress = async () => {
+    if (!editAddress || working) return;
+    setWorking(true);
+    try { await adminApi.correctOrderAddress(orderId, editAddress, addressKey(order)); setEditAddress(null); await loadOrder(); toast.success("Address corrected. Review it before packing."); }
+    catch (err: any) { toast.error(err.message || "Could not correct address."); }
+    finally { setWorking(false); }
+  };
 
   if (loading) return <LoadingState label="Retrieving order…" />;
 
@@ -191,14 +192,18 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
       action={<SecondaryButton onClick={onClose}>Back to orders</SecondaryButton>} />
   );
 
-  const current: FulfillmentStatus = (order.fulfillmentStatus || (order.status === "completed" ? "delivered" : "paid")) as FulfillmentStatus;
-  const currentIdx = FULFILLMENT_FLOW.indexOf(current);
   const paid = order.paymentStatus === "paid";
   const payTone: BadgeTone = paid ? "success" : order.paymentStatus === "refunded" || order.paymentStatus === "refund_pending" ? "info" : "danger";
   const addr = order.customer?.address || {};
   const isManualPayment = order.paymentMethod && order.paymentMethod !== "Stripe" && order.paymentMethod !== "PayPal";
-  const activity = (order.activity || []).filter((e: any) => timelineFilter === "all" || e.type === timelineFilter);
+  const activity = [...(order.activity || []), ...(order.operations?.activity || [])].sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).filter((e: any) => timelineFilter === "all" || e.type === timelineFilter);
   const money = (n?: number) => `CA$${Number(n || 0).toFixed(2)}`;
+
+  const queue = queueOf(order);
+  const issues = addressIssues(order);
+  const problem = dispatchProblem(order);
+  const packed = order.operations?.packed === packingKey(order);
+  const parcelValid = [parcel.length, parcel.width, parcel.height, parcel.weight].every(v => Number.isFinite(Number(v)) && Number(v) > 0);
 
   return (
     <div className="rp-stack">
@@ -214,49 +219,36 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
           {order.isTest === true && <StatusBadge tone="danger">Test order</StatusBadge>}
         </>} />
 
-      {/* Fulfillment pipeline */}
-      <SectionCard title="Fulfillment" data-print="hide"
-        actions={
-          <SelectField label="Set fulfillment status" hideLabel value={current}
-            onChange={async (e) => {
-              const next = e.target.value as FulfillmentStatus;
-              await orderApi.setFulfillmentStatus(orderId, next);
-              loadOrder();
-              toast.success(`Status: ${FULFILLMENT_LABELS[next]}`);
-            }}>
-            {(Object.keys(FULFILLMENT_LABELS) as FulfillmentStatus[]).map(k => <option key={k} value={k}>{FULFILLMENT_LABELS[k]}</option>)}
-          </SelectField>
-        }>
-        <ol aria-label="Fulfillment progress" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(104px, 1fr))", gap: 12, listStyle: "none", margin: 0, padding: 0 }}>
-          {FULFILLMENT_FLOW.map((step, idx) => {
-            const reached = idx <= currentIdx;
-            return (
-              <li key={step} aria-current={step === current ? "step" : undefined} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ height: 6, background: reached ? "var(--rp-primary)" : "var(--rp-surface-inset)", border: "1px solid var(--rp-border-strong)" }} />
-                <span className="rp-label" style={{ color: reached ? "var(--rp-text)" : "var(--rp-text-subtle)" }}>
-                  {reached ? "✓ " : ""}{FULFILLMENT_LABELS[step]}
-                </span>
-              </li>
-            );
-          })}
-        </ol>
+      <SectionCard title={order.items?.length && !physicalItems(order).length ? "Digital delivery" : queue} description={order.items?.length && !physicalItems(order).length ? "Digital download access is provided by the paid-order workflow. No shipping label is needed." : queue === "Ready to ship" ? (order.labelUrl ? "Label ready. Hand the parcel to the carrier, then confirm dispatch." : "Books packed. Choose a label or enter tracking from your own carrier.") : queue === "Ready to pack" ? "Check every book and quantity, then confirm packed." : queue === "Unpaid" ? "Waiting for verified payment. Stripe's webhook confirms payment automatically." : "Review the checklist and resolve any blockers below."} data-print="hide">
+        {order.operations?.hold && <p role="alert"><strong>On hold:</strong> {order.operations.hold}</p>}
+        {issues.length > 0 && <ul role="alert">{issues.map(i => <li key={i}>{i}</li>)}</ul>}
+        {physicalItems(order).length > 0 && <ol style={{ display: "flex", flexWrap: "wrap", gap: 24 }} aria-label="Publisher fulfillment steps">
+          <li>{order.operations?.addressReviewed === addressKey(order) ? "✓" : "○"} Review address</li>
+          <li>{packed ? "✓" : "○"} Pack books</li>
+          <li>{order.labelUrl ? "✓" : "○"} Shipping label</li>
+          <li>{["In transit", "Completed"].includes(queue) ? "✓" : "○"} Dispatch</li>
+        </ol>}
+        {queue === "Needs attention" && <PrimaryButton disabled={working} onClick={() => order.operations?.hold ? document.getElementById("order-hold")?.scrollIntoView({ behavior: "smooth" }) : document.getElementById("order-address")?.scrollIntoView({ behavior: "smooth" })}>{order.operations?.hold ? "Review fulfillment hold" : "Review shipping address"}</PrimaryButton>}
+        {queue === "Ready to pack" && <PrimaryButton onClick={() => document.getElementById("order-items")?.scrollIntoView({ behavior: "smooth" })}>Start packing checklist</PrimaryButton>}
+        {queue === "Ready to ship" && <PrimaryButton disabled={working} onClick={() => order.labelUrl ? setShowShipForm(true) : document.getElementById("parcel-tools")?.scrollIntoView({ behavior: "smooth", block: "center" })}>{order.labelUrl ? "Confirm dispatch" : "Choose shipping label"}</PrimaryButton>}
       </SectionCard>
 
       <div className="rp-split">
         <div className="rp-stack" style={{ minWidth: 0 }}>
           {/* Item ledger */}
-          <SectionCard flush title="Item ledger" description={order.status === "completed" ? "Dispatched" : "Awaiting fulfillment"}>
-            <div className="rp-table-wrap" role="region" aria-label="Order items" tabIndex={0}>
+          <SectionCard flush title="Item ledger" description={packed ? "All books packed" : "Check the title, edition and quantity for each line"}>
+            <div id="order-items" className="rp-table-wrap" role="region" aria-label="Order items" tabIndex={0}>
               <table className="rp-table">
                 <caption className="rp-sr-only">Items in this order</caption>
-                <thead><tr><th scope="col">Item</th><th scope="col" className="rp-num">Qty</th><th scope="col" className="rp-num">Price</th></tr></thead>
+                <thead><tr><th scope="col" data-print="hide">Packed</th><th scope="col">Item</th><th scope="col" className="rp-num">Qty</th><th scope="col" className="rp-num">Price</th></tr></thead>
                 <tbody>
                   {order.items?.map((item: any, i: number) => (
                     <tr key={i}>
+                      <td data-print="hide">{isDigitalItem(item) ? <StatusBadge>Digital</StatusBadge> : <Checkbox label="" aria-label={`Packed ${item.quantity} × ${item.title}`} checked={packed || checked.has(i)} disabled={working || queue !== "Ready to pack"} onChange={() => setChecked(prev => { const next = new Set(prev); next.has(i) ? next.delete(i) : next.add(i); return next; })} />}</td>
                       <td className="rp-lead">
                         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                           {item.photoUrl && <img src={item.photoUrl} alt="" width={40} height={56} style={{ objectFit: "cover", border: "1px solid var(--rp-border-strong)" }} />}
-                          <span style={{ overflowWrap: "anywhere" }}>{item.title}</span>
+                          <span style={{ overflowWrap: "anywhere" }}>{item.title}{item.variantName && <small className="rp-hint" style={{ display: "block" }}>{item.variantName}</small>}{item.sku && <small className="rp-mono" style={{ display: "block" }}>{item.sku}</small>}</span>
                         </div>
                       </td>
                       <td className="rp-num">{item.quantity}</td>
@@ -267,22 +259,23 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
               </table>
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10, padding: 20, borderTop: "1px solid var(--rp-divider)" }} data-print="hide">
+              {queue === "Ready to pack" && <PrimaryButton disabled={working || !physicalItems(order).length || checked.size !== physicalItems(order).length} onClick={() => perform("pack", { packingKey: packingKey(order) })}>Confirm all items packed</PrimaryButton>}
               {order.labelUrl ? (
                 <a className="rp-btn rp-btn-ink" href={order.labelUrl} target="_blank" rel="noopener noreferrer">
                   <ExternalLink size={16} aria-hidden /> Download shipping label
                 </a>
               ) : (
-                <SecondaryButton onClick={handlePushToShippo} disabled={isGeneratingLabel}>
+                <SecondaryButton onClick={handlePushToShippo} disabled={isGeneratingLabel || !!problem || !parcelValid || !!order.operations?.labelPurchasePending}>
                   {isGeneratingLabel ? "Finding Canada Post rates…" : "Choose Canada Post label"}
                 </SecondaryButton>
               )}
-              {order.status !== "completed" && !showShipForm && (
-                <PrimaryButton icon={<Truck size={16} aria-hidden />} onClick={() => setShowShipForm(true)}>Initiate dispatch</PrimaryButton>
+              {queue === "Ready to ship" && !showShipForm && (
+                <PrimaryButton icon={<Truck size={16} aria-hidden />} onClick={() => setShowShipForm(true)}>Enter dispatch details</PrimaryButton>
               )}
               <SecondaryButton icon={<Copy size={16} aria-hidden />} onClick={handlePrintPackingSlip}>Print packing slip</SecondaryButton>
             </div>
 
-            {showShipForm && order.status !== "completed" && (
+            {showShipForm && queue === "Ready to ship" && (
               <div style={{ padding: "0 20px 20px" }} data-print="hide">
                 <div className="rp-card" style={{ padding: 20, boxShadow: "none" }}>
                   <div className="rp-sect">Dispatch details</div>
@@ -297,7 +290,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                     <span className="rp-hint">The customer is emailed when the order is marked shipped.</span>
                     <span style={{ display: "flex", gap: 8 }}>
                       <SecondaryButton onClick={() => setShowShipForm(false)}>Cancel</SecondaryButton>
-                      <PrimaryButton onClick={markAsShipped} disabled={isShipping || !trackingNumber.trim()}>
+                      <PrimaryButton onClick={markAsShipped} disabled={isShipping || !!problem || !trackingNumber.trim()}>
                         {isShipping ? "Processing…" : "Confirm dispatch"}
                       </PrimaryButton>
                     </span>
@@ -309,12 +302,27 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
             {order.status === "completed" && order.trackingNumber && (
               <div style={{ padding: "0 20px 20px", display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
                 <div>
-                  <StatusBadge tone="success">In transit</StatusBadge>
+                  <StatusBadge tone="success">{queue}</StatusBadge>
                   <p className="rp-mono" style={{ margin: "8px 0 0" }}>{order.trackingCarrier} — {order.trackingNumber}</p>
                 </div>
                 <a className="rp-btn rp-btn-secondary" href={getTrackingUrl(order.trackingCarrier, order.trackingNumber)} target="_blank" rel="noopener noreferrer" data-print="hide">Live tracking</a>
               </div>
             )}
+          </SectionCard>
+
+          <SectionCard title="Parcel & shipping" description="Measure the packed parcel. Saved presets stay on this browser." data-print="hide">
+            <div id="parcel-tools" className="rp-stack">
+              <SelectField label="Saved parcel preset" value="" onChange={e => { const p = presets.find(p => p.name === e.target.value); if (p) setParcel(p.parcel); }}><option value="">Choose a saved parcel…</option>{presets.map(p => <option key={p.name}>{p.name}</option>)}</SelectField>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12 }}>
+                {(["length", "width", "height", "weight"] as const).map(k => <TextField key={k} label={`${k[0].toUpperCase() + k.slice(1)} (${k === "weight" ? "lb" : "in"})`} type="number" min="0.01" step="0.01" value={parcel[k]} onChange={e => setParcel(prev => ({ ...prev, [k]: e.target.value }))} />)}
+              </div>
+              <TextField label="Preset name" value={presetName} onChange={e => setPresetName(e.target.value)} placeholder="e.g. Two paperbacks" />
+              <SecondaryButton disabled={!presetName.trim() || !parcelValid} onClick={() => { const next = [...presets.filter(p => p.name !== presetName.trim()), { name: presetName.trim(), parcel }]; try { localStorage.setItem("publisher-parcels", JSON.stringify(next)); setPresets(next); toast.success("Parcel preset saved"); } catch { toast.error("Browser storage unavailable."); } }}>Save parcel preset</SecondaryButton>
+              <SecondaryButton disabled={isGeneratingLabel || !!problem || !parcelValid || !!order.labelUrl || !!order.operations?.labelPurchasePending} onClick={handlePushToShippo}>{isGeneratingLabel ? "Finding rates…" : "Compare Canada Post services"}</SecondaryButton>
+              {problem && <p className="rp-hint">{problem}</p>}
+              {order.operations?.labelPurchasePending && <p role="alert">A label purchase needs reconciliation. <a href="https://app.goshippo.com/orders" target="_blank" rel="noopener noreferrer">Check Shippo</a> before buying again; contact support to reconcile this order.</p>}
+              {order.labelUrl && <p className="rp-hint">A label is already purchased. Reprint it above; buying a label does not dispatch this order.</p>}
+            </div>
           </SectionCard>
 
           {/* Totals: recorded values, never recomputed here */}
@@ -349,7 +357,7 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
                 <TextField label="Add an internal note" value={note} onChange={(e) => setNote(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAddNote()} placeholder="Only administrators can see notes" />
               </div>
-              <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={handleAddNote} disabled={!note.trim()}>Add note</PrimaryButton>
+              <PrimaryButton icon={<Plus size={16} aria-hidden />} onClick={handleAddNote} disabled={working || !note.trim()}>Add note</PrimaryButton>
             </div>
             <Tabs<"all" | "event" | "note"> label="Activity filter" value={timelineFilter} onChange={setTimelineFilter}
               tabs={[{ id: "all", label: "All" }, { id: "event", label: "System events" }, { id: "note", label: "Notes only" }]} />
@@ -373,8 +381,13 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
 
         {/* Customer & overrides */}
         <div className="rp-stack" style={{ minWidth: 0 }}>
-          <SectionCard title="Customer">
-            <p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: "var(--rp-text-md)", overflowWrap: "anywhere" }}>{order.customer?.name}</p>
+          <SectionCard title="Shipping address" description="Confirm the destination before packing.">
+            {paid && !["In transit", "Completed"].includes(queue) && <div className="rp-stack" data-print="hide">
+              <SecondaryButton disabled={working || !!order.labelUrl || !!order.operations?.labelPurchasePending} onClick={() => setEditAddress({ ...addr })}>Correct address</SecondaryButton>
+              <PrimaryButton disabled={working || issues.length > 0 || order.isTest || order.operations?.addressReviewed === addressKey(order)} onClick={() => perform("review", { addressKey: addressKey(order) })}>{order.operations?.addressReviewed === addressKey(order) ? "Address reviewed" : "Confirm address reviewed"}</PrimaryButton>
+            </div>}
+
+            <p id="order-address" style={{ margin: "0 0 8px", fontWeight: 700, fontSize: "var(--rp-text-md)", overflowWrap: "anywhere" }}>{order.customer?.name}</p>
             <address style={{ fontStyle: "normal", lineHeight: 1.6 }}>
               {addr.street}<br />{addr.city}, {addr.state} {addr.zip}<br />{addr.country}
             </address>
@@ -396,15 +409,15 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
             </dl>
             <div className="rp-card-actions" data-print="hide">
               <SecondaryButton size="sm" icon={<Copy size={14} aria-hidden />} onClick={() => { navigator.clipboard.writeText(order.customer?.email); toast.success("Email copied"); }}>Copy email</SecondaryButton>
-              <SecondaryButton size="sm" icon={<Copy size={14} aria-hidden />} onClick={() => { navigator.clipboard.writeText(`${addr.street}, ${addr.city}`); toast.success("Address copied"); }}>Copy address</SecondaryButton>
+              <SecondaryButton size="sm" icon={<Copy size={14} aria-hidden />} onClick={() => { navigator.clipboard.writeText(`${order.customer?.name || ""}\n${addr.street}\n${addr.city}, ${addr.state} ${addr.zip}\n${addr.country}`); toast.success("Address copied"); }}>Copy address</SecondaryButton>
             </div>
           </SectionCard>
 
+          {paid && !["In transit", "Completed"].includes(queue) && <SectionCard title="Fulfillment hold" description="Keep a customer issue or stock problem visible without changing payment.">
+            {order.operations?.hold ? <SecondaryButton disabled={working} onClick={() => perform("release")}>Release hold</SecondaryButton> : <><span id="order-hold" /><TextField label="Hold reason" value={holdReason} onChange={e => setHoldReason(e.target.value)} maxLength={500} /><SecondaryButton disabled={working || !holdReason.trim()} onClick={() => perform("hold", { reason: holdReason })}>Place order on hold</SecondaryButton></>}
+          </SectionCard>}
           <SectionCard title="Administrative actions" description="These change money or inventory — each asks you to confirm.">
             <div style={{ display: "grid", gap: 12 }} data-print="hide">
-              {(order.paymentStatus === "pending" || order.paymentStatus === "unpaid") && order.status !== "cancelled" && (
-                <PrimaryButton onClick={() => setConfirming("paid")} disabled={isMarkingPaid}>{isMarkingPaid ? "Processing…" : "Mark as paid"}</PrimaryButton>
-              )}
               {paid ? (
                 <>
                   <DestructiveButton onClick={() => setConfirming("refund")} disabled={isVoiding}>{isVoiding ? "Refunding…" : "Refund paid order"}</DestructiveButton>
@@ -425,6 +438,9 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
         </div>
       </div>
 
+      <Dialog open={!!editAddress} onClose={() => !working && setEditAddress(null)} title="Correct shipping address" description="Use the address confirmed by the customer. Corrections require a new address review." footer={<><SecondaryButton disabled={working} onClick={() => setEditAddress(null)}>Cancel</SecondaryButton><PrimaryButton disabled={working} onClick={saveAddress}>Save corrected address</PrimaryButton></>}>
+        {editAddress && <div className="rp-stack">{["street", "city", "state", "zip", "country"].map(k => <TextField key={k} label={k === "state" ? "Province / state" : k === "zip" ? "Postal / ZIP code" : k[0].toUpperCase() + k.slice(1)} value={editAddress[k] || ""} onChange={e => setEditAddress((prev: any) => ({ ...prev, [k]: e.target.value }))} />)}</div>}
+      </Dialog>
       <Dialog open={showLabelRates} onClose={() => !isBuyingLabel && setShowLabelRates(false)}
         title="Choose a Canada Post label"
         description="The five cheapest Canada Post services are shown first. Buying a label charges your Shippo account."
@@ -464,9 +480,6 @@ export function OrderDetail({ orderId, onClose }: { orderId: string, onClose: ()
         )}
       </Dialog>
 
-      <ConfirmDialog open={confirming === "paid"} title="Mark this order as paid?" confirmLabel="Mark as paid"
-        message="This will decrement inventory, record revenue, and send the customer a confirmation email."
-        onConfirm={handleMarkAsPaid} onCancel={() => setConfirming(null)} />
       <ConfirmDialog open={confirming === "refund"} title="Refund this order?" confirmLabel="Refund order"
         message={`${isManualPayment ? "Refund this paid manual order?" : "Refund this paid order through Stripe?"}${restockOnRefund ? " The purchased quantities will also be restocked." : ""} This action is irreversible.`}
         onConfirm={handleRefund} onCancel={() => setConfirming(null)} />

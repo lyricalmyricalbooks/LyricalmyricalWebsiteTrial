@@ -20,6 +20,7 @@ const { risoButton, risoLayout } = require("./emailTheme");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
+const { labelProblem } = require("./fulfillmentGuard");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 
 admin.initializeApp();
@@ -2800,6 +2801,22 @@ exports.createShippingLabel = onRequest(
       }
 
       const order = orderDoc.data();
+      const operationsRef = db.collection("order-operations").doc(orderId);
+      const operations = (await operationsRef.get()).data() || {};
+      const preparationProblem = labelProblem(order, operations);
+      if (preparationProblem) { res.status(409).json({ error: preparationProblem }); return; }
+      // A transaction claims any money-spending request. Uncertain failures remain
+      // locked so retrying cannot silently buy a second label.
+      const claimPurchase = async () => db.runTransaction(async tx => {
+        const freshOrder = await tx.get(orderRef);
+        const freshOperations = await tx.get(operationsRef);
+        const current = freshOperations.data() || {};
+        const problem = labelProblem(freshOrder.data() || {}, current);
+        if (problem) throw new Error(problem);
+        if (mode === "purchase" && (current.quotedShipmentId !== shipmentId || current.quotedAddress !== JSON.stringify(freshOrder.data().customer.address))) throw new Error("Label quote changed or expired. Refresh the rates.");
+        tx.set(operationsRef, { labelPurchasePending: true, labelPurchaseStartedAt: new Date().toISOString() }, { merge: true });
+      });
+      const completePurchase = async () => operationsRef.set({ labelPurchasePending: false }, { merge: true });
       if (order.isTest === true) {
         res.status(400).json({ error: "Test orders are excluded from fulfillment." });
         return;
@@ -2835,6 +2852,7 @@ exports.createShippingLabel = onRequest(
         const mockTracking = `MOCK-${Math.floor(10000000 + Math.random() * 90000000)}`;
         const mockLabelUrl = "https://goshippo.com/wp-content/uploads/2016/04/Shippo_Label.pdf";
         
+        await claimPurchase();
         await orderRef.update({
           labelUrl: mockLabelUrl,
           trackingNumber: mockTracking,
@@ -2850,6 +2868,7 @@ exports.createShippingLabel = onRequest(
           ]
         });
 
+        await completePurchase();
         res.status(200).json({
           labelUrl: mockLabelUrl,
           trackingNumber: mockTracking,
@@ -2893,6 +2912,7 @@ exports.createShippingLabel = onRequest(
           res.status(400).json({ error: "That Canada Post rate is no longer available. Refresh the choices and try again." });
           return;
         }
+        await claimPurchase();
         const transaction = await callShippo("transactions/", "POST", { rate: chosenRate.object_id, async: false }, shippoToken);
         if (transaction.status !== "SUCCESS") {
           const messages = (transaction.messages || []).map(message => message.text).join(", ");
@@ -2905,6 +2925,7 @@ exports.createShippingLabel = onRequest(
           ...(order.activity || []),
           { type: "note", message: `Shipping Label #${trackingNumber} generated via dashboard. Carrier: ${trackingCarrier}.`, createdAt: new Date().toISOString() }
         ] });
+        await completePurchase();
         res.status(200).json({ labelUrl, trackingNumber, trackingCarrier });
         return;
       }
@@ -2993,6 +3014,7 @@ exports.createShippingLabel = onRequest(
       }
 
       if (mode === "rates") {
+        await operationsRef.set({ quotedShipmentId: shipment.object_id, quotedAddress: JSON.stringify(order.customer.address) }, { merge: true });
         const canadaPostRates = canadaPostLabelRates(rates);
         res.status(200).json({ shipmentId: shipment.object_id, rates: canadaPostRates.map(rate => ({
           id: rate.object_id,
@@ -3012,6 +3034,7 @@ exports.createShippingLabel = onRequest(
         return rateVal < minVal ? rate : min;
       }, rates[0]);
 
+      await claimPurchase();
       // 6. Purchase Rate to create Transaction (Label)
       const transaction = await callShippo("transactions/", "POST", {
         rate: cheapestRate.object_id,
@@ -3043,6 +3066,7 @@ exports.createShippingLabel = onRequest(
         ]
       });
 
+      await completePurchase();
       res.status(200).json({
         labelUrl,
         trackingNumber,
