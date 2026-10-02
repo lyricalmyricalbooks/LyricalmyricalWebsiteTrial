@@ -1,3 +1,5 @@
+import { canInlineFormat } from "./richText";
+import { applyContextAction, applySpacing, contextCapabilities, GAP_KEYS, PADDING_KEYS, spacingKey } from "./canvasTools";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, ChevronDown, ChevronUp, Clipboard, Copy, Eye, EyeOff, ExternalLink, History, Monitor, Plus, Redo2, Search, ShieldCheck, Smartphone,
@@ -302,6 +304,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [copiedSection, setCopiedSection] = useState<Section | null>(null);
   const [findOpen, setFindOpen] = useState(false);
   const [openPage, setOpenPage] = useState<{ slug: string; nonce: number } | null>(null);
+  const canvasSelectionRef = useRef<{sectionId: string; blockId: string | null} | null>(null);
   const inlineEditingRef = useRef(false);
   const [inlineEditing, setInlineEditing] = useState<string | null>(null);
 
@@ -501,18 +504,23 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const items = COPY_SCHEMA.flatMap((g) => g.fields.map((f) => ({ key: f.key, group: g.group, label: f.label, multiline: Boolean(f.multiline), editable: !/[{}]/.test(designRef.current.copy?.[f.key] ?? DEFAULT_COPY[f.key] ?? ""), text: (designRef.current.copy?.[f.key] ?? DEFAULT_COPY[f.key] ?? "") })));
     try { iframeRef.current?.contentWindow?.postMessage({ type: "SET_COPY_MAP", items }, window.location.origin); } catch { /* ignore */ }
     const editable: any[] = [];
+    const canvas: any[] = [];
     const scanBlocks = (section: Section, blocks: any[], linked = false) => (blocks || []).forEach((block: any) => {
-      for (const field of getBlockFields(section.type)) if (["text", "textarea", "html", "richtext"].includes(field.kind)) editable.push({ sectionId: section.id, blockId: block.id, shared: linked || Boolean(block.sharedBlockId), key: field.key, label: field.label, multiline: field.kind === "textarea", editable: field.kind === "text" || field.kind === "textarea", text: String(block[field.key] ?? "") });
+      for (const field of getBlockFields(section.type)) if (["text", "textarea", "html", "richtext"].includes(field.kind)) editable.push({ sectionId: section.id, blockId: block.id, shared: linked || Boolean(block.sharedBlockId), key: field.key, label: field.label, multiline: field.kind !== "text", format: ["html", "richtext"].includes(field.kind) ? "html" : undefined, editable: field.kind === "text" || field.kind === "textarea" || canInlineFormat(String(block[field.key] ?? "")) && ["html", "richtext"].includes(field.kind), text: String(block[field.key] ?? "") });
+      canvas.push({sectionId:section.id,blockId:block.id,actions:contextCapabilities(designRef.current, section.id, block.id, getBlocksKey),gaps:[],bounds:{}});
       scanBlocks(section, block.children || [], linked || Boolean(block.sharedBlockId));
     });
     const targets: SectionTarget[] = [{ kind: "global" }, ...templates.map(t => ({ kind: "template", id: t.id }) as SectionTarget)];
     for (const target of targets) for (const section of getSections(designRef.current, target)) {
-      for (const field of getSectionFields(section.type)) if (["text", "textarea", "html", "richtext"].includes(field.kind)) editable.push({ sectionId: section.id, blockId: null, key: field.key, label: field.label, multiline: field.kind === "textarea", editable: field.kind === "text" || field.kind === "textarea", text: String(section.settings[field.key] ?? "") });
+      const gaps = getSectionFields(section.type).filter(f => GAP_KEYS.includes(f.key));
+      canvas.push({sectionId:section.id,blockId:null,actions:contextCapabilities(designRef.current,section.id,undefined,getBlocksKey),addBlock:Boolean(getSectionMeta(section.type)?.blockType),gaps:gaps.map(f=>f.key),bounds:Object.fromEntries(gaps.map(f=>[f.key,{min:f.min ?? 0,max:f.max ?? 240}]))});
+      for (const field of getSectionFields(section.type)) if (["text", "textarea", "html", "richtext"].includes(field.kind)) editable.push({ sectionId: section.id, blockId: null, key: field.key, label: field.label, multiline: field.kind !== "text", format: ["html", "richtext"].includes(field.kind) ? "html" : undefined, editable: field.kind === "text" || field.kind === "textarea" || canInlineFormat(String(section.settings[field.key] ?? "")) && ["html", "richtext"].includes(field.kind), text: String(section.settings[field.key] ?? "") });
       scanBlocks(section, resolveSharedBlocks(section.settings[getBlocksKey(section.type)] || section.settings.blocks || [], designRef.current.sharedBlocks || []));
     }
     try { iframeRef.current?.contentWindow?.postMessage({ type: "SET_EDIT_MAP", items: editable }, window.location.origin); } catch { /* ignore */ }
     try { iframeRef.current?.contentWindow?.postMessage({ type: "SET_STYLE_TEXT_MAP", items: INLINE_STYLE_KEYS.map(key => ({ key, label: STYLE_GROUPS.flatMap(g => g.fields).find(f => f.key === key)?.label || key, multiline: key === "announcementText", editable: true })) }, window.location.origin); } catch { /* ignore */ }
-  }, [templates]);
+    try { iframeRef.current?.contentWindow?.postMessage({type:"SET_CANVAS_MAP",items:canvas,device},window.location.origin); } catch { /* ignore */ }
+  }, [templates, device]);
   // The edit map is a full scan of every section; run it only once typing/dragging settles, and when idle.
   useEffect(() => {
     let idle: number | undefined;
@@ -538,8 +546,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     try { iframeRef.current?.contentWindow?.postMessage({ type: "HIGHLIGHT_SECTION", instanceId: id, blockId: selectedBlock, scroll }, window.location.origin); } catch { /* ignore */ }
   }, [blockId]);
   // Re-highlight right away when the selection changes, but only after edits settle when the design changes.
-  useEffect(() => highlight(selectedId), [selectedId, highlight]);
-  useEffect(() => { const t = setTimeout(() => highlight(selectedId), 250); return () => clearTimeout(t); }, [design]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { canvasSelectionRef.current = null; highlight(selectedId); }, [selectedId, highlight]);
+  useEffect(() => { const t = setTimeout(() => { const canvas = canvasSelectionRef.current; highlight(canvas?.sectionId || selectedId, false, canvas ? canvas.blockId : blockId); }, 250); return () => clearTimeout(t); }, [design]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); }, [mode]);
   useEffect(() => { setPreviewStatus("loading"); const timer = setTimeout(() => setPreviewStatus(s => s === "loading" ? "error" : s), 15000); return () => clearTimeout(timer); }, [previewUrl, previewRevision]);
 
@@ -584,6 +592,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           setTimeout(() => el.classList.remove("studio-flash"), 1600);
         }, 120);
       }
+      if (d.type === "CANVAS_SELECT" && d.sectionId) canvasSelectionRef.current = {sectionId:d.sectionId,blockId:d.blockId || null};
       if (d.type === "SECTION_SELECT" && d.instanceId) {
         const cur = designRef.current;
         if (getSections(cur, { kind: "global" }).some((s) => s.id === d.instanceId)) {
@@ -610,6 +619,21 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         const block = { ...JSON.parse(JSON.stringify(meta.blockDefaults || {})), id: newId() };
         change(current => applyCanvasAction(current, d, getBlocksKey, block));
         setSelectedId(d.sectionId); setBlockId(block.id); setMobilePanel("settings");
+      }
+      if (d.type === "CONTEXT_ACTION" && typeof d.sectionId === "string") {
+        change(current => applyContextAction(current, d, getBlocksKey));
+        if (d.action === "delete" || d.action === "hide") { canvasSelectionRef.current = null; highlight(null,false,null); setSelectedId(null); setBlockId(null); }
+      }
+      if ((d.type === "SPACING_COMMIT" || d.type === "SPACING_RESET") && typeof d.sectionId === "string") {
+        change(current => {
+          const owner = findSectionOwner(current,d.sectionId); if (!owner) return current;
+          const gapFields = getSectionFields(owner.section.type).filter(f => GAP_KEYS.includes(f.key));
+          const allowed = [...PADDING_KEYS,...gapFields.map(f => f.key)];
+          if(d.type === "SPACING_RESET") return allowed.reduce((dd,key)=>applySpacing(dd,{...d,key,value:null},allowed),current);
+          const field = gapFields.find(f => f.key === d.key);
+          if(field && (d.value < (field.min ?? 0) || d.value > (field.max ?? 240))) return current;
+          return applySpacing(current,d,allowed);
+        });
       }
       if (d.type === "TEXT_EDIT_START") { inlineEditingRef.current = true; setInlineEditing(typeof d.label === "string" ? d.label : "Text"); }
       if (d.type === "TEXT_EDIT_END") {
@@ -829,7 +853,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       </header>
 
       <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
-      {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Choose Done to keep it or Cancel / Escape to revert before saving or publishing.</div>}
+      {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
       {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={dismissRecovery}>Discard local recovery</SecondaryButton></div>}
       {draftPage && leftTab !== "pages" && <div className="studio-recovery" role="status"><span>{pageBusy ? "Saving" : "Unsaved edits to"} page “{draftPage.title || draftPage.slug || "Untitled"}”. {pageBusy ? "Wait for the save to finish." : "Return to Pages to review and save it."}</span>{!pageBusy && <SecondaryButton onClick={() => setLeftTab("pages")}>Return to Pages</SecondaryButton>}</div>}
       {toast && (

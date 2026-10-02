@@ -117,3 +117,9 @@ describe("autoFitSections / resetPhoneLayout", () => {
     expect(patch.items[0].grid).toEqual({ desktop: { column: 1, span: 6, row: 1 } });
   });
 });
+
+it("resets new phone/tablet spacing overrides without clearing desktop spacing",()=>{
+ const patch=resetPhoneLayout({id:"s",type:"CompositionSection",settings:{paddingLeft:40,mobilePaddingLeft:16,tabletPaddingRight:24,mobileGridGap:12,tabletGap:20}});
+ expect(Object.keys(patch)).toEqual(expect.arrayContaining(["mobilePaddingLeft","tabletPaddingRight","mobileGridGap","tabletGap"]));
+ expect(patch).not.toHaveProperty("paddingLeft");
+});

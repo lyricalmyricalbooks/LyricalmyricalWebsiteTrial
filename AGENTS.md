@@ -215,9 +215,22 @@ iframe (or focus its edit hook and press Enter), then choose **Done** to commit
 one undoable draft change or **Cancel** / Escape to restore it. Typing keeps the
 preview stable; Save, Publish and Exit wait until the edit finishes. Announcement,
 wordmark, masthead and footer labels edit their existing Studio fields. Linked
-block text updates its shared source while placement stays local. Formatted HTML
+block text updates its shared source while placement stays local. Unsupported rich content
 and templated labels open the inspector instead of flattening their content.
 Browse mode restores normal interaction and removes editing focus hooks.
+
+Studio canvas tools include a contextual section/block toolbar (Edit, Move up/down,
+Duplicate, Hide, Delete and supported Add block). Plain-text clicks select on the
+canvas without opening the inspector; Edit opens it. Structural actions on inherited
+shared children stay unavailable, while their text edits still update the source.
+Double-click supported rich-content fields for bold, italic, underline, links,
+paragraph/heading style and alignment. Unsupported embeds/styles keep the inspector
+path; formatted commits are sanitized and one undoable draft action.
+**Spacing** exposes padding handles and renderer-supported gap handles. Dragging snaps
+to 4px (Shift = 1px), arrow keys adjust values, and Escape cancels. The active preview
+size controls desktop/tablet/phone scope; Reset removes that size's overrides. Numeric
+spacing fields also live in Layout & style. The shared renderer applies padding once
+at the content box and carries the same responsive overrides onto the storefront.
 
 ## Storefront look (Riso Noir)
 

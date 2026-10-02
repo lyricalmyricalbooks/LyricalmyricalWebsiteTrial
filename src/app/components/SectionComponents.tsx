@@ -98,9 +98,9 @@ export function CompositionSection({ settings }: any) {
   const breakpointCss = compositionBreakpointCss(blocks, settings.__sectionId);
   return <section style={bgStyle(settings)}>
     {breakpointCss && <style>{breakpointCss}</style>}
-    <div className={`py-16 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+    <div className={`py-16 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
       {settings.title && <h2 className="text-3xl font-bold mb-8" style={hStyle(settings)} data-theme-field="title">{settings.title}</h2>}
-      <div className="fm-composition-grid" style={{ display: "grid", gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: `${settings.gridGap || 24}px` }}>
+      <div className="fm-composition-grid" data-studio-gap="gridGap" data-studio-gap-property="gap" style={{ display: "grid", gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: `${settings.gridGap ?? 24}px` }}>
         {blocks.map((block: any, index: number) => <CompositionBlock key={block.id || index} block={block} index={index} />)}
       </div>
     </div>
@@ -506,7 +506,7 @@ export function FeatureGridSection({ settings, enableAnimations }: any) {
   const textAlign = aClass(settings);
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-24 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           <div className={`mb-10 ${textAlign}`}>
             <h2 className="text-3xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="title">
@@ -541,7 +541,7 @@ export function NewsletterSection({ settings, enableAnimations }: any) {
   const textAlign = aClass(settings);
   return (
     <section className="border-t border-white/5 bg-white/[0.02]" style={bgStyle(settings)}>
-      <div className="py-24 px-6 mx-auto" style={spacingStyle(settings)}>
+      <div className="py-24 px-6 mx-auto" data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           <div className={`max-w-xl mx-auto space-y-8 ${textAlign}`}>
             <div className="space-y-3">
@@ -588,7 +588,7 @@ export function TestimonialsSection({ settings, enableAnimations }: any) {
   const textAlign = aClass(settings);
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} style={spacingStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           <div className={`mb-8 ${textAlign}`}>
             <h2 className="text-3xl font-bold tracking-tight uppercase leading-tight text-white" style={hStyle(settings)} data-theme-field="title">
@@ -626,7 +626,7 @@ export function FAQSection({ settings, enableAnimations }: any) {
   const items = visibleBlocks(settings.items || settings.blocks || []);
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-4xl")}`} style={spacingStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-4xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           <div className="mb-8">
             <h2 className="text-3xl font-bold tracking-tight uppercase leading-tight text-white" style={hStyle(settings)} data-theme-field="title">
@@ -659,7 +659,7 @@ export function TextContentSection({ settings, enableAnimations }: any) {
   const hasHtml = settings.content && /<[a-z][\s\S]*>/i.test(settings.content);
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-4xl")} ${textAlign}`} style={spacingStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-4xl")} ${textAlign}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           <div className="space-y-5">
             {settings.eyebrow && (
@@ -677,7 +677,7 @@ export function TextContentSection({ settings, enableAnimations }: any) {
             )}
             {settings.content && (
               hasHtml ? (
-                <div className="prose prose-invert max-w-none" style={bStyle(settings)} dangerouslySetInnerHTML={{ __html: settings.content }} />
+                <div className="prose prose-invert max-w-none" data-theme-field="content" style={bStyle(settings)} dangerouslySetInnerHTML={{ __html: settings.content }} />
               ) : (
                 <p className="text-white/60 text-lg leading-relaxed font-light" style={bStyle(settings)}>{settings.content}</p>
               )
@@ -701,7 +701,7 @@ export function ImageWithTextSection({ settings, enableAnimations }: any) {
   const reverse = settings.layout === "text-left";
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-24 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           <div className={`grid md:grid-cols-2 gap-12 items-center ${reverse ? "md:[&>*:first-child]:order-2" : ""}`}>
             <div
@@ -749,7 +749,7 @@ export function RichTextSection({ settings, enableAnimations }: any) {
   const align = settings.align || "center";
   return (
     <section style={bgStyle(settings)}>
-      <div className="py-20 px-6" style={spacingStyle(settings)}>
+      <div className="py-20 px-6" data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           <div
             className={`${mw(settings, "max-w-3xl")} mx-auto prose prose-invert ${align === "left" ? "text-left" : align === "right" ? "text-right" : "text-center"}`}
@@ -813,7 +813,7 @@ export function MulticolumnSection({ settings, enableAnimations }: any) {
   const textAlign = aClass(settings);
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-24 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {(settings.title || settings.subtitle) && (
             <div className={`mb-12 ${textAlign}`}>
@@ -980,7 +980,7 @@ export function VideoSection({ settings, enableAnimations }: any) {
 
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} style={spacingStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {(settings.eyebrow || settings.title || settings.subtitle) && (
             <div className="text-center mb-8">
@@ -1020,7 +1020,7 @@ export function LogoListSection({ settings, enableAnimations }: any) {
   const items = visibleBlocks(settings.items || settings.blocks || []);
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-16 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      <div className={`py-16 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {(settings.title || settings.subtitle) && (
             <div className="text-center mb-8">
@@ -1057,7 +1057,7 @@ export function CollapsibleSection({ settings, enableAnimations }: any) {
   const items = visibleBlocks(settings.items || settings.blocks || []);
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-20 px-6 mx-auto ${mw(settings, "max-w-3xl")}`} style={spacingStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings, "max-w-3xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {(settings.title || settings.subtitle) && (
             <div className="text-center mb-8">
@@ -1079,6 +1079,7 @@ export function CollapsibleSection({ settings, enableAnimations }: any) {
                 <div
                   className="text-white/60 text-sm pb-6 prose prose-invert max-w-none"
                   style={bStyle(settings)}
+                  data-theme-field="content"
                   dangerouslySetInnerHTML={{ __html: item.content || "" }}
                 />
               </details>
@@ -1100,7 +1101,7 @@ export function CollectionListSection({ settings, enableAnimations }: any) {
   const textAlign = aClass(settings);
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-24 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {(settings.title || settings.subtitle) && (
             <div className={`mb-10 ${textAlign}`}>
@@ -1151,7 +1152,7 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
 
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} style={spacingStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-6xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           <div className="grid md:grid-cols-2 gap-10 items-center">
             <div
@@ -1245,7 +1246,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
           }
         }
       `}</style>
-      <div className={`px-6 py-8 mx-auto ${mw(settings, "max-w-7xl")}`} style={spacingStyle(settings)}>
+      <div className={`px-6 py-8 mx-auto ${mw(settings, "max-w-7xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           <div className="flex items-start justify-between gap-6">
             <h2
@@ -1260,7 +1261,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
             </p>
           </div>
           <div className="mt-6" style={{ borderTop: `${settings.headerRuleWidth ?? 4}px solid ${rule}` }} />
-          <div className="py-5 flex flex-wrap font-black text-base" style={{ gap: settings.navGap ?? 40 }}>
+          <div className="py-5 flex flex-wrap font-black text-base" data-studio-gap="navGap" style={{ gap: settings.navGap ?? 40 }}>
             {(settings.navText ?? fb("ProductGridHeaderSection.navText"))
               .split("·")
               .map((label: string, idx: number) => (
@@ -1271,7 +1272,7 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
         </AnimationContainer>
         <div
           className={`reference-product-grid-${settings.__sectionId || "section"} grid mt-6`}
-          style={{ columnGap: settings.gridGap ?? 18, rowGap: settings.rowGap ?? 54 }}
+          data-studio-gap="gridGap" data-studio-row-gap="rowGap" style={{ columnGap: settings.gridGap ?? 18, rowGap: settings.rowGap ?? 54 }}
         >
           {items.map((book: any, idx: number) => {
             const onSale = !!book.isOnSale && book.salePrice > 0 && book.salePrice < (book.retailPrice ?? 0);
@@ -1462,7 +1463,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
         .${gridId} { grid-template-columns: repeat(${mobileCols}, minmax(0, 1fr)); }
         @media (min-width: 1024px) { .${gridId} { grid-template-columns: repeat(${cols}, minmax(0, 1fr)); } }
       `}</style>
-      <div className={`py-16 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      <div className={`py-16 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {(settings.eyebrow || settings.title) && (
             <div className="mb-8">
@@ -1588,7 +1589,7 @@ export function StaffNotesTableSection({ settings, books, onProductClick, enable
 
   return (
     <section style={{ ...(settings.backgroundColor ? { backgroundColor: settings.backgroundColor } : {}), ...bgStyle(settings) }}>
-      <div className={`py-16 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      <div className={`py-16 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {settings.title && (
             <h2 className="text-3xl md:text-4xl tracking-tight mb-8" style={hStyle(settings)} data-theme-field="title">
@@ -1726,9 +1727,9 @@ export function EphemeraRowSection({ settings, enableAnimations }: any) {
   const justify = settings.align === "left" ? "justify-start" : settings.align === "right" ? "justify-end" : "justify-center";
   return (
     <section style={bgStyle(settings)} aria-hidden="true">
-      <div className={`py-12 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      <div className={`py-12 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
-          <div className={`flex flex-wrap items-end ${justify}`} style={{ gap: settings.gap ?? 24 }}>
+          <div className={`flex flex-wrap items-end ${justify}`} data-studio-gap="gap" style={{ gap: settings.gap ?? 24 }}>
             {items.map((item: any, idx: number) => (
               <div key={item.id || idx} {...blockEditAttrs(item, idx)}>
                 <EphemeraObject item={item} settings={settings} />
@@ -1748,7 +1749,7 @@ export function EphemeraRowSection({ settings, enableAnimations }: any) {
 export function CustomHTMLSection({ settings }: any) {
   return (
     <section className={settings.fullBleed ? "" : "py-12 px-6 max-w-7xl mx-auto"} style={bgStyle(settings)}>
-      <div dangerouslySetInnerHTML={{ __html: settings.html || "<!-- Add custom HTML in the editor -->" }} />
+      <div data-theme-field="html" dangerouslySetInnerHTML={{ __html: settings.html || "<!-- Add custom HTML in the editor -->" }} />
     </section>
   );
 }
@@ -1775,7 +1776,7 @@ export function BlogPostsSection({ settings, enableAnimations }: any) {
 
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {(settings.eyebrow || settings.title || settings.subtitle) && (
             <div className={`mb-10 ${align}`}>
@@ -1858,7 +1859,7 @@ export function CountdownSection({ settings, enableAnimations }: any) {
 
   return (
     <section style={{ background: settings.backgroundColor || "transparent", ...bgStyle(settings) }}>
-      <div className={`py-20 px-6 ${textAlign}`} style={spacingStyle(settings)}>
+      <div className={`py-20 px-6 ${textAlign}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {settings.eyebrow && (
             <p className={`text-[10px] font-bold tracking-[0.3em] uppercase text-white/60 mb-4 flex items-center gap-2 ${flexAlign}`} style={bStyle(settings)}>
@@ -1932,7 +1933,7 @@ export function ContactFormSection({ settings, enableAnimations }: any) {
   };
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-2xl")}`} style={spacingStyle(settings)}>
+      <div className={`py-24 px-6 mx-auto ${mw(settings, "max-w-2xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           <div className="text-center mb-10">
             {settings.eyebrow && (
@@ -1988,7 +1989,7 @@ export function MapSection({ settings, enableAnimations }: any) {
   const src = `https://www.google.com/maps?q=${encodeURIComponent(query)}&output=embed`;
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-12 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      <div className={`py-12 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {(settings.title || settings.subtitle) && (
             <div className="text-center mb-8">
@@ -2129,7 +2130,7 @@ export function RowSection({ settings, enableAnimations }: any) {
 
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {settings.title && (
             <h2 className="text-3xl font-bold tracking-tight uppercase text-white mb-12 text-center" style={hStyle(settings)} data-theme-field="title">
@@ -2138,7 +2139,7 @@ export function RowSection({ settings, enableAnimations }: any) {
           )}
           <div
             className="grid grid-cols-1 md:[grid-template-columns:var(--row-template)]"
-            style={{ ["--row-template" as any]: template, gap, alignItems }}
+            data-studio-gap="gap" style={{ ["--row-template" as any]: template, gap, alignItems }}
           >
             {sampleInPreview(blocks, [{ kind: "text", title: "Add columns", body: "Use the Row section to combine text, images, buttons and video side by side." }]).map(
               (block: any, idx: number) => (
@@ -2162,7 +2163,7 @@ export function GallerySection({ settings, enableAnimations }: any) {
   const textAlign = aClass(settings);
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {(settings.title || settings.subtitle) && (
             <div className={`mb-8 ${textAlign}`}>
@@ -2244,7 +2245,7 @@ export function VideoHeroSection({ settings, onCtaClick }: any) {
         <video src={url} autoPlay muted loop playsInline poster={settings.posterUrl} className="absolute inset-0 w-full h-full object-cover" />
       ) : null}
       <div className="absolute inset-0 bg-black" style={{ opacity: overlay }} />
-      <div className={`relative z-10 w-full mx-auto px-6 flex flex-col ${align} ${mw(settings, "max-w-5xl")}`} style={spacingStyle(settings)}>
+      <div className={`relative z-10 w-full mx-auto px-6 flex flex-col ${align} ${mw(settings, "max-w-5xl")}`} data-studio-spacing="" style={spacingStyle(settings)}>
         {settings.headline && (
           <h2 className="text-4xl md:text-6xl font-bold tracking-tight uppercase text-white" style={hStyle(settings)} data-theme-field="headline">{settings.headline}</h2>
         )}
@@ -2314,7 +2315,7 @@ export function StatsCounterSection({ settings, enableAnimations }: any) {
   const bg = settings.backgroundColor && settings.backgroundColor !== "transparent" ? settings.backgroundColor : undefined;
   return (
     <section style={{ ...bgStyle(settings), ...(bg && { backgroundColor: bg }) }}>
-      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {settings.sectionTitle && (
             <h2 className="text-3xl font-bold tracking-tight uppercase text-white text-center mb-12" style={hStyle(settings)} data-theme-field="sectionTitle">{settings.sectionTitle}</h2>
@@ -2346,7 +2347,7 @@ export function PricingTableSection({ settings, onCtaClick, enableAnimations }: 
   const highlightName = settings.highlightPlan;
   return (
     <section style={bgStyle(settings)}>
-      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} style={spacingStyle(settings)}>
+      <div className={`py-20 px-6 mx-auto ${mw(settings)}`} data-studio-spacing="" style={spacingStyle(settings)}>
         <AnimationContainer enabled={enableAnimations}>
           {(settings.sectionTitle || settings.sectionSubtitle) && (
             <div className="text-center mb-12">
@@ -2464,7 +2465,8 @@ export function PageContentSection({ settings: own, enableAnimations }: any) {
       {titleCss && <style>{titleCss}</style>}
       <div
         className={`py-16 px-6 mx-auto ${lineUp ? "" : mw(settings, "max-w-2xl")}`}
-        style={{ ...(lineUp ? { maxWidth: headerWidth } : {}), ...spacingStyle(settings), ...(topSpacing != null ? { paddingTop: topSpacing } : {}) }}
+        data-studio-spacing=""
+        style={{ ...(lineUp ? { maxWidth: headerWidth } : {}), ...(topSpacing != null ? { paddingTop: topSpacing } : {}), ...spacingStyle(settings) }}
       >
         <AnimationContainer enabled={enableAnimations}>
           <div className={align}>

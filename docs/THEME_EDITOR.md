@@ -403,6 +403,19 @@ library → verify), then check it off.
       and shared-section controls with direct links to existing settings and
       text groups. This organizes the controls; header/footer section placement
       remains a separate roadmap item.
+- [x] Inline rich-content formatting toolbar: supported rich fields expose bold,
+      italic, underline, selected-word links, paragraph/heading style and alignment.
+      Done commits sanitized markup once; Cancel/Escape restores original content.
+      Unsupported embeds/styles keep the inspector path; plain labels remain text.
+- [x] Contextual canvas section/block actions: Edit, sibling Move up/down,
+      Duplicate, Hide, Delete and supported Add block. Boundary moves are disabled;
+      inherited linked children omit structural actions. Duplication preserves
+      legacy block-array fallbacks and refreshes descendant IDs.
+- [x] Visual section spacing: four padding handles and renderer-supported gaps,
+      4px snapping (Shift = 1px), keyboard adjustment, Escape cancellation and one
+      Undo per drag. Desktop/tablet/phone scope follows the active preview; Reset
+      and numeric Layout & style controls remove or edit scoped overrides. Padding
+      applies once to the rendered content box, including custom-page content.
 - [x] Per-section box fill, raised box fill, and line/border color controls now feed the storefront token layer so hard-coded card/form/divider utilities can be recolored from the editor.
 
 

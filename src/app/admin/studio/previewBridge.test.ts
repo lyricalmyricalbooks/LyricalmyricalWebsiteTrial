@@ -25,3 +25,12 @@ it("preserves line breaks in plain-text editing without using visually transform
   expect(read(element("SPAN", text("Mixed Case"), element("DIV", text("Second line"))))).toBe("Mixed Case\nSecond line");
   expect(read(element("SPAN", text("First"), element("BR"), text("Second")))).toBe("First\nSecond");
 });
+
+it("maps navigation and composition gaps to real CSS properties",()=>{
+ const match=PREVIEW_BRIDGE_SOURCE.match(/function spacingProperty\(key,target\)\{[^}]*\}/);
+ expect(match).not.toBeNull();
+ const property=new Function(`return ${match![0]}`)();
+ expect(property("navGap",{getAttribute:()=>null})).toBe("gap");
+ expect(property("gridGap",{getAttribute:()=>"gap"})).toBe("gap");
+ expect(property("paddingLeft",{getAttribute:()=>null})).toBe("padding-left");
+});

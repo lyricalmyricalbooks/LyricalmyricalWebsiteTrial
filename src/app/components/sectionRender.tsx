@@ -1,3 +1,4 @@
+import { sectionSpacingCss } from "./sectionSpacing";
 import { useEffect } from "react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router";
@@ -215,6 +216,8 @@ export function SectionList({
             style={{
               paddingTop: s.paddingTop != null ? `${s.paddingTop}px` : undefined,
               paddingBottom: s.paddingBottom != null ? `${s.paddingBottom}px` : undefined,
+              paddingLeft: s.paddingLeft != null ? `${s.paddingLeft}px` : undefined,
+              paddingRight: s.paddingRight != null ? `${s.paddingRight}px` : undefined,
               background: scheme?.background || s.sectionBackground || undefined,
               color: scheme?.text || undefined,
               ...(s.lineColor && { "--border-rgb": hexToRgbTriplet(s.lineColor) }),
@@ -226,7 +229,8 @@ export function SectionList({
             }}
           >
             <SectionFontOverride sectionId={section.id} settings={s} />
-            {(s.mobilePaddingTop != null || s.mobilePaddingBottom != null || s.mobileFontScale != null || s.mobileColumns != null || s.mobileHeadingSize != null) && <style>{`@media(max-width:767px){${s.mobileHeadingSize != null ? `#section-${section.id} :is(h1,h2){font-size:${Math.max(12, Math.min(120, Number(s.mobileHeadingSize)))}px!important;}` : ""}#section-${section.id}{${s.mobilePaddingTop != null ? `padding-top:${Number(s.mobilePaddingTop)}px!important;` : ""}${s.mobilePaddingBottom != null ? `padding-bottom:${Number(s.mobilePaddingBottom)}px!important;` : ""}${s.mobileFontScale != null ? `font-size:${Number(s.mobileFontScale)}%;` : ""}}${s.mobileColumns != null ? `#section-${section.id} .grid{grid-template-columns:repeat(${Math.max(1, Math.min(4, Number(s.mobileColumns)))},minmax(0,1fr))!important;}` : ""}}`}</style>}
+            <style>{sectionSpacingCss(section.id, s)}</style>
+            {(s.mobilePaddingTop != null || s.mobilePaddingBottom != null || s.mobileFontScale != null || s.mobileColumns != null || s.mobileHeadingSize != null) && <style>{`@media(max-width:767px){${s.mobileHeadingSize != null ? `#section-${section.id} :is(h1,h2){font-size:${Math.max(12, Math.min(120, Number(s.mobileHeadingSize)))}px!important;}` : ""}#section-${section.id}{${s.mobileFontScale != null ? `font-size:${Number(s.mobileFontScale)}%;` : ""}}${s.mobileColumns != null ? `#section-${section.id} .grid{grid-template-columns:repeat(${Math.max(1, Math.min(4, Number(s.mobileColumns)))},minmax(0,1fr))!important;}` : ""}}`}</style>}
             <SectionScopedCss sectionId={section.id} css={s.customCss} />
             {hasGlowHover && <style>{HOVER_GLOW_CSS}</style>}
             <ShapeDivider style={s.shapeDividerTop} position="top" color={s.shapeDividerTopColor} />

@@ -1,3 +1,4 @@
+import { StudioSpacingControls } from "./StudioSpacingControls";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Copy, Eye, EyeOff, Trash2, X } from "lucide-react";
 import { adminApi } from "../api";
@@ -111,6 +112,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
           <button className="studio-link-button" onClick={() => fitPhone(true)}>Redo all phone values (replaces mine)</button>
           <button className="studio-link-button" onClick={resetPhone}>Reset phone layout</button>
         </div>
+        <StudioSpacingControls section={section} device={device} onPatch={onPatch} />
         <SectionSettingsPanel settings={section.settings} onUpdate={onPatch} colorSchemes={colorSchemes} />
       </>}
     </div>

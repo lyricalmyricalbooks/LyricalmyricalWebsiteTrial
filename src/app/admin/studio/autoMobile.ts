@@ -1,3 +1,4 @@
+import { PADDING_KEYS, GAP_KEYS, spacingKey } from "./canvasTools";
 // Desktop → phone/tablet auto-layout for the Studio. Pure and immutable: given what the owner built
 // for desktop, it works out sensible phone (and, for Flexible composition, tablet) settings so they
 // don't have to redo every section by hand. It only ever fills in values the owner hasn't set unless
@@ -103,7 +104,7 @@ export function autoFitSection(section: Section, overwrite = false): AutoFitResu
   const changes: string[] = [];
   const blank = (key: string) => overwrite || s[key] == null || s[key] === "";
 
-  for (const [desktopKey, phoneKey, label] of [["paddingTop", "mobilePaddingTop", "top"], ["paddingBottom", "mobilePaddingBottom", "bottom"]] as const) {
+  for (const [desktopKey, phoneKey, label] of PADDING_KEYS.map(key => [key, spacingKey(key,"mobile"), key.slice(7).toLowerCase()])) {
     if (isNum(s[desktopKey]) && s[desktopKey] > 32 && blank(phoneKey)) {
       const v = phonePadding(s[desktopKey]);
       if (v !== s[phoneKey]) { patch[phoneKey] = v; changes.push(`Phone ${label} spacing ${px(s[desktopKey])} → ${px(v)}`); }
@@ -143,7 +144,7 @@ export function autoFitSections(list: Section[], overwrite = false): AutoFitResu
   return { value: touched ? value : list, changes, touched };
 }
 
-const PHONE_KEYS = ["mobilePaddingTop", "mobilePaddingBottom", "mobileColumns", "mobileHeadingSize"];
+const PHONE_KEYS = ["mobileColumns", "mobileHeadingSize", ...["mobile", "tablet"].flatMap(device => [...PADDING_KEYS,...GAP_KEYS].map(key => spacingKey(key,device as "mobile" | "tablet")))];
 
 /** Patch that removes every phone/tablet override from a section (undefined = delete in patchSectionSettings). */
 export function resetPhoneLayout(section: Section): Record<string, any> {
