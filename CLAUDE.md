@@ -530,3 +530,14 @@ Bug / edge case the change introduced · the next logical feature · offline & s
 - Only ask clarifying questions if the request is genuinely ambiguous.
 
 Live carrier choices show up to five distinct Canada Post methods, cheapest first, using the lowest quote for each service. Server quote selection sorts prices before resolving duplicate service names.
+
+## Studio organization
+
+Studio organization milestone: Page layout, Theme settings, Text & labels, Navigation and Pages
+use readable navigation with page context. Theme settings and text browse by category; search spans
+categories and Find anything/click-to-edit opens the owning category. The page outline searches
+section and nested-block content, expands matching sections, numbers original positions and offers
+Expand/Collapse all and explicit Move up/down actions. Section reorder is disabled while searching to preserve the complete stack.
+The toolbar keeps page/device, undo/redo, draft state, Save draft and Publish visible; Theme actions
+holds preview, history, checks and guarded discard. Inspector device context distinguishes shared
+content from responsive layout overrides. Existing draft/publish persistence is unchanged.
