@@ -16,6 +16,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 const ROUTER_BASENAME = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
 
 // Lazy-loaded components for performance
+const NotFoundPage = lazy(() => import("./features/site/NotFoundPage"));
 const MainSite = lazy(() => import("./components/MainSite"));
 const Dashboard = lazy(() => import("./admin/Dashboard").then(m => ({ default: m.Dashboard })));
 const Checkout = lazy(() => import("./Checkout").then(m => ({ default: m.Checkout })));
@@ -131,6 +132,7 @@ export default function App() {
                   <Route path="/admin/*" element={<Dashboard />} />
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/track" element={<OrderTracking />} />
+                <Route path="*" element={<NotFoundPage />} />
                 </Routes>
           </Suspense>
           </RouteErrorBoundary>

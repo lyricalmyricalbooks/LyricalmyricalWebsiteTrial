@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveProductRoutes } from "../src/app/features/site/productRouteData.mjs";
 // Generates dist/sitemap.xml and dist/robots.txt from Firestore data.
 // Usage: node scripts/generate-sitemap.mjs
 //
@@ -18,13 +19,21 @@ const SITE_URL =
   "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial";
 
 async function fetchCollection(projectId, collectionId) {
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collectionId}?pageSize=300`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed ${collectionId}: ${res.status}`);
-  const data = await res.json();
-  return (data.documents || []).map(doc => {
+  const documents = [];
+  let pageToken;
+  do {
+    const url = new URL(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collectionId}`);
+    url.searchParams.set("pageSize", "300");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed ${collectionId}: ${res.status}`);
+    const data = await res.json();
+    documents.push(...(data.documents || []));
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+  return documents.map(doc => {
     const fields = doc.fields || {};
-    const obj = { _updateTime: doc.updateTime };
+    const obj = { id: doc.name.split("/").at(-1), _updateTime: doc.updateTime };
     for (const [k, v] of Object.entries(fields)) {
       obj[k] =
         v.stringValue ?? v.integerValue ?? v.booleanValue ?? v.timestampValue ?? null;
@@ -81,7 +90,7 @@ async function main() {
     console.warn("Could not fetch live data, generating shell sitemap:", e.message);
   }
 
-  for (const b of books) {
+  for (const b of resolveProductRoutes(books)) {
     if (b.status !== "published") continue;
     const slug = b.slug || slugify(b.title);
     if (!slug) continue;

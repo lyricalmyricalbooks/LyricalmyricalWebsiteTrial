@@ -34,6 +34,7 @@ import { aspectRatioValue } from "./imageAspect";
 import { googleFontHref } from "./fonts";
 import { productPageCss, productPageFontNames } from "./productPageStyle";
 
+import { findProduct } from "./productRoutes";
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 // ── small helper ────────────────────────────────────────────────────────────
@@ -69,10 +70,7 @@ export default function BookDetail() {
   const [selectedVariant, setSelectedVariant] = useState<any>(null);
   const [qty, setQty]                 = useState(1);
 
-  const book: Book | undefined = books.find(
-    (b) => b.id === slug || b.slug === slug ||
-      b.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug
-  );
+  const book: Book | undefined = findProduct(books, slug, new URLSearchParams(window.location.search).get("preview") === "true");
 
   useEffect(() => {
     if (book?.variants && book.variants.length > 0) {
