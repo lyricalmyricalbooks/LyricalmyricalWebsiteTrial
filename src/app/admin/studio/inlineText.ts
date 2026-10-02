@@ -1,9 +1,10 @@
+import { sanitizeRichText } from "./richText";
 import { mapBlock, patchSectionSettings, MAX_BLOCK_DEPTH, type Section } from "./studioModel";
 import { findSectionOwner } from "./studioWorkflow";
 
 export const INLINE_STYLE_KEYS = ["announcementText", "catalogMastheadText", "logoText", "wordmarkPrimary", "wordmarkSecondary"];
 
-export type InlineTextAction = { kind: "section" | "copy" | "style"; key: string; value: string; sectionId?: string; blockId?: string };
+export type InlineTextAction = { kind: "section" | "copy" | "style"; key: string; value: string; format?: "html"; sectionId?: string; blockId?: string };
 type Field = { key: string; kind: string };
 export type InlineTextSchema = {
   sectionFields: (type: string) => Field[]; blockFields: (type: string) => Field[];
@@ -22,7 +23,8 @@ export function applyInlineText(design: any, action: InlineTextAction, schema: I
   const owner = findSectionOwner(design, action.sectionId);
   if (!owner) return design;
   const fields = action.blockId ? schema.blockFields(owner.section.type) : schema.sectionFields(owner.section.type);
-  if (!fields.some(f => f.key === action.key && (f.kind === "text" || f.kind === "textarea"))) return design;
+  if (!fields.some(f => f.key === action.key && (action.format === "html" ? f.kind === "html" || f.kind === "richtext" : f.kind === "text" || f.kind === "textarea"))) return design;
+  const value = action.format === "html" ? sanitizeRichText(action.value) : action.value;
   let sections: Section[];
   if (action.blockId) {
     const key = schema.blocksKey(owner.section.type);
@@ -45,10 +47,10 @@ export function applyInlineText(design: any, action: InlineTextAction, schema: I
     const target = locate(blocks);
     if (!target) return design;
     if (target.sourceId) return { ...design, sharedBlocks: library.map((s: any) => s.id === target.sourceId
-      ? { ...s, block: target.root ? { ...s.block, [action.key]: action.value }
-        : { ...s.block, children: mapBlock(s.block.children || [], target.blockId, b => ({ ...b, [action.key]: action.value })) } } : s) };
-    sections = patchSectionSettings(owner.sections, action.sectionId, { [key]: mapBlock(blocks, action.blockId, b => ({ ...b, [action.key]: action.value })) });
-  } else sections = patchSectionSettings(owner.sections, action.sectionId, { [action.key]: action.value });
+      ? { ...s, block: target.root ? { ...s.block, [action.key]: value }
+        : { ...s.block, children: mapBlock(s.block.children || [], target.blockId, b => ({ ...b, [action.key]: value })) } } : s) };
+    sections = patchSectionSettings(owner.sections, action.sectionId, { [key]: mapBlock(blocks, action.blockId, b => ({ ...b, [action.key]: value })) });
+  } else sections = patchSectionSettings(owner.sections, action.sectionId, { [action.key]: value });
   return owner.surface === "globalSections" ? { ...design, globalSections: sections }
     : { ...design, [owner.surface]: { ...design[owner.surface], sections } };
 }
