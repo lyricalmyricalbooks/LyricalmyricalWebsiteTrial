@@ -1343,7 +1343,7 @@ export function Checkout() {
                         />
                         <div>
                           <p className="text-sm font-medium text-slate-900">{rate.name}</p>
-                          {rate.pickup ? <p className="mt-0.5 text-xs text-slate-500">{c("coPickup")}</p> : rate.deliveryDays && <p className="mt-0.5 text-xs text-slate-500">{(!checkoutDesign.hideCheckoutArrivalDate && arrivalDateLabel(rate.deliveryDays)) ? c("coArrivesBy", { date: arrivalDateLabel(rate.deliveryDays)! }) : c("coEstimated", { days: rate.deliveryDays })}</p>}
+                          {rate.carrierEstimate ? <p className="mt-0.5 text-xs text-slate-500">{rate.deliveryDays != null ? c("coCarrierTransit", { days: rate.deliveryDays }) : c("coCarrierTimingUnavailable")}{rate.durationTerms && <span className="block">{rate.durationTerms}</span>}</p> : rate.pickup ? <p className="mt-0.5 text-xs text-slate-500">{c("coPickup")}</p> : rate.deliveryDays && <p className="mt-0.5 text-xs text-slate-500">{(!checkoutDesign.hideCheckoutArrivalDate && arrivalDateLabel(rate.deliveryDays)) ? c("coArrivesBy", { date: arrivalDateLabel(rate.deliveryDays)! }) : c("coEstimated", { days: rate.deliveryDays })}</p>}
                         </div>
                       </div>
                       <span className="text-sm font-semibold text-slate-900">{rate.price === 0 ? c("coFree") : formatPrice(rate.price)}</span>

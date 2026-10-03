@@ -302,3 +302,13 @@ More order actions, with refund details and explicit final confirmation. Custome
 secondary; activity and internal notes are collapsed. Phones render order cards and a Work queue selector,
 with Filter & sort in a dialog. Batch packing asks for confirmation and retains per-order outcomes.
 The private operations, label purchase safeguards, payment authority and server data contracts are unchanged.
+
+## Checkout carrier delivery estimates
+
+Live checkout shipping quotes preserve Shippo `estimated_days` and `duration_terms` for each
+customer address, parcel and service. Missing carrier timing has no invented 3-7 day fallback.
+Checkout displays carrier transit estimates after dispatch rather than calculating an arrival
+promise from the order date; carrier terms stay separate from numeric days. Labels for transit
+and unavailable timing are editable in Studio > Text & labels > Checkout. Static profile estimates
+retain their existing Studio-controlled presentation. Deploy the updated `getShippoRates` Function
+with the frontend. Live carrier response verification is separate from fixture-based tests.

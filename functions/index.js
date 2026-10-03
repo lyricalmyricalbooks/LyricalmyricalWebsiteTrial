@@ -21,6 +21,7 @@ const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
 const { labelProblem } = require("./fulfillmentGuard");
+const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 
 admin.initializeApp();
@@ -2629,17 +2630,7 @@ exports.getShippoRates = onRequest(
       }, shippoToken);
 
       const rates = shipment.rates || [];
-      const formattedRates = rates.map(r => {
-        const providerName = r.provider || "";
-        const serviceName = r.servicelevel?.name || r.servicelevel?.token || "Shipping";
-        return {
-          name: `${providerName} ${serviceName}`.trim(),
-          price: parseFloat(r.amount),
-          base: parseFloat(r.amount),
-          additional: 0,
-          deliveryDays: r.days ? String(r.days) : (r.duration_terms ? r.duration_terms : "3-7"),
-        };
-      });
+      const formattedRates = rates.map(checkoutRate);
 
       res.status(200).json({ rates: formattedRates });
     } catch (err) {

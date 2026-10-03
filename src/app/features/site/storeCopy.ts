@@ -510,6 +510,8 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coTaxLater", label: "Tax placeholder", default: "Calculated at checkout" },
       { key: "coPacked", label: "Reassurance title", default: "Carefully packed and tracked" },
       { key: "coPickup", label: "Pickup note", default: "Collect in person — no delivery" },
+      { key: "coCarrierTransit", label: "Carrier transit estimate", default: "Estimated {days} business days after dispatch", hint: "Use {days} for the carrier transit estimate for this address and service." },
+      { key: "coCarrierTimingUnavailable", label: "Carrier timing unavailable", default: "Carrier delivery estimate unavailable" },
       { key: "coEstimated", label: "Delivery estimate", default: "Estimated {days} business days", hint: "Use {days} for the number of days." },
       { key: "coFree", label: "Free shipping label", default: "Free" },
       { key: "coNoPayment", label: "No payment method message", multiline: true, default: "No payment method is currently available. Please contact the store before placing your order." },

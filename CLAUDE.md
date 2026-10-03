@@ -609,3 +609,13 @@ The private operations, label purchase safeguards, payment authority and server 
 ### Public designer coverage (2 October 2026)
 
 Wishlist, Customer account and Order tracking have Studio canvases and section stacks. `features/site/storefrontRegions.ts` owns the public region manifest, responsive styling and click-to-edit hooks; its categories are generated in `studio/styleSchema.ts`. Attach `regionProps` in every supported renderer layout when adding optional public elements. Required commerce/consent regions support presentation controls without hide toggles. Merge page-only regions with root settings, preserve product overrides over catalog defaults, and keep phone overrides in `autoFitRegions`. `docs/THEME_EDITOR.md` records the page-by-page ownership and authenticated/live verification limits. Local validation reasons and public order statuses use Text & labels; provider diagnostics must not bypass editable recovery copy.
+
+## Checkout carrier delivery estimates
+
+Live checkout shipping quotes preserve Shippo `estimated_days` and `duration_terms` for each
+customer address, parcel and service. Missing carrier timing has no invented 3-7 day fallback.
+Checkout displays carrier transit estimates after dispatch rather than calculating an arrival
+promise from the order date; carrier terms stay separate from numeric days. Labels for transit
+and unavailable timing are editable in Studio > Text & labels > Checkout. Static profile estimates
+retain their existing Studio-controlled presentation. Deploy the updated `getShippoRates` Function
+with the frontend. Live carrier response verification is separate from fixture-based tests.
