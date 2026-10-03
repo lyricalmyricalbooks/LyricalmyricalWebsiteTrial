@@ -1,3 +1,4 @@
+import { regionProps } from "../features/site/storefrontRegions";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
@@ -65,26 +66,25 @@ export function CookieConsent() {
   return (
     <AnimatePresence>
       {!decided && (
-        <motion.div
+        <motion.div {...regionProps("cookiePanel")}
           data-fm-store
           initial={{ y: 80, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 80, opacity: 0 }}
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           role="dialog"
-          data-studio-target="copy:Cookie banner|style:elements" data-studio-label="Cookie banner"
           aria-label={c("cookieAria")}
           aria-modal="false"
           className="fixed bottom-3 left-3 right-3 z-[150] overflow-hidden border-2 border-[var(--rp-outline)] bg-[var(--bg-color)] p-5 text-[rgb(var(--fg-rgb))] shadow-[6px_6px_0_var(--rp-shadow-color)] md:bottom-7 md:left-auto md:right-8 md:max-w-[30rem] md:p-6"
         >
           <StorefrontThemeStyle design={design} />
-          <p className="mb-3 inline-flex -rotate-1 border-2 border-[var(--rp-outline)] bg-[var(--warning)] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.28em] text-[var(--on-accent,#100f0d)] shadow-[3px_3px_0_var(--rp-shadow-color)]">
+          <p {...regionProps("cookieTag")} className="mb-3 inline-flex -rotate-1 border-2 border-[var(--rp-outline)] bg-[var(--warning)] px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.28em] text-[var(--on-accent,#100f0d)] shadow-[3px_3px_0_var(--rp-shadow-color)]">
             {c("cookieTag")}
           </p>
-          <h2 className="mb-2 text-3xl uppercase leading-none" style={{ fontFamily: "var(--heading-font, 'Anton', Impact, sans-serif)", fontWeight: 400 }}>
+          <h2 {...regionProps("cookieHeading")} className="mb-2 text-3xl uppercase leading-none" style={{ fontFamily: "var(--heading-font, 'Anton', Impact, sans-serif)", fontWeight: 400 }}>
             {c("cookieHeading")} <span className="text-[var(--accent)]">{c("cookieHeadingAccent")}</span>
           </h2>
-          <p className="mb-5 max-w-md text-sm font-medium leading-relaxed text-[var(--muted)]">
+          <p {...regionProps("cookieBody")} className="mb-5 max-w-md text-sm font-medium leading-relaxed text-[var(--muted)]">
             {c("cookieBody")}
           </p>
 

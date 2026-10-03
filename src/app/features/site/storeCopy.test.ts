@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getCopy, DEFAULT_COPY } from './storeCopy';
+import { getCopy, DEFAULT_COPY, CopyError, copyErrorText } from './storeCopy';
 
 describe('getCopy', () => {
+  it('keeps local validation reasons editable and replaces provider diagnostics', () => {
+    const d = { copy: { coErrMinItems: 'Buy {count} copies', coStripeError: 'Please try another payment method' } };
+    expect(copyErrorText(new CopyError({}, 'coErrMinItems', { count: 3 }), d, 'coStripeError')).toBe('Buy 3 copies');
+    expect(copyErrorText(new Error('Internal provider diagnostic'), d, 'coStripeError')).toBe('Please try another payment method');
+  });
   const currentYear = new Date().getFullYear();
 
   it('should resolve a string from design.copy[key]', () => {

@@ -5,6 +5,7 @@ import { placeholderImage } from "./constants";
 import { designNumber } from "./designNumber";
 import { getCopy } from "./storeCopy";
 import { contentMaxWidth } from "./headerNav";
+import { regionProps } from "./storefrontRegions";
 
 export default function RecentlyViewedRow({ excludeId }: { excludeId?: string }) {
   const { ids } = useRecentlyViewed();
@@ -27,7 +28,7 @@ export default function RecentlyViewedRow({ excludeId }: { excludeId?: string })
           </h2>
           <div className="flex-1 h-px bg-white/[0.06]" />
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-5">
+        <div {...regionProps("recentGrid")} className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-5">
           {items.map(book => {
             const slug = book.slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
             return (

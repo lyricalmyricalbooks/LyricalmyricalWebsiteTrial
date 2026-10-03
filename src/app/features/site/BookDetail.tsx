@@ -30,7 +30,9 @@ import BackInStockForm from "./BackInStockForm";
 import { resolveLogoDesign } from "./selectors";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "./themeTokens";
 import { StorefrontOverrides } from "./StorefrontOverrides";
+import { resolveProductDesign } from "./surfaceDesign";
 import { aspectRatioValue } from "./imageAspect";
+import { regionProps, regionVisible } from "./storefrontRegions";
 import { googleFontHref } from "./fonts";
 import { productPageCss, productPageFontNames } from "./productPageStyle";
 
@@ -80,7 +82,7 @@ export default function BookDetail() {
     }
   }, [book]);
 
-  const storefrontDesign       = settings?.design?.storefront || {};
+  const storefrontDesign       = resolveProductDesign(settings?.design);
   const productImageLayout     = storefrontDesign.productImageLayout     || "slider";
   const productContentPosition = storefrontDesign.productContentPosition || "right";
   const showRelatedProducts    = storefrontDesign.showRelatedProducts    ?? true;
@@ -333,7 +335,7 @@ export default function BookDetail() {
     { key: "specIsbn", icon: <Package size={11} />, value: bk.isbn },
     { key: "specWeight", icon: <Weight size={11} />, value: bk.weight },
   ].filter((r) => r.value);
-  const hasSpecs = showSpecs !== false && (specRows.length > 0 || isLowStock);
+  const hasSpecs = showSpecs !== false && regionVisible(settings?.design, "productSpecs") && (specRows.length > 0 || isLowStock);
 
   const renderSpecs = () => pdpSpecsRecord ? (
     <dl className="fm-pdp-record w-full text-left">
@@ -354,11 +356,11 @@ export default function BookDetail() {
   );
 
   const detailTabs: { id: "description" | "specs" | "reviews"; label: string }[] = [
-    { id: "description", label: getCopy(settings?.design, "tabDescription") },
+    ...(regionVisible(settings?.design, "productDescription") ? [{ id: "description" as const, label: getCopy(settings?.design, "tabDescription") }] : []),
     ...(hasSpecs ? [{ id: "specs" as const, label: getCopy(settings?.design, productDetailsLayout === "accordions" ? "tabSpecs" : "tabDetails") }] : []),
-    { id: "reviews", label: getCopy(settings?.design, "tabReviews") },
+    ...(regionVisible(settings?.design, "productReviews") ? [{ id: "reviews" as const, label: getCopy(settings?.design, "tabReviews") }] : []),
   ];
-  const activeTab = detailTabs.some((t) => t.id === detailsTab) ? detailsTab : "description";
+  const activeTab = detailTabs.some((t) => t.id === detailsTab) ? detailsTab : detailTabs[0]?.id;
   const onTabKey = (e: React.KeyboardEvent, i: number) => {
     if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
     e.preventDefault();
@@ -369,12 +371,12 @@ export default function BookDetail() {
   };
   const detailContent = (id: string) =>
     id === "description" ? (
-      <p className="max-w-[65ch] text-[15px] leading-[1.75] whitespace-pre-line">{bk.description || getCopy(settings?.design, "noDescription")}</p>
-    ) : id === "specs" ? renderSpecs() : book ? (
-      <ReviewsSection bookId={book.id} hideHeader={true} />
+      <p {...regionProps("productDescription")} className="max-w-[65ch] text-[15px] leading-[1.75] whitespace-pre-line">{bk.description || getCopy(settings?.design, "noDescription")}</p>
+    ) : id === "specs" ? <div {...regionProps("productSpecs")}>{renderSpecs()}</div> : book ? (
+      <div {...regionProps("productReviews")}><ReviewsSection bookId={book.id} hideHeader={true} /></div>
     ) : null;
 
-  const detailsBlock = !book ? null : productDetailsLayout === "tabs" ? (
+  const detailsBlock = !book || !detailTabs.length ? null : productDetailsLayout === "tabs" ? (
     <div className="fm-pdp-tabs w-full" data-studio-target="style:productCard|copy:Product page" data-studio-label="Product details tabs">
       <div role="tablist" aria-label={getCopy(settings?.design, "pdpDetailsAria")}>
         {detailTabs.map((t, i) => (
@@ -920,21 +922,21 @@ export default function BookDetail() {
                 </div>
 
                 {/* Description + specs inside the card ("Sections" details layout) */}
-                {productDetailsLayout === "sections" && (bk.description || hasSpecs) && (
+                {productDetailsLayout === "sections" && ((bk.description && regionVisible(settings?.design, "productDescription")) || hasSpecs) && (
                   <div className={`fm-pdp-card-section ${alignCls}`}>
-                    {bk.description && (
+                    {bk.description && regionVisible(settings?.design, "productDescription") && (
                       productDescriptionStyle === "designed" ? (
-                        <div className="w-full">
+                        <div {...regionProps("productDescription")} className="w-full">
                           <p className="fm-pdp-meta mb-3" style={{ color: "var(--accent, #e8402a)" }}>
                             {getCopy(settings?.design, "productDescriptionLabel")}
                           </p>
                           <p className="text-[15px] leading-[1.8] whitespace-pre-line">{bk.description}</p>
                         </div>
                       ) : (
-                        <p className="text-white/50 text-[14px] leading-[1.8] whitespace-pre-line">{bk.description}</p>
+                        <p {...regionProps("productDescription")} className="text-white/50 text-[14px] leading-[1.8] whitespace-pre-line">{bk.description}</p>
                       )
                     )}
-                    {hasSpecs && renderSpecs()}
+                    {hasSpecs && <div {...regionProps("productSpecs")}>{renderSpecs()}</div>}
                   </div>
                 )}
               </div>
@@ -1063,7 +1065,9 @@ export default function BookDetail() {
         )}
 
         {/* ── Reviews ── */}
-        {productDetailsLayout === "sections" && book && <ReviewsSection bookId={book.id} />}
+        {productDetailsLayout === "sections" && book && regionVisible(tokenSource, "productReviews") && (
+          <div {...regionProps("productReviews")}><ReviewsSection bookId={book.id} /></div>
+        )}
 
         {/* ── Recently viewed ── */}
         <RecentlyViewedRow excludeId={book?.id} />

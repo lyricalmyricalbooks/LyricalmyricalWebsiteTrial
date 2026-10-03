@@ -270,6 +270,8 @@ content from responsive layout overrides. Existing draft/publish persistence is 
 
 ## Public storefront readiness repairs (2 October 2026)
 
+Public designer coverage: Wishlist, Customer account and Order tracking have Studio canvases and section stacks. `features/site/storefrontRegions.ts` owns the public region manifest, responsive styling and click-to-edit hooks; its categories are generated in `studio/styleSchema.ts`. Add new optional regions there and attach `regionProps` in every supported renderer layout. Required commerce/consent regions support presentation controls without hide toggles. Page-only region writes merge with root settings; product overrides must retain precedence over catalog defaults. Keep phone region overrides in `autoFitRegions`. See `docs/THEME_EDITOR.md` for the page-by-page coverage and verification limits.
+
 Public product links retain unique slugs and use immutable book IDs when slugs collide; catalog records are never rewritten. The storefront reads the entire paginated catalog and the sitemap uses the same route resolver. Unknown URLs show editable recovery content. Custom pages share the support/policy footer, with **Show page footer** in Studio > Style > Custom pages.
 
 Phone navigation is a keyboard-accessible disclosure shared by the homepage and standalone page/product header. Studio > Style > Header & announcement bar > **Show phone navigation** controls visibility; existing header visibility controls apply inside it. Studio > Text & labels > Header > **Mobile menu** controls its label. Missing-page visibility controls live in Style > Custom pages; words remain in Text & labels > Custom pages & 404.

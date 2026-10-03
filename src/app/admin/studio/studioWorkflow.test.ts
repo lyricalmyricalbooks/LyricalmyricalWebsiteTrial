@@ -65,6 +65,10 @@ describe("Studio workflow", () => {
     expect(previewRoute("/LyricalmyricalWebsiteTrial/?catalog=true", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "storefront" });
     expect(previewRoute("/LyricalmyricalWebsiteTrial/page/about", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "page:about" });
     expect(previewRoute("/outside", "/LyricalmyricalWebsiteTrial/")).toBeNull();
+    expect(previewRoute("/LyricalmyricalWebsiteTrial/wishlist", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "wishlistPage" });
+    expect(previewRoute("/LyricalmyricalWebsiteTrial/account/orders", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "accountPage" });
+    expect(previewRoute("/LyricalmyricalWebsiteTrial/track", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "trackingPage" });
+    expect(previewRoute("/LyricalmyricalWebsiteTrial/studio-missing-page", "/LyricalmyricalWebsiteTrial/")).toEqual({ templateId: "page404" });
   });
   it("sends a complete draft snapshot and excludes pages shoppers cannot see", () => {
     const design = { primaryColor: "#f00" };

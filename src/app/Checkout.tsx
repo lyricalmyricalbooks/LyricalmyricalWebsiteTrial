@@ -1,3 +1,4 @@
+import { regionProps } from "./features/site/storefrontRegions";
 import { canadaPostRates } from "./features/site/canadaPostRates";
 import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -20,7 +21,7 @@ import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebas
 import { doc, getDoc, collection } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import { StorefrontThemeStyle } from "./features/site/StorefrontThemeStyle";
-import { getCopy } from "./features/site/storeCopy";
+import { getCopy, CopyError, copyErrorText } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { isStripePublishableKey } from "./features/site/stripeLifecycle";
@@ -197,7 +198,7 @@ export function Checkout() {
   const [books, setBooks] = useState<any[]>(() => cachedSite?.books || []);
   const [settings, setSettings] = useState<any>(() => cachedSite?.settings || null);
   // Until the saved settings arrive (or if they never do) checkout wears the Riso Noir defaults.
-  const checkoutDesign = settings?.design ?? DEFAULT_SETTINGS.design;
+  const checkoutDesign = resolveSurfaceDesign(settings?.design ?? DEFAULT_SETTINGS.design, "/checkout");
   useEffect(() => { if (settings?.design?.checkoutSummaryOpenOnPhones) setSummaryOpen(true); }, [settings?.design?.checkoutSummaryOpenOnPhones]);
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(checkoutDesign, key, vars);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
@@ -447,19 +448,19 @@ export function Checkout() {
     // ⚡ Bolt: Replace O(N) array iteration with O(1) memoized cart count context value
     const totalQty = currentCartCount;
     if (discount.minQuantity && totalQty < discount.minQuantity) {
-      throw new Error(c("coErrMinItems", { count: discount.minQuantity }));
+      throw new CopyError(checkoutDesign, "coErrMinItems", { count: discount.minQuantity });
     }
     // ⚡ Bolt: Replace O(N) array iteration with O(1) memoized cart total context value
     const itemsSubtotal = currentCartTotal;
     if (discount.minOrderAmount && itemsSubtotal < Number(discount.minOrderAmount)) {
-      throw new Error(c("coErrMinOrder", { amount: formatPrice(Number(discount.minOrderAmount)) }));
+      throw new CopyError(checkoutDesign, "coErrMinOrder", { amount: formatPrice(Number(discount.minOrderAmount)) });
     }
 
     // 2. Email domain / email list
     const hasEmailRestrictions = (discount.allowedCustomerEmails && discount.allowedCustomerEmails.trim()) || 
                                   (discount.allowedEmailDomains && discount.allowedEmailDomains.trim());
     if (hasEmailRestrictions && !email.trim()) {
-      throw new Error(c("coErrNeedEmail"));
+      throw new CopyError(checkoutDesign, "coErrNeedEmail");
     }
 
     if (email.trim()) {
@@ -471,7 +472,7 @@ export function Checkout() {
           .map((e: string) => e.trim().toLowerCase())
           .filter(Boolean);
         if (allowedEmails.length > 0 && !allowedEmails.includes(lowerEmail)) {
-          throw new Error(c("coErrVipEmails"));
+          throw new CopyError(checkoutDesign, "coErrVipEmails");
         }
       }
 
@@ -488,7 +489,7 @@ export function Checkout() {
           }
         });
         if (allowedDomains.length > 0 && !matchesDomain) {
-          throw new Error(c("coErrEmailDomains", { domains: discount.allowedEmailDomains }));
+          throw new CopyError(checkoutDesign, "coErrEmailDomains", { domains: discount.allowedEmailDomains });
         }
       }
     }
@@ -502,13 +503,13 @@ export function Checkout() {
         return bookCats.some(cat => selectedCats.has(cat));
       });
       if (!hasMatchingCategory) {
-        throw new Error(c("coErrCategories", { categories: (discount.selectedCategories || []).join(", ") }));
+        throw new CopyError(checkoutDesign, "coErrCategories", { categories: (discount.selectedCategories || []).join(", ") });
       }
     } else if (discount.appliesTo === "products") {
       const selectedProds = new Set(discount.selectedProducts || []);
       const hasMatchingProduct = cartItems.some(item => selectedProds.has(item.id));
       if (!hasMatchingProduct) {
-        throw new Error(c("coErrProducts"));
+        throw new CopyError(checkoutDesign, "coErrProducts");
       }
     }
 
@@ -538,14 +539,14 @@ export function Checkout() {
 
       const totalQualUnits = qualItems.reduce((sum, item) => sum + item.quantity, 0);
       if (totalQualUnits < requiredUnits) {
-        throw new Error(c("coErrBogo", { count: requiredUnits }));
+        throw new CopyError(checkoutDesign, "coErrBogo", { count: requiredUnits });
       }
     }
 
     if (discount.type === "tiered") {
       const tiers = discount.tiers || [];
       if (!Array.isArray(tiers) || tiers.length === 0) {
-        throw new Error(c("coErrTiered"));
+        throw new CopyError(checkoutDesign, "coErrTiered");
       }
 
       // ⚡ Bolt: Convert constraints to O(1) Sets outside the loop
@@ -568,7 +569,7 @@ export function Checkout() {
 
       const lowestMinSpend = Math.min(...tiers.map(t => Number(t.minSpend)));
       if (qualifyingSubtotal < lowestMinSpend) {
-        throw new Error(c("coErrMinSpend", { amount: formatPrice(lowestMinSpend) }));
+        throw new CopyError(checkoutDesign, "coErrMinSpend", { amount: formatPrice(lowestMinSpend) });
       }
     }
   };
@@ -698,7 +699,7 @@ export function Checkout() {
         validateDiscountRestrictions(appliedDiscount, customer.email, cart, booksMap, cartCount, cartTotal);
       } catch (err: any) {
         setAppliedDiscount(null);
-        setDiscountError(err.message || c("coDiscountInvalid"));
+        setDiscountError(copyErrorText(err, checkoutDesign, "coDiscountInvalid"));
       }
     }
   }, [customer.email, cart, books, appliedDiscount]);
@@ -811,7 +812,7 @@ export function Checkout() {
       validateDiscountRestrictions(discount, customer.email, cart, booksMap, cartCount, cartTotal);
       setAppliedDiscount(discount);
     } catch (err: any) {
-      setDiscountError(err.message || c("coDiscountExpired"));
+      setDiscountError(copyErrorText(err, checkoutDesign, "coDiscountExpired"));
       setAppliedDiscount(null);
     } finally {
       setIsApplying(false);
@@ -928,7 +929,7 @@ export function Checkout() {
       });
 
       if (!valResponse.ok) {
-        throw new Error(c("coErrAddressService"));
+        throw new CopyError(checkoutDesign, "coErrAddressService");
       }
 
       const valData = await valResponse.json();
@@ -1001,8 +1002,8 @@ export function Checkout() {
           body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
         });
         const paypalData = await paypalResponse.json();
-        if (!paypalResponse.ok) throw new Error(paypalData.error || c("coPaypalError"));
-        if (!paypalData.approvalUrl) throw new Error(c("coErrPaypalUrl"));
+        if (!paypalResponse.ok) throw new CopyError(checkoutDesign, "coPaypalError");
+        if (!paypalData.approvalUrl) throw new CopyError(checkoutDesign, "coErrPaypalUrl");
         window.location.href = paypalData.approvalUrl;
         return;
       }
@@ -1023,7 +1024,7 @@ export function Checkout() {
             body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, paymentElement: true }),
           });
           const intentData = await intentResponse.json();
-          if (!intentResponse.ok || !intentData.clientSecret) throw new Error(intentData.error || c("coStripeError"));
+          if (!intentResponse.ok || !intentData.clientSecret) throw new CopyError(checkoutDesign, "coStripeError");
           clientSecret = intentData.clientSecret;
           pendingCardOrder.current = { key: cardKey, orderId, clientSecret };
         }
@@ -1046,17 +1047,17 @@ export function Checkout() {
 
       if (!sessionResponse.ok) {
         const errorData = await sessionResponse.json();
-        throw new Error(errorData.error || c("coStripeError"));
+        throw new CopyError(checkoutDesign, "coStripeError");
       }
 
       const sessionData = await sessionResponse.json();
       if (sessionData.url) {
         window.location.href = sessionData.url;
       } else {
-        throw new Error(c("coErrNoCheckoutUrl"));
+        throw new CopyError(checkoutDesign, "coErrNoCheckoutUrl");
       }
     } catch (err: any) {
-      setNotice({ tone: "error", text: c("coCheckoutFailed", { error: err.message }) });
+      setNotice({ tone: "error", text: c("coCheckoutFailed", { error: copyErrorText(err, checkoutDesign, "coStripeError") }) });
       setIsCompleting(false);
     }
   };
@@ -1101,14 +1102,14 @@ export function Checkout() {
         }
         if (isPayPalReturn) {
           const paypalOrderId = params.get("token");
-          if (!paypalOrderId) throw new Error(c("coErrPaypalToken"));
+          if (!paypalOrderId) throw new CopyError(checkoutDesign, "coErrPaypalToken");
           const captureResponse = await fetch(functionUrl("capturePayPalOrder"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ orderId: oid, paypalOrderId }),
           });
           const captureData = await captureResponse.json();
-          if (!captureResponse.ok) throw new Error(captureData.error || c("coPaypalCaptureError"));
+          if (!captureResponse.ok) throw new CopyError(checkoutDesign, "coPaypalCaptureError");
         }
 
         // Firestore is authoritative. URL flags and the capture HTTP response
@@ -1153,7 +1154,7 @@ export function Checkout() {
       <div data-fm-store data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout" data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
         <StorefrontThemeStyle design={checkoutDesign} />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(var(--accent-rgb,232,64,42),0.15)_0%,transparent_70%)] pointer-events-none" />
-        <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", duration: 0.8 }}
+        <motion.div {...regionProps("checkoutSuccess")} initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", duration: 0.8 }}
           className="relative z-10 flex flex-col items-center max-w-md w-full">
           <div className="w-24 h-24 rounded-[2rem] border flex items-center justify-center mb-10 shadow-[0_0_60px_rgba(var(--accent-rgb),0.3)]" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.2)", borderColor: "rgba(var(--accent-rgb), 0.3)" }}>
             <CheckCircle2 size={44} style={{ color: "var(--accent)" }} />
@@ -1204,7 +1205,7 @@ export function Checkout() {
       <div data-fm-store data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout" data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
         <StorefrontThemeStyle design={checkoutDesign} />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(var(--accent-rgb,232,64,42),0.08)_0%,transparent_70%)] pointer-events-none" />
-        <div className="relative z-10 flex flex-col items-center">
+        <div {...regionProps("checkoutEmpty")} className="relative z-10 flex flex-col items-center">
           <div className="w-20 h-20 rounded-[1.5rem] bg-white/5 border border-white/10 flex items-center justify-center mb-8">
             <Package size={36} className="text-white/20" strokeWidth={1} />
           </div>
@@ -1240,7 +1241,7 @@ export function Checkout() {
         </div>
       )}
 
-      <header className="border-b border-slate-200 bg-white">
+      <header {...regionProps("checkoutHeader")} className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
           <Link to="/" className="group flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900">
             <ChevronLeft size={17} className="transition-transform group-hover:-translate-x-0.5" />
@@ -1259,9 +1260,9 @@ export function Checkout() {
       <TemplateSections design={checkoutDesign} templateId="cartPage" />
 
       <div className="mx-auto grid min-h-[calc(100vh-77px)] max-w-6xl grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px]">
-        <main className="px-5 py-8 sm:px-8 sm:py-12 lg:border-r lg:border-slate-200 lg:pr-14">
+        <main {...regionProps("checkoutForm")} className="px-5 py-8 sm:px-8 sm:py-12 lg:border-r lg:border-slate-200 lg:pr-14">
           <div className="mx-auto max-w-2xl space-y-10">
-            <div className="flex items-center gap-2 text-sm text-slate-500" aria-label={c("coProgressAria")}>
+            <div {...regionProps("checkoutProgress")} className="flex items-center gap-2 text-sm text-slate-500" aria-label={c("coProgressAria")}>
               <span className="font-medium text-[color:var(--accent)]">{c("coStepInfo")}</span>
               <span aria-hidden="true">›</span>
               <span>{c("coStepShipping")}</span>
@@ -1398,6 +1399,8 @@ export function Checkout() {
                           currency={currency}
                           loadingText={c("coStripeLoading")}
                           errorText={c("coStripeLoadError")}
+                          validationText={c("coCardValidationError")}
+                          paymentErrorText={c("coCardPaymentError")}
                           onStateChange={setCardState}
                           fontName={checkoutDesign.checkoutFieldFont || checkoutDesign.checkoutFont || checkoutDesign.font || checkoutDesign.bodyFont || undefined}
                           style={{
@@ -1451,7 +1454,7 @@ export function Checkout() {
                 {isCompleting ? <><Loader2 size={18} className="animate-spin" /> {c("coProcessing")}</> : <><Lock size={16} /> {paymentLabel}</>}
               </button>
               {c("coGuarantee") && (
-                <p className="mt-3 text-center text-sm font-medium text-slate-700" data-studio-target="copy:Checkout" data-studio-label="Promise under Pay button">{c("coGuarantee")}</p>
+                <p {...regionProps("checkoutPromise")} className="mt-3 text-center text-sm font-medium text-slate-700"  >{c("coGuarantee")}</p>
               )}
               <div className="mt-4 flex items-start justify-center gap-2 text-center text-xs leading-5 text-slate-500">
                 <ShieldCheck size={16} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
@@ -1467,7 +1470,7 @@ export function Checkout() {
           </div>
         </main>
 
-        <aside className="order-first border-b border-slate-200 bg-slate-50 px-5 py-7 sm:px-8 lg:order-none lg:border-b-0 lg:px-10 lg:py-12">
+        <aside {...regionProps("checkoutSummary")} className="order-first border-b border-slate-200 bg-slate-50 px-5 py-7 sm:px-8 lg:order-none lg:border-b-0 lg:px-10 lg:py-12">
           {/* Phones: a one-line bar (summary + total) so the form comes first; tap to open. */}
           <button type="button" onClick={() => setSummaryOpen(o => !o)} aria-expanded={summaryOpen}
             data-studio-target="style:checkout|copy:Checkout" data-studio-label="Phone order summary bar"

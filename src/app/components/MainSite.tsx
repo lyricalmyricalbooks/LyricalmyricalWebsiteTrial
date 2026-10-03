@@ -40,6 +40,8 @@ import { CatalogControls, applyCatalogControls, type SortKey } from "../features
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { SearchOverlay } from "../features/site/SearchOverlay";
 import { designNumber } from "../features/site/designNumber";
+import { resolveMainDesign } from "../features/site/surfaceDesign";
+import { regionProps } from "../features/site/storefrontRegions";
 
 // ──────────────────────────────
 // Sticker-pill navigation (navStyle: "stickers") — asymmetric border radius,
@@ -162,7 +164,7 @@ function Newsletter({ design }: { design?: any }) {
   };
 
   return (
-    <div data-studio-target="copy:Newsletter|style:footer" data-studio-label="Newsletter box" className="py-16 border-t border-white/10 text-center space-y-6">
+    <div {...regionProps("newsletterPanel")} data-studio-target="style:catalogElements|copy:Newsletter" data-studio-label="Newsletter box" className="py-16 border-t border-white/10 text-center space-y-6">
       <div className="space-y-2">
         <h3 className="text-lg font-bold tracking-tight">{getCopy(design, "newsletterHeading")}</h3>
         <p className="text-white/40 text-xs tracking-widest max-w-sm mx-auto">
@@ -272,14 +274,14 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
   const rawDesign = settings?.design || {};
   // Never configured → the house default; cleared on purpose in Studio → hidden.
   const instagramUrl: string = (settings?.design?.social ?? DEFAULT_SOCIAL).instagram || "";
-  const d = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? rawDesign.storefront : rawDesign;
+  const d = rawDesign;
   const fourCol = d?.footerLayout === "4col";
   // "Multi-column footer" off → the columns stack into one.
   const multiColumn = d?.footerColumns !== false;
   const headingFontFamily = d?.headingFont ? `'${d.headingFont}', serif` : undefined;
   return (
-    <footer
-      data-studio-target="style:footer|copy:Footer" data-studio-label="Footer"
+    <footer {...regionProps("footerPanel")}
+      data-studio-target="style:footer|style:catalogElements|copy:Footer" data-studio-label="Footer"
       className="border-t-2 border-white/30 bg-black/40"
       style={d?.footerBg ? { backgroundColor: d.footerBg } : undefined}
     >
@@ -585,12 +587,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const activeDesign = useThemePreview(settings?.design || {});
   
   const legacyDesign = activeDesign;
-  const heroDesign = legacyDesign.heroPage && Object.keys(legacyDesign.heroPage).length > 0
-    ? { ...legacyDesign, ...legacyDesign.heroPage }
-    : legacyDesign;
-  const storefrontDesign = legacyDesign.storefront && Object.keys(legacyDesign.storefront).length > 0
-    ? { ...legacyDesign, ...legacyDesign.storefront }
-    : legacyDesign;
+  const heroDesign = resolveMainDesign(legacyDesign, false, false);
+  const onCollectionRoute = location.pathname.startsWith("/collections/");
+  const storefrontDesign = resolveMainDesign(legacyDesign, showCatalog || isCatalogPreview, onCollectionRoute);
   const storefrontLogoDesign = resolveLogoDesign(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
   const storefrontLogoPosition = resolveLogoPosition(legacyDesign.storefront, [legacyDesign.heroPage, legacyDesign]);
 
@@ -1042,7 +1041,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 {(pages || []).filter((p: any) => p.showInNav && p.status === "published").map((page: any) => (
                   <Link key={page.id} to={`/page/${page.slug}`} className="hover:opacity-70 transition-opacity">{page.title}</Link>
                 ))}
-                <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity"><span data-studio-copy="navSearch">{getCopy(activeDesign, "navSearch")}</span></button>
+                {!activeDesign?.hideHeaderSearch && <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity"><span data-studio-copy="navSearch">{getCopy(activeDesign, "navSearch")}</span></button>}
                 {showSys && (
                   <Link to="/admin" className="hover:opacity-70 transition-opacity opacity-40"><span data-studio-copy="navAdmin">{getCopy(activeDesign, "navAdmin")}</span></Link>
                 )}
@@ -1204,7 +1203,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         ) : (
         <main className="mx-auto w-full flex-1 px-6 py-12 md:py-20" style={{ maxWidth: isReferenceCatalog ? storefrontHeaderMaxWidth : storefrontMaxWidth }}>
           {/* Theme-editor sections authored for the storefront page template */}
-          <TemplateSections design={activeDesign} templateId="storefront" books={books} />
+          <TemplateSections design={activeDesign} templateId={onCollectionRoute ? "collectionPage" : "storefront"} books={books} />
 
           {/* Catalog heading + title count */}
           {(storefrontDesign?.catalogHeading || storefrontDesign?.showCatalogCount) && (
@@ -1237,7 +1236,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                       isActive ? "fm-active border-transparent" : "border-white/10 fm-muted hover:border-white/40"
                     }`}
                   >
-                    {chip.name}
+                    {chip.value === "ALL" ? getCopy(activeDesign, "catalogAllCategories") : chip.name}
                     {storefrontDesign?.categoryChipShowCounts !== false && ` (${count})`}
                   </button>
                 );
@@ -1456,12 +1455,12 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         />
         {!onHome && !activeDesign?.hideRecentlyViewed && <RecentlyViewedRow />}
         {!onHome && !activeDesign?.hideNewsletter && <Newsletter design={settings?.design} />}
-        <SiteFooter settings={settings} pages={pages} />
+        <SiteFooter settings={{ ...settings, design: storefrontDesign }} pages={pages} />
         {(storefrontDesign?.showPoweredBy ?? false) && (
           <p data-studio-target="copy:Header|style:footer" data-studio-label="Powered-by line" className="text-center pb-8 text-[9px] tracking-[0.3em] uppercase opacity-50">{getCopy(activeDesign, "poweredBy")}</p>
         )}
 
-        <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} design={activeDesign} />
+        <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={publishedBooks} design={storefrontDesign} />
       </div>
     );
   }

@@ -2993,7 +2993,8 @@ export type PreviewModeId =
   | "page"
   | "cart"
   | "wishlist"
-  | "account";
+  | "account"
+  | "tracking";
 
 export type PageTemplateMeta = {
   id: string;
@@ -3012,6 +3013,9 @@ export const PAGE_TEMPLATES: PageTemplateMeta[] = [
   { id: "cartPage", label: "Cart", description: "Sections shown on the cart drawer/page.", previewMode: "cart" },
   { id: "page", label: "Custom Pages", description: "Default sections for editorial/custom pages.", previewMode: "page" },
   { id: "page404", label: "404", description: "Sections shown when a URL is not found.", previewMode: "homepage" },
+  { id: "wishlistPage", label: "Wishlist", description: "Saved books and wishlist sections.", previewMode: "wishlist" },
+  { id: "accountPage", label: "Customer account", description: "Sign-in, profile and order-history sections.", previewMode: "account" },
+  { id: "trackingPage", label: "Order tracking", description: "Order lookup and tracking sections.", previewMode: "tracking" },
 ];
 
 /**

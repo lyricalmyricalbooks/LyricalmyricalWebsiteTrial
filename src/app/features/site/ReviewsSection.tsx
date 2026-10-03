@@ -1,3 +1,4 @@
+import { regionProps } from "./storefrontRegions";
 import { useEffect, useState } from "react";
 import { Star, Loader2, CheckCircle2 } from "lucide-react";
 import { reviewsApi, type Review } from "../../lib/reviews";
@@ -105,7 +106,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
       setEmail("");
       setRating(5);
     } catch (err: any) {
-      setError(err?.message || c("reviewsError"));
+      setError(c("reviewsError"));
     } finally {
       setSubmitting(false);
     }
@@ -115,7 +116,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
     <div className={hideHeader ? "w-full" : "border-t border-white/[0.06] mt-16"}>
       <div className={hideHeader ? "w-full" : "max-w-4xl mx-auto px-6 py-16"}>
         {!hideHeader && (
-          <header className="flex items-center justify-between mb-10">
+          <header {...regionProps("reviewsHeading")} className="flex items-center justify-between mb-10">
             <div>
               <p className="text-[9px] font-black tracking-[0.4em] uppercase text-white/30 mb-2">{c("reviewsHeading")}</p>
               <ReviewsSummary count={aggregate.count} average={aggregate.average} />
@@ -128,7 +129,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
         ) : reviews.length === 0 ? (
           <p className="text-white/40 text-sm mb-12">{c("reviewsEmpty")}</p>
         ) : (
-          <ul className="space-y-8 mb-16">
+          <ul {...regionProps("reviewsList")} className="space-y-8 mb-16">
             {reviews.map(r => (
               <li key={r.id} className="border-t border-white/[0.06] pt-8 first:border-t-0 first:pt-0">
                 <div className="flex items-center justify-between mb-3">
@@ -141,7 +142,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
                 <p className="text-white/70 text-sm leading-relaxed mb-3">{r.body}</p>
                 <p className="text-[10px] tracking-widest text-white/40 uppercase">— {r.authorName}</p>
                 {r.reply?.body && (
-                  <div className="mt-4 border-l-2 border-white/20 pl-3">
+                  <div {...regionProps("reviewsReply")} className="mt-4 border-l-2 border-white/20 pl-3">
                     <p className="text-[10px] tracking-widest text-white/50 uppercase mb-1">{c("reviewsReply")}</p>
                     <p className="text-white/70 text-sm leading-relaxed">{r.reply.body}</p>
                   </div>
@@ -151,7 +152,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
           </ul>
         )}
 
-        <div className="border border-white/10 rounded-3xl p-8 bg-white/[0.02]">
+        <div {...regionProps("reviewsForm")} className="border border-white/10 rounded-3xl p-8 bg-white/[0.02]">
           {submitted ? (
             <div className="flex items-center gap-3 text-sm" style={{ color: "var(--success)" }}>
               <CheckCircle2 size={18} />
@@ -203,7 +204,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
                 {submitting ? <Loader2 size={12} className="animate-spin" /> : null}
                 {c("reviewsSubmit")}
               </button>
-              <p className="text-[9px] tracking-widest text-white/30 uppercase">
+              <p {...regionProps("reviewsGuidance")} className="text-[9px] tracking-widest text-white/30 uppercase">
                 {c("reviewsModerated")}
               </p>
             </form>

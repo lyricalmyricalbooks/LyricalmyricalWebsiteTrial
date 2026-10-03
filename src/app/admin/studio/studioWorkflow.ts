@@ -1,4 +1,5 @@
 import { moveBlockBefore, patchSectionSettings, sameDesign, setPath, type Section } from "./studioModel";
+import { REGION_GROUPS } from "../../features/site/storefrontRegions";
 
 /** Finds section ownership in the current design, including globals and page:<slug>. */
 export function sectionEntries(design: any): { surface: string; sections: Section[] }[] {
@@ -148,9 +149,12 @@ export function previewRoute(href: string, base: string) {
   if (path.startsWith("collections/")) return { templateId: "collectionPage", collection: decodeURIComponent(path.slice(12)) };
   if (path.startsWith("page/")) return { templateId: `page:${decodeURIComponent(path.slice(5))}` };
   if (path === "checkout") return { templateId: "cartPage" };
-  return null;
+  if (path === "wishlist") return { templateId: "wishlistPage" };
+  if (path === "account" || path.startsWith("account/")) return { templateId: "accountPage" };
+  if (path === "track") return { templateId: "trackingPage" };
+  return { templateId: "page404" };
 }
 
 // These groups are consumed through per-page theme tokens. Other controls stay
 // explicitly global until their storefront consumers support local overrides.
-export const PAGE_STYLE_GROUPS = new Set(["colors", "buttons", "type", "layout"]);
+export const PAGE_STYLE_GROUPS = new Set(["colors", "buttons", "type", "layout", ...REGION_GROUPS.map(g => g.id)]);

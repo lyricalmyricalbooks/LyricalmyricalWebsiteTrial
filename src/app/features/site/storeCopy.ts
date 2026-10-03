@@ -5,8 +5,8 @@
 // values via getCopy(design, key); the theme editor's "Content & Text" panel
 // auto-generates its inputs from COPY_SCHEMA, so adding a new editable string is
 // a one-line change in this file (plus a getCopy() call at the render site).
-// Values are stored on `design.copy[key]`; empty/missing values fall back to the
-// default, so the storefront never renders a blank.
+// Values are stored on `design.copy[key]`; missing values use the default.
+// An explicitly empty value stays empty so owners can clear optional copy.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type CopyField = {
@@ -187,6 +187,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
     group: "Catalog & empty states",
     fields: [
       { key: "catalogEmpty", label: "No results message", default: "No publications match these filters." },
+      { key: "catalogAllCategories", label: "All-categories chip", default: "ALL" },
       { key: "catalogCountOne", label: "Title count (1)", default: "{count} title", hint: "Use {count} for the number." },
       { key: "catalogCountMany", label: "Title count (many)", default: "{count} titles", hint: "Use {count} for the number." },
     ],
@@ -434,6 +435,12 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "accountClose", label: "Address tile: close", default: "CLOSE" },
       { key: "accountDelivered", label: "Order status: delivered", default: "DELIVERED" },
       { key: "accountUnfulfilled", label: "Order status: not shipped yet", default: "UNFULFILLED" },
+      { key: "accountShipped", label: "Order status: shipped", default: "SHIPPED" },
+      { key: "accountProcessing", label: "Order status: processing", default: "PROCESSING" },
+      { key: "accountPaid", label: "Payment status: paid", default: "PAID" },
+      { key: "accountUnpaid", label: "Payment status: unpaid", default: "UNPAID" },
+      { key: "accountRefunded", label: "Payment status: refunded", default: "REFUNDED" },
+      { key: "accountPartiallyRefunded", label: "Payment status: partially refunded", default: "PARTIALLY REFUNDED" },
       { key: "accountTrackPackage", label: "Track package button", default: "Track Package" },
       { key: "accountSignInError", label: "Sign-in link error", default: "Failed to sign in. Link may be expired." },
       { key: "accountConfirmEmailPrompt", label: "Confirm email prompt (sign-in link opened on a new device)", default: "Please enter your email to confirm sign-in:" },
@@ -563,7 +570,9 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coErrPaypalUrl", label: "PayPal — no approval link", default: "PayPal did not return an approval URL." },
       { key: "coErrPaypalToken", label: "PayPal — no order token", default: "PayPal did not return an order token." },
       { key: "coErrNoCheckoutUrl", label: "Payment server — no checkout link", default: "No checkout URL returned from payment server." },
-      { key: "coCheckoutFailed", label: "Checkout failed message", default: "Checkout failed: {error}. Your card has not been charged. Please try again.", hint: "Use {error} for the reason.", multiline: true },
+      { key: "coCheckoutFailed", label: "Checkout failed message", default: "We couldn’t complete checkout: {error}. Check your order status before retrying.", hint: "Use {error} for the editable reason.", multiline: true },
+      { key: "coCardValidationError", label: "Card details validation message", default: "Please check the highlighted payment details." },
+      { key: "coCardPaymentError", label: "Card payment error", default: "We couldn’t confirm your payment. Check your order status before retrying or choose another payment method.", multiline: true },
       { key: "coPaymentCanceled", label: "Payment canceled message", default: "Payment was canceled. Your cart is saved — you can review it and try again.", multiline: true },
     ],
   },
@@ -642,4 +651,14 @@ export function getCopy(design: any, key: string, vars?: Record<string, string |
   return raw.replace(/\{(\w+)\}/g, (m: string, name: string) =>
     name in all ? String(all[name]) : m,
   );
+}
+
+/** Local validation reasons stay editable; provider diagnostics never become shopper copy. */
+export class CopyError extends Error {
+  constructor(design: any, public key: string, public vars?: Record<string, string | number>) {
+    super(getCopy(design, key, vars));
+  }
+}
+export function copyErrorText(error: unknown, design: any, fallback: string): string {
+  return error instanceof CopyError ? getCopy(design, error.key, error.vars) : getCopy(design, fallback);
 }

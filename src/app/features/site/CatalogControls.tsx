@@ -1,5 +1,6 @@
 import { Search, X } from "lucide-react";
 import { getCopy } from "./storeCopy";
+import { regionProps } from "./storefrontRegions";
 
 export type SortKey = "newest" | "price_asc" | "price_desc" | "title_az" | "title_za";
 
@@ -89,7 +90,7 @@ export function CatalogControls({
   return (
     <div className="mb-10 space-y-4" data-studio-target="style:catalog|copy:Search & filters" data-studio-label="Search, sort & stock bar">
       <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
-        <div className="relative flex-1">
+        <div {...regionProps("catalogSearch")} className="relative flex-1">
           <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" />
           <input
             value={query}
@@ -109,18 +110,18 @@ export function CatalogControls({
         </div>
 
         <div className="flex items-center gap-2">
-          <select
+          <select {...regionProps("catalogSort")}
             value={sort}
             onChange={e => setSort(e.target.value as SortKey)}
             className="bg-white/[0.04] border border-white/10 rounded-full py-3 px-5 text-[10px] tracking-widest uppercase text-white/70 outline-none focus:border-white/30 cursor-pointer"
           >
             {SORT_OPTIONS.map(o => (
               <option key={o.key} value={o.key} className="fm-surface-2">
-                {c("sort_" + o.key) || o.label}
+                {c("sort_" + o.key)}
               </option>
             ))}
           </select>
-          <button
+        <button {...regionProps("catalogStock")}
             onClick={() => setInStockOnly(!inStockOnly)}
             className={`px-4 py-3 rounded-full text-[10px] tracking-widest uppercase border transition-colors ${
               inStockOnly
@@ -132,7 +133,7 @@ export function CatalogControls({
           </button>
         </div>
       </div>
-      <p className="text-[10px] tracking-widest uppercase text-white/30">{c("filterResults", { count: resultCount })}</p>
+      <p {...regionProps("catalogResults")} className="text-[10px] tracking-widest uppercase text-white/30">{c("filterResults", { count: resultCount })}</p>
     </div>
   );
 }

@@ -34,7 +34,7 @@ import { StudioOutline } from "./StudioOutline";
 import { StudioInspector } from "./StudioInspector";
 import { StudioSearch } from "./StudioSearch.tsx";
 import { buildStudioIndex, type SearchEntry } from "./studioSearch";
-import { autoFitSections } from "./autoMobile";
+import { autoFitSections, autoFitRegions } from "./autoMobile";
 import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, withDraftPage } from "./studioWorkflow";
 import { useStudioPersistence } from "./useStudioPersistence";
 import { ActionMenu, Dialog, SecondaryButton } from "../riso/components";
@@ -51,7 +51,7 @@ type ThemeVersion = { id: string; kind: "draft" | "published"; label: string; cr
 
 function describeChanges(from: any, to: any): string[] {
   const out: string[] = [];
-  const surfaces = ["heroPage", "storefront", "productPage", "collectionPage", "cartPage", "page", "page404"];
+  const surfaces = STATIC_SURFACES;
   for (const id of surfaces) {
     const a = (from?.[id]?.sections || []).length, b = (to?.[id]?.sections || []).length;
     if (a !== b) out.push(`${id}: ${a} → ${b} sections`);
@@ -471,7 +471,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       case "productPage": return withQ(`/books/${productSlug || ""}`);
       case "collectionPage": return withQ(`/collections/${collectionSlug}`);
       case "cartPage": return withQ("/checkout");
-      case "page404": return withQ("/page/page-not-found-preview");
+      case "page404": return withQ("/studio-missing-page");
+      case "wishlistPage": return withQ("/wishlist");
+      case "accountPage": return withQ("/account");
+      case "trackingPage": return withQ("/track");
       case "page": return withQ(`/page/${pages.find((p) => p.status === "published")?.slug || ""}`);
       default: return withQ(template.pageSlug ? `/page/${template.pageSlug}` : "/");
     }
@@ -751,10 +754,18 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, 160);
   const autoFitPage = (overwrite = false) => {
     const r = autoFitSections(sections, overwrite);
-    if (!r.touched) { say("ok", "Every section here already looks right on phones — nothing to change."); return; }
-    setList(() => r.value);
+    const regions = autoFitRegions({ ...design.regions, ...(target.kind === "template" ? design[target.id]?.regions : {}) }, overwrite);
+    if (!r.touched && !regions.changes.length) { say("ok", "No new phone overrides to apply. Check the phone preview for this page."); return; }
+    change(d => {
+      let next = setSections(d, target, r.value);
+      for (const [key, value] of Object.entries(regions.value)) {
+        next = target.kind === "template" ? applyPageStyle(next, target.id, `regions.${key}`, value)
+          : applyGlobalStyle(next, `regions.${key}`, value, surfaceIds);
+      }
+      return next;
+    });
     setDevice("mobile");
-    say("ok", `Auto-fitted ${r.touched} section${r.touched === 1 ? "" : "s"} for phones. Check the phone preview; Undo (Ctrl+Z) reverts.`);
+    say("ok", `Auto-fitted ${r.touched} sections and ${regions.changes.length} region settings for phones. Check the preview; Undo (Ctrl+Z) reverts.`);
   };
   const runAction = (id: string) => {
     switch (id) {
@@ -914,7 +925,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               <button className={btn} disabled={!selected} onClick={() => selected && setCopiedSection(JSON.parse(JSON.stringify(selected)))}><Copy size={13} /> Copy</button>
               <button className={btn} disabled={!copiedSection} onClick={pasteSection}><Clipboard size={13} /> Paste</button>
               <button className={btn} disabled={!selected} onClick={() => selected && saveSection(selected)}>Save section</button>
-              <button className={btn} disabled={!sections.length} onClick={() => autoFitPage(false)} title="Works out phone spacing, heading sizes, columns and stacked blocks for every section on this page. Anything you set yourself is kept."><Smartphone size={13} /> Auto-fit page for phones</button>
+              <button className={btn} onClick={() => autoFitPage(false)} title="Works out phone spacing, text sizes, columns and stacked blocks for this page's sections and built-in regions. Anything you set yourself is kept."><Smartphone size={13} /> Auto-fit page for phones</button>
               {(design.sectionPresets || []).map((p: any) => <button key={p.id} className={btn} onClick={() => addPreset(p)}>+ {p.name}</button>)}
             </div>}
             {leftTab === "sections" && <StudioOutline key={showGlobal ? "__global" : template.id}

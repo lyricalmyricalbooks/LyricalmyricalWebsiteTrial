@@ -31,11 +31,13 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
   currency: string;
   loadingText: string;
   errorText: string;
+  validationText?: string;
+  paymentErrorText?: string;
   onStateChange?: (state: "loading" | "ready" | "error") => void;
   /** Google Font used inside Stripe's fields (Studio › Checkout form field font). */
   fontName?: string;
   style?: React.CSSProperties;
-}>(function StripeCardForm({ publishableKey, amountCents, currency, loadingText, errorText, onStateChange, fontName, style }, ref) {
+}>(function StripeCardForm({ publishableKey, amountCents, currency, loadingText, errorText, validationText, paymentErrorText, onStateChange, fontName, style }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const stripeRef = useRef<Stripe | null>(null);
   const elementsRef = useRef<StripeElements | null>(null);
@@ -97,7 +99,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
       if (state !== "ready" || !elementsRef.current) return errorText;
       try {
         const { error } = await elementsRef.current.submit();
-        return error?.message || null;
+        return error ? (validationText || errorText) : null;
       } catch { return errorText; }
     },
     confirm: async (clientSecret, returnUrl) => {
@@ -110,10 +112,10 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
         confirmParams: { return_url: returnUrl },
         redirect: "if_required",
       });
-      if (result.error) return { error: result.error.message || errorText };
+      if (result.error) return { error: paymentErrorText || errorText };
       return { paymentIntentId: result.paymentIntent?.id, status: result.paymentIntent?.status };
     },
-  }), [errorText, state]);
+  }), [errorText, validationText, paymentErrorText, state]);
 
   return (
     <div className="fm-stripe-card-form" style={style} data-studio-target="style:checkout" data-studio-label="Card payment form">
