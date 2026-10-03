@@ -1,7 +1,12 @@
 // Publisher workflow state is private; public order/payment records remain authoritative.
 export const WORK_QUEUES = ["Needs attention", "Ready to pack", "Ready to ship", "In transit", "Completed", "Unpaid", "All orders"];
 const terminal = (o: any) => o.status === "cancelled" || ["refunded", "refund_pending"].includes(o.paymentStatus) || ["cancelled", "refunded"].includes(o.fulfillmentStatus);
-export const addressKey = (o: any) => JSON.stringify(o.customer?.address || {});
+// Firestore does not guarantee map key order. Compare the address fields that
+// drive shipping in a fixed order so equivalent addresses do not look stale.
+export const addressKey = (o: any) => {
+ const address = o.customer?.address || {};
+ return JSON.stringify(["street", "city", "state", "zip", "country"].map(key => String(address[key] || "").trim()));
+};
 export const packingKey = (o: any) => JSON.stringify((o.items || []).map((i: any) => [i.id || i.bookId || i.title, i.variantId || i.variant || "", i.quantity]));
 export function addressIssues(o: any): string[] {
  const a = o.customer?.address || {};
@@ -50,3 +55,4 @@ export function buildPickList(orders: any[]) {
  }
  return [...items.values()];
 }
+
