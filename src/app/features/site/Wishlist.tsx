@@ -1,3 +1,4 @@
+import { regionProps } from "./storefrontRegions";
 import { useEffect } from "react";
 import { Link } from "react-router";
 import { Heart, ArrowLeft, ShoppingBag, Trash2 } from "lucide-react";
@@ -9,7 +10,7 @@ import { useSEO } from "../../lib/seo";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { getCopy } from "./storeCopy";
-import { GlobalSections } from "../../components/sectionRender";
+import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 
 export default function WishlistPage() {
   const { ids, remove } = useWishlist();
@@ -42,16 +43,16 @@ export default function WishlistPage() {
   return (
     <div data-fm-store data-studio-target="copy:Collection & wishlist pages" data-studio-label="Wishlist page" className="min-h-screen fm-page text-white">
       <StorefrontThemeStyle design={settings?.design} />
-      <header className="border-b border-white/10 px-6 py-5 flex items-center justify-between">
+      <header {...regionProps("wishlistHeader")} className="border-b border-white/10 px-6 py-5 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-[10px] tracking-[0.3em] text-white/50 hover:text-white uppercase">
           <ArrowLeft size={14} /> {getCopy(settings?.design, "backToCatalog")}
         </Link>
-        <span className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "wishlistTitle")}</span>
-        <span className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "wishlistCount", { count: items.length })}</span>
+        <span {...regionProps("wishlistTitle")} className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "wishlistTitle")}</span>
+        <span {...regionProps("wishlistCount")} className="text-[10px] tracking-[0.4em] text-white/40 uppercase">{getCopy(settings?.design, "wishlistCount", { count: items.length })}</span>
       </header>
 
       {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-32 gap-6">
+        <div {...regionProps("wishlistEmpty")} className="flex flex-col items-center justify-center py-32 gap-6">
           <div className="w-16 h-16 rounded-full border border-white/10 flex items-center justify-center">
             <Heart size={20} strokeWidth={1.4} className="text-white/40" />
           </div>
@@ -64,7 +65,7 @@ export default function WishlistPage() {
           </Link>
         </div>
       ) : (
-        <div className="max-w-6xl mx-auto px-6 py-12 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+        <div {...regionProps("wishlistGrid")} className="max-w-6xl mx-auto px-6 py-12 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
           {items.map(book => {
             const slug = (book as any).slug || book.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
             const stock = (book as any).stockLevel ?? 999;
@@ -72,7 +73,7 @@ export default function WishlistPage() {
             return (
               <article key={book.id} className="group">
                 <Link to={`/books/${slug}`} className="block">
-                  <div className="relative aspect-[3/4] fm-surface rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
+                  <div {...regionProps("wishlistPhoto")} className="relative aspect-[3/4] fm-surface rounded-2xl overflow-hidden mb-3 border border-white/[0.05]">
                     <img loading="lazy" decoding="async"
                       src={(book as any).photos?.[0]?.url || placeholderImage(settings?.design)}
                       alt={book.title}
@@ -91,7 +92,7 @@ export default function WishlistPage() {
                     ) : null}
                   </div>
                 </Link>
-                <div className="flex items-center gap-2 mt-3">
+                <div {...regionProps("wishlistActions")} className="flex items-center gap-2 mt-3">
                   <button
                     onClick={() => addToCart(book)}
                     disabled={out}
@@ -113,6 +114,7 @@ export default function WishlistPage() {
         </div>
       )}
 
+      <TemplateSections design={settings?.design} templateId="wishlistPage" books={books} />
       <GlobalSections design={settings?.design} books={books} />
     </div>
   );

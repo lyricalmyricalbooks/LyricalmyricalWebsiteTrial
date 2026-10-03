@@ -4,6 +4,7 @@
 
 import { FONT_SELECT_OPTIONS } from "../../features/site/fonts";
 import { PHOTO_OUTLINE_OPTIONS, PHOTO_RATIO_OPTIONS } from "../../features/site/photoShapes";
+import { REGION_GROUPS } from "../../features/site/storefrontRegions";
 
 // `defaultValue` is what the storefront itself uses when the key is unset, so an untouched slider or
 // toggle shows the real setting instead of its minimum / "off".
@@ -21,6 +22,7 @@ const weights = ["300", "400", "500", "600", "700", "800", "900"].map((w) => ({ 
 // controls. A label listed here gathers its fields from ANY group by key; other labels show their
 // whole target group.
 export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
+  ...Object.fromEntries(REGION_GROUPS.flatMap(g => g.regions.map(r => [r.label, new RegExp(`^regions\\.${r.id}(Visible|Padding|MobilePadding|Gap|Radius|Width|Background|Border|Color|Size|MobileSize|Font|Weight|Case|Align|Columns|MobileColumns)$`)]))),
   "Announcement bar": /^(showAnnouncement|announcement)/,
   "Card title & price": /^(productTitleColor|productPriceColor|cardTitle|cardPrice|catalogPriceStyle|catalogTitleTransform|catalogCardRuleWidth)/,
   "Buy card": /^(pdpCard|pdpShowTag|pdpTag|pdpTitle|pdpPrice|pdpShowStock|pdpStock|productCta|addToBagLabel|showQtyStepper|showSocialShare|showBackInStock)/,
@@ -36,6 +38,28 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
 };
 
 export const STYLE_GROUPS: StyleGroup[] = [
+  ...REGION_GROUPS.map(group => ({ id: group.id, title: group.title,
+    hint: "Words are in Text & labels. Blank styling inherits the current layout. Required forms, purchases and recovery actions stay available.",
+    fields: group.regions.flatMap(region => {
+      const field = (suffix: string, label: string, rest: any): StyleField => ({ key: `regions.${region.id}${suffix}`, label: `${region.label} · ${label}`, ...rest });
+      return [
+        ...(!region.required ? [field("Visible", "Show", { kind: "toggle", defaultValue: true })] : []),
+        field("Padding", "Padding", { kind: "number", min: 0, max: 120, suffix: "px" }),
+        field("MobilePadding", "Phone padding", { kind: "number", min: 0, max: 120, suffix: "px" }),
+        ...(region.grid ? [field("Gap", "Gap", { kind: "number", min: 0, max: 120, suffix: "px" })] : []),
+        field("Radius", "Corner radius", { kind: "number", min: 0, max: 120, suffix: "px" }),
+        field("Width", "Maximum width", { kind: "number", min: 0, max: 2400, suffix: "px" }),
+        field("Background", "Background", { kind: "color" }), field("Border", "Border color", { kind: "color" }),
+        field("Color", "Text color", { kind: "color" }),
+        field("Size", "Text size", { kind: "number", min: 6, max: 180, suffix: "px" }),
+        field("MobileSize", "Phone text size", { kind: "number", min: 6, max: 180, suffix: "px" }),
+        field("Weight", "Text weight", { kind: "select", options: [{ value: "", label: "Inherit layout" }, ...weights] }),
+        field("Font", "Font", { kind: "select", options: [{ value: "", label: "Inherit theme font" }, ...FONT_SELECT_OPTIONS] }),
+        field("Case", "Letter case", { kind: "select", options: [{ value: "", label: "Inherit layout" }, ...opts("none", "uppercase", "lowercase", "capitalize")] }),
+        field("Align", "Text alignment", { kind: "select", options: [{ value: "", label: "Inherit layout" }, ...opts("left", "center", "right")] }),
+        ...(region.grid ? [field("Columns", "Desktop columns", { kind: "number", min: 1, max: 6 }), field("MobileColumns", "Phone columns", { kind: "number", min: 1, max: 6 })] : []),
+      ];
+    }) })),
   {
     id: "colors",
     title: "Colors",
@@ -540,7 +564,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
 ];
 
 /** Every surface that carries its own copy of the style keys. */
-export const STATIC_SURFACES = ["heroPage", "storefront", "productPage", "collectionPage", "cartPage", "page", "page404"];
+export const STATIC_SURFACES = ["heroPage", "storefront", "productPage", "collectionPage", "cartPage", "page", "page404", "wishlistPage", "accountPage", "trackingPage"];
 
 /**
  * Write a site-wide style value. Storefront pages resolve their own surface
@@ -561,7 +585,12 @@ export function applyGlobalStyle(design: any, path: string, value: any, surfaceI
   const write = (obj: any) => {
     const o = { ...(obj || {}) };
     if (nextTop === undefined) delete o[top];
-    else o[top] = nextTop;
+    else if (rest.length && top === "regions") {
+      const leaf = rest.join(".");
+      o[top] = { ...(obj?.[top] || {}) };
+      if (value === undefined || value === "") delete o[top][leaf];
+      else o[top][leaf] = value;
+    } else o[top] = nextTop;
     return o;
   };
   const next = write(design);

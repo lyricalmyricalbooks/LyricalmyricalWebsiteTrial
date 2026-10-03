@@ -1,3 +1,4 @@
+import { regionProps } from "./storefrontRegions";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import {
@@ -32,7 +33,7 @@ import { useSiteData } from "./useSiteData";
 import { getCopy } from "./storeCopy";
 import { useCurrency } from "../../CurrencyContext";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
-import { GlobalSections } from "../../components/sectionRender";
+import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { adminApi } from "../../admin/api";
 import { functionUrl } from "../../lib/functionsBase";
 import toast from "react-hot-toast";
@@ -108,7 +109,7 @@ export default function AccountPage() {
             toast.success(getCopy(settings?.design, "accountSignedInLink"));
           } catch (err: any) {
             console.error("Email link sign in error:", err);
-            toast.error(err.message || getCopy(settings?.design, "accountSignInError"));
+            toast.error(getCopy(settings?.design, "accountSignInError"));
           }
         }
         setAuthLoading(false);
@@ -264,7 +265,7 @@ export default function AccountPage() {
       setEmailLinkInput("");
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || getCopy(settings?.design, "accountMagicLinkError"));
+      toast.error(getCopy(settings?.design, "accountMagicLinkError"));
     } finally {
       setSendingLink(false);
     }
@@ -277,7 +278,7 @@ export default function AccountPage() {
       toast.success(getCopy(settings?.design, "accountSignedIn"));
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || getCopy(settings?.design, "accountGoogleError"));
+      toast.error(getCopy(settings?.design, "accountGoogleError"));
     }
   }
 
@@ -349,12 +350,14 @@ export default function AccountPage() {
     return (
       <div data-fm-store data-studio-target="copy:Customer account|style:colors" data-studio-label="Account page" className="min-h-screen fm-page text-white flex flex-col items-center justify-center px-6 relative overflow-hidden">
         <StorefrontThemeStyle design={settings?.design} />
+        <TemplateSections design={settings?.design} templateId="accountPage" books={books} />
+        <GlobalSections design={settings?.design} books={books} />
         {/* Glow Effects */}
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] blur-[120px] rounded-full pointer-events-none" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.05)" }} />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-cyan-600/5 blur-[120px] rounded-full pointer-events-none" />
+        <div {...regionProps("accountGlow")} className="absolute top-0 right-0 w-[500px] h-[500px] blur-[120px] rounded-full pointer-events-none" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.05)" }} />
+        <div {...regionProps("accountGlow")} className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-cyan-600/5 blur-[120px] rounded-full pointer-events-none" />
 
-        <div className="glass-card max-w-md w-full border border-white/5 p-10 rounded-[2.5rem] relative z-10 space-y-8 shadow-2xl">
-          <div className="text-center">
+        <div {...regionProps("accountLogin")} className="glass-card max-w-md w-full border border-white/5 p-10 rounded-[2.5rem] relative z-10 space-y-8 shadow-2xl">
+          <div {...regionProps("accountIntro")} className="text-center">
             <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 mx-auto">
               <UserIcon size={28} style={{ color: "var(--accent)" }} strokeWidth={1.5} />
             </div>
@@ -414,10 +417,10 @@ export default function AccountPage() {
     <div data-fm-store data-studio-target="copy:Customer account|style:colors" data-studio-label="Account page" className="min-h-screen fm-page text-white relative overflow-hidden pb-24">
       <StorefrontThemeStyle design={settings?.design} />
       {/* Background glow */}
-      <div className="fixed top-0 right-0 w-[600px] h-[600px] blur-[120px] rounded-full pointer-events-none -mr-64 -mt-64" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.05)" }} />
+      <div {...regionProps("accountGlow")} className="fixed top-0 right-0 w-[600px] h-[600px] blur-[120px] rounded-full pointer-events-none -mr-64 -mt-64" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.05)" }} />
       <div className="fixed bottom-0 left-0 w-[400px] h-[400px] bg-cyan-600/5 blur-[100px] rounded-full pointer-events-none" />
 
-      <header className="border-b border-white/5 px-8 py-6 flex items-center justify-between backdrop-blur-xl relative z-20" style={{ backgroundColor: "rgba(var(--overlay-rgb), 0.2)" }}>
+      <header {...regionProps("accountHeader")} className="border-b border-white/5 px-8 py-6 flex items-center justify-between backdrop-blur-xl relative z-20" style={{ backgroundColor: "rgba(var(--overlay-rgb), 0.2)" }}>
         <Link to="/" className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-white transition-colors group uppercase">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> {getCopy(settings?.design, "accountStorefront")}
         </Link>
@@ -433,7 +436,7 @@ export default function AccountPage() {
       <main className="max-w-4xl mx-auto px-6 pt-16 relative z-10 space-y-12">
         
         {/* Customer Header Info */}
-        <section className="glass-card rounded-[2.5rem] border border-white/5 p-8 flex items-center gap-6">
+        <section {...regionProps("accountProfile")} className="glass-card rounded-[2.5rem] border border-white/5 p-8 flex items-center gap-6">
           {user.photoURL ? (
             <img loading="lazy" decoding="async" src={user.photoURL} className="w-16 h-16 rounded-full border border-white/10" alt="" />
           ) : (
@@ -448,8 +451,8 @@ export default function AccountPage() {
         </section>
 
         {/* Dashboard Vitals Grid */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Link to="/wishlist" className="glass-card border border-white/5 rounded-[2rem] p-8 hover:bg-white/[0.02] transition-colors flex flex-col gap-3 group">
+        <section {...regionProps("accountVitals")} className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Link {...regionProps("accountSaved")} to="/wishlist" className="glass-card border border-white/5 rounded-[2rem] p-8 hover:bg-white/[0.02] transition-colors flex flex-col gap-3 group">
             <Heart size={20} className="text-rose-400 group-hover:scale-110 transition-transform" />
             <div>
               <p className="text-[9px] font-black tracking-widest uppercase fm-muted">{getCopy(settings?.design, "accountWishlist")}</p>
@@ -457,7 +460,7 @@ export default function AccountPage() {
             </div>
           </Link>
 
-          <div className="glass-card border border-white/5 rounded-[2rem] p-8 flex flex-col gap-3">
+          <div {...regionProps("accountOrders")} className="glass-card border border-white/5 rounded-[2rem] p-8 flex flex-col gap-3">
             <Package size={20} style={{ color: "var(--accent)" }} />
             <div>
               <p className="text-[9px] font-black tracking-widest uppercase fm-muted">{getCopy(settings?.design, "accountOrders")}</p>
@@ -465,7 +468,7 @@ export default function AccountPage() {
             </div>
           </div>
 
-          <div className="glass-card border border-white/5 rounded-[2rem] p-8 flex flex-col gap-3 relative overflow-hidden">
+          <div {...regionProps("accountAddress")} className="glass-card border border-white/5 rounded-[2rem] p-8 flex flex-col gap-3 relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-tr from-cyan-500/[0.02] to-transparent pointer-events-none" />
             <MapPin size={20} className="text-cyan-400" />
             <div className="flex justify-between items-start">
@@ -489,7 +492,7 @@ export default function AccountPage() {
 
         {/* Address configuration form (drawer-like) */}
         {isEditingAddress && (
-          <section className="glass-card border border-white/5 rounded-[2.5rem] p-10 animate-in fade-in slide-in-from-top-4 duration-300">
+          <section {...regionProps("accountAddressForm")} className="glass-card border border-white/5 rounded-[2.5rem] p-10 animate-in fade-in slide-in-from-top-4 duration-300">
             <div className="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
               <h3 className="text-xs font-black tracking-[0.4em] uppercase text-cyan-400">{getCopy(settings?.design, "accountAddressTitle")}</h3>
               <button onClick={() => setIsEditingAddress(false)} className="text-[9px] font-black tracking-widest fm-muted hover:text-white uppercase">{getCopy(settings?.design, "accountAbort")}</button>
@@ -594,7 +597,7 @@ export default function AccountPage() {
         )}
 
         {/* Order History Details View */}
-        <section className="glass-card border border-white/5 rounded-[2.5rem] p-10">
+        <section {...regionProps("accountHistory")} className="glass-card border border-white/5 rounded-[2.5rem] p-10">
           <h2 className="text-xs font-black tracking-[0.5em] text-white/30 uppercase mb-8">{getCopy(settings?.design, "accountHistory")}</h2>
           {loadingData ? (
             <div className="py-20 flex flex-col items-center justify-center space-y-4">
@@ -661,7 +664,7 @@ export default function AccountPage() {
                                     : undefined
                                 }
                               >
-                                {o.fulfillmentStatus?.toUpperCase() || getCopy(settings?.design, o.status === 'completed' ? 'accountDelivered' : 'accountUnfulfilled')}
+                                {getCopy(settings?.design, isDelivered ? "accountDelivered" : o.fulfillmentStatus === "shipped" ? "accountShipped" : o.fulfillmentStatus === "processing" ? "accountProcessing" : "accountUnfulfilled")}
                               </span>
                             );
                           })()}
@@ -681,7 +684,7 @@ export default function AccountPage() {
                                 : undefined
                             }
                           >
-                            {o.paymentStatus?.toUpperCase()}
+                            {getCopy(settings?.design, o.paymentStatus === "paid" ? "accountPaid" : o.paymentStatus === "refunded" ? "accountRefunded" : o.paymentStatus === "partially_refunded" ? "accountPartiallyRefunded" : "accountUnpaid")}
                           </span>
                         </div>
                         
@@ -698,7 +701,7 @@ export default function AccountPage() {
                         
                         {/* E-book downloads section */}
                         {Object.keys(orderDigitalAssets).length > 0 && o.paymentStatus === 'paid' && (
-                          <div
+                          <div {...regionProps("accountDownloads")}
                             className="border p-6 rounded-2xl space-y-4"
                             style={{ backgroundColor: "rgba(var(--accent-rgb), 0.08)", borderColor: "rgba(var(--accent-rgb), 0.2)" }}
                           >
@@ -751,7 +754,7 @@ export default function AccountPage() {
 
                         {/* Delivery logistics tracking details */}
                         {o.trackingNumber && (
-                          <div className="bg-cyan-950/20 border border-cyan-500/15 p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                          <div {...regionProps("accountShipment")} className="bg-cyan-950/20 border border-cyan-500/15 p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                             <div>
                               <p className="text-[9px] font-black tracking-[0.3em] text-cyan-400 uppercase">{getCopy(settings?.design, "accountDispatch")}</p>
                               <p className="text-xs font-mono fm-muted mt-2">
@@ -819,6 +822,7 @@ export default function AccountPage() {
         </section>
       </main>
 
+      <TemplateSections design={settings?.design} templateId="accountPage" books={books} />
       <GlobalSections design={settings?.design} books={books} />
     </div>
   );

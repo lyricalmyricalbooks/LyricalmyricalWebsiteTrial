@@ -605,3 +605,7 @@ More order actions, with refund details and explicit final confirmation. Custome
 secondary; activity and internal notes are collapsed. Phones render order cards and a Work queue selector,
 with Filter & sort in a dialog. Batch packing asks for confirmation and retains per-order outcomes.
 The private operations, label purchase safeguards, payment authority and server data contracts are unchanged.
+
+### Public designer coverage (2 October 2026)
+
+Wishlist, Customer account and Order tracking have Studio canvases and section stacks. `features/site/storefrontRegions.ts` owns the public region manifest, responsive styling and click-to-edit hooks; its categories are generated in `studio/styleSchema.ts`. Attach `regionProps` in every supported renderer layout when adding optional public elements. Required commerce/consent regions support presentation controls without hide toggles. Merge page-only regions with root settings, preserve product overrides over catalog defaults, and keep phone overrides in `autoFitRegions`. `docs/THEME_EDITOR.md` records the page-by-page ownership and authenticated/live verification limits. Local validation reasons and public order statuses use Text & labels; provider diagnostics must not bypass editable recovery copy.

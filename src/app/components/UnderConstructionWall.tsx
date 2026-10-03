@@ -1,3 +1,4 @@
+import { regionProps } from "../features/site/storefrontRegions";
 import { Link, useLocation } from "react-router";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { useLiveDesign } from "../features/site/useSiteData";
@@ -25,21 +26,21 @@ export function UnderConstructionWall() {
       className="fixed inset-0 z-[400] flex items-center justify-center overflow-y-auto bg-[var(--bg-color)] p-4 text-[rgb(var(--fg-rgb))]"
     >
       <StorefrontThemeStyle design={design} />
-      <div
+      <div {...regionProps("constructionArtwork")}
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-[0.12]"
         style={{ backgroundImage: "repeating-linear-gradient(-45deg, var(--accent-color) 0 18px, transparent 18px 36px)" }}
       />
-      <div className="relative w-full max-w-[40rem] border-2 border-[var(--rp-outline)] bg-[var(--bg-color)] p-6 shadow-[8px_8px_0_var(--rp-shadow-color)] md:p-10">
-        <span className="inline-block -rotate-2 border-2 border-[var(--rp-outline)] bg-[var(--accent-color)] px-3 py-1 font-mono text-[11px] font-black uppercase tracking-[0.25em] text-[var(--btn-text)]">
+      <div {...regionProps("constructionPanel")} className="relative w-full max-w-[40rem] border-2 border-[var(--rp-outline)] bg-[var(--bg-color)] p-6 shadow-[8px_8px_0_var(--rp-shadow-color)] md:p-10">
+        <span {...regionProps("constructionTag")} className="inline-block -rotate-2 border-2 border-[var(--rp-outline)] bg-[var(--accent-color)] px-3 py-1 font-mono text-[11px] font-black uppercase tracking-[0.25em] text-[var(--btn-text)]">
           {c("ucTag")}
         </span>
-        <h1 className="mt-6 font-[Anton,var(--heading-font,sans-serif)] text-5xl uppercase leading-[0.9] md:text-7xl">
+        <h1 {...regionProps("constructionHeading")} className="mt-6 font-[Anton,var(--heading-font,sans-serif)] text-5xl uppercase leading-[0.9] md:text-7xl">
           {c("ucHeading")}{" "}
           <span className="text-[var(--accent-color)]">{c("ucHeadingAccent")}</span>
         </h1>
         <hr className="my-6 border-t-2 border-[var(--rp-outline)]" />
-        <p className="max-w-[32rem] text-base leading-relaxed opacity-80">{c("ucBody")}</p>
+        <p {...regionProps("constructionBody")} className="max-w-[32rem] text-base leading-relaxed opacity-80">{c("ucBody")}</p>
         {email && (
           <a
             href={`mailto:${email}`}
@@ -56,7 +57,7 @@ export function UnderConstructionWall() {
             {c("ucAdmin")}
           </Link>
         )}
-        <p className="mt-8 font-mono text-[10px] uppercase tracking-[0.25em] opacity-60">{c("ucFootnote")}</p>
+        <p {...regionProps("constructionFootnote")} className="mt-8 font-mono text-[10px] uppercase tracking-[0.25em] opacity-60">{c("ucFootnote")}</p>
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+import { regionProps } from "./storefrontRegions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
@@ -106,7 +107,7 @@ export function SearchOverlay({
           aria-modal="true"
           aria-label={c("searchDialogAria")}
         >
-          <motion.div
+          <motion.div {...regionProps("searchPanel")}
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -20, opacity: 0 }}
@@ -134,12 +135,12 @@ export function SearchOverlay({
 
             <div className="max-h-[60vh] overflow-y-auto">
               {query.trim() === "" && (
-                <p className="px-5 py-10 text-center text-[10px] tracking-[0.3em] uppercase text-white/30">
+                <p {...regionProps("searchPrompt")} className="px-5 py-10 text-center text-[10px] tracking-[0.3em] uppercase text-white/30">
                   {c("searchPrompt")}
                 </p>
               )}
               {query.trim() !== "" && results.length === 0 && (
-                <p className="px-5 py-10 text-center text-[10px] tracking-[0.3em] uppercase text-white/30">
+                <p {...regionProps("searchEmpty")} className="px-5 py-10 text-center text-[10px] tracking-[0.3em] uppercase text-white/30">
                   {c("searchNoResults", { query })}
                 </p>
               )}
@@ -153,7 +154,7 @@ export function SearchOverlay({
                     onClick={onClose}
                     className="flex items-center gap-4 px-5 py-3 hover:bg-white/5 transition-colors border-b border-white/5 last:border-b-0"
                   >
-                    <div className="w-12 h-16 fm-surface-2 overflow-hidden rounded flex-shrink-0">
+                    <div {...regionProps("searchPhoto")} className="w-12 h-16 fm-surface-2 overflow-hidden rounded flex-shrink-0">
                       {photo && (
                         <img
                           src={photo}
@@ -167,7 +168,7 @@ export function SearchOverlay({
                     <div className="flex-1 min-w-0">
                       <p className="fm-card-title text-sm text-white truncate" data-studio-target="style:products" data-studio-label="Card title & price">{b.title}</p>
                       {b.authorName && (
-                        <p className="text-[11px] text-white/40 truncate">{b.authorName}</p>
+                        <p {...regionProps("searchAuthor")} className="text-[11px] text-white/40 truncate">{b.authorName}</p>
                       )}
                     </div>
                     {price != null && (

@@ -1,4 +1,5 @@
 import { PADDING_KEYS, GAP_KEYS, spacingKey } from "./canvasTools";
+import { REGION_GROUPS } from "../../features/site/storefrontRegions";
 // Desktop → phone/tablet auto-layout for the Studio. Pure and immutable: given what the owner built
 // for desktop, it works out sensible phone (and, for Flexible composition, tablet) settings so they
 // don't have to redo every section by hand. It only ever fills in values the owner hasn't set unless
@@ -21,6 +22,25 @@ export function phonePadding(desktop: number): number {
 /** Phone heading size: ~60% of a big desktop heading, never below 28px, never larger than desktop. */
 export function phoneHeadingSize(desktop: number): number {
   return Math.min(desktop, Math.max(28, Math.round(desktop * 0.6)));
+}
+
+/** Phone-only patch for built-in public regions; explicit merchant overrides are kept. */
+export function autoFitRegions(values: Record<string, any> = {}, overwrite = false): AutoFitResult<Record<string, any>> {
+  const patch: Record<string, any> = {}, changes: string[] = [];
+  for (const group of REGION_GROUPS) for (const region of group.regions) {
+    const fill = (suffix: string, desktop: any, fit: (v: number) => number) => {
+      const key = region.id + "Mobile" + suffix;
+      if (!isNum(desktop) || (!overwrite && values[key] != null)) return;
+      const next = fit(desktop);
+      if (next === values[key]) return;
+      patch[key] = next;
+      changes.push(`${region.label}: phone ${suffix.toLowerCase()} ${next}`);
+    };
+    fill("Padding", values[region.id + "Padding"], phonePadding);
+    fill("Size", values[region.id + "Size"], v => v > 28 ? phoneHeadingSize(v) : v);
+    if (region.grid) fill("Columns", values[region.id + "Columns"], v => Math.min(2, v));
+  }
+  return { value: patch, changes };
 }
 
 /** Sections whose items are small cards/photos that read fine two-up on a phone. */

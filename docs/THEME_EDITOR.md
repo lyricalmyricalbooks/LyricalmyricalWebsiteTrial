@@ -643,3 +643,26 @@ Our renderers must stay shallow.
 The editor root is now `.rp` and follows the admin appearance (`appearance` prop from `Dashboard`). Top bar (Design studio heading, Live/Draft/Unsaved badge on `--rp-*` status tints), the tab strip (`role="tablist"`, 44px targets, flare active tab), left panel surface, shared primitives, and the section library (`role="dialog"`, focus trap, Escape, labelled search and delete controls) all use Riso tokens. Deeper panel bodies still carry legacy utility classes under the `.admin-reso` compat layer; migrate them panel by panel.
 
 - [x] **Public recovery and phone navigation (2 Oct 2026).** Shared phone menu with Studio visibility/copy controls; custom pages retain the shared policy footer with a page-footer toggle; wildcard recovery exposes existing 404 copy and message/back-link visibility controls. Checkout configuration errors remain editable in Text & labels > Checkout.
+
+## Page-by-page public designer coverage (2 Oct 2026)
+
+- [x] Add Wishlist, Customer account and Order tracking to Studio's page selector, section stacks and preview routes. The 404 canvas previews a real unknown URL.
+- [x] Resolve Home, Catalog and Collection tokens from the active page; preserve product-only controls over catalog defaults and merge local region settings without replacing unrelated fields.
+- [x] Provide searchable Theme settings categories for catalog/shared content, product content, wishlist, account, tracking, checkout, search, reviews, recovery and overlays. `storefrontRegions.ts` maps each region to its renderer and click-to-edit target. Controls cover spacing, borders, backgrounds, fonts, text, optional visibility and supported grid columns; phone overrides participate in Auto-fit for phones. Unset controls preserve existing appearance.
+- [x] Route local validation reasons and account/order statuses through Text & labels. Provider failures use editable recovery copy rather than displaying uneditable technical messages. Intentionally cleared catalog sort labels remain empty.
+
+| Public surface | Studio ownership |
+| --- | --- |
+| Home, catalog, collections | Their page canvases, Catalog & shared content, existing card/header/footer controls |
+| Book detail | Product canvas, existing buy-card controls, Product content, Reviews |
+| Wishlist | Wishlist canvas and Wishlist layout & elements |
+| Account, sign-in and order details | Customer account canvas and Account layout & elements |
+| Order tracking | Order tracking canvas and Tracking layout & elements |
+| Cart, checkout, empty/success states | Cart canvas and Checkout layout & elements |
+| Custom/policy pages | Pages content, page-specific canvas, existing custom-page/header/footer controls |
+| Missing URL and rendering failure | 404 canvas, Recovery layout & elements, Custom pages & 404 copy |
+| Search, cookie notice, loading and construction screen | Search/Overlay layout & elements and their existing Text & labels groups |
+
+Required checkout, sign-in, order-access and consent controls remain functional: their presentation is editable, but the region system does not offer a hide toggle. Catalog/customer/order records and Stripe's embedded secure fields retain their own data and validation authority. Publishing a design cannot change charge totals or mark orders paid.
+
+Verification uses route-resolution/region/schema/copy regressions and a local Studio fixture: Home, Catalog, Collection, Product, Wishlist, signed-out Account, Tracking, 404 and empty Cart render their corresponding section stacks. Authenticated customer states, owner Firestore save/publish and a live Stripe order require separate authenticated production verification; the fixture does not certify those flows.

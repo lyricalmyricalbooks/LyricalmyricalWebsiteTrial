@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { STYLE_GROUPS } from "../../admin/studio/styleSchema";
 import { COPY_SCHEMA } from "./storeCopy";
+import { regionProps, REGION_GROUPS } from "./storefrontRegions";
 
 // Clicking a built-in storefront region in the Studio preview opens the panel named by its
 // data-studio-target (see previewBridge.ts / StudioEditor.tsx STUDIO_TARGET). Every target must
@@ -25,6 +26,10 @@ for (const file of sources(APP_DIR)) {
   for (const m of src.matchAll(/data-studio-target="([^"]+)"(?:\s+data-studio-label="([^"]*)")?/g)) {
     for (const target of m[1].split("|")) found.push({ file: relative(APP_DIR, file), target, label: m[2] || "" });
   }
+  for (const m of src.matchAll(/regionProps\("([^"]+)"\)/g)) {
+    const props = regionProps(m[1]);
+    for (const target of props["data-studio-target"].split("|")) found.push({ file: relative(APP_DIR, file), target, label: props["data-studio-label"] });
+  }
 }
 
 describe("Studio click-to-edit targets", () => {
@@ -41,8 +46,13 @@ describe("Studio click-to-edit targets", () => {
 
   it("the storefront shell regions stay clickable", () => {
     const labels = new Set(found.map((f) => f.label));
-    for (const l of ["Header", "Category bar", "Logo", "Product grid", "Newsletter box", "Footer", "Cart drawer", "Product page", "Checkout", "Cookie banner"]) {
+    for (const l of ["Header", "Category bar", "Logo", "Product grid", "Newsletter box", "Footer", "Cart drawer", "Product page", "Checkout", "Cookie panel"]) {
       expect(labels.has(l), `missing click-to-edit region: ${l}`).toBe(true);
+    }
+  });
+  it("registers every generated region in its own Studio category", () => {
+    for (const g of REGION_GROUPS) for (const r of g.regions) {
+      expect(found.some(f => f.label === r.label && f.target === `style:${g.id}`), r.id).toBe(true);
     }
   });
 });

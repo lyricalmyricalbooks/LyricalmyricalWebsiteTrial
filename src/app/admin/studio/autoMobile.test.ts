@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { autoFitBlocks, autoFitSection, autoFitSections, flowGrids, phoneColumns, phoneHeadingSize, phonePadding, resetPhoneLayout } from "./autoMobile";
+import { autoFitBlocks, autoFitSection, autoFitSections, autoFitRegions, flowGrids, phoneColumns, phoneHeadingSize, phonePadding, resetPhoneLayout } from "./autoMobile";
 import type { Section, StudioBlock } from "./studioModel";
 
 const block = (id: string, grid: any, extra: any = {}): StudioBlock => ({ id, type: "text", grid: { desktop: grid }, ...extra });
 const comp = (items: StudioBlock[], extra: any = {}): Section => ({ id: "c", type: "CompositionSection", settings: { gridColumns: 12, items, ...extra } });
 
 describe("phone sizing helpers", () => {
+  it("auto-fits public regions while preserving explicit phone overrides", () => {
+    const values = { wishlistGridColumns: 4, wishlistGridPadding: 80, wishlistTitleSize: 60, wishlistTitleMobileSize: 31 };
+    expect(autoFitRegions(values).value).toMatchObject({ wishlistGridMobileColumns: 2, wishlistGridMobilePadding: 44 });
+    expect(autoFitRegions(values).value).not.toHaveProperty("wishlistTitleMobileSize");
+    expect(autoFitRegions(values, true).value.wishlistTitleMobileSize).toBe(36);
+    expect(autoFitRegions({}).changes).toEqual([]);
+  });
   it("scales padding down but never below 24 or above desktop", () => {
     expect(phonePadding(120)).toBe(68);
     expect(phonePadding(40)).toBe(24);

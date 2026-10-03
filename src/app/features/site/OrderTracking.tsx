@@ -1,3 +1,4 @@
+import { regionProps } from "./storefrontRegions";
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { 
@@ -11,7 +12,7 @@ import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { getCopy } from "./storeCopy";
-import { GlobalSections } from "../../components/sectionRender";
+import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 
 export default function OrderTracking() {
   const [orderIdInput, setOrderIdInput] = useState("");
@@ -61,16 +62,18 @@ export default function OrderTracking() {
     try {
       const foundOrder = await adminApi.getOrderById(orderIdInput.trim());
       if (!foundOrder) {
-        throw new Error(getCopy(settings?.design, "trackErrNotFound"));
+        setError(getCopy(settings?.design, "trackErrNotFound"));
+        return;
       }
 
       if (foundOrder.customer?.email?.toLowerCase().trim() !== emailInput.toLowerCase().trim()) {
-        throw new Error(getCopy(settings?.design, "trackErrEmail"));
+        setError(getCopy(settings?.design, "trackErrEmail"));
+        return;
       }
 
       setOrder(foundOrder);
     } catch (err: any) {
-      setError(err.message || getCopy(settings?.design, "trackError"));
+      setError(getCopy(settings?.design, "trackError"));
     } finally {
       setLoading(false);
     }
@@ -119,14 +122,14 @@ export default function OrderTracking() {
     <div data-fm-store data-studio-target="copy:Order tracking|style:colors" data-studio-label="Order tracking page" className="min-h-screen fm-page text-white font-sans selection:bg-[rgba(var(--accent-rgb),0.3)] relative overflow-hidden pb-24">
       <StorefrontThemeStyle design={settings?.design} />
       {/* Ambient background glow */}
-      <div
+      <div {...regionProps("trackingGlow")}
         className="fixed top-0 right-0 w-[600px] h-[600px] blur-[140px] rounded-full pointer-events-none -mr-72 -mt-72"
         style={{ backgroundColor: "rgba(var(--accent-rgb), 0.08)" }}
       />
-      <div className="fixed bottom-0 left-0 w-[400px] h-[400px] bg-cyan-600/5 blur-[120px] rounded-full pointer-events-none" />
+      <div {...regionProps("trackingGlow")} className="fixed bottom-0 left-0 w-[400px] h-[400px] bg-cyan-600/5 blur-[120px] rounded-full pointer-events-none" />
 
       {/* Header */}
-      <nav className="relative z-10 px-8 py-6 flex items-center justify-between border-b border-white/5 backdrop-blur-xl bg-black/20">
+      <nav {...regionProps("trackingHeader")} className="relative z-10 px-8 py-6 flex items-center justify-between border-b border-white/5 backdrop-blur-xl bg-black/20">
         <Link to="/" className="flex items-center gap-3 text-[10px] font-black tracking-[0.3em] text-white/40 hover:text-white transition-colors group uppercase">
           <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
           {getCopy(settings?.design, "trackBack")}
@@ -141,7 +144,7 @@ export default function OrderTracking() {
         <AnimatePresence mode="wait">
           {!order ? (
             /* Search Form */
-            <motion.div
+            <motion.div {...regionProps("trackingForm")}
               key="search-form"
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
@@ -149,7 +152,7 @@ export default function OrderTracking() {
               className="bg-white/[0.03] border border-white/8 rounded-[2.5rem] p-10 backdrop-blur-xl max-w-lg mx-auto shadow-2xl relative overflow-hidden"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.04] to-transparent pointer-events-none" />
-              <div className="text-center mb-10">
+              <div {...regionProps("trackingIntro")} className="text-center mb-10">
                 <div className="w-16 h-16 rounded-2xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center mb-6 mx-auto shadow-[0_0_40px_rgba(var(--accent-rgb),0.2)]">
                   <Lock size={24} className="fm-accent-text" />
                 </div>
@@ -219,7 +222,7 @@ export default function OrderTracking() {
               </button>
 
               {/* Order Header Summary */}
-              <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8 backdrop-blur-sm">
+              <div {...regionProps("trackingSummary")} className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8 backdrop-blur-sm">
                 <div>
                   <p className="text-[10px] font-black tracking-[0.3em] fm-accent-text uppercase mb-2">{getCopy(settings?.design, "trackFound")}</p>
                   <h2 className="text-4xl font-black tracking-tighter uppercase italic leading-none">{getCopy(settings?.design, "coOrderNumber", { number: order.orderId })}</h2>
@@ -237,7 +240,7 @@ export default function OrderTracking() {
               </div>
 
               {/* Horizontal Progress Steps */}
-              <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-12 backdrop-blur-sm">
+              <div {...regionProps("trackingTimeline")} className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-12 backdrop-blur-sm">
                 <h3 className="text-xs font-black tracking-[0.4em] uppercase text-white/40 mb-10 pb-4 border-b border-white/5">{getCopy(settings?.design, "trackTimeline")}</h3>
                 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-8 relative">
@@ -279,7 +282,7 @@ export default function OrderTracking() {
                   return `https://www.google.com/search?q=${encodeURIComponent((order.trackingCarrier || "") + " " + order.trackingNumber)}`;
                 })();
                 return (
-                  <div className="bg-gradient-to-r from-violet-950/20 to-cyan-950/20 border border-violet-500/15 rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+                  <div {...regionProps("trackingShipment")} className="bg-gradient-to-r from-violet-950/20 to-cyan-950/20 border border-violet-500/15 rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
                     <div className="space-y-2">
                       <p className="text-[10px] font-black tracking-[0.3em] fm-accent-text uppercase">{getCopy(settings?.design, "trackLogisticsEyebrow")}</p>
                       <h4 className="text-2xl font-black tracking-tighter uppercase italic leading-none">{getCopy(settings?.design, "trackCarrier")}</h4>
@@ -302,7 +305,7 @@ export default function OrderTracking() {
 
               {/* Digital Ebook Downloads Section */}
               {Object.keys(digitalItems).length > 0 && order.paymentStatus === "paid" && (
-                <div className="bg-violet-900/[0.05] border border-violet-500/20 rounded-[2.5rem] p-10 space-y-6">
+                <div {...regionProps("trackingDownloads")} className="bg-violet-900/[0.05] border border-violet-500/20 rounded-[2.5rem] p-10 space-y-6">
                   <div className="space-y-1">
                     <h4 className="text-xl font-black tracking-tighter text-white uppercase italic">{getCopy(settings?.design, "trackDigitalTitle")}</h4>
                     <p className="text-xs font-medium fm-muted leading-relaxed">{getCopy(settings?.design, "trackDigitalText")}</p>
@@ -333,7 +336,7 @@ export default function OrderTracking() {
               )}
 
               {/* Items breakdown list */}
-              <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-10">
+              <div {...regionProps("trackingItems")} className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-10">
                 <h3 className="text-xs font-black tracking-[0.4em] uppercase text-white/40 mb-8 pb-4 border-b border-white/5">{getCopy(settings?.design, "trackItems")}</h3>
                 
                 <div className="space-y-6">
@@ -390,6 +393,7 @@ export default function OrderTracking() {
         </AnimatePresence>
       </div>
 
+      <TemplateSections design={settings?.design} templateId="trackingPage" books={books} />
       <GlobalSections design={settings?.design} books={books} />
     </div>
   );
