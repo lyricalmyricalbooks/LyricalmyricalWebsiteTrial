@@ -13,6 +13,7 @@ import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { getCopy } from "./storeCopy";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
+import { trackingStepIndex } from "./fulfillmentTracking";
 
 export default function OrderTracking() {
   const [orderIdInput, setOrderIdInput] = useState("");
@@ -89,23 +90,30 @@ export default function OrderTracking() {
     );
   };
 
-  // Resolve tracking status step index
-  const getStepIndex = (status: string) => {
-    const s = (status || "").toLowerCase();
-    if (s === "delivered" || s === "completed") return 3;
-    if (s === "shipped") return 2;
-    if (s === "processing" || s === "open") return 1;
-    return 0; // Paid / Pending
-  };
+  const fulfillment = order?.fulfillment;
+  const fulfillmentStatus = String(order?.fulfillmentStatus || order?.status || "").toLowerCase();
+  const isPickup = fulfillment?.method === "pickup";
+  const isLocalDelivery = fulfillment?.method === "local_delivery";
+  const currentStep = trackingStepIndex(fulfillment?.method, fulfillmentStatus);
 
-  const currentStep = order ? getStepIndex(order.status) : 0;
-  
-  const steps = [
+  const shippingSteps = [
     { label: getCopy(settings?.design, "trackStepPaid"), desc: getCopy(settings?.design, "trackStepPaidDesc"), icon: CheckCircle2 },
     { label: getCopy(settings?.design, "trackStepProcessing"), desc: getCopy(settings?.design, "trackStepProcessingDesc"), icon: Package },
     { label: getCopy(settings?.design, "trackStepShipped"), desc: getCopy(settings?.design, "trackStepShippedDesc"), icon: Truck },
     { label: getCopy(settings?.design, "trackStepDelivered"), desc: getCopy(settings?.design, "trackStepDeliveredDesc"), icon: MapPin },
   ];
+  const localSteps = isPickup ? [
+    shippingSteps[0],
+    shippingSteps[1],
+    { label: getCopy(settings?.design, "trackPickupReady"), desc: fulfillment?.estimate || getCopy(settings?.design, "trackStepProcessingDesc"), icon: MapPin },
+    { label: getCopy(settings?.design, "trackCollected"), desc: getCopy(settings?.design, "trackStepDeliveredDesc"), icon: CheckCircle2 },
+  ] : [
+    shippingSteps[0],
+    { label: getCopy(settings?.design, "trackReadyForDelivery"), desc: fulfillment?.estimate || getCopy(settings?.design, "trackStepProcessingDesc"), icon: Package },
+    { label: getCopy(settings?.design, "trackOutForDelivery"), desc: getCopy(settings?.design, "trackStepShippedDesc"), icon: Truck },
+    shippingSteps[3],
+  ];
+  const steps = isPickup || isLocalDelivery ? localSteps : shippingSteps;
 
   // Format order prices using checkout currency if available, else fallback
   const orderFormatPrice = (priceInCAD: number) => {
@@ -238,6 +246,23 @@ export default function OrderTracking() {
                   </span>
                 </div>
               </div>
+
+              {(isPickup || isLocalDelivery) && fulfillment && (
+                <section {...regionProps("trackingFulfillment")} className="rounded-[2rem] border border-violet-500/15 bg-white/[0.02] p-8 md:p-10 space-y-4">
+                  <h3 className="text-xs font-black tracking-[0.3em] uppercase text-white/70">{getCopy(settings?.design, "trackFulfillment")}</h3>
+                  <p className="text-xl font-bold text-white">{isPickup ? getCopy(settings?.design, "trackPickup") : getCopy(settings?.design, "trackLocalDelivery")} · {fulfillment.name}</p>
+                  {(isPickup ? fulfillment.address : fulfillment.destination) && <address className="not-italic text-sm leading-6 fm-muted">
+                    {[isPickup ? fulfillment.address.street : fulfillment.destination.street,
+                      isPickup ? fulfillment.address.city : fulfillment.destination.city,
+                      isPickup ? fulfillment.address.state : fulfillment.destination.state,
+                      isPickup ? fulfillment.address.zip : fulfillment.destination.zip,
+                      isPickup ? fulfillment.address.country : fulfillment.destination.country].filter(Boolean).join(", ")}
+                  </address>}
+                  {fulfillment.hours && <p className="text-sm fm-muted">{getCopy(settings?.design, "trackFulfillmentHours")}: {fulfillment.hours}</p>}
+                  {fulfillment.estimate && <p className="text-sm fm-muted">{getCopy(settings?.design, "trackFulfillmentEstimate")}: {fulfillment.estimate}</p>}
+                  {fulfillment.instructions && <p className="whitespace-pre-wrap text-sm leading-6 fm-muted">{getCopy(settings?.design, "trackFulfillmentInstructions")}: {fulfillment.instructions}</p>}
+                </section>
+              )}
 
               {/* Horizontal Progress Steps */}
               <div {...regionProps("trackingTimeline")} className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-12 backdrop-blur-sm">

@@ -129,6 +129,7 @@ export const STOREFRONT_COLOR_CLASSES: readonly string[] = [
   "selection:text-black",
   "text-amber-400",
   "text-amber-600",
+  "text-amber-700",
   "text-amber-900",
   "text-black",
   "text-black/90",
