@@ -336,3 +336,12 @@ Local fixture checks do not certify authenticated Firestore publishing or live c
 Preview canvases retain their selected viewport width (1200px desktop, 820px tablet,
 390px phone) in a scrollable canvas, so narrow editor windows cannot activate the
 wrong breakpoint while the owner edits a different device.
+
+## Storefront loading performance (4 October 2026)
+
+Storefront components share one catalog/settings/published-pages bootstrap request, including
+in-flight loads and route remounts. Successful display data is reused for 30 seconds; the next
+mount after that refreshes it. Failed requests remain retryable and session-cached content
+stays visible during refresh. The session cache is read only when a hook mounts, rather than
+on every render. Studio snapshots still override backend data. Authoritative checkout prices,
+stock validation and webhook payment handling are unchanged.
