@@ -141,3 +141,15 @@
 .studio-shared-layout .rp-card-body { display: flex; flex-wrap: wrap; gap: 8px; }
 .studio-shared-layout .rp-card-title { font-size: 15px; }
 .studio-shared-layout .rp-card-desc { font-size: 11px; }
+
+.studio-region-browser { display: grid; gap: 8px; }
+.studio-region-context { padding: 12px; border: 1px solid var(--rp-border); border-radius: 8px; background: var(--rp-surface-sunken); font-size: 12px; }
+.studio-region-actions, .studio-field-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.studio-field-status { margin-top: 6px; color: var(--rp-text-subtle); font-size: 11px; }
+.studio-copy-field { display: grid; gap: 6px; }
+.studio-copy-field > label { font-size: 12px; font-weight: 700; }
+.studio-copy-field > input, .studio-copy-field > textarea { width: 100%; border: 1px solid var(--rp-border); border-radius: 8px; padding: 8px 10px; font-size: 12px; background: var(--rp-input-bg); color: var(--rp-text); }
+.studio-copy-field .studio-reset, .studio-region-context .studio-reset { min-height: 32px; }
+
+.studio-preview-viewport { flex: 1; width: 100%; min-height: 240px; display: flex; overflow: auto; }
+.studio-preview-viewport .studio-preview-frame { flex: none; margin-inline: auto; }

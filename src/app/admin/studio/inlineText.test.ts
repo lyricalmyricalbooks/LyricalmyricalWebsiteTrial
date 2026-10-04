@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { applyInlineText } from "./inlineText";
+import { setPath } from "./studioModel";
 const schema = {
   sectionFields: () => [{key:"title",kind:"text"}, {key:"body",kind:"html"}],
   blockFields: () => [{key:"title",kind:"text"}], blocksKey: () => "blocks",
   copyKeys: ["footerNavHeading"], styleKeys: ["announcementText"],
-  applyStyle: (design:any, key:string, value:string) => ({...design,[key]:value}),
+  applyStyle: (design:any, key:string, value:string) => setPath(design, key, value),
 };
 const design = {
   other: 123,

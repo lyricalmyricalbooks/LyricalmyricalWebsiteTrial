@@ -16,7 +16,7 @@ export type InlineTextSchema = {
 export function applyInlineText(design: any, action: InlineTextAction, schema: InlineTextSchema): any {
   if (!action || typeof action.value !== "string" || typeof action.key !== "string") return design;
   if (action.kind === "copy") return schema.copyKeys.includes(action.key)
-    ? { ...design, copy: { ...design.copy, [action.key]: action.value } } : design;
+    ? schema.applyStyle(design, "copy." + action.key, action.value) : design;
   if (action.kind === "style") return schema.styleKeys.includes(action.key)
     ? schema.applyStyle(design, action.key, action.value) : design;
   if (action.kind !== "section" || !action.sectionId) return design;

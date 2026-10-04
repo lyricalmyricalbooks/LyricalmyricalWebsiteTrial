@@ -2908,6 +2908,7 @@ export function SectionFieldEditor({
           <span className="text-[11px] font-bold text-neutral-700">{field.label}</span>
           <button
             type="button"
+            role="switch" aria-checked={Boolean(value)} aria-label={field.label}
             onClick={() => onChange(!value)}
             className={`w-10 h-5 rounded-full relative transition-all ${value ? "bg-blue-600" : "bg-neutral-200"}`}
           >

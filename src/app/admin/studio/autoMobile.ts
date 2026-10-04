@@ -1,5 +1,5 @@
 import { PADDING_KEYS, GAP_KEYS, spacingKey } from "./canvasTools";
-import { REGION_GROUPS } from "../../features/site/storefrontRegions";
+import { REGION_GROUPS, regionValue } from "../../features/site/storefrontRegions";
 // Desktop → phone/tablet auto-layout for the Studio. Pure and immutable: given what the owner built
 // for desktop, it works out sensible phone (and, for Flexible composition, tablet) settings so they
 // don't have to redo every section by hand. It only ever fills in values the owner hasn't set unless
@@ -30,15 +30,19 @@ export function autoFitRegions(values: Record<string, any> = {}, overwrite = fal
   for (const group of REGION_GROUPS) for (const region of group.regions) {
     const fill = (suffix: string, desktop: any, fit: (v: number) => number) => {
       const key = region.id + "Mobile" + suffix;
+      if (!overwrite && /^Padding(Top|Right|Bottom|Left)$/.test(suffix)
+        && values[region.id + "MobilePadding"] != null && values[region.id + "MobilePadding"] !== "") return;
       if (!isNum(desktop) || (!overwrite && values[key] != null)) return;
       const next = fit(desktop);
       if (next === values[key]) return;
       patch[key] = next;
       changes.push(`${region.label}: phone ${suffix.toLowerCase()} ${next}`);
     };
-    fill("Padding", values[region.id + "Padding"], phonePadding);
-    fill("Size", values[region.id + "Size"], v => v > 28 ? phoneHeadingSize(v) : v);
-    if (region.grid) fill("Columns", values[region.id + "Columns"], v => Math.min(2, v));
+    for (const suffix of ["Padding", "PaddingTop", "PaddingRight", "PaddingBottom", "PaddingLeft", "MarginTop", "MarginRight", "MarginBottom", "MarginLeft", "Gap"]) {
+      fill(suffix, regionValue(values, region.id, suffix, "tablet"), phonePadding);
+    }
+    fill("Size", regionValue(values, region.id, "Size", "tablet"), v => v > 28 ? phoneHeadingSize(v) : v);
+    if (region.grid) fill("Columns", regionValue(values, region.id, "Columns", "tablet"), v => Math.min(2, v));
   }
   return { value: patch, changes };
 }

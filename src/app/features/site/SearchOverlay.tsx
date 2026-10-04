@@ -117,14 +117,14 @@ export function SearchOverlay({
           >
             <div className="flex items-center gap-3 px-5 py-4 border-b border-white/10">
               <Search size={16} className="text-white/40" />
-              <input
+              <input {...regionProps("searchField")}
                 ref={inputRef}
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 placeholder={c("searchPlaceholder")}
                 className="flex-1 bg-transparent outline-none text-sm text-white placeholder:text-[var(--muted)]"
               />
-              <button
+              <button {...regionProps("searchClose")}
                 onClick={onClose}
                 aria-label={c("searchCloseAria")}
                 className="p-1.5 rounded-full hover:bg-white/10 text-white/50 hover:text-white"
@@ -148,7 +148,7 @@ export function SearchOverlay({
                 const photo = b.photos?.[0]?.url || b.coverPhoto?.url || "";
                 const price = b.isOnSale && b.salePrice > 0 ? b.salePrice : b.retailPrice;
                 return (
-                  <Link
+                  <Link {...regionProps("searchResult")}
                     key={b.id}
                     to={`/books/${bookSlug(b)}`}
                     onClick={onClose}

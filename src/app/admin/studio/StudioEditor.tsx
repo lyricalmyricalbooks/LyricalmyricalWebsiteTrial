@@ -1,3 +1,6 @@
+import { StudioCopyField } from "./StudioCopyField";
+import { StudioRegionBrowser } from "./StudioRegionBrowser";
+import { REGION_GROUPS, REGION_SUFFIXES, REGION_DEVICE_LABELS, regionFieldDevice, regionKey, regionValue, type RegionDevice } from "../../features/site/storefrontRegions";
 import { canInlineFormat } from "./richText";
 import { applyContextAction, applySpacing, contextCapabilities, GAP_KEYS, PADDING_KEYS, spacingKey } from "./canvasTools";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -19,7 +22,7 @@ import {
   patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo,
   resolveSharedBlocks, type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
-import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, type StyleField, type StyleGroup } from "./styleSchema";
+import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, type StyleField, type StyleGroup } from "./styleSchema";
 import { StudioPages } from "./StudioPages";
 import { StudioCategories } from "./StudioCategories";
 import { categoryNavOrder } from "./categoryManager";
@@ -68,7 +71,7 @@ function designChecks(design: any) {
   return buildDesignChecks(design, { sectionFields: getSectionFields, blockFields: getBlockFields, blocksKey: getBlocksKey });
 }
 
-const DEVICE_W = { desktop: "100%", tablet: "820px", mobile: "390px" } as const;
+const DEVICE_W = { desktop: "1200px", tablet: "820px", mobile: "390px" } as const;
 
 // ── tiny shared UI bits ────────────────────────────────────────────────────
 const btn =
@@ -451,16 +454,36 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
   const renderStyleField = (g: StyleGroup, f: StyleField) => {
     const local = styleScope === "page" && PAGE_STYLE_GROUPS.has(g.id);
+    const region = REGION_GROUPS.find(group => group.id === g.id)?.regions.find(r => f.key.startsWith('regions.' + r.id));
+    const values = { ...design.regions, ...(local ? design[template.id]?.regions : {}) };
+    const own = readStyle(local ? design[template.id] : design, f.key);
+    const suffix = region ? f.key.slice(('regions.' + regionKey(region.id, "", regionFieldDevice(f.key))).length) : "";
+    const effective = region ? regionValue(values, region.id, suffix, regionFieldDevice(f.key))
+      : (local ? readStyle(design[template.id], f.key) : undefined) ?? readStyle(design, f.key) ?? readStyle(defaults, f.key);
     return (
       <div key={f.key} className="studio-field" data-style-key={f.key}>
-        <SectionFieldEditor field={f as any}
-          value={(local ? readStyle(design[template.id], f.key) : undefined) ?? readStyle(design, f.key) ?? readStyle(defaults, f.key)}
+        <SectionFieldEditor field={f as any} value={effective ?? f.defaultValue}
           onChange={v => setScopedStyle(g.id, f.key, v)}
           uploadFile={file => adminApi.uploadFile(file, 'design/' + Date.now() + '_' + file.name)} />
-        {local && readStyle(design[template.id], f.key) !== undefined && <button className="studio-reset" onClick={() => setScopedStyle(g.id, f.key, undefined)}>Reset to global</button>}
+        {(region || local) && <div className="studio-field-status">
+          <small>{own != null && own !== "" ? "Custom value" : region ? "Inherited from larger size / shared layout" : "Inherited from all pages"}</small>
+          {own !== undefined && <button type="button" className="studio-reset" aria-label={'Reset ' + f.label}
+            onClick={() => setScopedStyle(g.id, f.key, undefined)}>{local ? "Reset to global" : "Reset to inherited"}</button>}
+        </div>}
       </div>
     );
   };
+
+  const openRegion = (id: string, label: string, previewDevice?: RegionDevice) => {
+    if (previewDevice) setDevice(previewDevice);
+    setStyleSearch(""); setStyleCategory(id); setStyleFocus({ id, label });
+    setLeftTab("style"); setSelectedId(null); setBlockId(null);
+  };
+  const resetRegion = (group: string, id: string) => change(d => REGION_SUFFIXES.reduce((next, suffix) => {
+    const path = 'regions.' + regionKey(id, suffix, device);
+    return styleScope === "page" && PAGE_STYLE_GROUPS.has(group)
+      ? applyPageStyle(next, template.id, path, undefined) : applyGlobalStyle(next, path, undefined, surfaceIds);
+  }, d));
 
   // ── preview wiring ──
   const previewUrl = useMemo(() => {
@@ -792,6 +815,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (t.type === "tab") { setLeftTab(t.tab); setStyleFocus(null); setSelectedId(null); setBlockId(null); return; }
     if (t.type === "style") {
       setSelectedId(null); setBlockId(null); setStyleSearch(""); setStyleCategory(t.groupId); setStyleFocus(null); setLeftTab("style");
+      const region = REGION_GROUPS.find(g => g.id === t.groupId)?.regions.find(r => t.key?.startsWith('regions.' + r.id));
+      if (region && t.key) { openRegion(t.groupId, region.label); setDevice(regionFieldDevice(t.key)); }
       const panel = `style:${t.groupId}`;
       setFocus(f => ({ id: panel, nonce: f.nonce + 1 }));
       flashPanel(t.key ? `[data-style-key="${CSS.escape(t.key)}"]` : `[data-studio-panel="${CSS.escape(panel)}"]`, Boolean(t.key));
@@ -1007,20 +1032,37 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
             {leftTab === "style" && styleFocus && !styleSearch && (() => {
               const focusGroup = STYLE_GROUPS.find(g => g.id === styleFocus.id)!;
               const pattern = STYLE_TARGET_FIELDS[styleFocus.label];
-              const picked = pattern
+              const regionGroup = REGION_GROUPS.find(g => g.id === styleFocus.id);
+              const region = regionGroup?.regions.find(r => r.label === styleFocus.label);
+              if (regionGroup && !region) return <Group title={regionGroup.title} open>
+                <StudioRegionBrowser groupId={regionGroup.id} fields={focusGroup.fields} device={device}
+                  values={{ ...design.regions, ...(styleScope === "page" ? design[template.id]?.regions : {}) }} onPick={openRegion} />
+              </Group>;
+              const pickedAll = region ? regionStyleFields(focusGroup, region.id).map(f => ({ g: focusGroup, f })) : pattern
                 ? STYLE_GROUPS.flatMap(g => g.fields.filter(f => pattern.test(f.key)).map(f => ({ g, f })))
                 : focusGroup.fields.map(f => ({ g: focusGroup, f }));
+              const picked = region ? pickedAll.filter(({ f }) => regionFieldDevice(f.key) === device) : pickedAll;
               return (
                 <div className="border-b border-neutral-200 bg-neutral-50" data-studio-panel="style-focus">
                   <div className="px-4 pt-3 pb-2 flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-[10px] font-black tracking-widest uppercase text-neutral-500">You clicked</p>
+                      <p className="text-[10px] font-black tracking-widest uppercase text-neutral-500">Editing element</p>
                       <p className="text-sm font-bold">{styleFocus.label}</p>
                       <p className="text-xs text-neutral-500 mt-0.5">{picked.length} settings for this element{styleScope === "page" ? "" : " · all pages"}</p>
                     </div>
                     <button type="button" className={btn} onClick={() => { setStyleFocus(null); setStyleCategory(null); }}>Back to theme settings</button>
                   </div>
                   <div className="px-4 pb-4 space-y-4">
+                    {region && <div className="studio-region-context">
+                      <p>{REGION_DEVICE_LABELS[device]} · {styleScope === "page" ? template.label : "All pages"}</p>
+                      <p className="studio-hint">{device === "desktop" ? "Base styling for all sizes. Tablet and phone overrides take precedence." : "Blank values inherit from larger sizes. Changes apply at this size and smaller unless overridden."}</p>
+                      <div className="studio-region-actions">
+                        <button type="button" className="studio-reset" onClick={() => resetRegion(styleFocus.id, region.id)}>Reset {REGION_DEVICE_LABELS[device].toLowerCase()} styling</button>
+                        <button type="button" className="studio-reset" onClick={() => {
+                          setTextCategory(region.copy || regionGroup!.copy); setCopyFilter(""); setStyleFocus(null); setLeftTab("text");
+                        }}>Edit words in Text &amp; labels</button>
+                      </div>
+                    </div>}
                     {picked.map(({ g, f }) => renderStyleField(g, f))}
                   </div>
                 </div>
@@ -1031,7 +1073,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               if (!fields.length) return null;
               const local = styleScope === "page" && PAGE_STYLE_GROUPS.has(g.id);
               return <Group key={g.id} id={`style:${g.id}`} title={g.title} hint={local ? "This page only. Reset a field to inherit its global value." : "All pages"} open={Boolean(styleSearch || styleCategory)}>
-                {fields.map(f => renderStyleField(g, f))}
+                {REGION_GROUPS.some(group => group.id === g.id)
+                  ? <StudioRegionBrowser groupId={g.id} fields={fields} device={device}
+                    values={{ ...design.regions, ...(local ? design[template.id]?.regions : {}) }} onPick={openRegion} />
+                  : fields.map(f => renderStyleField(g, f))}
               </Group>;
             })}
             {leftTab === "style" && styleSearch && !STYLE_GROUPS.some(g => g.fields.some(f => (g.title + " " + f.label + " " + f.key).toLowerCase().includes(styleSearch.toLowerCase()))) && <p className="studio-empty">No matching settings.</p>}
@@ -1052,20 +1097,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   if (!fs.length) return null;
                   return (
                     <Group key={g.group} id={`copy:${g.group}`} title={g.group} open={Boolean(q || textCategory)}>
-                      {fs.map((f) => {
-                        const val = design.copy?.[f.key] ?? "";
-                        const Tag: any = f.multiline ? "textarea" : "input";
-                        return (
-                          <label key={f.key} data-copy-key={f.key} className="block">
-                            <span className="text-[10px] font-black tracking-widest uppercase text-neutral-500 block mb-1">{f.label}</span>
-                            <Tag value={val} placeholder={DEFAULT_COPY[f.key]} rows={f.multiline ? 3 : undefined}
-                              onChange={(e: any) => setStyle(`copy.${f.key}`, e.target.value || undefined)}
-                              className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-xs" />
-                            <span className="text-[10px] text-neutral-500">{val ? "Changed from default" : "Using default"}</span>
-                            {f.hint && <span className="text-[11px] text-neutral-500">{f.hint}</span>}
-                          </label>
-                        );
-                      })}
+                      {fs.map(f => <StudioCopyField key={f.key} field={f} design={design}
+                        onChange={value => setStyle('copy.' + f.key, value)} />)}
                     </Group>
                   );
                 })}
@@ -1098,11 +1131,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
 
         {/* preview */}
         <main className="studio-canvas">
-          <div className="studio-canvas-status"><span>{template.label} · {device} · {mode === "edit" ? "Double-click text to type · click other elements for settings" : "Browse your storefront"}</span><span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}</div>
+          <div className="studio-canvas-status"><span>{template.label} · {device} ({DEVICE_W[device]}) · {mode === "edit" ? "Double-click text to type · click other elements for settings" : "Browse your storefront"}</span><span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}</div>
           {template.id === "productPage" && !books.some(b => b.slug === productSlug) ? <p className="studio-empty">Choose an available product above to preview this template.</p> :
-          <div className="studio-preview-frame" style={{ width: DEVICE_W[device], maxWidth: "100%" }}>
+          <div className="studio-preview-viewport"><div className="studio-preview-frame" style={{ width: DEVICE_W[device], minWidth: DEVICE_W[device] }}>
             <iframe ref={iframeRef} key={previewUrl + previewRevision} src={previewUrl} title="Live preview" onLoad={onIframeLoad} className="w-full h-full border-0" />
-          </div>}
+          </div></div>}
         </main>
 
         {selected && (

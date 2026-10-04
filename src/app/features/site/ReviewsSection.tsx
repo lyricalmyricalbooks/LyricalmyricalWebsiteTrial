@@ -125,22 +125,22 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
         )}
 
         {loading ? (
-          <p className="text-[10px] tracking-widest text-white/30 uppercase">{c("reviewsLoading")}</p>
+          <p {...regionProps("reviewsEmpty")} className="text-[10px] tracking-widest text-white/30 uppercase">{c("reviewsLoading")}</p>
         ) : reviews.length === 0 ? (
-          <p className="text-white/40 text-sm mb-12">{c("reviewsEmpty")}</p>
+          <p {...regionProps("reviewsEmpty")} className="text-white/40 text-sm mb-12">{c("reviewsEmpty")}</p>
         ) : (
           <ul {...regionProps("reviewsList")} className="space-y-8 mb-16">
             {reviews.map(r => (
               <li key={r.id} className="border-t border-white/[0.06] pt-8 first:border-t-0 first:pt-0">
                 <div className="flex items-center justify-between mb-3">
                   <Stars value={r.rating} size={13} design={settings?.design} />
-                  <span className="text-[9px] tracking-widest text-white/30 uppercase">
+                  <span {...regionProps("reviewsDate")} className="text-[9px] tracking-widest text-white/30 uppercase">
                     {new Date(r.createdAt).toLocaleDateString()}
                   </span>
                 </div>
-                {r.title && <h4 className="text-sm font-bold text-white mb-2">{r.title}</h4>}
-                <p className="text-white/70 text-sm leading-relaxed mb-3">{r.body}</p>
-                <p className="text-[10px] tracking-widest text-white/40 uppercase">— {r.authorName}</p>
+                {r.title && <h4 {...regionProps("reviewsTitle")} className="text-sm font-bold text-white mb-2">{r.title}</h4>}
+                <p {...regionProps("reviewsBody")} className="text-white/70 text-sm leading-relaxed mb-3">{r.body}</p>
+                <p {...regionProps("reviewsAuthor")} className="text-[10px] tracking-widest text-white/40 uppercase">{c("reviewsAuthor", { author: r.authorName })}</p>
                 {r.reply?.body && (
                   <div {...regionProps("reviewsReply")} className="mt-4 border-l-2 border-white/20 pl-3">
                     <p className="text-[10px] tracking-widest text-white/50 uppercase mb-1">{c("reviewsReply")}</p>
