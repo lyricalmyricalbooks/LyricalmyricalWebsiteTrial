@@ -39,6 +39,13 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "trackingDownloads", label: "Purchased downloads", required: true }, { id: "trackingItems", label: "Order items & totals", required: true },
     { id: "trackingGlow", label: "Tracking background glow" },
   ] },
+  { id: "stripePaymentLayout", title: "Checkout · Stripe payment section", copy: "Checkout", files: ["features/site/StripePaymentSection.tsx"], regions: [
+    { id: "stripePaymentPanel", label: "Stripe payment panel", required: true },
+    { id: "stripePaymentHeader", label: "Stripe payment method selector", required: true },
+    { id: "stripeBrands", label: "Accepted card badges" },
+    { id: "stripePaymentHelp", label: "Stripe hosted checkout help" },
+    { id: "stripePaymentRecovery", label: "Stripe payment recovery", required: true },
+  ] },
   { id: "checkoutLayout", title: "Checkout · layout & elements", copy: "Checkout", files: ["Checkout.tsx"], regions: [
     { id: "checkoutHeader", label: "Checkout header" }, { id: "checkoutProgress", label: "Checkout step labels" },
     { id: "checkoutForm", label: "Checkout form", required: true }, { id: "checkoutSummary", label: "Order summary", required: true },

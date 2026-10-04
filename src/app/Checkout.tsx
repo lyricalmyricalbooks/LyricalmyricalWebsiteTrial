@@ -6,7 +6,7 @@ import { Link } from "react-router";
 import { useCart } from "./CartContext";
 import {
   ChevronLeft, Tag, ShieldCheck, X, AlertCircle,
-  Package, Truck, CreditCard, CheckCircle2, Loader2, Lock, Building, Check
+  Package, Truck, CheckCircle2, Loader2, Lock, Building, Check
 } from "lucide-react";
 import { motion } from "motion/react";
 import { adminApi } from "./admin/api";
@@ -24,7 +24,8 @@ import { StorefrontThemeStyle } from "./features/site/StorefrontThemeStyle";
 import { getCopy, CopyError, copyErrorText } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
-import { isStripePublishableKey } from "./features/site/stripeLifecycle";
+import { StripePaymentSection } from "./features/site/StripePaymentSection";
+import { isStripePublishableKey, stripeCheckoutState, createCheckoutSubmission } from "./features/site/stripeLifecycle";
 import { searchAddresses, type AddressSuggestion } from "./features/site/addressSuggest";
 import { arrivalDateLabel, freeShippingGap } from "./features/site/checkoutNudges";
 import { guessCountryName, parsePinned } from "./features/site/countryPicker";
@@ -165,6 +166,8 @@ export function Checkout() {
 
   const [isApplying, setIsApplying]     = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const submitPurchase = useRef(createCheckoutSubmission());
+  const purchaseNavigating = useRef(false);
   const [orderNote, setOrderNote] = useState("");
   // Announced inline message (replaces alert()); tone drives colour, glyph + words carry the meaning.
   const [notice, setNotice] = useState<null | { tone: "error" | "info"; text: string }>(null);
@@ -207,6 +210,8 @@ export function Checkout() {
   // PaymentIntent so retrying with the same bag doesn't create another order.
   const cardFormRef = useRef<StripeCardFormHandle>(null);
   const [cardState, setCardState] = useState<"loading" | "ready" | "error">("loading");
+  const [hostedSelected, setHostedSelected] = useState(false);
+  const [inlineAttemptStarted, setInlineAttemptStarted] = useState(false);
   const pendingCardOrder = useRef<{ key: string; orderId: string; clientSecret: string } | null>(null);
   const stripePublicKey: string = (settings?.payments?.testMode
     ? settings?.payments?.stripe?.testPublicKey
@@ -214,7 +219,14 @@ export function Checkout() {
   // Studio › Style › Checkout: card form on this page (default) or Stripe's own page.
   const pinnedCountryCodes = useMemo(() => parsePinned(checkoutDesign.checkoutPinnedCountries || undefined), [checkoutDesign.checkoutPinnedCountries]);
   const stripeKeyValid = isStripePublishableKey(stripePublicKey, Boolean(settings?.payments?.testMode));
-  const useCardForm = stripeKeyValid && !checkoutDesign.stripeRedirect;
+  const stripeRoute = stripeCheckoutState({
+    keyValid: stripeKeyValid,
+    redirect: Boolean(checkoutDesign.stripeRedirect),
+    hostedSelected,
+    cardState,
+    paymentStarted: inlineAttemptStarted,
+  });
+  const useCardForm = stripeRoute.inline;
 
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -892,8 +904,8 @@ export function Checkout() {
     }
   }, [customer.address.zip, customer.address.country, customer.address.state]);
 
-  const handleCompletePurchase = async () => {
-    if (selectedPaymentMethod === "stripe" && (!stripeKeyValid || (useCardForm && cardState !== "ready"))) {
+  const completePurchase = async () => {
+    if (selectedPaymentMethod === "stripe" && !stripeRoute.canPay) {
       setNotice({ tone: "error", text: c("coStripeLoadError") });
       return;
     }
@@ -910,7 +922,6 @@ export function Checkout() {
         return;
       }
     }
-    setIsCompleting(true);
     try {
       // 1. Verify and Validate address using Shippo API Cloud Function
       const valResponse = await fetch(functionUrl("validateAddress"), {
@@ -990,6 +1001,7 @@ export function Checkout() {
       const orderId = reuse ? reuse.orderId : await adminApi.createOrder(orderData);
 
       if (isManual) {
+        purchaseNavigating.current = true;
         window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${orderId}&manual=true`;
         return;
       }
@@ -1004,6 +1016,7 @@ export function Checkout() {
         const paypalData = await paypalResponse.json();
         if (!paypalResponse.ok) throw new CopyError(checkoutDesign, "coPaypalError");
         if (!paypalData.approvalUrl) throw new CopyError(checkoutDesign, "coErrPaypalUrl");
+        purchaseNavigating.current = true;
         window.location.href = paypalData.approvalUrl;
         return;
       }
@@ -1016,6 +1029,9 @@ export function Checkout() {
       const successUrl = `${returnUrl}?success=true&order_id=${encodeURIComponent(orderId)}`;
 
       if (payingByCardForm) {
+        // Lock recovery before requesting an intent: even a lost response may
+        // have created a payment. Do not offer a competing hosted route.
+        setInlineAttemptStarted(true);
         let clientSecret = reuse?.clientSecret || "";
         if (!clientSecret) {
           const intentResponse = await fetch(functionUrl("createStripeCheckoutSession"), {
@@ -1031,10 +1047,10 @@ export function Checkout() {
         const result = await cardFormRef.current!.confirm(clientSecret, successUrl);
         if (result.error) {
           setNotice({ tone: "error", text: result.error });
-          setIsCompleting(false);
           return;
         }
         pendingCardOrder.current = null;
+        purchaseNavigating.current = true;
         window.location.href = `${successUrl}&payment_intent=${encodeURIComponent(result.paymentIntentId || "")}`;
         return;
       }
@@ -1052,15 +1068,25 @@ export function Checkout() {
 
       const sessionData = await sessionResponse.json();
       if (sessionData.url) {
+        purchaseNavigating.current = true;
         window.location.href = sessionData.url;
       } else {
         throw new CopyError(checkoutDesign, "coErrNoCheckoutUrl");
       }
     } catch (err: any) {
       setNotice({ tone: "error", text: c("coCheckoutFailed", { error: copyErrorText(err, checkoutDesign, "coStripeError") }) });
-      setIsCompleting(false);
     }
   };
+
+  const handleCompletePurchase = () => submitPurchase.current(async () => {
+    setIsCompleting(true);
+    try {
+      await completePurchase();
+      return purchaseNavigating.current;
+    } finally {
+      if (!purchaseNavigating.current) setIsCompleting(false);
+    }
+  });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1380,50 +1406,42 @@ export function Checkout() {
               <p className="-mt-3 mb-4 text-sm leading-6 text-slate-500">{c("coPaymentNote")}</p>
               <div className="overflow-hidden rounded-lg border border-slate-300 bg-white">
                 {hasStripe && (
-                  <label className="block cursor-pointer">
-                    <div className="flex items-center justify-between gap-4 bg-slate-50 px-4 py-4">
-                      <div className="flex items-center gap-3">
-                        <input type="radio" name="payment-method" checked={selectedPaymentMethod === "stripe"} onChange={() => setSelectedPaymentMethod("stripe")} className="h-4 w-4 accent-[color:var(--accent)]" />
-                        <span className="text-sm font-medium">{c("coCard")}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5" aria-label={c("coCardsAria")}>
-                        {['VISA', 'MC', 'AMEX'].map(card => <span key={card} className="rounded border border-slate-300 bg-white px-1.5 py-1 text-[9px] font-bold text-slate-600">{card}</span>)}
-                      </div>
-                    </div>
-                    {selectedPaymentMethod === "stripe" && useCardForm && (
-                      <div className="border-t border-slate-200 px-4 py-4" onClick={e => e.preventDefault()}>
-                        <StripeCardForm
-                          ref={cardFormRef}
-                          publishableKey={stripePublicKey}
-                          amountCents={Math.round(convertPrice(finalTotal) * 100)}
-                          currency={currency}
-                          loadingText={c("coStripeLoading")}
-                          errorText={c("coStripeLoadError")}
-                          validationText={c("coCardValidationError")}
-                          paymentErrorText={c("coCardPaymentError")}
-                          onStateChange={setCardState}
-                          fontName={checkoutDesign.checkoutFieldFont || checkoutDesign.checkoutFont || checkoutDesign.font || checkoutDesign.bodyFont || undefined}
-                          style={{
-                            background: checkoutDesign.stripeFormBg || undefined,
-                            padding: checkoutDesign.stripeFormPadding != null ? `${checkoutDesign.stripeFormPadding}px` : undefined,
-                            borderRadius: checkoutDesign.checkoutInputRadius != null ? `${checkoutDesign.checkoutInputRadius}px` : undefined,
-                          }}
-                        />
-                      </div>
-                    )}
-                    {selectedPaymentMethod === "stripe" && !stripeKeyValid && <p role="alert" className="px-6 py-4 text-sm">{c("coStripeConfigError")}</p>}
-                    {selectedPaymentMethod === "stripe" && stripeKeyValid && !useCardForm && (
-                      <div className="border-t border-slate-200 px-6 py-7 text-center">
-                        <CreditCard size={34} strokeWidth={1.4} className="mx-auto mb-3 text-slate-400" />
-                        <p className="text-sm text-slate-600">{c("coStripeNote")}</p>
-                      </div>
-                    )}
-                  </label>
+                  <StripePaymentSection
+                    design={checkoutDesign}
+                    selected={selectedPaymentMethod === "stripe"}
+                    inline={useCardForm}
+                    canUseHostedFallback={stripeRoute.canUseHostedFallback}
+                    busy={isCompleting}
+                    onSelect={() => setSelectedPaymentMethod("stripe")}
+                    onHostedFallback={() => {
+                      if (inlineAttemptStarted || isCompleting) return;
+                      setHostedSelected(true);
+                      setNotice(null);
+                    }}
+                  >
+                    <StripeCardForm
+                      ref={cardFormRef}
+                      publishableKey={stripePublicKey}
+                      amountCents={Math.round(convertPrice(finalTotal) * 100)}
+                      currency={currency}
+                      loadingText={c("coStripeLoading")}
+                      errorText={c("coStripeLoadError")}
+                      validationText={c("coCardValidationError")}
+                      paymentErrorText={c("coCardPaymentError")}
+                      onStateChange={setCardState}
+                      fontName={checkoutDesign.checkoutFieldFont || checkoutDesign.checkoutFont || checkoutDesign.font || checkoutDesign.bodyFont || undefined}
+                      style={{
+                        background: checkoutDesign.stripeFormBg || undefined,
+                        padding: checkoutDesign.stripeFormPadding != null ? `${checkoutDesign.stripeFormPadding}px` : undefined,
+                        borderRadius: checkoutDesign.checkoutInputRadius != null ? `${checkoutDesign.checkoutInputRadius}px` : undefined,
+                      }}
+                    />
+                  </StripePaymentSection>
                 )}
                 {enabledManualMethods.map((method: any, index: number) => (
                   <label key={method.id} className={`flex cursor-pointer items-center justify-between gap-4 border-t border-slate-200 px-4 py-4 ${!hasStripe && index === 0 ? "border-t-0" : ""}`}>
                     <div className="flex items-center gap-3">
-                      <input type="radio" name="payment-method" checked={selectedPaymentMethod === `manual_${method.id}`} onChange={() => setSelectedPaymentMethod(`manual_${method.id}`)} className="h-4 w-4 accent-[color:var(--accent)]" />
+                      <input type="radio" name="payment-method" disabled={isCompleting} checked={selectedPaymentMethod === `manual_${method.id}`} onChange={() => setSelectedPaymentMethod(`manual_${method.id}`)} className="h-4 w-4 accent-[color:var(--accent)]" />
                       <span className="text-sm font-medium">{method.name}</span>
                     </div>
                     <Building size={18} className="text-slate-400" />
@@ -1448,7 +1466,7 @@ export function Checkout() {
               <button
                 type="button"
                 onClick={handleCompletePurchase}
-                disabled={isCompleting || (selectedPaymentMethod === "stripe" && (!stripeKeyValid || (useCardForm && cardState !== "ready"))) || (!hasStripe && !hasPaypal && enabledManualMethods.length === 0)}
+                disabled={isCompleting || (selectedPaymentMethod === "stripe" && !stripeRoute.canPay) || (!hasStripe && !hasPaypal && enabledManualMethods.length === 0)}
                 className="flex w-full items-center justify-center gap-2 rounded-lg fm-accent-bg px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isCompleting ? <><Loader2 size={18} className="animate-spin" /> {c("coProcessing")}</> : <><Lock size={16} /> {paymentLabel}</>}

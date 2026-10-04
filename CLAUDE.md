@@ -652,3 +652,26 @@ mount after that refreshes it. Failed requests remain retryable and session-cach
 stays visible during refresh. The session cache is read only when a hook mounts, rather than
 on every render. Studio snapshots still override backend data. Authoritative checkout prices,
 stock validation and webhook payment handling are unchanged.
+
+
+## Stripe checkout payment section (4 October 2026)
+
+Checkout inserts `features/site/StripePaymentSection.tsx`: the method radio label
+is separate from Stripe's interactive fields. Valid mode-matched browser keys
+use the inline Payment Element; missing/invalid browser keys and Studio's
+`stripeRedirect` setting use server-created hosted Checkout. Hosted checkout
+still requires a valid server credential. A stalled inline loader fails after
+20 seconds and offers an explicit hosted recovery before any inline intent
+request. Once an inline attempt starts, recovery cannot switch payment routes.
+Studio > Style > Checkout · Stripe payment section owns responsive panel,
+selector, card badges, hosted help and recovery layout; required payment/recovery
+controls cannot be hidden. Text & labels > Checkout owns all labels, badge text
+and recovery copy. Existing card-form background, padding, radius and fonts
+continue to apply. Hosted Checkout uses Dashboard-managed dynamic methods;
+server totals and webhook-only paid-order/inventory authority are unchanged.
+Frontend and Functions deployment plus an authenticated sandbox payment/webhook
+walkthrough are required before claiming deployed payment verification.
+
+Checkout submission locks synchronously before asynchronous field validation,
+disables payment-method switches while processing, and retains the lock during
+provider navigation. Failed validation/service calls release it for correction.

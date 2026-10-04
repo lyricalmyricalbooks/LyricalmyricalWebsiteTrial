@@ -698,3 +698,27 @@ and production payment/order flows remain separate verification.
 - [x] Selected preview sizes retain their viewport widths (1200px desktop, 820px tablet,
   390px phone) with canvas scrolling. Narrow editor windows cannot silently activate
   another breakpoint. Browser verification reproduced and repaired this mismatch.
+
+
+## Stripe checkout payment section (4 October 2026)
+
+- [x] Insert a Stripe payment panel with separate method selection and interactive
+  Payment Element fields, mode-validated inline initialization, and hosted recovery.
+- [x] Studio > Style > Checkout · Stripe payment section exposes responsive
+  panel, selector, badges, hosted help and recovery controls. Badge/help visibility
+  is optional; payment selection and recovery remain required. Auto-fit derives
+  phone overrides from the same public-region manifest.
+- [x] Text & labels > Checkout owns card brand text, hosted explanation and
+  recovery action. Card form appearance uses the existing checkout controls.
+- [x] Hosted checkout does not depend on a browser publishable key. Inline load
+  failure (including a 20-second deadline) exposes explicit recovery only before
+  an inline payment attempt. An attempt locks that route to avoid a competing charge.
+
+Hosted Checkout needs the server Stripe credential and uses Dashboard-managed
+payment methods. Local UI/test coverage is separate from authenticated Studio
+save/publish and real sandbox payment, webhook, refund and email verification.
+Deploy the frontend and updated Functions together.
+
+Checkout submission locks synchronously before asynchronous field validation,
+disables payment-method switches while processing, and retains the lock during
+provider navigation. Failed validation/service calls release it for correction.
