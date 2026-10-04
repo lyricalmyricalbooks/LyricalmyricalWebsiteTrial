@@ -44,4 +44,9 @@ describe('local fulfillment persistence authorization', () => {
   await expect(adminApi.updateLocalFulfillment({ ...config, deliveryZones: [{ id: 'bad', enabled: true, name: 'Bad', price: -1, minimumSubtotal: 0, postalPrefixes: ['M6G'], postalCodes: [] }] })).rejects.toThrow('Fees');
   expect(setDoc).not.toHaveBeenCalled();
  });
+ it('rejects a disabled pickup with a missing address before writing', async () => {
+  taskAuth.currentUser = { email: 'lyricalmyricalbooks@gmail.com', emailVerified: true };
+  await expect(adminApi.updateLocalFulfillment({ ...config, pickupLocations: [{ id: 'pickup', enabled: false, name: 'Pickup', price: 0, address: null }] })).rejects.toThrow('Pickup address');
+  expect(setDoc).not.toHaveBeenCalled();
+ });
 });

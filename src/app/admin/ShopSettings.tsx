@@ -45,7 +45,7 @@ import { NotificationEditor } from "./NotificationEditor";
 import { COUNTRIES, CONTINENTS, describeZoneGeography } from "../features/site/shippingZones";
 import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPES, starterZones } from "./shippingHealth";
 import { quoteShipping } from "../features/site/shippingEngine";
-import { LocalFulfillmentSettings } from "./LocalFulfillmentSettings";
+import { LocalFulfillmentSettings, useLocalFulfillmentDraft } from "./LocalFulfillmentSettings";
 import { paymentHealth } from "./paymentHealth";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames } from "./shippingCountries";
 
@@ -611,6 +611,7 @@ function normalizeRate(r: any) {
 }
 
 function ShippingSettings({ profiles, refreshProfiles }: any) {
+  const localFulfillmentDraft = useLocalFulfillmentDraft();
   const [askConfirm, confirmNode] = useConfirm();
   const [books, setBooks] = useState<any[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
@@ -1056,7 +1057,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
           { id: "carrier", label: "Carrier & labels" },
           { id: "local", label: "Pickup & local delivery" },
         ]} />
-        {shippingView === "local" && <LocalFulfillmentSettings />}
+        {shippingView === "local" && <LocalFulfillmentSettings draft={localFulfillmentDraft} />}
 
         {shippingView === "overview" && (
           <>

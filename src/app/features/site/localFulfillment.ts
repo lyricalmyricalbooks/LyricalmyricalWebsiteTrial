@@ -20,6 +20,7 @@ export function validateLocalFulfillment(config: any) {
       if (!record || !money(record.price)) errors.push('Fees must be valid non-negative amounts with at most two decimals.');
       if (!record || typeof record.name !== 'string' || !record.name.trim() || record.name.length > 200) errors.push('Every option needs a name (up to 200 characters).');
       for (const field of ['instructions', 'hours', 'estimate']) if (record?.[field] !== undefined && (typeof record[field] !== 'string' || record[field].length > 4000)) errors.push('Public instructions, hours and estimates must be text up to 4000 characters.');
+      if (kind === 'pickup' && (!record?.address || typeof record.address !== 'object' || Array.isArray(record.address) || !['street', 'city', 'state', 'zip', 'country'].every(key => typeof record.address[key] === 'string'))) errors.push('Pickup address fields must be text, even while disabled.');
       if (kind === 'pickup' && record?.enabled && !validPickupAddress(record.address)) errors.push('Enabled pickup needs a complete Canadian address and valid postal code.');
       if (kind === 'delivery') {
         if (!money(record?.minimumSubtotal)) errors.push('Delivery minimum must be a valid non-negative amount.');
@@ -34,13 +35,10 @@ export function validateLocalFulfillment(config: any) {
 export function quoteLocalFulfillment(config: LocalFulfillmentConfig | undefined, destination: any, cartSubtotal: number, physicalItems: any[]): LocalFulfillmentQuote[] {
   if (!config?.enabled || !money(cartSubtotal) || !Array.isArray(physicalItems) || !physicalItems.some(item => item && !/digital|ebook|e-book|epub|pdf|audiobook/i.test(String(item.format || '')) && item.digital !== true && item.isDigital !== true && Number.isInteger(item.quantity) && item.quantity > 0) || validateLocalFulfillment(config).length) return [];
   const quotes: LocalFulfillmentQuote[] = [];
-  for (const location of config.pickupLocations) if (location.enabled) quotes.push({ id: `pickup:${location.id}`, method: 'pickup', locationId: location.id, name: location.name, price: location.price, address: { ...location.address, zip: normalizePostalCode(location.address.zip || location.address.postalCode) }, instructions: location.instructions ?? '', hours: location.hours ?? '', estimate: location.estimate ?? '' });
+  for (const location of config.pickupLocations) if (location.enabled) quotes.push({ id: `pickup:${location.id}`, method: 'pickup', locationId: location.id, name: location.name, price: Math.round(location.price * 100) / 100, address: { ...location.address, zip: normalizePostalCode(location.address.zip || location.address.postalCode) }, instructions: location.instructions ?? '', hours: location.hours ?? '', estimate: location.estimate ?? '' });
   const postal = normalizePostalCode(destination?.zip || destination?.postalCode);
   if (canadian(destination?.country) && postalPattern.test(postal)) for (const zone of config.deliveryZones) {
-    if (zone.enabled && cartSubtotal >= zone.minimumSubtotal && (zone.postalPrefixes.some(prefix => postal.startsWith(normalizePostalCode(prefix))) || zone.postalCodes.some(code => postal === normalizePostalCode(code)))) quotes.push({ id: `local_delivery:${zone.id}`, method: 'local_delivery', zoneId: zone.id, name: zone.name, price: zone.price, instructions: zone.instructions ?? '', estimate: zone.estimate ?? '' });
+    if (zone.enabled && Math.round(cartSubtotal * 100) >= Math.round(zone.minimumSubtotal * 100) && (zone.postalPrefixes.some(prefix => postal.startsWith(normalizePostalCode(prefix))) || zone.postalCodes.some(code => postal === normalizePostalCode(code)))) quotes.push({ id: `local_delivery:${zone.id}`, method: 'local_delivery', zoneId: zone.id, name: zone.name, price: Math.round(zone.price * 100) / 100, instructions: zone.instructions ?? '', estimate: zone.estimate ?? '' });
   }
   return quotes;
 }
-
-
-

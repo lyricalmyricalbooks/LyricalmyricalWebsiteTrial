@@ -42,3 +42,19 @@ describe('local fulfillment browser/server parity', () => {
   });
 });
 
+
+it('compares calculated subtotals in cents at minimum boundaries', () => {
+  for (const [subtotal, minimum] of [[0.1 + 0.7, 0.8], [0.29 * 100, 29]]) {
+    const settings = { ...config, pickupLocations: [], deliveryZones: [{ ...config.deliveryZones[0], minimumSubtotal: minimum }] };
+    expect(quoteLocalFulfillment(settings, destination, subtotal, [{ quantity: 1 }])).toHaveLength(1);
+    expect(server.quoteLocalFulfillment(settings, destination, subtotal, [{ quantity: 1 }])).toHaveLength(1);
+  }
+});
+it('rejects malformed inactive pickup address shapes without requiring active address values', () => {
+  for (const address of [undefined, null, '', { street: 4 }]) {
+    const settings = { ...config, pickupLocations: [{ ...config.pickupLocations[0], enabled: false, address }] };
+    expect(validateLocalFulfillment(settings).length).toBeGreaterThan(0);
+    expect(server.validateLocalFulfillment(settings).length).toBeGreaterThan(0);
+  }
+  expect(validateLocalFulfillment({ ...config, pickupLocations: [{ ...config.pickupLocations[0], enabled: false, address: { street: '', city: '', state: '', zip: '', country: '' } }] })).toEqual([]);
+});
