@@ -312,3 +312,27 @@ promise from the order date; carrier terms stay separate from numeric days. Labe
 and unavailable timing are editable in Studio > Text & labels > Checkout. Static profile estimates
 retain their existing Studio-controlled presentation. Deploy the updated `getShippoRates` Function
 with the frontend. Live carrier response verification is separate from fixture-based tests.
+
+
+## Responsive public element editing (4 October 2026)
+
+Studio > Theme settings groups built-in public elements in a searchable element browser,
+including hidden elements and conditional states. Selecting one opens only that element's
+controls for the active desktop/tablet/phone preview, with an Edit words shortcut. Spacing
+on each side, margins, dimensions, borders, typography, colors, optional visibility and
+supported image cropping/grid columns are editable at each size. Tablet inherits desktop;
+phone inherits tablet. Per-field resets and Reset size styling remove overrides in one
+undoable draft change; All pages / This page only retain unrelated region settings.
+Auto-fit for phones includes side spacing and uses tablet values where provided.
+Required purchase, consent and recovery controls have presentation controls without hide
+switches. Responsive visibility preserves the element's original flex/grid display.
+Newsletter heading/description/form/button/status, search input/close/result rows/covers,
+and individual review titles/body/authors/dates/states have explicit click-to-edit regions.
+Text & labels displays effective defaults, preserves intentionally blank copy, and offers
+Reset to default. Inline text uses the same page-aware writer so stale page copy cannot
+shadow the new value. Copy changes preserve unrelated labels on other pages.
+Local fixture checks do not certify authenticated Firestore publishing or live commerce.
+
+Preview canvases retain their selected viewport width (1200px desktop, 820px tablet,
+390px phone) in a scrollable canvas, so narrow editor windows cannot activate the
+wrong breakpoint while the owner edits a different device.

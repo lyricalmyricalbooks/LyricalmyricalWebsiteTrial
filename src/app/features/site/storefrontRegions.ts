@@ -1,13 +1,16 @@
 // One public-region contract shared by Studio's controls and the live CSS layer.
 // Defaults stay in the existing layouts; unset controls emit no overrides.
-type Region = { id: string; label: string; required?: boolean; grid?: boolean; copy?: string };
-type RegionGroup = { id: string; title: string; copy: string; files: string[]; regions: Region[] };
+export type Region = { id: string; label: string; required?: boolean; grid?: boolean; image?: boolean; copy?: string };
+export type RegionGroup = { id: string; title: string; copy: string; files: string[]; regions: Region[] };
 export const REGION_GROUPS: RegionGroup[] = [
   { id: "catalogElements", title: "Catalog & shared content · layout", copy: "Search & filters", files: ["features/site/CatalogControls.tsx", "features/site/RecentlyViewedRow.tsx", "components/MainSite.tsx"], regions: [
     { id: "catalogSearch", label: "Catalog search field" }, { id: "catalogSort", label: "Catalog sort selector" },
     { id: "catalogStock", label: "In-stock filter" }, { id: "catalogResults", label: "Filter result count" },
     { id: "recentGrid", label: "Recently viewed grid", grid: true, copy: "Collection & wishlist pages" },
-    { id: "newsletterPanel", label: "Newsletter layout", copy: "Newsletter" },
+    { id: "newsletterPanel", label: "Newsletter box", copy: "Newsletter" },
+    { id: "newsletterHeading", label: "Newsletter heading", copy: "Newsletter" }, { id: "newsletterText", label: "Newsletter description", copy: "Newsletter" },
+    { id: "newsletterForm", label: "Newsletter form", copy: "Newsletter" }, { id: "newsletterButton", label: "Newsletter button", copy: "Newsletter", required: true },
+    { id: "newsletterStatus", label: "Newsletter success & error", copy: "Newsletter" },
     { id: "footerPanel", label: "Footer layout", required: true, copy: "Footer" },
   ] },
   { id: "productContent", title: "Product details · content layout", copy: "Product page", files: ["features/site/BookDetail.tsx"], regions: [
@@ -17,7 +20,7 @@ export const REGION_GROUPS: RegionGroup[] = [
   { id: "wishlistLayout", title: "Wishlist · layout & elements", copy: "Collection & wishlist pages", files: ["features/site/Wishlist.tsx"], regions: [
     { id: "wishlistHeader", label: "Wishlist header" }, { id: "wishlistTitle", label: "Wishlist title" },
     { id: "wishlistCount", label: "Saved-book count" }, { id: "wishlistEmpty", label: "Empty wishlist" },
-    { id: "wishlistGrid", label: "Saved-book grid", grid: true }, { id: "wishlistPhoto", label: "Saved-book photo" },
+    { id: "wishlistGrid", label: "Saved-book grid", grid: true }, { id: "wishlistPhoto", label: "Saved-book photo", image: true },
     { id: "wishlistActions", label: "Saved-book actions" },
   ] },
   { id: "accountLayout", title: "Customer account · layout & elements", copy: "Customer account", files: ["features/site/Account.tsx"], regions: [
@@ -43,12 +46,16 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "checkoutEmpty", label: "Empty cart", required: true },
   ] },
   { id: "searchLayout", title: "Search · layout & elements", copy: "Search & filters", files: ["features/site/SearchOverlay.tsx"], regions: [
-    { id: "searchPanel", label: "Search panel", required: true }, { id: "searchPrompt", label: "Search guidance" },
-    { id: "searchEmpty", label: "No search results" }, { id: "searchPhoto", label: "Result cover" },
+    { id: "searchPanel", label: "Search panel", required: true },
+    { id: "searchField", label: "Search input", required: true }, { id: "searchClose", label: "Close search button", required: true },
+    { id: "searchResult", label: "Search result row", required: true }, { id: "searchPrompt", label: "Search guidance" },
+    { id: "searchEmpty", label: "No search results" }, { id: "searchPhoto", label: "Result cover", image: true },
     { id: "searchAuthor", label: "Result author" },
   ] },
   { id: "reviewsLayout", title: "Reviews · layout & elements", copy: "Reviews", files: ["features/site/ReviewsSection.tsx"], regions: [
     { id: "reviewsHeading", label: "Reviews heading" }, { id: "reviewsList", label: "Published reviews" },
+    { id: "reviewsEmpty", label: "Reviews loading & empty state" }, { id: "reviewsTitle", label: "Review title" },
+    { id: "reviewsBody", label: "Review body" }, { id: "reviewsAuthor", label: "Review author" }, { id: "reviewsDate", label: "Review date" },
     { id: "reviewsForm", label: "Write a review" }, { id: "reviewsReply", label: "Publisher replies" },
     { id: "reviewsGuidance", label: "Review moderation note" },
   ] },
@@ -79,51 +86,109 @@ export function regionProps(id: string) {
 
 export function regionVisible(design: any, id: string): boolean {
   const region = REGION_GROUPS.flatMap(g => g.regions).find(r => r.id === id);
-  return Boolean(region?.required) || design?.regions?.[id + "Visible"] !== false;
+  return Boolean(region?.required) || REGION_DEVICES.some(device => regionValue(design?.regions, id, "Visible", device) !== false);
 }
 
-const numeric = (value: unknown, max: number) => value !== "" && value != null && Number.isFinite(Number(value))
-  ? Math.max(0, Math.min(max, Number(value))) : undefined;
+export const REGION_DEVICES = ["desktop", "tablet", "mobile"] as const;
+export type RegionDevice = typeof REGION_DEVICES[number];
+export const REGION_DEVICE_LABELS = { desktop: "Desktop", tablet: "Tablet", mobile: "Phone" };
+export const REGION_SUFFIXES = ["Visible", "Padding", "PaddingTop", "PaddingRight", "PaddingBottom", "PaddingLeft",
+  "MarginTop", "MarginRight", "MarginBottom", "MarginLeft", "Gap", "Radius", "Width", "ElementWidth", "Height", "BorderWidth", "ImageFit", "ImagePositionX", "ImagePositionY",
+  "Background", "Border", "Color", "Size", "LineHeight", "LetterSpacing", "Font", "Weight", "Case", "Align", "Columns"];
+
+export function regionKey(id: string, suffix: string, device: RegionDevice = "desktop") {
+  return id + (device === "desktop" ? "" : device === "tablet" ? "Tablet" : "Mobile") + suffix;
+}
+
+/** Phone inherits tablet, tablet inherits desktop; missing values preserve the existing layout. */
+export function regionValue(values: any, id: string, suffix: string, device: RegionDevice = "desktop"): any {
+  const chain: RegionDevice[] = device === "mobile" ? ["mobile", "tablet", "desktop"] : device === "tablet" ? ["tablet", "desktop"] : ["desktop"];
+  for (const size of chain) {
+    const value = values?.[regionKey(id, suffix, size)];
+    if (value != null && value !== "") return value;
+    if (/^Padding(Top|Right|Bottom|Left)$/.test(suffix)) {
+      const shorthand = values?.[regionKey(id, "Padding", size)];
+      if (shorthand != null && shorthand !== "") return shorthand;
+    }
+  }
+  return undefined;
+}
+
+export function regionFieldDevice(key: string): RegionDevice {
+  return /(?:Mobile)[A-Z]/.test(key) ? "mobile" : /(?:Tablet)[A-Z]/.test(key) ? "tablet" : "desktop";
+}
+
+const numeric = (value: unknown, max: number, min = 0) => value !== "" && value != null && Number.isFinite(Number(value))
+  ? Math.max(min, Math.min(max, Number(value))) : undefined;
 const safe = (value: unknown) => typeof value === "string" && !/[;{}<>]/.test(value) ? value : "";
 
 /** CSS targets the same existing DOM elements in the iframe and published storefront. */
 export function storefrontRegionCss(design: any): string {
   const values = design?.regions || {};
   return REGION_GROUPS.flatMap(group => group.regions.map(region => {
-    const value = (suffix: string) => values[region.id + suffix];
-    const selector = `[data-fm-store] [data-store-region="${region.id}"], [data-fm-store][data-store-region="${region.id}"]`;
-    const rules: string[] = [];
-    const add = (property: string, v: any, unit = "") => { if (v !== undefined && v !== "") rules.push(`${property}:${v}${unit} !important;`); };
-    if (!region.required && value("Visible") === false) add("display", "none");
-    add("padding", numeric(value("Padding"), 120), "px");
-    add("gap", numeric(value("Gap"), 120), "px");
-    add("border-radius", numeric(value("Radius"), 120), "px");
-    add("max-width", numeric(value("Width"), 2400), "px");
-    add("background-color", safe(value("Background")));
-    add("border-color", safe(value("Border")));
-    if (safe(value("Border"))) { add("border-style", "solid"); add("border-width", "1px"); }
-    if (region.grid && numeric(value("Columns"), 6)) add("grid-template-columns", `repeat(${Math.round(numeric(value("Columns"), 6)!)}, minmax(0, 1fr))`);
-    let css = rules.length ? `${selector}{${rules.join("")}}` : "";
-    const text: string[] = [];
-    const size = numeric(value("Size"), 180);
-    if (size != null && size > 0) text.push(`font-size:${size}px !important;`);
-    if (safe(value("Color"))) text.push(`color:${safe(value("Color"))} !important;`);
-    if (safe(value("Font"))) text.push(`font-family:'${safe(value("Font")).replace(/'/g, "")}',sans-serif !important;`);
-    if (["300", "400", "500", "600", "700", "800", "900"].includes(String(value("Weight")))) text.push(`font-weight:${value("Weight")} !important;`);
-    if (["inherit", "none", "uppercase", "lowercase", "capitalize"].includes(value("Case"))) text.push(`text-transform:${value("Case")} !important;`);
-    if (["left", "center", "right"].includes(value("Align"))) text.push(`text-align:${value("Align")} !important;`);
-    if (text.length) css += `${selector},[data-fm-store] [data-store-region="${region.id}"] :where(h1,h2,h3,h4,h5,h6,p,span,label,input,textarea,select,button,a,dt,dd,li,code){${text.join("")}}`;
-    const phone: string[] = [];
-    const padding = numeric(value("MobilePadding"), 120);
-    if (padding != null) phone.push(`padding:${padding}px !important;`);
-    if (region.grid && numeric(value("MobileColumns"), 6)) phone.push(`grid-template-columns:repeat(${Math.round(numeric(value("MobileColumns"), 6)!)}, minmax(0, 1fr)) !important;`);
-    if (phone.length) css += `@media(max-width:639px){${selector}{${phone.join("")}}}`;
-    const phoneSize = numeric(value("MobileSize"), 180);
-    if (phoneSize && phoneSize > 0) css += `@media(max-width:639px){${selector},[data-fm-store] [data-store-region="${region.id}"] :where(h1,h2,h3,h4,h5,h6,p,span,label,input,textarea,select,button,a,dt,dd,li,code){font-size:${phoneSize}px !important;}}`;
+    const selector = '[data-fm-store] [data-store-region="' + region.id + '"], [data-fm-store][data-store-region="' + region.id + '"]';
+    const textSelector = selector + ',[data-fm-store] [data-store-region="' + region.id + '"] :where(h1,h2,h3,h4,h5,h6,p,span,label,input,textarea,select,button,a,dt,dd,li,code)';
+    let css = "";
+    // Visibility uses disjoint media ranges so showing a phone element restores its original
+    // flex/grid display, and never replaces that display with the browser's block default.
+    if (!region.required) {
+      const responsive = ["tablet", "mobile"].some(d => values[regionKey(region.id, "Visible", d as RegionDevice)] != null);
+      if (!responsive && values[region.id + "Visible"] === false) css += selector + '{display:none !important;}';
+      else if (responsive) {
+        const ranges = ["(min-width:1024px)", "(min-width:640px) and (max-width:1023px)", "(max-width:639px)"];
+        REGION_DEVICES.forEach((device, i) => {
+          if (regionValue(values, region.id, "Visible", device) === false) css += '@media' + ranges[i] + '{' + selector + '{display:none !important;}}';
+        });
+      }
+    }
+    for (const device of REGION_DEVICES) {
+      const value = (suffix: string) => values[regionKey(region.id, suffix, device)];
+      const rules: string[] = [], text: string[] = [];
+      const add = (property: string, v: any, unit = "", target = rules) => { if (v !== undefined && v !== "") target.push(property + ':' + v + unit + ' !important;'); };
+      add("padding", numeric(value("Padding"), 120), "px");
+      for (const side of ["Top", "Right", "Bottom", "Left"]) {
+        add("padding-" + side.toLowerCase(), numeric(value("Padding" + side), 120), "px");
+        add("margin-" + side.toLowerCase(), numeric(value("Margin" + side), 240), "px");
+      }
+      add("gap", numeric(value("Gap"), 120), "px");
+      add("border-radius", numeric(value("Radius"), 120), "px");
+      add("max-width", numeric(value("Width"), 2400), "px");
+      add("width", numeric(value("ElementWidth"), 2400), "px");
+      add("height", numeric(value("Height"), 2400), "px");
+      add("background-color", safe(value("Background")));
+      add("border-color", safe(value("Border")));
+      if (safe(value("Border")) || value("BorderWidth") != null) {
+        add("border-style", "solid");
+        add("border-width", numeric(regionValue(values, region.id, "BorderWidth", device), 20) ?? 1, "px");
+      }
+      if (region.grid && numeric(value("Columns"), 6)) add("grid-template-columns", 'repeat(' + Math.round(numeric(value("Columns"), 6)!) + ', minmax(0, 1fr))');
+      const size = numeric(value("Size"), 180);
+      if (size != null && size > 0) add("font-size", size, "px", text);
+      add("line-height", numeric(value("LineHeight"), 3, 0.5), "", text);
+      add("letter-spacing", numeric(value("LetterSpacing"), 20, -5), "px", text);
+      add("color", safe(value("Color")), "", text);
+      if (safe(value("Font"))) add("font-family", "'" + safe(value("Font")).replace(/'/g, "") + "',sans-serif", "", text);
+      if (["300", "400", "500", "600", "700", "800", "900"].includes(String(value("Weight")))) add("font-weight", value("Weight"), "", text);
+      if (["inherit", "none", "uppercase", "lowercase", "capitalize"].includes(value("Case"))) add("text-transform", value("Case"), "", text);
+      if (["left", "center", "right"].includes(value("Align"))) add("text-align", value("Align"), "", text);
+      let imageCss = "";
+      if (region.image) {
+        const imageRules: string[] = [];
+        if (["cover", "contain", "fill", "none", "scale-down"].includes(value("ImageFit"))) add("object-fit", value("ImageFit"), "", imageRules);
+        if (value("ImagePositionX") != null || value("ImagePositionY") != null) {
+          const x = numeric(regionValue(values, region.id, "ImagePositionX", device), 100) ?? 50;
+          const y = numeric(regionValue(values, region.id, "ImagePositionY", device), 100) ?? 50;
+          add("object-position", x + '% ' + y + '%', "", imageRules);
+        }
+        if (imageRules.length) imageCss = '[data-fm-store] [data-store-region="' + region.id + '"] img{' + imageRules.join("") + '}';
+      }
+      const body = imageCss + (rules.length ? selector + '{' + rules.join("") + '}' : "") + (text.length ? textSelector + '{' + text.join("") + '}' : "");
+      if (body) css += device === "desktop" ? body : '@media(max-width:' + (device === "tablet" ? 1023 : 639) + 'px){' + body + '}';
+    }
     return css;
   })).join("\n").trim();
 }
 
 export function regionFontNames(design: any): string[] {
-  return REGION_GROUPS.flatMap(g => g.regions.map(r => safe(design?.regions?.[r.id + "Font"]))).filter(Boolean);
+  return [...new Set(REGION_GROUPS.flatMap(g => g.regions.flatMap(r => REGION_DEVICES.map(device => safe(design?.regions?.[regionKey(r.id, "Font", device)])))).filter(Boolean))];
 }

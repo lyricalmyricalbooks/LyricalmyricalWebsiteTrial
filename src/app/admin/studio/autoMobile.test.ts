@@ -130,3 +130,18 @@ it("resets new phone/tablet spacing overrides without clearing desktop spacing",
  expect(Object.keys(patch)).toEqual(expect.arrayContaining(["mobilePaddingLeft","tabletPaddingRight","mobileGridGap","tabletGap"]));
  expect(patch).not.toHaveProperty("paddingLeft");
 });
+
+it("keeps side spacing, tablet inheritance and zeroes when auto-fitting public regions", async () => {
+  const { autoFitRegions } = await import("./autoMobile");
+  const result = autoFitRegions({ wishlistTitlePaddingLeft: 0, wishlistTitleTabletPaddingRight: 80,
+    wishlistTitleMobilePaddingBottom: 0, wishlistTitlePaddingBottom: 60 });
+  expect(result.value.wishlistTitleMobilePaddingLeft).toBe(0);
+  expect(result.value.wishlistTitleMobilePaddingRight).toBe(44);
+  expect(result.value).not.toHaveProperty("wishlistTitleMobilePaddingBottom");
+});
+
+it("preserves an explicit phone padding shorthand instead of generating conflicting sides", () => {
+  const result = autoFitRegions({ wishlistTitlePadding: 40, wishlistTitleMobilePadding: 8 });
+  for (const side of ["Top", "Right", "Bottom", "Left"]) expect(result.value).not.toHaveProperty("wishlistTitleMobilePadding" + side);
+  expect(autoFitRegions({ wishlistTitlePadding: 40, wishlistTitleMobilePadding: 8 }, true).value.wishlistTitleMobilePaddingTop).toBe(24);
+});

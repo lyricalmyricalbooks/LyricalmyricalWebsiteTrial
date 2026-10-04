@@ -666,3 +666,35 @@ The editor root is now `.rp` and follows the admin appearance (`appearance` prop
 Required checkout, sign-in, order-access and consent controls remain functional: their presentation is editable, but the region system does not offer a hide toggle. Catalog/customer/order records and Stripe's embedded secure fields retain their own data and validation authority. Publishing a design cannot change charge totals or mark orders paid.
 
 Verification uses route-resolution/region/schema/copy regressions and a local Studio fixture: Home, Catalog, Collection, Product, Wishlist, signed-out Account, Tracking, 404 and empty Cart render their corresponding section stacks. Authenticated customer states, owner Firestore save/publish and a live Stripe order require separate authenticated production verification; the fixture does not certify those flows.
+
+
+## Responsive public element editing — DONE (4 October 2026)
+
+- [x] Browse built-in public elements by category/search, including hidden elements and
+  conditional messages. Select an element to edit its active-device controls, or jump to
+  its Text & labels category. Find anything opens the correct element and preview size.
+- [x] Desktop/tablet/phone controls for per-side padding/margins, gap, dimensions, corner
+  radius/border thickness, colors, font/weight/case/alignment/size/line-height/letter-spacing,
+  optional visibility and supported image fit/focal points/grid columns. Existing keys and
+  unset designs retain their appearance. Phone inherits tablet, then desktop.
+- [x] Reset individual overrides or the selected size in one undoable draft action. All
+  pages writes and This page only resets preserve unrelated settings and section stacks.
+  Required commerce/consent/recovery regions cannot be hidden. Device visibility uses
+  disjoint media ranges so showing an element retains its original flex/grid layout.
+- [x] Auto-fit includes side spacing, margins and gap, reads tablet overrides, and keeps
+  manual phone values including zeroes.
+- [x] Separate click-to-edit controls for newsletter content/form/actions/messages, search
+  input/close/result rows/covers, and review title/body/author/date/empty/loading states.
+- [x] Text & labels shows effective defaults and distinguishes Custom text, Intentionally
+  blank and Using default. Clear means blank; Reset to default restores the fallback.
+  Inline edits follow the same page-aware copy writer and preserve unrelated labels.
+
+Verification includes automated copy/region/CSS/auto-fit regressions and a local Studio
+fixture exercising rendering at 1440px, 820px and 390px, hidden-element selection,
+page scope, copy clear/reset, undo, search routing, and captured save/publish snapshots.
+Fixture persistence captures data locally; owner-authenticated Firestore saves/publishing
+and production payment/order flows remain separate verification.
+
+- [x] Selected preview sizes retain their viewport widths (1200px desktop, 820px tablet,
+  390px phone) with canvas scrolling. Narrow editor windows cannot silently activate
+  another breakpoint. Browser verification reproduced and repaired this mismatch.

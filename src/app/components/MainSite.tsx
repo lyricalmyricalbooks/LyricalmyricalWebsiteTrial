@@ -166,13 +166,13 @@ function Newsletter({ design }: { design?: any }) {
   return (
     <div {...regionProps("newsletterPanel")} data-studio-target="style:catalogElements|copy:Newsletter" data-studio-label="Newsletter box" className="py-16 border-t border-white/10 text-center space-y-6">
       <div className="space-y-2">
-        <h3 className="text-lg font-bold tracking-tight">{getCopy(design, "newsletterHeading")}</h3>
-        <p className="text-white/40 text-xs tracking-widest max-w-sm mx-auto">
+        <h3 {...regionProps("newsletterHeading")} className="text-lg font-bold tracking-tight">{getCopy(design, "newsletterHeading")}</h3>
+        <p {...regionProps("newsletterText")} className="text-white/40 text-xs tracking-widest max-w-sm mx-auto">
           {getCopy(design, "newsletterText")}
         </p>
       </div>
       {status === "success" ? (
-        <motion.p
+        <motion.p {...regionProps("newsletterStatus")}
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-[10px] tracking-[0.4em] text-white/60 uppercase"
@@ -180,7 +180,7 @@ function Newsletter({ design }: { design?: any }) {
           {getCopy(design, "newsletterSuccess")}
         </motion.p>
       ) : (
-        <form onSubmit={handleSubmit} className="flex gap-2 max-w-sm mx-auto">
+        <form {...regionProps("newsletterForm")} onSubmit={handleSubmit} className="flex gap-2 max-w-sm mx-auto">
           <input
             type="email"
             value={email}
@@ -189,7 +189,7 @@ function Newsletter({ design }: { design?: any }) {
             required
             className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-3 text-xs text-white placeholder-white/30 outline-none focus:border-white/30 transition-all"
           />
-          <button
+          <button {...regionProps("newsletterButton")}
             type="submit"
             disabled={status === "loading"}
             className={`px-5 py-3 text-[10px] font-bold tracking-widest transition-all disabled:opacity-50 flex items-center gap-2 hover:scale-[1.02] ${
@@ -203,12 +203,12 @@ function Newsletter({ design }: { design?: any }) {
             }}
           >
             <Send size={12} />
-            {status === "loading" ? "..." : getCopy(design, "newsletterButton")}
+            {getCopy(design, status === "loading" ? "newsletterLoading" : "newsletterButton")}
           </button>
         </form>
       )}
       {status === "error" && (
-        <p className="text-red-400 text-[10px] tracking-widest">{getCopy(design, "newsletterError")}</p>
+        <p {...regionProps("newsletterStatus")} className="text-red-400 text-[10px] tracking-widest">{getCopy(design, "newsletterError")}</p>
       )}
     </div>
   );

@@ -89,6 +89,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
         multiline: true,
       },
       { key: "newsletterPlaceholder", label: "Email placeholder", default: "your@email.com" },
+      { key: "newsletterLoading", label: "Newsletter subscribing label", default: "..." },
       { key: "newsletterButton", label: "Button label", default: "JOIN" },
       { key: "newsletterSuccess", label: "Success message", default: "✓ You're on the list." },
       { key: "newsletterError", label: "Error message", default: "Something went wrong. Try again." },
@@ -598,6 +599,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "reviewsCountMany", label: "Count (many reviews)", default: "{count} reviews", hint: "Use {count} for the number." },
       { key: "reviewsLoading", label: "Loading text", default: "Loading reviews…" },
       { key: "reviewsEmpty", label: "Empty message", default: "Be the first to share your thoughts on this book." },
+      { key: "reviewsAuthor", label: "Review author credit", default: "— {author}", hint: "Use {author} for the reviewer name." },
       { key: "reviewsReply", label: "Store reply label", default: "Reply from Lyricalmyrical Books" },
       { key: "reviewsThanks", label: "Submitted message", default: "Thanks — your review has been submitted for moderation." },
       { key: "reviewsWrite", label: "Form heading", default: "Write a review" },
@@ -636,17 +638,21 @@ export const DEFAULT_COPY: Record<string, string> = COPY_SCHEMA.reduce(
   { ...FLAT_COPY_DEFAULTS } as Record<string, string>,
 );
 
+/** Unexpanded copy for authoring: editing a default must retain {year}/{name} tokens. */
+export function getCopyTemplate(design: any, key: string): string {
+  const override = design?.copy?.[key];
+  if (typeof override === "string") return override;
+  const legacy = design?.[key];
+  return (typeof legacy === "string" && legacy ? legacy : DEFAULT_COPY[key]) || "";
+}
+
 /**
  * Resolve a shopper-facing string. Order of precedence:
  *   design.copy[key]  →  design[key] (legacy flat)  →  schema default.
  * Supports {year} token replacement and optional extra vars.
  */
 export function getCopy(design: any, key: string, vars?: Record<string, string | number>): string {
-  // Only strings count: a design key that happens to share a copy key's name must never crash a page.
-  const str = (v: unknown) => (typeof v === "string" && v ? v : "");
-  const override = design?.copy?.[key];
-  // A saved empty override is intentional, including text cleared directly in Studio.
-  const raw = typeof override === "string" ? override : str(design?.[key]) || DEFAULT_COPY[key] || "";
+  const raw = getCopyTemplate(design, key);
   const all: Record<string, string | number> = { year: new Date().getFullYear(), ...(vars || {}) };
   // {name} is the site name (Text & labels › Site & sharing) in every string that mentions it.
   if (!("name" in all) && key !== "siteName" && raw.includes("{name}")) all.name = getCopy(design, "siteName");
