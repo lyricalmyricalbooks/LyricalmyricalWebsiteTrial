@@ -47,13 +47,22 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
 
   useEffect(() => {
     let cancelled = false;
+    let failed = false;
     let cleanup: (() => void) | null = null;
     setState("loading");
+    const fail = () => {
+      clearTimeout(deadline);
+      if (cancelled) return;
+      failed = true;
+      setState("error");
+    };
+    // A blocked Stripe script or iframe must not leave checkout loading forever.
+    const deadline = setTimeout(fail, 20000);
     (async () => {
       try {
         const stripe = await loadStripe(publishableKey);
-        if (cancelled || !host.current) return;
-        if (!stripe) { setState("error"); return; }
+        if (cancelled || failed || !host.current) return;
+        if (!stripe) { fail(); return; }
         const el = host.current;
         const elements = stripe.elements({
           mode: "payment",
@@ -64,7 +73,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
             theme: "flat",
             variables: {
               colorPrimary: tokenColor(el, "var(--accent, #e8402a)"),
-              colorBackground: tokenColor(el, "var(--surface, #ffffff)"),
+              colorBackground: tokenColor(el, style?.background as string || "var(--surface, #ffffff)"),
               colorText: getComputedStyle(el).color,
               colorDanger: tokenColor(el, "var(--danger, #b4271a)"),
               borderRadius: "0px",
@@ -74,20 +83,23 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
         });
         const payment = elements.create("payment", { layout: "tabs" });
         cleanup = createElementCleanup(payment);
-        payment.on("ready", () => !cancelled && setState("ready"));
-        payment.on("loaderror", () => !cancelled && setState("error"));
+        payment.on("ready", () => {
+          clearTimeout(deadline);
+          if (!cancelled && !failed) setState("ready");
+        });
+        payment.on("loaderror", fail);
         payment.mount(el);
         stripeRef.current = stripe;
         elementsRef.current = elements;
       } catch (err) {
         console.error("Card form failed to load", err);
-        if (!cancelled) setState("error");
+        fail();
       }
     })();
-    return () => { cancelled = true; cleanup?.(); elementsRef.current = null; stripeRef.current = null; };
+    return () => { cancelled = true; clearTimeout(deadline); cleanup?.(); elementsRef.current = null; stripeRef.current = null; };
     // amount/currency changes are pushed with elements.update below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publishableKey, fontName]);
+  }, [publishableKey, fontName, style?.background]);
 
   useEffect(() => {
     try { elementsRef.current?.update({ amount: safeAmount, currency: currency.toLowerCase() }); }
@@ -119,7 +131,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
 
   return (
     <div className="fm-stripe-card-form" style={style} data-studio-target="style:checkout" data-studio-label="Card payment form">
-      {state === "loading" && <p className="py-4 text-center text-sm text-slate-500">{loadingText}</p>}
+      {state === "loading" && <p role="status" className="py-4 text-center text-sm text-slate-500">{loadingText}</p>}
       {state === "error" && <p role="alert" className="py-4 text-center text-sm" style={{ color: "var(--danger, #b4271a)" }}>{errorText}</p>}
       <div ref={host} />
     </div>
