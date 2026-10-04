@@ -656,6 +656,12 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
   }
   const hasZones = profiles.some((p) => Array.isArray(p.zones) && p.zones.length);
   if (!hasZones) {
+    if (selection) {
+      const choices = quoteShipping(physicalItems, address, profiles).filter(quote => quote.type !== 'pickup');
+      const chosen = choices.find(quote => quote.id === selection.optionId || quote.name === selection.optionId);
+      if (!chosen) throw new Error('That shipping rate is no longer available. Please review the options and try again.');
+      return { cost: freeShipping ? 0 : calculateShipping(physicalItems, address, profiles), method: chosen.name };
+    }
     return { cost: freeShipping ? 0 : calculateShipping(physicalItems, address, profiles), method: order.shippingMethod || null };
   }
   const quotes = quoteShipping(physicalItems, address, profiles, { freeAll: !!freeShipping }).filter(quote => quote.type !== 'pickup');
@@ -710,6 +716,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
     const variant = requested.variantId
       ? (book.variants || []).find(v => v.id === requested.variantId) || null
       : null;
+    if (requested.variantId && !variant) throw new Error(`Selected edition for book ${requested.id} is no longer available.`);
     if (book.trackInventory && !book.allowBackorder) {
       const available = variant ? Number(variant.stock || 0) : Number(book.stockLevel || 0);
       if (available < quantity) throw new Error(`Insufficient stock for ${requested.title}. Only ${available} left.`);
@@ -1030,6 +1037,10 @@ exports.createStripeCheckoutSession = onRequest(
         let variant = null;
         if (item.variantId) {
           variant = (book.variants || []).find(v => v.id === item.variantId) || null;
+          if (!variant) {
+            res.status(400).json({ error: `Selected edition for book ${item.id} is no longer available.` });
+            return;
+          }
         }
         if (book.trackInventory && !book.allowBackorder) {
           if (variant) {

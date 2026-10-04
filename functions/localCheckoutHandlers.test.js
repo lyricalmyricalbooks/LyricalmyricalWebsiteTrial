@@ -140,3 +140,25 @@ test('manual local creation rejects invalid catalog price before storing an orde
   expect(result.code).toBe(400);
   expect(app.docs.orders).toBeUndefined();
 });
+test('unknown variant IDs are rejected before Stripe, PayPal or manual order creation', async () => {
+  const stripe = harness();
+  stripe.order.items[0].variantId = 'missing';
+  expect((await stripe.call('createStripeCheckoutSession')).code).toBe(400);
+  expect(stripe.stripeCalls).toHaveLength(0);
+  const paypal = harness();
+  paypal.order.items[0].variantId = 'missing';
+  expect((await paypal.call('createPayPalOrder')).code).toBe(400);
+  expect(paypal.paypalCalls).toHaveLength(0);
+  const manual = harness();
+  manual.order.items[0].variantId = 'missing';
+  const result = await manual.call('createStripeCheckoutSession', { action: 'createManualLocalOrder', manualMethodId: 'cash', orderDraft: { customer: manual.order.customer, items: manual.order.items, fulfillmentSelection: manual.order.fulfillmentSelection } });
+  expect(result.code).toBe(400);
+  expect(manual.docs.orders).toBeUndefined();
+});
+test('explicit stale shipping choice fails even with legacy no-zone profiles', async () => {
+  const app = harness({ method: 'shipping', optionId: 'stale-rate', address: { street: '2 Main', city: 'Toronto', state: 'ON', zip: 'M6G3H1', country: 'CA' } });
+  app.docs['private-integrations'].shippo.dynamicRatesEnabled = false;
+  const result = await app.call('createStripeCheckoutSession');
+  expect(result.code).toBe(400);
+  expect(app.stripeCalls).toHaveLength(0);
+});
