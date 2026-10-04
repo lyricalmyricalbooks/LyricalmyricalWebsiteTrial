@@ -36,6 +36,8 @@ import { categoryBookPatch, directlyAssigned, type CategoryAction } from "./stud
 import { normalizeCategories } from "../features/site/navItems";
 import { RISO_NOIR_ID, RISO_NOIR_TOKENS, withRisoNoirDefault } from "../features/site/risoNoir";
 import type { Book, Page, SiteSettings } from "../features/site/types";
+import { validateLocalFulfillment } from "../features/site/localFulfillment";
+import type { LocalFulfillmentConfig } from "../features/site/types";
 
 export const adminApi = {
   // Authentication
@@ -454,6 +456,13 @@ export const adminApi = {
     return merged;
   },
 
+  updateLocalFulfillment: async (config: LocalFulfillmentConfig) => {
+    if (auth.currentUser?.email !== "lyricalmyricalbooks@gmail.com" || !auth.currentUser.emailVerified) throw new Error("Unauthorized local fulfillment update.");
+    const errors = validateLocalFulfillment(config);
+    if (errors.length) throw new Error(errors.join(" "));
+    await setDoc(doc(db, "settings", "website"), { localFulfillment: JSON.parse(JSON.stringify(config)) }, { mergeFields: ["localFulfillment"] });
+  },
+
   updateSettings: async (settings: any, options: { publish?: boolean } = {}) => {
     const docRef = doc(db, "settings", "website");
     const { payload, options: writeOptions } = themeWrite(settings, options.publish);
@@ -532,6 +541,7 @@ export const adminApi = {
   },
 
   getDefaultSettings: () => ({
+    localFulfillment: { enabled: false, pickupLocations: [], deliveryZones: [] },
     announcements: [{ message: "INDEPENDENT PUBLISHING HOUSE SPECIALIZING IN CONTEMPORARY PHOTOGRAPHY AND EPHEMERA" }],
     maintenance: { enabled: false, message: "WE ARE UPDATING OUR ARCHIVE. PLEASE CHECK BACK SOON." },
     domain: { subdomain: "lyricalmyrical", custom: "www.lyricalmyricalbooks.com" },

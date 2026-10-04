@@ -42,7 +42,13 @@ export type Book = {
   authorId?: string;
 };
 
+export type LocalFulfillmentAddress = { street: string; city: string; state: string; zip: string; country: string; postalCode?: string };
+export type PickupLocation = { id: string; enabled: boolean; name: string; price: number; address: LocalFulfillmentAddress; instructions?: string; hours?: string; estimate?: string; translations?: Record<string, Record<string, string>> };
+export type DeliveryZone = { id: string; enabled: boolean; name: string; price: number; minimumSubtotal: number; postalPrefixes: string[]; postalCodes: string[]; instructions?: string; estimate?: string; translations?: Record<string, Record<string, string>> };
+export type LocalFulfillmentConfig = { enabled: boolean; pickupLocations: PickupLocation[]; deliveryZones: DeliveryZone[] };
+
 export type SiteSettings = {
+  localFulfillment?: LocalFulfillmentConfig;
   announcements?: Array<{ message: string }>;
   maintenance?: { enabled: boolean; message: string };
   domain?: { subdomain: string; custom: string };
