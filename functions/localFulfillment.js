@@ -40,4 +40,43 @@ function quoteLocalFulfillment(config, destination, cartSubtotal, physicalItems)
   }
   return quotes;
 }
-module.exports = { normalizePostalCode, validPickupAddress, validateLocalFulfillment, quoteLocalFulfillment };
+const isPhysicalItem = item => item && item.digital !== true && item.isDigital !== true && !/digital|ebook|e-book|epub|pdf|audiobook/i.test(String(item.format || ''));
+const cents = value => Math.round(Number(value || 0) * 100);
+function discountedPhysicalSubtotal(items, discountAmount, discount, booksById = {}) {
+  const physicalCents = items.filter(isPhysicalItem).reduce((sum, item) => sum + cents(item.price) * item.quantity, 0);
+  const allCents = items.reduce((sum, item) => sum + cents(item.price) * item.quantity, 0);
+  if (!physicalCents || !allCents) return 0;
+  const discountCents = Math.max(0, Math.min(cents(discountAmount), allCents));
+  if (!discountCents) return physicalCents / 100;
+  const selected = item => discount?.appliesTo === 'products'
+    ? (discount.selectedProducts || []).includes(item.id)
+    : discount?.appliesTo === 'categories'
+      ? (booksById[item.id]?.categories || []).some(category => (discount.selectedCategories || []).includes(category))
+      : true;
+  const eligible = items.filter(selected);
+  if (discount?.type === 'bogo') {
+    const getQty = Number(discount.getQuantity) || 1;
+    const setSize = (Number(discount.buyQuantity) || 1) + getQty;
+    const units = eligible.flatMap(item => Array.from({ length: item.quantity }, () => ({ price: cents(item.price), physical: isPhysicalItem(item) })));
+    units.sort((a, b) => b.price - a.price);
+    const count = Math.floor(units.length / setSize) * getQty;
+    const discountedUnits = count ? units.slice(-count) : [];
+    const physicalDiscount = discountedUnits.filter(unit => unit.physical).reduce((sum, unit) => sum + Math.round(unit.price * (Number(discount.getDiscountValue) || 100) / 100), 0);
+    return Math.max(0, physicalCents - Math.min(physicalDiscount, discountCents)) / 100;
+  }
+  const eligibleCents = eligible.reduce((sum, item) => sum + cents(item.price) * item.quantity, 0);
+  const eligiblePhysicalCents = eligible.filter(isPhysicalItem).reduce((sum, item) => sum + cents(item.price) * item.quantity, 0);
+  const physicalDiscount = eligibleCents ? Math.round(discountCents * eligiblePhysicalCents / eligibleCents) : 0;
+  return Math.max(0, physicalCents - physicalDiscount) / 100;
+}
+function resolveLocalSelection(config, selection, destination, discountedSubtotal, physicalItems, freeShipping = false) {
+  if (!selection || !['pickup', 'local_delivery'].includes(selection.method) || typeof selection.optionId !== 'string') throw new Error('Choose an available fulfillment option.');
+  if (selection.method === 'local_delivery') {
+    if (!destination || !['street', 'city', 'state', 'zip', 'country'].every(key => typeof destination[key] === 'string' && destination[key].trim()) || !canadian(destination.country) || !postalPattern.test(normalizePostalCode(destination.zip))) throw new Error('Enter a complete Canadian delivery address.');
+  }
+  const quote = quoteLocalFulfillment(config, destination, discountedSubtotal, physicalItems).find(choice => choice.id === selection.optionId && choice.method === selection.method);
+  if (!quote) throw new Error('That fulfillment option is no longer available. Please review the options and try again.');
+  const fulfillment = { method: quote.method, optionId: quote.id, ...(quote.locationId ? { locationId: quote.locationId } : {}), ...(quote.zoneId ? { zoneId: quote.zoneId } : {}), name: quote.name, price: freeShipping ? 0 : quote.price, ...(quote.address ? { address: quote.address } : {}), ...(destination && quote.method === 'local_delivery' ? { destination: { street: destination.street, city: destination.city, state: destination.state, zip: normalizePostalCode(destination.zip), country: 'CA' } } : {}), instructions: quote.instructions, ...(quote.hours !== undefined ? { hours: quote.hours } : {}), estimate: quote.estimate };
+  return { cost: fulfillment.price, method: quote.method, fulfillment };
+}
+module.exports = { normalizePostalCode, validPickupAddress, validateLocalFulfillment, quoteLocalFulfillment, discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem };

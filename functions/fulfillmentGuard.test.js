@@ -6,4 +6,5 @@ describe("label purchase guard", () => {
  it("requires active paid orders and completed preparation", () => { expect(labelProblem(o, operations)).toBe(""); expect(labelProblem({ ...o, paymentStatus: "unpaid" }, operations)).toBeTruthy(); expect(labelProblem(o, {})).toBeTruthy(); expect(labelProblem(o, { ...operations, hold: "Stock issue" })).toBeTruthy(); });
  it("rejects duplicate labels and dispatched orders", () => { expect(labelProblem({ ...o, labelUrl: "existing" }, operations)).toBeTruthy(); expect(labelProblem({ ...o, fulfillmentStatus: "shipped" }, operations)).toBeTruthy(); expect(labelProblem(o, { ...operations, labelPurchasePending: true })).toBeTruthy(); });
  it("invalidates preparation after order changes", () => { expect(labelProblem({ ...o, items: [{ id: "b", quantity: 2 }] }, operations)).toBeTruthy(); });
+ it("rejects carrier labels for validated pickup and local delivery", () => { for (const method of ['pickup', 'local_delivery']) expect(labelProblem({ ...o, fulfillment: { method } }, operations)).toBeTruthy(); });
 });
