@@ -162,3 +162,12 @@ test('explicit stale shipping choice fails even with legacy no-zone profiles', a
   expect(result.code).toBe(400);
   expect(app.stripeCalls).toHaveLength(0);
 });
+test('explicit no-zone rate charges the current displayed quote including zero-base rates', async () => {
+  const app = harness({ method: 'shipping', optionId: 'legacy', address: { street: '2 Main', city: 'Toronto', state: 'ON', zip: 'M6G3H1', country: 'CA' } });
+  app.docs['private-integrations'].shippo.dynamicRatesEnabled = false;
+  app.docs['shipping-profiles'] = { general: { base: 0, additional: 0, serviceName: 'Free local mail' } };
+  const result = await app.call('createStripeCheckoutSession');
+  expect(result.code).toBe(200);
+  expect(app.order.shipping).toBe(0);
+  expect(app.order.shippingMethod).toBe('Free local mail');
+});

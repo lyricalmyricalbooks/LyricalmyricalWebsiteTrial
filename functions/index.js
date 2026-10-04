@@ -657,10 +657,10 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
   const hasZones = profiles.some((p) => Array.isArray(p.zones) && p.zones.length);
   if (!hasZones) {
     if (selection) {
-      const choices = quoteShipping(physicalItems, address, profiles).filter(quote => quote.type !== 'pickup');
+      const choices = quoteShipping(physicalItems, address, profiles, { freeAll: !!freeShipping }).filter(quote => quote.type !== 'pickup');
       const chosen = choices.find(quote => quote.id === selection.optionId || quote.name === selection.optionId);
       if (!chosen) throw new Error('That shipping rate is no longer available. Please review the options and try again.');
-      return { cost: freeShipping ? 0 : calculateShipping(physicalItems, address, profiles), method: chosen.name };
+      return { cost: chosen.price, method: chosen.name };
     }
     return { cost: freeShipping ? 0 : calculateShipping(physicalItems, address, profiles), method: order.shippingMethod || null };
   }
