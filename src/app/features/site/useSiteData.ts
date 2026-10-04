@@ -22,9 +22,34 @@ const isPreviewUrl = () => typeof window !== "undefined" && new URLSearchParams(
 type PreviewSnapshot = { settings?: any; books?: Book[]; pages?: Page[] };
 const previewSnapshot = (): PreviewSnapshot | null => (isPreviewUrl() ? (window as any).__studioPreviewState || null : null);
 
+// One bootstrap request for the whole storefront, including route changes and
+// StrictMode remounts. This is display data only; checkout still validates on the server.
+const SITE_DATA_FRESH_MS = 30_000;
+let siteDataRequest: Promise<[any[], any, any]> | null = null;
+let siteDataLoadedAt = 0;
+function loadSiteData() {
+  if (!siteDataRequest || Date.now() - siteDataLoadedAt >= SITE_DATA_FRESH_MS) {
+    // Infinity marks an in-flight request, which every consumer should join.
+    siteDataLoadedAt = Infinity;
+    siteDataRequest = Promise.all([
+      loadCatalog((size, cursor) => adminApi.getBooks(size, cursor)),
+      adminApi.getSettings(),
+      adminApi.getPublishedPages(),
+    ]).then(result => {
+      siteDataLoadedAt = Date.now();
+      return result;
+    }, error => {
+      siteDataRequest = null;
+      siteDataLoadedAt = 0;
+      throw error;
+    });
+  }
+  return siteDataRequest;
+}
+
 export function useSiteData() {
   const location = useLocation();
-  const cached = typeof window !== "undefined" ? readSiteCache() : null;
+  const [cached] = useState(() => typeof window !== "undefined" ? readSiteCache() : null);
   const snap = previewSnapshot();
   const [books, setBooks] = useState<Book[]>(snap?.books || cached?.books || []);
   const [settings, setSettings] = useState<SiteSettings>(() => {
@@ -40,17 +65,13 @@ export function useSiteData() {
 
     async function loadData() {
       try {
-        const [bookResponse, settingsResponse, pagesResponse] = await Promise.all([
-          loadCatalog((size, cursor) => adminApi.getBooks(size, cursor)),
-          adminApi.getSettings(),
-          adminApi.getPublishedPages(),
-        ]);
+        const [bookResponse, settingsResponse, pagesResponse] = await loadSiteData();
 
         if (cancelled) return;
 
         const safeBooks = Array.isArray(bookResponse) ? (bookResponse as unknown as Book[]) : [];
         const isPreview = typeof window !== 'undefined' && window.location.search.includes('preview=true');
-        const safeSettings = (settingsResponse || DEFAULT_SETTINGS) as any;
+        const safeSettings = { ...(settingsResponse || DEFAULT_SETTINGS) } as any;
         
         // Never let the late Firestore load overwrite what the Studio has already sent.
         if (isPreview) {
