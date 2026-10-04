@@ -120,8 +120,8 @@ npm run logs
   deferred intent); `stripeWebhook` marks those paid on `payment_intent.succeeded` (metadata
   `checkout: "payment_element"`). `body.action` = `status` / `registerPaymentDomain` serve the
   return-page check and the wallet-domain button (no new public functions: the CI deploy account
-  can't set IAM on them). Studio › Style › Checkout › "Send card payments to Stripe’s own page"
-  switches back to hosted Checkout.
+  can't set IAM on them). Storefront card payment always uses the inline Payment Element;
+  older saved redirect settings no longer move the shopper to hosted Checkout.
 - `stripeWebhook` — the **only** thing that marks orders paid; it also
   decrements stock, counts discount redemptions, and records revenue. Orders are
   created `unpaid` first.
@@ -656,22 +656,20 @@ stock validation and webhook payment handling are unchanged.
 
 ## Stripe checkout payment section (4 October 2026)
 
-Checkout inserts `features/site/StripePaymentSection.tsx`: the method radio label
-is separate from Stripe's interactive fields. Valid mode-matched browser keys
-use the inline Payment Element; missing/invalid browser keys and Studio's
-`stripeRedirect` setting use server-created hosted Checkout. Hosted checkout
-still requires a valid server credential. A stalled inline loader fails after
-20 seconds and offers an explicit hosted recovery before any inline intent
-request. Once an inline attempt starts, recovery cannot switch payment routes.
+Checkout inserts `features/site/StripePaymentSection.tsx` with Stripe's actual
+Payment Element fields inside the page. The method radio label is separate from
+those interactive fields. Payment requires a valid mode-matched publishable key
+and an Element-ready event. Missing/invalid keys block payment; they never route
+to hosted Checkout. Legacy `stripeRedirect` design values are ignored and the
+redirect control is removed from Studio. Failed/stalled loading offers an inline
+Reload payment form action before a payment attempt; the form stays on checkout.
 Studio > Style > Checkout · Stripe payment section owns responsive panel,
-selector, card badges, hosted help and recovery layout; required payment/recovery
-controls cannot be hidden. Text & labels > Checkout owns all labels, badge text
-and recovery copy. Existing card-form background, padding, radius and fonts
-continue to apply. Hosted Checkout uses Dashboard-managed dynamic methods;
-server totals and webhook-only paid-order/inventory authority are unchanged.
-Frontend and Functions deployment plus an authenticated sandbox payment/webhook
-walkthrough are required before claiming deployed payment verification.
-
+selector, card badges and recovery layout; required payment/recovery controls
+cannot be hidden. Text & labels > Checkout owns all labels, badge text and retry
+copy. Existing form background, padding, radius and fonts continue to apply.
+Server totals and webhook-only paid-order/inventory authority are unchanged.
 Checkout submission locks synchronously before asynchronous field validation,
 disables payment-method switches while processing, and retains the lock during
 provider navigation. Failed validation/service calls release it for correction.
+Actual field display can be verified without submitting a payment; authenticated
+sandbox payment, webhook, refund and email verification remain separate.

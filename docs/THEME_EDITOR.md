@@ -702,23 +702,21 @@ and production payment/order flows remain separate verification.
 
 ## Stripe checkout payment section (4 October 2026)
 
-- [x] Insert a Stripe payment panel with separate method selection and interactive
-  Payment Element fields, mode-validated inline initialization, and hosted recovery.
+- [x] Insert actual Stripe Payment Element fields inside checkout, separate from
+  the method radio label, with mode-validated initialization and readiness gating.
+- [x] Keep card checkout inline: missing keys block payment, legacy redirect
+  settings are ignored, and Studio's hosted redirect control has been removed.
 - [x] Studio > Style > Checkout · Stripe payment section exposes responsive
-  panel, selector, badges, hosted help and recovery controls. Badge/help visibility
-  is optional; payment selection and recovery remain required. Auto-fit derives
-  phone overrides from the same public-region manifest.
-- [x] Text & labels > Checkout owns card brand text, hosted explanation and
-  recovery action. Card form appearance uses the existing checkout controls.
-- [x] Hosted checkout does not depend on a browser publishable key. Inline load
-  failure (including a 20-second deadline) exposes explicit recovery only before
-  an inline payment attempt. An attempt locks that route to avoid a competing charge.
+  panel, selector, badge and recovery controls. Badge visibility is optional;
+  payment selection and recovery remain required. Auto-fit derives phone
+  overrides from the same public-region manifest.
+- [x] Text & labels > Checkout owns badge text, inline retry explanation and
+  action. A failed or 20-second-stalled loader offers Reload payment form before
+  an attempt starts; it recreates the inline form without opening a hosted page.
+- [x] Submission locks synchronously before validation, prevents payment-method
+  switches during processing, and retains the lock during provider navigation.
 
-Hosted Checkout needs the server Stripe credential and uses Dashboard-managed
-payment methods. Local UI/test coverage is separate from authenticated Studio
-save/publish and real sandbox payment, webhook, refund and email verification.
-Deploy the frontend and updated Functions together.
-
-Checkout submission locks synchronously before asynchronous field validation,
-disables payment-method switches while processing, and retains the lock during
-provider navigation. Failed validation/service calls release it for correction.
+A valid publishable key for the active Stripe mode is required. Display-only
+validation of actual Stripe fields does not verify sandbox payment, authenticated
+Studio persistence, webhook delivery, refunds, email or fulfillment. Server
+prices and webhook-only paid-order authority remain unchanged.

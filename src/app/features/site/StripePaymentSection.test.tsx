@@ -13,44 +13,47 @@ function render(props: Record<string, unknown> = {}) {
   host = document.createElement("div"); document.body.append(host);
   root = createRoot(host);
   act(() => root.render(h(StripePaymentSection, {
-    design: {}, selected: true, inline: false, canUseHostedFallback: false,
-    busy: false, onSelect() {}, onHostedFallback() {}, children: null, ...props,
+    design: {}, selected: true, configured: true, canRetry: false,
+    busy: false, onSelect() {}, onRetry() {}, children: h("input", { id: "provider-field" }), ...props,
   })));
   return host;
 }
 
-describe("Stripe payment section", () => {
-  it("shows the hosted route instead of claiming card payments are unavailable", () => {
+describe("inline Stripe payment section", () => {
+  it("renders interactive payment fields inside checkout and outside the radio label", () => {
     const view = render();
-    expect(view.textContent).toContain(getCopy({}, "coStripeNote"));
-    expect(view.textContent).not.toContain(getCopy({}, "coStripeConfigError"));
-  });
-  it("keeps interactive payment fields outside the method radio label", () => {
-    const view = render({ inline: true, children: h("input", { id: "provider-field" }) });
+    expect(view.querySelector("#provider-field")).not.toBeNull();
     expect(view.querySelector("#provider-field")?.closest("label")).toBeNull();
     expect(view.querySelector('input[type="radio"]')?.closest("label")).not.toBeNull();
+    expect(view.querySelector('a')).toBeNull();
+    expect(view.textContent).not.toContain(getCopy({}, "coStripeNote"));
   });
-  it("lets a shopper explicitly choose hosted recovery", () => {
-    let chosen = 0;
-    const view = render({ inline: true, canUseHostedFallback: true, onHostedFallback() { chosen++; } });
-    const recovery = view.querySelector("button")!;
-    expect(recovery.textContent).toBe(getCopy({}, "coStripeHostedFallback"));
-    act(() => recovery.click());
-    expect(chosen).toBe(1);
+  it("shows editable configuration recovery and no payment fields for an invalid key", () => {
+    const view = render({ configured: false });
+    expect(view.querySelector('[role="alert"]')?.textContent).toBe(getCopy({}, "coStripeConfigError"));
+    expect(view.querySelector("#provider-field")).toBeNull();
+    expect(view.querySelector('button')).toBeNull();
   });
-  it("removes recovery once payment has started and disables it while busy", () => {
-    expect(render({ inline: true }).querySelector("button")).toBeNull();
+  it("reloads the inline form through an explicit retry action", () => {
+    let retried = 0;
+    const view = render({ canRetry: true, onRetry() { retried++; } });
+    const retry = view.querySelector("button")!;
+    expect(retry.textContent).toBe(getCopy({}, "coStripeRetry"));
+    act(() => retry.click());
+    expect(retried).toBe(1);
+  });
+  it("disables retry while processing and removes it after an attempt starts", () => {
+    expect(render().querySelector("button")).toBeNull();
     act(() => root.unmount()); host.remove();
-    let chosen = 0;
-    const button = render({ inline: true, canUseHostedFallback: true, busy: true, onHostedFallback() { chosen++; } }).querySelector("button")!;
+    let retried = 0;
+    const button = render({ canRetry: true, busy: true, onRetry() { retried++; } }).querySelector("button")!;
     act(() => button.click());
-    expect(chosen).toBe(0);
+    expect(retried).toBe(0);
   });
-  it("uses edited labels and hides optional card brands and help", () => {
-    const view = render({ design: { regions: { stripeBrandsVisible: false, stripePaymentHelpVisible: false }, copy: { coCard: "Pay with Stripe" } } });
+  it("uses Studio labels and optional badge visibility", () => {
+    const view = render({ design: { regions: { stripeBrandsVisible: false }, copy: { coCard: "Pay with Stripe" } } });
     expect(view.textContent).toContain("Pay with Stripe");
     expect(view.textContent).not.toContain("VISA");
-    expect(view.textContent).not.toContain(getCopy({}, "coStripeNote"));
     expect(view.querySelector('[data-studio-target]')).not.toBeNull();
   });
 });

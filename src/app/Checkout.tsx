@@ -210,19 +210,17 @@ export function Checkout() {
   // PaymentIntent so retrying with the same bag doesn't create another order.
   const cardFormRef = useRef<StripeCardFormHandle>(null);
   const [cardState, setCardState] = useState<"loading" | "ready" | "error">("loading");
-  const [hostedSelected, setHostedSelected] = useState(false);
+  const [cardFormAttempt, setCardFormAttempt] = useState(0);
   const [inlineAttemptStarted, setInlineAttemptStarted] = useState(false);
   const pendingCardOrder = useRef<{ key: string; orderId: string; clientSecret: string } | null>(null);
   const stripePublicKey: string = (settings?.payments?.testMode
     ? settings?.payments?.stripe?.testPublicKey
     : settings?.payments?.stripe?.publicKey) || "";
-  // Studio › Style › Checkout: card form on this page (default) or Stripe's own page.
+  // Stripe fields stay inline regardless of older saved redirect settings.
   const pinnedCountryCodes = useMemo(() => parsePinned(checkoutDesign.checkoutPinnedCountries || undefined), [checkoutDesign.checkoutPinnedCountries]);
   const stripeKeyValid = isStripePublishableKey(stripePublicKey, Boolean(settings?.payments?.testMode));
   const stripeRoute = stripeCheckoutState({
     keyValid: stripeKeyValid,
-    redirect: Boolean(checkoutDesign.stripeRedirect),
-    hostedSelected,
     cardState,
     paymentStarted: inlineAttemptStarted,
   });
@@ -1055,24 +1053,6 @@ export function Checkout() {
         return;
       }
 
-      const sessionResponse = await fetch(functionUrl("createStripeCheckoutSession"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
-      });
-
-      if (!sessionResponse.ok) {
-        const errorData = await sessionResponse.json();
-        throw new CopyError(checkoutDesign, "coStripeError");
-      }
-
-      const sessionData = await sessionResponse.json();
-      if (sessionData.url) {
-        purchaseNavigating.current = true;
-        window.location.href = sessionData.url;
-      } else {
-        throw new CopyError(checkoutDesign, "coErrNoCheckoutUrl");
-      }
     } catch (err: any) {
       setNotice({ tone: "error", text: c("coCheckoutFailed", { error: copyErrorText(err, checkoutDesign, "coStripeError") }) });
     }
@@ -1409,17 +1389,19 @@ export function Checkout() {
                   <StripePaymentSection
                     design={checkoutDesign}
                     selected={selectedPaymentMethod === "stripe"}
-                    inline={useCardForm}
-                    canUseHostedFallback={stripeRoute.canUseHostedFallback}
+                    configured={useCardForm}
+                    canRetry={stripeRoute.canRetry}
                     busy={isCompleting}
                     onSelect={() => setSelectedPaymentMethod("stripe")}
-                    onHostedFallback={() => {
+                    onRetry={() => {
                       if (inlineAttemptStarted || isCompleting) return;
-                      setHostedSelected(true);
+                      setCardState("loading");
+                      setCardFormAttempt(attempt => attempt + 1);
                       setNotice(null);
                     }}
                   >
                     <StripeCardForm
+                      key={cardFormAttempt}
                       ref={cardFormRef}
                       publishableKey={stripePublicKey}
                       amountCents={Math.round(convertPrice(finalTotal) * 100)}

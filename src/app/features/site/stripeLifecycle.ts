@@ -11,21 +11,16 @@ export function isStripePublishableKey(key: string, testMode: boolean) {
   return new RegExp(`^pk_${testMode ? "test" : "live"}_[A-Za-z0-9]{24,}$`).test(key);
 }
 
-/** Hosted Checkout needs the server's key, not a browser publishable key.
- * Never offer a second payment route once an inline intent may exist. */
-export function stripeCheckoutState({ keyValid, redirect, hostedSelected, cardState, paymentStarted }: {
+/** Checkout always keeps Stripe's actual payment fields on this page. */
+export function stripeCheckoutState({ keyValid, cardState, paymentStarted }: {
   keyValid: boolean;
-  redirect: boolean;
-  hostedSelected: boolean;
   cardState: "loading" | "ready" | "error";
   paymentStarted: boolean;
 }) {
-  const hosted = !paymentStarted && (redirect || hostedSelected || !keyValid);
-  const inline = !hosted && keyValid;
   return {
-    inline,
-    canPay: hosted || (inline && cardState === "ready"),
-    canUseHostedFallback: inline && cardState === "error" && !paymentStarted,
+    inline: keyValid,
+    canPay: keyValid && cardState === "ready",
+    canRetry: keyValid && cardState === "error" && !paymentStarted,
   };
 }
 

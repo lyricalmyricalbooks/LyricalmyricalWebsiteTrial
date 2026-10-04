@@ -1,18 +1,17 @@
 import type { ReactNode } from "react";
-import { CreditCard } from "lucide-react";
 import { getCopy } from "./storeCopy";
 import { regionProps, regionVisible } from "./storefrontRegions";
 
 /** Payment fields must live outside the radio label: label activation and
  * preventDefault handlers interfere with Stripe's own interactive iframe. */
-export function StripePaymentSection({ design, selected, inline, canUseHostedFallback, busy, onSelect, onHostedFallback, children }: {
+export function StripePaymentSection({ design, selected, configured, canRetry, busy, onSelect, onRetry, children }: {
   design: any;
   selected: boolean;
-  inline: boolean;
-  canUseHostedFallback: boolean;
+  configured: boolean;
+  canRetry: boolean;
   busy: boolean;
   onSelect: () => void;
-  onHostedFallback: () => void;
+  onRetry: () => void;
   children: ReactNode;
 }) {
   const c = (key: string) => getCopy(design, key);
@@ -32,17 +31,14 @@ export function StripePaymentSection({ design, selected, inline, canUseHostedFal
       </div>
       {selected && (
         <div className="border-t border-slate-200 px-4 py-4">
-          {inline ? children : regionVisible(design, "stripePaymentHelp") && (
-            <div {...regionProps("stripePaymentHelp")} className="py-3 text-center">
-              <CreditCard aria-hidden="true" size={34} strokeWidth={1.4} className="mx-auto mb-3 text-slate-400" />
-              <p className="text-sm leading-6 text-slate-600">{c("coStripeNote")}</p>
-            </div>
+          {configured ? children : (
+            <p {...regionProps("stripePaymentRecovery")} role="alert" className="py-3 text-sm leading-6">{c("coStripeConfigError")}</p>
           )}
-          {canUseHostedFallback && (
+          {canRetry && (
             <div {...regionProps("stripePaymentRecovery")} className="mt-3">
-              <p className="mb-3 text-sm leading-6 text-slate-600">{c("coStripeFallbackNote")}</p>
-              <button type="button" disabled={busy} onClick={onHostedFallback} className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60">
-                {c("coStripeHostedFallback")}
+              <p className="mb-3 text-sm leading-6 text-slate-600">{c("coStripeRetryNote")}</p>
+              <button type="button" disabled={busy} onClick={onRetry} className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60">
+                {c("coStripeRetry")}
               </button>
             </div>
           )}

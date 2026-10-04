@@ -43,7 +43,6 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "stripePaymentPanel", label: "Stripe payment panel", required: true },
     { id: "stripePaymentHeader", label: "Stripe payment method selector", required: true },
     { id: "stripeBrands", label: "Accepted card badges" },
-    { id: "stripePaymentHelp", label: "Stripe hosted checkout help" },
     { id: "stripePaymentRecovery", label: "Stripe payment recovery", required: true },
   ] },
   { id: "checkoutLayout", title: "Checkout · layout & elements", copy: "Checkout", files: ["Checkout.tsx"], regions: [
