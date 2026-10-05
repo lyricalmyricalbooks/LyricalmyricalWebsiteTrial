@@ -64,6 +64,8 @@ export default function AccountPage() {
   // Auth states
   const [emailLinkInput, setEmailLinkInput] = useState("");
   const [sendingLink, setSendingLink] = useState(false);
+  // Email the sign-in link went to; switches the card to its "check your inbox" state.
+  const [linkSentTo, setLinkSentTo] = useState("");
   
   // Address edit states
   const [isEditingAddress, setIsEditingAddress] = useState(false);
@@ -250,19 +252,20 @@ export default function AccountPage() {
   }
 
   // Passwordless Email Link triggers
-  async function handleSendMagicLink(e: React.FormEvent) {
-    e.preventDefault();
-    if (!emailLinkInput.trim()) return;
+  async function handleSendMagicLink(e?: React.FormEvent, resendTo?: string) {
+    e?.preventDefault();
+    const email = (resendTo || emailLinkInput).trim();
+    if (!email) return;
     setSendingLink(true);
     try {
       const actionCodeSettings = {
         url: window.location.origin + window.location.pathname,
         handleCodeInApp: true,
       };
-      await sendSignInLinkToEmail(auth, emailLinkInput.trim(), actionCodeSettings);
-      window.localStorage.setItem("emailForSignIn", emailLinkInput.trim());
-      toast.success(getCopy(settings?.design, "accountLinkSent"));
-      setEmailLinkInput("");
+      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      window.localStorage.setItem("emailForSignIn", email);
+      if (resendTo) toast.success(getCopy(settings?.design, "accountLinkSent"));
+      setLinkSentTo(email);
     } catch (err: any) {
       console.error(err);
       toast.error(getCopy(settings?.design, "accountMagicLinkError"));
@@ -356,55 +359,87 @@ export default function AccountPage() {
         <div {...regionProps("accountGlow")} className="absolute top-0 right-0 w-[500px] h-[500px] blur-[120px] rounded-full pointer-events-none" style={{ backgroundColor: "rgba(var(--accent-rgb), 0.05)" }} />
         <div {...regionProps("accountGlow")} className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-cyan-600/5 blur-[120px] rounded-full pointer-events-none" />
 
-        <div {...regionProps("accountLogin")} className="glass-card max-w-md w-full border border-white/5 p-10 rounded-[2.5rem] relative z-10 space-y-8 shadow-2xl">
-          <div {...regionProps("accountIntro")} className="text-center">
-            <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 mx-auto">
-              <UserIcon size={28} style={{ color: "var(--accent)" }} strokeWidth={1.5} />
+        <div {...regionProps("accountLogin")} className="glass-card max-w-md w-full border border-white/10 p-8 sm:p-10 relative z-10 space-y-7 shadow-2xl">
+          <div {...regionProps("accountIntro")} className="text-center space-y-3">
+            <div className="w-12 h-12 border border-white/10 flex items-center justify-center mx-auto">
+              <UserIcon size={22} style={{ color: "var(--accent)" }} strokeWidth={1.5} />
             </div>
-            <h1 className="text-3xl font-black tracking-tight uppercase italic leading-none">{getCopy(settings?.design, "accountTitle")}</h1>
-            <p className="text-[10px] tracking-[0.2em] text-white/30 uppercase mt-3 font-bold">{getCopy(settings?.design, "accountSubtitle")}</p>
+            <h1 className="text-3xl font-black tracking-tight uppercase leading-none">{getCopy(settings?.design, "accountTitle")}</h1>
+            <p className="text-sm fm-muted leading-relaxed max-w-xs mx-auto">{getCopy(settings?.design, "accountSubtitle")}</p>
           </div>
 
-          <form onSubmit={handleSendMagicLink} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-[9px] font-black fm-muted uppercase tracking-widest block ml-1">{getCopy(settings?.design, "accountSignInLabel")}</label>
-              <div className="relative">
-                <input
-                  type="email"
-                  required
-                  placeholder={getCopy(settings?.design, "accountEmailPlaceholder")}
-                  value={emailLinkInput}
-                  onChange={(e) => setEmailLinkInput(e.target.value)}
-                  className="w-full bg-white/[0.03] border border-white/10 rounded-2xl py-4 pl-12 pr-6 text-xs text-white outline-none focus:border-violet-500/30 focus:bg-white/[0.05] transition-all"
-                />
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 fm-muted" size={14} />
+          {linkSentTo ? (
+            <div className="space-y-5 text-center" role="status" aria-live="polite">
+              <div className="w-12 h-12 border border-white/10 flex items-center justify-center mx-auto">
+                <Mail size={20} style={{ color: "var(--accent)" }} strokeWidth={1.5} />
               </div>
+              <h2 className="text-lg font-black uppercase tracking-wide">{getCopy(settings?.design, "accountCheckInboxTitle")}</h2>
+              <p className="text-sm fm-muted leading-relaxed">
+                {getCopy(settings?.design, "accountCheckInboxText").replace("{email}", linkSentTo)}
+              </p>
+              <button
+                type="button"
+                disabled={sendingLink}
+                onClick={() => handleSendMagicLink(undefined, linkSentTo)}
+                className="w-full bg-white/5 border border-white/10 hover:bg-white/10 text-white py-3.5 text-[11px] font-black tracking-[0.2em] uppercase transition-all flex items-center justify-center gap-2"
+              >
+                {sendingLink ? <Loader2 size={14} className="animate-spin" /> : getCopy(settings?.design, "accountResendLink")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setLinkSentTo("")}
+                className="text-[11px] tracking-[0.2em] text-white/40 hover:text-white uppercase transition-colors"
+              >
+                {getCopy(settings?.design, "accountUseDifferentEmail")}
+              </button>
             </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="w-full fm-active py-4 text-[11px] font-black tracking-[0.2em] uppercase hover:bg-white/90 transition-all flex items-center justify-center gap-2"
+              >
+                {getCopy(settings?.design, "accountGoogle")}
+              </button>
 
-            <button
-              type="submit"
-              disabled={sendingLink}
-              className="w-full bg-white/5 border border-white/10 hover:bg-white/10 text-white py-4 rounded-2xl text-[9px] font-black tracking-[0.3em] uppercase transition-all flex items-center justify-center gap-2"
-            >
-              {sendingLink ? <Loader2 size={12} className="animate-spin" /> : getCopy(settings?.design, "accountMagicLink")}
-            </button>
-          </form>
+              <div className="relative flex items-center" aria-hidden="true">
+                <div className="flex-grow border-t border-white/10"></div>
+                <span className="flex-shrink mx-4 text-[11px] tracking-[0.2em] text-white/40 uppercase">{getCopy(settings?.design, "accountOr")}</span>
+                <div className="flex-grow border-t border-white/10"></div>
+              </div>
 
-          <div className="relative flex py-2 items-center">
-            <div className="flex-grow border-t border-white/5"></div>
-            <span className="flex-shrink mx-4 text-[9px] font-black tracking-widest text-white/20 uppercase">{getCopy(settings?.design, "accountOr")}</span>
-            <div className="flex-grow border-t border-white/5"></div>
-          </div>
+              <form onSubmit={handleSendMagicLink} className="space-y-3" noValidate={false}>
+                <label htmlFor="account-email" className="text-[11px] font-bold fm-muted uppercase tracking-[0.15em] block">{getCopy(settings?.design, "accountSignInLabel")}</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 fm-muted pointer-events-none" size={16} aria-hidden="true" />
+                  <input
+                    id="account-email"
+                    type="email"
+                    name="email"
+                    autoComplete="email"
+                    inputMode="email"
+                    required
+                    placeholder={getCopy(settings?.design, "accountEmailPlaceholder")}
+                    value={emailLinkInput}
+                    onChange={(e) => setEmailLinkInput(e.target.value)}
+                    className="w-full bg-white/[0.03] border border-white/10 py-3.5 pl-11 pr-4 text-sm text-white outline-none focus:border-white/40 transition-all"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={sendingLink || !emailLinkInput.trim()}
+                  className="w-full bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-50 text-white py-3.5 text-[11px] font-black tracking-[0.2em] uppercase transition-all flex items-center justify-center gap-2"
+                >
+                  {sendingLink ? <Loader2 size={14} className="animate-spin" /> : getCopy(settings?.design, "accountMagicLink")}
+                </button>
+                <p className="text-xs fm-muted leading-relaxed text-center">{getCopy(settings?.design, "accountEmailHint")}</p>
+              </form>
+            </>
+          )}
 
-          <button
-            onClick={handleGoogleSignIn}
-            className="w-full fm-active py-4.5 rounded-2xl text-[9px] font-black tracking-[0.3em] uppercase hover:bg-white/90 transition-all flex items-center justify-center gap-2 shadow-xl shadow-white/5"
-          >
-            {getCopy(settings?.design, "accountGoogle")}
-          </button>
-
-          <div className="text-center pt-2">
-            <Link to="/" className="text-[9px] tracking-[0.3em] text-white/40 hover:text-white uppercase transition-colors">
+          <div className="text-center">
+            <Link to="/" className="text-[11px] tracking-[0.2em] text-white/40 hover:text-white uppercase transition-colors">
               {getCopy(settings?.design, "accountBackToStore")}
             </Link>
           </div>
