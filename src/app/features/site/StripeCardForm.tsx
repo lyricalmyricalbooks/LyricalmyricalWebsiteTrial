@@ -36,8 +36,13 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
   onStateChange?: (state: "loading" | "ready" | "error") => void;
   /** Google Font used inside Stripe's fields (Studio › Checkout form field font). */
   fontName?: string;
+  fieldBackground?: string;
+  fieldText?: string;
+  fieldBorder?: string;
+  accentColor?: string;
+  fieldRadius?: number;
   style?: React.CSSProperties;
-}>(function StripeCardForm({ publishableKey, amountCents, currency, loadingText, errorText, validationText, paymentErrorText, onStateChange, fontName, style }, ref) {
+}>(function StripeCardForm({ publishableKey, amountCents, currency, loadingText, errorText, validationText, paymentErrorText, onStateChange, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style }, ref) {
   const host = useRef<HTMLDivElement>(null);
   const stripeRef = useRef<Stripe | null>(null);
   const elementsRef = useRef<StripeElements | null>(null);
@@ -71,13 +76,30 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
           fonts: fontName ? [{ cssSrc: googleFontHref(fontName) }] : [],
           appearance: {
             theme: "flat",
+            inputs: "spaced",
+            labels: "above",
             variables: {
-              colorPrimary: tokenColor(el, "var(--accent, #e8402a)"),
-              colorBackground: tokenColor(el, style?.background as string || "var(--surface, #ffffff)"),
-              colorText: getComputedStyle(el).color,
+              colorPrimary: tokenColor(el, accentColor || "var(--accent, #e8402a)"),
+              colorBackground: tokenColor(el, fieldBackground || style?.background as string || "var(--surface, #ffffff)"),
+              colorText: fieldText ? tokenColor(el, fieldText) : getComputedStyle(el).color,
+              fontSizeBase: "16px",
+              inputColorBorder: tokenColor(el, fieldBorder || "var(--muted, #777777)"),
+              inputFocusColorBorder: tokenColor(el, accentColor || "var(--accent, #e8402a)"),
+              inputBoxShadow: "none",
+              inputFocusBoxShadow: "none",
+              focusOutline: "none",
               colorDanger: tokenColor(el, "var(--danger, #b4271a)"),
-              borderRadius: "0px",
+              borderRadius: `${fieldRadius ?? 0}px`,
               ...(fontName ? { fontFamily: `'${fontName.replace(/'/g, "")}', system-ui, sans-serif` } : {}),
+            },
+            rules: {
+              ".Input": { border: "1px solid var(--inputColorBorder)", boxShadow: "none" },
+              ".Input:focus": { borderColor: "var(--colorPrimary)", boxShadow: "0 0 0 1px var(--colorPrimary)" },
+              ".Input--invalid": { borderColor: "var(--colorDanger)", boxShadow: "0 0 0 1px var(--colorDanger)" },
+              ".Tab": { border: "1px solid var(--inputColorBorder)", boxShadow: "none" },
+              ".Tab:hover": { borderColor: "var(--colorText)" },
+              ".Tab--selected": { borderColor: "var(--colorPrimary)", boxShadow: "0 0 0 1px var(--colorPrimary)" },
+              ".Label": { fontWeight: "600" },
             },
           },
         });
@@ -99,7 +121,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
     return () => { cancelled = true; clearTimeout(deadline); cleanup?.(); elementsRef.current = null; stripeRef.current = null; };
     // amount/currency changes are pushed with elements.update below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publishableKey, fontName, style?.background]);
+  }, [publishableKey, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style?.background]);
 
   useEffect(() => {
     try { elementsRef.current?.update({ amount: safeAmount, currency: currency.toLowerCase() }); }

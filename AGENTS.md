@@ -366,3 +366,5 @@ disables payment-method switches while processing, and retains the lock during
 provider navigation. Failed validation/service calls release it for correction.
 Actual field display can be verified without submitting a payment; authenticated
 sandbox payment, webhook, refund and email verification remain separate.
+
+Stripe field appearance follows Studio checkout field background, text, border, font, accent and corner-radius controls inside the secure iframe. Riso defaults use square, visibly outlined idle fields with accent focus outlines and danger outlines for invalid fields; payment tabs share the same border treatment.

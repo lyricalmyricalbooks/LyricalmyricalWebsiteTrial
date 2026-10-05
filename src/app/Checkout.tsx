@@ -1412,6 +1412,11 @@ export function Checkout() {
                       paymentErrorText={c("coCardPaymentError")}
                       onStateChange={setCardState}
                       fontName={checkoutDesign.checkoutFieldFont || checkoutDesign.checkoutFont || checkoutDesign.font || checkoutDesign.bodyFont || undefined}
+                      fieldBackground={checkoutDesign.checkoutFieldBg || undefined}
+                      fieldText={checkoutDesign.checkoutFieldText || undefined}
+                      fieldBorder={checkoutDesign.checkoutFieldBorder || undefined}
+                      accentColor={checkoutDesign.checkoutAccentColor || undefined}
+                      fieldRadius={checkoutDesign.checkoutInputRadius}
                       style={{
                         background: checkoutDesign.stripeFormBg || undefined,
                         padding: checkoutDesign.stripeFormPadding != null ? `${checkoutDesign.stripeFormPadding}px` : undefined,
