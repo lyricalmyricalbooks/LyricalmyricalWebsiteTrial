@@ -34,6 +34,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     // Publisher packing, holds and internal notes never appear in guest tracking.
+    // Written only by Cloud Functions (sendEmail); the admin reads it in Notifications.
+    match /emailLog/{entryId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
     match /order-operations/{orderId} {
       allow read, write: if isAdmin();
     }

@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, limit, orderBy, query, setDoc } from "firebase/firestore";
 import { db, auth } from "../../lib/firebase";
 import { functionUrl } from "../lib/functionsBase";
 import toast from "react-hot-toast";
 import { risoButton, risoLayout } from "./emailTheme";
 import {
-  LoadingState, PrimaryButton, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle,
+  DataTable, GhostButton, LoadingState, PrimaryButton, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle,
 } from "./riso/components";
 
 type TemplateFields = {
@@ -14,6 +14,16 @@ type TemplateFields = {
   buttonText: string;
   signoff: string;
   enabled?: boolean;
+};
+
+type EmailLogEntry = {
+  id: string;
+  at?: string;
+  to?: string;
+  subject?: string;
+  status?: "sent" | "failed";
+  error?: string;
+  note?: string;
 };
 
 type NotificationSettings = {
@@ -184,10 +194,30 @@ export function NotificationEditor() {
   // Test Email states
   const [testEmail, setTestEmail] = useState("");
   const [sendingTest, setSendingTest] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [deliveries, setDeliveries] = useState<EmailLogEntry[] | null>(null);
+  const [deliveriesError, setDeliveriesError] = useState("");
 
   useEffect(() => {
     loadSettings();
+    loadDeliveries();
+    // Default the test recipient to the signed-in admin so Send test works straight away.
+    if (auth.currentUser?.email) setTestEmail((prev) => prev || auth.currentUser?.email || "");
   }, []);
+
+  async function loadDeliveries() {
+    try {
+      const snap = await getDocs(query(collection(db, "emailLog"), orderBy("at", "desc"), limit(15)));
+      setDeliveries(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+      setDeliveriesError("");
+    } catch (err: any) {
+      console.warn("Could not load email delivery log:", err);
+      setDeliveries([]);
+      setDeliveriesError(err?.code === "permission-denied"
+        ? "The delivery log needs the latest Firestore rules deployed."
+        : "Could not load recent deliveries.");
+    }
+  }
 
   async function loadSettings() {
     try {
@@ -281,10 +311,11 @@ export function NotificationEditor() {
 
   const handleSendTestEmail = async () => {
     if (!testEmail || !testEmail.includes("@")) {
-      toast.error("Please enter a valid email address.");
+      setTestResult({ ok: false, message: "Enter the email address the test should go to." });
       return;
     }
     setSendingTest(true);
+    setTestResult(null);
     try {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Unauthorized: You must be logged in as administrator.");
@@ -302,16 +333,22 @@ export function NotificationEditor() {
       });
 
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Failed to send test email.");
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || `The email service answered ${response.status}. Check that Cloud Functions are deployed.`);
       }
 
+      setTestResult({ ok: true, message: `Sent to ${testEmail.trim()}. Check that inbox (and its spam folder).` });
       toast.success(`Test email sent to ${testEmail}!`);
     } catch (err: any) {
       console.error("Test Email error:", err);
-      toast.error(err.message || "Failed to dispatch test notification.");
+      const message = err?.name === "TypeError"
+        ? "Could not reach the email service. Check your connection, or that the sendTestEmail function is deployed."
+        : (err.message || "Failed to dispatch test notification.");
+      setTestResult({ ok: false, message });
+      toast.error("Test email was not sent.");
     } finally {
       setSendingTest(false);
+      loadDeliveries();
     }
   };
 
@@ -412,8 +449,13 @@ export function NotificationEditor() {
                 <div style={{ flex: "1 1 220px" }}>
                   <TextField label="Send test to" type="email" value={testEmail} placeholder="admin@example.com" onChange={(e) => setTestEmail(e.target.value)} />
                 </div>
-                <SecondaryButton onClick={handleSendTestEmail} disabled={sendingTest || !testEmail}>{sendingTest ? "Sending…" : "Send test"}</SecondaryButton>
+                <SecondaryButton onClick={handleSendTestEmail} disabled={sendingTest}>{sendingTest ? "Sending…" : "Send test"}</SecondaryButton>
               </div>
+              {testResult && (
+                <p role="status" className="rp-hint" style={{ margin: "12px 0 0", padding: 12, border: `1px solid var(${testResult.ok ? "--rp-success" : "--rp-danger"})`, color: `var(${testResult.ok ? "--rp-success" : "--rp-danger"})`, background: `var(${testResult.ok ? "--rp-success-tint" : "--rp-danger-tint"})` }}>
+                  {testResult.ok ? "✓ " : "✕ "}{testResult.message}
+                </p>
+              )}
               <p className="rp-hint" style={{ margin: "8px 0 0" }}>Sends the last saved version of this template with sample order details. Save first to test your edits.</p>
             </div>
           </div>
@@ -424,6 +466,20 @@ export function NotificationEditor() {
             style={{ width: "100%", height: 560, border: "2px solid var(--rp-border-strong)", background: "#fff" }} />
         </SectionCard>
       </div>
+
+      <SectionCard title="Recent deliveries" description="Every email the shop tried to send, newest first. A failed row says what to fix."
+        actions={<GhostButton onClick={loadDeliveries}>Refresh</GhostButton>} flush>
+        <DataTable<EmailLogEntry> caption="Recent email deliveries" rows={deliveries || []} rowKey={(r) => r.id}
+          rowState={(r) => (r.status === "failed" ? "failed" : undefined)}
+          empty={<p className="rp-hint" style={{ margin: 0, padding: 16 }}>{deliveriesError || (deliveries === null ? "Loading…" : "No emails recorded yet. Send a test to check the setup.")}</p>}
+          columns={[
+            { key: "status", header: "Status", render: (r) => <StatusBadge tone={r.status === "failed" ? "danger" : r.note ? "warning" : "success"}>{r.status === "failed" ? "Failed" : r.note ? "Sent (sandbox)" : "Sent"}</StatusBadge> },
+            { key: "when", header: "When", render: (r) => (r.at ? new Date(r.at).toLocaleString() : "—") },
+            { key: "to", header: "To", lead: true, render: (r) => r.to || "—" },
+            { key: "subject", header: "Subject", render: (r) => r.subject || "—" },
+            { key: "detail", header: "Detail", render: (r) => <span style={{ whiteSpace: "normal" }}>{r.error || r.note || "Accepted by Resend"}</span> },
+          ]} />
+      </SectionCard>
 
       <SaveBar dirty={dirty} saving={saving} onSave={handleSave}
         onDiscard={() => { setData(JSON.parse(original)); setResendDraft(""); }} message="You have unsaved template changes." />

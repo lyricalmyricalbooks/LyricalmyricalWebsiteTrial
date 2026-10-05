@@ -16,6 +16,7 @@ const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { Resend } = require("resend");
+const { explainEmailError } = require("./emailErrors");
 const { risoButton, risoLayout } = require("./emailTheme");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
@@ -173,8 +174,19 @@ function orderRowsHtml(items = []) {
     .join("");
 }
 
+// Admin-only delivery log (firestore.rules: emailLog is readable by the admin, writable by no client).
+// Shown in Admin › Notifications so failed sends are visible instead of only in Functions logs.
+async function logEmailAttempt(entry) {
+  try {
+    await db.collection("emailLog").add({ ...entry, at: new Date().toISOString() });
+  } catch (err) {
+    console.warn("Could not write emailLog entry:", err);
+  }
+}
+
 async function sendEmail({ to, subject, html, secret }) {
   let apiKey = secret;
+  let keySource = secret ? "secret" : "none";
   let fromName = "Lyricalmyrical Books";
   let fromEmail = "orders@lyricalmyricalbooks.com";
   let replyTo = null;
@@ -188,7 +200,7 @@ async function sendEmail({ to, subject, html, secret }) {
       if (comms.fromName) fromName = comms.fromName;
       if (comms.replyTo) replyTo = comms.replyTo;
       if (comms.fromEmail) fromEmail = comms.fromEmail;
-      if (comms.resendApiKey) apiKey = comms.resendApiKey;
+      if (comms.resendApiKey) { apiKey = comms.resendApiKey; keySource = "settings"; }
     }
   } catch (err) {
     console.warn("Failed to load custom sender details, using default fallbacks:", err);
@@ -199,12 +211,23 @@ async function sendEmail({ to, subject, html, secret }) {
     const notificationsDoc = await db.collection("settings").doc("notifications").get();
     if (notificationsDoc.exists) {
       const notifications = notificationsDoc.data() || {};
-      if (notifications.resendApiKey) apiKey = notifications.resendApiKey;
-      if (notifications.brand && notifications.brand.resendApiKey) apiKey = notifications.brand.resendApiKey;
+      if (notifications.resendApiKey) { apiKey = notifications.resendApiKey; keySource = "settings"; }
+      if (notifications.brand && notifications.brand.resendApiKey) { apiKey = notifications.brand.resendApiKey; keySource = "settings"; }
       brand = notifications.brand || {};
     }
   } catch (err) {
     console.warn("Failed to load notifications custom API Key:", err);
+  }
+
+  if (typeof apiKey === "string") apiKey = apiKey.trim();
+  const recipients = Array.isArray(to) ? to.join(", ") : String(to || "");
+  const fail = async (message, extra = {}) => {
+    await logEmailAttempt({ to: recipients, subject: String(subject || ""), status: "failed", error: message, from: fromEmail, keySource, ...extra });
+    throw new Error(message);
+  };
+
+  if (!apiKey || apiKey === "dummy_value" || !apiKey.startsWith("re_")) {
+    await fail(explainEmailError("Missing API key", { fromEmail }));
   }
 
   const resend = new Resend(apiKey);
@@ -216,40 +239,31 @@ async function sendEmail({ to, subject, html, secret }) {
   }
 
   // If using a Resend onboarding key, force the sender to onboarding@resend.dev
-  if (apiKey && apiKey.startsWith("re_onb_")) {
+  if (apiKey.startsWith("re_onb_")) {
     fromEmail = "onboarding@resend.dev";
   }
 
-  const from = `${fromName} <${fromEmail}>`;
-
-  let response = await resend.emails.send({
-    from,
+  const send = (fromAddress) => resend.emails.send({
+    from: `${fromName} <${fromAddress}>`,
     to,
     subject,
     html,
-    reply_to: replyTo || undefined
-  });
+    replyTo: replyTo || undefined
+  }).catch(err => ({ data: null, error: { message: err?.message || String(err) } }));
 
-  if (response.error && fromEmail !== "onboarding@resend.dev") {
-    const errorMsg = response.error.message || "";
+  let response = await send(fromEmail);
+  let usedSandbox = fromEmail === "onboarding@resend.dev";
+
+  if (response.error && !usedSandbox) {
+    const errorMsg = (response.error.message || "").toLowerCase();
     // If it's a domain validation / verification error, retry using the Resend sandbox address
-    if (
-      errorMsg.includes("verify") || 
-      errorMsg.includes("domain") || 
-      errorMsg.includes("sender") || 
-      errorMsg.includes("From address") ||
-      errorMsg.includes("Unverified")
-    ) {
+    if (["verify", "domain", "sender", "from address", "unverified"].some(word => errorMsg.includes(word))) {
       console.warn(`Domain not verified for '${fromEmail}'. Retrying send via 'onboarding@resend.dev' sandbox fallback...`);
-      const fallbackFrom = `${fromName} <onboarding@resend.dev>`;
-      const fallbackResponse = await resend.emails.send({
-        from: fallbackFrom,
-        to,
-        subject,
-        html,
-        reply_to: replyTo || undefined
-      });
+      const fallbackResponse = await send("onboarding@resend.dev");
+      usedSandbox = true;
       if (!fallbackResponse.error) {
+        await logEmailAttempt({ to: recipients, subject: String(subject || ""), status: "sent", from: "onboarding@resend.dev", keySource, id: fallbackResponse.data?.id || null,
+          note: `${fromEmail.split("@")[1] || "Sender domain"} is not verified in Resend; sent from onboarding@resend.dev, which only reaches the Resend account owner.` });
         return fallbackResponse.data;
       }
       response = fallbackResponse; // If fallback also fails, report the fallback's error
@@ -257,8 +271,10 @@ async function sendEmail({ to, subject, html, secret }) {
   }
 
   if (response.error) {
-    throw new Error(response.error.message || "Failed to send email via Resend");
+    console.error(`Resend rejected email to ${recipients}:`, response.error);
+    await fail(explainEmailError(response.error.message, { fromEmail, usedSandbox }), usedSandbox ? { sandbox: true } : {});
   }
+  await logEmailAttempt({ to: recipients, subject: String(subject || ""), status: "sent", from: usedSandbox ? "onboarding@resend.dev" : fromEmail, keySource, id: response.data?.id || null });
   return response.data;
 }
 
@@ -2319,6 +2335,11 @@ exports.onOrderUpdated = onDocumentUpdated(
           html: compiled.html,
           secret: RESEND_API_KEY.value(),
         });
+      } catch (err) {
+        console.error("Payment confirmation email to customer failed", err);
+      }
+      // The shop's own copy goes out even when the customer's address is rejected.
+      try {
         await sendEmail({
           to: ADMIN_TO,
           subject: `[PAYMENT SUCCESS] ${order.orderId || orderId} · ${moneyFmt(order.total)} · ${order.customer.name}`,
@@ -2326,7 +2347,7 @@ exports.onOrderUpdated = onDocumentUpdated(
           secret: RESEND_API_KEY.value(),
         });
       } catch (err) {
-        console.error("Payment confirmation email failed", err);
+        console.error("Payment admin notification email failed", err);
       }
     }
   }
@@ -2361,6 +2382,11 @@ exports.onOrderUpdated = onDocumentUpdated(
           html: compiled.html,
           secret: RESEND_API_KEY.value(),
         });
+      } catch (err) {
+        console.error("Shipping confirmation email to customer failed", err);
+      }
+      // The shop's own copy goes out even when the customer's address is rejected.
+      try {
         await sendEmail({
           to: ADMIN_TO,
           subject: `[SHIPPED] ${after.orderId || orderId} · ${after.customer?.name}`,
@@ -2368,7 +2394,7 @@ exports.onOrderUpdated = onDocumentUpdated(
           secret: RESEND_API_KEY.value(),
         });
       } catch (err) {
-        console.error("Shipping confirmation email failed", err);
+        console.error("Shipping admin notification email failed", err);
       }
     }
 
