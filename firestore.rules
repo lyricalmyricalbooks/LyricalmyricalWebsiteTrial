@@ -35,6 +35,11 @@ service cloud.firestore {
     }
     // Publisher packing, holds and internal notes never appear in guest tracking.
     // Written only by Cloud Functions (sendEmail); the admin reads it in Notifications.
+    // Private email-sending credentials (Gmail app password). Admin-only: unlike settings/*,
+    // this is never publicly readable. Cloud Functions read it with the Admin SDK.
+    match /adminSecrets/{docId} {
+      allow read, write: if isAdmin();
+    }
     match /emailLog/{entryId} {
       allow read: if isAdmin();
       allow write: if false;

@@ -21,7 +21,6 @@ npm install
 
 # Configure secret
 firebase functions:secrets:set RESEND_API_KEY
-firebase functions:secrets:set GMAIL_APP_PASSWORD   # 16-char Google App Password for lyricalmyricalbooks@gmail.com
 firebase functions:secrets:set PAYPAL_CLIENT_ID
 firebase functions:secrets:set PAYPAL_CLIENT_SECRET
 firebase functions:secrets:set PAYPAL_WEBHOOK_ID

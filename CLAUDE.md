@@ -139,9 +139,9 @@ npm run logs
   0 → available. Studio › Style › Product page layout › **Notify me when back in stock** toggles the box;
   its words are in Text & labels › Product page.
 
-**Email sending:** `sendEmail` sends through Gmail SMTP (nodemailer, secret `GMAIL_APP_PASSWORD`, account `lyricalmyricalbooks@gmail.com`) first, because the shop has no Resend-verified domain; if the secret is unset or Gmail fails it falls back to Resend (`onboarding@resend.dev` only reaches the account owner). The secret must exist before deploying functions.
+**Email sending:** `sendEmail` sends through Gmail SMTP (nodemailer, account `lyricalmyricalbooks@gmail.com`) first, because the shop has no Resend-verified domain. The Gmail app password is entered in Settings › Notifications › **Gmail sending** (`admin/GmailSendingCard.tsx`) and stored in the admin-only `adminSecrets/gmail` doc (never in public `settings/*`). If it is unset or Gmail fails, sending falls back to Resend (`onboarding@resend.dev` only reaches the account owner).
 
-Secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, `GMAIL_APP_PASSWORD`,
+Secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`,
 `SHIPPO_API_TOKEN`) are stored as Firebase Functions secrets, not in the repo.
 
 ## Shipping engine

@@ -4,6 +4,7 @@ import { db, auth } from "../../lib/firebase";
 import { functionUrl } from "../lib/functionsBase";
 import toast from "react-hot-toast";
 import { risoButton, risoLayout } from "./emailTheme";
+import { GmailSendingCard } from "./GmailSendingCard";
 import {
   DataTable, GhostButton, LoadingState, PrimaryButton, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle,
 } from "./riso/components";
@@ -466,6 +467,8 @@ export function NotificationEditor() {
             style={{ width: "100%", height: 560, border: "2px solid var(--rp-border-strong)", background: "#fff" }} />
         </SectionCard>
       </div>
+
+      <GmailSendingCard />
 
       <SectionCard title="Recent deliveries" description="Every email the shop tried to send, newest first. A failed row says what to fix."
         actions={<GhostButton onClick={loadDeliveries}>Refresh</GhostButton>} flush>
