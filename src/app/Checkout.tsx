@@ -36,7 +36,7 @@ import { readSiteCache } from "./features/site/siteCache";
 import { loadCatalog } from "./features/site/loadCatalog";
 import { quoteLocalFulfillment } from "./features/site/localFulfillment";
 import { catalogFulfillmentItems, discountedPhysicalSubtotal } from "./features/site/checkoutFulfillment";
-import { FulfillmentMethodPicker, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
+import { FulfillmentMethodPicker, bestFirst, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
 
 // ─── State / province drop-down for countries with a fixed list ──────────────
 function RegionField({ value, onChange, label, choose, regions }: { value: string; onChange: (v: string) => void; label: string; choose: string; regions: [string, string][] }) {
@@ -835,7 +835,7 @@ export function Checkout() {
   const autoSelectedShipping = useRef(false);
   useEffect(() => {
     if (availableRates.length && fulfillmentSelection.method === "shipping" && !fulfillmentSelection.optionId && !autoSelectedShipping.current) {
-      const cheapest = [...availableRates].sort((a, b) => a.price - b.price)[0];
+      const cheapest = [...availableRates].sort(bestFirst)[0];
       setFulfillmentSelection(current => ({ ...current, optionId: cheapest.id || cheapest.name }));
       autoSelectedShipping.current = true;
     }
@@ -1477,6 +1477,9 @@ export function Checkout() {
                   instructions: c("coFulfillmentInstructions"),
                   hours: c("coFulfillmentHours"),
                   estimate: c("coFulfillmentEstimate"),
+                  carrierTransit: c("coCarrierTransit"),
+                  carrierUnavailable: c("coCarrierTimingUnavailable"),
+                  deliveryDays: c("coEstimated"),
                   free: c("coFree"),
                 }}
                 formatPrice={formatPrice}
