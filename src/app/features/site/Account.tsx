@@ -66,6 +66,8 @@ export default function AccountPage() {
   const [sendingLink, setSendingLink] = useState(false);
   // Email the sign-in link went to; switches the card to its "check your inbox" state.
   const [linkSentTo, setLinkSentTo] = useState("");
+  // Sign-in link opened on a device that didn't request it: ask for the email on the card.
+  const [confirmingLink, setConfirmingLink] = useState(false);
   
   // Address edit states
   const [isEditingAddress, setIsEditingAddress] = useState(false);
@@ -95,25 +97,35 @@ export default function AccountPage() {
 
   useSEO({ title: getCopy(settings?.design, "seoAccountTitle"), description: getCopy(settings?.design, "seoAccountDescription") });
 
-  // Handle incoming Magic Link authentication on mount
+  async function completeEmailLinkSignIn(email: string) {
+    try {
+      await signInWithEmailLink(auth, email.trim(), window.location.href);
+      window.localStorage.removeItem("emailForSignIn");
+      setConfirmingLink(false);
+      // Drop the one-time sign-in code from the address bar.
+      window.history.replaceState(null, "", window.location.pathname);
+      toast.success(getCopy(settings?.design, "accountSignedInLink"));
+    } catch (err: any) {
+      console.error("Email link sign in error:", err);
+      setConfirmingLink(false);
+      toast.error(getCopy(settings?.design, "accountSignInError"));
+    }
+  }
+
+  // Prefill the email field when arriving from the order confirmation page.
+  useEffect(() => {
+    const fromCheckout = new URLSearchParams(window.location.search).get("email");
+    if (fromCheckout) setEmailLinkInput(fromCheckout);
+  }, []);
+
+  // Handle incoming email sign-in links on mount
   useEffect(() => {
     const handleEmailAuthRedirect = async () => {
       if (isSignInWithEmailLink(auth, window.location.href)) {
         setAuthLoading(true);
-        let email = window.localStorage.getItem("emailForSignIn");
-        if (!email) {
-          email = window.prompt(getCopy(settings?.design, "accountConfirmEmailPrompt"));
-        }
-        if (email) {
-          try {
-            await signInWithEmailLink(auth, email, window.location.href);
-            window.localStorage.removeItem("emailForSignIn");
-            toast.success(getCopy(settings?.design, "accountSignedInLink"));
-          } catch (err: any) {
-            console.error("Email link sign in error:", err);
-            toast.error(getCopy(settings?.design, "accountSignInError"));
-          }
-        }
+        const email = window.localStorage.getItem("emailForSignIn");
+        if (email) await completeEmailLinkSignIn(email);
+        else setConfirmingLink(true);
         setAuthLoading(false);
       }
     };
@@ -368,7 +380,37 @@ export default function AccountPage() {
             <p className="text-sm fm-muted leading-relaxed max-w-xs mx-auto">{getCopy(settings?.design, "accountSubtitle")}</p>
           </div>
 
-          {linkSentTo ? (
+          {confirmingLink ? (
+            <form
+              onSubmit={async (e) => { e.preventDefault(); if (!emailLinkInput.trim()) return; setSendingLink(true); await completeEmailLinkSignIn(emailLinkInput); setSendingLink(false); }}
+              className="space-y-4 text-center"
+            >
+              <h2 className="text-lg font-black uppercase tracking-wide">{getCopy(settings?.design, "accountConfirmEmailTitle")}</h2>
+              <p className="text-sm fm-muted leading-relaxed">{getCopy(settings?.design, "accountConfirmEmailPrompt")}</p>
+              <div className="relative text-left">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 fm-muted pointer-events-none" size={16} aria-hidden="true" />
+                <input
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  required
+                  aria-label={getCopy(settings?.design, "accountSignInLabel")}
+                  placeholder={getCopy(settings?.design, "accountEmailPlaceholder")}
+                  value={emailLinkInput}
+                  onChange={(e) => setEmailLinkInput(e.target.value)}
+                  className="w-full bg-white/[0.03] border border-white/10 py-3.5 pl-11 pr-4 text-sm text-white outline-none focus:border-white/40 transition-all"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={sendingLink || !emailLinkInput.trim()}
+                className="w-full fm-active py-4 text-[11px] font-black tracking-[0.2em] uppercase hover:bg-white/90 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+              >
+                {sendingLink ? <Loader2 size={14} className="animate-spin" /> : getCopy(settings?.design, "accountConfirmEmailButton")}
+              </button>
+            </form>
+          ) : linkSentTo ? (
             <div className="space-y-5 text-center" role="status" aria-live="polite">
               <div className="w-12 h-12 border border-white/10 flex items-center justify-center mx-auto">
                 <Mail size={20} style={{ color: "var(--accent)" }} strokeWidth={1.5} />
