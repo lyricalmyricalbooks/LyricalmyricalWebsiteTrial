@@ -13,6 +13,7 @@ const { onDocumentUpdated, onDocumentCreated } = require("firebase-functions/v2/
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onRequest } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
+const nodemailer = require("nodemailer");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { Resend } = require("resend");
@@ -109,6 +110,7 @@ exports.deleteTestOrders = onRequest(async (req, res) => {
 });
 
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
+const GMAIL_APP_PASSWORD = defineSecret("GMAIL_APP_PASSWORD");
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
 const PAYPAL_CLIENT_ID = defineSecret("PAYPAL_CLIENT_ID");
@@ -221,6 +223,33 @@ async function sendEmail({ to, subject, html, secret }) {
 
   if (typeof apiKey === "string") apiKey = apiKey.trim();
   const recipients = Array.isArray(to) ? to.join(", ") : String(to || "");
+
+  // Gmail SMTP is the primary sender while the shop has no verified domain in Resend. Gmail
+  // always sends from the authenticated account, so customers get real inbox delivery.
+  // If it is unset or fails, fall through to Resend below.
+  let gmailPass = "";
+  try { gmailPass = String(GMAIL_APP_PASSWORD.value() || "").replace(/\s+/g, ""); } catch (_) { /* secret not bound */ }
+  if (gmailPass) {
+    try {
+      if (html && !/<html[\s>]/i.test(html)) {
+        html = risoLayout(html, { logoUrl: brand.logoUrl || "", accent: brand.brandColor, theme: brand.emailTheme });
+      }
+      const transport = nodemailer.createTransport({ service: "gmail", auth: { user: ADMIN_TO, pass: gmailPass } });
+      const info = await transport.sendMail({
+        from: `"${String(fromName).replace(/"/g, "")}" <${ADMIN_TO}>`,
+        to,
+        subject,
+        html,
+        replyTo: replyTo || undefined,
+      });
+      await logEmailAttempt({ to: recipients, subject: String(subject || ""), status: "sent", from: ADMIN_TO, keySource: "gmail", id: info.messageId || null });
+      return { id: info.messageId || null };
+    } catch (err) {
+      console.error("Gmail SMTP send failed, falling back to Resend:", err);
+      await logEmailAttempt({ to: recipients, subject: String(subject || ""), status: "failed", from: ADMIN_TO, keySource: "gmail",
+        error: `Gmail SMTP rejected the send (${err?.message || err}). Check the GMAIL_APP_PASSWORD secret; falling back to Resend.` });
+    }
+  }
   const fail = async (message, extra = {}) => {
     await logEmailAttempt({ to: recipients, subject: String(subject || ""), status: "failed", error: message, from: fromEmail, keySource, ...extra });
     throw new Error(message);
@@ -2187,7 +2216,7 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
 // 5b. Order Paid: Trigger notifications only AFTER successful payment
 // ──────────────────────────────────────────────────────────────
 exports.onOrderUpdated = onDocumentUpdated(
-  { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
+  { document: "orders/{orderId}", secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
   async event => {
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
@@ -2531,7 +2560,7 @@ exports.onOrderUpdated = onDocumentUpdated(
 // 7. Abandoned cart sweep: every hour, recover carts older than 1h
 // ──────────────────────────────────────────────────────────────
 exports.abandonedCartSweep = onSchedule(
-  { schedule: "every 60 minutes", secrets: [RESEND_API_KEY] },
+  { schedule: "every 60 minutes", secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
   async () => {
     const notificationSettings = await loadNotificationSettings();
     const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -3254,7 +3283,7 @@ exports.validateDiscountCode = onRequest(async (req, res) => {
 // 10. Order Created Trigger (New Order Admin Alert / Customer Manual Order Confirmation)
 // ──────────────────────────────────────────────────────────────
 exports.onOrderCreated = onDocumentCreated(
-  { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
+  { document: "orders/{orderId}", secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
   async event => {
     const order = event.data?.data() || {};
     const orderId = event.params.orderId;
@@ -3350,7 +3379,7 @@ const escContact = (v) => String(v == null ? "" : v)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 exports.onContactMessage = onDocumentCreated(
-  { document: "contactMessages/{messageId}", secrets: [RESEND_API_KEY] },
+  { document: "contactMessages/{messageId}", secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
   async event => {
     const m = event.data?.data() || {};
     if (!m.email || !m.message) return;
@@ -3403,7 +3432,7 @@ exports.onContactMessage = onDocumentCreated(
 );
 
 exports.onCustomerCreated = onDocumentCreated(
-  { document: "customers/{customerId}", secrets: [RESEND_API_KEY] },
+  { document: "customers/{customerId}", secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
   async event => {
     const customer = event.data?.data() || {};
     if (!customer.email) return;
@@ -3437,7 +3466,7 @@ exports.onCustomerCreated = onDocumentCreated(
 // 11. HTTP Endpoint: Send Test Email (Admin Secure)
 // ──────────────────────────────────────────────────────────────
 exports.sendTestEmail = onRequest(
-  { secrets: [RESEND_API_KEY] },
+  { secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") {
@@ -3534,7 +3563,7 @@ exports.sendTestEmail = onRequest(
 // 12. HTTP Endpoint: Shippo Webhook Status Updates (Carrier Integration)
 // ──────────────────────────────────────────────────────────────
 exports.shippoWebhook = onRequest(
-  { secrets: [RESEND_API_KEY] },
+  { secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
   async (req, res) => {
     if (req.method !== "POST") {
       res.status(405).send("Method Not Allowed");
@@ -3643,7 +3672,7 @@ function stockOf(item, fallback) {
 }
 
 exports.onBookRestocked = onDocumentUpdated(
-  { document: "books/{bookId}", secrets: [RESEND_API_KEY] },
+  { document: "books/{bookId}", secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
   async event => {
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
@@ -3710,7 +3739,7 @@ exports.onBookRestocked = onDocumentUpdated(
 // 12. Low Stock Alerts: Email admin when product or variant stock drops below 3 or hits 0
 // ──────────────────────────────────────────────────────────────
 exports.onBookUpdated = onDocumentUpdated(
-  { document: "books/{bookId}", secrets: [RESEND_API_KEY] },
+  { document: "books/{bookId}", secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
   async event => {
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
