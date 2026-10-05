@@ -720,3 +720,5 @@ A valid publishable key for the active Stripe mode is required. Display-only
 validation of actual Stripe fields does not verify sandbox payment, authenticated
 Studio persistence, webhook delivery, refunds, email or fulfillment. Server
 prices and webhook-only paid-order authority remain unchanged.
+
+Stripe field appearance follows Studio checkout field background, text, border, font, accent and corner-radius controls inside the secure iframe. Riso defaults use square, visibly outlined idle fields with accent focus outlines and danger outlines for invalid fields; payment tabs share the same border treatment.
