@@ -1,5 +1,6 @@
 // Kept in parity with admin/fulfillment.ts; money-spending label operations recheck fresh records.
 function labelProblem(order, operations = {}) {
+ if (['pickup', 'local_delivery'].includes(order.fulfillment?.method)) return 'This local fulfillment order does not use a carrier label.';
  if (order.isTest || order.paymentStatus !== "paid" || ["cancelled", "completed"].includes(order.status) || ["shipped", "out_for_delivery", "delivered", "cancelled", "refunded"].includes(order.fulfillmentStatus)) return "Only active paid, undispatched production orders can buy labels.";
  if (!(order.items || []).some(i => !/e-book|epub|pdf|audiobook/.test(String(i.format || "").toLowerCase()))) return "This order has no physical books to ship.";
  if (order.labelUrl) return "A label already exists. Reprint the existing label.";

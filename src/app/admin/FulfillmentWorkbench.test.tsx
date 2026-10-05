@@ -31,6 +31,7 @@ const render = (o: any, checked = new Set<number>()) =>
       onPack={() => {}}
       onLabel={() => {}}
       onDispatch={() => {}}
+      onLocalAdvance={() => {}}
       onRelease={() => {}}
     />,
   );
@@ -90,4 +91,29 @@ it("keeps purchased labels accessible on held and dispatched orders", () => {
       render({ ...reviewed, labelUrl: "https://example.com/label", ...patch }),
     ).toContain("Reprint label");
   }
+});
+
+it("shows pickup readiness without requiring or exposing shipping actions", () => {
+  const o: any = base();
+  o.customer.address = {};
+  o.fulfillmentSelection = { method: "pickup", optionId: "pickup:main" };
+  o.fulfillment = { name: "Main Street", address: { street: "5 Main", city: "Toronto", state: "ON" }, instructions: "Ring the bell" };
+  o.operations = { packed: packingKey(o) };
+  const html = render(o);
+  expect(html).toContain("Mark ready for pickup");
+  expect(html).toContain("5 Main, Toronto, ON");
+  expect(html).toContain("Ring the bell");
+  expect(html).not.toContain("Confirm address");
+  expect(html).not.toContain("Choose shipping label");
+});
+
+it("allows the final local delivery transition after the driver departs", () => {
+  const o: any = base();
+  o.fulfillmentSelection = { method: "local_delivery", optionId: "delivery:west" };
+  o.fulfillmentStatus = "out_for_delivery";
+  o.operations = { addressReviewed: addressKey(o), packed: packingKey(o) };
+  const html = render(o);
+  expect(html).toContain("Confirm delivered");
+  expect(html).not.toContain("Choose shipping label");
+  expect(html).not.toContain("Use my own tracking");
 });

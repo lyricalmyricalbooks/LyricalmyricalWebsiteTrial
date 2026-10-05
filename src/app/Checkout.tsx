@@ -33,6 +33,10 @@ import { CountryField } from "./features/site/CountryField";
 import { designNumber } from "./features/site/designNumber";
 import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
 import { readSiteCache } from "./features/site/siteCache";
+import { loadCatalog } from "./features/site/loadCatalog";
+import { quoteLocalFulfillment } from "./features/site/localFulfillment";
+import { catalogFulfillmentItems, discountedPhysicalSubtotal } from "./features/site/checkoutFulfillment";
+import { FulfillmentMethodPicker, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
 
 // ─── State / province drop-down for countries with a fixed list ──────────────
 function RegionField({ value, onChange, label, choose, regions }: { value: string; onChange: (v: string) => void; label: string; choose: string; regions: [string, string][] }) {
@@ -173,6 +177,7 @@ export function Checkout() {
   const [notice, setNotice] = useState<null | { tone: "error" | "info"; text: string }>(null);
   const [isSuccess, setIsSuccess]       = useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [manualOrderReturn, setManualOrderReturn] = useState(false);
   const [orderNumber, setOrderNumber]   = useState("");
 
   const [discountCode, setDiscountCode]       = useState("");
@@ -187,10 +192,10 @@ export function Checkout() {
 
   const [customer, setCustomer] = useState({
     name: "", email: "", phone: "",
-    address: { street: "", city: "", state: "", zip: "", country: guessCountryName() || "Canada" }
+    address: { street: "", city: "", state: "", zip: "", country: guessCountryName() || "Canada" },
+    billingAddress: { state: "", country: "Canada" }
   });
 
-  const [shippingCost, setShippingCost] = useState(0);
   const [taxCost, setTaxCost] = useState(0);
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [taxRates, setTaxRates] = useState<any[]>([]);
@@ -249,6 +254,7 @@ export function Checkout() {
               name: data.name || u.displayName || prev.name,
               email: u.email || prev.email,
               phone: data.phone || prev.phone,
+              billingAddress: prev.billingAddress,
               address: {
                 street: data.defaultAddress?.street || prev.address.street,
                 city: data.defaultAddress?.city || prev.address.city,
@@ -287,7 +293,7 @@ export function Checkout() {
         const [profiles, siteSettings, bookList] = await Promise.all([
           adminApi.getShippingProfiles(),
           adminApi.getSettings() as Promise<any>,
-          adminApi.getBooks(100)
+          loadCatalog((size, cursor) => adminApi.getBooks(size, cursor))
         ]);
         setShippingProfiles(profiles);
         setTaxRates(siteSettings?.taxes?.rates || []);
@@ -585,7 +591,7 @@ export function Checkout() {
   };
 
   const [availableRates, setAvailableRates] = useState<any[]>([]);
-  const [selectedRateName, setSelectedRateName] = useState<string>("");
+  const [fulfillmentSelection, setFulfillmentSelection] = useState<FulfillmentSelection>({ method: "shipping", optionId: "" });
 
   const shippingItemsForCart = () => cart.map((item) => {
     const book: any = booksMap.get(item.id);
@@ -593,17 +599,19 @@ export function Checkout() {
     return {
       price: item.price,
       quantity: item.quantity,
-      shippingProfileId: item.shippingProfileId || null,
+      shippingProfileId: book?.shippingProfileId || null,
       weightGrams: parseWeightGrams(variant?.weight) ?? parseWeightGrams(book?.weight),
     };
   });
+
+  const catalogItems = useMemo(() => catalogFulfillmentItems(cart, booksMap), [cart, booksMap]);
 
   // "Add CA$X more for free shipping" — only when the real shipping rules would
   // actually make this delivery free at that total (checked with the same engine).
   const freeShipNudge = useMemo(() => {
     if (checkoutDesign.hideCheckoutFreeShipNudge || cart.length === 0 || shippingProfiles.length === 0) return null;
-    const selected = availableRates.find(r => r.name === selectedRateName) || availableRates[0];
-    if (!selected || selected.price === 0 || selected.pickup) return null;
+    const selected = availableRates.find(r => r.id === fulfillmentSelection.optionId || r.name === fulfillmentSelection.optionId);
+    if (fulfillmentSelection.method !== "shipping" || !selected || selected.price === 0) return null;
     const candidates = new Set<number>();
     shippingProfiles.forEach((p: any) => {
       if (Number(p.freeShippingOver) > 0) candidates.add(Number(p.freeShippingOver));
@@ -621,19 +629,21 @@ export function Checkout() {
     }
     return null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart, cartTotal, shippingProfiles, availableRates, selectedRateName, customer.address.country, checkoutDesign.hideCheckoutFreeShipNudge]);
+  }, [cart, cartTotal, shippingProfiles, availableRates, fulfillmentSelection, customer.address.country, checkoutDesign.hideCheckoutFreeShipNudge]);
 
   const calculateStaticProfileRates = () => {
     if (cart.length === 0 || shippingProfiles.length === 0) {
       setAvailableRates([]);
-      setShippingCost(0);
       return;
     }
     // Same engine the server uses to charge the order (parity-tested); weights
     // come from the catalog so weight-based rates quote identically.
     const items = shippingItemsForCart();
-    const quotes = quoteShipping(items, { country: customer.address.country || "Canada" }, shippingProfiles);
-    setAvailableRates(quotes.map((q) => ({ name: q.name, price: q.price, deliveryDays: q.deliveryDays, pickup: q.type === "pickup" })));
+    const physical = catalogItems?.filter(item => item.physical) || [];
+    const physicalIds = new Set(physical.map(item => `${item.id}:${item.variantId || ""}`));
+    const shippableItems = items.filter((item, index) => physicalIds.has(`${cart[index].id}:${cart[index].variantId || ""}`));
+    const quotes = quoteShipping(shippableItems, { country: customer.address.country || "Canada" }, shippingProfiles).filter(q => q.type !== "pickup");
+    setAvailableRates(quotes.map((q) => ({ id: q.id, name: q.name, price: q.price, deliveryDays: q.deliveryDays })));
   };
 
   useEffect(() => {
@@ -668,7 +678,7 @@ export function Checkout() {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data.rates) && data.rates.length > 0) {
-            setAvailableRates(canadaPostRates(data.rates));
+            setAvailableRates(canadaPostRates(data.rates).map((rate: any) => ({ ...rate, id: rate.name })));
             setShippoRatesLoading(false);
             return;
           }
@@ -684,23 +694,15 @@ export function Checkout() {
     }, 1500);
 
     return () => clearTimeout(delayDebounce);
-  }, [customer.address.street, customer.address.city, customer.address.state, customer.address.zip, customer.address.country, cart, shippingProfiles, cartTotal]);
+  }, [customer.address.street, customer.address.city, customer.address.state, customer.address.zip, customer.address.country, cart, shippingProfiles, cartTotal, catalogItems]);
 
 
   useEffect(() => {
-    if (availableRates.length === 0) {
-      setShippingCost(0);
-      return;
+    if (fulfillmentSelection.method === "shipping" && fulfillmentSelection.optionId
+      && !availableRates.some(rate => rate.id === fulfillmentSelection.optionId || rate.name === fulfillmentSelection.optionId)) {
+      setFulfillmentSelection(current => ({ ...current, optionId: "" }));
     }
-    const currentValid = availableRates.find(r => r.name === selectedRateName);
-    if (!currentValid) {
-      const cheapest = [...availableRates].sort((a, b) => a.price - b.price)[0];
-      setSelectedRateName(cheapest.name);
-      setShippingCost(cheapest.price);
-    } else {
-      setShippingCost(currentValid.price);
-    }
-  }, [availableRates, selectedRateName]);
+  }, [availableRates, fulfillmentSelection]);
 
   // Re-validate discount whenever email or cart changes
   useEffect(() => {
@@ -797,21 +799,71 @@ export function Checkout() {
     return 0;
   }, [appliedDiscount, cart, cartTotal, booksMap]);
 
-  useEffect(() => {
-    // Region-aware estimate: prefer a rate whose region matches the
-    // state/province, then fall back to the country-wide rate. The backend
-    // recomputes the authoritative amount at session creation.
-    const country = (customer.address.country || "United States").trim().toLowerCase();
-    const state = (customer.address.state || "").trim().toLowerCase();
-    const countryRates = taxRates.filter(r => (r.country || "").trim().toLowerCase() === country);
-    const matchedTaxRate =
-      countryRates.find(r => (r.region || "").trim().toLowerCase() === state && state !== "") ||
-      countryRates.find(r => !r.region);
-    const taxPercent = matchedTaxRate ? Number(matchedTaxRate.rate) : 0;
+  const physicalItems = useMemo(() => catalogItems?.filter(item => item.physical) || [], [catalogItems]);
+  const availableFulfillmentMethods = useMemo<FulfillmentSelection["method"][]>(() => {
+    if (!physicalItems.length) return [];
+    const methods: FulfillmentSelection["method"][] = ["shipping"];
+    if (settings?.localFulfillment?.enabled && settings.localFulfillment.pickupLocations?.some((location: any) => location.enabled)) methods.push("pickup");
+    if (settings?.localFulfillment?.enabled && settings.localFulfillment.deliveryZones?.some((zone: any) => zone.enabled)) methods.push("local_delivery");
+    return methods;
+  }, [physicalItems.length, settings?.localFulfillment]);
+  const physicalSubtotalAfterDiscount = useMemo(() => catalogItems
+    ? discountedPhysicalSubtotal(catalogItems, discountAmount, appliedDiscount, booksMap)
+    : 0, [catalogItems, discountAmount, appliedDiscount, booksMap]);
+  const localQuotes = useMemo(() => catalogItems && physicalItems.length
+    ? quoteLocalFulfillment(settings?.localFulfillment, customer.address, physicalSubtotalAfterDiscount, physicalItems)
+    : [], [catalogItems, physicalItems, settings?.localFulfillment, customer.address, physicalSubtotalAfterDiscount]);
 
-    const subtotalAfterDiscount = cartTotal - discountAmount;
-    setTaxCost(subtotalAfterDiscount * (taxPercent / 100));
-  }, [customer.address.country, customer.address.state, cartTotal, appliedDiscount, taxRates, discountAmount]);
+  // A changed cart, address, discount, or service configuration invalidates a
+  // previously chosen price. Keep the intended method so the shopper can review it.
+  const quoteContext = JSON.stringify([
+    cart.map(item => [item.id, item.variantId, item.quantity, item.price]),
+    fulfillmentSelection.method === "pickup" ? null : [customer.address.street, customer.address.city, customer.address.state, customer.address.zip, customer.address.country],
+    discountAmount,
+    settings?.localFulfillment,
+  ]);
+  const previousQuoteContext = useRef("");
+  useEffect(() => {
+    if (previousQuoteContext.current && previousQuoteContext.current !== quoteContext && fulfillmentSelection.optionId) {
+      setFulfillmentSelection(current => ({ ...current, optionId: "" }));
+    }
+    previousQuoteContext.current = quoteContext;
+  }, [quoteContext]);
+
+  // Pick the initial shipping quote once. Later address or cart changes keep
+  // the selection empty until the shopper chooses a currently valid rate.
+  const autoSelectedShipping = useRef(false);
+  useEffect(() => {
+    if (availableRates.length && fulfillmentSelection.method === "shipping" && !fulfillmentSelection.optionId && !autoSelectedShipping.current) {
+      const cheapest = [...availableRates].sort((a, b) => a.price - b.price)[0];
+      setFulfillmentSelection(current => ({ ...current, optionId: cheapest.id || cheapest.name }));
+      autoSelectedShipping.current = true;
+    }
+  }, [availableRates, fulfillmentSelection]);
+
+  useEffect(() => {
+    const rateFor = (address: any) => {
+      const country = String(address?.country || "").trim().toLowerCase();
+      const state = String(address?.state || "").trim().toLowerCase();
+      const countryRates = taxRates.filter(r => {
+        const configured = String(r.country || "").trim().toLowerCase();
+        return configured === country || ((configured === "ca" || configured === "canada") && (country === "ca" || country === "canada"));
+      });
+      return countryRates.find(r => String(r.region || "").trim().toLowerCase() === state && state !== "") || countryRates.find(r => !r.region);
+    };
+    const taxable = Math.max(0, cartTotal - discountAmount);
+    if (fulfillmentSelection.method === "pickup") {
+      const pickup = localQuotes.find(quote => quote.id === fulfillmentSelection.optionId && quote.method === "pickup");
+      const physicalTaxable = Math.min(taxable, physicalSubtotalAfterDiscount);
+      const digitalTaxable = Math.max(0, taxable - physicalTaxable);
+      const physicalRate = rateFor(pickup?.address);
+      const digitalRate = rateFor(customer.billingAddress);
+      setTaxCost(physicalTaxable * (Number(physicalRate?.rate || 0) / 100) + digitalTaxable * (Number(digitalRate?.rate || 0) / 100));
+      return;
+    }
+    const matchedTaxRate = rateFor(customer.address);
+    setTaxCost(taxable * (Number(matchedTaxRate?.rate || 0) / 100));
+  }, [customer.address.country, customer.address.state, customer.billingAddress.country, customer.billingAddress.state, fulfillmentSelection, localQuotes, physicalSubtotalAfterDiscount, cartTotal, appliedDiscount, taxRates, discountAmount]);
 
   const applyDiscount = async () => {
     if (!discountCode) return;
@@ -838,12 +890,16 @@ export function Checkout() {
 
 
   const isFreeShipping  = appliedDiscount?.type === "freeship";
+  const selectedShippingQuote = availableRates.find(rate => rate.id === fulfillmentSelection.optionId || rate.name === fulfillmentSelection.optionId);
+  const selectedLocalQuote = localQuotes.find(quote => quote.id === fulfillmentSelection.optionId && quote.method === fulfillmentSelection.method);
+  const shippingCost = fulfillmentSelection.method === "shipping" ? Number(selectedShippingQuote?.price || 0) : Number(selectedLocalQuote?.price || 0);
   const finalShipping   = isFreeShipping ? 0 : shippingCost;
   const finalTotal      = cartTotal - discountAmount + finalShipping + taxCost;
 
   const getActiveShippingDetails = () => {
-    if (!selectedRateName || availableRates.length === 0) return null;
-    const current = availableRates.find(r => r.name === selectedRateName);
+    if (fulfillmentSelection.method === "pickup" && selectedLocalQuote) return { serviceName: selectedLocalQuote.name };
+    if (fulfillmentSelection.method === "local_delivery" && selectedLocalQuote) return { serviceName: selectedLocalQuote.name };
+    const current = selectedShippingQuote;
     if (!current) return null;
     return {
       serviceName: current.name,
@@ -907,8 +963,22 @@ export function Checkout() {
       setNotice({ tone: "error", text: c("coStripeLoadError") });
       return;
     }
-    if (!customer.name || !customer.email || !customer.address.street || !customer.address.city || !customer.address.state || !customer.address.zip) {
+    const needsDeliveryAddress = fulfillmentSelection.method !== "pickup";
+    const validDestination = !needsDeliveryAddress || [customer.address.street, customer.address.city, customer.address.state, customer.address.zip, customer.address.country].every(value => String(value || "").trim());
+    const validBilling = fulfillmentSelection.method !== "pickup" || [customer.billingAddress.country, customer.billingAddress.state].every(value => String(value || "").trim());
+    const selectedOptionExists = !physicalItems.length || (fulfillmentSelection.method === "shipping"
+      ? availableRates.some(rate => rate.id === fulfillmentSelection.optionId || rate.name === fulfillmentSelection.optionId)
+      : localQuotes.some(quote => quote.id === fulfillmentSelection.optionId && quote.method === fulfillmentSelection.method));
+    if (!customer.name || !customer.email || !validDestination) {
       setNotice({ tone: "error", text: c("coErrShippingFields") });
+      return;
+    }
+    if (!validBilling) {
+      setNotice({ tone: "error", text: c("coErrPickupBillingFields") });
+      return;
+    }
+    if (!selectedOptionExists) {
+      setNotice({ tone: "error", text: c("coFulfillmentReview") });
       return;
     }
     setNotice(null);
@@ -921,8 +991,11 @@ export function Checkout() {
       }
     }
     try {
-      // 1. Verify and Validate address using Shippo API Cloud Function
-      const valResponse = await fetch(functionUrl("validateAddress"), {
+      // Carrier address verification applies to shipped orders. Pickup has no
+      // shipping address, and local delivery uses its configured postal zone.
+      let addressVerified = fulfillmentSelection.method !== "shipping";
+      let addressError = "";
+      const valResponse = fulfillmentSelection.method === "shipping" ? await fetch(functionUrl("validateAddress"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -935,17 +1008,14 @@ export function Checkout() {
             country: customer.address.country
           }
         })
-      });
-
-      if (!valResponse.ok) {
-        throw new CopyError(checkoutDesign, "coErrAddressService");
+      }) : null;
+      if (valResponse) {
+        if (!valResponse.ok) throw new CopyError(checkoutDesign, "coErrAddressService");
+        const valData = await valResponse.json();
+        // If verification is temporarily unavailable, publisher review remains required.
+        addressVerified = valData.isValid === true && valData.unverified !== true;
+        addressError = addressVerified ? "" : (valData.messages || []).map((m: any) => m.text).join(", ");
       }
-
-      const valData = await valResponse.json();
-      // `unverified` means the verification service itself was unavailable —
-      // the checkout proceeds, but the order is flagged for manual review.
-      const addressVerified = valData.isValid === true && valData.unverified !== true;
-      const addressError = addressVerified ? "" : (valData.messages || []).map((m: any) => m.text).join(", ");
 
       const isManual = selectedPaymentMethod.startsWith("manual_");
       let manualMethod = null;
@@ -977,7 +1047,8 @@ export function Checkout() {
         subtotal: cartTotal,
         discount: discountAmount,
         shipping: finalShipping,
-        shippingMethod: selectedRateName || null,
+        shippingMethod: fulfillmentSelection.method === "shipping" ? (selectedShippingQuote?.name || null) : null,
+        ...(physicalItems.length ? { fulfillmentSelection } : {}),
         tax: taxCost,
         total: finalTotal,
         status: "pending_payment",
@@ -994,9 +1065,36 @@ export function Checkout() {
       // Save customer email in localStorage to recover cart on payment success landing
       localStorage.setItem("last_customer_email", customer.email);
       
-      const cardKey = JSON.stringify([orderData.items, orderData.total, orderData.customer, currency]);
+      const cardKey = JSON.stringify([orderData.items, orderData.total, orderData.customer, currency, fulfillmentSelection]);
       const reuse = payingByCardForm && pendingCardOrder.current?.key === cardKey ? pendingCardOrder.current : null;
-      const orderId = reuse ? reuse.orderId : await adminApi.createOrder(orderData);
+      let orderId: string;
+
+      // Manual local orders are created by Functions from a whitelisted draft
+      // and current server catalog/config. No client totals or existing order ID
+      // can alter the authoritative fulfillment snapshot.
+      if (isManual && physicalItems.length && ["pickup", "local_delivery"].includes(fulfillmentSelection.method)) {
+        const response = await fetch(functionUrl("createStripeCheckoutSession"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "createManualLocalOrder",
+            manualMethodId: manualMethod?.id,
+            currency: currency.toLowerCase(),
+            orderDraft: {
+              customer,
+              items: cart.map(item => ({ id: item.id, variantId: item.variantId || null, quantity: item.quantity })),
+              fulfillmentSelection,
+              ...(appliedDiscount?.code ? { appliedDiscount: { code: appliedDiscount.code } } : {}),
+              ...(checkoutDesign.showOrderNote && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
+            },
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.orderId) throw new CopyError(checkoutDesign, "coManualOrderError");
+        orderId = result.orderId;
+      } else {
+        orderId = reuse ? reuse.orderId : await adminApi.createOrder(orderData);
+      }
 
       if (isManual) {
         purchaseNavigating.current = true;
@@ -1082,12 +1180,25 @@ export function Checkout() {
     const stripeSessionId = params.get("session_id") || "";
     const stripeIntentId = params.get("payment_intent") || "";
     // Drop the one-time return flags so a refresh doesn't replay this landing.
-    window.history.replaceState(null, "", `${window.location.pathname}?order_id=${encodeURIComponent(oid)}&success=true`);
+    const isManualReturn = params.get("manual") === "true";
+    window.history.replaceState(null, "", `${window.location.pathname}?order_id=${encodeURIComponent(oid)}&success=true${isManualReturn ? "&manual=true" : ""}`);
     setOrderNumber(oid);
     setIsSuccess(true);
+    setManualOrderReturn(isManualReturn);
 
     (async () => {
       try {
+        if (isManualReturn) {
+          const order: any = await adminApi.getOrderById(oid);
+          if (cancelled) return;
+          if (order) setSuccessOrder(order);
+          clearCart();
+          const email = order?.customer?.email || localStorage.getItem("last_customer_email") || "";
+          const recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id") || `active_${email.toLowerCase()}`;
+          abandonedCartApi.markRecovered(recoveryCartId);
+          sessionStorage.removeItem("fm_checkout_cart_id");
+          return;
+        }
         if (stripeSessionId.startsWith("cs_") || stripeIntentId.startsWith("pi_")) {
           // Ask Stripe whether this session was actually completed. "open" means
           // the shopper came back without paying — send them back to the form.
@@ -1155,7 +1266,7 @@ export function Checkout() {
 
   // ── Success screen ──────────────────────────────────────────────────────────
   if (isSuccess) {
-    const isManual = successOrder?.paymentStatus === "pending";
+    const isManual = manualOrderReturn || successOrder?.paymentStatus === "pending";
     return (
       <div data-fm-store data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout" data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
         <StorefrontThemeStyle design={checkoutDesign} />
@@ -1172,6 +1283,19 @@ export function Checkout() {
           </p>
           <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white mb-4">{c("coThanks")}</h2>
           <p className="text-white/30 text-xs font-mono mb-2 tracking-widest">{c("coOrderNumber", { number: orderNumber })}</p>
+
+          {(successOrder?.fulfillment?.method === "pickup" || successOrder?.fulfillment?.method === "local_delivery") && (
+            <section {...regionProps("checkoutFulfillment")} className="w-full mt-4 mb-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-left space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-white/70">{c("coShipMethod")}</h3>
+              <p className="text-base font-semibold text-white">{successOrder.fulfillment.name}</p>
+              {successOrder.fulfillment.method === "pickup" && successOrder.fulfillment.address && <address className="not-italic text-xs leading-5 text-white/60">
+                {[successOrder.fulfillment.address.street, successOrder.fulfillment.address.city, successOrder.fulfillment.address.state, successOrder.fulfillment.address.zip, successOrder.fulfillment.address.country].filter(Boolean).join(", ")}
+              </address>}
+              {successOrder.fulfillment.hours && <p className="text-xs leading-5 text-white/60">{c("coFulfillmentHours")} {successOrder.fulfillment.hours}</p>}
+              {successOrder.fulfillment.estimate && <p className="text-xs leading-5 text-white/60">{c("coFulfillmentEstimate")} {successOrder.fulfillment.estimate}</p>}
+              {successOrder.fulfillment.instructions && <p className="whitespace-pre-wrap text-xs leading-5 text-white/60">{c("coFulfillmentInstructions")} {successOrder.fulfillment.instructions}</p>}
+            </section>
+          )}
 
           {isManual ? (
             <div className="w-full mt-4 mb-10 p-8 bg-white/[0.02] border border-white/5 rounded-[2rem] text-left space-y-4 shadow-inner animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1297,16 +1421,20 @@ export function Checkout() {
               )}
               <Field label={c("coEmail")} type="email" value={customer.email} onChange={v => setCustomer({ ...customer, email: v })} autoComplete="email" inputMode="email" required />
               <p className="mt-2 text-xs leading-5 text-slate-500">{c("coEmailNote")}</p>
+              <div className="mt-3 space-y-3">
+                <Field label={c("coName")} value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
+                <Field label={c("coPhone")} type="tel" value={customer.phone} onChange={v => setCustomer({ ...customer, phone: v })} autoComplete="tel" inputMode="tel" />
+              </div>
             </section>
 
             <section>
               <StepBadge n={c("coStepOf", { n: 2 })} label={c("coDelivery")} />
               <div className="space-y-3">
+                {fulfillmentSelection.method !== "pickup" && <>
                 <CountryField label={c("coCountry")}
                   pinnedCodes={pinnedCountryCodes} showFlags={!checkoutDesign.hideCountryFlags}
                   words={{ search: c("coCountrySearch"), popular: c("coCountryPopular"), all: c("coCountryAll"), none: (q: string) => c("coCountryNone", { query: q }) }}
                   value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v, state: v === customer.address.country ? customer.address.state : "" } })} />
-                <Field label={c("coName")} value={customer.name} onChange={v => setCustomer({ ...customer, name: v })} autoComplete="name" required />
                 {checkoutDesign.hideAddressSuggestions
                   ? <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
                   : <AddressField label={c("coAddress")} value={customer.address.street} country={customer.address.country}
@@ -1320,7 +1448,7 @@ export function Checkout() {
                     : <Field label={c("coState")} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" required />}
                   <Field label={c("coZip")} value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" required />
                 </div>
-                <Field label={c("coPhone")} type="tel" value={customer.phone} onChange={v => setCustomer({ ...customer, phone: v })} autoComplete="tel" inputMode="tel" />
+                </>}
               </div>
             </section>
 
@@ -1329,41 +1457,41 @@ export function Checkout() {
                 <h2 className="text-xl font-semibold tracking-tight text-slate-900">{c("coShipMethod")}</h2>
                 <p className="mt-1 text-sm text-slate-500">{c("coShipMethodNote")}</p>
               </div>
-              {shippoRatesLoading ? (
-                <div className="flex items-center justify-center gap-3 py-8 rounded-lg border border-slate-200 bg-white">
-                  <Loader2 className="h-5 w-5 animate-spin text-[color:var(--accent)]" />
-                  <span className="text-sm text-slate-500 font-medium">{c("coRates")}</span>
-                </div>
-              ) : availableRates.length > 0 ? (
-                <div className="overflow-hidden rounded-lg border border-slate-300 bg-white">
-                  {availableRates.map((rate, index) => (
-                    <label key={rate.name} className={`flex cursor-pointer items-center justify-between gap-4 px-4 py-4 ${index ? "border-t border-slate-200" : ""}`}>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="radio"
-                          name="shipping-method"
-                          value={rate.name}
-                          checked={selectedRateName === rate.name}
-                          onChange={() => setSelectedRateName(rate.name)}
-                          className="h-4 w-4 accent-[color:var(--accent)]"
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">{rate.name}</p>
-                          {rate.carrierEstimate ? <p className="mt-0.5 text-xs text-slate-500">{rate.deliveryDays != null ? c("coCarrierTransit", { days: rate.deliveryDays }) : c("coCarrierTimingUnavailable")}{rate.durationTerms && <span className="block">{rate.durationTerms}</span>}</p> : rate.pickup ? <p className="mt-0.5 text-xs text-slate-500">{c("coPickup")}</p> : rate.deliveryDays && <p className="mt-0.5 text-xs text-slate-500">{(!checkoutDesign.hideCheckoutArrivalDate && arrivalDateLabel(rate.deliveryDays)) ? c("coArrivesBy", { date: arrivalDateLabel(rate.deliveryDays)! }) : c("coEstimated", { days: rate.deliveryDays })}</p>}
-                        </div>
-                      </div>
-                      <span className="text-sm font-semibold text-slate-900">{rate.price === 0 ? c("coFree") : formatPrice(rate.price)}</span>
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
-                  <Truck size={18} className="mt-0.5 shrink-0 text-slate-400" />
-                  {cart.length > 0 && shippingProfiles.some((p) => Array.isArray(p.zones) && p.zones.length > 0) && customer.address.country
-                    ? c("coNoShipping", { country: customer.address.country })
-                    : c("coEnterAddress")}
-                </div>
-              )}
+              {physicalItems.length > 0 && <FulfillmentMethodPicker
+                method={fulfillmentSelection.method}
+                optionId={fulfillmentSelection.optionId}
+                onSelect={setFulfillmentSelection}
+                shippingQuotes={availableRates}
+                localQuotes={localQuotes}
+                availableMethods={availableFulfillmentMethods}
+                loading={shippoRatesLoading && fulfillmentSelection.method === "shipping"}
+                words={{
+                  group: c("coFulfillmentGroup"),
+                  shipping: c("coFulfillmentShipping"),
+                  pickup: c("coFulfillmentPickup"),
+                  local_delivery: c("coFulfillmentDelivery"),
+                  review: c("coFulfillmentReview"),
+                  unavailable: c("coFulfillmentUnavailable"),
+                  addressPrompt: c("coFulfillmentAddressPrompt"),
+                  loading: c("coRates"),
+                  instructions: c("coFulfillmentInstructions"),
+                  hours: c("coFulfillmentHours"),
+                  estimate: c("coFulfillmentEstimate"),
+                  free: c("coFree"),
+                }}
+                formatPrice={formatPrice}
+              />}
+              {fulfillmentSelection.method === "pickup" && <section {...regionProps("checkoutFulfillment")} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+                <div><h3 className="text-sm font-semibold text-slate-900">{c("coBillingTitle")}</h3><p className="mt-1 text-xs leading-5 text-slate-600">{c("coBillingNote")}</p></div>
+                <CountryField label={c("coBillCountry")}
+                  pinnedCodes={pinnedCountryCodes} showFlags={!checkoutDesign.hideCountryFlags}
+                  words={{ search: c("coCountrySearch"), popular: c("coCountryPopular"), all: c("coCountryAll"), none: (q: string) => c("coCountryNone", { query: q }) }}
+                  value={customer.billingAddress.country} onChange={v => setCustomer(prev => ({ ...prev, billingAddress: { country: v, state: v === prev.billingAddress.country ? prev.billingAddress.state : "" } }))} />
+                {regionsFor(customer.billingAddress.country)
+                  ? <RegionField label={c("coBillState")} choose={c("coBillStateChoose")} regions={regionsFor(customer.billingAddress.country)!} value={customer.billingAddress.state} onChange={v => setCustomer(prev => ({ ...prev, billingAddress: { ...prev.billingAddress, state: v } }))} />
+                  : <Field label={c("coBillState")} value={customer.billingAddress.state} onChange={v => setCustomer(prev => ({ ...prev, billingAddress: { ...prev.billingAddress, state: v } }))} autoComplete="billing address-level1" required />}
+                {selectedLocalQuote?.address && <p className="text-xs text-slate-600">{c("coFulfillmentTaxLocation")} {selectedLocalQuote.address.city}, {selectedLocalQuote.address.state}</p>}
+              </section>}
             </section>
 
             {checkoutDesign.showOrderNote && (

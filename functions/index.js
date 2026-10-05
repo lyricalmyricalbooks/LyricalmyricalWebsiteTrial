@@ -23,6 +23,7 @@ const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine
 const { labelProblem } = require("./fulfillmentGuard");
 const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
+const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./localFulfillment");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -329,9 +330,15 @@ async function callShippo(endpoint, method, body, token) {
 // Region-aware tax matching: prefer a rate whose region matches the
 // destination state/province, otherwise fall back to the country-wide rate.
 function matchTaxRate(rates, country, state) {
-  const c = (country || "").trim().toLowerCase();
+  const normalizeCountry = value => {
+    const clean = String(value || '').trim().toLowerCase();
+    if (clean === 'ca' || clean === 'canada') return 'ca';
+    if (['us', 'usa', 'united states', 'united states of america'].includes(clean)) return 'us';
+    return clean;
+  };
+  const c = normalizeCountry(country);
   const countryRates = (rates || []).filter(
-    r => (r.country || "").trim().toLowerCase() === c
+    r => normalizeCountry(r.country) === c
   );
   if (countryRates.length === 0) return null;
   const stateCode = getStateCode(state || "");
@@ -588,8 +595,18 @@ async function paypalRequest(config, path, options = {}) {
 // charges the one the customer selected (order.shippingMethod), else the
 // cheapest. Profiles without zones keep the legacy flat calculation. Returns
 // { cost, method } or throws when the destination can't be served.
-async function resolveShipping(items, order, profiles, freeShipping) {
+async function resolveShipping(items, order, profiles, freeShipping, settings, discountedPhysical) {
   const address = order.customer && order.customer.address;
+  const selection = order.fulfillmentSelection;
+  const physicalItems = items.filter(isPhysicalItem);
+  if (selection && selection.method !== 'shipping') {
+    return resolveLocalSelection(settings.localFulfillment, selection, address, discountedPhysical, physicalItems, freeShipping);
+  }
+  if (!physicalItems.length) {
+    if (selection && selection.method !== 'shipping') throw new Error('That fulfillment option is unavailable for digital orders.');
+    return { cost: 0, method: null, fulfillment: null };
+  }
+  if (selection && (selection.method !== 'shipping' || /^(pickup|local_delivery):/.test(String(selection.optionId || '')))) throw new Error('Choose an available fulfillment option.');
   if (!freeShipping && address) {
     const configDoc = await SHIPPO_CONFIG_DOC.get();
     const config = configDoc.exists ? configDoc.data() || {} : {};
@@ -601,7 +618,7 @@ async function resolveShipping(items, order, profiles, freeShipping) {
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.data() || {};
       const origin = settings.location || {};
-      const totalWeightLb = items.reduce((sum, item) => {
+      const totalWeightLb = physicalItems.reduce((sum, item) => {
         const grams = Number(item.weightGrams);
         return sum + ((Number.isFinite(grams) && grams > 0 ? grams / 453.592 : 1.5) * (item.quantity || 1));
       }, 0);
@@ -631,25 +648,60 @@ async function resolveShipping(items, order, profiles, freeShipping) {
         name: `${rate.provider || ""} ${rate.servicelevel?.name || rate.servicelevel?.token || "Shipping"}`.trim(),
         price: Number(rate.amount),
       })).filter(rate => Number.isFinite(rate.price)).sort((a, b) => a.price - b.price);
-      const pickedCarrier = pickQuote(carrierQuotes, order.shippingMethod);
+      const selectedCarrier = selection?.optionId || order.shippingMethod;
+      const pickedCarrier = selection ? carrierQuotes.find(quote => quote.name === selectedCarrier) : pickQuote(carrierQuotes, selectedCarrier);
       if (!pickedCarrier) throw new Error("That live carrier rate is no longer available. Please review the shipping options and try again.");
       return { cost: pickedCarrier.price, method: pickedCarrier.name };
     }
   }
   const hasZones = profiles.some((p) => Array.isArray(p.zones) && p.zones.length);
   if (!hasZones) {
-    return { cost: freeShipping ? 0 : calculateShipping(items, address, profiles), method: order.shippingMethod || null };
+    if (selection) {
+      const choices = quoteShipping(physicalItems, address, profiles, { freeAll: !!freeShipping }).filter(quote => quote.type !== 'pickup');
+      const chosen = choices.find(quote => quote.id === selection.optionId || quote.name === selection.optionId);
+      if (!chosen) throw new Error('That shipping rate is no longer available. Please review the options and try again.');
+      return { cost: chosen.price, method: chosen.name };
+    }
+    return { cost: freeShipping ? 0 : calculateShipping(physicalItems, address, profiles), method: order.shippingMethod || null };
   }
-  const quotes = quoteShipping(items, address, profiles, { freeAll: !!freeShipping });
-  const picked = pickQuote(quotes, order.shippingMethod);
+  const quotes = quoteShipping(physicalItems, address, profiles, { freeAll: !!freeShipping }).filter(quote => quote.type !== 'pickup');
+  const selectedRate = selection?.optionId || order.shippingMethod;
+  const picked = selection ? quotes.find(quote => quote.id === selectedRate || quote.name === selectedRate) : pickQuote(quotes, selectedRate);
   if (!picked) {
     throw new Error(`We don't currently ship these items to ${(address && address.country) || "that destination"}. Please contact us for a custom quote.`);
   }
   return { cost: picked.price, method: picked.name };
 }
 
+function authoritativeTax(items, discountAmount, discount, booksById, settings, order, fulfillment) {
+  const rates = settings.taxes?.rates || [];
+  const discountedPhysical = discountedPhysicalSubtotal(items, discountAmount, discount, booksById);
+  const taxableTotal = Math.max(0, items.reduce((sum, item) => sum + item.price * item.quantity, 0) - discountAmount);
+  const address = order.customer?.address || {};
+  if (fulfillment?.method === 'pickup') {
+    const pickup = fulfillment.address;
+    const billing = order.customer?.billingAddress;
+    if (!billing || !billing.country || !billing.state) throw new Error('Billing country and province or state are required for pickup.');
+    const physicalRate = matchTaxRate(rates, pickup.country, pickup.state);
+    const digitalRate = matchTaxRate(rates, billing.country, billing.state);
+    return discountedPhysical * (Number(physicalRate?.rate || 0) / 100) + (taxableTotal - discountedPhysical) * (Number(digitalRate?.rate || 0) / 100);
+  }
+  const basis = Object.keys(address).length ? address : order.customer?.billingAddress || {};
+  if (!basis.country) throw new Error('Destination country is required for tax.');
+  const taxRate = matchTaxRate(rates, basis.country, basis.state);
+  return taxableTotal * (Number(taxRate?.rate || 0) / 100);
+}
+
 function itemWeightGrams(book, variant) {
   return parseWeightGrams(variant && variant.weight) ?? parseWeightGrams(book.weight);
+}
+function catalogFormat(book, variant) {
+  if (variant?.format) return variant.format;
+  if (/digital|ebook|e-book|epub|pdf|audiobook|paperback|hardcover|hardback|softcover/i.test(String(variant?.name || ''))) return variant.name;
+  return book.format || '';
+}
+function catalogDigital(book, variant) {
+  return variant?.digital === true || variant?.isDigital === true || (!variant && (book.digital === true || book.isDigital === true));
 }
 
 async function recalculateOrder(orderRef, order, checkoutCurrency) {
@@ -664,6 +716,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
     const variant = requested.variantId
       ? (book.variants || []).find(v => v.id === requested.variantId) || null
       : null;
+    if (requested.variantId && !variant) throw new Error(`Selected edition for book ${requested.id} is no longer available.`);
     if (book.trackInventory && !book.allowBackorder) {
       const available = variant ? Number(variant.stock || 0) : Number(book.stockLevel || 0);
       if (available < quantity) throw new Error(`Insufficient stock for ${requested.title}. Only ${available} left.`);
@@ -671,28 +724,30 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
     const price = variant
       ? Number(variant.price)
       : (book.isOnSale && book.salePrice ? Number(book.salePrice) : Number(book.retailPrice));
-    items.push({ ...requested, quantity, price, shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant) });
+    if (!Number.isFinite(price) || price < 0) throw new Error(`Book ${requested.id} is temporarily unavailable for purchase (pricing error).`);
+    items.push({ ...requested, quantity, price, format: catalogFormat(book, variant), digital: catalogDigital(book, variant), isDigital: catalogDigital(book, variant), shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant) });
   }
   if (!items.length) throw new Error("Order has no items.");
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   let discount = 0;
   let appliedDiscount = null;
+  let verifiedDiscount = null;
   if (order.appliedDiscount?.code) {
     const verified = await fetchValidDiscount(order.appliedDiscount.code);
+    verifiedDiscount = verified;
     validateDiscountCustomer(verified, order.customer?.email);
     discount = computeDiscountAmount(verified, items, booksById);
     appliedDiscount = { id: verified.id, code: verified.code, type: verified.type, value: verified.value };
   }
   const profilesSnap = await db.collection("shipping-profiles").get();
   const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  const shipResult = await resolveShipping(items, order, profiles, appliedDiscount?.type === "freeship");
-  const shipping = shipResult.cost;
-
   const settingsDoc = await db.collection("settings").doc("website").get();
   const settings = settingsDoc.data() || {};
-  const taxRate = matchTaxRate(settings.taxes?.rates || [], order.customer.address.country, order.customer.address.state);
-  const tax = (subtotal - discount) * (Number(taxRate?.rate || 0) / 100);
+  const discountedPhysical = discountedPhysicalSubtotal(items, discount, verifiedDiscount, booksById);
+  const shipResult = await resolveShipping(items, order, profiles, appliedDiscount?.type === "freeship", settings, discountedPhysical);
+  const shipping = shipResult.cost;
+  const tax = authoritativeTax(items, discount, verifiedDiscount, booksById, settings, order, shipResult.fulfillment);
   const total = subtotal - discount + shipping + tax;
   const rates = await getExchangeRates();
   const exchangeRate = rates[checkoutCurrency] || FALLBACK_RATES[checkoutCurrency] || 1;
@@ -701,6 +756,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
     items: items.map(({ shippingProfileId, ...item }) => item), subtotal, discount, appliedDiscount,
     shipping, tax, total, checkoutCurrency: checkoutCurrency.toUpperCase(), exchangeRate,
     ...(shipResult.method ? { shippingMethod: shipResult.method } : {}),
+    fulfillment: shipResult.fulfillment || null,
     updatedAt: new Date().toISOString(),
   };
   await orderRef.update(update);
@@ -783,7 +839,12 @@ exports.createPayPalOrder = onRequest(
       if (!orderDoc.exists) return res.status(404).json({ error: "Order not found" });
       const order = orderDoc.data();
       if (order.paymentStatus === "paid") return res.status(409).json({ error: "Order is already paid" });
-      const priced = await recalculateOrder(orderRef, order, currency);
+      let priced;
+      try {
+        priced = await recalculateOrder(orderRef, order, currency);
+      } catch (pricingErr) {
+        return res.status(400).json({ error: pricingErr.message });
+      }
       const config = await getPayPalConfig();
       let checkoutBase = `${req.headers.origin || "http://localhost:5173"}/checkout`;
       if (typeof returnUrl === "string" && ALLOWED_ORIGINS.some(origin => returnUrl === origin || returnUrl.startsWith(`${origin}/`))) checkoutBase = returnUrl;
@@ -899,6 +960,41 @@ exports.createStripeCheckoutSession = onRequest(
 
     if (req.body?.action === "status") return handleCheckoutStatus(req, res);
     if (req.body?.action === "registerPaymentDomain") return handleRegisterPaymentDomain(req, res);
+    if (req.body?.action === 'createManualLocalOrder') {
+      try {
+        const source = req.body.orderDraft;
+        if (!source || typeof source !== 'object' || Array.isArray(source)) throw new Error('Order details are required.');
+        if (!Array.isArray(source.items) || !source.items.length || source.items.length > 50) throw new Error('Choose between 1 and 50 books.');
+        const items = source.items.map(item => {
+          if (typeof item?.id !== 'string' || !item.id || item.id.length > 160 || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 99) throw new Error('Check the selected books and quantities.');
+          return { id: item.id, variantId: typeof item.variantId === 'string' ? item.variantId.slice(0, 160) : null, quantity: item.quantity };
+        });
+        const contact = source.customer || {};
+        if (typeof contact.name !== 'string' || !contact.name.trim() || typeof contact.email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email)) throw new Error('Customer name and email are required.');
+        const cleanAddress = value => Object.fromEntries(['street', 'city', 'state', 'zip', 'country'].map(key => [key, typeof value?.[key] === 'string' ? value[key].trim().slice(0, 200) : '']));
+        const selection = source.fulfillmentSelection;
+        if (!['pickup', 'local_delivery'].includes(selection?.method) || typeof selection.optionId !== 'string') throw new Error('Choose a local fulfillment option.');
+        const settingsDoc = await db.collection('settings').doc('website').get();
+        const settings = settingsDoc.data() || {};
+        const manual = (settings.payments?.manualMethods || []).find(method => method.id === req.body.manualMethodId && method.enabled === true);
+        if (!manual) throw new Error('That payment method is no longer available.');
+        const now = new Date().toISOString();
+        const order = {
+          customer: { name: contact.name.trim().slice(0, 200), email: contact.email.trim().toLowerCase().slice(0, 320), phone: typeof contact.phone === 'string' ? contact.phone.trim().slice(0, 80) : '', address: cleanAddress(contact.address), billingAddress: cleanAddress(contact.billingAddress) },
+          items, fulfillmentSelection: { method: selection.method, optionId: selection.optionId },
+          appliedDiscount: typeof source.appliedDiscount?.code === 'string' ? { code: source.appliedDiscount.code.slice(0, 100) } : null,
+          ...(typeof source.orderNote === 'string' ? { orderNote: source.orderNote.slice(0, 500) } : {}),
+          ...(typeof source.locale === 'string' ? { locale: source.locale.slice(0, 20) } : {}),
+        };
+        const priced = await recalculateOrder({ update: async () => {} }, order, String(req.body.currency || 'cad').toLowerCase());
+        const { convertedTotal, settings: ignoredSettings, ...trusted } = priced;
+        const orderId = crypto.randomBytes(12).toString('hex').toUpperCase();
+        await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, paymentStatus: 'unpaid', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
+        return res.status(200).json({ orderId, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
 
     const { orderId, currency: reqCurrency, returnUrl, embedded, paymentElement } = req.body;
     const checkoutCurrency = (reqCurrency || "cad").toLowerCase();
@@ -941,6 +1037,10 @@ exports.createStripeCheckoutSession = onRequest(
         let variant = null;
         if (item.variantId) {
           variant = (book.variants || []).find(v => v.id === item.variantId) || null;
+          if (!variant) {
+            res.status(400).json({ error: `Selected edition for book ${item.id} is no longer available.` });
+            return;
+          }
         }
         if (book.trackInventory && !book.allowBackorder) {
           if (variant) {
@@ -964,6 +1064,9 @@ exports.createStripeCheckoutSession = onRequest(
         items.push({
           ...item,
           price: unitPrice,
+          format: catalogFormat(book, variant),
+          digital: catalogDigital(book, variant),
+          isDigital: catalogDigital(book, variant),
           quantity: Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1))),
           shippingProfileId: book.shippingProfileId || null,
           weightGrams: itemWeightGrams(book, variant),
@@ -975,10 +1078,12 @@ exports.createStripeCheckoutSession = onRequest(
       // 2. Server-side discount validation (codes, limits, targeting)
       let discountAmount = 0;
       let appliedDiscount = null;
+      let verifiedDiscount = null;
       if (order.appliedDiscount && order.appliedDiscount.code) {
         let discount;
         try {
           discount = await fetchValidDiscount(order.appliedDiscount.code);
+          verifiedDiscount = discount;
           validateDiscountCustomer(discount, order.customer?.email);
           discountAmount = computeDiscountAmount(discount, items, booksById);
         } catch (discountErr) {
@@ -998,26 +1103,27 @@ exports.createStripeCheckoutSession = onRequest(
       const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       let shippingCost;
       let shippingMethodCharged;
+      let fulfillment;
+      const settingsDoc = await db.collection("settings").doc("website").get();
+      const settings = settingsDoc.data() || {};
       try {
-        const shipResult = await resolveShipping(items, order, profiles, appliedDiscount && appliedDiscount.type === "freeship");
+        const discountedPhysical = discountedPhysicalSubtotal(items, discountAmount, verifiedDiscount, booksById);
+        const shipResult = await resolveShipping(items, order, profiles, appliedDiscount && appliedDiscount.type === "freeship", settings, discountedPhysical);
         shippingCost = shipResult.cost;
         shippingMethodCharged = shipResult.method;
+        fulfillment = shipResult.fulfillment || null;
       } catch (shipErr) {
         res.status(400).json({ error: shipErr.message });
         return;
       }
 
       // 4. Dynamic Tax Calculation (region-aware: state/province before country)
-      const settingsDoc = await db.collection("settings").doc("website").get();
-      const settings = settingsDoc.data() || {};
-      const taxRates = settings.taxes?.rates || [];
-      const matchedTaxRate = matchTaxRate(
-        taxRates,
-        order.customer.address.country || "Canada",
-        order.customer.address.state || ""
-      );
-      const taxRatePercent = matchedTaxRate ? Number(matchedTaxRate.rate) : 0;
-      const taxCost = (subtotalTrusted - discountAmount) * (taxRatePercent / 100);
+      let taxCost;
+      try {
+        taxCost = authoritativeTax(items, discountAmount, verifiedDiscount, booksById, settings, order, fulfillment);
+      } catch (taxErr) {
+        return res.status(400).json({ error: taxErr.message });
+      }
 
       const finalTotal = subtotalTrusted - discountAmount + shippingCost + taxCost;
       const rates = await getExchangeRates();
@@ -1042,7 +1148,7 @@ exports.createStripeCheckoutSession = onRequest(
         }
       }
 
-      const shippingCountryCode = getCountryCode(order.customer.address.country);
+      const shippingCountryCode = getCountryCode((fulfillment?.method === 'pickup' ? fulfillment.address : order.customer?.address)?.country || order.customer?.billingAddress?.country || '');
       const ipCountryMatchesShipping = !ipCountry || ipCountry.toUpperCase() === shippingCountryCode.toUpperCase();
       const testMode = settings.payments?.testMode || false;
       const stripeSettings = settings.payments?.stripe || {};
@@ -1054,6 +1160,7 @@ exports.createStripeCheckoutSession = onRequest(
         appliedDiscount: appliedDiscount,
         shipping: shippingCost,
         ...(shippingMethodCharged ? { shippingMethod: shippingMethodCharged } : {}),
+        fulfillment,
         tax: taxCost,
         total: finalTotal,
         checkoutCurrency: checkoutCurrency.toUpperCase(),
@@ -2269,7 +2376,10 @@ exports.onOrderUpdated = onDocumentUpdated(
     // Skip if Shippo already sent the email via its own webhook (shippoDeliveryNotified was just set)
     const becameDelivered = before.fulfillmentStatus !== "delivered" && after.fulfillmentStatus === "delivered";
     const shippoAlreadyNotified = after.shippoDeliveryNotified && after.shippoDeliveryNotified !== before.shippoDeliveryNotified;
-    if (becameDelivered && !shippoAlreadyNotified && notificationSettings.delivery_update?.enabled !== false) {
+    // Local handoffs stay out of the existing carrier-email path until the
+    // store has explicitly enabled a matching customer notification workflow.
+    const isLocalFulfillment = ["pickup", "local_delivery"].includes(after.fulfillmentSelection?.method);
+    if (becameDelivered && !isLocalFulfillment && !shippoAlreadyNotified && notificationSettings.delivery_update?.enabled !== false) {
       const trackingUrl = after.trackingNumber
         ? getTrackingUrl(after.trackingCarrier || "", after.trackingNumber)
         : `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`;

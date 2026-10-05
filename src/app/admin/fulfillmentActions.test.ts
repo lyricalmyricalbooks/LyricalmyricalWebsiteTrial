@@ -32,4 +32,39 @@ describe("atomic fulfillment actions", () => {
  it("rejects unpaid dispatch and incomplete preparation", async () => { records.set("orders/a", { ...base(), paymentStatus: "unpaid" }); await expect(adminApi.fulfillmentAction("a", "dispatch", {})).rejects.toThrow(); expect(tx.update).not.toHaveBeenCalled(); });
  it("stores new internal notes only in private operations", async () => { await adminApi.addOrderNote("a", "Customer issue"); expect(tx.update).not.toHaveBeenCalled(); expect(tx.set.mock.calls[0][0].path).toBe("order-operations/a"); });
  it("prevents changing the address after buying a label", async () => { records.set("orders/a", { ...base(), labelUrl: "label" }); await expect(adminApi.correctOrderAddress("a", base().customer.address, addressKey(base()))).rejects.toThrow("after label purchase"); expect(tx.update).not.toHaveBeenCalled(); });
+ it("allows local-delivery street corrections but protects the paid delivery area", async () => {
+  const o: any = { ...base(), fulfillmentSelection: { method: "local_delivery", optionId: "zone" } };
+  records.set("orders/a", o); records.set("order-operations/a", {});
+  await adminApi.correctOrderAddress("a", { ...o.customer.address, street: "2 Main" }, addressKey(o));
+  expect(tx.update).toHaveBeenCalled(); tx.update.mockClear();
+  await expect(adminApi.correctOrderAddress("a", { ...o.customer.address, zip: "V6B1A1" }, addressKey(o))).rejects.toThrow("Cancel and refund");
+  expect(tx.update).not.toHaveBeenCalled();
+ });
+ it("does not offer customer address correction for pickup orders", async () => {
+  const o: any = { ...base(), fulfillmentSelection: { method: "pickup", optionId: "pickup" } };
+  records.set("orders/a", o);
+  await expect(adminApi.correctOrderAddress("a", o.customer.address, addressKey(o))).rejects.toThrow("do not have a customer shipping address");
+ });
+ it("advances a packed pickup transactionally without address review", async () => {
+  const o: any = { ...base(), customer: { address: {} }, fulfillmentSelection: { method: "pickup", optionId: "shop" } };
+  records.set("orders/a", o); records.set("order-operations/a", { packed: packingKey(o), activity: [] });
+  await adminApi.fulfillmentAction("a", "local_transition", { expectedStatus: "" });
+  expect(tx.update).toHaveBeenCalledWith({ path: "orders/a" }, expect.objectContaining({ fulfillmentStatus: "ready_for_pickup" }));
+  records.set("orders/a", { ...o, fulfillmentStatus: "ready_for_pickup" });
+  await expect(adminApi.fulfillmentAction("a", "local_transition", { expectedStatus: "" })).rejects.toThrow("changed");
+ });
+ it("requires reviewed delivery address and refuses held or unpacked local orders", async () => {
+  const o: any = { ...base(), fulfillmentSelection: { method: "local_delivery", optionId: "zone" } };
+  records.set("orders/a", o); records.set("order-operations/a", { packed: packingKey(o), activity: [] });
+  await expect(adminApi.fulfillmentAction("a", "local_transition", { expectedStatus: "" })).rejects.toThrow("Review and confirm");
+  records.set("order-operations/a", { packed: packingKey(o), addressReviewed: addressKey(o), hold: "Pause", activity: [] });
+  await expect(adminApi.fulfillmentAction("a", "local_transition", { expectedStatus: "" })).rejects.toThrow("hold");
+  records.set("order-operations/a", { addressReviewed: addressKey(o), activity: [] });
+  await expect(adminApi.fulfillmentAction("a", "local_transition", { expectedStatus: "" })).rejects.toThrow("packing");
+ });
+ it("does not permit carrier dispatch for a local order", async () => {
+  const o: any = { ...base(), fulfillmentSelection: { method: "pickup", optionId: "shop" } };
+  records.set("orders/a", o); records.set("order-operations/a", { packed: packingKey(o), activity: [] });
+  await expect(adminApi.fulfillmentAction("a", "dispatch", { trackingCarrier: "Courier", trackingNumber: "123" })).rejects.toThrow("cannot use carrier dispatch");
+ });
 });

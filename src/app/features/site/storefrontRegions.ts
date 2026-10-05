@@ -35,7 +35,7 @@ export const REGION_GROUPS: RegionGroup[] = [
   { id: "trackingLayout", title: "Order tracking · layout & elements", copy: "Order tracking", files: ["features/site/OrderTracking.tsx"], regions: [
     { id: "trackingHeader", label: "Tracking navigation" }, { id: "trackingForm", label: "Order lookup form", required: true },
     { id: "trackingIntro", label: "Lookup heading & description" }, { id: "trackingSummary", label: "Order summary", required: true },
-    { id: "trackingTimeline", label: "Fulfillment timeline" }, { id: "trackingShipment", label: "Carrier information", required: true },
+    { id: "trackingTimeline", label: "Fulfillment timeline" }, { id: "trackingFulfillment", label: "Pickup and delivery details", required: true, copy: "Order tracking" }, { id: "trackingShipment", label: "Carrier information", required: true },
     { id: "trackingDownloads", label: "Purchased downloads", required: true }, { id: "trackingItems", label: "Order items & totals", required: true },
     { id: "trackingGlow", label: "Tracking background glow" },
   ] },
@@ -45,9 +45,10 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "stripeBrands", label: "Accepted card badges" },
     { id: "stripePaymentRecovery", label: "Stripe payment recovery", required: true },
   ] },
-  { id: "checkoutLayout", title: "Checkout · layout & elements", copy: "Checkout", files: ["Checkout.tsx"], regions: [
+  { id: "checkoutLayout", title: "Checkout · layout & elements", copy: "Checkout", files: ["Checkout.tsx", "features/site/FulfillmentMethodPicker.tsx"], regions: [
     { id: "checkoutHeader", label: "Checkout header" }, { id: "checkoutProgress", label: "Checkout step labels" },
     { id: "checkoutForm", label: "Checkout form", required: true }, { id: "checkoutSummary", label: "Order summary", required: true },
+    { id: "checkoutFulfillment", label: "Shipping, pickup & local delivery choices", required: true, copy: "Checkout" },
     { id: "checkoutPromise", label: "Message under Pay button" }, { id: "checkoutSuccess", label: "Order confirmation", required: true },
     { id: "checkoutEmpty", label: "Empty cart", required: true },
   ] },
