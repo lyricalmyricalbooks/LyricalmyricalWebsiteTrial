@@ -54,6 +54,7 @@ export function Orders({
   >("oldest");
   const [range, setRange] = useState<"all" | "7" | "30" | "90">("all");
   const [confirmDeleteTests, setConfirmDeleteTests] = useState(false);
+  const [confirmDeleteOrders, setConfirmDeleteOrders] = useState(false);
   const [orderType, setOrderType] = useState<"production" | "test" | "all">(
     "production",
   );
@@ -124,6 +125,18 @@ export function Orders({
     } catch (err: any) {
       toast.error(err.message || "Test-order deletion failed");
     }
+  };
+
+  const handleDeleteOrders = async () => {
+    const ids = Array.from(selected);
+    setConfirmDeleteOrders(false);
+    const { deleted, failed } = await adminApi.deleteOrders(ids);
+    if (deleted)
+      toast.success(`Deleted ${deleted} order${deleted === 1 ? "" : "s"}`);
+    if (failed.length)
+      toast.error(`Could not delete ${failed.length} order${failed.length === 1 ? "" : "s"}`);
+    setSelected(new Set(failed));
+    loadOrders();
   };
 
   const handleBulkUpdate = async () => {
@@ -514,6 +527,15 @@ export function Orders({
                   Delete tests
                 </DestructiveButton>
               )}
+              {!allTestSelection && (
+                <DestructiveButton
+                  size="sm"
+                  icon={<Trash2 size={14} aria-hidden />}
+                  onClick={() => setConfirmDeleteOrders(true)}
+                >
+                  Delete
+                </DestructiveButton>
+              )}
               {selected.size > 0 && noTestSelection && (
                 <>
                   <SecondaryButton
@@ -709,6 +731,14 @@ export function Orders({
           remain unchanged.
         </p>
       </Dialog>
+      <ConfirmDialog
+        open={confirmDeleteOrders}
+        title="Delete orders?"
+        confirmLabel="Delete orders"
+        message={`Permanently delete ${selected.size} selected order${selected.size === 1 ? "" : "s"}? This only removes the record: it does not refund the customer, restock books or cancel any shipping label. This cannot be undone.`}
+        onConfirm={handleDeleteOrders}
+        onCancel={() => setConfirmDeleteOrders(false)}
+      />
       <ConfirmDialog
         open={confirmDeleteTests}
         title="Delete test orders?"

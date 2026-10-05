@@ -838,6 +838,26 @@ export const adminApi = {
     return result;
   },
 
+  // Owner-initiated removal of orders (any state). Firestore rules allow admin
+  // deletes. This only removes records: it does not refund, restock or touch Stripe.
+  deleteOrders: async (orderIds: string[]) => {
+    let deleted = 0;
+    const failed: string[] = [];
+    for (const id of orderIds) {
+      try {
+        const snap = await getDoc(doc(db, "orders", id));
+        const label = snap.exists() ? (snap.data().orderId || id) : id;
+        await deleteDoc(doc(db, "orders", id));
+        try { await deleteDoc(doc(db, "order-operations", id)); } catch { /* none to remove */ }
+        deleted += 1;
+        try { await adminApi.recordAuditLog("orders", `Deleted order: ${label}`); } catch { /* best effort */ }
+      } catch {
+        failed.push(id);
+      }
+    }
+    return { deleted, failed };
+  },
+
   registerStripePaymentDomain: async (origin: string) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
