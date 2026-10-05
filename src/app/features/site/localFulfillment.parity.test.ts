@@ -58,3 +58,25 @@ it('rejects malformed inactive pickup address shapes without requiring active ad
   }
   expect(validateLocalFulfillment({ ...config, pickupLocations: [{ ...config.pickupLocations[0], enabled: false, address: { street: '', city: '', state: '', zip: '', country: '' } }] })).toEqual([]);
 });
+describe('pickup limited to Toronto', () => {
+  const toronto: any = { ...config, deliveryZones: [], pickupLocations: [{ ...config.pickupLocations[0], postalPrefixes: ['M'] }] };
+  const cases = [
+    ['Toronto address', { zip: 'M6G 3H1', country: 'CA' }, 1],
+    ['Ottawa address', { zip: 'K1A 0B1', country: 'CA' }, 0],
+    ['no address yet', {}, 0],
+    ['US address', { zip: 'M6G3H1', country: 'US' }, 0],
+  ] as const;
+  for (const [label, address, count] of cases) it(label, () => {
+    const quotes = quoteLocalFulfillment(toronto, address, 20, [{ quantity: 1 }]);
+    expect(quotes).toEqual(server.quoteLocalFulfillment(toronto, address, 20, [{ quantity: 1 }]));
+    expect(quotes).toHaveLength(count);
+  });
+  it('no areas means everyone may pick up', () => {
+    expect(quoteLocalFulfillment({ ...toronto, pickupLocations: [{ ...toronto.pickupLocations[0], postalPrefixes: [] }] }, {}, 20, [{ quantity: 1 }])).toHaveLength(1);
+  });
+  it('rejects invalid pickup areas on both sides', () => {
+    const bad = { ...toronto, pickupLocations: [{ ...toronto.pickupLocations[0], postalPrefixes: ['Toronto'] }] };
+    expect(validateLocalFulfillment(bad)).toEqual(server.validateLocalFulfillment(bad));
+    expect(validateLocalFulfillment(bad).length).toBeGreaterThan(0);
+  });
+});

@@ -502,7 +502,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coFulfillmentDelivery", label: "Local delivery choice", default: "Local delivery" },
       { key: "coFulfillmentReview", label: "Choose a fulfillment option notice", default: "Choose an available option to continue." },
       { key: "coFulfillmentUnavailable", label: "No matching fulfillment option", default: "No option is available for this order and address." },
-      { key: "coFulfillmentAddressPrompt", label: "Local delivery address prompt", default: "Enter a complete Canadian postal address in an eligible delivery area." },
+      { key: "coFulfillmentAddressPrompt", label: "Local pickup & delivery address prompt", default: "Enter your Canadian address above to see the pickup and delivery options for your area." },
       { key: "coFulfillmentInstructions", label: "Pickup or delivery instructions label", default: "Instructions:" },
       { key: "coFulfillmentHours", label: "Pickup hours label", default: "Hours:" },
       { key: "coFulfillmentEstimate", label: "Pickup or delivery estimate label", default: "Estimate:" },

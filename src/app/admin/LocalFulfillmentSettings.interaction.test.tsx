@@ -36,11 +36,11 @@ it('keeps unsaved records when the parent switches Shipping views', async () => 
   await act(async () => root.render(<ShippingViews />));
   const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
   await act(async () => button('Add pickup location').click());
-  expect(container.textContent).toContain('New pickup location');
+  expect(container.textContent).toContain('Local pickup (Toronto)');
   await act(async () => button('Switch view').click());
   expect(container.textContent).toContain('Overview');
   await act(async () => button('Switch view').click());
-  expect(container.textContent).toContain('New pickup location');
+  expect(container.textContent).toContain('Local pickup (Toronto)');
   expect(getSettings).toHaveBeenCalledTimes(1);
   await act(async () => root.unmount());
 });
@@ -51,10 +51,10 @@ it('does not accept edits before delayed settings arrive', async () => {
   await act(async () => root.render(<LocalFulfillmentSettings />));
   const add = Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Add pickup location')!;
   await act(async () => add.click());
-  expect(container.textContent).not.toContain('New pickup location');
+  expect(container.textContent).not.toContain('Local pickup (Toronto)');
   await act(async () => resolve({ localFulfillment: { enabled: false, pickupLocations: [], deliveryZones: [] } }));
   expect(add.matches(':disabled')).toBe(false);
   await act(async () => add.click());
-  expect(container.textContent).toContain('New pickup location');
+  expect(container.textContent).toContain('Local pickup (Toronto)');
   await act(async () => root.unmount());
 });

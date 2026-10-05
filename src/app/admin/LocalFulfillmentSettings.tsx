@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import { adminApi } from './api';
 import type { LocalFulfillmentConfig } from '../features/site/types';
 import { quoteLocalFulfillment, validateLocalFulfillment } from '../features/site/localFulfillment';
-import { PrimaryButton, SecondaryButton, DestructiveButton, SectionCard, TextField, TextArea, Toggle } from './riso/components';
+import { PrimaryButton, SecondaryButton, DestructiveButton, SectionCard, TextField, TextArea, Toggle, SelectField } from './riso/components';
+
+// Toronto postal codes all begin with M.
+const TORONTO_AREA = ['M'];
+const TORONTO_PICKUP = { name: 'Local pickup (Toronto)', estimate: 'Ready in 1–2 business days' };
 
 export function useLocalFulfillmentDraft(load = true) {
   const [config, setConfig] = useState<LocalFulfillmentConfig>({ enabled: false, pickupLocations: [], deliveryZones: [] });
@@ -18,7 +22,7 @@ export function useLocalFulfillmentDraft(load = true) {
       const text = (value: unknown) => typeof value === 'string' ? value : '';
       const records = (value: unknown) => Array.isArray(value) ? value : [];
       const common = (record: any) => ({ ...record, id: text(record?.id) || crypto.randomUUID(), enabled: record?.enabled === true, name: text(record?.name), price: typeof record?.price === 'number' ? record.price : NaN, instructions: text(record?.instructions), estimate: text(record?.estimate) });
-      setConfig({ enabled: raw.enabled === true, pickupLocations: records(raw.pickupLocations).map(record => ({ ...common(record), hours: text(record?.hours), address: Object.fromEntries(['street', 'city', 'state', 'zip', 'country'].map(field => [field, text(record?.address?.[field])])) as any })), deliveryZones: records(raw.deliveryZones).map(record => ({ ...common(record), minimumSubtotal: typeof record?.minimumSubtotal === 'number' ? (record as any).minimumSubtotal : NaN, postalPrefixes: records(record?.postalPrefixes).map(text), postalCodes: records(record?.postalCodes).map(text) })) });
+      setConfig({ enabled: raw.enabled === true, pickupLocations: records(raw.pickupLocations).map(record => ({ ...common(record), hours: text(record?.hours), postalPrefixes: records(record?.postalPrefixes).map(text), address: Object.fromEntries(['street', 'city', 'state', 'zip', 'country'].map(field => [field, text(record?.address?.[field])])) as any })), deliveryZones: records(raw.deliveryZones).map(record => ({ ...common(record), minimumSubtotal: typeof record?.minimumSubtotal === 'number' ? (record as any).minimumSubtotal : NaN, postalPrefixes: records(record?.postalPrefixes).map(text), postalCodes: records(record?.postalCodes).map(text) })) });
       if (validateLocalFulfillment(raw).length) setNotice('Saved local configuration needs repair. Review all fields before saving.');
       setLoaded(true);
     }).catch(() => { if (active) setNotice('Could not load local fulfillment. Reload before saving.'); });
@@ -42,31 +46,54 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
   const quotes = quoteLocalFulfillment(config, { country: 'CA', zip: postal }, subtotal === '' ? NaN : Number(subtotal), [{ quantity: 1 }]);
   return <div className="rp-stack">
     <fieldset disabled={!loaded || busy} style={{ border: 0, padding: 0, margin: 0 }} className="rp-stack">
-    <SectionCard title="Pickup & local delivery" description="Configure real collection locations and Canadian postal service areas. Services start disabled. Public names, instructions, hours and estimates are editable here; storefront labels and presentation are in Studio.">
+    <SectionCard title="Pickup & local delivery" description="Let Toronto shoppers collect their order in person, and deliver to nearby postal areas. Everything starts switched off until you turn it on. Storefront labels and look are in Studio.">
       <Toggle label="Enable local fulfillment" checked={config.enabled} onChange={enabled => setConfig({ ...config, enabled })} />
-      <p className="rp-hint">Delivery minimums use discounted physical merchandise before delivery and tax. Digital books never qualify. Prefixes cover an entire three-character postal area; exact codes cover one complete postal code.</p>
-      <SecondaryButton onClick={() => setConfig({ ...config, pickupLocations: [...config.pickupLocations, { id: crypto.randomUUID(), enabled: false, name: '', price: 0, address: { street: '', city: '', state: '', zip: '', country: 'Canada' }, instructions: '', hours: '', estimate: '' }] })}>Add pickup location</SecondaryButton>
-      <SecondaryButton onClick={() => setConfig({ ...config, deliveryZones: [...config.deliveryZones, { id: crypto.randomUUID(), enabled: false, name: '', price: 0, minimumSubtotal: 0, postalPrefixes: [], postalCodes: [], instructions: '', estimate: '' }] })}>Add delivery zone</SecondaryButton>
     </SectionCard>
-    {(['pickupLocations', 'deliveryZones'] as const).map(kind => config[kind].map((record, index) => <SectionCard key={record.id} title={record.name || (kind === 'pickupLocations' ? 'New pickup location' : 'New delivery zone')}>
+
+    <SectionCard title="Local pickup" description="Shoppers whose address is in the pickup area see a free (or low-fee) pickup option at checkout. Toronto postal codes all start with M." actions={<SecondaryButton onClick={() => setConfig({ ...config, pickupLocations: [...config.pickupLocations, { id: crypto.randomUUID(), enabled: false, name: TORONTO_PICKUP.name, price: 0, postalPrefixes: [...TORONTO_AREA], address: { street: '', city: 'Toronto', state: 'ON', zip: '', country: 'Canada' }, instructions: '', hours: '', estimate: TORONTO_PICKUP.estimate }] })}>Add pickup location</SecondaryButton>}>
+      {!config.pickupLocations.length && <p className="rp-hint">No pickup location yet. Choose <strong>Add pickup location</strong> — it starts set up for Toronto; fill in your street address and postal code, then switch it on.</p>}
+    </SectionCard>
+    {config.pickupLocations.map((record, index) => {
+      const areas = record.postalPrefixes ?? [];
+      const area = !areas.length ? 'everyone' : areas.length === 1 && areas[0].trim().toUpperCase() === 'M' ? 'toronto' : 'custom';
+      return <SectionCard key={record.id} title={record.name || 'New pickup location'}>
+        <div className="rp-stack">
+          <Toggle label="Show this pickup at checkout" checked={record.enabled} onChange={enabled => patch('pickupLocations', record.id, { enabled })} />
+          <TextField label="Name shoppers see" value={record.name} onChange={e => patch('pickupLocations', record.id, { name: e.target.value })} />
+          <SelectField label="Who can choose pickup" hint="Checked against the postal code the shopper enters at checkout." value={area} onChange={e => patch('pickupLocations', record.id, { postalPrefixes: e.target.value === 'toronto' ? [...TORONTO_AREA] : e.target.value === 'everyone' ? [] : areas.length ? areas : ['M'] })}>
+            <option value="toronto">Toronto only (postal codes starting with M)</option>
+            <option value="custom">Specific postal areas…</option>
+            <option value="everyone">Everyone, anywhere</option>
+          </SelectField>
+          {area === 'custom' && <TextArea label="Pickup postal areas" hint="One to three characters each (e.g. M for all of Toronto, M6G for one neighbourhood), separated by commas or new lines." value={areas.join(', ')} onChange={e => patch('pickupLocations', record.id, { postalPrefixes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />}
+          <TextField label="Pickup fee (CAD)" hint="Use 0 for free pickup." type="number" min={0} step="0.01" value={Number.isFinite(record.price) ? record.price : ''} onChange={e => patch('pickupLocations', record.id, { price: e.target.value === '' ? NaN : Number(e.target.value) })} />
+          <p className="rp-hint"><strong>Where shoppers collect it</strong></p>
+          {(['street', 'city', 'state', 'zip', 'country'] as const).map(field => <TextField key={field} label={{ street: 'Street address', city: 'City', state: 'Province (e.g. ON)', zip: 'Postal code', country: 'Country' }[field]} value={record.address[field]} onChange={e => patch('pickupLocations', record.id, { address: { ...record.address, [field]: e.target.value } })} />)}
+          <TextArea label="Opening hours" value={record.hours ?? ''} onChange={e => patch('pickupLocations', record.id, { hours: e.target.value })} />
+          <TextArea label="Pickup instructions" hint="E.g. ring the bell, bring your order number." value={record.instructions ?? ''} onChange={e => patch('pickupLocations', record.id, { instructions: e.target.value })} />
+          <TextField label="When it's ready" hint="E.g. Ready in 1–2 business days." value={record.estimate ?? ''} onChange={e => patch('pickupLocations', record.id, { estimate: e.target.value })} />
+          <div className="rp-actions"><SecondaryButton disabled={index === 0} onClick={() => move('pickupLocations', index, -1)}>Move up</SecondaryButton><SecondaryButton disabled={index === config.pickupLocations.length - 1} onClick={() => move('pickupLocations', index, 1)}>Move down</SecondaryButton><DestructiveButton onClick={() => setConfig({ ...config, pickupLocations: config.pickupLocations.filter(item => item.id !== record.id) })}>Remove</DestructiveButton></div>
+        </div>
+      </SectionCard>;
+    })}
+
+    <SectionCard title="Local delivery" description="Deliver to nearby postal areas. Minimums use discounted physical books before delivery and tax; digital books never qualify." actions={<SecondaryButton onClick={() => setConfig({ ...config, deliveryZones: [...config.deliveryZones, { id: crypto.randomUUID(), enabled: false, name: '', price: 0, minimumSubtotal: 0, postalPrefixes: [], postalCodes: [], instructions: '', estimate: '' }] })}>Add delivery zone</SecondaryButton>}>
+      {!config.deliveryZones.length && <p className="rp-hint">No delivery zones.</p>}
+    </SectionCard>
+    {config.deliveryZones.map((record, index) => <SectionCard key={record.id} title={record.name || 'New delivery zone'}>
       <div className="rp-stack">
-        <Toggle label="Enabled" checked={record.enabled} onChange={enabled => patch(kind, record.id, { enabled })} />
-        <TextField label="Public name" value={record.name} onChange={e => patch(kind, record.id, { name: e.target.value })} />
-        <TextField label="Fee (CAD)" type="number" min={0} step="0.01" value={Number.isFinite(record.price) ? record.price : ''} onChange={e => patch(kind, record.id, { price: e.target.value === '' ? NaN : Number(e.target.value) })} />
-        {kind === 'pickupLocations' ? <>
-          {(['street', 'city', 'state', 'zip', 'country'] as const).map(field => <TextField key={field} label={{ street: 'Street address', city: 'City', state: 'Province (Canadian code or name)', zip: 'Postal code', country: 'Country (Canada)' }[field]} value={(record as any).address[field]} onChange={e => patch(kind, record.id, { address: { ...(record as any).address, [field]: e.target.value } })} />)}
-          <TextArea label="Public opening hours" value={(record as any).hours ?? ''} onChange={e => patch(kind, record.id, { hours: e.target.value })} />
-        </> : <>
-          <TextField label="Minimum physical merchandise subtotal (CAD)" type="number" min={0} step="0.01" value={Number.isFinite((record as any).minimumSubtotal) ? (record as any).minimumSubtotal : ''} onChange={e => patch(kind, record.id, { minimumSubtotal: e.target.value === '' ? NaN : Number(e.target.value) })} />
-          <TextArea label="Postal prefixes" hint="Three characters each, separated by commas or new lines." value={(record as any).postalPrefixes.join(', ')} onChange={e => patch(kind, record.id, { postalPrefixes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />
-          <TextArea label="Exact postal codes" hint="Six characters each; spaces are accepted. Separated by commas or new lines." value={(record as any).postalCodes.join(', ')} onChange={e => patch(kind, record.id, { postalCodes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />
-        </>}
-        <TextArea label="Public instructions" value={record.instructions ?? ''} onChange={e => patch(kind, record.id, { instructions: e.target.value })} />
-        <TextField label={kind === 'pickupLocations' ? 'Public preparation estimate' : 'Public delivery estimate'} value={record.estimate ?? ''} onChange={e => patch(kind, record.id, { estimate: e.target.value })} />
-        <div className="rp-actions"><SecondaryButton disabled={index === 0} onClick={() => move(kind, index, -1)}>Move up</SecondaryButton><SecondaryButton disabled={index === config[kind].length - 1} onClick={() => move(kind, index, 1)}>Move down</SecondaryButton><DestructiveButton onClick={() => setConfig({ ...config, [kind]: config[kind].filter(item => item.id !== record.id) })}>Remove</DestructiveButton></div>
+        <Toggle label="Enabled" checked={record.enabled} onChange={enabled => patch('deliveryZones', record.id, { enabled })} />
+        <TextField label="Public name" value={record.name} onChange={e => patch('deliveryZones', record.id, { name: e.target.value })} />
+        <TextField label="Fee (CAD)" type="number" min={0} step="0.01" value={Number.isFinite(record.price) ? record.price : ''} onChange={e => patch('deliveryZones', record.id, { price: e.target.value === '' ? NaN : Number(e.target.value) })} />
+        <TextField label="Minimum physical merchandise subtotal (CAD)" type="number" min={0} step="0.01" value={Number.isFinite(record.minimumSubtotal) ? record.minimumSubtotal : ''} onChange={e => patch('deliveryZones', record.id, { minimumSubtotal: e.target.value === '' ? NaN : Number(e.target.value) })} />
+        <TextArea label="Postal prefixes" hint="Three characters each, separated by commas or new lines." value={record.postalPrefixes.join(', ')} onChange={e => patch('deliveryZones', record.id, { postalPrefixes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />
+        <TextArea label="Exact postal codes" hint="Six characters each; spaces are accepted. Separated by commas or new lines." value={record.postalCodes.join(', ')} onChange={e => patch('deliveryZones', record.id, { postalCodes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />
+        <TextArea label="Public instructions" value={record.instructions ?? ''} onChange={e => patch('deliveryZones', record.id, { instructions: e.target.value })} />
+        <TextField label="Public delivery estimate" value={record.estimate ?? ''} onChange={e => patch('deliveryZones', record.id, { estimate: e.target.value })} />
+        <div className="rp-actions"><SecondaryButton disabled={index === 0} onClick={() => move('deliveryZones', index, -1)}>Move up</SecondaryButton><SecondaryButton disabled={index === config.deliveryZones.length - 1} onClick={() => move('deliveryZones', index, 1)}>Move down</SecondaryButton><DestructiveButton onClick={() => setConfig({ ...config, deliveryZones: config.deliveryZones.filter(item => item.id !== record.id) })}>Remove</DestructiveButton></div>
       </div>
-    </SectionCard>))}
-    <SectionCard title="Destination tester" description="Uses the unsaved configuration above. This is a quote preview, not a customer order.">
+    </SectionCard>)}
+    <SectionCard title="Try a postal code" description="See which pickup and delivery options a shopper at this postal code would get, using the unsaved settings above.">
       <TextField label="Canadian postal code" value={postal} onChange={e => setPostal(e.target.value)} />
       <TextField label="Discounted physical merchandise subtotal (CAD)" type="number" min={0} step="0.01" value={subtotal} onChange={e => setSubtotal(e.target.value)} />
       <p role="status">{quotes.length ? quotes.map(q => `${q.name}: CAD ${q.price.toFixed(2)}`).join(' · ') : 'No eligible local options.'}</p>

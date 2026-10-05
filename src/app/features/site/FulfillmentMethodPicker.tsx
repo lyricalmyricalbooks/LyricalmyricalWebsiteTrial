@@ -44,7 +44,7 @@ export function FulfillmentMethodPicker({ method, optionId, onSelect, shippingQu
           </span>
           <span className="shrink-0 text-sm font-semibold text-slate-950">{choice.price === 0 ? words.free : formatPrice(choice.price)}</span>
         </label>)}
-      </div> : <p className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">{method === 'local_delivery' ? words.addressPrompt || words.unavailable : words.unavailable}</p>}
+      </div> : <p className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">{method !== 'shipping' ? words.addressPrompt || words.unavailable : words.unavailable}</p>}
     {!optionId && <p role="status" className="text-sm font-medium text-amber-700">{words.review}</p>}
   </div>;
 }
