@@ -26,6 +26,7 @@ type Props = {
   onPack: () => void;
   onLabel: () => void;
   onDispatch: () => void;
+  onLocalAdvance: () => void;
   onRelease: () => void;
 };
 export function FulfillmentWorkbench({
@@ -38,6 +39,7 @@ export function FulfillmentWorkbench({
   onPack,
   onLabel,
   onDispatch,
+  onLocalAdvance,
   onRelease,
 }: Props) {
   const queue = queueOf(order);
@@ -45,13 +47,14 @@ export function FulfillmentWorkbench({
   const reviewed = order.operations?.addressReviewed === addressKey(order);
   const packed = order.operations?.packed === packingKey(order);
   const shipping = physicalItems(order).length > 0;
+  const method = order.fulfillmentSelection?.method || "shipping";
   const active =
-    ["Needs attention", "Ready to pack", "Ready to ship"].includes(queue) &&
+    ["Needs attention", "Ready to pack", "Ready to ship", "Ready for pickup", "Ready for local delivery"].includes(queue) &&
     !order.isTest;
   const hold = order.operations?.hold;
   const issues = active ? addressIssues(order) : [];
   const labelPending = order.operations?.labelPurchasePending;
-  const addressActive = active && !reviewed && !hold;
+  const addressActive = active && method !== "pickup" && !reviewed && !hold;
   const packingActive = queue === "Ready to pack";
   const shippingActive = queue === "Ready to ship";
   return (
@@ -99,7 +102,7 @@ export function FulfillmentWorkbench({
       {order.status === "cancelled" && (
         <p className="fw-notice">This order is cancelled.</p>
       )}
-      {shipping && (
+      {shipping && method !== "pickup" && (
         <div className="fw-step" data-active={addressActive}>
           <div className="fw-step-heading">
             <span className="fw-step-icon" aria-hidden="true">
@@ -236,7 +239,7 @@ export function FulfillmentWorkbench({
           </div>
         )}
       </div>
-      {shipping && (
+      {shipping && method !== "pickup" && (
         <div className="fw-step" data-active={shippingActive}>
           <div className="fw-step-heading">
             <span className="fw-step-icon" aria-hidden="true">
@@ -316,6 +319,32 @@ export function FulfillmentWorkbench({
               {order.trackingNumber || "No tracking recorded"}
             </p>
           )}
+        </div>
+      )}
+      {shipping && method !== "shipping" && (
+        <div className="fw-step" data-active={queue === "Ready for pickup" || queue === "Ready for local delivery"}>
+          <div className="fw-step-heading">
+            <span className="fw-step-icon" aria-hidden="true"><MapPin size={18} /></span>
+            <div>
+              <h3>{method === "pickup" ? "Customer pickup" : "Local delivery"}</h3>
+              <span className="rp-hint">
+                {order.fulfillment?.name || "Selected local service"}
+                {order.fulfillment?.address ? ` · ${[order.fulfillment.address.street, order.fulfillment.address.city, order.fulfillment.address.state, order.fulfillment.address.zip].filter(Boolean).join(", ")}` : ""}
+              </span>
+            </div>
+          </div>
+          {order.fulfillment?.instructions && <p className="fw-summary">{order.fulfillment.instructions}</p>}
+          {queue === "Ready for pickup" || queue === "Ready for local delivery" || (method === "local_delivery" && order.fulfillmentStatus === "out_for_delivery") ? (
+            <div className="fw-actions">
+              <PrimaryButton disabled={busy} onClick={onLocalAdvance}>
+                {method === "pickup"
+                  ? order.fulfillmentStatus === "ready_for_pickup" ? "Confirm collected" : "Mark ready for pickup"
+                  : order.fulfillmentStatus === "ready_for_delivery" ? "Start local delivery" : order.fulfillmentStatus === "out_for_delivery" ? "Confirm delivered" : "Mark ready for delivery"}
+              </PrimaryButton>
+            </div>
+          ) : ["In transit", "Completed"].includes(queue) ? (
+            <p className="fw-summary">{order.fulfillmentStatus === "collected" ? "Collected by customer" : order.fulfillmentStatus === "delivered" ? "Delivered" : order.fulfillmentStatus === "out_for_delivery" ? "Out for delivery" : "Local fulfillment complete"}</p>
+          ) : null}
         </div>
       )}
     </section>

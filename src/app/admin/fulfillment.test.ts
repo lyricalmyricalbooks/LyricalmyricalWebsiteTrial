@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addressIssues, addressKey, packingKey, queueOf, dispatchProblem, buildPickList } from "./fulfillment";
+import { addressIssues, addressKey, packingKey, queueOf, dispatchProblem, buildPickList, fulfillmentMethod } from "./fulfillment";
 const order = () => ({ id: "a", paymentStatus: "paid", status: "open", customer: { address: { street: "1 Main", city: "Toronto", state: "ON", zip: "M6G3H1", country: "Canada" } }, items: [{ id: "book", title: "Book", quantity: 2 }] });
 const reviewed = () => { const o: any = order(); o.operations = { addressReviewed: addressKey(o) }; return o; };
 const packed = () => { const o = reviewed(); o.operations.packed = packingKey(o); return o; };
@@ -16,4 +16,25 @@ describe("publisher fulfillment", () => {
 
 it("does not send digital-only orders to a shipping queue", () => { const o = order(); o.items = [{ id: "ebook", title: "Book", quantity: 1, format: "EPUB" } as any]; expect(queueOf(o)).toBe("Completed"); expect(dispatchProblem(o)).toBeTruthy(); });
 it("requires actual order items before packing", () => { const o = reviewed(); o.items = []; expect(queueOf(o)).toBe("Needs attention"); });
+
+it("skips address review for pickup but keeps packing as a prerequisite", () => {
+ const o: any = order(); o.fulfillmentSelection = { method: "pickup", optionId: "shop" }; o.customer.address = {};
+ expect(fulfillmentMethod(o)).toBe("pickup"); expect(queueOf(o)).toBe("Ready to pack");
+ o.operations = { packed: packingKey(o) }; expect(queueOf(o)).toBe("Ready for pickup");
+});
+it("keeps local delivery address review and packing before delivery", () => {
+ const o: any = reviewed(); o.fulfillmentSelection = { method: "local_delivery", optionId: "zone" };
+ expect(queueOf(o)).toBe("Ready to pack");
+ o.operations.packed = packingKey(o); expect(queueOf(o)).toBe("Ready for local delivery");
+});
+it("routes pickup and delivery to completed only after handoff", () => {
+ const o: any = packed(); o.fulfillmentSelection = { method: "pickup", optionId: "shop" }; o.fulfillmentStatus = "ready_for_pickup";
+ expect(queueOf(o)).toBe("Ready for pickup"); o.fulfillmentStatus = "collected"; expect(queueOf(o)).toBe("Completed");
+ o.fulfillmentSelection = { method: "local_delivery", optionId: "zone" }; o.fulfillmentStatus = "ready_for_delivery";
+ expect(queueOf(o)).toBe("Ready for local delivery"); o.fulfillmentStatus = "out_for_delivery"; expect(queueOf(o)).toBe("In transit");
+ o.fulfillmentStatus = "delivered"; expect(queueOf(o)).toBe("Completed");
+});
+it("recognizes server and client digital item markers consistently", () => {
+ const o: any = { ...packed(), items: [{ id: "e", quantity: 1, isDigital: true }] }; expect(queueOf(o)).toBe("Completed");
+});
 

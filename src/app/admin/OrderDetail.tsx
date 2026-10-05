@@ -263,7 +263,7 @@ export function OrderDetail({
   };
 
   const perform = async (
-    action: "review" | "pack" | "hold" | "release",
+    action: "review" | "pack" | "hold" | "release" | "local_transition",
     payload: any = {},
   ) => {
     if (working) return;
@@ -277,9 +277,11 @@ export function OrderDetail({
           ? "Books packed"
           : action === "review"
             ? "Address confirmed"
-            : action === "hold"
-              ? "Order held"
-              : "Hold released",
+              : action === "hold"
+                ? "Order held"
+                : action === "release"
+                  ? "Hold released"
+                  : "Local fulfillment updated",
       );
     } catch (err: any) {
       toast.error(err.message || "Could not save fulfillment.");
@@ -467,6 +469,12 @@ export function OrderDetail({
           onPack={() => perform("pack", { packingKey: packingKey(order) })}
           onLabel={() => setShowParcel(true)}
           onDispatch={() => setShowShipForm(true)}
+          onLocalAdvance={() => {
+            const next = order.fulfillmentSelection?.method === "pickup"
+              ? order.fulfillmentStatus === "ready_for_pickup" ? "record customer collection" : "mark the order ready for pickup"
+              : order.fulfillmentStatus === "ready_for_delivery" ? "start local delivery" : order.fulfillmentStatus === "out_for_delivery" ? "mark the order delivered" : "mark the order ready for delivery";
+            if (window.confirm(`Confirm you want to ${next}?`)) void perform("local_transition", { expectedStatus: order.fulfillmentStatus || "" });
+          }}
           onRelease={() => perform("release")}
         />
         <aside className="rp-stack" aria-label="Order summary">

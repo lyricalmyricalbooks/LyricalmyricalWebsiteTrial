@@ -739,9 +739,13 @@ export const adminApi = {
       const privateSnap = await tx.get(privateRef);
       if (!snap.exists()) throw new Error("Order no longer exists.");
       const o: any = snap.data();
+      const method = o.fulfillmentSelection?.method;
+      if (method === "pickup") throw new Error("Pickup orders use the selected store address and do not have a customer shipping address to change.");
       if (o.status === "completed" || o.status === "cancelled" || o.paymentStatus !== "paid" || o.isTest || o.labelUrl || ["shipped", "out_for_delivery", "delivered"].includes(o.fulfillmentStatus)) throw new Error("Address changes are unavailable after label purchase or dispatch.");
       if (addressKey(o) !== originalKey) throw new Error("The address changed. Reload the order first.");
       const cleaned = Object.fromEntries(["street", "city", "state", "zip", "country"].map(k => [k, String(address[k] || "").trim().slice(0, 200)]));
+      const oldAddress = o.customer?.address || {};
+      if (method === "local_delivery" && ["state", "zip", "country"].some(key => String(cleaned[key] || "").trim().toLowerCase() !== String(oldAddress[key] || "").trim().toLowerCase())) throw new Error("For a paid local delivery, province, postal code and country cannot change. Cancel and refund this order, then place a new order for the new area.");
       const problems = addressIssues({ customer: { address: cleaned } });
       if (problems.length) throw new Error(problems.join(" "));
       const now = new Date().toISOString();
@@ -752,7 +756,7 @@ export const adminApi = {
     });
   },
 
-  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "dispatch", payload: any = {}) => {
+  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "dispatch" | "local_transition", payload: any = {}) => {
     await runTransaction(db, async tx => {
       const ref = doc(db, "orders", id);
       const privateRef = doc(db, "order-operations", id);
@@ -784,6 +788,26 @@ export const adminApi = {
         if (!String(payload.trackingNumber || "").trim() || !String(payload.trackingCarrier || "").trim()) throw new Error("Enter the carrier and tracking number.");
         tx.update(ref, { status: "completed", fulfillmentStatus: "shipped", trackingNumber: String(payload.trackingNumber).trim(), trackingCarrier: String(payload.trackingCarrier).trim(), shippedAt: now, updatedAt: now });
         message = `Dispatched via ${payload.trackingCarrier}. Tracking: ${payload.trackingNumber}`;
+      } else if (action === "local_transition") {
+        const method = o.fulfillmentSelection?.method;
+        if (!['pickup', 'local_delivery'].includes(method)) throw new Error("Only local orders can use this workflow.");
+        const current = String(o.fulfillmentStatus || "");
+        if (current !== String(payload.expectedStatus || "")) throw new Error("This order changed. Reload before continuing.");
+        if (operations.hold) throw new Error("Release the fulfillment hold before continuing.");
+        if (operations.packed !== packingKey(o)) throw new Error("Complete the packing checklist first.");
+        if (method === "local_delivery" && (addressIssues(o).length || operations.addressReviewed !== addressKey(o))) throw new Error("Review and confirm the delivery address first.");
+        const next = method === "pickup"
+          ? ({ "": "ready_for_pickup", processing: "ready_for_pickup", ready_for_pickup: "collected" } as Record<string, string>)[current]
+          : ({ "": "ready_for_delivery", processing: "ready_for_delivery", ready_for_delivery: "out_for_delivery", out_for_delivery: "delivered" } as Record<string, string>)[current];
+        if (!next) throw new Error("This local order has already reached its final handoff state.");
+        const final = ["collected", "delivered"].includes(next);
+        const timestamps = next === "ready_for_pickup" ? { readyForPickupAt: now }
+          : next === "collected" ? { collectedAt: now }
+          : next === "ready_for_delivery" ? { readyForDeliveryAt: now }
+          : next === "out_for_delivery" ? { outForDeliveryAt: now }
+          : { deliveredAt: now };
+        tx.update(ref, { fulfillmentStatus: next, ...(final ? { status: "completed" } : {}), ...timestamps, updatedAt: now });
+        message = `Local fulfillment advanced to ${next}.`;
       }
       tx.set(privateRef, { ...operations, updatedAt: now, activity: [...(operations.activity || []), { type: "event", message, createdAt: now }] });
     });

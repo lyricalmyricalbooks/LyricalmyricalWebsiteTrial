@@ -1,5 +1,5 @@
 // Publisher workflow state is private; public order/payment records remain authoritative.
-export const WORK_QUEUES = ["Needs attention", "Ready to pack", "Ready to ship", "In transit", "Completed", "Unpaid", "All orders"];
+export const WORK_QUEUES = ["Needs attention", "Ready to pack", "Ready to ship", "Ready for pickup", "Ready for local delivery", "In transit", "Completed", "Unpaid", "All orders"];
 const terminal = (o: any) => o.status === "cancelled" || ["refunded", "refund_pending"].includes(o.paymentStatus) || ["cancelled", "refunded"].includes(o.fulfillmentStatus);
 // Firestore does not guarantee map key order. Compare the address fields that
 // drive shipping in a fixed order so equivalent addresses do not look stale.
@@ -24,21 +24,28 @@ export function addressIssues(o: any): string[] {
  if (o.addressVerified === false) issues.push(o.addressError || "Postal verification failed. Confirm the address with the customer.");
  return issues;
 }
-export const isDigitalItem = (i: any) => /e-book|epub|pdf|audiobook/.test(String(i.format || "").toLowerCase());
+export const isDigitalItem = (i: any) => i?.digital === true || i?.isDigital === true || /digital|e-book|ebook|epub|pdf|audiobook/.test(String(i.format || "").toLowerCase());
 export const physicalItems = (o: any) => (o.items || []).filter((i: any) => !isDigitalItem(i));
+export const fulfillmentMethod = (o: any) => ["pickup", "local_delivery"].includes(o.fulfillmentSelection?.method) ? o.fulfillmentSelection.method : "shipping";
 export function queueOf(o: any): string {
  if (terminal(o)) return "Completed";
  if (o.paymentStatus !== "paid") return "Unpaid";
  if (o.items?.length && !physicalItems(o).length) return "Completed";
- if (o.fulfillmentStatus === "delivered") return "Completed";
- if (["shipped", "out_for_delivery"].includes(o.fulfillmentStatus) || o.status === "completed") return "In transit";
- if (!o.items?.length || o.isTest || o.operations?.hold || addressIssues(o).length || o.operations?.addressReviewed !== addressKey(o)) return "Needs attention";
- return o.operations?.packed === packingKey(o) ? "Ready to ship" : "Ready to pack";
+ const method = fulfillmentMethod(o);
+ if (["delivered", "collected"].includes(o.fulfillmentStatus)) return "Completed";
+ if (o.fulfillmentStatus === "out_for_delivery" || (method === "shipping" && o.fulfillmentStatus === "shipped") || o.status === "completed") return "In transit";
+ if (o.fulfillmentStatus === "ready_for_pickup") return "Ready for pickup";
+ if (o.fulfillmentStatus === "ready_for_delivery") return "Ready for local delivery";
+ const needsAddressReview = method !== "pickup" && (addressIssues(o).length || o.operations?.addressReviewed !== addressKey(o));
+ if (!o.items?.length || o.isTest || o.operations?.hold || needsAddressReview) return "Needs attention";
+ if (o.operations?.packed !== packingKey(o)) return "Ready to pack";
+ return method === "pickup" ? "Ready for pickup" : method === "local_delivery" ? "Ready for local delivery" : "Ready to ship";
 }
 export function dispatchProblem(o: any): string {
  if (o.isTest) return "Test orders cannot be fulfilled.";
  if (terminal(o) || o.paymentStatus !== "paid") return "Only active paid orders can be dispatched.";
  const q = queueOf(o);
+ if (fulfillmentMethod(o) !== "shipping") return "Local pickup and delivery orders cannot use carrier dispatch.";
  if (q === "In transit" || q === "Completed") return "This order has already been dispatched.";
  if (o.operations?.hold) return `Order on hold: ${o.operations.hold}`;
  if (addressIssues(o).length || o.operations?.addressReviewed !== addressKey(o)) return "Review and confirm the shipping address first.";
