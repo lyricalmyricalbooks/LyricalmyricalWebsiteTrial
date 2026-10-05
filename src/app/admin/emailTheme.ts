@@ -77,7 +77,7 @@ function risoLayout(inner, { logoUrl = "", accent = "", theme = "light", year = 
     <div style="padding:28px 32px 18px;border-bottom:2px solid ${p.rule};">${masthead}</div>
     <div style="padding:28px 32px;font-size:15px;line-height:1.6;color:${p.text};">${risoize(inner, a, theme)}</div>
     <div style="padding:16px 32px;border-top:2px solid ${p.rule};background:${p.sunken};font-family:${FONT_MONO};font-size:10px;letter-spacing:0.14em;text-transform:uppercase;color:${p.subtle};">
-      &copy; ${year} Lyricalmyrical Books &middot; Printed with care
+      &copy; ${year} Lyricalmyrical Books
     </div>
   </div>
 </body>
