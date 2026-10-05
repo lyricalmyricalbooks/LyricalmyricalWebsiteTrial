@@ -1322,6 +1322,17 @@ export function Checkout() {
             </p>
           )}
 
+          {!currentUser && (successOrder?.customer?.email || customer.email) && (
+            <section {...regionProps("checkoutAccountOffer")} className="w-full mb-10 border border-white/10 bg-white/[0.03] p-6 text-left space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-white/70">{c("coAccountTitle")}</h3>
+              <p className="text-sm leading-6 text-white/60">{c("coAccountText", { email: successOrder?.customer?.email || customer.email })}</p>
+              <Link to={`/account?email=${encodeURIComponent(successOrder?.customer?.email || customer.email)}`}
+                className="inline-block border border-white/10 bg-white/5 hover:bg-white/10 text-white px-5 py-3 text-[11px] font-black tracking-[0.2em] uppercase transition-all">
+                {c("coAccountButton")}
+              </Link>
+            </section>
+          )}
+
           <Link to="/"
             className="flex items-center gap-3 hover:bg-violet-500 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase transition-all active:scale-95 shadow-[0_10px_40px_rgba(var(--accent-rgb),0.4)]" style={{ backgroundColor: "var(--accent)" }}>
             {c("coContinue")}

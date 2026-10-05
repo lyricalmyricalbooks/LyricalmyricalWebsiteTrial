@@ -49,7 +49,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "checkoutHeader", label: "Checkout header" }, { id: "checkoutProgress", label: "Checkout step labels" },
     { id: "checkoutForm", label: "Checkout form", required: true }, { id: "checkoutSummary", label: "Order summary", required: true },
     { id: "checkoutFulfillment", label: "Shipping, pickup & local delivery choices", required: true, copy: "Checkout" },
-    { id: "checkoutPromise", label: "Message under Pay button" }, { id: "checkoutSuccess", label: "Order confirmation", required: true },
+    { id: "checkoutPromise", label: "Message under Pay button" }, { id: "checkoutSuccess", label: "Order confirmation", required: true }, { id: "checkoutAccountOffer", label: "Order confirmation: sign-in box", copy: "Checkout" },
     { id: "checkoutEmpty", label: "Empty cart", required: true },
   ] },
   { id: "searchLayout", title: "Search · layout & elements", copy: "Search & filters", files: ["features/site/SearchOverlay.tsx"], regions: [
