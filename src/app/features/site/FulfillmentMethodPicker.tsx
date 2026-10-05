@@ -4,12 +4,15 @@ import { regionProps } from './storefrontRegions';
 export type FulfillmentSelection = { method: 'shipping' | 'pickup' | 'local_delivery'; optionId: string };
 type ShippingChoice = { id: string; name: string; price: number; deliveryDays?: string; carrierEstimate?: boolean; durationTerms?: string };
 type Words = { group?: string; shipping: string; pickup: string; local_delivery: string; review: string; free: string; unavailable?: string; addressPrompt?: string; loading?: string; instructions?: string; hours?: string; estimate?: string; carrierTransit?: string; carrierUnavailable?: string; deliveryDays?: string };
+const transitDays = (c: ShippingChoice) => { const n = Number(c.deliveryDays); return c.deliveryDays && Number.isFinite(n) ? n : Infinity; };
+/** Best options first: cheapest, then quickest; an option with no delivery estimate goes after one that has it. */
+export const bestFirst = (a: ShippingChoice, b: ShippingChoice) => (a.price - b.price) || (transitDays(a) - transitDays(b)) || 0;
 export function FulfillmentMethodPicker({ method, optionId, onSelect, shippingQuotes, localQuotes, words, formatPrice, loading = false, availableMethods = ['shipping', 'pickup', 'local_delivery'] }: {
   method: FulfillmentSelection['method']; optionId: string; onSelect: (value: FulfillmentSelection) => void;
   shippingQuotes: ShippingChoice[]; localQuotes: LocalFulfillmentQuote[]; words: Words;
   formatPrice: (amount: number) => string; loading?: boolean; availableMethods?: FulfillmentSelection['method'][];
 }) {
-  const choices = method === 'shipping' ? [...shippingQuotes].sort((a, b) => a.price - b.price) : localQuotes.filter(quote => quote.method === method);
+  const choices = method === 'shipping' ? [...shippingQuotes].sort(bestFirst) : localQuotes.filter(quote => quote.method === method);
   return <div {...regionProps('checkoutFulfillment')} className="space-y-4">
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" role="group" aria-label={words.group}>
       {availableMethods.map(value =>
