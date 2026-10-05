@@ -130,6 +130,10 @@ npm run logs
 - `onOrderPaid` / `onOrderShipped` — Firestore triggers that send customer/admin
   emails (Resend).
 - `abandonedCartSweep` — scheduled recovery email after ~1h.
+- **Email delivery log:** every `sendEmail` attempt (sent or failed, with a plain-English reason from
+  `functions/emailErrors.js`) is written to the admin-only `emailLog` collection and listed in
+  Settings › Notifications › **Recent deliveries**. Customer and shop-copy sends are attempted
+  separately, so a rejected customer address never suppresses the admin notification.
 - `onBookRestocked` — emails shoppers in `stockAlerts` (created from the sold-out product page's
   "Notify me when back in stock" box, `features/site/BackInStockForm.tsx`) when a book/variant goes
   0 → available. Studio › Style › Product page layout › **Notify me when back in stock** toggles the box;
