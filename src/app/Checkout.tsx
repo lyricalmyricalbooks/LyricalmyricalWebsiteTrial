@@ -1377,9 +1377,17 @@ export function Checkout() {
             <ChevronLeft size={17} className="transition-transform group-hover:-translate-x-0.5" />
             {c("coReturn")}
           </Link>
-          <Link to="/" className="text-center text-lg font-semibold tracking-tight text-slate-950 sm:text-xl">
-            {c("coBrand")}
-          </Link>
+          {/* Plain text by default so a stray tap doesn't drop the shopper out of checkout;
+              Studio › Style › Checkout & cart drawer can turn the link back on. */}
+          {checkoutDesign.checkoutBrandLinksHome ? (
+            <Link to="/" className="text-center text-lg font-semibold tracking-tight text-slate-950 sm:text-xl">
+              {c("coBrand")}
+            </Link>
+          ) : (
+            <span className="text-center text-lg font-semibold tracking-tight text-slate-950 sm:text-xl">
+              {c("coBrand")}
+            </span>
+          )}
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <Lock size={15} aria-hidden="true" />
             <span className="hidden sm:inline">{c("coSecure")}</span>

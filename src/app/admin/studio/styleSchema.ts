@@ -456,6 +456,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "checkoutAccentColor", label: "Checkout accent", kind: "color" },
       { key: "checkoutBgColor", label: "Checkout background", kind: "color" },
       { key: "showOrderNote", label: "Order note / gift message box at checkout", kind: "toggle" },
+      { key: "checkoutBrandLinksHome", label: "Clicking the shop name at the top of checkout goes back to the shop", kind: "toggle" },
       { key: "stripeFormBg", label: "Card payment form background", kind: "color" },
       { key: "stripeFormPadding", label: "Card payment form padding", kind: "range", min: 0, max: 32, step: 2, suffix: "px" },
       { key: "checkoutInputRadius", label: "Checkout field corner radius", kind: "range", min: 0, max: 24, step: 1, suffix: "px" },
