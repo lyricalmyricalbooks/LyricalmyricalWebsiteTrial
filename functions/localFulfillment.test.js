@@ -9,4 +9,3 @@ test('local delivery eligibility fails closed and preserves exact codes', () => 
   expect(quoteLocalFulfillment(config, { zip: 'M6G3H1', country: 'CA' }, 19.99, [{ quantity: 1 }])).toEqual([]);
   expect(quoteLocalFulfillment(config, { zip: 'M6G3H1', country: 'CA' }, 20, [])).toEqual([]);
 });
-
