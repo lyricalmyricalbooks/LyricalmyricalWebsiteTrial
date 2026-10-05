@@ -1477,6 +1477,9 @@ export function Checkout() {
                   instructions: c("coFulfillmentInstructions"),
                   hours: c("coFulfillmentHours"),
                   estimate: c("coFulfillmentEstimate"),
+                  carrierTransit: c("coCarrierTransit"),
+                  carrierUnavailable: c("coCarrierTimingUnavailable"),
+                  deliveryDays: c("coEstimated"),
                   free: c("coFree"),
                 }}
                 formatPrice={formatPrice}

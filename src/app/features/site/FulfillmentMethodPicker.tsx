@@ -3,13 +3,13 @@ import { regionProps } from './storefrontRegions';
 
 export type FulfillmentSelection = { method: 'shipping' | 'pickup' | 'local_delivery'; optionId: string };
 type ShippingChoice = { id: string; name: string; price: number; deliveryDays?: string; carrierEstimate?: boolean; durationTerms?: string };
-type Words = { group?: string; shipping: string; pickup: string; local_delivery: string; review: string; free: string; unavailable?: string; addressPrompt?: string; loading?: string; instructions?: string; hours?: string; estimate?: string };
+type Words = { group?: string; shipping: string; pickup: string; local_delivery: string; review: string; free: string; unavailable?: string; addressPrompt?: string; loading?: string; instructions?: string; hours?: string; estimate?: string; carrierTransit?: string; carrierUnavailable?: string; deliveryDays?: string };
 export function FulfillmentMethodPicker({ method, optionId, onSelect, shippingQuotes, localQuotes, words, formatPrice, loading = false, availableMethods = ['shipping', 'pickup', 'local_delivery'] }: {
   method: FulfillmentSelection['method']; optionId: string; onSelect: (value: FulfillmentSelection) => void;
   shippingQuotes: ShippingChoice[]; localQuotes: LocalFulfillmentQuote[]; words: Words;
   formatPrice: (amount: number) => string; loading?: boolean; availableMethods?: FulfillmentSelection['method'][];
 }) {
-  const choices = method === 'shipping' ? shippingQuotes : localQuotes.filter(quote => quote.method === method);
+  const choices = method === 'shipping' ? [...shippingQuotes].sort((a, b) => a.price - b.price) : localQuotes.filter(quote => quote.method === method);
   return <div {...regionProps('checkoutFulfillment')} className="space-y-4">
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" role="group" aria-label={words.group}>
       {availableMethods.map(value =>
@@ -29,6 +29,13 @@ export function FulfillmentMethodPicker({ method, optionId, onSelect, shippingQu
               {'hours' in choice && choice.hours && <span className="block">{words.hours} {choice.hours}</span>}
               {'instructions' in choice && choice.instructions && <span className="block whitespace-pre-wrap">{words.instructions} {choice.instructions}</span>}
               {'estimate' in choice && choice.estimate && <span className="block">{words.estimate} {choice.estimate}</span>}
+              {method === 'shipping' && 'price' in choice && (() => {
+                const days = (choice as ShippingChoice).deliveryDays;
+                const template = (choice as ShippingChoice).carrierEstimate ? words.carrierTransit : words.deliveryDays;
+                if (days) return template ? <span className="block" data-delivery-estimate>{template.replace('{days}', days)}</span> : null;
+                return (choice as ShippingChoice).carrierEstimate && !(choice as ShippingChoice).durationTerms && words.carrierUnavailable
+                  ? <span className="block" data-delivery-estimate>{words.carrierUnavailable}</span> : null;
+              })()}
               {'durationTerms' in choice && choice.durationTerms && <span className="block">{choice.durationTerms}</span>}
             </span>
           </span>
