@@ -110,7 +110,6 @@ exports.deleteTestOrders = onRequest(async (req, res) => {
 });
 
 const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
-const GMAIL_APP_PASSWORD = defineSecret("GMAIL_APP_PASSWORD");
 const STRIPE_SECRET_KEY = defineSecret("STRIPE_SECRET_KEY");
 const STRIPE_WEBHOOK_SECRET = defineSecret("STRIPE_WEBHOOK_SECRET");
 const PAYPAL_CLIENT_ID = defineSecret("PAYPAL_CLIENT_ID");
@@ -228,7 +227,12 @@ async function sendEmail({ to, subject, html, secret }) {
   // always sends from the authenticated account, so customers get real inbox delivery.
   // If it is unset or fails, fall through to Resend below.
   let gmailPass = "";
-  try { gmailPass = String(GMAIL_APP_PASSWORD.value() || "").replace(/\s+/g, ""); } catch (_) { /* secret not bound */ }
+  try {
+    const gmailDoc = await db.collection("adminSecrets").doc("gmail").get();
+    if (gmailDoc.exists) gmailPass = String(gmailDoc.data()?.appPassword || "").replace(/\s+/g, "");
+  } catch (err) {
+    console.warn("Could not read adminSecrets/gmail:", err);
+  }
   if (gmailPass) {
     try {
       if (html && !/<html[\s>]/i.test(html)) {
@@ -247,7 +251,7 @@ async function sendEmail({ to, subject, html, secret }) {
     } catch (err) {
       console.error("Gmail SMTP send failed, falling back to Resend:", err);
       await logEmailAttempt({ to: recipients, subject: String(subject || ""), status: "failed", from: ADMIN_TO, keySource: "gmail",
-        error: `Gmail SMTP rejected the send (${err?.message || err}). Check the GMAIL_APP_PASSWORD secret; falling back to Resend.` });
+        error: `Gmail SMTP rejected the send (${err?.message || err}). Re-enter the Gmail app password in Settings › Notifications › Gmail sending; falling back to Resend.` });
     }
   }
   const fail = async (message, extra = {}) => {
@@ -2216,7 +2220,7 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
 // 5b. Order Paid: Trigger notifications only AFTER successful payment
 // ──────────────────────────────────────────────────────────────
 exports.onOrderUpdated = onDocumentUpdated(
-  { document: "orders/{orderId}", secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
+  { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
   async event => {
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
@@ -2560,7 +2564,7 @@ exports.onOrderUpdated = onDocumentUpdated(
 // 7. Abandoned cart sweep: every hour, recover carts older than 1h
 // ──────────────────────────────────────────────────────────────
 exports.abandonedCartSweep = onSchedule(
-  { schedule: "every 60 minutes", secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
+  { schedule: "every 60 minutes", secrets: [RESEND_API_KEY] },
   async () => {
     const notificationSettings = await loadNotificationSettings();
     const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -3283,7 +3287,7 @@ exports.validateDiscountCode = onRequest(async (req, res) => {
 // 10. Order Created Trigger (New Order Admin Alert / Customer Manual Order Confirmation)
 // ──────────────────────────────────────────────────────────────
 exports.onOrderCreated = onDocumentCreated(
-  { document: "orders/{orderId}", secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
+  { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
   async event => {
     const order = event.data?.data() || {};
     const orderId = event.params.orderId;
@@ -3379,7 +3383,7 @@ const escContact = (v) => String(v == null ? "" : v)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 exports.onContactMessage = onDocumentCreated(
-  { document: "contactMessages/{messageId}", secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
+  { document: "contactMessages/{messageId}", secrets: [RESEND_API_KEY] },
   async event => {
     const m = event.data?.data() || {};
     if (!m.email || !m.message) return;
@@ -3432,7 +3436,7 @@ exports.onContactMessage = onDocumentCreated(
 );
 
 exports.onCustomerCreated = onDocumentCreated(
-  { document: "customers/{customerId}", secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
+  { document: "customers/{customerId}", secrets: [RESEND_API_KEY] },
   async event => {
     const customer = event.data?.data() || {};
     if (!customer.email) return;
@@ -3466,7 +3470,7 @@ exports.onCustomerCreated = onDocumentCreated(
 // 11. HTTP Endpoint: Send Test Email (Admin Secure)
 // ──────────────────────────────────────────────────────────────
 exports.sendTestEmail = onRequest(
-  { secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
+  { secrets: [RESEND_API_KEY] },
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") {
@@ -3563,7 +3567,7 @@ exports.sendTestEmail = onRequest(
 // 12. HTTP Endpoint: Shippo Webhook Status Updates (Carrier Integration)
 // ──────────────────────────────────────────────────────────────
 exports.shippoWebhook = onRequest(
-  { secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
+  { secrets: [RESEND_API_KEY] },
   async (req, res) => {
     if (req.method !== "POST") {
       res.status(405).send("Method Not Allowed");
@@ -3672,7 +3676,7 @@ function stockOf(item, fallback) {
 }
 
 exports.onBookRestocked = onDocumentUpdated(
-  { document: "books/{bookId}", secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
+  { document: "books/{bookId}", secrets: [RESEND_API_KEY] },
   async event => {
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
@@ -3739,7 +3743,7 @@ exports.onBookRestocked = onDocumentUpdated(
 // 12. Low Stock Alerts: Email admin when product or variant stock drops below 3 or hits 0
 // ──────────────────────────────────────────────────────────────
 exports.onBookUpdated = onDocumentUpdated(
-  { document: "books/{bookId}", secrets: [RESEND_API_KEY, GMAIL_APP_PASSWORD] },
+  { document: "books/{bookId}", secrets: [RESEND_API_KEY] },
   async event => {
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
