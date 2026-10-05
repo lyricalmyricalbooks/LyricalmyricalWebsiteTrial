@@ -807,6 +807,8 @@ export function Checkout() {
     if (settings?.localFulfillment?.enabled && settings.localFulfillment.deliveryZones?.some((zone: any) => zone.enabled)) methods.push("local_delivery");
     return methods;
   }, [physicalItems.length, settings?.localFulfillment]);
+  // A pickup limited to an area (e.g. Toronto, "M") needs the shopper's address to check eligibility.
+  const pickupNeedsAddress = !!settings?.localFulfillment?.pickupLocations?.some((location: any) => location.enabled && Array.isArray(location.postalPrefixes) && location.postalPrefixes.length);
   const physicalSubtotalAfterDiscount = useMemo(() => catalogItems
     ? discountedPhysicalSubtotal(catalogItems, discountAmount, appliedDiscount, booksMap)
     : 0, [catalogItems, discountAmount, appliedDiscount, booksMap]);
@@ -963,7 +965,7 @@ export function Checkout() {
       setNotice({ tone: "error", text: c("coStripeLoadError") });
       return;
     }
-    const needsDeliveryAddress = fulfillmentSelection.method !== "pickup";
+    const needsDeliveryAddress = fulfillmentSelection.method !== "pickup" || pickupNeedsAddress;
     const validDestination = !needsDeliveryAddress || [customer.address.street, customer.address.city, customer.address.state, customer.address.zip, customer.address.country].every(value => String(value || "").trim());
     const validBilling = fulfillmentSelection.method !== "pickup" || [customer.billingAddress.country, customer.billingAddress.state].every(value => String(value || "").trim());
     const selectedOptionExists = !physicalItems.length || (fulfillmentSelection.method === "shipping"
@@ -1430,7 +1432,7 @@ export function Checkout() {
             <section>
               <StepBadge n={c("coStepOf", { n: 2 })} label={c("coDelivery")} />
               <div className="space-y-3">
-                {fulfillmentSelection.method !== "pickup" && <>
+                {(fulfillmentSelection.method !== "pickup" || pickupNeedsAddress) && <>
                 <CountryField label={c("coCountry")}
                   pinnedCodes={pinnedCountryCodes} showFlags={!checkoutDesign.hideCountryFlags}
                   words={{ search: c("coCountrySearch"), popular: c("coCountryPopular"), all: c("coCountryAll"), none: (q: string) => c("coCountryNone", { query: q }) }}

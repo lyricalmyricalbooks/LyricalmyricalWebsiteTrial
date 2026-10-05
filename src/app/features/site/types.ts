@@ -43,7 +43,7 @@ export type Book = {
 };
 
 export type LocalFulfillmentAddress = { street: string; city: string; state: string; zip: string; country: string; postalCode?: string };
-export type PickupLocation = { id: string; enabled: boolean; name: string; price: number; address: LocalFulfillmentAddress; instructions?: string; hours?: string; estimate?: string; translations?: Record<string, Record<string, string>> };
+export type PickupLocation = { id: string; enabled: boolean; name: string; price: number; address: LocalFulfillmentAddress; /** Who may choose this pickup: postal prefixes such as "M" (all of Toronto). Empty = everyone. */ postalPrefixes?: string[]; instructions?: string; hours?: string; estimate?: string; translations?: Record<string, Record<string, string>> };
 export type DeliveryZone = { id: string; enabled: boolean; name: string; price: number; minimumSubtotal: number; postalPrefixes: string[]; postalCodes: string[]; instructions?: string; estimate?: string; translations?: Record<string, Record<string, string>> };
 export type LocalFulfillmentConfig = { enabled: boolean; pickupLocations: PickupLocation[]; deliveryZones: DeliveryZone[] };
 
