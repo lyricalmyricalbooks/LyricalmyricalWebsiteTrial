@@ -21,6 +21,7 @@ import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "firebas
 import { doc, getDoc, collection } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import { StorefrontThemeStyle } from "./features/site/StorefrontThemeStyle";
+import { accountsEnabled } from "./features/site/customerAccounts";
 import { getCopy, CopyError, copyErrorText } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
@@ -1322,7 +1323,7 @@ export function Checkout() {
             </p>
           )}
 
-          {!currentUser && (successOrder?.customer?.email || customer.email) && (
+          {!currentUser && accountsEnabled(checkoutDesign) && (successOrder?.customer?.email || customer.email) && (
             <section {...regionProps("checkoutAccountOffer")} className="w-full mb-10 border border-white/10 bg-white/[0.03] p-6 text-left space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-widest text-white/70">{c("coAccountTitle")}</h3>
               <p className="text-sm leading-6 text-white/60">{c("coAccountText", { email: successOrder?.customer?.email || customer.email })}</p>
@@ -1423,7 +1424,7 @@ export function Checkout() {
                   </div>
                   <CheckCircle2 size={20} style={{ color: "var(--success)" }} />
                 </div>
-              ) : (
+              ) : accountsEnabled(checkoutDesign) && (
                 <button
                   type="button"
                   onClick={handleGoogleLogin}

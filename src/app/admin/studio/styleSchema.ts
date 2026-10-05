@@ -138,6 +138,13 @@ export const STYLE_GROUPS: StyleGroup[] = [
     ],
   },
   {
+    id: "accounts",
+    title: "Customer accounts",
+    fields: [
+      { key: "customerAccounts", label: "Customer accounts (sign-in, account page and order history). Off = customers check out as guests and get carrier tracking links by email", kind: "toggle", defaultValue: true },
+    ],
+  },
+  {
     id: "layout",
     title: "Layout & spacing",
     fields: [

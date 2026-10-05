@@ -1,4 +1,5 @@
 import { MobileStorefrontNav } from "./MobileStorefrontNav";
+import { accountsEnabled } from "./customerAccounts";
 import { Heart, Search, User as UserIcon } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
@@ -133,7 +134,7 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
                 <Heart size={14} />
               </Link>
             )}
-            {!storefront.hideHeaderAccount && (
+            {!storefront.hideHeaderAccount && accountsEnabled(design) && (
               <Link to="/account" aria-label={getCopy(design, "ariaAccount")} className="hidden h-9 w-9 items-center justify-center rounded-full opacity-50 transition-all hover:opacity-100 sm:flex">
                 <UserIcon size={14} />
               </Link>

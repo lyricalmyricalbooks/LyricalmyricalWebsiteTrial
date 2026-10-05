@@ -1,4 +1,5 @@
 import { regionProps } from "./storefrontRegions";
+import { accountsEnabled } from "./customerAccounts";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import {
@@ -351,6 +352,25 @@ export default function AccountPage() {
     }
     return `https://www.google.com/search?q=${encodeURIComponent(carrier + " " + cleanNum)}`;
   };
+
+  if (settings && !accountsEnabled(settings.design)) {
+    return (
+      <div data-fm-store data-studio-target="copy:Customer account|style:accounts" data-studio-label="Account page" className="min-h-screen fm-page text-white flex flex-col items-center justify-center px-6">
+        <StorefrontThemeStyle design={settings?.design} />
+        <div className="glass-card max-w-md w-full border border-white/10 p-8 sm:p-10 text-center space-y-5">
+          <Package size={28} className="mx-auto" style={{ color: "var(--accent)" }} strokeWidth={1.5} />
+          <h1 className="text-2xl font-black tracking-tight uppercase">{getCopy(settings?.design, "accountOffTitle")}</h1>
+          <p className="text-sm fm-muted leading-relaxed">{getCopy(settings?.design, "accountOffText")}</p>
+          <Link to="/track" className="block w-full fm-active py-4 text-[11px] font-black tracking-[0.2em] uppercase hover:bg-white/90 transition-all">
+            {getCopy(settings?.design, "accountOffButton")}
+          </Link>
+          <Link to="/" className="block text-[11px] tracking-[0.2em] text-white/40 hover:text-white uppercase transition-colors">
+            {getCopy(settings?.design, "accountBackToStore")}
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (authLoading) {
     return (
