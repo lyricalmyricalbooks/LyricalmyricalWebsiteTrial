@@ -1264,15 +1264,12 @@ exports.createStripeCheckoutSession = onRequest(
       const joiner = checkoutBase.includes("?") ? "&" : "?";
 
       const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
         line_items: lineItems,
         mode: "payment",
         client_reference_id: orderId,
         customer_email: order.customer.email,
-        // Apple Pay and Google Pay are rendered by Stripe Checkout as
-        // card wallets when the customer's device/browser is eligible and
-        // the storefront domain is registered in Stripe. Keeping the method
-        // type as `card` avoids a second, conflicting wallet selector here.
+        // Let Stripe select eligible methods from Dashboard configuration.
+        // Delayed methods remain unpaid until the success webhook settles them.
         payment_intent_data: {
           metadata: { order_id: orderId },
         },
