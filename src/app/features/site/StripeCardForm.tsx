@@ -103,7 +103,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
             },
           },
         });
-        const payment = elements.create("payment", { layout: "tabs" });
+        const payment = elements.create("payment", { layout: "tabs", wallets: { applePay: "auto", googlePay: "auto" } });
         cleanup = createElementCleanup(payment);
         payment.on("ready", () => {
           clearTimeout(deadline);
