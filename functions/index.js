@@ -18,7 +18,8 @@ const crypto = require("crypto");
 const { Resend } = require("resend");
 const { risoButton, risoLayout } = require("./emailTheme");
 const Stripe = require("stripe");
-const { calculateShipping, applyStockDelta } = require("./orderMath");
+const { calculateShipping } = require("./orderMath");
+const { settleOrderPaid } = require("./orderSettlement");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
 const { labelProblem } = require("./fulfillmentGuard");
 const { checkoutRate } = require("./checkoutRate");
@@ -764,65 +765,22 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
 }
 
 async function markOrderPaidFromPayPal(orderId, paypalData) {
-  const orderRef = db.collection("orders").doc(orderId);
-  let paidTotal = null;
-  await db.runTransaction(async transaction => {
-    const orderDoc = await transaction.get(orderRef);
-    if (!orderDoc.exists) throw new Error("Order not found.");
-    const order = orderDoc.data();
-    if (order.paymentStatus === "paid") return;
-    if (order.paypalOrderId !== paypalData.paypalOrderId) throw new Error("PayPal order does not match checkout order.");
-
-    const bookRefs = (order.items || []).map(item => db.collection("books").doc(item.id));
-    const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
-    let discountRef = null;
-    let discountDoc = null;
-    if (order.appliedDiscount?.id) {
-      discountRef = db.collection("discounts").doc(order.appliedDiscount.id);
-      discountDoc = await transaction.get(discountRef);
-    }
-    const now = new Date().toISOString();
-    transaction.update(orderRef, {
-      paymentStatus: "paid", fulfillmentStatus: "paid", status: "open",
-      paidAt: now, updatedAt: now, downloadToken: crypto.randomBytes(32).toString("hex"),
+  await settleOrderPaid({
+    db,
+    increment: admin.firestore.FieldValue.increment,
+    orderId,
+    message: "Payment completed (verified PayPal capture)",
+    check: order => {
+      if (order.paypalOrderId !== paypalData.paypalOrderId) throw new Error("PayPal order does not match checkout order.");
+    },
+    fields: {
       paypalCaptureId: paypalData.captureId || null,
       paypalPayerId: paypalData.payerId || null,
       paypalTransactionId: paypalData.transactionId || paypalData.captureId || null,
       paypalCaptureStatus: paypalData.captureStatus || "COMPLETED",
       paypalCapture: paypalData.capture || null,
-      activity: [...(order.activity || []), { type: "event", message: "Payment completed (verified PayPal capture)", createdAt: now }],
-    });
-    (order.items || []).forEach((item, index) => {
-      const bookDoc = bookDocs[index];
-      if (!bookDoc.exists || !bookDoc.data().trackInventory) return;
-      const book = bookDoc.data();
-      if (item.variantId) {
-        const variants = (book.variants || []).map(v => {
-          if (v.id === item.variantId) {
-            const currentStock = v.stockLevel !== undefined ? v.stockLevel : v.stock;
-            const newStock = Math.max(0, Number(currentStock || 0) - item.quantity);
-            return { ...v, stockLevel: newStock, stock: newStock };
-          }
-          return v;
-        });
-        transaction.update(bookRefs[index], { variants, stockLevel: Math.max(0, Number(book.stockLevel || 0) - item.quantity), updatedAt: now });
-      } else {
-        transaction.update(bookRefs[index], { stockLevel: Math.max(0, Number(book.stockLevel || 0) - item.quantity), updatedAt: now });
-      }
-    });
-    if (discountRef && discountDoc?.exists) {
-      transaction.update(discountRef, { usageCount: (discountDoc.data().usageCount || 0) + 1, updatedAt: now });
-    }
-    paidTotal = Number(order.total) || 0;
+    },
   });
-  if (paidTotal !== null) {
-    const today = new Date().toISOString().split("T")[0];
-    await db.collection("analytics").doc(today).set({
-      date: today,
-      orders: admin.firestore.FieldValue.increment(1),
-      revenue: admin.firestore.FieldValue.increment(paidTotal),
-    }, { merge: true });
-  }
 }
 
 exports.createPayPalOrder = onRequest(
@@ -1506,113 +1464,26 @@ exports.stripeWebhook = onRequest(
 
       if (orderId && settled) {
         try {
-          const orderRef = db.collection("orders").doc(orderId);
-          let paidTotal = null;
-
-          await db.runTransaction(async transaction => {
-            // Firestore transactions require ALL reads before any writes.
-            const orderDoc = await transaction.get(orderRef);
-            if (!orderDoc.exists) return;
-            const order = orderDoc.data();
-            const now = new Date().toISOString();
-            const paymentIntentId = typeof session.payment_intent === "string"
-              ? session.payment_intent
-              : session.payment_intent?.id || null;
-            const stripeTransaction = {
+          // Settled through the same write as a manually confirmed payment,
+          // so a Stripe order lands exactly like an e-Transfer one.
+          const paymentIntentId = typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent?.id || null;
+          await settleOrderPaid({
+            db,
+            increment: admin.firestore.FieldValue.increment,
+            orderId,
+            message: isElementPayment ? "Payment completed (Stripe card form)" : "Payment completed (Stripe Webhook)",
+            refreshWhenPaid: true,
+            fields: {
               stripeCheckoutSessionId: session.id,
               stripePaymentIntentId: paymentIntentId,
               stripeAccountId: event.account || null,
               stripeMode: session.livemode ? "live" : "test",
               stripeAmountTotal: session.amount_total,
               stripeCurrency: session.currency,
-              updatedAt: now,
-            };
-
-            if (order.paymentStatus === "paid") {
-              transaction.update(orderRef, stripeTransaction);
-              return;
-            }
-
-            const itemList = order.items || [];
-            const bookRefs = itemList.map(item => db.collection("books").doc(item.id));
-            const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
-
-            let discountRef = null;
-            let discountDoc = null;
-            if (order.appliedDiscount?.id) {
-              discountRef = db.collection("discounts").doc(order.appliedDiscount.id);
-              discountDoc = await transaction.get(discountRef);
-            }
-
-            // Single-use token securing digital download links in emails.
-            const downloadToken = crypto.randomBytes(32).toString("hex");
-
-            transaction.update(orderRef, {
-              ...stripeTransaction,
-              paymentStatus: "paid",
-              fulfillmentStatus: "paid",
-              status: "open",
-              downloadToken,
-              stripePaymentIntentId: session.payment_intent || null,
-              paidAt: now,
-              updatedAt: now,
-              activity: [
-                ...(order.activity || []),
-                { type: "event", message: isElementPayment ? "Payment completed (Stripe card form)" : "Payment completed (Stripe Webhook)", createdAt: now }
-              ]
-            });
-
-            // Atomic Stock Level Decrement
-            itemList.forEach((item, idx) => {
-              const bookDoc = bookDocs[idx];
-              if (!bookDoc.exists) return;
-              const book = bookDoc.data();
-              if (!book.trackInventory) return;
-
-              if (item.variantId) {
-                const variants = book.variants || [];
-                const updatedVariants = variants.map(v => {
-                  if (v.id === item.variantId) {
-                    const currentStock = v.stockLevel !== undefined ? v.stockLevel : v.stock;
-                    const newStock = Math.max(0, (currentStock || 0) - item.quantity);
-                    return { ...v, stockLevel: newStock, stock: newStock };
-                  }
-                  return v;
-                });
-                transaction.update(bookRefs[idx], {
-                  variants: updatedVariants,
-                  stockLevel: Math.max(0, (book.stockLevel || 0) - item.quantity),
-                  updatedAt: new Date().toISOString()
-                });
-              } else {
-                transaction.update(bookRefs[idx], {
-                  stockLevel: Math.max(0, (book.stockLevel || 0) - item.quantity),
-                  updatedAt: new Date().toISOString()
-                });
-              }
-            });
-
-            // Count discount redemptions so usage limits are enforceable.
-            if (discountRef && discountDoc?.exists) {
-              transaction.update(discountRef, {
-                usageCount: (discountDoc.data().usageCount || 0) + 1,
-                updatedAt: new Date().toISOString()
-              });
-            }
-
-            paidTotal = Number(order.total) || 0;
+            },
           });
-
-          // Revenue/order analytics are recorded here — at payment time —
-          // never client-side at order creation.
-          if (paidTotal !== null) {
-            const today = new Date().toISOString().split("T")[0];
-            await db.collection("analytics").doc(today).set({
-              date: today,
-              orders: admin.firestore.FieldValue.increment(1),
-              revenue: admin.firestore.FieldValue.increment(paidTotal),
-            }, { merge: true });
-          }
 
           console.log(`Order ${orderId} successfully processed via webhook.`);
         } catch (err) {
@@ -3782,52 +3653,12 @@ exports.markOrderPaid = onRequest(
     if (!orderId) { res.status(400).json({ error: "Missing orderId" }); return; }
 
     try {
-      const orderRef = db.collection("orders").doc(orderId);
-      let paidTotal = null;
-
-      await db.runTransaction(async transaction => {
-        const orderDoc = await transaction.get(orderRef);
-        if (!orderDoc.exists) return;
-        const order = orderDoc.data();
-        if (order.paymentStatus === "paid") return; // idempotent
-
-        const itemList = order.items || [];
-        const bookRefs = itemList.map(item => db.collection("books").doc(item.id));
-        const bookDocs = await Promise.all(bookRefs.map(r => transaction.get(r)));
-
-        const downloadToken = crypto.randomBytes(32).toString("hex");
-
-        transaction.update(orderRef, {
-          paymentStatus: "paid",
-          fulfillmentStatus: "paid",
-          status: "open",
-          downloadToken,
-          paidAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          activity: [
-            ...(order.activity || []),
-            { type: "event", message: `Payment confirmed manually by ${adminUser.email}.`, createdAt: new Date().toISOString() }
-          ]
-        });
-
-        itemList.forEach((item, idx) => {
-          const bookDoc = bookDocs[idx];
-          if (!bookDoc.exists) return;
-          const patch = applyStockDelta(bookDoc.data(), item, -(Number(item.quantity) || 0));
-          if (patch) transaction.update(bookRefs[idx], patch);
-        });
-
-        paidTotal = Number(order.total) || 0;
+      await settleOrderPaid({
+        db,
+        increment: admin.firestore.FieldValue.increment,
+        orderId,
+        message: `Payment confirmed manually by ${adminUser.email}.`,
       });
-
-      if (paidTotal !== null) {
-        const today = new Date().toISOString().split("T")[0];
-        await db.collection("analytics").doc(today).set({
-          date: today,
-          orders: admin.firestore.FieldValue.increment(1),
-          revenue: admin.firestore.FieldValue.increment(paidTotal),
-        }, { merge: true });
-      }
 
       res.status(200).json({ success: true });
     } catch (err) {

@@ -50,7 +50,10 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
   `stripeWebhook` (in `functions/index.js`) marks an order paid, decrements
   stock, counts discount redemptions, and records revenue. Orders are created
   `unpaid`. Never mark an order paid, adjust inventory, or count a discount from
-  client code or any other path.
+  client code or any other path. The verified PayPal capture and the admin's
+  manual "Mark as paid" are the only other server paths, and all three settle
+  through `settleOrderPaid` (`functions/orderSettlement.js`) so a Stripe order
+  lands exactly like a manual one — never write a fourth copy of that write.
 - **Never trust client-computed totals** for the authoritative charge. Prices,
   shipping, tax, and discounts that determine what a customer is charged must be
   computed/validated server-side via the Stripe session. The client may *display*
