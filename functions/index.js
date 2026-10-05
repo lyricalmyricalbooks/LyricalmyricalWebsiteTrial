@@ -2379,7 +2379,10 @@ exports.onOrderUpdated = onDocumentUpdated(
     // Skip if Shippo already sent the email via its own webhook (shippoDeliveryNotified was just set)
     const becameDelivered = before.fulfillmentStatus !== "delivered" && after.fulfillmentStatus === "delivered";
     const shippoAlreadyNotified = after.shippoDeliveryNotified && after.shippoDeliveryNotified !== before.shippoDeliveryNotified;
-    if (becameDelivered && !shippoAlreadyNotified && notificationSettings.delivery_update?.enabled !== false) {
+    // Local handoffs stay out of the existing carrier-email path until the
+    // store has explicitly enabled a matching customer notification workflow.
+    const isLocalFulfillment = ["pickup", "local_delivery"].includes(after.fulfillmentSelection?.method);
+    if (becameDelivered && !isLocalFulfillment && !shippoAlreadyNotified && notificationSettings.delivery_update?.enabled !== false) {
       const trackingUrl = after.trackingNumber
         ? getTrackingUrl(after.trackingCarrier || "", after.trackingNumber)
         : `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`;
