@@ -90,13 +90,16 @@ export function quoteShipping(items: ShippingItem[], address: { country?: string
   if (!groups.size) return [];
 
   // Eligible rates per group (matched zone -> rates), keyed by lower-case name.
+  const anyZones = list.some((p: any) => Array.isArray(p && p.zones) && p.zones.length > 0);
   const perGroup: any[] = [];
   for (const g of groups.values()) {
     const zone = zoneFor(g.profile, country);
     if (!zone) {
       // Legacy flat profile (no zones): a single synthetic rate.
       const p = g.profile || {};
-      if (Array.isArray(p.zones) && p.zones.length) { perGroup.push({ g, rates: new Map(), none: true }); continue; }
+      // Once any profile uses zones, a profile without a matching zone can't ship here —
+      // never invent the old flat $15 + $5 rate for it.
+      if ((Array.isArray(p.zones) && p.zones.length) || anyZones) { perGroup.push({ g, rates: new Map(), none: true }); continue; }
       perGroup.push({ g, rates: new Map<string, any>([["standard shipping", {
         id: "legacy", name: p.serviceName || "Standard Shipping", base: num(p.base, 15), additional: num(p.additional, 5),
         deliveryDays: p.deliveryDays || "3-7", freeOver: p.freeThreshold,
@@ -114,12 +117,15 @@ export function quoteShipping(items: ShippingItem[], address: { country?: string
   const names = new Map<string, string>();
   for (const { rates } of perGroup as any[]) for (const [k, r] of rates) if (!names.has(k)) names.set(k, r.name);
 
+  const usedIds = new Set<string>();
+  const uniqueId = (id: string) => { let out = String(id); let n = 2; while (usedIds.has(out)) out = `${id}-${n++}`; usedIds.add(out); return out; };
   const quotes: ShippingQuote[] = [];
   for (const [key, label] of names) {
     const charges = perGroup.map(({ g, rates }: any) => {
+      const named = rates.has(key);
       let rate = rates.get(key);
       if (!rate) rate = [...rates.values()].sort((a: any, b: any) => num(a.base) - num(b.base))[0];
-      return { g, rate };
+      return { g, rate, named };
     });
     if (charges.some((c: any) => !c.rate)) continue; // a group can't ship this way
     const leaderIdx = charges.reduce((best: number, c: any, i: number) => (num(c.rate.base) > num(charges[best].rate.base) ? i : best), 0);
@@ -139,7 +145,9 @@ export function quoteShipping(items: ShippingItem[], address: { country?: string
     if (anyPickup) price = 0;
     else if (profFree > 0 && total >= profFree) price = 0;
     quotes.push({
-      id: charges[leaderIdx].rate.id || key,
+      // Unique per option: the id of the rate actually named this (not the leader's
+      // fallback rate, which several options can share), else the name key.
+      id: uniqueId(charges.find((c: any) => c.named)?.rate.id || key),
       name: label,
       price: round2(price),
       deliveryDays: days[0] || undefined,

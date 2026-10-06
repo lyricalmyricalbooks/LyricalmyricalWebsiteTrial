@@ -1,4 +1,4 @@
-import { useState, useEffect, useId, useMemo } from "react";
+import { useState, useEffect, useId, useMemo, useRef } from "react";
 import { 
   ArrowLeft,
   Search,
@@ -48,7 +48,7 @@ import { quoteShipping } from "../features/site/shippingEngine";
 import { LocalFulfillmentSettings, useLocalFulfillmentDraft } from "./LocalFulfillmentSettings";
 import { paymentHealth } from "./paymentHealth";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
-import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames } from "./shippingCountries";
+import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
 
 const PURPLE = "#A855F7";
 
@@ -553,7 +553,7 @@ function RateTester({ profile }: { profile: any }) {
   const each = (Number(total) || 0) / qty;
   const quotes = useMemo(() => quoteShipping(
     [{ price: each, quantity: qty, shippingProfileId: profile.id, weightGrams: grams === "" ? null : (Number(grams) || 0) / qty }],
-    { country }, [profile]), [profile, country, each, qty, grams]);
+    { country }, [profile]).filter((q) => q.type !== "pickup"), [profile, country, each, qty, grams]);
   return (
     <SectionCard title="Test this profile" description="See exactly what a customer would be offered — using your unsaved edits.">
       <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", marginBottom: 12 }}>
@@ -628,6 +628,10 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   const [shippoLoading, setShippoLoading] = useState(true);
   const [shippoSaving, setShippoSaving] = useState(false);
   const [carrierCountrySearch, setCarrierCountrySearch] = useState("");
+  // Latest live-rate country list, updated synchronously on each click.
+  const liveCountriesRef = useRef<string[] | null>(null);
+  // Saves run one after another so the server always ends on the latest list.
+  const liveSaveChain = useRef<Promise<unknown>>(Promise.resolve());
   const [shippoMessage, setShippoMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Search/Filters
@@ -687,7 +691,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
 
   const loadBooks = async () => {
     try {
-      const b = await adminApi.getBooks(200);
+      const b = await adminApi.getAllBooks();
       setBooks(b);
     } catch (err) {
       console.error(err);
@@ -721,6 +725,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
     try {
       await adminApi.deleteShippingProfile(id);
       refreshProfiles();
+      await loadBooks(); // its books moved to General — refresh counts and health
       setSelectedProfileId(null);
       setEditingProfile(null);
     } catch {
@@ -752,7 +757,9 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
 
   const handleSaveProducts = async () => {
     try {
-      await adminApi.assignProductsToShippingProfile(editingProfile.id, selectedProductIds);
+      const wasAssigned = books.filter((b: any) => b.shippingProfileId === editingProfile.id).map((b: any) => b.id);
+      const removed = wasAssigned.filter((id: string) => !selectedProductIds.includes(id));
+      await adminApi.assignProductsToShippingProfile(editingProfile.id, selectedProductIds, removed);
       await loadBooks();
       refreshProfiles();
       setIsProductModalOpen(false);
@@ -780,18 +787,25 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   };
 
   const handleSaveZone = () => {
-    if (!activeZone.name.trim() || activeZone.countries.length === 0) {
-      toast.error("Please enter a zone name and select at least one country.");
+    const hasGeography = activeZone.restOfWorld === true || activeZone.countries.length > 0 || (activeZone.continents || []).length > 0;
+    if (!activeZone.name.trim() || !hasGeography) {
+      toast.error("Please enter a zone name and select at least one country (or make it the rest-of-world zone).");
       return;
     }
+    // Checkout matches zones by ISO code: store codes, never display names.
+    const saved = {
+      ...activeZone,
+      countries: activeZone.restOfWorld ? [] : toCountryCodes(activeZone.countries),
+      continents: activeZone.restOfWorld ? [] : (activeZone.continents || []),
+    };
 
     setEditingProfile((prev: any) => {
       const zones = [...(prev.zones || [])];
-      const idx = zones.findIndex(z => z.id === activeZone.id);
+      const idx = zones.findIndex(z => z.id === saved.id);
       if (idx > -1) {
-        zones[idx] = activeZone;
+        zones[idx] = saved;
       } else {
-        zones.push(activeZone);
+        zones.push(saved);
       }
       return { ...prev, zones };
     });
@@ -916,7 +930,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
         </>}>
         <SearchField label="Search catalog" placeholder="Search catalog by title…" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} data-autofocus />
         <ul className="rp-list" style={{ marginTop: 12, maxHeight: 360, overflowY: "auto", border: "1px solid var(--rp-border)" }} aria-label="Books">
-          {books.filter((b) => b.title.toLowerCase().includes(productSearch.toLowerCase())).map((b) => {
+          {books.filter((b) => String(b.title || "").toLowerCase().includes(productSearch.toLowerCase())).map((b) => {
             const isChecked = selectedProductIds.includes(b.id);
             const other = b.shippingProfileId && b.shippingProfileId !== editingProfile.id
               ? (profiles.find((pr: any) => pr.id === b.shippingProfileId)?.name || "another profile") : "";
@@ -941,6 +955,9 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
           <div className="rp-stack" style={{ gap: 16 }}>
             <TextField label="Zone name" value={activeZone.name} placeholder="e.g. North America, Europe, Domestic…" data-autofocus
               onChange={(e) => setActiveZone({ ...activeZone, name: e.target.value })} />
+            <Toggle label="Rest of world — everywhere not covered by another zone" checked={activeZone.restOfWorld === true}
+              onChange={(on) => setActiveZone((prev: any) => ({ ...prev, restOfWorld: on, ...(on ? { countries: [], continents: [] } : {}) }))} />
+            {!activeZone.restOfWorld && (<>
             <div>
               <div className="rp-sect">Regional presets</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -988,6 +1005,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
                 </section>
               ))}
             </div>
+            </>)}
           </div>
         )}
       </Dialog>
@@ -1122,14 +1140,21 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
                       const selected = (shippoConfig?.dynamicRateCountries || []).includes(country.code);
                       return (
                         <Checkbox key={country.code} label={country.name} checked={selected} onChange={async () => {
-                          const countries = selected
-                            ? shippoConfig.dynamicRateCountries.filter((code: string) => code !== country.code)
-                            : [...(shippoConfig?.dynamicRateCountries || []), country.code];
+                          // Build from the latest list (not this render's), so quick clicks don't drop a country.
+                          const current = liveCountriesRef.current ?? (shippoConfig?.dynamicRateCountries || []);
+                          const countries = current.includes(country.code)
+                            ? current.filter((code: string) => code !== country.code)
+                            : [...current, country.code];
+                          liveCountriesRef.current = countries;
+                          setShippoConfig((prev: any) => ({ ...prev, dynamicRateCountries: countries }));
                           try {
-                            await adminApi.setShippoDynamicRates(true, countries);
-                            setShippoConfig((prev: any) => ({ ...prev, dynamicRateCountries: countries }));
+                            const save = liveSaveChain.current.catch(() => {}).then(() => adminApi.setShippoDynamicRates(true, countries));
+                            liveSaveChain.current = save;
+                            await save;
                             toast.success(`${country.name} ${selected ? "removed from" : "added to"} live rates`);
                           } catch (err: any) {
+                            liveCountriesRef.current = current;
+                            setShippoConfig((prev: any) => ({ ...prev, dynamicRateCountries: current }));
                             toast.error(err.message || "Failed to update live-rate countries");
                           }
                         }} />
@@ -1221,7 +1246,12 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   return (
     <div className="rp-stack">
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "space-between" }}>
-        <SecondaryButton onClick={() => { setSelectedProfileId(null); setEditingProfile(null); }}>← Back to profiles</SecondaryButton>
+        <SecondaryButton onClick={async () => {
+          const saved = profiles.find((p: any) => p.id === editingProfile?.id);
+          const dirty = saved && JSON.stringify(saved) !== JSON.stringify(editingProfile);
+          if (dirty && !(await askConfirm({ title: "Leave without saving?", message: "Your zone and rate changes to this profile haven't been saved.", confirmLabel: "Discard changes" }))) return;
+          setSelectedProfileId(null); setEditingProfile(null);
+        }}>← Back to profiles</SecondaryButton>
         <PrimaryButton onClick={handleSaveProfile}>Save profile changes</PrimaryButton>
       </div>
       <SectionHead kicker="Profile" title={editingProfile.name || "Untitled profile"} subcopy="Zone and rate edits are applied to the profile when you save." />

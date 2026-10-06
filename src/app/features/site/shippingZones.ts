@@ -220,7 +220,8 @@ export function matchShippingZone(countryNameOrCode: string, zones: ShippingZone
   const country = findCountry(countryNameOrCode);
 
   if (country) {
-    const byCountry = zones.find((z) => (z.countries || []).includes(country.code));
+    // Zone lists hold ISO codes (current editor) or names (older saves): compare resolved codes.
+    const byCountry = zones.find((z) => (z.countries || []).some((entry) => findCountry(entry)?.code === country.code));
     if (byCountry) return byCountry;
 
     const byContinent = zones.find((z) => (z.continents || []).includes(country.continent));

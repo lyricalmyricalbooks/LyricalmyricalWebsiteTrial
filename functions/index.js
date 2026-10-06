@@ -28,6 +28,7 @@ const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./localFulfillment");
 const { readBooks, writeStock } = require("./inventory");
+const { resolveCountry } = require("./shippingGeo");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck } = require("./stripeRecovery");
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem } = require("./paymentGuards");
 
@@ -394,18 +395,14 @@ const CA_PROVINCES = {
   "ontario": "ON", "quebec": "QC", "nova scotia": "NS", "new brunswick": "NB", "manitoba": "MB", "british columbia": "BC", "prince edward island": "PE", "saskatchewan": "SK", "alberta": "AB", "newfoundland and labrador": "NL", "newfoundland": "NL", "labrador": "NL", "northwest territories": "NT", "yukon": "YT", "nunavut": "NU"
 };
 
+// Country name or code -> ISO code. Unknown names give "" (never a guess: the
+// old fallback turned every unrecognised country into "US", so French
+// addresses were quoted as American and US-allowlisted live rates leaked abroad).
 function getCountryCode(countryName) {
-  const clean = (countryName || "").trim().toLowerCase();
-  if (clean === "united states" || clean === "us" || clean === "usa" || clean === "united states of america") {
-    return "US";
-  }
-  if (clean === "canada" || clean === "ca") {
-    return "CA";
-  }
-  if (clean.length === 2) {
-    return clean.toUpperCase();
-  }
-  return "US"; // default fallback
+  const resolved = resolveCountry(countryName);
+  if (resolved) return resolved.code;
+  const clean = String(countryName || "").trim();
+  return /^[a-z]{2}$/i.test(clean) ? clean.toUpperCase() : "";
 }
 
 function getStateCode(stateName) {
@@ -762,7 +759,10 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
       // the profile rates below never contain carrier names, so they can't match it.
       if (freeShipping) return { cost: 0, method: String(selection?.optionId || order.shippingMethod || '').slice(0, 200) || null };
       const shippoToken = await getShippoToken();
-      if (!shippoToken) throw new Error("Live carrier rates are temporarily unavailable. Please try again.");
+      // No usable live rates (no token, Shippo down, no carrier quotes, or the shopper
+      // was shown profile rates instead): fall through to the profile/zone rates below,
+      // exactly as checkout does in the browser. The charge is still priced here.
+      const liveQuote = shippoToken ? await (async () => {
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.data() || {};
       const origin = settings.location || {};
@@ -797,10 +797,20 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
         price: Number(rate.amount),
         estimate: shippingEstimateOf(rate.estimated_days, rate.duration_terms),
       })).filter(rate => Number.isFinite(rate.price)).sort((a, b) => a.price - b.price);
+      if (!carrierQuotes.length) return null;
       const selectedCarrier = selection?.optionId || order.shippingMethod;
       const pickedCarrier = selection ? carrierQuotes.find(quote => quote.name === selectedCarrier) : pickQuote(carrierQuotes, selectedCarrier);
-      if (!pickedCarrier) throw new Error("That live carrier rate is no longer available. Please review the shipping options and try again.");
-      return { cost: pickedCarrier.price, method: pickedCarrier.name, estimate: pickedCarrier.estimate };
+      if (pickedCarrier) return { cost: pickedCarrier.price, method: pickedCarrier.name, estimate: pickedCarrier.estimate };
+      // The shopper picked a profile rate (browser fallback) — price it from profiles below.
+      const profileIds = new Set(quoteShipping(physicalItems, address, profiles, {}).flatMap(q => [q.id, q.name]));
+      if (selection && profileIds.has(selection.optionId)) return null;
+      throw new Error("That live carrier rate is no longer available. Please review the shipping options and try again.");
+      })().catch(err => {
+        if (/no longer available/.test(err.message)) throw err;
+        console.warn("Live carrier rates unavailable, using profile rates:", err.message);
+        return null;
+      }) : null;
+      if (liveQuote) return liveQuote;
     }
   }
   const hasZones = profiles.some((p) => Array.isArray(p.zones) && p.zones.length);
@@ -981,7 +991,8 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
 }
 
 exports.createPayPalOrder = onRequest(
-  { secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET] },
+  // SHIPPO_API_TOKEN: live carrier rates are re-priced here; an undeclared secret reads as empty.
+  { secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, SHIPPO_API_TOKEN] },
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
@@ -1109,7 +1120,8 @@ exports.paypalWebhook = onRequest(
 // 1. HTTP Endpoint: Create Stripe Checkout Session (Secure)
 // ──────────────────────────────────────────────────────────────
 exports.createStripeCheckoutSession = onRequest(
-  { secrets: [STRIPE_SECRET_KEY] },
+  // SHIPPO_API_TOKEN: live carrier rates are re-priced here; STRIPE_WEBHOOK_SECRET: webhook health reports it.
+  { secrets: [STRIPE_SECRET_KEY, SHIPPO_API_TOKEN, STRIPE_WEBHOOK_SECRET] },
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") {

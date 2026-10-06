@@ -1,6 +1,14 @@
 import { addressKey, addressIssues, packingKey, dispatchProblem, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
 import { themeWrite } from "./themeWrite";
 import { splitWebsiteSecrets, splitNotificationSecrets, type SecretPatch } from "./privateKeys";
+import { toCountryCodes } from "./shippingCountries";
+
+// Blank / invalid / negative -> null (rule off); otherwise the number.
+const nonNegativeOrNull = (v: any) => {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+};
 import { 
   collection, 
   getDocs, 
@@ -172,6 +180,13 @@ export const adminApi = {
     return snap.docs.map(d => ({ id: d.id, ...d.data(), _lastDoc: d }));
   },
 
+  // Every book (no paging or createdAt ordering, so records without createdAt are
+  // included) — for screens that must see the whole catalog, like shipping profiles.
+  getAllBooks: async () => {
+    const snap = await getDocs(collection(db, "books"));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
   getBook: async (id: string) => {
     const snap = await getDoc(doc(db, "books", id));
     if (!snap.exists()) return null;
@@ -333,15 +348,16 @@ export const adminApi = {
           });
         }
 
-        let countries = [d.region];
-        if (d.region.toLowerCase() === "everywhere else" || d.region.toLowerCase() === "international") {
-          countries = ["Rest of World"];
-        }
+        // Store ISO codes (what checkout matches on) and flag catch-all regions.
+        const restOfWorld = /^(everywhere else|international|rest of world|worldwide)$/i.test(String(d.region || "").trim());
+        const code = restOfWorld ? null : toCountryCodes([d.region])[0];
 
         return {
           id: (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36),
           name: d.region,
-          countries,
+          region: d.region,
+          countries: code ? [code] : [],
+          restOfWorld,
           rates
         };
       });
@@ -397,6 +413,10 @@ export const adminApi = {
     const dataToSave = {
       name: profile.name,
       zones: profile.zones || [],
+      // Profile rules (Profile rules card): free-over, packing fee, assumed weight.
+      freeShippingOver: nonNegativeOrNull(profile.freeShippingOver),
+      handlingFee: nonNegativeOrNull(profile.handlingFee),
+      defaultItemWeightG: nonNegativeOrNull(profile.defaultItemWeightG),
       updatedAt: new Date().toISOString()
     };
     await updateDoc(docRef, dataToSave);
@@ -426,23 +446,23 @@ export const adminApi = {
     await adminApi.recordAuditLog("shipping", `Deleted shipping profile and returned ${count} books to General Profile.`);
   },
 
-  assignProductsToShippingProfile: async (profileId: string, productIds: string[]) => {
+  // Explicit changes only: books in productIds move to this profile; books in
+  // removeIds (and only those) go back to General. Books the editor never showed
+  // are left alone.
+  assignProductsToShippingProfile: async (profileId: string, productIds: string[], removeIds: string[] = []) => {
     const batch = writeBatch(db);
     const booksSnap = await getDocs(collection(db, "books"));
-    
+    const add = new Set(productIds);
+    const remove = new Set(removeIds);
+
     booksSnap.docs.forEach(b => {
-      const bookData = b.data();
-      const bookId = b.id;
-      const currentProfileId = bookData.shippingProfileId;
-      
-      if (productIds.includes(bookId)) {
+      const currentProfileId = b.data().shippingProfileId;
+      if (add.has(b.id)) {
         if (currentProfileId !== profileId) {
           batch.update(b.ref, { shippingProfileId: profileId, updatedAt: new Date().toISOString() });
         }
-      } else {
-        if (currentProfileId === profileId && profileId !== "general-profile") {
-          batch.update(b.ref, { shippingProfileId: "general-profile", updatedAt: new Date().toISOString() });
-        }
+      } else if (remove.has(b.id) && currentProfileId === profileId && profileId !== "general-profile") {
+        batch.update(b.ref, { shippingProfileId: "general-profile", updatedAt: new Date().toISOString() });
       }
     });
 
