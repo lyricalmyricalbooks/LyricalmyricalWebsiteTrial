@@ -102,14 +102,9 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
     const isOnSale = !ignoreSale && book.isOnSale && salePrice > 0;
     const priceToUse = isOnSale ? salePrice : basePrice;
 
-    if (currency === "USD") {
-      const usdOverride = isOnSale ? book.usdSalePrice : book.usdPrice;
-      if (usdOverride !== undefined && usdOverride > 0) return usdOverride;
-    } else if (currency === "EUR") {
-      const eurOverride = isOnSale ? book.eurSalePrice : book.eurPrice;
-      if (eurOverride !== undefined && eurOverride > 0) return eurOverride;
-    }
-
+    // Shoppers are charged the CAD catalog price converted at today's rate
+    // (functions/index.js), so that is the only price shown. Stored USD/EUR
+    // figures are ignored here — showing them would promise a different amount.
     return priceToUse * (rates[currency] || 1.0);
   };
 
@@ -121,13 +116,8 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
   const getVariantPrice = (variant: any, parentBook?: any) => {
     if (!variant) return 0;
-    if (currency === "USD" && variant.usdPrice !== undefined && variant.usdPrice > 0) {
-      return variant.usdPrice;
-    }
-    if (currency === "EUR" && variant.eurPrice !== undefined && variant.eurPrice > 0) {
-      return variant.eurPrice;
-    }
-    const base = variant.price || (parentBook ? (parentBook.isOnSale ? parentBook.salePrice : parentBook.retailPrice) : 0);
+    // Same rule as getBookPrice: CAD converted at today's rate, as charged.
+    const base = variant.price || (parentBook ? (parentBook.isOnSale && parentBook.salePrice > 0 ? parentBook.salePrice : parentBook.retailPrice) : 0) || 0;
     return base * (rates[currency] || 1.0);
   };
 

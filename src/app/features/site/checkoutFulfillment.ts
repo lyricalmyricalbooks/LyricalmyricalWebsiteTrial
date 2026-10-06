@@ -34,7 +34,7 @@ export function discountedPhysicalSubtotal(items: CatalogFulfillmentItem[], disc
     const units = eligible.flatMap(item => Array.from({ length: item.quantity }, () => ({ price: cents(item.price), physical: item.physical })));
     units.sort((a, b) => b.price - a.price);
     const count = Math.floor(units.length / setSize) * getQty;
-    const physicalDiscount = (count ? units.slice(-count) : []).filter(unit => unit.physical).reduce((sum, unit) => sum + Math.round(unit.price * (Number(discount.getDiscountValue) || 100) / 100), 0);
+    const physicalDiscount = (count ? units.slice(-count) : []).filter(unit => unit.physical).reduce((sum, unit) => sum + Math.round(unit.price * bogoPercent(discount.getDiscountValue) / 100), 0);
     return Math.max(0, physicalCents - Math.min(physicalDiscount, discountCents)) / 100;
   }
   const eligibleCents = eligible.reduce((sum, item) => sum + cents(item.price) * item.quantity, 0);
@@ -44,4 +44,11 @@ export function discountedPhysicalSubtotal(items: CatalogFulfillmentItem[], disc
 }
 export function selectionAfterChange(selection: FulfillmentSelection, previousKey: string, nextKey: string): FulfillmentSelection {
   return previousKey === nextKey ? selection : { ...selection, optionId: '' };
+}
+
+/** BOGO "% off the free items": missing/blank/invalid means 100; otherwise clamped 0-100 (mirrors functions/localFulfillment.js). */
+export function bogoPercent(value: unknown): number {
+  if (value === undefined || value === null || value === '') return 100;
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 100;
 }

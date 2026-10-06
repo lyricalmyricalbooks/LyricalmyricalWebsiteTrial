@@ -1,5 +1,6 @@
 import { useSEO } from "../../lib/seo";
 import { regionProps } from "./storefrontRegions";
+import { normalizeOrderNumber } from "./orderNumber";
 import { getTrackingUrl } from "../../lib/tracking";
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
@@ -71,7 +72,9 @@ export default function OrderTracking() {
   }, []);
 
   // Order numbers are shown in capitals; accept them typed in any case.
-  const findOrder = async (typed: string) => {
+  const findOrder = async (input: string) => {
+    const typed = normalizeOrderNumber(input);
+    if (!typed) return null;
     const exact = await adminApi.getPublicOrder(typed);
     if (exact || typed === typed.toUpperCase()) return exact;
     return adminApi.getPublicOrder(typed.toUpperCase());
@@ -89,7 +92,7 @@ export default function OrderTracking() {
     setOrder(null);
 
     try {
-      const foundOrder: any = await findOrder(orderIdInput.trim());
+      const foundOrder: any = await findOrder(orderIdInput);
       if (!foundOrder) {
         setError(getCopy(settings?.design, "trackErrNotFound"));
         return;
@@ -393,8 +396,9 @@ export default function OrderTracking() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                    {order.items.map((item: any) => {
-                      if (!digitalItems[item.id]) return null;
+                    {order.items.map((item: any, i: number, all: any[]) => {
+                      // One download per book, even when two editions of it were ordered.
+                      if (!digitalItems[item.id] || all.findIndex((other: any) => other.id === item.id) !== i) return null;
                       return (
                         <div key={item.id} className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 flex justify-between items-center group/download">
                           <div className="truncate pr-4">

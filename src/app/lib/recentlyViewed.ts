@@ -6,7 +6,9 @@ const MAX = 8;
 function read(): string[] {
   try {
     const raw = sessionStorage.getItem(KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    // Valid JSON that isn't a list (e.g. "null") must not crash every product card.
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
   } catch {
     return [];
   }

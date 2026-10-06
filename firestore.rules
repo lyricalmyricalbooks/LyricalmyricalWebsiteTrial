@@ -148,9 +148,24 @@ service cloud.firestore {
     match /abandoned-carts/{cartId} {
       // Anyone can retrieve their own cart by its secure token; only admin can query/list all carts
       allow get: if true;
-      allow create, update: if request.resource.data.email is string
-        && request.resource.data.email.size() <= 254;
+      // Browsers may only write the cart fields the storefront sends. Server-owned
+      // fields (notified, notifiedAt) are off limits, and a recovered cart can't be
+      // reopened, so a forged doc can't re-trigger the reminder email.
+      allow create: if cartFieldsValid()
+        && request.resource.data.keys().hasOnly(cartClientKeys())
+        && request.resource.data.get("recovered", false) == false;
+      allow update: if cartFieldsValid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(cartClientKeys())
+        && (resource.data.get("recovered", false) == false || request.resource.data.get("recovered", false) == true);
       allow list, delete: if isAdmin();
+    }
+    function cartClientKeys() {
+      return ["email", "items", "subtotal", "customer", "cartKey", "recovered", "recoveredAt", "updatedAt", "createdAt"];
+    }
+    function cartFieldsValid() {
+      return request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && (!("items" in request.resource.data) || (request.resource.data.items is list && request.resource.data.items.size() <= 50));
     }
   }
 }

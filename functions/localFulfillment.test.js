@@ -9,3 +9,12 @@ test('local delivery eligibility fails closed and preserves exact codes', () => 
   expect(quoteLocalFulfillment(config, { zip: 'M6G3H1', country: 'CA' }, 19.99, [{ quantity: 1 }])).toEqual([]);
   expect(quoteLocalFulfillment(config, { zip: 'M6G3H1', country: 'CA' }, 20, [])).toEqual([]);
 });
+
+test('bogoPercent: missing means fully free, explicit values clamp to 0-100', () => {
+  const { bogoPercent } = createRequire(import.meta.url)('./localFulfillment');
+  expect(bogoPercent(undefined)).toBe(100);
+  expect(bogoPercent(null)).toBe(100);
+  expect(bogoPercent(40)).toBe(40);
+  expect(bogoPercent(0)).toBe(0);
+  expect(bogoPercent(250)).toBe(100);
+});

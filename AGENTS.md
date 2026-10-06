@@ -424,3 +424,20 @@ Discounts › New/Edit has an optional **Start date** (code is refused server-si
 tab lists them). **One use per customer** is now enforced by `assertDiscountNotUsedByCustomer` in
 `functions/index.js` (paid orders with the same code + email; checkout lower-cases `customer.email`
 on the order). Both checks run in `fetchValidDiscount` / both checkout paths; totals and webhook authority are unchanged.
+
+## Customer bug sweep (6 October 2026)
+
+- **Prices:** USD/EUR shoppers see the CAD price × today's rate everywhere (`CurrencyContext`), which is what the
+  server charges. Stored `usdPrice`/`eurPrice` are reference-only (Books › edit › Pricing says so). `catalogUnitPrice`
+  in `CartContext.tsx` mirrors the server's unit-price rule. A sale price counts only when it is above 0, and a variant
+  with no price can't be added. One-click adds (wishlist, bag suggestion, "Add both") pick an in-stock edition via
+  `features/site/buyable.ts`.
+- **Checkout shipping:** until the shopper picks a rate, the best current quote stays selected, including after the
+  address changes the quotes. With no option selected, the summary shows Text & labels › Checkout › `coShipChoose`
+  instead of "Free". The IP country lookup only fills a form nobody has touched yet. BOGO "% off" uses `bogoPercent`
+  (client `checkoutFulfillment.ts`, server `functions/localFulfillment.js`): missing means 100.
+- **Abandoned carts:** `firestore.rules` limits browser writes to the cart fields and blocks `notified*`, and a
+  recovered cart can't be reopened. `abandonedCartSweep` rebuilds items and prices from `books`, escapes the text,
+  skips carts older than 7 days and throttles to one reminder per address every 3 days (`abandoned-cart-throttle`,
+  server-only). Deploy rules and functions together.
+- Order tracking accepts `#`/spaces in order numbers (`features/site/orderNumber.ts`).

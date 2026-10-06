@@ -8,7 +8,7 @@ import {
   Package, Share2, Check, BookOpen, Globe, Ruler,
   Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus
 } from "lucide-react";
-import { useCart } from "../../CartContext";
+import { useCart, catalogUnitPrice } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
 import { StorefrontPageHeader } from "./StorefrontPageHeader";
@@ -28,6 +28,7 @@ import ReviewsSection from "./ReviewsSection";
 import { LogoMark } from "../../components/LogoMark";
 import RecentlyViewedRow from "./RecentlyViewedRow";
 import BackInStockForm from "./BackInStockForm";
+import { quickAddChoice } from "./buyable";
 import { resolveLogoDesign } from "./selectors";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "./themeTokens";
 import { StorefrontOverrides } from "./StorefrontOverrides";
@@ -75,13 +76,24 @@ export default function BookDetail() {
 
   const book: Book | undefined = findProduct(books, slug, new URLSearchParams(window.location.search).get("preview") === "true");
 
+  // Keyed on the book's id: a background catalog refresh hands us a new book
+  // object, and that must not snap the shopper's chosen edition back to the first.
   useEffect(() => {
     if (book?.variants && book.variants.length > 0) {
       setSelectedVariant(book.variants[0]);
     } else {
       setSelectedVariant(null);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book?.id]);
+  // Keep the chosen edition's data fresh after a refresh, and start each edition at quantity 1.
+  useEffect(() => {
+    if (!selectedVariant) return;
+    const fresh = (book?.variants || []).find((v: any) => v.id === selectedVariant.id);
+    if (fresh && fresh !== selectedVariant) setSelectedVariant(fresh);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book]);
+  useEffect(() => { setQty(1); }, [selectedVariant?.id]);
 
   const storefrontDesign       = resolveProductDesign(settings?.design);
   const productImageLayout     = storefrontDesign.productImageLayout     || "slider";
@@ -270,9 +282,11 @@ export default function BookDetail() {
   const bundleBook = otherBooks[0];
 
   const handleAddBothToBag = () => {
-    if (!book || !bundleBook) return;
-    addToCart(book);
-    addToCart(bundleBook);
+    if (!book || !bundleBook || isOutOfStock) return;
+    // The edition the shopper has selected, and an in-stock edition of the companion book.
+    addToCart(book, selectedVariant || undefined);
+    const companion = quickAddChoice(bundleBook);
+    if (companion.inStock) addToCart(bundleBook, companion.variant);
     setAddingBoth(true);
     funnelApi.track("add_to_cart");
     setTimeout(() => {
@@ -362,7 +376,7 @@ export default function BookDetail() {
     id === "description" ? (
       <p {...regionProps("productDescription")} className="max-w-[65ch] text-[15px] leading-[1.75] whitespace-pre-line">{bk.description || getCopy(settings?.design, "noDescription")}</p>
     ) : id === "specs" ? <div {...regionProps("productSpecs")}>{renderSpecs()}</div> : book ? (
-      <div {...regionProps("productReviews")}><ReviewsSection bookId={book.id} hideHeader={true} /></div>
+      <div {...regionProps("productReviews")}><ReviewsSection key={book.id} bookId={book.id} hideHeader={true} /></div>
     ) : null;
 
   const detailsBlock = !book || !detailTabs.length ? null : productDetailsLayout === "tabs" ? (
@@ -785,7 +799,7 @@ export default function BookDetail() {
                               data-soldout={vStock === 0}
                               className="fm-pdp-chip"
                             >
-                              {v.name} · {formatPrice(v.price)}
+                              {v.name}{Number.isFinite(Number(v.price)) && v.price !== null && v.price !== "" ? ` · ${formatPrice(Number(v.price))}` : ""}
                             </button>
                           );
                         })}
@@ -900,7 +914,7 @@ export default function BookDetail() {
 
                   {isOutOfStock && showBackInStock && book && (
                     <BackInStockForm
-                      key={selectedVariant?.id || "base"}
+                      key={`${book.id}:${selectedVariant?.id || "base"}`}
                       design={settings?.design}
                       bookId={book.id}
                       bookTitle={book.title}
@@ -959,12 +973,12 @@ export default function BookDetail() {
                       <div>
                         <p className="text-[11px] font-bold text-white uppercase leading-tight truncate max-w-[200px]">{book.title} + {bundleBook.title}</p>
                         <p className="text-[10px] text-white/40 mt-1.5 font-mono">
-                          {getCopy(settings?.design, "bundleTotal")} <span className="text-white font-black">{formatPrice((isOnSale ? salePrice : retailPrice) + (bundleBook.isOnSale && bundleBook.salePrice ? bundleBook.salePrice : bundleBook.retailPrice))}</span>
+                          {getCopy(settings?.design, "bundleTotal")} <span className="text-white font-black">{formatPrice((Number(isOnSale ? salePrice : retailPrice) || 0) + (catalogUnitPrice(bundleBook, quickAddChoice(bundleBook).variant) || 0))}</span>
                         </p>
                       </div>
                       <button
                         onClick={handleAddBothToBag}
-                        disabled={addingBoth}
+                        disabled={addingBoth || isOutOfStock}
                         className={`w-full sm:w-fit text-[9px] font-black tracking-[0.2em] px-6 py-3.5 transition-all active:scale-95 custom-btn ${
                           buttonShadow ? "fm-accent-shadow" : ""
                         } ${buttonUppercase ? "uppercase" : ""}`}
@@ -1055,7 +1069,7 @@ export default function BookDetail() {
 
         {/* ── Reviews ── */}
         {productDetailsLayout === "sections" && book && regionVisible(tokenSource, "productReviews") && (
-          <div {...regionProps("productReviews")}><ReviewsSection bookId={book.id} /></div>
+          <div {...regionProps("productReviews")}><ReviewsSection key={book.id} bookId={book.id} /></div>
         )}
 
         {/* ── Recently viewed ── */}

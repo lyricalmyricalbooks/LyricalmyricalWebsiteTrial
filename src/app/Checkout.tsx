@@ -4,7 +4,7 @@ import { liveCheckoutRates } from "./features/site/canadaPostRates";
 import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router";
-import { useCart } from "./CartContext";
+import { useCart, catalogUnitPrice } from "./CartContext";
 import {
   ChevronLeft, Tag, ShieldCheck, X, AlertCircle,
   Package, Truck, CheckCircle2, Loader2, Lock, Building, Check
@@ -37,7 +37,7 @@ import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/pos
 import { readSiteCache } from "./features/site/siteCache";
 import { loadCatalog } from "./features/site/loadCatalog";
 import { quoteLocalFulfillment } from "./features/site/localFulfillment";
-import { catalogFulfillmentItems, discountedPhysicalSubtotal } from "./features/site/checkoutFulfillment";
+import { catalogFulfillmentItems, discountedPhysicalSubtotal, bogoPercent } from "./features/site/checkoutFulfillment";
 import { FulfillmentMethodPicker, bestFirst, type FulfillmentSelection } from "./features/site/FulfillmentMethodPicker";
 
 // ─── State / province drop-down for countries with a fixed list ──────────────
@@ -195,9 +195,10 @@ export function Checkout() {
   const [shippoRatesLoading, setShippoRatesLoading] = useState(false);
 
 
+  const initialCountry = useRef(guessCountryName() || "Canada");
   const [customer, setCustomer] = useState({
     name: "", email: "", phone: "",
-    address: { street: "", city: "", state: "", zip: "", country: guessCountryName() || "Canada" },
+    address: { street: "", city: "", state: "", zip: "", country: initialCountry.current },
     billingAddress: { state: "", country: "Canada" }
   });
 
@@ -397,11 +398,11 @@ export function Checkout() {
                 const matchedVariant = matchedBook.variants?.find((v: any) => v.id === item.variantId);
                 if (matchedVariant) {
                   variantName = matchedVariant.name;
-                  price = matchedVariant.price;
+                  price = catalogUnitPrice(matchedBook, matchedVariant);
                   if (matchedVariant.stripePriceId) stripePriceId = matchedVariant.stripePriceId;
                 }
               } else {
-                price = matchedBook.isOnSale ? matchedBook.salePrice : matchedBook.retailPrice;
+                price = catalogUnitPrice(matchedBook);
                 if (matchedBook.stripePriceId) stripePriceId = matchedBook.stripePriceId;
               }
 
@@ -410,7 +411,7 @@ export function Checkout() {
                 variantId: item.variantId || undefined,
                 variantName: variantName || undefined,
                 title: item.title || matchedBook.title,
-                price: typeof price === "number" ? price : item.price,
+                price: Number.isFinite(price) ? price : item.price,
                 quantity: item.qty || item.quantity || 1,
                 photoUrl: item.photoUrl || photoUrl,
                 stripePriceId: stripePriceId || undefined,
@@ -447,14 +448,17 @@ export function Checkout() {
         const res = await fetch("https://ipapi.co/json/");
         if (res.ok) {
           const data = await res.json();
-          if (data.country_name) {
-            setCustomer(prev => ({
-              ...prev,
-              address: {
-                ...prev.address,
-                country: data.country_name
-              }
-            }));
+          // Prefer the country code (names differ between services) and only
+          // fill a still-untouched form: never override a saved address, a
+          // recovered cart or the shopper's own choice that arrived first.
+          const match = COUNTRIES.find(c => c.code === String(data.country_code || "").toUpperCase())
+            || COUNTRIES.find(c => c.name.toLowerCase() === String(data.country_name || "").toLowerCase());
+          if (match) {
+            setCustomer(prev => {
+              const untouched = prev.address.country === initialCountry.current
+                && !prev.address.street && !prev.address.city && !prev.address.zip;
+              return untouched ? { ...prev, address: { ...prev.address, country: match.name } } : prev;
+            });
           }
         }
       } catch (err) {
@@ -761,7 +765,7 @@ export function Checkout() {
     if (appliedDiscount.type === "bogo") {
       const buyQty = Number(appliedDiscount.buyQuantity) || 1;
       const getQty = Number(appliedDiscount.getQuantity) || 1;
-      const getVal = Number(appliedDiscount.getDiscountValue) ?? 100;
+      const getVal = bogoPercent(appliedDiscount.getDiscountValue);
 
       const unitPrices: number[] = [];
       qualifyingItems.forEach(i => {
@@ -838,14 +842,19 @@ export function Checkout() {
     previousQuoteContext.current = quoteContext;
   }, [quoteContext]);
 
-  // Pick the initial shipping quote once. Later address or cart changes keep
-  // the selection empty until the shopper chooses a currently valid rate.
-  const autoSelectedShipping = useRef(false);
+  // Until the shopper picks a rate themselves, keep the best current quote
+  // selected (typing the address replaces the quotes and clears the old pick).
+  // Once they choose, a later address or cart change leaves the selection empty
+  // so a different price is never swapped in behind their explicit choice.
+  const shopperChoseShipping = useRef(false);
+  const selectFulfillment = (value: FulfillmentSelection) => {
+    shopperChoseShipping.current = true;
+    setFulfillmentSelection(value);
+  };
   useEffect(() => {
-    if (availableRates.length && fulfillmentSelection.method === "shipping" && !fulfillmentSelection.optionId && !autoSelectedShipping.current) {
+    if (availableRates.length && fulfillmentSelection.method === "shipping" && !fulfillmentSelection.optionId && !shopperChoseShipping.current) {
       const cheapest = [...availableRates].sort(bestFirst)[0];
       setFulfillmentSelection(current => ({ ...current, optionId: cheapest.id || cheapest.name }));
-      autoSelectedShipping.current = true;
     }
   }, [availableRates, fulfillmentSelection]);
 
@@ -1426,7 +1435,9 @@ export function Checkout() {
   const hasPaypal = Boolean(settings?.payments?.paypal?.connected);
   const configuredManualMethods = settings?.payments?.manualMethods;
   const enabledManualMethods = (Array.isArray(configuredManualMethods) ? configuredManualMethods : []).filter((method: any) => method.enabled);
-  const showTotalOnPay = !checkoutDesign.hidePayButtonTotal && cart.length > 0;
+  // Physical books with no delivery option chosen yet: the total isn't final, so don't present one.
+  const needsDeliveryChoice = physicalItems.length > 0 && !(fulfillmentSelection.method === "shipping" ? selectedShippingQuote : selectedLocalQuote);
+  const showTotalOnPay = !checkoutDesign.hidePayButtonTotal && cart.length > 0 && !needsDeliveryChoice;
   const paymentLabel = selectedPaymentMethod === "stripe"
     ? (showTotalOnPay ? c("coPayWithTotal", { total: formatPrice(finalTotal) }) : c("coPay"))
     : selectedPaymentMethod === "paypal"
@@ -1531,7 +1542,7 @@ export function Checkout() {
               {physicalItems.length > 0 && <FulfillmentMethodPicker
                 method={fulfillmentSelection.method}
                 optionId={fulfillmentSelection.optionId}
-                onSelect={setFulfillmentSelection}
+                onSelect={selectFulfillment}
                 shippingQuotes={availableRates}
                 localQuotes={localQuotes}
                 availableMethods={availableFulfillmentMethods}
@@ -1751,7 +1762,7 @@ export function Checkout() {
               {discountAmount > 0 && <div className="flex justify-between" style={{ color: "var(--success)" }}><span>{c("summaryDiscount")}</span><span>-{formatPrice(discountAmount)}</span></div>}
               <div className="flex justify-between text-slate-600">
                 <span>{c("summaryShipping")}{getActiveShippingDetails()?.serviceName ? ` · ${getActiveShippingDetails()?.serviceName}` : ""}</span>
-                <span className="font-medium text-slate-900">{isFreeShipping || shippingCost === 0 ? c("coFree") : formatPrice(finalShipping)}</span>
+                <span className="font-medium text-slate-900">{needsDeliveryChoice && !isFreeShipping ? c("coShipChoose") : isFreeShipping || shippingCost === 0 ? c("coFree") : formatPrice(finalShipping)}</span>
               </div>
               {freeShipNudge && (
                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5" data-studio-target="style:checkout|copy:Checkout" data-studio-label="Free-shipping nudge">

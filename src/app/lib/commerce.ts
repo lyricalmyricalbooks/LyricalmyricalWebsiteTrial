@@ -135,14 +135,18 @@ export const abandonedCartApi = {
   ) => {
     if (!payload.email) return;
     const ref = doc(db, "abandoned-carts", cartKey);
+    const now = new Date().toISOString();
+    // createdAt/recovered are set once: later saves must not reset the cart's
+    // age or reopen a cart that was already bought (firestore.rules forbids that).
+    const existing = await getDoc(ref).catch(() => null);
+    if (existing?.exists() && existing.data()?.recovered === true) return;
     await setDoc(
       ref,
       {
         ...payload,
         cartKey,
-        recovered: false,
-        updatedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
+        updatedAt: now,
+        ...(existing?.exists() ? {} : { recovered: false, createdAt: now }),
       },
       { merge: true },
     );

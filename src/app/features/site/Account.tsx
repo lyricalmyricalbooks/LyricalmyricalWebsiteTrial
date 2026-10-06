@@ -806,8 +806,9 @@ export default function AccountPage() {
                               <p className="text-[10px] fm-muted mt-1 leading-relaxed">{getCopy(settings?.design, "accountDigitalText")}</p>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {o.items.map((item: any) => {
-                                if (!orderDigitalAssets[item.id]) return null;
+                              {o.items.map((item: any, i: number, all: any[]) => {
+                                // One download per book, even when two editions of it were ordered.
+                                if (!orderDigitalAssets[item.id] || all.findIndex((other: any) => other.id === item.id) !== i) return null;
                                 return (
                                   <div key={item.id} className="fm-surface-2 border border-white/5 rounded-xl p-4 flex justify-between items-center">
                                     <div className="truncate pr-4">
