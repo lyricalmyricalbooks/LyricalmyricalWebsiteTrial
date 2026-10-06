@@ -60,7 +60,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   },
   shipping_confirmation: {
     subject: "Your order is on the way!",
-    body: "Hi {{customer_name}},\n\nGood news! Your order has been shipped and is on the way. You can track its progress using the link below.",
+    body: "Hi {{customer_name}},\n\nGood news! Your order {{order_id}} has shipped with {{tracking_carrier}} and is on its way.\n\nTracking number: {{tracking_number}}\n\nUse the button below to follow your parcel on the carrier's website.",
     buttonText: "Track your shipment",
     signoff: "Best,\nThe Lyricalmyrical Team",
     enabled: true

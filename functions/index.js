@@ -2082,7 +2082,7 @@ const DEFAULT_NOTIFICATIONS = {
   },
   shipping_confirmation: {
     subject: "Your order is on the way!",
-    body: "Hi {{customer_name}},\n\nGood news! Your order has been shipped and is on the way. You can track its progress using the link below.",
+    body: "Hi {{customer_name}},\n\nGood news! Your order {{order_id}} has shipped with {{tracking_carrier}} and is on its way.\n\nTracking number: {{tracking_number}}\n\nUse the button below to follow your parcel on the carrier's website.",
     buttonText: "Track your shipment",
     signoff: "Best,\nThe Lyricalmyrical Team",
     enabled: true
@@ -2151,6 +2151,17 @@ async function loadNotificationSettings() {
     }
   }
   return merged;
+}
+
+// Studio › Style › Customer accounts. On unless the published design turns it off.
+async function customerAccountsEnabled() {
+  try {
+    const design = (await db.collection("settings").doc("website").get()).data()?.design || {};
+    return (design.storefront?.customerAccounts ?? design.customerAccounts) !== false;
+  } catch (err) {
+    console.warn("Could not read customer-accounts setting:", err);
+    return true;
+  }
 }
 
 function getTrackingUrl(carrier, trackingNum) {
@@ -2388,7 +2399,10 @@ exports.onOrderUpdated = onDocumentUpdated(
     // 2. Shipping Confirmation (Order Shipped)
     const becameShipped = before.fulfillmentStatus !== "shipped" && after.fulfillmentStatus === "shipped";
     if (becameShipped && notificationSettings.shipping_confirmation?.enabled !== false) {
-      const trackingUrl = getTrackingUrl(after.trackingCarrier, after.trackingNumber);
+      // Straight to the carrier's tracking page; without a tracking number, the shop's order-status page.
+      const trackingUrl = after.trackingNumber
+        ? getTrackingUrl(after.trackingCarrier, after.trackingNumber)
+        : `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`;
       const compiled = compileEmailTemplate("shipping_confirmation", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
@@ -3445,6 +3459,7 @@ exports.onCustomerCreated = onDocumentCreated(
     if (notificationSettings.customer_welcome?.enabled === false) {
       return;
     }
+    if (!(await customerAccountsEnabled())) return;
 
     const compiled = compileEmailTemplate("customer_welcome", notificationSettings, {
       customer_name: customer.name || "there",

@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { accountsEnabled } from "./customerAccounts";
 import { Link } from "react-router";
 import { CurrencySelector } from "../../CurrencyContext";
 import { buildNavItems } from "./navItems";
@@ -21,7 +22,7 @@ export function MobileStorefrontNav({ design, pages, onSearch }: { design: any; 
       </div>)}
       {!d.hideHeaderSearch && <button className={linkClass} onClick={() => { close(); onSearch(); }}>{getCopy(design, "navSearch")}</button>}
       {!d.hideHeaderWishlist && <Link className={linkClass} onClick={close} to="/wishlist">{getCopy(design, "ariaWishlist")}</Link>}
-      {!d.hideHeaderAccount && <Link className={linkClass} onClick={close} to="/account">{getCopy(design, "ariaAccount")}</Link>}
+      {!d.hideHeaderAccount && accountsEnabled(design) && <Link className={linkClass} onClick={close} to="/account">{getCopy(design, "ariaAccount")}</Link>}
       {!d.hideCurrencySelector && <div className="px-6 py-3"><CurrencySelector label={getCopy(design, "currencyLabel")} ariaLabel={getCopy(design, "ariaCurrency")} /></div>}
     </nav>
   </details>;
