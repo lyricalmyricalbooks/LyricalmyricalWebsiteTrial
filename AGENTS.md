@@ -461,3 +461,14 @@ on the order). Both checks run in `fetchValidDiscount` / both checkout paths; to
   Declined marketing stops abandoned-cart capture.
 - Section links typed as `/path` get the site sub-path (`siteHref`). Category nav memoises on content. Untracked
   inventory never shows SOLD OUT.
+
+## Paid-but-unpaid recovery + Riso order tracking (6 October 2026)
+
+- `markStripeOrderPaid` (functions/index.js) is the one place a Stripe order becomes paid (stock, discount
+  usage, download token, analytics, amount check, idempotent). The signed webhook calls it, and so do two
+  server-verified recoveries: `createStripeCheckoutSession` `action: "status"`, which retrieves the order's own
+  saved PaymentIntent/Session from Stripe (it can be called with just `orderId`), and the hourly `unpaidPaymentSweep`.
+  The browser never decides payment; Stripe's API answer does.
+- Order tracking (`features/site/OrderTracking.tsx`) is a Riso order slip (`features/site/trackingStyle.ts`,
+  `fm-track-*`, token-only). An unpaid Stripe order re-checks automatically and offers **Check payment again**
+  (Text & labels › Order tracking › `trackRecheck`, `trackRechecking`, `trackStillUnpaid`).
