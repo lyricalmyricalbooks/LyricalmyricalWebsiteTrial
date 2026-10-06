@@ -2173,7 +2173,8 @@ function getTrackingUrl(carrier, trackingNum, customUrl) {
     const custom = new URL(String(customUrl || "").trim());
     if (custom.protocol === "https:" || custom.protocol === "http:") return custom.toString();
   } catch (_) { /* no usable custom link */ }
-  const cleanCarrier = (carrier || "").trim().toLowerCase();
+  // Shippo reports carriers as tokens ("canada_post"), people type "Canada Post".
+  const cleanCarrier = (carrier || "").trim().toLowerCase().replace(/[_-]+/g, " ");
   const cleanNum = (trackingNum || "").trim();
   if (cleanCarrier.includes("purolator")) {
     return `https://www.purolator.com/en/shipping/tracker?pin=${encodeURIComponent(cleanNum)}`;
@@ -2412,7 +2413,9 @@ exports.onOrderUpdated = onDocumentUpdated(
 
     // 2. Shipping Confirmation (Order Shipped)
     const becameShipped = before.fulfillmentStatus !== "shipped" && after.fulfillmentStatus === "shipped";
-    if (becameShipped && notificationSettings.shipping_confirmation?.enabled !== false) {
+    // Admin "Resend shipping email" (Order detail › In transit) stamps shippingEmailRequestedAt.
+    const resendShipped = !!after.shippingEmailRequestedAt && after.shippingEmailRequestedAt !== before.shippingEmailRequestedAt;
+    if ((becameShipped || resendShipped) && notificationSettings.shipping_confirmation?.enabled !== false) {
       // Straight to the carrier's tracking page; without a tracking number, the shop's order-status page.
       const trackingUrl = after.trackingNumber
         ? getTrackingUrl(after.trackingCarrier, after.trackingNumber, after.trackingUrl)
@@ -2446,8 +2449,8 @@ exports.onOrderUpdated = onDocumentUpdated(
       } catch (err) {
         console.error("Shipping confirmation email to customer failed", err);
       }
-      // The shop's own copy goes out even when the customer's address is rejected.
-      try {
+      // The shop's own copy goes out even when the customer's address is rejected (first dispatch only).
+      if (becameShipped) try {
         await sendEmail({
           to: ADMIN_TO,
           subject: `[SHIPPED] ${after.orderId || orderId} · ${after.customer?.name}`,

@@ -38,3 +38,13 @@ it("recognizes server and client digital item markers consistently", () => {
  const o: any = { ...packed(), items: [{ id: "e", quantity: 1, isDigital: true }] }; expect(queueOf(o)).toBe("Completed");
 });
 
+
+import { matchesCustomerService } from "./fulfillment";
+describe("customer's checkout service on label rates", () => {
+  it("matches with or without the Canada Post prefix, case-insensitively", () => {
+    expect(matchesCustomerService("Expedited Parcel", "Canada Post Expedited Parcel")).toBe(true);
+    expect(matchesCustomerService("Xpresspost", "canada post XPRESSPOST")).toBe(true);
+    expect(matchesCustomerService("Regular Parcel", "Canada Post Expedited Parcel")).toBe(false);
+    expect(matchesCustomerService("Regular Parcel", undefined)).toBe(false);
+  });
+});

@@ -51,6 +51,13 @@ describe("atomic fulfillment actions", () => {
   records.set("orders/a", { ...base(), status: "completed", fulfillmentStatus: "shipped", labelUrl: "label" });
   await expect(adminApi.fulfillmentAction("a", "edit_tracking", { trackingCarrier: "UPS", trackingNumber: "3" })).rejects.toThrow("Shippo");
  });
+ it("resends the shipping email only for tracked parcels in transit, without changing status", async () => {
+  await expect(adminApi.fulfillmentAction("a", "resend_shipping_email")).rejects.toThrow("in transit");
+  records.set("orders/a", { ...base(), status: "completed", fulfillmentStatus: "shipped", trackingCarrier: "UPS", trackingNumber: "1Z" });
+  await adminApi.fulfillmentAction("a", "resend_shipping_email");
+  expect(tx.update.mock.calls[0][1]).toHaveProperty("shippingEmailRequestedAt");
+  expect(tx.update.mock.calls[0][1]).not.toHaveProperty("fulfillmentStatus");
+ });
  it("rejects a stale checklist without writing anything", async () => { records.set("order-operations/a", { addressReviewed: addressKey(base()) }); await expect(adminApi.fulfillmentAction("a", "pack", { packingKey: "stale" })).rejects.toThrow("Items changed"); expect(tx.update).not.toHaveBeenCalled(); expect(tx.set).not.toHaveBeenCalled(); });
  it("rejects unpaid dispatch and incomplete preparation", async () => { records.set("orders/a", { ...base(), paymentStatus: "unpaid" }); await expect(adminApi.fulfillmentAction("a", "dispatch", {})).rejects.toThrow(); expect(tx.update).not.toHaveBeenCalled(); });
  it("stores new internal notes only in private operations", async () => { await adminApi.addOrderNote("a", "Customer issue"); expect(tx.update).not.toHaveBeenCalled(); expect(tx.set.mock.calls[0][0].path).toBe("order-operations/a"); });

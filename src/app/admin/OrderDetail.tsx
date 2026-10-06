@@ -5,6 +5,7 @@ import {
   packingKey,
   queueOf,
   dispatchProblem,
+  matchesCustomerService,
 } from "./fulfillment";
 import { printOrders } from "./orderPrint";
 import { useState, useEffect, useRef } from "react";
@@ -113,6 +114,12 @@ export function OrderDetail({
   const [trackingLink, setTrackingLink] = useState("");
   const [isShipping, setIsShipping] = useState(false);
   const [deliveryStatus, setDeliveryStatus] = useState<null | "out_for_delivery" | "delivered">(null);
+  const [confirmResend, setConfirmResend] = useState(false);
+  const [emailSettings, setEmailSettings] = useState<Record<string, any> | null>(null);
+  useEffect(() => {
+    adminApi.getNotificationSettings().then(setEmailSettings).catch(() => setEmailSettings(null));
+  }, []);
+  const emailOn = (id: string) => emailSettings?.[id]?.enabled !== false;
   const carrierName = trackingCarrier === "Other" ? otherCarrier.trim() : trackingCarrier;
 
   function fillTracking(data: any) {
@@ -151,6 +158,20 @@ export function OrderDetail({
     }
   };
 
+  const resendShippingEmail = async () => {
+    setIsShipping(true);
+    try {
+      await adminApi.fulfillmentAction(orderId, "resend_shipping_email");
+      setConfirmResend(false);
+      loadOrder();
+      toast.success("Shipping email sent again");
+    } catch (err: any) {
+      toast.error(err?.message || "Couldn't resend the email.");
+    } finally {
+      setIsShipping(false);
+    }
+  };
+
   const updateDeliveryStatus = async () => {
     if (!deliveryStatus) return;
     setIsShipping(true);
@@ -176,7 +197,9 @@ export function OrderDetail({
       const result = await adminApi.getCanadaPostLabelRates(orderId, parcel);
       setLabelRates(result.rates || []);
       setLabelShipmentId(result.shipmentId || "");
-      setSelectedLabelRate(result.rates?.[0]?.id || "");
+      // Pre-select the service the customer paid for at checkout; never silently swap it.
+      const chosen = (result.rates || []).find((r: any) => matchesCustomerService(r.name, order?.shippingMethod));
+      setSelectedLabelRate(chosen?.id || (order?.shippingMethod ? "" : result.rates?.[0]?.id || ""));
       setShowParcel(false);
       setShowLabelRates(true);
     } catch (err: any) {
@@ -486,6 +509,7 @@ export function OrderDetail({
             setShowShipForm("edit");
           }}
           onDeliveryStatus={setDeliveryStatus}
+          onResendEmail={() => setConfirmResend(true)}
           onLocalAdvance={() => {
             const next = order.fulfillmentSelection?.method === "pickup"
               ? order.fulfillmentStatus === "ready_for_pickup" ? "record customer collection" : "mark the order ready for pickup"
@@ -806,6 +830,13 @@ export function OrderDetail({
         }
       >
         <div className="rp-stack">
+          {order.labelUrl && showShipForm === "dispatch" ? (
+            <p className="fw-summary" style={{ margin: 0 }}>
+              <strong>Shippo label:</strong> {order.trackingCarrier || "Carrier"} ·{" "}
+              {order.trackingNumber || "Tracking pending"}
+            </p>
+          ) : (
+          <>
           <SelectField
             label="Carrier"
             value={trackingCarrier}
@@ -854,6 +885,15 @@ export function OrderDetail({
               Test tracking link <ExternalLink size={12} aria-hidden />
             </a>
           )}
+          </>
+          )}
+          {showShipForm === "dispatch" && (
+            <p className="rp-hint" role="status" style={{ margin: 0 }}>
+              {emailOn("shipping_confirmation")
+                ? `Customer will be emailed: Shipping confirmation to ${order.customer?.email || "their address"}, with the tracking link.`
+                : "The Shipping confirmation email is switched off (Settings › Notifications), so the customer will not be emailed."}
+            </p>
+          )}
         </div>
       </Dialog>
       <Dialog
@@ -882,6 +922,28 @@ export function OrderDetail({
       >
         <p className="rp-hint" style={{ margin: 0 }}>
           {order.trackingCarrier || "Carrier"} · {order.trackingNumber || "No tracking recorded"}
+        </p>
+      </Dialog>
+      <Dialog
+        open={confirmResend}
+        onClose={() => !isShipping && setConfirmResend(false)}
+        title="Resend shipping email?"
+        description={`Sends the Shipping confirmation email to ${order.customer?.email || "the customer"} again with the current tracking.`}
+        footer={
+          <>
+            <SecondaryButton disabled={isShipping} onClick={() => setConfirmResend(false)}>
+              Cancel
+            </SecondaryButton>
+            <PrimaryButton disabled={isShipping || !emailOn("shipping_confirmation")} onClick={resendShippingEmail}>
+              {isShipping ? "Sending…" : "Resend email"}
+            </PrimaryButton>
+          </>
+        }
+      >
+        <p className="rp-hint" style={{ margin: 0 }}>
+          {emailOn("shipping_confirmation")
+            ? `${order.trackingCarrier || "Carrier"} · ${order.trackingNumber || "No tracking recorded"}`
+            : "The Shipping confirmation email is switched off in Settings › Notifications."}
         </p>
       </Dialog>
       <Dialog
@@ -1006,7 +1068,7 @@ export function OrderDetail({
         open={showLabelRates}
         onClose={() => !isBuyingLabel && setShowLabelRates(false)}
         title="Choose a Canada Post label"
-        description="The five cheapest Canada Post services are shown first. Buying a label charges your Shippo account."
+        description="The service the customer paid for is pre-selected. Buying a label charges your Shippo account. The customer is emailed only when you confirm dispatch."
         footer={
           <>
             <SecondaryButton
@@ -1032,6 +1094,24 @@ export function OrderDetail({
         ) : (
           <fieldset style={{ margin: 0, padding: 0, border: 0 }}>
             <legend className="rp-sr-only">Canada Post label choices</legend>
+            {order.shippingMethod && (
+              <p className="rp-hint" style={{ margin: "0 0 10px" }}>
+                Customer chose <strong>{order.shippingMethod}</strong> and paid {money(order.shipping)} for shipping.
+              </p>
+            )}
+            {order.shippingMethod && !labelRates.some((r) => matchesCustomerService(r.name, order.shippingMethod)) && (
+              <p className="fw-problems" role="alert">
+                The customer's service isn't offered for this parcel. Choose the closest service yourself.
+              </p>
+            )}
+            {(() => {
+              const picked = labelRates.find((r) => r.id === selectedLabelRate);
+              return picked && Number(picked.amount) > Number(order.shipping || 0) ? (
+                <p className="rp-hint" role="status" style={{ margin: "0 0 10px" }}>
+                  This label costs more than the customer paid for shipping.
+                </p>
+              ) : null;
+            })()}
             <div style={{ display: "grid", gap: 10 }}>
               {labelRates.map((rate, index) => {
                 const selected = selectedLabelRate === rate.id;
@@ -1069,14 +1149,16 @@ export function OrderDetail({
                       </span>
                     </span>
                     <span style={{ textAlign: "right" }}>
-                      {index === 0 && (
+                      {matchesCustomerService(rate.name, order.shippingMethod) ? (
+                        <StatusBadge tone="info">Customer chose</StatusBadge>
+                      ) : index === 0 ? (
                         <StatusBadge tone="success">Cheapest</StatusBadge>
-                      )}
+                      ) : null}
                       <strong
                         className="rp-mono"
                         style={{
                           display: "block",
-                          marginTop: index === 0 ? 6 : 0,
+                          marginTop: index === 0 || matchesCustomerService(rate.name, order.shippingMethod) ? 6 : 0,
                         }}
                       >
                         {new Intl.NumberFormat("en-CA", {

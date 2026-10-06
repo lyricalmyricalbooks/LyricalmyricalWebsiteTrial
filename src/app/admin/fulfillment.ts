@@ -65,6 +65,14 @@ export function trackingFields(payload: any) {
  if (raw && !trackingUrl) throw new Error("The tracking link must start with https://");
  return { trackingCarrier, trackingNumber, trackingUrl };
 }
+// The checkout saves live carrier choices as "<provider> <service>" (e.g.
+// "Canada Post Expedited Parcel"); label rates name only the service.
+const serviceName = (name: unknown) => String(name || "").toLowerCase().replace(/^\s*canada post\s*/, "").replace(/[^a-z0-9]+/g, " ").trim();
+export function matchesCustomerService(rateName: unknown, shippingMethod: unknown): boolean {
+ const rate = serviceName(rateName);
+ const chosen = serviceName(shippingMethod);
+ return !!rate && !!chosen && rate === chosen;
+}
 export function buildPickList(orders: any[]) {
  const items = new Map<string, any>();
  for (const o of orders) for (const i of physicalItems(o)) {
