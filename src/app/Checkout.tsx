@@ -848,7 +848,8 @@ export function Checkout() {
   // so a different price is never swapped in behind their explicit choice.
   const shopperChoseShipping = useRef(false);
   const selectFulfillment = (value: FulfillmentSelection) => {
-    shopperChoseShipping.current = true;
+    // Only a picked shipping rate counts; switching tabs (e.g. to local delivery) is not a choice.
+    if (value.method === "shipping" && value.optionId) shopperChoseShipping.current = true;
     setFulfillmentSelection(value);
   };
   useEffect(() => {
@@ -1762,7 +1763,7 @@ export function Checkout() {
               {discountAmount > 0 && <div className="flex justify-between" style={{ color: "var(--success)" }}><span>{c("summaryDiscount")}</span><span>-{formatPrice(discountAmount)}</span></div>}
               <div className="flex justify-between text-slate-600">
                 <span>{c("summaryShipping")}{getActiveShippingDetails()?.serviceName ? ` · ${getActiveShippingDetails()?.serviceName}` : ""}</span>
-                <span className="font-medium text-slate-900">{needsDeliveryChoice && !isFreeShipping ? c("coShipChoose") : isFreeShipping || shippingCost === 0 ? c("coFree") : formatPrice(finalShipping)}</span>
+                <span className="font-medium text-slate-900">{needsDeliveryChoice ? c("coShipChoose") : isFreeShipping || shippingCost === 0 ? c("coFree") : formatPrice(finalShipping)}</span>
               </div>
               {freeShipNudge && (
                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5" data-studio-target="style:checkout|copy:Checkout" data-studio-label="Free-shipping nudge">

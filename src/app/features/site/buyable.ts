@@ -1,3 +1,5 @@
+import { catalogUnitPrice } from "../../CartContext";
+
 /**
  * Which edition a one-click "Add" (wishlist, bag suggestion, bundle) should put
  * in the bag. A book with editions is bought as one of them — never as a bare
@@ -7,7 +9,8 @@
 export function quickAddChoice(book: any): { variant?: any; inStock: boolean } {
   const variants = Array.isArray(book?.variants) ? book.variants : [];
   if (variants.length) {
-    const variant = variants.find((v: any) => (v?.stockLevel ?? v?.stock ?? 0) !== 0);
+    // In stock and with a price the server will charge (catalogUnitPrice refuses unpriced editions).
+    const variant = variants.find((v: any) => (v?.stockLevel ?? v?.stock ?? 0) !== 0 && Number.isFinite(catalogUnitPrice(book, v)));
     return { variant, inStock: Boolean(variant) };
   }
   return { inStock: (book?.stockLevel ?? 999) !== 0 };
