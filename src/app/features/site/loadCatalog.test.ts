@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadCatalog } from "./loadCatalog";
+import { loadCatalog, newestFirst } from "./loadCatalog";
 describe("public catalog pagination", () => {
   it("loads past the first page without caching document snapshots", async () => {
     const first = Array.from({ length: 100 }, (_, i) => ({ id: String(i), _lastDoc: { id: String(i) } }));
@@ -13,4 +13,10 @@ describe("public catalog pagination", () => {
     const fetch = vi.fn().mockResolvedValue(Array.from({ length: 100 }, () => ({ id: "same", _lastDoc: { id: "same" } })));
     await expect(loadCatalog(fetch)).rejects.toThrow();
   });
+});
+
+it("preserves newest-first product selection with undated legacy entries last", () => {
+  const books = [{ id: "a" }, { id: "b", createdAt: "2025-01-01T00:00:00Z" }, { id: "c", createdAt: "2026-01-01T00:00:00Z" }];
+  expect(newestFirst(books).map(book => book.id)).toEqual(["c", "b", "a"]);
+  expect(books.map(book => book.id)).toEqual(["a", "b", "c"]);
 });

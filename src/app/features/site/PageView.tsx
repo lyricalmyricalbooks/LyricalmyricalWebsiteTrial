@@ -131,7 +131,7 @@ export function PageView() {
 
   return (
     <div
-      data-fm-store data-studio-target="pages|style:customPages|copy:Custom pages & 404|style:colors" data-studio-label="Page"
+      data-seo-page={shown.slug} data-fm-store data-studio-target="pages|style:customPages|copy:Custom pages & 404|style:colors" data-studio-label="Page"
       className={`min-h-screen flex flex-col ${themed ? "" : "bg-white text-neutral-900"}`}
       style={themed ? { backgroundColor: themedBg, color: themedText } : undefined}
     >

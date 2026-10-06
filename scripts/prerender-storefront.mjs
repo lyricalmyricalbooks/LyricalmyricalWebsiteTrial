@@ -46,6 +46,7 @@ try {
       await context.route(/google\.firestore\.v1\.Firestore\/Write\//, request => request.abort());
       await context.route(/google-analytics\.com|googletagmanager\.com/, request => request.abort());
       await context.addInitScript(cache => {
+        localStorage.setItem('lm:cookie-consent', JSON.stringify({ necessary: true, analytics: false, marketing: false, decidedAt: new Date().toISOString() }));
         sessionStorage.setItem(`fm_visit_${new Date().toISOString().split('T')[0]}`, 'true');
         if (cache) sessionStorage.setItem('site-bootstrap-v1', cache);
       }, publishedCache);
@@ -60,7 +61,7 @@ try {
       if (route.startsWith('/books/')) {
         await page.waitForFunction(() => !!document.querySelector('[data-studio-label="Product page"]') && !!document.getElementById('seo-jsonld-page'), undefined, { timeout: 30000 });
       } else if (route.startsWith('/page/')) {
-        await page.locator('[data-studio-label="Page"][data-fm-store]').waitFor();
+        await page.waitForFunction(slug => document.querySelector('[data-seo-page]')?.getAttribute('data-seo-page') === slug, decodeURIComponent(route.slice('/page/'.length)), { timeout: 30000 });
       } else {
         await page.locator('[data-fm-store]').first().waitFor();
       }

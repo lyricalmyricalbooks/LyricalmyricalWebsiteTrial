@@ -473,3 +473,5 @@ after publishing catalog or Studio changes. Browser storage and settings objects
 are never serialized; render-time Firestore writes/analytics are blocked. Payment
 and inventory authority remain live and unchanged. Install Chromium locally with
 `pnpm exec playwright install chromium` before `npm run build`.
+
+Public SEO/catalog pagination uses document IDs so records without `createdAt` are included consistently with the sitemap. Admin sorting is unchanged. HTML builds decline analytics/marketing consent and require completed custom-page content.

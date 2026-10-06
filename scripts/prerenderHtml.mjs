@@ -26,6 +26,8 @@ export function publicRoutes(xml, siteUrl) {
 export function captureDocument({ template, publicUrl, localOrigin }) {
   const root = document.getElementById('root');
   if (!root?.textContent?.trim() || document.querySelector('vite-error-overlay')) throw new Error('Cannot snapshot an empty or failed storefront');
+  const pageSlug = new URL(publicUrl).pathname.split('/page/')[1];
+  if (pageSlug && document.querySelector('[data-seo-page]')?.getAttribute('data-seo-page') !== decodeURIComponent(pageSlug)) throw new Error('Cannot snapshot an unfinished custom page');
   const clone = document.documentElement.cloneNode(true);
   const original = new DOMParser().parseFromString(template, 'text/html');
   // Runtime scripts are not data. Reuse only scripts shipped in the app shell, and

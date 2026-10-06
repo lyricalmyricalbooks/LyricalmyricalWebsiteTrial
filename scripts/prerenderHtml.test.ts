@@ -30,6 +30,15 @@ describe('public HTML snapshots', () => {
     expect(html).not.toContain('onclick');
     expect(html).not.toContain('localhost');
   });
+  it('rejects loading or mismatched custom pages until the expected page is ready', () => {
+    document.documentElement.innerHTML = '<head></head><body><div id="root"><div data-fm-store data-studio-label="Page">Loading</div></div></body>';
+    const args = { template: '<html><body></body></html>', publicUrl: base + '/page/about', localOrigin: 'http://localhost' };
+    expect(() => captureDocument(args)).toThrow('unfinished custom page');
+    document.querySelector('[data-fm-store]')!.setAttribute('data-seo-page', 'other');
+    expect(() => captureDocument(args)).toThrow('unfinished custom page');
+    document.querySelector('[data-fm-store]')!.setAttribute('data-seo-page', 'about');
+    expect(captureDocument(args)).toContain('data-seo-page="about"');
+  });
   it('refuses empty shells and error pages instead of publishing them', () => {
     document.documentElement.innerHTML = '<head></head><body><div id="root"></div></body>';
     expect(() => captureDocument({ template: '<html></html>', publicUrl: base + '/', localOrigin: 'http://localhost' })).toThrow();

@@ -55,3 +55,5 @@ Sources:
 The first successful public bootstrap is reused across fresh browser contexts
 within one build, reducing repeated catalog reads. It is held only in the
 renderer process and browser session; it is never embedded in generated HTML.
+
+Public catalog pagination uses document IDs so legacy books without `createdAt` remain consistent with the sitemap. Admin ordering and catalog records are unchanged. Rendering contexts decline analytics and marketing consent before app startup, preventing optional custom tracking scripts from running. Custom pages must finish loading their expected slug before capture.

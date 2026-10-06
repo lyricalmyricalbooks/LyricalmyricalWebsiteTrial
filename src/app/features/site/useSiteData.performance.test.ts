@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-const api = vi.hoisted(() => ({ getBooks: vi.fn(), getSettings: vi.fn(), getPublishedPages: vi.fn(), recordVisit: vi.fn() }));
+const api = vi.hoisted(() => ({ getStorefrontBooks: vi.fn(), getSettings: vi.fn(), getPublishedPages: vi.fn(), recordVisit: vi.fn() }));
 vi.mock("../../admin/api", () => ({ adminApi: api }));
 vi.mock("./customCode", () => ({ applyCustomCode: vi.fn() }));
 let root: ReturnType<typeof createRoot>;
@@ -18,7 +18,7 @@ beforeEach(async () => {
   vi.resetModules(); vi.clearAllMocks(); sessionStorage.clear();
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
   vi.stubGlobal("BroadcastChannel", class { close() {} });
-  api.getBooks.mockResolvedValue([{ id: "one", title: "A book", slug: "a-book" }]);
+  api.getStorefrontBooks.mockResolvedValue([{ id: "one", title: "A book", slug: "a-book" }]);
   api.getSettings.mockResolvedValue({ design: {} });
   api.getPublishedPages.mockResolvedValue([]);
   api.recordVisit.mockResolvedValue(undefined);
@@ -29,21 +29,21 @@ afterEach(async () => { await act(async () => root.unmount()); vi.unstubAllGloba
 it("shares bootstrap reads between the page, cart and other storefront consumers", async () => {
   await render(4);
   expect(latest.books).toHaveLength(1);
-  expect(api.getBooks).toHaveBeenCalledTimes(1);
+  expect(api.getStorefrontBooks).toHaveBeenCalledTimes(1);
   expect(api.getSettings).toHaveBeenCalledTimes(1);
   expect(api.getPublishedPages).toHaveBeenCalledTimes(1);
 });
 it("reuses fresh data on navigation but refreshes after thirty seconds", async () => {
   const now = vi.spyOn(Date, "now").mockReturnValue(1000);
   await render(1); await render(0); await render(1);
-  expect(api.getBooks).toHaveBeenCalledTimes(1);
+  expect(api.getStorefrontBooks).toHaveBeenCalledTimes(1);
   now.mockReturnValue(32000);
   await render(0); await render(1);
-  expect(api.getBooks).toHaveBeenCalledTimes(2);
+  expect(api.getStorefrontBooks).toHaveBeenCalledTimes(2);
 });
 it("retries a failed request on the next mount", async () => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
-  api.getBooks.mockRejectedValueOnce(new Error("offline"));
+  api.getStorefrontBooks.mockRejectedValueOnce(new Error("offline"));
   await render(1);
   expect(latest.loading).toBe(false);
   await render(0); await render(1);
@@ -57,10 +57,10 @@ it("does not reparse the catalog cache during ordinary rerenders", async () => {
 });
 it("keeps a pending bootstrap shared when a late consumer mounts", async () => {
   let finish: (books: any[]) => void;
-  api.getBooks.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+  api.getStorefrontBooks.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
   await render(1); await render(4);
   expect(latest.loading).toBe(true);
-  expect(api.getBooks).toHaveBeenCalledTimes(1);
+  expect(api.getStorefrontBooks).toHaveBeenCalledTimes(1);
   await act(async () => finish!([{ id: "one", title: "A book" }]));
   expect(latest.loading).toBe(false);
   expect(latest.books).toHaveLength(1);
@@ -70,7 +70,7 @@ it("keeps cached books visible when background refresh fails", async () => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
   await render(1); await render(0);
   now.mockReturnValue(32000);
-  api.getBooks.mockRejectedValueOnce(new Error("offline"));
+  api.getStorefrontBooks.mockRejectedValueOnce(new Error("offline"));
   await render(1);
   expect(latest.loading).toBe(false);
   expect(latest.books).toHaveLength(1);
@@ -78,7 +78,7 @@ it("keeps cached books visible when background refresh fails", async () => {
 it("keeps an unsaved Studio snapshot when the shared backend load finishes", async () => {
   let finish: (books: any[]) => void;
   window.history.replaceState(null, "", "/?preview=true");
-  api.getBooks.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+  api.getStorefrontBooks.mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
   try {
     await render(2);
     await act(async () => window.dispatchEvent(new MessageEvent("message", { origin: window.location.origin, source: window, data: {
