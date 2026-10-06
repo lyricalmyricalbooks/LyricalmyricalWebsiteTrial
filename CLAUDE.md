@@ -821,3 +821,9 @@ Public SEO/catalog pagination uses document IDs so records without `createdAt` a
 - Settings › Payments › Stripe › **Webhook health** (`admin/StripeWebhookHealth.tsx`, action `webhookHealth`) checks the
   endpoint, **Fix webhook** adds missing events / re-enables / creates it, **Reset webhook signing** recreates it when
   signatures fail. Opening an unpaid Stripe order in Orders asks Stripe automatically; **Check payment with Stripe** repeats it.
+
+**Admin alerts:** `admin/adminAlerts.ts` (pure, tested) turns the orders feed + `adminSecrets/stripeWebhookStatus`
+into banners shown above every admin page (`AdminAlerts.tsx`, rendered in `Dashboard.tsx`, refreshed with the
+Orders badge every 5 minutes): payment/amount mismatch, unpaid after a started Stripe payment (>10 min), disputes,
+rejected webhooks, oversold, paid orders waiting >3 days to ship, manual payments pending >2 days. Test orders are
+ignored. Dismiss hides one for the browser session until a new order joins it.

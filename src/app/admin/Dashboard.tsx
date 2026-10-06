@@ -12,6 +12,8 @@ import { Discounts } from "./Discounts";
 import { Customers } from "./Customers";
 import { Inventory } from "./Inventory";
 import { Orders, ordersNeedingWork, refreshOrdersCache } from "./Orders";
+import { AdminAlerts } from "./AdminAlerts";
+import { buildAdminAlerts, type AdminAlert } from "./adminAlerts";
 import { OrderDetail } from "./OrderDetail";
 import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import { ShopSettings } from "./ShopSettings";
@@ -59,12 +61,19 @@ export function Dashboard() {
 
   // Orders waiting on the publisher, shown as a badge on the Orders nav item.
   const [ordersBadge, setOrdersBadge] = useState(0);
+  // Unpaid/mismatched/disputed orders etc., shown above every admin page.
+  const [alerts, setAlerts] = useState<AdminAlert[]>([]);
   useEffect(() => {
     if (!user) return;
     let alive = true;
     const refresh = () =>
       refreshOrdersCache()
-        .then((data) => alive && setOrdersBadge(ordersNeedingWork(data)))
+        .then(async (data) => {
+          const webhook = await adminApi.getStripeWebhookStatus();
+          if (!alive) return;
+          setOrdersBadge(ordersNeedingWork(data));
+          setAlerts(buildAdminAlerts(data, webhook));
+        })
         .catch(() => {});
     refresh();
     const timer = window.setInterval(refresh, 5 * 60 * 1000);
@@ -408,6 +417,12 @@ export function Dashboard() {
           actions={
             <SecondaryButton icon={<History size={16} aria-hidden />} onClick={() => setShowLogs(true)}>Activity Logs</SecondaryButton>
           }
+        />
+        <AdminAlerts
+          alerts={alerts}
+          onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
+          onOpenOrders={() => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder(null); }}
+          onOpenWebhook={() => { setActiveTab("settings"); setSettingsTab("payments"); setShowEditor(false); setSelectedOrder(null); }}
         />
         {/* Feature pages still use legacy utility classes; scope the compatibility layer to them only. */}
         <div {...(migrated ? {} : legacyProps)} style={{ background: "transparent", minHeight: 480 }}>
