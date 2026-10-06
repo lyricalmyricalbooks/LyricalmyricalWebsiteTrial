@@ -952,6 +952,14 @@ export const adminApi = {
     return result as { status: string; paymentStatus: string };
   },
 
+  // Last Stripe webhook received / rejected (written by stripeWebhook; admin-only doc).
+  getStripeWebhookStatus: async () => {
+    try {
+      const snap = await getDoc(doc(db, "adminSecrets", "stripeWebhookStatus"));
+      return snap.exists() ? (snap.data() as any) : null;
+    } catch { return null; }
+  },
+
   // Storefront (thank-you page, /track): the order record only. Guests may read an
   // order by ID, but order-operations is admin-only and would deny the whole read.
   getPublicOrder: async (id: string) => {
