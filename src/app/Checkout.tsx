@@ -860,7 +860,8 @@ export function Checkout() {
       const physicalTaxable = Math.min(taxable, physicalSubtotalAfterDiscount);
       const digitalTaxable = Math.max(0, taxable - physicalTaxable);
       const physicalRate = rateFor(pickup?.address);
-      const digitalRate = rateFor(customer.billingAddress);
+      // Area-limited pickup already has the shopper's address, so no separate billing box is shown.
+      const digitalRate = rateFor(pickupNeedsAddress && !customer.billingAddress.state ? customer.address : customer.billingAddress);
       setTaxCost(physicalTaxable * (Number(physicalRate?.rate || 0) / 100) + digitalTaxable * (Number(digitalRate?.rate || 0) / 100));
       return;
     }
@@ -968,7 +969,7 @@ export function Checkout() {
     }
     const needsDeliveryAddress = fulfillmentSelection.method !== "pickup" || pickupNeedsAddress;
     const validDestination = !needsDeliveryAddress || [customer.address.street, customer.address.city, customer.address.state, customer.address.zip, customer.address.country].every(value => String(value || "").trim());
-    const validBilling = fulfillmentSelection.method !== "pickup" || [customer.billingAddress.country, customer.billingAddress.state].every(value => String(value || "").trim());
+    const validBilling = fulfillmentSelection.method !== "pickup" || pickupNeedsAddress || [customer.billingAddress.country, customer.billingAddress.state].every(value => String(value || "").trim());
     const selectedOptionExists = !physicalItems.length || (fulfillmentSelection.method === "shipping"
       ? availableRates.some(rate => rate.id === fulfillmentSelection.optionId || rate.name === fulfillmentSelection.optionId)
       : localQuotes.some(quote => quote.id === fulfillmentSelection.optionId && quote.method === fulfillmentSelection.method));
@@ -1498,7 +1499,7 @@ export function Checkout() {
                 }}
                 formatPrice={formatPrice}
               />}
-              {fulfillmentSelection.method === "pickup" && <section {...regionProps("checkoutFulfillment")} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+              {fulfillmentSelection.method === "pickup" && !pickupNeedsAddress && <section {...regionProps("checkoutFulfillment")} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
                 <div><h3 className="text-sm font-semibold text-slate-900">{c("coBillingTitle")}</h3><p className="mt-1 text-xs leading-5 text-slate-600">{c("coBillingNote")}</p></div>
                 <CountryField label={c("coBillCountry")}
                   pinnedCodes={pinnedCountryCodes} showFlags={!checkoutDesign.hideCountryFlags}

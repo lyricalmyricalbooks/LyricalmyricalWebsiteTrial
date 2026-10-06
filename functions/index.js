@@ -729,7 +729,9 @@ function authoritativeTax(items, discountAmount, discount, booksById, settings, 
   const address = order.customer?.address || {};
   if (fulfillment?.method === 'pickup') {
     const pickup = fulfillment.address;
-    const billing = order.customer?.billingAddress;
+    // Pickup limited to an area collects the shopper's address instead of a separate billing location.
+    const given = order.customer?.billingAddress;
+    const billing = given?.country && given?.state ? given : order.customer?.address;
     if (!billing || !billing.country || !billing.state) throw new Error('Billing country and province or state are required for pickup.');
     const physicalRate = matchTaxRate(rates, pickup.country, pickup.state);
     const digitalRate = matchTaxRate(rates, billing.country, billing.state);
