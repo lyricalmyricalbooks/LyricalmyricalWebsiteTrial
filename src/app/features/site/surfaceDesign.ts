@@ -16,6 +16,7 @@ export function resolveSurfaceDesign(design: any, pathname: string) {
   const custom = template === "page" ? design[`page:${safeDecode(pathname.slice(6))}`] : null;
   if (!design[template] && !custom) return design;
   return { ...design, ...(design[template] || {}), ...(custom || {}),
+    ...(Array.isArray(design.categories) ? { categories: design.categories } : {}),
     regions: { ...design.regions, ...design[template]?.regions, ...custom?.regions } };
 }
 
@@ -24,7 +25,7 @@ export function resolveMainDesign(design: any, catalog: boolean, collection: boo
   const base = design || {};
   const primary = collection || catalog ? base.storefront : base.heroPage;
   const local = collection ? base.collectionPage : null;
-  return { ...base, ...primary, ...local, regions: { ...base.regions, ...primary?.regions, ...local?.regions } };
+  return { ...base, ...primary, ...local, ...(Array.isArray(base.categories) ? { categories: base.categories } : {}), regions: { ...base.regions, ...primary?.regions, ...local?.regions } };
 }
 
 /** Product controls inherit catalog defaults, then retain the product canvas overrides. */

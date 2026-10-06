@@ -27,6 +27,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
   {
     group: "Site & sharing",
     fields: [
+      { key: "googleSiteVerification", label: "Google Search Console verification token", default: "", hint: "Paste the content value from Google’s HTML verification tag. This public token is included in page metadata." },
       { key: "siteName", label: "Site name", default: "Lyricalmyrical Books", hint: "Used as {name} in the browser-tab title, share previews and search results." },
       { key: "siteDefaultTitle", label: "Home page title (browser tab / Google)", default: "{name} — Independent Publishing House", hint: "Use {name} for the site name." },
       { key: "siteDefaultDescription", label: "Default description (Google / social previews)", default: "{name} is an independent publishing house based in Toronto, specializing in photography and art books.", multiline: true, hint: "Use {name} for the site name." },

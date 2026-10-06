@@ -44,3 +44,11 @@ describe('public HTML snapshots', () => {
     expect(() => captureDocument({ template: '<html></html>', publicUrl: base + '/', localOrigin: 'http://localhost' })).toThrow();
   });
 });
+
+it('rejects category snapshots until the requested collection is selected', () => {
+ document.documentElement.innerHTML = '<head></head><body><div id="root"><div data-seo-collection="books">Books</div></div></body>';
+ const args = { template: '<html><body></body></html>', publicUrl: base + '/collections/zines', localOrigin: 'http://localhost' };
+ expect(() => captureDocument(args)).toThrow('unfinished collection');
+ document.querySelector('[data-seo-collection]')!.setAttribute('data-seo-collection', 'zines');
+ expect(captureDocument(args)).toContain('data-seo-collection="zines"');
+});
