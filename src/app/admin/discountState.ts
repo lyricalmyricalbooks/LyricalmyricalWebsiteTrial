@@ -3,8 +3,9 @@ export type BadgeTone = "neutral" | "primary" | "info" | "success" | "warning" |
 export const today = () => new Date().toISOString().split("T")[0];
 
 /** Effective state of a discount code for admin display. Checkout always re-validates server-side. */
-export function discountState(d: any, now: string = today()): { key: "active" | "paused" | "expired" | "exhausted"; tone: BadgeTone; label: string } {
+export function discountState(d: any, now: string = today()): { key: "active" | "scheduled" | "paused" | "expired" | "exhausted"; tone: BadgeTone; label: string } {
   if (d.expiryDate && d.expiryDate < now) return { key: "expired", tone: "danger", label: "Expired" };
   if (d.usageLimit && (d.usageCount || 0) >= d.usageLimit) return { key: "exhausted", tone: "warning", label: "Exhausted" };
+  if (d.isActive && d.startDate && d.startDate > now) return { key: "scheduled", tone: "info", label: `Starts ${d.startDate}` };
   return d.isActive ? { key: "active", tone: "success", label: "Active" } : { key: "paused", tone: "neutral", label: "Paused" };
 }

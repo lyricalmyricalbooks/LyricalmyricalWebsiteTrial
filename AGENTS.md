@@ -417,3 +417,10 @@ live Firestore persistence. Google rankings/indexing and a live Rich Results Tes
 remain external verification. GitHub Pages still uses its existing SPA 404 redirect;
 server-rendered HTML with direct 200 product routes remains a future crawlability
 improvement. After deployment submit the sitemap and inspect URLs in Search Console.
+
+## Discount codes: start date and one-use-per-customer (6 October 2026)
+
+Discounts › New/Edit has an optional **Start date** (code is refused server-side until that day; a **Scheduled**
+tab lists them). **One use per customer** is now enforced by `assertDiscountNotUsedByCustomer` in
+`functions/index.js` (paid orders with the same code + email; checkout lower-cases `customer.email`
+on the order). Both checks run in `fetchValidDiscount` / both checkout paths; totals and webhook authority are unchanged.

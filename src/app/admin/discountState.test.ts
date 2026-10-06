@@ -10,6 +10,10 @@ describe("discountState", () => {
     expect(discountState({ isActive: true, expiryDate: "2026-09-28" }, now).key).toBe("expired");
     expect(discountState({ isActive: true, expiryDate: "2026-09-29" }, now).key).toBe("active");
   });
+  it("is scheduled until its start date, then active", () => {
+    expect(discountState({ isActive: true, startDate: "2026-10-01" }, now).key).toBe("scheduled");
+    expect(discountState({ isActive: true, startDate: "2026-09-29" }, now).key).toBe("active");
+  });
   it("is exhausted at its usage limit", () => {
     expect(discountState({ isActive: true, usageLimit: 5, usageCount: 5 }, now).key).toBe("exhausted");
   });
