@@ -45,6 +45,8 @@ import { applyInlineText, INLINE_STYLE_KEYS } from "./inlineText";
 import { StudioSharedLayout } from "./StudioSharedLayout";
 import { filterSettingGroups } from "./studioNavigation";
 import { designChecks as buildDesignChecks } from "./studioChecks";
+import { EXTRA_STYLE_CATEGORIES, TEXT_BLURBS, TEXT_HEADINGS, THEME_HEADINGS, blurbFor, changedCopyCount, changedCounts, changedFields, defaultFor, isChanged, subsectionsFor } from "./settingsMap";
+import { CategoryHeader, SettingsHome, SettingsSubsection, StudioTips, type HomeHeading } from "./StudioSettingsHome";
 
 import "./studio.css";
 
@@ -72,6 +74,8 @@ function designChecks(design: any) {
 }
 
 const DEVICE_W = { desktop: "1200px", tablet: "820px", mobile: "390px" } as const;
+/** Pseudo-category id for the "What I've changed" list (Theme settings and Text & labels). */
+const CHANGED_CATEGORY = "__changed";
 
 // ── tiny shared UI bits ────────────────────────────────────────────────────
 const btn =
@@ -115,8 +119,11 @@ function sectionTitle(s: Section) {
 }
 
 // ── Add-section picker ─────────────────────────────────────────────────────
-function AddSectionDialog({ onPick, onClose }: { onPick: (type: string) => void; onClose: () => void }) {
+function AddSectionDialog({ onPick, onClose, presets = [], onPickPreset }: {
+  onPick: (type: string) => void; onClose: () => void; presets?: any[]; onPickPreset?: (preset: any) => void;
+}) {
   const [q, setQ] = useState("");
+  const savedList = presets.filter((p: any) => !q || String(p.name || "").toLowerCase().includes(q.toLowerCase()));
   const list = SECTION_REGISTRY.filter(
     (s) => !q || `${s.label} ${s.description} ${s.category}`.toLowerCase().includes(q.toLowerCase()),
   );
@@ -131,6 +138,20 @@ function AddSectionDialog({ onPick, onClose }: { onPick: (type: string) => void;
           <button className={iconBtn} onClick={onClose} aria-label="Close"><X size={16} /></button>
         </div>
         <div className="overflow-auto p-4 space-y-5">
+          {savedList.length > 0 && onPickPreset && (
+            <div>
+              <h3 className="text-[11px] font-black tracking-widest uppercase text-neutral-500 mb-2">Your saved sections</h3>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {savedList.map((p: any) => (
+                  <button key={p.id} onClick={() => onPickPreset(p)}
+                    className="text-left p-3 border border-neutral-200 rounded-xl hover:border-neutral-900 hover:bg-neutral-50">
+                    <p className="text-sm font-bold">{p.name}</p>
+                    <p className="text-xs text-neutral-500 mt-0.5">Saved with Section tools › Save selected section for reuse</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {cats.map((c) => (
             <div key={c}>
               <h3 className="text-[11px] font-black tracking-widest uppercase text-neutral-500 mb-2">{c}</h3>
@@ -145,7 +166,7 @@ function AddSectionDialog({ onPick, onClose }: { onPick: (type: string) => void;
               </div>
             </div>
           ))}
-          {!list.length && <p className="text-sm text-neutral-500">No sections match “{q}”.</p>}
+          {!list.length && !savedList.length && <p className="text-sm text-neutral-500">No sections match “{q}”.</p>}
         </div>
       </div>
     </Dialog>
@@ -290,6 +311,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [mobilePanel, setMobilePanel] = useState("preview");
   const [styleCategory, setStyleCategory] = useState<string | null>(null);
   const [textCategory, setTextCategory] = useState<string | null>(null);
+  // Field Find anything is jumping to, so its collapsed sub-section opens first.
+  const [fieldFocus, setFieldFocus] = useState<{ key: string; nonce: number } | null>(null);
+  const [tipsNonce, setTipsNonce] = useState(0);
+  const sidebarScrollRef = useRef<HTMLDivElement>(null);
+  // Opening (or leaving) a category starts at its top; Find anything then scrolls to its field.
+  useEffect(() => { sidebarScrollRef.current?.scrollTo?.({ top: 0 }); }, [styleCategory, textCategory, leftTab]);
   const [styleSearch, setStyleSearch] = useState("");
   // Region clicked in the preview → a pinned "Editing: <label>" card with only that region's controls.
   const [styleFocus, setStyleFocus] = useState<{ id: string; label: string } | null>(null);
@@ -460,6 +487,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const suffix = region ? f.key.slice(('regions.' + regionKey(region.id, "", regionFieldDevice(f.key))).length) : "";
     const effective = region ? regionValue(values, region.id, suffix, regionFieldDevice(f.key))
       : (local ? readStyle(design[template.id], f.key) : undefined) ?? readStyle(design, f.key) ?? readStyle(defaults, f.key);
+    const differs = !region && !local && isChanged(f, design, defaults);
     return (
       <div key={f.key} className="studio-field" data-style-key={f.key}>
         <SectionFieldEditor field={f as any} value={effective ?? f.defaultValue}
@@ -469,6 +497,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <small>{own != null && own !== "" ? "Custom value" : region ? "Inherited from larger size / shared layout" : "Inherited from all pages"}</small>
           {own !== undefined && <button type="button" className="studio-reset" aria-label={'Reset ' + f.label}
             onClick={() => setScopedStyle(g.id, f.key, undefined)}>{local ? "Reset to global" : "Reset to inherited"}</button>}
+        </div>}
+        {differs && <div className="studio-field-status">
+          <small>Changed from default</small>
+          <button type="button" className="studio-reset" aria-label={'Reset ' + f.label + ' to default'}
+            onClick={() => setScopedStyle(g.id, f.key, defaultFor(f, defaults))}>Reset to default</button>
         </div>}
       </div>
     );
@@ -604,7 +637,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         if (!tab) return;
         setMobilePanel("outline");
         setSelectedId(null); setBlockId(null);
-        if (tab === "style") { setStyleSearch(""); setStyleCategory(null); }
+        if (tab === "style") { setStyleSearch(""); setStyleCategory(EXTRA_STYLE_CATEGORIES[rest] ? rest : null); }
         setStyleFocus(tab === "style" && STYLE_GROUPS.some(g => g.id === rest) ? { id: rest, label: typeof d.label === "string" && d.label ? d.label : (STYLE_GROUPS.find(g => g.id === rest)?.title || rest) } : null);
         if (tab === "text") { setCopyFilter(""); setTextCategory(rest); }
         setLeftTab(tab);
@@ -748,17 +781,19 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const name = window.prompt("Name this saved section:", sectionTitle(section).label);
     if (name === null) return;
     const preset = { id: `preset-${Date.now()}`, name: name.trim() || sectionTitle(section).label, section: JSON.parse(JSON.stringify(section)) };
-    setStyle("sectionPresets", [...(design.sectionPresets || []), preset]); say("ok", "Section saved for reuse on any page.");
+    setStyle("sectionPresets", [...(design.sectionPresets || []), preset]); say("ok", "Section saved. Add it to any page from Add section › Your saved sections.");
   };
   const addPreset = (preset: any) => {
     const source = preset.section;
     const clone = duplicateSection([source], source.id).list[1];
-    setList(l => insertSection(l, clone, l.length)); setSelectedId(clone.id);
+    const at = adding;
+    setList(l => insertSection(l, clone, at ?? l.length)); setSelectedId(clone.id); setAdding(null); setBlockId(null);
   };
 
   // ── Find anything (Ctrl/Cmd+K): one search over every control, word, page, section and action ──
   const searchIndex = useMemo(() => buildStudioIndex({
-    styleGroups: STYLE_GROUPS, copySchema: COPY_SCHEMA, templates, pages,
+    styleGroups: [...STYLE_GROUPS, ...Object.entries(EXTRA_STYLE_CATEGORIES).map(([id, c]) => ({ id, title: c.title, hint: c.blurb, fields: [] }))],
+    copySchema: COPY_SCHEMA, templates, pages,
     sectionsByTemplate: {
       __global: getSections(design, { kind: "global" }),
       ...Object.fromEntries(templates.map(t => [t.id, getSections(design, { kind: "template", id: t.id })])),
@@ -815,6 +850,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     if (t.type === "tab") { setLeftTab(t.tab); setStyleFocus(null); setSelectedId(null); setBlockId(null); return; }
     if (t.type === "style") {
       setSelectedId(null); setBlockId(null); setStyleSearch(""); setStyleCategory(t.groupId); setStyleFocus(null); setLeftTab("style");
+      if (t.key) setFieldFocus({ key: t.key, nonce: Date.now() });
       const region = REGION_GROUPS.find(g => g.id === t.groupId)?.regions.find(r => t.key?.startsWith('regions.' + r.id));
       if (region && t.key) { openRegion(t.groupId, region.label); setDevice(regionFieldDevice(t.key)); }
       const panel = `style:${t.groupId}`;
@@ -843,6 +879,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const sidebarTabs: [LeftTab, string][] = [["sections", "Page layout"], ["shared", "Shared layout"], ["style", "Theme settings"], ["text", "Text & labels"], ["menus", "Navigation"], ["pages", "Pages"]];
   const q = copyFilter.trim().toLowerCase();
   const visibleStyleGroups = filterSettingGroups(STYLE_GROUPS, styleSearch, styleCategory);
+  // Theme settings home: task headings over the same categories, with "changed" counts.
+  const changed = useMemo(() => changedCounts(STYLE_GROUPS, design, defaults), [design, defaults]);
+  const themeHome: HomeHeading[] = THEME_HEADINGS.map(h => ({ ...h, categories: h.groups.map(id => {
+    const group = STYLE_GROUPS.find(g => g.id === id);
+    return { id, title: EXTRA_STYLE_CATEGORIES[id]?.title || group?.title || id, blurb: blurbFor(group, id), changed: changed.byGroup[id] };
+  }) }));
+  const textHome: HomeHeading[] = TEXT_HEADINGS.map(h => ({ ...h, categories: h.groups.map(name => {
+    const group = COPY_SCHEMA.find(g => g.group === name);
+    return { id: name, title: name, blurb: TEXT_BLURBS[name] || "", changed: group ? changedCopyCount(group.fields, design) : 0 };
+  }) }));
+  const textChangedTotal = COPY_SCHEMA.reduce((n, g) => n + changedCopyCount(g.fields, design), 0);
   const panelTitle = sidebarTabs.find(([id]) => id === leftTab)?.[1];
 
   return (
@@ -882,6 +929,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           { label: "Preview in new tab", icon: <ExternalLink size={14} />, onSelect: openPreviewTab },
           { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
           { label: "Check before publishing", icon: <ShieldCheck size={14} />, onSelect: () => setChecksOpen(true) },
+          { label: "Show Studio tips", onSelect: () => setTipsNonce(n => n + 1) },
           ...(unpublished && busy === null && !inlineEditing ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
         ]} /></div>
         <button className={btn} disabled={Boolean(inlineEditing) || !dirtyDraft || busy !== null} onClick={saveDraft}>{busy === "draft" ? "Saving…" : "Save draft"}</button>
@@ -913,10 +961,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           </div>
           <div className="studio-panel-context">
             <strong>{panelTitle}</strong>
-            <span>{showGlobal ? "Shared sections · every page" : template.label}{leftTab === "sections" ? ` · ${sections.length} sections` : ""}</span>
+            <span>{leftTab === "sections" ? (showGlobal ? "Shared sections · every page" : template.label) + ` · ${sections.length} sections` : `Previewing: ${showGlobal ? "shared sections" : template.label}`}</span>
             <small>{leftTab === "sections" ? "Select content here or click it in the preview." : leftTab === "style" ? "Choose a category or search every setting." : leftTab === "shared" ? "Announcement, header, navigation and footer controls in one place." : leftTab === "text" ? "Edit the words your shoppers see." : leftTab === "menus" ? "Manage links, categories and their order." : "Create pages and edit their content or layout."}</small>
           </div>
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto" ref={sidebarScrollRef}>
+            <StudioTips forceOpen={tipsNonce} />
             {leftTab === "shared" && <StudioSharedLayout globalCount={(design.globalSections || []).length}
               onStyle={(id, label) => { setStyleScope("all"); setStyleSearch(""); setStyleCategory(id); setStyleFocus(label ? {id, label} : null); setLeftTab("style"); }}
               onText={group => { setCopyFilter(""); setTextCategory(group); setLeftTab("text"); }}
@@ -946,12 +995,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 }}>Design this page</button>
               </div>
             )}
-            {leftTab === "sections" && <div className="m-3 flex gap-2 flex-wrap">
-              <button className={btn} disabled={!selected} onClick={() => selected && setCopiedSection(JSON.parse(JSON.stringify(selected)))}><Copy size={13} /> Copy</button>
-              <button className={btn} disabled={!copiedSection} onClick={pasteSection}><Clipboard size={13} /> Paste</button>
-              <button className={btn} disabled={!selected} onClick={() => selected && saveSection(selected)}>Save section</button>
+            {leftTab === "sections" && <div className="studio-section-tools">
+              <button className={btn} onClick={() => setAdding(sections.length)}><Plus size={13} /> Add section</button>
               <button className={btn} onClick={() => autoFitPage(false)} title="Works out phone spacing, text sizes, columns and stacked blocks for this page's sections and built-in regions. Anything you set yourself is kept."><Smartphone size={13} /> Auto-fit page for phones</button>
-              {(design.sectionPresets || []).map((p: any) => <button key={p.id} className={btn} onClick={() => addPreset(p)}>+ {p.name}</button>)}
+              <div className="studio-tools-menu"><span>Section tools</span><ActionMenu label="Section tools" actions={[
+                { label: selected ? "Copy selected section" : "Copy a section (select one first)", icon: <Copy size={14} />,
+                  onSelect: () => { if (!selected) { say("ok", "Select a section in the list or the preview first, then copy it."); return; } setCopiedSection(JSON.parse(JSON.stringify(selected))); say("ok", "Section copied. Open any page, then Section tools › Paste copied section."); } },
+                { label: copiedSection ? "Paste copied section" : "Paste (nothing copied yet)", icon: <Clipboard size={14} />,
+                  onSelect: () => { if (!copiedSection) { say("ok", "Copy a section first with Section tools › Copy selected section."); return; } pasteSection(); } },
+                { label: selected ? "Save selected section for reuse" : "Save a section for reuse (select one first)", icon: <Download size={14} />,
+                  onSelect: () => { if (!selected) { say("ok", "Select a section first, then save it. Saved sections appear in Add section."); return; } saveSection(selected); } },
+              ]} /></div>
             </div>}
             {leftTab === "sections" && <StudioOutline key={showGlobal ? "__global" : template.id}
               sections={sections} selectedId={selectedId} blockId={blockId}
@@ -964,9 +1018,28 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               <label>Editing scope<select aria-label="Style scope" value={styleScope} onChange={e => setStyleScope(e.target.value as any)}><option value="all">All pages</option><option value="page">This page only: {template.label}</option></select></label>
               {styleSearch && <button className={btn} onClick={() => setStyleSearch("")}>Clear search</button>}
             </div>}
-            {leftTab === "style" && !styleSearch && !styleCategory && !styleFocus && (
-              <Group title="Theme look · All pages"
-                hint={`Current look: ${design.themeLibraryPreset === RISO_NOIR_ID ? "Riso Noir" : riso ? "Riso Press" : "Standard / custom"}. One click sets every color, font and print detail below; you can still change each one afterwards.`}>
+            {leftTab === "style" && !styleSearch.trim() && !styleCategory && !styleFocus && (
+              <SettingsHome headings={themeHome} onOpen={(id) => setStyleCategory(id)}
+                changedTotal={changed.total} onOpenChanged={() => setStyleCategory(CHANGED_CATEGORY)} />
+            )}
+            {leftTab === "style" && !styleSearch.trim() && styleCategory && !styleFocus && (() => {
+              const group = STYLE_GROUPS.find(g => g.id === styleCategory);
+              const extra = EXTRA_STYLE_CATEGORIES[styleCategory];
+              const isChangedView = styleCategory === CHANGED_CATEGORY;
+              const local = styleScope === "page" && PAGE_STYLE_GROUPS.has(styleCategory);
+              const scopeNote = isChangedView ? "Every setting that differs from the default, grouped by category. Reset one to go back to the default."
+                : local ? `Changes here apply to this page only (${template.label}). Reset a field to use the all-pages value.`
+                : PAGE_STYLE_GROUPS.has(styleCategory) ? "Applies to every page. To change just this page, set Editing scope to “This page only”."
+                : "Applies to every page.";
+              const subs = group ? subsectionsFor(group) : [];
+              return (
+                <div data-studio-panel={`style:${styleCategory}`}>
+                  <CategoryHeader title={isChangedView ? "What I've changed" : extra?.title || group?.title || styleCategory}
+                    blurb={isChangedView ? undefined : blurbFor(group, styleCategory)} backLabel="All theme settings"
+                    onBack={() => setStyleCategory(null)} extra={<p className="studio-scope-note">{scopeNote}</p>} />
+                  {styleCategory === "themeLook" && <div className="px-4 pb-4 space-y-4">
+                    <p className="studio-hint">Current look: {design.themeLibraryPreset === RISO_NOIR_ID ? "Riso Noir" : riso ? "Riso Press" : "Standard / custom"}. One click sets every colour, font and print detail; you can still change each one afterwards.</p>
+
                 <button type="button" className={`${btnPrimary} w-full justify-center`} onClick={applyNoirLook}>Apply Riso Noir (black &amp; white)</button>
                 <button type="button" className={`${btn} w-full justify-center`} onClick={installNoirHome}>Also install the Noir homepage layout</button>
                 <button type="button" className={`${btn} w-full justify-center`} disabled={!riso} onClick={() => setStyle("themeStyle", "default")}>Turn off Riso print style</button>
@@ -1003,11 +1076,10 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                     </button>
                   ))}
                 </div>
-              </Group>
-            )}
+                  </div>}
+                  {styleCategory === "paymentIcons" && <div className="px-4 pb-4 space-y-4">
+                    <p className="studio-hint">Checkout itself always offers the methods enabled in Settings › Payments.</p>
 
-            {leftTab === "style" && !styleSearch && !styleCategory && !styleFocus && (
-              <Group id="style:paymentIcons" title="Payment icons · All pages" hint="Pick which payment logos the footer shows. Checkout itself always offers the methods enabled in Settings › Payments.">
                 {PAYMENT_BADGE_OPTIONS.map((o) => {
                   const cur = resolveFooterBadges(design, settings);
                   const on = cur.includes(o.id);
@@ -1020,15 +1092,30 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   );
                 })}
                 <button type="button" className={btn} onClick={() => setStyle("footerBadges", undefined)}>Reset to Settings › Payments</button>
-              </Group>
-            )}
-
-            {leftTab === "style" && !styleFocus && !styleSearch.trim() && <div className="studio-category-browser">
-              {styleCategory ? <button className="studio-back" onClick={() => setStyleCategory(null)}><ArrowLeft size={14} /> All theme settings</button> : <>
-                <p className="studio-hint">Settings categories</p>
-                {STYLE_GROUPS.map(g => <button className="studio-category-link" key={g.id} onClick={() => setStyleCategory(g.id)}><span>{g.title}</span><small>{g.fields.length} settings →</small></button>)}
-              </>}
-            </div>}
+                  </div>}
+                  {isChangedView && <div className="studio-changed-list">
+                    {!changed.total && <p className="studio-empty">Nothing changed yet. Every theme setting uses its default.</p>}
+                    {STYLE_GROUPS.filter(g => changed.byGroup[g.id]).map(g => (
+                      <section key={g.id} className="studio-subsection">
+                        <div className="studio-changed-group"><strong>{g.title}</strong>
+                          <button type="button" className="studio-reset" onClick={() => setStyleCategory(g.id)}>Open category</button></div>
+                        <div className="studio-subsection-body">{changedFields(g, design, defaults).map(f => renderStyleField(g, f))}</div>
+                      </section>
+                    ))}
+                  </div>}
+                  {group && (REGION_GROUPS.some(r => r.id === group.id)
+                    ? <div className="px-4 pb-4"><StudioRegionBrowser groupId={group.id} fields={group.fields} device={device}
+                        values={{ ...design.regions, ...(local ? design[template.id]?.regions : {}) }} onPick={openRegion} /></div>
+                    : subs.map((sub, i) => (
+                      <SettingsSubsection key={sub.title || i} title={sub.title} count={sub.fields.length}
+                        changed={sub.fields.filter(f => isChanged(f, design, defaults)).length}
+                        defaultOpen={i === 0 || subs.length <= 2} keys={sub.fields.map(f => f.key)} focusKey={fieldFocus}>
+                        {sub.fields.map(f => renderStyleField(group, f))}
+                      </SettingsSubsection>
+                    )))}
+                </div>
+              );
+            })()}
             {leftTab === "style" && styleFocus && !styleSearch && (() => {
               const focusGroup = STYLE_GROUPS.find(g => g.id === styleFocus.id)!;
               const pattern = STYLE_TARGET_FIELDS[styleFocus.label];
@@ -1068,7 +1155,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 </div>
               );
             })()}
-            {leftTab === "style" && !styleFocus && (styleCategory || styleSearch.trim()) && visibleStyleGroups.map(g => {
+            {leftTab === "style" && !styleFocus && styleSearch.trim() && visibleStyleGroups.map(g => {
               const fields = g.fields;
               if (!fields.length) return null;
               const local = styleScope === "page" && PAGE_STYLE_GROUPS.has(g.id);
@@ -1087,18 +1174,33 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   <input value={copyFilter} onChange={(e) => setCopyFilter(e.target.value)} placeholder="Search any label or message…"
                     aria-label="Search text" className="w-full h-9 border border-neutral-300 rounded-lg px-3 text-xs" />
                 </div>
-                {!q && <div className="studio-category-browser">
-                  {textCategory ? <button className="studio-back" onClick={() => setTextCategory(null)}><ArrowLeft size={14} /> All text categories</button> : COPY_SCHEMA.map(g => <button className="studio-category-link" key={g.group} onClick={() => setTextCategory(g.group)}><span>{g.group}</span><small>{g.fields.length} labels →</small></button>)}
+                {!q && !textCategory && <SettingsHome headings={textHome} onOpen={(id) => setTextCategory(id)}
+                  changedTotal={textChangedTotal} changedNoun="label" onOpenChanged={() => setTextCategory(CHANGED_CATEGORY)} />}
+                {!q && textCategory && <CategoryHeader title={textCategory === CHANGED_CATEGORY ? "Text I've changed" : textCategory}
+                  blurb={textCategory === CHANGED_CATEGORY ? "Every label you rewrote. Reset one to go back to the default wording." : TEXT_BLURBS[textCategory]}
+                  backLabel="All text categories" onBack={() => setTextCategory(null)} />}
+                {!q && textCategory === CHANGED_CATEGORY && <div className="studio-changed-list">
+                  {!textChangedTotal && <p className="studio-empty">No labels changed yet. Every word uses its default.</p>}
+                  {COPY_SCHEMA.filter(g => changedCopyCount(g.fields, design)).map(g => (
+                    <section key={g.group} className="studio-subsection">
+                      <div className="studio-changed-group"><strong>{g.group}</strong>
+                        <button type="button" className="studio-reset" onClick={() => setTextCategory(g.group)}>Open category</button></div>
+                      <div className="studio-subsection-body">{g.fields.filter(f => typeof design.copy?.[f.key] === "string").map(f => <StudioCopyField key={f.key} field={f} design={design}
+                        onChange={value => setStyle('copy.' + f.key, value)} />)}</div>
+                    </section>
+                  ))}
                 </div>}
                 {q && !COPY_SCHEMA.some(g => g.fields.some(f => `${f.label} ${g.group} ${f.default} ${f.key}`.toLowerCase().includes(q))) && <p className="studio-empty">No matching text. Try a shorter word or clear search.</p>}
                 {COPY_SCHEMA.map((g) => {
                   if (!q && g.group !== textCategory) return null;
                   const fs = g.fields.filter((f) => !q || `${f.label} ${g.group} ${f.default} ${f.key}`.toLowerCase().includes(q));
                   if (!fs.length) return null;
+                  const fieldsList = fs.map(f => <StudioCopyField key={f.key} field={f} design={design}
+                    onChange={value => setStyle('copy.' + f.key, value)} />);
+                  if (!q) return <div key={g.group} data-studio-panel={`copy:${g.group}`} className="px-4 pb-4 space-y-4">{fieldsList}</div>;
                   return (
-                    <Group key={g.group} id={`copy:${g.group}`} title={g.group} open={Boolean(q || textCategory)}>
-                      {fs.map(f => <StudioCopyField key={f.key} field={f} design={design}
-                        onChange={value => setStyle('copy.' + f.key, value)} />)}
+                    <Group key={g.group} id={`copy:${g.group}`} title={g.group} open>
+                      {fieldsList}
                     </Group>
                   );
                 })}
@@ -1148,7 +1250,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       </FocusContext.Provider>
 
       <StudioSearch open={findOpen} onClose={() => setFindOpen(false)} index={searchIndex} onPick={goToResult} />
-      {adding !== null && <AddSectionDialog onPick={addSection} onClose={() => setAdding(null)} />}
+      {adding !== null && <AddSectionDialog onPick={addSection} onClose={() => setAdding(null)} presets={design.sectionPresets || []} onPickPreset={addPreset} />}
       <Dialog open={historyOpen} onClose={() => { setHistoryOpen(false); setHistoryPreview(null); }} title="Version history" description="Every saved draft and publish is kept here. Previewing never changes your draft." size="lg">
         <div className="space-y-2 max-h-[60vh] overflow-auto">
           {!versions.length && <p className="studio-empty">No saved versions yet.</p>}

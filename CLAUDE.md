@@ -579,6 +579,21 @@ The toolbar keeps page/device, undo/redo, draft state, Save draft and Publish vi
 holds preview, history, checks and guarded discard. Inspector device context distinguishes shared
 content from responsive layout overrides. Existing draft/publish persistence is unchanged.
 
+**Friendlier settings homes (October 2026).** `studio/settingsMap.ts` (pure, tested) decides *where* controls
+appear; it never adds or removes one. Theme settings opens on task headings: Overall look, Header, menu & footer,
+Shop & book pages, Bag, checkout & accounts, Pages & small details, and a folded **Fine-tune single elements**
+(per-element region groups + Custom code). Each category card has a one-line description (`GROUP_BLURBS`)
+and a **● N changed** badge. **Theme presets & saved themes** and **Payment icons** are categories now
+(`EXTRA_STYLE_CATEGORIES`; click-to-edit `style:paymentIcons` opens it). Big categories split into short collapsible
+sub-sections (`STYLE_SUBSECTIONS`; unlisted keys fall into **More settings**, so a new control always shows);
+Find anything opens the sub-section holding the field (`fieldFocus`). Fields that differ from the default
+design show **Changed from default** + **Reset to default**, and **What I've changed** lists them all.
+Text & labels uses the same home (`TEXT_HEADINGS`, `TEXT_BLURBS`, "Text I've changed"). Page layout shows
+**Add section**, **Auto-fit page for phones** and a **Section tools** menu (copy / paste / save for reuse);
+saved sections are picked from Add section › **Your saved sections**. A dismissible **How Studio works** card
+(Theme actions › Show Studio tips) orients first-time use. `settingsMap.test.ts` fails if any Style category,
+text group or field stops being reachable — place new STYLE_GROUPS / COPY_SCHEMA groups under a heading.
+
 ## Public storefront readiness repairs (2 October 2026)
 
 Public product links retain unique slugs and use immutable book IDs when slugs collide; catalog records are never rewritten. The storefront reads the entire paginated catalog and the sitemap uses the same route resolver. Unknown URLs show editable recovery content. Custom pages share the support/policy footer, with **Show page footer** in Studio > Style > Custom pages.
