@@ -41,6 +41,8 @@ import { useCurrency } from "../CurrencyContext";
 import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs } from "./riso/components";
 import { prepareProductImage } from "./prepareImage";
 
+import { BookSeoPane } from "./BookSeoPane";
+
 type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "organize" | "seo";
 
 function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover }: {
@@ -406,6 +408,11 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
     // Collect every problem so the editor can list them together (not one toast at a time).
     const problems: string[] = [];
+    if (formData.seoImage?.trim()) {
+      try {
+        if (new URL(formData.seoImage.trim()).protocol !== "https:") problems.push("Sharing image must use an HTTPS URL.");
+      } catch { problems.push("Sharing image must be a valid HTTPS URL."); }
+    }
     if (!formData.title.trim()) problems.push("Book title is required.");
     if (formData.retailPrice < 0) problems.push("Retail price cannot be negative.");
     if (formData.manualCurrencyOverrides) {
@@ -684,7 +691,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         <div className="be-actions">
           {book && (book.slug || formData.slug) && (
             <a
-              href={`/#/books/${book.slug || formData.slug}?preview=true`}
+              href={`${import.meta.env.BASE_URL}books/${encodeURIComponent(book.id)}?preview=true`}
               target="_blank"
               rel="noreferrer"
               title={book.slug && book.slug !== formData.slug ? "Opens with the last-saved slug. Save to update the live URL." : "Opens the public page in a new tab. Edits broadcast live."}
@@ -961,18 +968,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           )}
 
           {tab === "seo" && (
-            <SectionCard title="Search engine listing" description="How this book appears on Google. Leave blank to use the title and description.">
-              <div className="be-grid">
-                <div className="be-span-2"><TextField label="Meta title" name="metaTitle" value={formData.metaTitle || ""} onChange={handleChange} maxLength={70} placeholder={formData.title || "Search engine title"} hint={`${(formData.metaTitle || "").length}/70`} /></div>
-                <div className="be-span-2"><TextArea label="Meta description" name="metaDescription" value={formData.metaDescription || ""} onChange={handleChange} rows={3} maxLength={160} placeholder="Short summary shown in search results" hint={`${(formData.metaDescription || "").length}/160`} /></div>
-              </div>
-              <div className="be-serp" aria-label="Search listing preview">
-                <span className="be-label-xs">Preview</span>
-                <p className="be-serp-url">lyricalmyrical.com › books › {formData.slug || "your-book"}</p>
-                <p className="be-serp-title">{formData.metaTitle || formData.title || "Your book title"}</p>
-                <p className="be-serp-desc">{formData.metaDescription || formData.description || "Your book description will appear here."}</p>
-              </div>
-            </SectionCard>
+            <BookSeoPane book={formData} onChange={set} />
           )}
         </form>
 

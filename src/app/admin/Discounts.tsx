@@ -25,7 +25,7 @@ const TYPE_OPTIONS = [
 ];
 
 const EMPTY: any = {
-  code: "", type: "percentage", value: 10, isActive: true, expiryDate: "", minOrderAmount: "", minQuantity: "",
+  code: "", type: "percentage", value: 10, isActive: true, startDate: "", expiryDate: "", minOrderAmount: "", minQuantity: "",
   usageLimit: "", onePerCustomer: false, appliesTo: "all", selectedCategories: [], selectedProducts: [],
   allowedEmailDomains: "", allowedCustomerEmails: "", description: "", buyQuantity: 1, getQuantity: 1,
   getDiscountValue: 100, tiers: [{ minSpend: 0, value: 0, type: "percentage" }],
@@ -189,6 +189,7 @@ function DiscountDialog({ initial, onClose, onSave }: { initial?: any; onClose: 
         </fieldset>
 
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))" }}>
+          <TextField label="Start date (optional)" type="date" value={form.startDate || ""} onChange={e => set("startDate", e.target.value)} hint="Code stays off until this day — schedule a sale ahead of time." />
           <TextField label="Expiry date (optional)" type="date" min={today()} value={form.expiryDate || ""} onChange={e => set("expiryDate", e.target.value)} hint="Last day the code works." error={errors.expiryDate} />
           <TextField label="Minimum order (CA$)" type="number" min={0} value={form.minOrderAmount} onChange={e => set("minOrderAmount", e.target.value)} placeholder="No minimum" error={errors.minOrderAmount} />
           <TextField label="Minimum quantity" type="number" min={0} step={1} value={form.minQuantity} onChange={e => set("minQuantity", e.target.value)} placeholder="No minimum" error={errors.minQuantity} />
@@ -219,7 +220,7 @@ export function Discounts() {
   const [failed, setFailed] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
-  const [filter, setFilter] = useState<"all" | "active" | "paused" | "expired" | "exhausted">("all");
+  const [filter, setFilter] = useState<"all" | "active" | "scheduled" | "paused" | "expired" | "exhausted">("all");
   const [search, setSearch] = useState("");
   const [deleting, setDeleting] = useState<any | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
@@ -267,7 +268,7 @@ export function Discounts() {
   const statusCounts = useMemo(() => discounts.reduce((counts, discount) => {
     counts[state(discount).key] += 1;
     return counts;
-  }, { active: 0, paused: 0, expired: 0, exhausted: 0 }), [discounts]);
+  }, { active: 0, scheduled: 0, paused: 0, expired: 0, exhausted: 0 }), [discounts]);
 
   const columns: Column<any>[] = [
     { key: "code", header: "Code", lead: true, render: d => (
@@ -326,6 +327,7 @@ export function Discounts() {
           <Tabs label="Discount status" value={filter} onChange={setFilter} tabs={[
             { id: "all", label: "All", count: discounts.length },
             { id: "active", label: "Active", count: statusCounts.active },
+            { id: "scheduled", label: "Scheduled", count: statusCounts.scheduled },
             { id: "paused", label: "Paused", count: statusCounts.paused },
             { id: "expired", label: "Expired", count: statusCounts.expired },
             { id: "exhausted", label: "Exhausted", count: statusCounts.exhausted },

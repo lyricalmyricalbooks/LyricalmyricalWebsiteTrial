@@ -508,12 +508,12 @@ it. Don't add new compat rules for new work; compose the components instead.
 
 ## Security notes
 
-- **Public-readable settings hold secrets (owner decision pending).** `firestore.rules`
-  allows `read: if true` on `settings/{docId}`; Settings › Payments can write Stripe
-  **secret** keys into `settings/website`, and Notifications can write the Resend key into
-  `settings/notifications`. The UI now treats them as write-only and warns, but the stored
-  values remain publicly readable. Fix: use Functions secrets / an admin-only collection,
-  update `functions/index.js`, and rotate any key ever entered in the admin.
+- **Secret keys live only in admin-only `adminSecrets/*`** (`stripe`: `secretKey`/`testSecretKey`,
+  `resend`: `apiKey`, `gmail`: `appPassword`). `admin/privateKeys.ts` strips them from every
+  `settings/website` / `settings/notifications` write (`adminApi.updateSettings`, `saveNotificationSettings`);
+  the UI only sees `*Stored` flags. Opening Settings moves any legacy public copy automatically.
+  Functions read `adminSecrets` first (`withPrivateStripeKeys`, `readAdminSecret`), then legacy settings, then
+  Functions secrets. Keys ever entered before this change were public — rotate them.
 
 ## Conventions & gotchas
 
@@ -696,6 +696,47 @@ Actual field display can be verified without submitting a payment; authenticated
 sandbox payment, webhook, refund and email verification remain separate.
 
 Stripe field appearance follows Studio checkout field background, text, border, font, accent and corner-radius controls inside the secure iframe. Riso defaults use square, visibly outlined idle fields with accent focus outlines and danger outlines for invalid fields; payment tabs share the same border treatment.
+
+
+## Book SEO pane (5 October 2026)
+
+Catalog > Edit book > Search (SEO) owns `metaTitle`, `metaDescription` and optional
+HTTPS `seoImage`, saved with the book through the existing admin-only write path.
+A custom search title is used exactly; blank fields use catalog content and the
+published Studio Site & sharing defaults. The pane previews the effective title,
+plain-text description, collision-safe canonical URL and sharing image, and offers
+content checks, catalog-default reset and a deployed-URL Rich Results Test link.
+Checks are guidance, not a ranking score. Catalog copy and URLs are never bulk rewritten.
+
+`lib/bookSeo.ts` supplies book metadata and Product + Book JSON-LD. The public
+PDP uses its displayed currency, price and selected-edition availability, including
+backorders. No reviews/ratings are fabricated. `lib/seo.ts` updates canonical and
+social URLs on router navigation, strips query/fragment parameters, clears stale
+sharing images, and marks previews and private account/checkout/tracking pages noindex.
+`index.html` has no fixed homepage canonical that conflicts with product routes.
+
+`build:sitemap` lists published book/page routes, escapes URLs and removes personal
+pages. Book/page fetch failures fail the build instead of silently dropping their
+URLs; the optional legacy collections endpoint may be unavailable and is reported.
+Robots paths follow the deployment sub-path; Google reads robots.txt at the origin
+root, so a project-folder robots.txt alone is not an origin-wide crawl restriction.
+Private pages also use noindex metadata. Rebuild/deploy the sitemap when catalog
+routes change. No new Firestore collection, rule, index or Function is required.
+
+Verification covers focused SEO regression tests, the complete Vitest suite,
+production build with public catalog reads, and local desktop/phone fixture checks
+for preview/edit/save/reset and rendered PDP metadata. Fixture save evidence is not
+live Firestore persistence. Google rankings/indexing and a live Rich Results Test
+remain external verification. GitHub Pages still uses its existing SPA 404 redirect;
+server-rendered HTML with direct 200 product routes remains a future crawlability
+improvement. After deployment submit the sitemap and inspect URLs in Search Console.
+
+## Discount codes: start date and one-use-per-customer (6 October 2026)
+
+Discounts › New/Edit has an optional **Start date** (code is refused server-side until that day; a **Scheduled**
+tab lists them). **One use per customer** is now enforced by `assertDiscountNotUsedByCustomer` in
+`functions/index.js` (paid orders with the same code + email; checkout lower-cases `customer.email`
+on the order). Both checks run in `fetchValidDiscount` / both checkout paths; totals and webhook authority are unchanged.
 
 ## Customer bug sweep (6 October 2026)
 

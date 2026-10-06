@@ -15,6 +15,9 @@ export type Variant = {
 };
 
 export type Book = {
+  metaTitle?: string;
+  metaDescription?: string;
+  seoImage?: string;
   id: string;
   title: string;
   subtitle?: string;

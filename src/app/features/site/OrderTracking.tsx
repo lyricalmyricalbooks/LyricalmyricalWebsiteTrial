@@ -1,3 +1,4 @@
+import { useSEO } from "../../lib/seo";
 import { regionProps } from "./storefrontRegions";
 import { normalizeOrderNumber } from "./orderNumber";
 import { getTrackingUrl } from "../../lib/tracking";
@@ -27,6 +28,7 @@ export default function OrderTracking() {
   
   const { formatPrice, currency: defaultCurrency } = useCurrency();
   const { settings, books } = useSiteData();
+  useSEO({ title: getCopy(settings?.design, "trackTitle"), description: getCopy(settings?.design, "trackSubtitle"), noindex: true });
 
   // If order is already found, check if items have digital formats
   useEffect(() => {

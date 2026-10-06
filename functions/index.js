@@ -136,10 +136,31 @@ async function getShippoToken() {
   }
 }
 
+// Secret keys entered in the admin live in the admin-only adminSecrets/* docs.
+// Older saves put them in public settings/*; those are still honoured until the
+// admin next opens Settings (which moves them), but adminSecrets wins.
+async function readAdminSecret(id) {
+  try {
+    const snap = await db.collection("adminSecrets").doc(id).get();
+    return snap.exists ? snap.data() || {} : {};
+  } catch (err) {
+    console.warn(`Could not read adminSecrets/${id}:`, err);
+    return {};
+  }
+}
+
+async function withPrivateStripeKeys(stripeSettings) {
+  const merged = { ...(stripeSettings || {}) };
+  const priv = await readAdminSecret("stripe");
+  if (priv.secretKey) merged.secretKey = priv.secretKey;
+  if (priv.testSecretKey) merged.testSecretKey = priv.testSecretKey;
+  return merged;
+}
+
 async function getStripeClientForMode(mode, stripeAccountId = null) {
   const settingsDoc = await db.collection("settings").doc("website").get();
   const settings = settingsDoc.exists ? settingsDoc.data() || {} : {};
-  const stripeSettings = settings.payments?.stripe || {};
+  const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
   const stripeSecret = mode === "test"
     ? stripeSettings.testSecretKey
     : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
@@ -220,6 +241,9 @@ async function sendEmail({ to, subject, html, secret }) {
   } catch (err) {
     console.warn("Failed to load notifications custom API Key:", err);
   }
+
+  const privateResend = await readAdminSecret("resend");
+  if (privateResend.apiKey) { apiKey = privateResend.apiKey; keySource = "settings"; }
 
   if (typeof apiKey === "string") apiKey = apiKey.trim();
   const recipients = Array.isArray(to) ? to.join(", ") : String(to || "");
@@ -412,6 +436,7 @@ async function fetchValidDiscount(code) {
   const data = docSnap.data();
   const isActive = data.isActive ?? data.active ?? true;
   if (!isActive) throw new Error("This code is not currently active");
+  if (data.startDate && String(data.startDate) > new Date().toISOString().slice(0, 10)) throw new Error("This code is not active yet");
   const expiry = data.expiryDate || data.expiry;
   if (expiry && expiry < new Date().toISOString()) throw new Error("This code has expired");
   if (data.usageLimit && (data.usageCount || 0) >= data.usageLimit) {
@@ -549,6 +574,21 @@ function computeDiscountAmount(discount, items, booksById) {
   if (discount.type === "percentage") return qualifying * (Number(discount.value) / 100);
   if (discount.type === "fixed") return Math.min(Number(discount.value), qualifying);
   return 0;
+}
+
+// "One use per customer": a customer (matched by email) who already has a paid order that used
+// this code cannot use it again. Runs on the trusted server path only.
+async function assertDiscountNotUsedByCustomer(discount, email) {
+  if (!discount.onePerCustomer) return;
+  const normalized = String(email || "").trim().toLowerCase();
+  if (!normalized) throw new Error("Enter your email address to use this code.");
+  const snap = await db.collection("orders")
+    .where("appliedDiscount.id", "==", discount.id)
+    .where("customer.email", "==", normalized)
+    .where("paymentStatus", "==", "paid")
+    .limit(1)
+    .get();
+  if (!snap.empty) throw new Error("You have already used this code.");
 }
 
 // Enforce customer targeting on the trusted server path. Client validation is
@@ -798,6 +838,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
     const verified = await fetchValidDiscount(order.appliedDiscount.code);
     verifiedDiscount = verified;
     validateDiscountCustomer(verified, order.customer?.email);
+    await assertDiscountNotUsedByCustomer(verified, order.customer?.email);
     discount = computeDiscountAmount(verified, items, booksById);
     appliedDiscount = { id: verified.id, code: verified.code, type: verified.type, value: verified.value };
   }
@@ -1147,6 +1188,7 @@ exports.createStripeCheckoutSession = onRequest(
           discount = await fetchValidDiscount(order.appliedDiscount.code);
           verifiedDiscount = discount;
           validateDiscountCustomer(discount, order.customer?.email);
+          await assertDiscountNotUsedByCustomer(discount, order.customer?.email);
           discountAmount = computeDiscountAmount(discount, items, booksById);
         } catch (discountErr) {
           res.status(400).json({ error: `Discount code error: ${discountErr.message}` });
@@ -1215,9 +1257,11 @@ exports.createStripeCheckoutSession = onRequest(
       const shippingCountryCode = getCountryCode((fulfillment?.method === 'pickup' ? fulfillment.address : order.customer?.address)?.country || order.customer?.billingAddress?.country || '');
       const ipCountryMatchesShipping = !ipCountry || ipCountry.toUpperCase() === shippingCountryCode.toUpperCase();
       const testMode = settings.payments?.testMode || false;
-      const stripeSettings = settings.payments?.stripe || {};
+      const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
 
       await orderRef.update({
+        // Lower-case so "one use per customer" cannot be dodged by changing the email's capitalisation.
+        ...(order.customer?.email ? { "customer.email": String(order.customer.email).trim().toLowerCase() } : {}),
         items: items.map(({ shippingProfileId, ...rest }) => rest),
         subtotal: subtotalTrusted,
         discount: discountAmount,
@@ -1389,7 +1433,7 @@ async function handleRegisterPaymentDomain(req, res) {
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.exists ? settingsDoc.data() : {};
       const testMode = settings.payments?.testMode || false;
-      const stripeSettings = settings.payments?.stripe || {};
+      const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
       const stripeSecret = testMode
         ? stripeSettings.testSecretKey
         : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
@@ -1425,7 +1469,7 @@ async function handleCheckoutStatus(req, res) {
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.exists ? settingsDoc.data() : {};
       const testMode = settings.payments?.testMode || false;
-      const stripeSettings = settings.payments?.stripe || {};
+      const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
       const stripeSecret = testMode
         ? stripeSettings.testSecretKey
         : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
@@ -1472,7 +1516,7 @@ exports.stripeWebhook = onRequest(
       if (settingsDoc.exists) {
         const settings = settingsDoc.data() || {};
         testMode = settings.payments?.testMode || false;
-        const stripeSettings = settings.payments?.stripe || {};
+        const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
         if (testMode && stripeSettings.testSecretKey) {
           stripeSecret = stripeSettings.testSecretKey;
         } else if (!testMode && stripeSettings.secretKey) {
