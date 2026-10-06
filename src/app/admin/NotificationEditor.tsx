@@ -5,6 +5,7 @@ import { functionUrl } from "../lib/functionsBase";
 import toast from "react-hot-toast";
 import { risoButton, risoLayout } from "./emailTheme";
 import { GmailSendingCard } from "./GmailSendingCard";
+import { adminApi } from "./api";
 import {
   DataTable, GhostButton, LoadingState, PrimaryButton, SaveBar, SectionCard, SectionHead, SecondaryButton, SelectField, StatusBadge, Tabs, TextArea, TextField, Toggle,
 } from "./riso/components";
@@ -33,6 +34,7 @@ type NotificationSettings = {
     brandColor: string;
     emailTheme?: "light" | "dark";
     resendApiKey?: string;
+    resendApiKeyStored?: boolean;
   };
   order_confirmation: TemplateFields;
   shipping_confirmation: TemplateFields;
@@ -240,6 +242,12 @@ export function NotificationEditor() {
           delivery_update: { ...DEFAULT_SETTINGS.delivery_update, ...(dbData.delivery_update || {}) },
           contact_reply: { ...DEFAULT_SETTINGS.contact_reply, ...(dbData.contact_reply || {}) }
         };
+        if (dbData.brand?.resendApiKey || dbData.resendApiKey) {
+          // Older saves left the key in the public doc: move it to adminSecrets now.
+          await adminApi.saveNotificationSettings({ ...dbData, brand: { ...(dbData.brand || {}), resendApiKey: dbData.brand?.resendApiKey || dbData.resendApiKey } }).catch(err => console.warn("Could not move Resend key:", err));
+          loaded.brand.resendApiKey = "";
+        }
+        loaded.brand.resendApiKeyStored = (await adminApi.getPrivateKeyFlags()).resend;
         setData(loaded);
         setOriginal(JSON.stringify(loaded));
       } else {
@@ -274,8 +282,7 @@ export function NotificationEditor() {
   async function handleSave() {
     setSaving(true);
     try {
-      const docRef = doc(db, "settings", "notifications");
-      await setDoc(docRef, data);
+      await adminApi.saveNotificationSettings(data);
       setOriginal(JSON.stringify(data));
       setResendDraft("");
       toast.success("Notification templates saved");
@@ -404,13 +411,13 @@ export function NotificationEditor() {
             <option value="dark">Dark (Riso Noir)</option>
           </SelectField>
           <TextField label="Resend API key" type="password" value={resendDraft}
-            placeholder={data.brand?.resendApiKey ? "Stored — enter a new key to replace it" : "re_…"}
-            hint={data.brand?.resendApiKey ? "✓ A key is stored. It is never shown here." : "Optional if the RESEND_API_KEY Functions secret is set."}
+            placeholder={(data.brand?.resendApiKey || data.brand?.resendApiKeyStored) ? "Stored — enter a new key to replace it" : "re_…"}
+            hint={(data.brand?.resendApiKey || data.brand?.resendApiKeyStored) ? "✓ A key is stored. It is never shown here." : "Optional if the RESEND_API_KEY Functions secret is set."}
             onChange={(e) => { setResendDraft(e.target.value); if (e.target.value.trim()) handleBrandChange("resendApiKey", e.target.value.trim()); }} />
         </div>
-        {data.brand?.resendApiKey && (
-          <p role="alert" className="rp-hint" style={{ margin: "12px 0 0", padding: 12, background: "var(--rp-warning-tint)", color: "var(--rp-warning)", border: "1px solid var(--rp-warning)" }}>
-            ⚠ This key is saved in a settings document the storefront can read. Prefer the RESEND_API_KEY Firebase Functions secret, then rotate this key.
+        {(data.brand?.resendApiKey || data.brand?.resendApiKeyStored) && (
+          <p className="rp-hint" style={{ margin: "12px 0 0" }}>
+            🔒 Kept in an admin-only store the storefront cannot read. If this key was ever saved before October 2026, rotate it in Resend.
           </p>
         )}
       </SectionCard>

@@ -297,13 +297,8 @@ function CommunicationsSettings({ settings, setSettings, hasChanges, saveSection
           color="violet"
         />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 relative z-10">
-          <InputField 
-            label="RESEND API KEY" 
-            placeholder="re_..."
-            type="password"
-            value={comms.resendApiKey || ""}
-            onChange={(e: any) => updateComms({ resendApiKey: e.target.value })}
-          />
+          <SecretField label="RESEND API KEY" placeholder="re_..." stored={!!(comms.resendApiKey || comms.resendApiKeyStored)}
+            onCommit={(v) => updateComms({ resendApiKey: v })} />
           <div className="text-xs text-slate-400 leading-relaxed self-center mt-6 font-medium">
             If left blank, the system falls back to the default backend key. Enter your own API key to bypass unverified sender restrictions and use custom transmitter addresses.
           </div>
@@ -1488,7 +1483,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
   const dirty = hasChanges("payments");
   const stripeLive = !!stripe.connected;
   const paypalLive = !!paypal.connected;
-  const secretStored = !!(stripe.secretKey || stripe.testSecretKey);
+  const secretStored = !!(stripe.secretKey || stripe.testSecretKey || stripe.secretKeyStored || stripe.testSecretKeyStored);
   const paymentIssues = useMemo(() => paymentHealth(settings.payments), [settings.payments]);
 
   const removeMethod = async (m: any) => {
@@ -1529,9 +1524,9 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
           {stripe.connected && (
             <>
               {secretStored && (
-                <div role="alert" style={{ padding: 16, background: "var(--rp-warning-tint)", border: "2px solid var(--rp-border-strong)" }}>
-                  <strong>⚠ Secret key stored in a readable settings document.</strong>{" "}
-                  Store settings can be read by the storefront (and anyone who requests them). Prefer the STRIPE_SECRET_KEY Firebase Functions secret, then rotate any key that was entered here.
+                <div style={{ padding: 16, background: "var(--rp-warning-tint)", border: "2px solid var(--rp-border-strong)" }}>
+                  <strong>🔒 Secret key stored privately.</strong>{" "}
+                  Secret keys are kept in an admin-only store the storefront cannot read. Rotate any key entered here before October 2026 — older saves were publicly readable.
                 </div>
               )}
               <div style={{ display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
@@ -1539,14 +1534,14 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
                   <div className="rp-sect">Live keys {!testMode && "· in use"}</div>
                   <div className="rp-stack" style={{ gap: 12 }}>
                     <InputField label="Publishable key" placeholder="pk_live_…" icon={Lock} value={stripe.publicKey || ""} onChange={(e: any) => updateStripe({ publicKey: e.target.value })} />
-                    <SecretField label="Secret key" placeholder="sk_live_…" stored={!!stripe.secretKey} onCommit={(v) => updateStripe({ secretKey: v })} />
+                    <SecretField label="Secret key" placeholder="sk_live_…" stored={!!(stripe.secretKey || stripe.secretKeyStored)} onCommit={(v) => updateStripe({ secretKey: v })} />
                   </div>
                 </div>
                 <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 1 : 0.75 }}>
                   <div className="rp-sect">Test keys {testMode && "· in use"}</div>
                   <div className="rp-stack" style={{ gap: 12 }}>
                     <InputField label="Test publishable key" placeholder="pk_test_…" icon={Lock} value={stripe.testPublicKey || ""} onChange={(e: any) => updateStripe({ testPublicKey: e.target.value })} />
-                    <SecretField label="Test secret key" placeholder="sk_test_…" stored={!!stripe.testSecretKey} onCommit={(v) => updateStripe({ testSecretKey: v })} />
+                    <SecretField label="Test secret key" placeholder="sk_test_…" stored={!!(stripe.testSecretKey || stripe.testSecretKeyStored)} onCommit={(v) => updateStripe({ testSecretKey: v })} />
                   </div>
                 </div>
               </div>

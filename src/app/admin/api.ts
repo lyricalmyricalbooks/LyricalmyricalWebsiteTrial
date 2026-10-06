@@ -1,5 +1,6 @@
 import { addressKey, addressIssues, packingKey, dispatchProblem, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
 import { themeWrite } from "./themeWrite";
+import { splitWebsiteSecrets, splitNotificationSecrets, type SecretPatch } from "./privateKeys";
 import { 
   collection, 
   getDocs, 
@@ -18,6 +19,7 @@ import {
   writeBatch,
   runTransaction,
   deleteField,
+  serverTimestamp,
 } from "firebase/firestore";
 import { 
   signInWithPopup, 
@@ -450,6 +452,23 @@ export const adminApi = {
     
     // Merge snap data with defaults to ensure new fields are present
     const merged: any = { ...defaultSettings, ...snap.data() };
+    // Move any secret keys still sitting in the public doc into adminSecrets, then
+    // expose only "stored" flags to the admin UI.
+    const raw: any = snap.data() || {};
+    if (raw.payments?.stripe?.secretKey || raw.payments?.stripe?.testSecretKey || raw.communications?.resendApiKey) {
+      const legacy: any = {};
+      if (raw.payments) legacy.payments = raw.payments;
+      if (raw.communications) legacy.communications = raw.communications;
+      const { publicSettings, secrets } = splitWebsiteSecrets(legacy);
+      try {
+        await adminApi.writePrivateKeys(secrets);
+        await setDoc(docRef, publicSettings, { mergeFields: Object.keys(publicSettings) });
+        Object.assign(merged, publicSettings);
+      } catch (err) { console.warn("Could not move secret keys out of public settings:", err); }
+    }
+    const flags = await adminApi.getPrivateKeyFlags();
+    merged.payments = { ...merged.payments, stripe: { ...(merged.payments?.stripe || {}), secretKeyStored: flags.stripeLive, testSecretKeyStored: flags.stripeTest } };
+    merged.communications = { ...merged.communications, resendApiKeyStored: flags.resend };
     // Older designs never chose a themeStyle: render them in Riso Noir (content untouched).
     if (merged.design) merged.design = withRisoNoirDefault(merged.design);
     if (merged.draftDesign) merged.draftDesign = withRisoNoirDefault(merged.draftDesign);
@@ -465,7 +484,9 @@ export const adminApi = {
 
   updateSettings: async (settings: any, options: { publish?: boolean } = {}) => {
     const docRef = doc(db, "settings", "website");
-    const { payload, options: writeOptions } = themeWrite(settings, options.publish);
+    const { publicSettings, secrets } = splitWebsiteSecrets(settings);
+    await adminApi.writePrivateKeys(secrets);
+    const { payload, options: writeOptions } = themeWrite(publicSettings, options.publish);
     await setDoc(docRef, payload, writeOptions);
     // The primary write already succeeded. An audit failure must not report a
     // failed publish and encourage a duplicate operation.
@@ -1052,6 +1073,26 @@ export const adminApi = {
       throw new Error(err.error || "Failed to generate shipping label.");
     }
     return await response.json();
+  },
+
+  // Secret API keys live only in the admin-only adminSecrets collection.
+  writePrivateKeys: async (secrets: SecretPatch) => {
+    if (secrets.stripe) await setDoc(doc(db, "adminSecrets", "stripe"), { ...secrets.stripe, updatedAt: serverTimestamp() }, { merge: true });
+    if (secrets.resend) await setDoc(doc(db, "adminSecrets", "resend"), { ...secrets.resend, updatedAt: serverTimestamp() }, { merge: true });
+  },
+
+  getPrivateKeyFlags: async () => {
+    const read = async (id: string) => { try { const s = await getDoc(doc(db, "adminSecrets", id)); return s.exists() ? s.data() as any : {}; } catch { return {}; } };
+    const [stripe, resend] = await Promise.all([read("stripe"), read("resend")]);
+    return { stripeLive: !!stripe.secretKey, stripeTest: !!stripe.testSecretKey, resend: !!resend.apiKey };
+  },
+
+  /** Save settings/notifications with the Resend key moved to adminSecrets. */
+  saveNotificationSettings: async (data: Record<string, any>) => {
+    const { publicData, secrets } = splitNotificationSecrets(data);
+    await adminApi.writePrivateKeys(secrets);
+    await setDoc(doc(db, "settings", "notifications"), publicData);
+    return publicData;
   },
 
   // Which customer emails are switched on (Settings › Notifications); used for dispatch previews.

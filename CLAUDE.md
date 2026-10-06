@@ -508,12 +508,12 @@ it. Don't add new compat rules for new work; compose the components instead.
 
 ## Security notes
 
-- **Public-readable settings hold secrets (owner decision pending).** `firestore.rules`
-  allows `read: if true` on `settings/{docId}`; Settings › Payments can write Stripe
-  **secret** keys into `settings/website`, and Notifications can write the Resend key into
-  `settings/notifications`. The UI now treats them as write-only and warns, but the stored
-  values remain publicly readable. Fix: use Functions secrets / an admin-only collection,
-  update `functions/index.js`, and rotate any key ever entered in the admin.
+- **Secret keys live only in admin-only `adminSecrets/*`** (`stripe`: `secretKey`/`testSecretKey`,
+  `resend`: `apiKey`, `gmail`: `appPassword`). `admin/privateKeys.ts` strips them from every
+  `settings/website` / `settings/notifications` write (`adminApi.updateSettings`, `saveNotificationSettings`);
+  the UI only sees `*Stored` flags. Opening Settings moves any legacy public copy automatically.
+  Functions read `adminSecrets` first (`withPrivateStripeKeys`, `readAdminSecret`), then legacy settings, then
+  Functions secrets. Keys ever entered before this change were public — rotate them.
 
 ## Conventions & gotchas
 
