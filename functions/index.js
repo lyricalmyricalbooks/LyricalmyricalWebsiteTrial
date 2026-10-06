@@ -2818,9 +2818,11 @@ exports.abandonedCartSweep = onSchedule(
 
       // One reminder per address per throttle window, however many cart docs exist for it.
       const throttleRef = db.collection("abandoned-cart-throttle").doc(crypto.createHash("sha256").update(email).digest("hex"));
+      let previousThrottle = null;
       const throttled = await db.runTransaction(async tx => {
         const t = await tx.get(throttleRef);
         if (t.exists && Date.now() - Date.parse(t.data().lastSentAt || 0) < ABANDONED_CART_THROTTLE_MS) return true;
+        previousThrottle = t.exists ? t.data() : null;
         tx.set(throttleRef, { lastSentAt: new Date().toISOString() });
         return false;
       }).catch(() => true);
@@ -2863,6 +2865,8 @@ exports.abandonedCartSweep = onSchedule(
         });
         await doc.ref.update({ notified: true, notifiedAt: new Date().toISOString() });
       } catch (err) {
+        // Release the claim so a failed send doesn't block this address's reminder.
+        await (previousThrottle ? throttleRef.set(previousThrottle) : throttleRef.delete()).catch(() => {});
         console.error("Abandoned cart email failed", err);
       }
     });
