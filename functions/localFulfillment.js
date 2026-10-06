@@ -7,7 +7,12 @@ const pickupAreas = (location) => Array.isArray(location?.postalPrefixes) ? loca
 const money = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1000000 && Math.abs(value * 100 - Math.round(value * 100)) < 0.000001;
 const canadian = country => ['CA', 'CANADA'].includes(String(country || '').trim().toUpperCase());
 function validPickupAddress(address) {
-  return !!address && ['street', 'city', 'state'].every(key => typeof address[key] === 'string' && address[key].trim()) && /^(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT|ONTARIO|QUEBEC|BRITISH COLUMBIA|ALBERTA|MANITOBA|SASKATCHEWAN|NOVA SCOTIA|NEW BRUNSWICK|NEWFOUNDLAND AND LABRADOR|PRINCE EDWARD ISLAND|YUKON|NUNAVUT|NORTHWEST TERRITORIES)$/.test(String(address.state).trim().toUpperCase()) && canadian(address.country) && postalPattern.test(normalizePostalCode(address.zip || address.postalCode));
+  // The street and postal code are optional: a shop may share its exact pickup spot after the order.
+  // Province and country are required because they set the tax for pickup orders.
+  if (!address || typeof address.state !== 'string' || !canadian(address.country)) return false;
+  if (!/^(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT|ONTARIO|QUEBEC|BRITISH COLUMBIA|ALBERTA|MANITOBA|SASKATCHEWAN|NOVA SCOTIA|NEW BRUNSWICK|NEWFOUNDLAND AND LABRADOR|PRINCE EDWARD ISLAND|YUKON|NUNAVUT|NORTHWEST TERRITORIES)$/.test(address.state.trim().toUpperCase())) return false;
+  const zip = normalizePostalCode(address.zip || address.postalCode);
+  return !zip || postalPattern.test(zip);
 }
 function validateLocalFulfillment(config) {
   const errors = [];
@@ -23,7 +28,7 @@ function validateLocalFulfillment(config) {
       for (const field of ['instructions', 'hours', 'estimate']) if (record?.[field] !== undefined && (typeof record[field] !== 'string' || record[field].length > 4000)) errors.push('Public instructions, hours and estimates must be text up to 4000 characters.');
       if (kind === 'pickup' && (!record?.address || typeof record.address !== 'object' || Array.isArray(record.address) || !['street', 'city', 'state', 'zip', 'country'].every(key => typeof record.address[key] === 'string'))) errors.push('Pickup address fields must be text, even while disabled.');
       if (kind === 'pickup' && record?.postalPrefixes !== undefined && (!Array.isArray(record.postalPrefixes) || record.postalPrefixes.length > 500 || record.postalPrefixes.some((value) => !pickupAreaPattern.test(normalizePostalCode(value))))) errors.push('Pickup areas must be Canadian postal prefixes of one to three characters, such as M for Toronto (maximum 500).');
-      if (kind === 'pickup' && record?.enabled && !validPickupAddress(record.address)) errors.push('Enabled pickup needs a complete Canadian address and valid postal code.');
+      if (kind === 'pickup' && record?.enabled && !validPickupAddress(record.address)) errors.push('Pickup needs a Canadian province (e.g. ON); a postal code, if entered, must be valid.');
       if (kind === 'delivery') {
         if (!money(record?.minimumSubtotal)) errors.push('Delivery minimum must be a valid non-negative amount.');
         const prefixes = record?.postalPrefixes, codes = record?.postalCodes;

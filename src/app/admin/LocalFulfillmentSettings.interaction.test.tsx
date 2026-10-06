@@ -36,11 +36,11 @@ it('keeps unsaved records when the parent switches Shipping views', async () => 
   await act(async () => root.render(<ShippingViews />));
   const button = (label: string) => Array.from(container.querySelectorAll('button')).find(b => b.textContent === label)!;
   await act(async () => button('Add pickup location').click());
-  expect(container.textContent).toContain('Local pickup (Toronto)');
+  expect(container.textContent).toContain('Name shoppers see');
   await act(async () => button('Switch view').click());
   expect(container.textContent).toContain('Overview');
   await act(async () => button('Switch view').click());
-  expect(container.textContent).toContain('Local pickup (Toronto)');
+  expect(container.textContent).toContain('Name shoppers see');
   expect(getSettings).toHaveBeenCalledTimes(1);
   await act(async () => root.unmount());
 });
@@ -51,10 +51,23 @@ it('does not accept edits before delayed settings arrive', async () => {
   await act(async () => root.render(<LocalFulfillmentSettings />));
   const add = Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Add pickup location')!;
   await act(async () => add.click());
-  expect(container.textContent).not.toContain('Local pickup (Toronto)');
+  expect(container.textContent).not.toContain('Name shoppers see');
   await act(async () => resolve({ localFulfillment: { enabled: false, pickupLocations: [], deliveryZones: [] } }));
   expect(add.matches(':disabled')).toBe(false);
   await act(async () => add.click());
-  expect(container.textContent).toContain('Local pickup (Toronto)');
+  expect(container.textContent).toContain('Name shoppers see');
+  await act(async () => root.unmount());
+});
+
+it('one switch turns on free Toronto pickup and saves it without an address', async () => {
+  const { adminApi } = await import('./api');
+  getSettings.mockResolvedValue({ localFulfillment: { enabled: false, pickupLocations: [], deliveryZones: [] } });
+  const root = createRoot(container);
+  await act(async () => root.render(<LocalFulfillmentSettings />));
+  const quick = Array.from(container.querySelectorAll<HTMLElement>('[role="switch"]')).find(el => el.closest('label, div')?.textContent?.includes('Free local pickup for Toronto'))!;
+  await act(async () => quick.click());
+  const saved = (adminApi.updateLocalFulfillment as any).mock.calls.at(-1)[0];
+  expect(saved.enabled).toBe(true);
+  expect(saved.pickupLocations[0]).toMatchObject({ enabled: true, price: 0, postalPrefixes: ['M'], address: { street: '', city: 'Toronto', state: 'ON' } });
   await act(async () => root.unmount());
 });

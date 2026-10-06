@@ -80,3 +80,10 @@ describe('pickup limited to Toronto', () => {
     expect(validateLocalFulfillment(bad).length).toBeGreaterThan(0);
   });
 });
+it('an enabled pickup needs only a province, not a street address', () => {
+  const noStreet: any = { enabled: true, deliveryZones: [], pickupLocations: [{ id: 'p', enabled: true, name: 'Local pickup', price: 0, postalPrefixes: ['M'], address: { street: '', city: 'Toronto', state: 'ON', zip: '', country: 'Canada' } }] };
+  expect(validateLocalFulfillment(noStreet)).toEqual([]);
+  expect(server.validateLocalFulfillment(noStreet)).toEqual([]);
+  expect(quoteLocalFulfillment(noStreet, { zip: 'M6G3H1', country: 'CA' }, 3, [{ quantity: 1 }])).toEqual(server.quoteLocalFulfillment(noStreet, { zip: 'M6G3H1', country: 'CA' }, 3, [{ quantity: 1 }]));
+  expect(quoteLocalFulfillment(noStreet, { zip: 'M6G3H1', country: 'CA' }, 3, [{ quantity: 1 }])).toHaveLength(1);
+});

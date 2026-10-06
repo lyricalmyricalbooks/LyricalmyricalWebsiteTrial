@@ -34,7 +34,7 @@ export function FulfillmentMethodPicker({ method, optionId, onSelect, shippingQu
               onChange={() => onSelect({ method: choice.method === 'pickup' ? 'pickup' : shippingList ? 'shipping' : method, optionId: choice.id })} className="mt-1 h-4 w-4 accent-[color:var(--accent)]" />
             <span className="space-y-1 text-sm text-slate-700">
               <strong className="block text-slate-950">{choice.name}</strong>
-              {'address' in choice && choice.address && <span className="block">{choice.address.street}, {choice.address.city}, {choice.address.state} {choice.address.zip}</span>}
+              {'address' in choice && choice.address?.street && <span className="block">{[choice.address.street, choice.address.city, [choice.address.state, choice.address.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')}</span>}
               {'hours' in choice && choice.hours && <span className="block">{words.hours} {choice.hours}</span>}
               {'instructions' in choice && choice.instructions && <span className="block whitespace-pre-wrap">{words.instructions} {choice.instructions}</span>}
               {'estimate' in choice && choice.estimate && <span className="block">{words.estimate} {choice.estimate}</span>}

@@ -6,7 +6,7 @@ import { PrimaryButton, SecondaryButton, DestructiveButton, SectionCard, TextFie
 
 // Toronto postal codes all begin with M.
 const TORONTO_AREA = ['M'];
-const TORONTO_PICKUP = { name: 'Local pickup (Toronto)', estimate: 'Ready in 1–2 business days' };
+const newTorontoPickup = () => ({ id: crypto.randomUUID(), enabled: false, name: 'Local pickup', price: 0, postalPrefixes: [...TORONTO_AREA], address: { street: '', city: 'Toronto', state: 'ON', zip: '', country: 'Canada' }, instructions: 'Free pickup for those in Toronto. We\u2019ll email you the pickup details.', hours: '', estimate: '' });
 
 export function useLocalFulfillmentDraft(load = true) {
   const [config, setConfig] = useState<LocalFulfillmentConfig>({ enabled: false, pickupLocations: [], deliveryZones: [] });
@@ -43,14 +43,35 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
   function move(kind: 'pickupLocations' | 'deliveryZones', index: number, offset: number) {
     setConfig(current => { const records = [...current[kind]]; const target = index + offset; if (target < 0 || target >= records.length) return current; [records[index], records[target]] = [records[target], records[index]]; return { ...current, [kind]: records }; });
   }
+  const pickupOn = config.enabled && config.pickupLocations.some(location => location.enabled);
+  async function save(next: LocalFulfillmentConfig) {
+    const problems = validateLocalFulfillment(next);
+    if (problems.length) { setNotice(problems.join(' ')); return false; }
+    setBusy(true);
+    try { await adminApi.updateLocalFulfillment(next); setNotice('Local fulfillment saved.'); return true; }
+    catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save local fulfillment.'); return false; }
+    finally { setBusy(false); }
+  }
+  // One click: turn on (creating a Toronto pickup if there isn't one) or off, and save straight away.
+  async function setQuickPickup(on: boolean) {
+    const locations = config.pickupLocations.length ? config.pickupLocations : [newTorontoPickup()];
+    const next = on
+      ? { ...config, enabled: true, pickupLocations: locations.map((location, index) => index === 0 ? { ...location, enabled: true, address: { ...location.address, state: location.address.state || 'ON', country: location.address.country || 'Canada' } } : location) }
+      : { ...config, pickupLocations: config.pickupLocations.map(location => ({ ...location, enabled: false })) };
+    const previous = config;
+    setConfig(next);
+    if (!(await save(next))) setConfig(previous);
+  }
   const quotes = quoteLocalFulfillment(config, { country: 'CA', zip: postal }, subtotal === '' ? NaN : Number(subtotal), [{ quantity: 1 }]);
   return <div className="rp-stack">
     <fieldset disabled={!loaded || busy} style={{ border: 0, padding: 0, margin: 0 }} className="rp-stack">
     <SectionCard title="Pickup & local delivery" description="Let Toronto shoppers collect their order in person, and deliver to nearby postal areas. Everything starts switched off until you turn it on. Storefront labels and look are in Studio.">
-      <Toggle label="Enable local fulfillment" checked={config.enabled} onChange={enabled => setConfig({ ...config, enabled })} />
+      <Toggle label="Free local pickup for Toronto shoppers" checked={pickupOn} onChange={on => void setQuickPickup(on)} />
+      <p className="rp-hint">{pickupOn ? 'On — shoppers with a Toronto postal code (starting with M) see a free "Local pickup" option at checkout. This switch saves immediately.' : 'Off. Switch on to offer free pickup to Toronto shoppers — no other setup needed. You can add your address, hours and instructions below.'}</p>
+      <Toggle label="Enable local fulfillment (pickup and delivery)" checked={config.enabled} onChange={enabled => setConfig({ ...config, enabled })} />
     </SectionCard>
 
-    <SectionCard title="Local pickup" description="Shoppers whose address is in the pickup area see a free (or low-fee) pickup option at checkout. Toronto postal codes all start with M." actions={<SecondaryButton onClick={() => setConfig({ ...config, pickupLocations: [...config.pickupLocations, { id: crypto.randomUUID(), enabled: false, name: TORONTO_PICKUP.name, price: 0, postalPrefixes: [...TORONTO_AREA], address: { street: '', city: 'Toronto', state: 'ON', zip: '', country: 'Canada' }, instructions: '', hours: '', estimate: TORONTO_PICKUP.estimate }] })}>Add pickup location</SecondaryButton>}>
+    <SectionCard title="Local pickup" description="Shoppers whose address is in the pickup area see a free (or low-fee) pickup option at checkout. Toronto postal codes all start with M." actions={<SecondaryButton onClick={() => setConfig({ ...config, pickupLocations: [...config.pickupLocations, newTorontoPickup()] })}>Add pickup location</SecondaryButton>}>
       {!config.pickupLocations.length && <p className="rp-hint">No pickup location yet. Choose <strong>Add pickup location</strong> — it starts set up for Toronto; fill in your street address and postal code, then switch it on.</p>}
     </SectionCard>
     {config.pickupLocations.map((record, index) => {
@@ -68,7 +89,7 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
           {area === 'custom' && <TextArea label="Pickup postal areas" hint="One to three characters each (e.g. M for all of Toronto, M6G for one neighbourhood), separated by commas or new lines." value={areas.join(', ')} onChange={e => patch('pickupLocations', record.id, { postalPrefixes: e.target.value.split(/[,\n]/).map(v => v.trim()).filter(Boolean) })} />}
           <TextField label="Pickup fee (CAD)" hint="Use 0 for free pickup." type="number" min={0} step="0.01" value={Number.isFinite(record.price) ? record.price : ''} onChange={e => patch('pickupLocations', record.id, { price: e.target.value === '' ? NaN : Number(e.target.value) })} />
           <p className="rp-hint"><strong>Where shoppers collect it</strong></p>
-          {(['street', 'city', 'state', 'zip', 'country'] as const).map(field => <TextField key={field} label={{ street: 'Street address', city: 'City', state: 'Province (e.g. ON)', zip: 'Postal code', country: 'Country' }[field]} value={record.address[field]} onChange={e => patch('pickupLocations', record.id, { address: { ...record.address, [field]: e.target.value } })} />)}
+          {(['street', 'city', 'state', 'zip', 'country'] as const).map(field => <TextField key={field} label={{ street: 'Street address (optional)', city: 'City', state: 'Province (e.g. ON)', zip: 'Postal code (optional)', country: 'Country' }[field]} value={record.address[field]} onChange={e => patch('pickupLocations', record.id, { address: { ...record.address, [field]: e.target.value } })} />)}
           <TextArea label="Opening hours" value={record.hours ?? ''} onChange={e => patch('pickupLocations', record.id, { hours: e.target.value })} />
           <TextArea label="Pickup instructions" hint="E.g. ring the bell, bring your order number." value={record.instructions ?? ''} onChange={e => patch('pickupLocations', record.id, { instructions: e.target.value })} />
           <TextField label="When it's ready" hint="E.g. Ready in 1–2 business days." value={record.estimate ?? ''} onChange={e => patch('pickupLocations', record.id, { estimate: e.target.value })} />
@@ -100,7 +121,7 @@ export function LocalFulfillmentSettings({ draft }: { draft?: ReturnType<typeof 
     </SectionCard>
     {!!errors.length && <SectionCard title="Fix before saving"><ul>{errors.map(error => <li key={error}>{error}</li>)}</ul></SectionCard>}
     <p role="status">{notice}</p>
-    <PrimaryButton disabled={!loaded || busy || errors.length > 0} onClick={async () => { setBusy(true); try { await adminApi.updateLocalFulfillment(config); setNotice('Local fulfillment saved.'); } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save local fulfillment.'); } finally { setBusy(false); } }}>Save local fulfillment</PrimaryButton>
+    <PrimaryButton disabled={!loaded || busy || errors.length > 0} onClick={() => void save(config)}>Save local fulfillment</PrimaryButton>
     </fieldset>
   </div>;
 }
