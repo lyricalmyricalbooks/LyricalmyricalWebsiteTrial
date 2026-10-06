@@ -19,9 +19,13 @@ starts normally and continues loading live catalog and checkout data.
 - Merge and deploy through the existing GitHub Pages workflow. Generated HTML
   lives only in `dist`; it is not committed and no Firebase deployment is needed.
 
-Snapshots refresh on deployment. After publishing catalog, page or Studio
-changes, rerun the Pages workflow so the first HTML response reflects the saved
-content. Live React data, authoritative prices and checkout validation remain
+Snapshots refresh on deployment. The Pages workflow checks published catalog,
+page and Studio data every 15 minutes (at minutes 7, 22, 37 and 52). GitHub may
+delay scheduled jobs. A SHA-256 fingerprint is compared against the marker in
+the deployed site; unchanged content skips installation/build/deployment. Public
+changes and scheduled releases trigger a rebuild; Studio draft-only edits do not.
+A failed read fails the check, and a failed deployment never advances the marker.
+Manual workflow dispatch and pushes to main always build. Live React data, authoritative prices and checkout validation remain
 in force between deployments. Removed books/pages lose their generated route at
 the next build, while the existing missing-page recovery handles unknown URLs.
 
@@ -57,3 +61,28 @@ within one build, reducing repeated catalog reads. It is held only in the
 renderer process and browser session; it is never embedded in generated HTML.
 
 Public catalog pagination uses document IDs so legacy books without `createdAt` remain consistent with the sitemap. Admin ordering and catalog records are unchanged. Rendering contexts decline analytics and marketing consent before app startup, preventing optional custom tracking scripts from running. Custom pages must finish loading their expected slug before capture.
+
+## Catalog and category indexing
+
+Studio's published visible shop categories (including visible children) generate
+collection sitemap entries. Hidden categories/children and disconnected legacy
+`collections` documents do not. Their existing MainSite routes get category-specific
+Studio copy and category descriptions; capture waits for the selected category.
+
+Books > Search (SEO) > Exclude this listing from search engines saves `seoNoindex`.
+Excluded books stay in the shop and keep their URLs, prices and inventory. They
+are omitted from the sitemap but included in public HTML rendering, with `noindex,
+follow`, so crawlers can read the exclusion. The build-only route manifest is
+`dist/prerender-routes.xml`; the published fingerprint contains only a digest.
+
+## Google Search Console
+
+Add a URL-prefix property for
+`https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/`.
+Choose HTML tag verification. Copy its `content` token into Studio > Text & labels
+> Site & sharing > Google Search Console verification token, then Publish.
+The next HTML refresh emits that public verification meta tag. Finish Verify in
+Search Console, then submit `sitemap.xml` in the property's Sitemaps screen.
+Firebase authentication does not authorize Search Console; verification and
+submission still require the owner's Google access. The token can be cleared to
+remove the tag on the next deployment. No private OAuth secret is saved in Studio.

@@ -18,6 +18,7 @@ export type Book = {
   metaTitle?: string;
   metaDescription?: string;
   seoImage?: string;
+  seoNoindex?: boolean;
   id: string;
   title: string;
   subtitle?: string;

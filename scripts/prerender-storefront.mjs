@@ -13,7 +13,7 @@ const dist = resolve(root, 'dist');
 const siteUrl = (process.env.SITE_URL || 'https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial').replace(/\/$/, '');
 const base = (process.env.SITE_BASE ?? new URL(siteUrl).pathname).replace(/\/+$/, '');
 const template = await readFile(resolve(dist, 'index.html'), 'utf8');
-const routes = publicRoutes(await readFile(resolve(dist, 'sitemap.xml'), 'utf8'), siteUrl);
+const routes = publicRoutes(await readFile(resolve(dist, 'prerender-routes.xml'), 'utf8'), siteUrl);
 if (!routes.includes('/')) throw new Error('Public sitemap must include the home page');
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.woff2': 'font/woff2' };
 // Always serve the pristine shell during capture. Write snapshots only after all
@@ -62,11 +62,13 @@ try {
         await page.waitForFunction(() => !!document.querySelector('[data-studio-label="Product page"]') && !!document.getElementById('seo-jsonld-page'), undefined, { timeout: 30000 });
       } else if (route.startsWith('/page/')) {
         await page.waitForFunction(slug => document.querySelector('[data-seo-page]')?.getAttribute('data-seo-page') === slug, decodeURIComponent(route.slice('/page/'.length)), { timeout: 30000 });
+      } else if (route.startsWith('/collections/')) {
+        await page.waitForFunction(slug => document.querySelector('[data-seo-collection]')?.getAttribute('data-seo-collection') === slug, decodeURIComponent(route.slice('/collections/'.length)), { timeout: 30000 });
       } else {
         await page.locator('[data-fm-store]').first().waitFor();
       }
       // Finish React effects, lazy sections and motion before serializing DOM.
-      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+      await page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => {});
       await page.evaluate(async () => {
         const frames = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         // Reveal real below-the-fold content before freezing its entrance

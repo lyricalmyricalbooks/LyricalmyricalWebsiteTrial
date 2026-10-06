@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
 
 permissions:
   contents: read
@@ -12,7 +14,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
 
 jobs:
   deploy:
@@ -32,15 +34,25 @@ jobs:
           node-version: 20
           cache: pnpm
 
+      - name: Check published content
+        id: published
+        if: github.event_name == 'schedule'
+        run: node scripts/check-published-change.mjs
+
       - run: pnpm install --frozen-lockfile
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
 
       - run: pnpm exec playwright install --with-deps chromium
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
 
       - run: pnpm run build
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
 
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
         with:
           path: ./dist
 
       - id: deployment
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
         uses: actions/deploy-pages@v4

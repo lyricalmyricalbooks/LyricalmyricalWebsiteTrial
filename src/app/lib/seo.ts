@@ -80,6 +80,9 @@ export function useSEO(seo: SEO) {
     setMeta('meta[name="robots"]', "content", seo.noindex || preview || /^\/(admin|checkout|account|wishlist|cart|track)(\/|$)/.test(location.pathname) ? "noindex, follow" : "index, follow");
     const type = seo.type || "website";
 
+    const verification = getCopy(design, "googleSiteVerification").trim();
+    if (verification) setMeta('meta[name="google-site-verification"]', "content", verification);
+    else document.head.querySelector('meta[name="google-site-verification"]')?.remove();
     document.title = title;
     setMeta('meta[name="description"]', "content", description);
     setMeta('meta[property="og:title"]', "content", title);

@@ -43,3 +43,10 @@ it("retains product-only controls over catalog defaults on the product renderer"
   expect(resolveProductDesign(resolveSurfaceDesign(d, "/books/example"))).toMatchObject({
     productAlignment: "right", regions: { productDescriptionSize: 30, catalogStockVisible: false } });
 });
+
+it('keeps shared Studio categories ahead of stale page-specific category snapshots', () => {
+ const categories = [{ id: 'books', name: 'Books' }];
+ const design = { categories, storefront: { categories: [] }, collectionPage: { categories: ['Old'] } };
+ expect(resolveSurfaceDesign(design, '/collections/books').categories).toBe(categories);
+ expect(resolveMainDesign(design, true, true).categories).toBe(categories);
+});

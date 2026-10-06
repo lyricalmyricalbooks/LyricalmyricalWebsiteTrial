@@ -486,3 +486,15 @@ Public SEO/catalog pagination uses document IDs so records without `createdAt` a
 - Order tracking (`features/site/OrderTracking.tsx`) is a Riso order slip (`features/site/trackingStyle.ts`,
   `fm-track-*`, token-only). An unpaid Stripe order re-checks automatically and offers **Check payment again**
   (Text & labels › Order tracking › `trackRecheck`, `trackRechecking`, `trackStillUnpaid`).
+
+## Automatic SEO refresh and catalog search controls
+
+The Pages workflow checks published Firestore catalog/pages/settings every 15 minutes,
+compares the published-content SHA-256 marker, and rebuilds only on a change. Draft-only
+Studio edits do not trigger refreshes; scheduled release visibility does. Push/manual
+builds always run. Only successful deployments advance the public digest marker.
+Studio visible categories (including visible children) own collection sitemap URLs and
+collection SEO copy. Books > Search (SEO) exposes `seoNoindex`: excluded books remain
+available to shoppers, receive noindex HTML, and are omitted from the sitemap.
+Studio > Text & labels > Site & sharing owns the public Google Search Console verification
+token. Google property verification/submission still requires the owner's Search Console access.
