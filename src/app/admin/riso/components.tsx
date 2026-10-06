@@ -37,6 +37,8 @@ export function AppShell({ appearance = "light", sidebar, topbar, children, main
 export type NavEntry = {
   id: string; label: string; icon: React.ComponentType<{ size?: number; "aria-hidden"?: boolean }>;
   children?: Array<{ id: string; label: string }>;
+  /** Count of things waiting on this page (e.g. orders to ship); hidden at 0. */
+  badge?: number;
 };
 
 export function Sidebar({ brand, items, activeId, activeChildId, onSelect, onSelectChild, open, onClose, footer }: {
@@ -66,6 +68,9 @@ export function Sidebar({ brand, items, activeId, activeChildId, onSelect, onSel
                   >
                     <Icon size={18} aria-hidden />
                     {item.label}
+                    {!!item.badge && (
+                      <span className="rp-nav-badge" aria-label={`${item.badge} need attention`}>{item.badge > 99 ? "99+" : item.badge}</span>
+                    )}
                     {item.children && <ChevronRight size={14} className="rp-nav-chevron" aria-hidden />}
                   </button>
                   {item.children && active && (

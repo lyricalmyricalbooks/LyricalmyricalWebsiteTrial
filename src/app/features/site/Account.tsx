@@ -1,6 +1,7 @@
 import { regionProps } from "./storefrontRegions";
 import { getTrackingUrl } from "../../lib/tracking";
 import { accountsEnabled } from "./customerAccounts";
+import { statusCopyKey, statusTone, trackLink } from "./orderStatus";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import {
@@ -53,6 +54,9 @@ type CustomerProfile = {
     country: string;
   };
 };
+
+// Card/PayPal checkouts that were never paid are abandoned attempts, not orders.
+const isAbandonedCheckout = (o: any) => o.paymentStatus === "unpaid" && o.status === "pending_payment" && ["Stripe", "PayPal"].includes(o.paymentMethod);
 
 export default function AccountPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -195,7 +199,7 @@ export default function AccountPage() {
         const snap = await getDocs(q);
         const loadedOrders = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
-          .filter((order: any) => order.isTest !== true);
+          .filter((order: any) => order.isTest !== true && !isAbandonedCheckout(order));
         setOrders(loadedOrders);
         checkDigitalAssets(loadedOrders);
       } catch {
@@ -206,7 +210,7 @@ export default function AccountPage() {
         const snap = await getDocs(fallbackQuery);
         const loadedOrders = snap.docs
           .map(d => ({ id: d.id, ...(d.data() as any) }))
-          .filter((order: any) => order.isTest !== true)
+          .filter((order: any) => order.isTest !== true && !isAbandonedCheckout(order))
           .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
           .slice(0, 50);
         setOrders(loadedOrders);
@@ -727,20 +731,20 @@ export default function AccountPage() {
                       <div className="flex items-center gap-6 self-stretch md:self-auto justify-between border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
                         <div className="flex items-center gap-3">
                           {(() => {
-                            // Dispatch also sets status "completed", so a parcel still on its way is not "Delivered".
-                            const inTransit = ["shipped", "out_for_delivery"].includes(o.fulfillmentStatus);
-                            const isDelivered = !inTransit && (["delivered", "collected"].includes(o.fulfillmentStatus) || o.status === "completed");
+                            const tone = statusTone(o);
                             return (
                               <span
                                 className={`text-[8px] font-black tracking-widest uppercase px-3.5 py-1.5 rounded-xl border ${
-                                  isDelivered
+                                  tone === "success"
                                     ? ""
-                                    : inTransit
+                                    : tone === "info"
                                     ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"
+                                    : tone === "danger"
+                                    ? "bg-red-500/10 text-red-400 border-red-500/20"
                                     : "bg-amber-500/10 text-amber-400 border-amber-500/20"
                                 }`}
                                 style={
-                                  isDelivered
+                                  tone === "success"
                                     ? {
                                         backgroundColor: "rgba(var(--success-rgb), 0.1)",
                                         color: "var(--success)",
@@ -749,7 +753,7 @@ export default function AccountPage() {
                                     : undefined
                                 }
                               >
-                                {getCopy(settings?.design, isDelivered ? "accountDelivered" : o.fulfillmentStatus === "out_for_delivery" ? "trackOutForDelivery" : o.fulfillmentStatus === "shipped" ? "accountShipped" : o.fulfillmentStatus === "processing" ? "accountProcessing" : "accountUnfulfilled")}
+                                {getCopy(settings?.design, statusCopyKey(o))}
                               </span>
                             );
                           })()}
@@ -783,6 +787,13 @@ export default function AccountPage() {
                     {/* Expanded details container */}
                     {isExpanded && (
                       <div className="p-8 border-t border-white/5 bg-white/[0.01] space-y-8 animate-in fade-in duration-300">
+                        <Link
+                          {...regionProps("accountTrackOrder")}
+                          to={trackLink(o)}
+                          className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.25em] fm-accent-text hover:underline"
+                        >
+                          {getCopy(settings?.design, "accountTrackOrder")} →
+                        </Link>
                         
                         {/* E-book downloads section */}
                         {Object.keys(orderDigitalAssets).length > 0 && o.paymentStatus === 'paid' && (

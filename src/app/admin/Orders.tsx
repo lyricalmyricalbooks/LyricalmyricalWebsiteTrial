@@ -1,11 +1,11 @@
 import "./fulfillment.css";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Download, Trash2 } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
 import { WORK_QUEUES, queueOf, packingKey, daysInTransit, isOverdueInTransit } from "./fulfillment";
 import { printOrders } from "./orderPrint";
-import { orderApi, type FulfillmentStatus } from "../lib/commerce";
+import { orderApi } from "../lib/commerce";
 import {
   Checkbox,
   ConfirmDialog,
@@ -33,25 +33,92 @@ import {
 // Measured impact: significantly reduces main thread blocking during active typing in search.
 const orderSearchCache = new WeakMap<any, string>();
 
+// The list remembers where you were (queue, search, page, sort) and its last
+// loaded orders, so "Back to orders" returns instantly to the same spot.
+const listMemory: {
+  activeTab: string;
+  searchQuery: string;
+  page: number;
+  sort: "newest" | "oldest" | "total-desc" | "total-asc";
+  orders: any[] | null;
+} = { activeTab: "Needs attention", searchQuery: "", page: 1, sort: "oldest", orders: null };
+
+// Orders waiting on the publisher (shown as the nav badge and on the Overview).
+export const ACTION_QUEUES = ["Needs attention", "Ready to pack", "Ready to ship", "Ready for pickup", "Ready for local delivery"];
+export const ordersNeedingWork = (orders: any[]) => orders.filter((o) => o.isTest !== true && ACTION_QUEUES.includes(queueOf(o))).length;
+
+// Loads every order (with fulfillment records) and keeps it for the list's instant return.
+export async function refreshOrdersCache() {
+  const data = await adminApi.getFulfillmentOrders();
+  listMemory.orders = data;
+  return data;
+}
+
+// Open the first work queue that has orders in it (Overview "Ship orders").
+export function openFirstActionQueue() {
+  const orders = (listMemory.orders || []).filter((o) => o.isTest !== true);
+  openOrdersQueue(ACTION_QUEUES.find((q) => orders.some((o) => queueOf(o) === q)) || "Needs attention");
+}
+
+// Open the Orders list on a given work queue (Overview "To do today", nav badge).
+export function openOrdersQueue(queue: string) {
+  if (WORK_QUEUES.includes(queue)) {
+    listMemory.activeTab = queue;
+    listMemory.page = 1;
+    listMemory.sort = queue === "All orders" ? "newest" : "oldest";
+  }
+}
+
+type BatchKind = "pack" | "ship" | "deliver";
+const BATCH: Record<BatchKind, { button: string; title: string; text: (n: number) => string; done: string }> = {
+  pack: {
+    button: "Mark packed",
+    title: "Confirm selected books are packed?",
+    text: (n) => `Confirm you checked every book and quantity in ${n} selected orders. Orders that still need an address review or are on hold are skipped and listed below.`,
+    done: "packed",
+  },
+  ship: {
+    button: "Mark shipped",
+    title: "Mark selected parcels shipped?",
+    text: (n) => `Use this after handing ${n} labelled parcels to the carrier. Each customer gets the Shipping confirmation email with their tracking. Orders without a Shippo label are skipped — open them to enter tracking.`,
+    done: "shipped, customer emailed",
+  },
+  deliver: {
+    button: "Mark delivered",
+    title: "Mark selected parcels delivered?",
+    text: (n) => `Use this when the carrier shows ${n} parcels as delivered. Each customer gets the Delivery update email (if it is switched on).`,
+    done: "delivered",
+  },
+};
+const BATCH_FOR_QUEUE: Record<string, BatchKind> = { "Ready to pack": "pack", "Ready to ship": "ship", "In transit": "deliver" };
+
 export function Orders({
   onSelectOrder,
 }: {
-  onSelectOrder: (order: any) => void;
+  onSelectOrder: (order: any, queueIds: string[]) => void;
 }) {
-  const [orders, setOrders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("Needs attention");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [orders, setOrders] = useState<any[]>(() => listMemory.orders || []);
+  const [loading, setLoading] = useState(() => !listMemory.orders);
+  const [activeTab, setActiveTabState] = useState(listMemory.activeTab);
+  const [searchQuery, setSearchQuery] = useState(listMemory.searchQuery);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
-  const [confirmBatch, setConfirmBatch] = useState(false);
+  const [confirmBatch, setConfirmBatch] = useState<false | BatchKind>(false);
   const [busy, setBusy] = useState(false);
   const [batchResults, setBatchResults] = useState<string[]>([]);
   const [failed, setFailed] = useState(false);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(listMemory.page);
   const [sort, setSort] = useState<
     "newest" | "oldest" | "total-desc" | "total-asc"
-  >("oldest");
+  >(listMemory.sort);
+  // Work queues read oldest first (fair dispatch); "All orders" reads newest first.
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+    setSort(tab === "All orders" ? "newest" : "oldest");
+  };
+  useEffect(() => {
+    Object.assign(listMemory, { activeTab, searchQuery, page, sort });
+  }, [activeTab, searchQuery, page, sort]);
   const [range, setRange] = useState<"all" | "7" | "30" | "90">("all");
   const [confirmDeleteTests, setConfirmDeleteTests] = useState(false);
   const [confirmDeleteOrders, setConfirmDeleteOrders] = useState(false);
@@ -139,7 +206,7 @@ export function Orders({
     loadOrders();
   };
 
-  const handleBulkUpdate = async () => {
+  const handleBulkUpdate = async (kind: BatchKind) => {
     setConfirmBatch(false);
     if (busy) return;
     setBusy(true);
@@ -148,11 +215,20 @@ export function Orders({
     for (const id of selected) {
       const o = ordersMap.get(id);
       try {
-        await adminApi.fulfillmentAction(id, "pack", {
-          packingKey: packingKey(o),
-        });
+        if (kind === "pack") {
+          await adminApi.fulfillmentAction(id, "pack", { packingKey: packingKey(o) });
+        } else if (kind === "ship") {
+          if (!o?.labelUrl || !o?.trackingNumber) throw new Error("No Shippo label — open the order to enter tracking");
+          await adminApi.fulfillmentAction(id, "dispatch", {
+            trackingCarrier: o.trackingCarrier || "Canada Post",
+            trackingNumber: o.trackingNumber,
+            trackingUrl: o.trackingUrl || "",
+          });
+        } else {
+          await adminApi.fulfillmentAction(id, "delivery_status", { status: "delivered" });
+        }
         succeeded.add(id);
-        results.push(`${o?.orderId || id}: packed`);
+        results.push(`${o?.orderId || id}: ${BATCH[kind].done}`);
       } catch (err: any) {
         results.push(`${o?.orderId || id}: ${err.message || "Could not save"}`);
       }
@@ -172,7 +248,7 @@ export function Orders({
   async function loadOrders() {
     setFailed(false);
     try {
-      const data = await adminApi.getFulfillmentOrders();
+      const data = await refreshOrdersCache();
       setOrders(data);
     } catch (err) {
       console.error("Failed to load orders", err);
@@ -255,25 +331,25 @@ export function Orders({
     (Math.min(page, pageCount) - 1) * PAGE_SIZE,
     Math.min(page, pageCount) * PAGE_SIZE,
   );
-  useEffect(() => setPage(1), [activeTab, searchQuery, orderType, range, sort]);
+  const firstFilterRun = useRef(true);
+  useEffect(() => {
+    // Keep the remembered page when coming back; reset it when filters change.
+    if (firstFilterRun.current) {
+      firstFilterRun.current = false;
+      return;
+    }
+    setPage(1);
+  }, [activeTab, searchQuery, orderType, range, sort]);
 
-  const fulfillmentOf = (o: any): FulfillmentStatus =>
-    (o.fulfillmentStatus ||
-      (o.status === "completed"
-        ? "delivered"
-        : o.paymentStatus === "paid"
-          ? "paid"
-          : "pending_payment")) as FulfillmentStatus;
-  const fulfillmentTone = (f: FulfillmentStatus): BadgeTone =>
-    f === "delivered"
-      ? "success"
-      : f === "shipped" || f === "out_for_delivery"
+  // One colour per work queue, used by the table and the phone cards alike.
+  const queueTone = (queue: string): BadgeTone =>
+    queue === "Needs attention" || queue === "Unpaid"
+      ? "warning"
+      : queue === "In transit"
         ? "info"
-        : f === "cancelled" || f === "refunded"
-          ? "danger"
-          : f === "processing"
-            ? "primary"
-            : "warning";
+        : queue === "Completed"
+          ? "success"
+          : "primary";
 
   const allSelected =
     pageRows.length > 0 && pageRows.every((o) => selected.has(o.id));
@@ -305,7 +381,7 @@ export function Orders({
         <button
           type="button"
           className="rp-mono"
-          onClick={() => onSelectOrder(o)}
+          onClick={() => onSelectOrder(o, filteredOrders.map((x) => x.id))}
           style={{
             background: "none",
             border: 0,
@@ -373,7 +449,7 @@ export function Orders({
       header: "Fulfillment",
       render: (o) => (
         <>
-          <StatusBadge tone={fulfillmentTone(fulfillmentOf(o))}>
+          <StatusBadge tone={queueTone(queueOf(o))}>
             {queueOf(o)}
           </StatusBadge>
           {isOverdueInTransit(o) && (
@@ -564,13 +640,15 @@ export function Orders({
                   >
                     Combined pick list
                   </SecondaryButton>
-                  <PrimaryButton
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => setConfirmBatch(true)}
-                  >
-                    {busy ? "Saving…" : "Mark packed"}
-                  </PrimaryButton>
+                  {BATCH_FOR_QUEUE[activeTab] && (
+                    <PrimaryButton
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => setConfirmBatch(BATCH_FOR_QUEUE[activeTab])}
+                    >
+                      {busy ? "Saving…" : BATCH[BATCH_FOR_QUEUE[activeTab]].button}
+                    </PrimaryButton>
+                  )}
                 </>
               )}
               {selected.size > 0 && (
@@ -608,7 +686,7 @@ export function Orders({
                   <div>
                     <button
                       type="button"
-                      onClick={() => onSelectOrder(o)}
+                      onClick={() => onSelectOrder(o, filteredOrders.map((x) => x.id))}
                       aria-label={`Open order ${o.orderId}`}
                     >
                       {o.orderId}
@@ -623,13 +701,7 @@ export function Orders({
                       items
                     </span>
                     <div className="fw-phone-order-meta">
-                      <StatusBadge
-                        tone={
-                          queueOf(o) === "Needs attention"
-                            ? "warning"
-                            : "neutral"
-                        }
-                      >
+                      <StatusBadge tone={queueTone(queueOf(o))}>
                         {queueOf(o)}
                       </StatusBadge>
                       {isOverdueInTransit(o) && (
@@ -719,25 +791,21 @@ export function Orders({
         </div>
       </Dialog>
       <Dialog
-        open={confirmBatch}
+        open={!!confirmBatch}
         onClose={() => setConfirmBatch(false)}
-        title="Confirm selected books are packed?"
+        title={confirmBatch ? BATCH[confirmBatch].title : ""}
         footer={
           <>
             <SecondaryButton onClick={() => setConfirmBatch(false)}>
               Cancel
             </SecondaryButton>
-            <PrimaryButton onClick={handleBulkUpdate}>
-              Mark packed
+            <PrimaryButton onClick={() => confirmBatch && handleBulkUpdate(confirmBatch)}>
+              {confirmBatch ? BATCH[confirmBatch].button : ""}
             </PrimaryButton>
           </>
         }
       >
-        <p>
-          Confirm you checked every book and quantity in {selected.size}{" "}
-          selected orders. Orders that need address review or have a hold will
-          remain unchanged.
-        </p>
+        <p>{confirmBatch ? BATCH[confirmBatch].text(selected.size) : ""}</p>
       </Dialog>
       <ConfirmDialog
         open={confirmDeleteOrders}

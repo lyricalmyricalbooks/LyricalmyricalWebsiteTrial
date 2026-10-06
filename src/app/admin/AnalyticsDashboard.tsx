@@ -1,3 +1,4 @@
+import { openFirstActionQueue } from "./Orders";
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { adminApi } from "./api";
@@ -219,7 +220,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <ul className="rp-list" aria-label="Things that need attention">
             <TodoRow label="paid orders waiting to ship" count={insights ? insights.fulfil.length : null} loading={ordersLoading}
               detail={insights && insights.fulfil[0] ? `Oldest has waited ${insights.fulfil[0].ageDays} day${insights.fulfil[0].ageDays === 1 ? "" : "s"}` : ""}
-              onOpen={() => setActiveTab?.("orders")} openLabel="Ship orders" />
+              onOpen={() => { openFirstActionQueue(); setActiveTab?.("orders"); }} openLabel="Ship orders" />
             <TodoRow label="reviews to moderate" count={reviews ? reviews.pending : null} loading={!audience.data && !audience.error}
               detail="Readers are waiting to see these" onOpen={() => setActiveTab?.("reviews")} openLabel="Moderate" />
             <TodoRow label="titles to reprint soon" count={insights ? insights.reprint.length : null} loading={ordersLoading || stockLoading}

@@ -22,7 +22,8 @@ const { risoButton, risoLayout } = require("./emailTheme");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
-const { labelProblem } = require("./fulfillmentGuard");
+const { labelProblem, addressKey: guardAddressKey } = require("./fulfillmentGuard");
+const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./localFulfillment");
@@ -640,6 +641,14 @@ async function paypalRequest(config, path, options = {}) {
   return data;
 }
 
+// What the customer is told to expect, saved on the order for the thank-you page,
+// tracking page and emails. `days` is a carrier number or a profile range ("3-7").
+function shippingEstimateOf(days, terms) {
+  const cleanDays = days === undefined || days === null || days === "" ? "" : String(days).trim().slice(0, 20);
+  const cleanTerms = String(terms || "").trim().slice(0, 200);
+  return cleanDays || cleanTerms ? { days: cleanDays, terms: cleanTerms } : null;
+}
+
 // Server-authoritative shipping: quotes every configured rate for the cart and
 // charges the one the customer selected (order.shippingMethod), else the
 // cheapest. Profiles without zones keep the legacy flat calculation. Returns
@@ -696,11 +705,12 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
       const carrierQuotes = (shipment.rates || []).map(rate => ({
         name: `${rate.provider || ""} ${rate.servicelevel?.name || rate.servicelevel?.token || "Shipping"}`.trim(),
         price: Number(rate.amount),
+        estimate: shippingEstimateOf(rate.estimated_days, rate.duration_terms),
       })).filter(rate => Number.isFinite(rate.price)).sort((a, b) => a.price - b.price);
       const selectedCarrier = selection?.optionId || order.shippingMethod;
       const pickedCarrier = selection ? carrierQuotes.find(quote => quote.name === selectedCarrier) : pickQuote(carrierQuotes, selectedCarrier);
       if (!pickedCarrier) throw new Error("That live carrier rate is no longer available. Please review the shipping options and try again.");
-      return { cost: pickedCarrier.price, method: pickedCarrier.name };
+      return { cost: pickedCarrier.price, method: pickedCarrier.name, estimate: pickedCarrier.estimate };
     }
   }
   const hasZones = profiles.some((p) => Array.isArray(p.zones) && p.zones.length);
@@ -709,7 +719,7 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
       const choices = quoteShipping(physicalItems, address, profiles, { freeAll: !!freeShipping }).filter(quote => quote.type !== 'pickup');
       const chosen = choices.find(quote => quote.id === selection.optionId || quote.name === selection.optionId);
       if (!chosen) throw new Error('That shipping rate is no longer available. Please review the options and try again.');
-      return { cost: chosen.price, method: chosen.name };
+      return { cost: chosen.price, method: chosen.name, estimate: shippingEstimateOf(chosen.deliveryDays) };
     }
     return { cost: freeShipping ? 0 : calculateShipping(physicalItems, address, profiles), method: order.shippingMethod || null };
   }
@@ -719,7 +729,7 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
   if (!picked) {
     throw new Error(`We don't currently ship these items to ${(address && address.country) || "that destination"}. Please contact us for a custom quote.`);
   }
-  return { cost: picked.price, method: picked.name };
+  return { cost: picked.price, method: picked.name, estimate: shippingEstimateOf(picked.deliveryDays) };
 }
 
 function authoritativeTax(items, discountAmount, discount, booksById, settings, order, fulfillment) {
@@ -807,6 +817,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
     items: items.map(({ shippingProfileId, ...item }) => item), subtotal, discount, appliedDiscount,
     shipping, tax, total, checkoutCurrency: checkoutCurrency.toUpperCase(), exchangeRate,
     ...(shipResult.method ? { shippingMethod: shipResult.method } : {}),
+    shippingEstimate: shipResult.estimate || null,
     fulfillment: shipResult.fulfillment || null,
     updatedAt: new Date().toISOString(),
   };
@@ -1154,6 +1165,7 @@ exports.createStripeCheckoutSession = onRequest(
       const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       let shippingCost;
       let shippingMethodCharged;
+      let shippingEstimate = null;
       let fulfillment;
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.data() || {};
@@ -1162,6 +1174,7 @@ exports.createStripeCheckoutSession = onRequest(
         const shipResult = await resolveShipping(items, order, profiles, appliedDiscount && appliedDiscount.type === "freeship", settings, discountedPhysical);
         shippingCost = shipResult.cost;
         shippingMethodCharged = shipResult.method;
+        shippingEstimate = shipResult.estimate || null;
         fulfillment = shipResult.fulfillment || null;
       } catch (shipErr) {
         res.status(400).json({ error: shipErr.message });
@@ -1211,6 +1224,7 @@ exports.createStripeCheckoutSession = onRequest(
         appliedDiscount: appliedDiscount,
         shipping: shippingCost,
         ...(shippingMethodCharged ? { shippingMethod: shippingMethodCharged } : {}),
+        shippingEstimate,
         fulfillment,
         tax: taxCost,
         total: finalTotal,
@@ -2168,6 +2182,57 @@ async function customerAccountsEnabled() {
 
 // Keep in step with src/app/lib/tracking.ts. A publisher-entered link (manual
 // dispatch with a carrier we don't recognise) wins over the built-in pages.
+const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
+// How the order reaches the customer, for the order confirmation email.
+function deliveryDetails(order) {
+  const local = order.fulfillment || {};
+  if (local.method === "pickup") {
+    const a = local.address || {};
+    return {
+      heading: "Pickup",
+      method: local.name || "Pickup",
+      estimate: local.estimate || "",
+      lines: [local.name, [a.street, a.city, a.state, a.zip].filter(Boolean).join(", "), local.hours, local.estimate, "We'll email you when your order is ready to collect."].filter(Boolean),
+    };
+  }
+  if (local.method === "local_delivery") {
+    return { heading: "Local delivery", method: local.name || "Local delivery", estimate: local.estimate || "", lines: [local.name, local.estimate].filter(Boolean) };
+  }
+  if (!order.shippingMethod) return { heading: "", method: "", estimate: "", lines: [] };
+  const est = order.shippingEstimate || {};
+  const days = String(est.days || "").trim();
+  const estimate = days ? `${days} business day${days === "1" ? "" : "s"} after dispatch` : String(est.terms || "").trim();
+  const a = order.customer?.address || {};
+  return {
+    heading: "Shipping",
+    method: order.shippingMethod,
+    estimate,
+    lines: [order.shippingMethod, estimate && `Expected delivery: ${estimate}`, [a.street, a.city, a.state, a.zip, a.country].filter(Boolean).join(", "), "We'll email your tracking number as soon as it ships."].filter(Boolean),
+  };
+}
+
+// Public storefront address for links in emails. Override with the SITE_URL env var
+// (functions/.env) when the shop moves to its own domain.
+const SITE_URL = String(process.env.SITE_URL || "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial").replace(/\/+$/, "");
+const siteLink = path => `${SITE_URL}${path}`;
+
+// One-click order link for emails: /track opens the order straight away when the
+// key matches, instead of asking the customer to type the order number and email.
+async function orderTrackUrl(orderId, order) {
+  let key = typeof order?.trackingKey === "string" && /^[a-f0-9]{32}$/.test(order.trackingKey) ? order.trackingKey : "";
+  if (!key) {
+    key = crypto.randomBytes(16).toString("hex");
+    try {
+      await db.collection("orders").doc(orderId).update({ trackingKey: key });
+    } catch (err) {
+      console.warn("Could not save order tracking key", err);
+      return siteLink(`/track?orderId=${encodeURIComponent(orderId)}`);
+    }
+  }
+  return siteLink(`/track?orderId=${encodeURIComponent(orderId)}&key=${key}`);
+}
+
 function getTrackingUrl(carrier, trackingNum, customUrl) {
   try {
     const custom = new URL(String(customUrl || "").trim());
@@ -2246,7 +2311,7 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
 // 5b. Order Paid: Trigger notifications only AFTER successful payment
 // ──────────────────────────────────────────────────────────────
 exports.onOrderUpdated = onDocumentUpdated(
-  { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
+  { document: "orders/{orderId}", secrets: [RESEND_API_KEY, SHIPPO_API_TOKEN] },
   async event => {
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
@@ -2256,6 +2321,8 @@ exports.onOrderUpdated = onDocumentUpdated(
     if (!after.customer?.email) return;
 
     const notificationSettings = await loadNotificationSettings();
+    let trackUrlPromise;
+    const trackUrl = () => (trackUrlPromise = trackUrlPromise || orderTrackUrl(orderId, after));
 
     // 1. Order Confirmation (Order Paid)
     const becamePaid = before.paymentStatus !== "paid" && after.paymentStatus === "paid";
@@ -2265,6 +2332,13 @@ exports.onOrderUpdated = onDocumentUpdated(
         await db.collection("abandoned-carts").doc(after.cartId).set({ recovered: true, recoveredAt: new Date().toISOString() }, { merge: true });
       } catch (err) {
         console.warn("Could not mark checkout cart recovered", err);
+      }
+    }
+    if (becamePaid) {
+      try {
+        await autoApproveShippingAddress(orderId, after);
+      } catch (err) {
+        console.warn("Automatic address check failed; publisher review stays required", err);
       }
     }
     if (becamePaid) {
@@ -2367,17 +2441,26 @@ exports.onOrderUpdated = onDocumentUpdated(
           </div>
         `;
       }
-      const combinedSection = [paymentConfirmedSection, downloadSection].filter(Boolean).join("\n");
+      const delivery = deliveryDetails(order);
+      const deliverySection = delivery.heading ? `
+          <div style="margin-top:28px;padding:20px 24px;border:2px solid #111;">
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">${escapeHtml(delivery.heading)}</h3>
+            ${delivery.lines.map(line => `<p style="font-size:13px;margin:4px 0;line-height:1.6;">${escapeHtml(line)}</p>`).join("")}
+          </div>` : "";
+      const combinedSection = [deliverySection, paymentConfirmedSection, downloadSection].filter(Boolean).join("\n");
 
       const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
         customer_name: order.customer.name || "there",
         order_id: order.orderId || orderId,
-        button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`,
+        shipping_method: delivery.method,
+        delivery_estimate: delivery.estimate,
+        order_url: await trackUrl(),
+        button_url: await trackUrl(),
         items_table: itemsTable,
         total_price: moneyFmt(order.total)
       }, combinedSection);
 
-      const adminOrderUrl = `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/admin#orders/${orderId}`;
+      const adminOrderUrl = siteLink(`/admin#orders/${orderId}`);
       const adminAddr = order.customer?.address
         ? [order.customer.address.street, order.customer.address.city, order.customer.address.state, order.customer.address.zip, order.customer.address.country].filter(Boolean).join(", ")
         : "—";
@@ -2427,7 +2510,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       // Straight to the carrier's tracking page; without a tracking number, the shop's order-status page.
       const trackingUrl = after.trackingNumber
         ? getTrackingUrl(after.trackingCarrier, after.trackingNumber, after.trackingUrl)
-        : `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`;
+        : await trackUrl();
       const compiled = compileEmailTemplate("shipping_confirmation", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
@@ -2481,7 +2564,7 @@ exports.onOrderUpdated = onDocumentUpdated(
     if (becameDelivered && !isLocalFulfillment && !shippoAlreadyNotified && notificationSettings.delivery_update?.enabled !== false) {
       const trackingUrl = after.trackingNumber
         ? getTrackingUrl(after.trackingCarrier || "", after.trackingNumber, after.trackingUrl)
-        : `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`;
+        : await trackUrl();
       const compiled = compileEmailTemplate("delivery_update", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
@@ -2511,7 +2594,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       const compiled = compileEmailTemplate("order_cancelled", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
-        button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`
+        button_url: await trackUrl()
       });
 
       try {
@@ -2581,8 +2664,9 @@ exports.onOrderUpdated = onDocumentUpdated(
       const compiled = compileEmailTemplate("order_refunded", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
-        total_price: Number(after.total || 0).toFixed(2),
-        button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`
+        // A partial refund shows what was actually refunded, not the order total.
+        total_price: Number(Number.isFinite(Number(after.refund?.amount)) ? after.refund.amount : after.total || 0).toFixed(2),
+        button_url: await trackUrl()
       });
 
       try {
@@ -2603,6 +2687,44 @@ exports.onOrderUpdated = onDocumentUpdated(
 // ──────────────────────────────────────────────────────────────
 // 7. Abandoned cart sweep: every hour, recover carts older than 1h
 // ──────────────────────────────────────────────────────────────
+// Daily 8am (Toronto) email to the publisher listing paid parcels not shipped after
+// 3 days, parcels in transit 14+ days and label purchases that need checking in
+// Shippo. Nothing is sent on days with nothing to report.
+exports.dailyOrderDigest = onSchedule(
+  { schedule: "every day 08:00", timeZone: "America/Toronto", secrets: [RESEND_API_KEY] },
+  async () => {
+    const [paidSnap, opsSnap] = await Promise.all([
+      db.collection("orders").where("paymentStatus", "==", "paid").get(),
+      db.collection("order-operations").get(),
+    ]);
+    const orders = paidSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const ops = new Map(opsSnap.docs.map(doc => [doc.id, doc.data()]));
+    const digest = buildOrderDigest(orders, ops);
+    if (!digest.total) return;
+    const link = id => siteLink(`/admin#orders/${encodeURIComponent(id)}`);
+    const rows = (items, describe) => items.map(item => `<li style="margin:6px 0;"><a href="${link(item.id)}">${escapeHtml(item.label)}</a> — ${escapeHtml(describe(item))}</li>`).join("");
+    const section = (title, items, describe) => items.length ? `<h3 style="margin:24px 0 8px;">${title} (${items.length})</h3><ul style="padding-left:18px;">${rows(items, describe)}</ul>` : "";
+    const html = `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+        <h2 style="margin-top:0;">Orders needing you today</h2>
+        ${section("Paid, not shipped yet", digest.unshipped, o => `${o.days} days since payment${o.customer ? ` · ${o.customer}` : ""}`)}
+        ${section(`In transit ${TRANSIT_DAYS}+ days`, digest.stuck, o => `${o.days} days · ${[o.carrier, o.tracking].filter(Boolean).join(" ")} — check tracking or open a claim`)}
+        ${section("Label purchase to check in Shippo", digest.labelChecks, () => "a label purchase didn't finish; check Shippo before buying again")}
+        <p style="margin-top:24px;"><a href="${siteLink("/admin#orders")}">Open Orders &rarr;</a></p>
+      </div>`;
+    try {
+      await sendEmail({
+        to: ADMIN_TO,
+        subject: `[TO DO] ${digest.total} order${digest.total === 1 ? "" : "s"} need attention`,
+        html,
+        secret: RESEND_API_KEY.value(),
+      });
+    } catch (err) {
+      console.error("Daily order digest failed", err);
+    }
+  }
+);
+
 exports.abandonedCartSweep = onSchedule(
   { schedule: "every 60 minutes", secrets: [RESEND_API_KEY] },
   async () => {
@@ -2639,7 +2761,7 @@ exports.abandonedCartSweep = onSchedule(
         </div>
       `;
 
-      const cartUrl = `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/checkout?cartId=${doc.id}`;
+      const cartUrl = siteLink(`/checkout?cartId=${doc.id}`);
       const compiled = compileEmailTemplate("abandoned_cart", notificationSettings, {
         customer_name: c.customer?.name || c.name || "there",
         cart_url: cartUrl,
@@ -2885,6 +3007,41 @@ exports.saveShippoConfig = onRequest(async (req, res) => {
     res.status(500).json({ error: "Unable to save the Shippo API key." });
   }
 });
+
+// Server-side carrier check of a paid order's shipping address. A valid address is
+// recorded as reviewed in the admin-only order-operations record, so the publisher
+// goes straight to packing. Anything else keeps the order in "Needs attention".
+async function autoApproveShippingAddress(orderId, order) {
+  const method = order.fulfillmentSelection?.method || order.fulfillment?.method || "shipping";
+  const address = order.customer?.address || {};
+  if (method !== "shipping" || order.isTest || !address.street || !address.city || !address.state || !address.zip) return;
+  const shippoToken = await getShippoToken();
+  if (!shippoToken) return;
+  const result = await callShippo("addresses/", "POST", {
+    name: order.customer?.name || "Customer",
+    street1: address.street,
+    city: address.city,
+    state: getStateCode(address.state),
+    zip: address.zip,
+    country: getCountryCode(address.country),
+    validate: true,
+  }, shippoToken);
+  if (result?.validation_results?.is_valid !== true) return;
+  const opsRef = db.collection("order-operations").doc(orderId);
+  const now = new Date().toISOString();
+  await db.runTransaction(async tx => {
+    const [fresh, ops] = await Promise.all([tx.get(db.collection("orders").doc(orderId)), tx.get(opsRef)]);
+    const current = fresh.data() || {};
+    const key = guardAddressKey(current);
+    // Only approve the address that was checked, and never override a publisher decision.
+    if (key !== guardAddressKey(order) || (ops.data() || {}).addressReviewed) return;
+    tx.set(opsRef, {
+      addressReviewed: key,
+      updatedAt: now,
+      activity: [...((ops.data() || {}).activity || []), { type: "event", message: "Shipping address verified automatically with the carrier after payment.", createdAt: now }],
+    }, { merge: true });
+  });
+}
 
 exports.validateAddress = onRequest(
   { secrets: [SHIPPO_API_TOKEN] },
@@ -3396,7 +3553,7 @@ exports.onOrderCreated = onDocumentCreated(
       const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
         customer_name: order.customer.name || "there",
         order_id: order.orderId || orderId,
-        button_url: `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`,
+        button_url: await orderTrackUrl(orderId, order),
         items_table: itemsTable,
         total_price: moneyFmt(order.total)
       }, additionalSection);
@@ -3490,7 +3647,7 @@ exports.onCustomerCreated = onDocumentCreated(
     const compiled = compileEmailTemplate("customer_welcome", notificationSettings, {
       customer_name: customer.name || "there",
       email: customer.email,
-      button_url: "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/account",
+      button_url: siteLink("/account"),
     });
 
     try {
@@ -3542,8 +3699,8 @@ exports.sendTestEmail = onRequest(
         subject: "Stocking your books",
         message: "Hello! Do you sell wholesale to independent bookshops?",
         tracking_url: "https://www.canadapost-postescanada.ca/track-reperage/en",
-        cart_url: "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/checkout",
-        button_url: "https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/account",
+        cart_url: siteLink("/checkout"),
+        button_url: siteLink("/account"),
         items_table: `
           <div style="margin: 30px 0; border-top: 1px solid #eeeeee; padding-top: 20px;">
             <h4 style="margin-top: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #888888;">Order Details</h4>
@@ -3743,7 +3900,7 @@ exports.onBookRestocked = onDocumentUpdated(
       .get();
     if (snap.empty) return;
 
-    const link = `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/${encodeURIComponent(after.slug || bookId)}`;
+    const link = siteLink(`/books/${encodeURIComponent(after.slug || bookId)}`);
     const esc = t => String(t || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
     for (const doc of snap.docs) {

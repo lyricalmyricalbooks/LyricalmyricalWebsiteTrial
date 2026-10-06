@@ -14,7 +14,7 @@ import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { getCopy } from "./storeCopy";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
-import { trackingStepIndex } from "./fulfillmentTracking";
+import { orderStage, orderStep, shippingDays, stepDates } from "./orderStatus";
 
 export default function OrderTracking() {
   const [orderIdInput, setOrderIdInput] = useState("");
@@ -50,6 +50,31 @@ export default function OrderTracking() {
     checkDigitalAssets();
   }, [order]);
 
+  // Email links carry ?orderId=…&key=…: a matching key opens the order straight away;
+  // otherwise the order number is filled in and the customer confirms their email.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const linkedId = (params.get("orderId") || "").trim();
+    const key = (params.get("key") || "").trim();
+    if (!linkedId) return;
+    setOrderIdInput(linkedId);
+    if (!key) return;
+    let cancelled = false;
+    setLoading(true);
+    adminApi.getPublicOrder(linkedId)
+      .then((found: any) => { if (!cancelled && found && found.trackingKey === key) setOrder(found); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Order numbers are shown in capitals; accept them typed in any case.
+  const findOrder = async (typed: string) => {
+    const exact = await adminApi.getPublicOrder(typed);
+    if (exact || typed === typed.toUpperCase()) return exact;
+    return adminApi.getPublicOrder(typed.toUpperCase());
+  };
+
   const handleTrack = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!orderIdInput.trim() || !emailInput.trim()) {
@@ -62,7 +87,7 @@ export default function OrderTracking() {
     setOrder(null);
 
     try {
-      const foundOrder = await adminApi.getPublicOrder(orderIdInput.trim());
+      const foundOrder: any = await findOrder(orderIdInput.trim());
       if (!foundOrder) {
         setError(getCopy(settings?.design, "trackErrNotFound"));
         return;
@@ -95,7 +120,11 @@ export default function OrderTracking() {
   const fulfillmentStatus = String(order?.fulfillmentStatus || order?.status || "").toLowerCase();
   const isPickup = fulfillment?.method === "pickup";
   const isLocalDelivery = fulfillment?.method === "local_delivery";
-  const currentStep = trackingStepIndex(fulfillment?.method, fulfillmentStatus);
+  const currentStep = orderStep(order);
+  const stage = orderStage(order);
+  const dates = stepDates(order);
+  const days = shippingDays(order);
+  const shipAddress = order?.customer?.address || {};
 
   const shippingSteps = [
     { label: getCopy(settings?.design, "trackStepPaid"), desc: getCopy(settings?.design, "trackStepPaidDesc"), icon: CheckCircle2 },
@@ -242,11 +271,41 @@ export default function OrderTracking() {
                 <div className="flex flex-col items-end gap-1.5 self-stretch md:self-auto border-t md:border-t-0 border-white/5 pt-6 md:pt-0">
                   <span className="text-[9px] font-black fm-muted uppercase tracking-widest">{getCopy(settings?.design, "trackTotalPayable")}</span>
                   <span className="text-3xl font-black text-white">{orderFormatPrice(order.total)}</span>
-                  <span className="text-[9px] font-black fm-success-text bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg uppercase tracking-widest mt-1">
-                    {getCopy(settings?.design, order.paymentStatus === "paid" ? "trackPaid" : "trackUnpaid")}
+                  <span className={`text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest mt-1 border ${order.paymentStatus === "paid" ? "fm-success-text bg-emerald-500/10 border-emerald-500/20" : "text-amber-400 bg-amber-500/10 border-amber-500/20"}`}>
+                    {getCopy(settings?.design, stage === "refunded" ? "accountRefunded" : stage === "cancelled" ? "accountCancelled" : order.paymentStatus === "paid" ? "trackPaid" : "trackUnpaid")}
                   </span>
                 </div>
               </div>
+
+              {stage !== "active" && (
+                <div {...regionProps("trackingStatusBanner")} role="status" className={`rounded-2xl border p-6 text-sm leading-6 ${stage === "awaiting_payment" ? "border-amber-500/20 bg-amber-500/10 text-amber-400" : "border-red-500/20 bg-red-500/10 text-red-400"}`}>
+                  {getCopy(settings?.design, stage === "awaiting_payment" ? "trackAwaitingPayment" : stage === "cancelled" ? "trackCancelledBanner" : "trackRefundedBanner")}
+                </div>
+              )}
+
+              {!isPickup && !isLocalDelivery && order.shippingMethod && stage === "active" && (
+                <section {...regionProps("trackingShipping")} className="rounded-[2rem] border border-white/5 bg-white/[0.02] p-8 md:p-10">
+                  <h3 className="text-xs font-black tracking-[0.3em] uppercase text-white/70 mb-4">{getCopy(settings?.design, "trackShippingHeading")}</h3>
+                  <dl className="grid gap-4 sm:grid-cols-3 text-sm">
+                    <div>
+                      <dt className="text-[10px] font-black uppercase tracking-widest fm-muted">{getCopy(settings?.design, "trackShippingMethod")}</dt>
+                      <dd className="mt-1 text-white">{order.shippingMethod}</dd>
+                    </div>
+                    {(days || order.shippingEstimate?.terms) && (
+                      <div>
+                        <dt className="text-[10px] font-black uppercase tracking-widest fm-muted">{getCopy(settings?.design, "trackExpected")}</dt>
+                        <dd className="mt-1 text-white">{days ? getCopy(settings?.design, "trackExpectedDays", { days }) : order.shippingEstimate.terms}</dd>
+                      </div>
+                    )}
+                    {shipAddress.street && (
+                      <div>
+                        <dt className="text-[10px] font-black uppercase tracking-widest fm-muted">{getCopy(settings?.design, "trackShipTo")}</dt>
+                        <dd className="mt-1 not-italic fm-muted">{[shipAddress.street, shipAddress.city, shipAddress.state, shipAddress.zip, shipAddress.country].filter(Boolean).join(", ")}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </section>
+              )}
 
               {(isPickup || isLocalDelivery) && fulfillment && (
                 <section {...regionProps("trackingFulfillment")} className="rounded-[2rem] border border-violet-500/15 bg-white/[0.02] p-8 md:p-10 space-y-4">
@@ -266,7 +325,7 @@ export default function OrderTracking() {
               )}
 
               {/* Horizontal Progress Steps */}
-              <div {...regionProps("trackingTimeline")} className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-12 backdrop-blur-sm">
+              {stage === "active" && <div {...regionProps("trackingTimeline")} className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-12 backdrop-blur-sm">
                 <h3 className="text-xs font-black tracking-[0.4em] uppercase text-white/40 mb-10 pb-4 border-b border-white/5">{getCopy(settings?.design, "trackTimeline")}</h3>
                 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-8 relative">
@@ -287,13 +346,16 @@ export default function OrderTracking() {
                         </div>
                         <div>
                           <p className={`text-xs font-black uppercase tracking-wider ${isCompleted ? "text-white" : "text-white/50"}`}>{step.label}</p>
-                          <p className={`text-[10px] mt-1 font-medium ${isCompleted ? "fm-muted" : "text-white/10"}`}>{step.desc}</p>
+                          <p className={`text-[10px] mt-1 font-medium ${isCompleted ? "fm-muted" : "text-white/50"}`}>{step.desc}</p>
+                          {isCompleted && dates[index] && (
+                            <p className="text-[10px] mt-1 font-mono fm-muted">{new Date(dates[index] as string).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</p>
+                          )}
                         </div>
                       </div>
                     );
                   })}
                 </div>
-              </div>
+              </div>}
 
               {/* Shipping carrier information */}
               {order.trackingNumber && (() => {
@@ -405,6 +467,7 @@ export default function OrderTracking() {
                 </div>
               </div>
 
+              <p {...regionProps("trackingHelp")} className="text-center text-sm leading-6 fm-muted">{getCopy(settings?.design, "trackHelp")}</p>
             </motion.div>
           )}
         </AnimatePresence>

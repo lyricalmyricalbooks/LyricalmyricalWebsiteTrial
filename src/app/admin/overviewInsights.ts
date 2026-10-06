@@ -1,3 +1,4 @@
+import { queueOf } from "./fulfillment";
 // Pure publisher-insight calculations for the admin Overview.
 // Only recorded data is used: paid, non-test orders, the book catalog, reviews
 // and newsletter signups. Nothing here is estimated or simulated.
@@ -144,8 +145,9 @@ export function stockValue(books: Book[]) {
 
 /** Paid orders still waiting to ship, oldest first, with age in days. */
 export function toFulfil(orders: Order[], now = Date.now()) {
-  return orders.filter(o => isRealPaidOrder(o) && o.status !== "completed"
-    && !["shipped", "delivered"].includes(o.fulfillmentStatus))
+  // Same rule as the Orders work queues: anything not in transit, completed or unpaid
+  // (so digital-only orders, collected pickups and out-for-delivery parcels drop off).
+  return orders.filter(o => isRealPaidOrder(o) && !["In transit", "Completed", "Unpaid"].includes(queueOf(o)))
     .map(o => ({ ...o, ageDays: Math.max(0, Math.floor((now - ts(o.createdAt)) / DAY)) }))
     .sort((a, b) => ts(a.createdAt) - ts(b.createdAt));
 }

@@ -82,6 +82,17 @@ export function daysInTransit(o: any, now: number = Date.now()): number | null {
  return Math.max(0, Math.floor((now - shipped) / 86400000));
 }
 export const isOverdueInTransit = (o: any, now?: number) => (daysInTransit(o, now) ?? 0) >= OVERDUE_TRANSIT_DAYS;
+// Default parcel weight for the label dialog: catalog weights saved on the order
+// (grams per copy) plus packaging. Copies without a weight count as 1.5 lb (680 g).
+export const PACKAGING_GRAMS = 150;
+export function suggestedParcelWeightLb(o: any): string {
+ const grams = physicalItems(o).reduce((sum: number, item: any) => {
+  const each = Number(item.weightGrams);
+  return sum + (Number.isFinite(each) && each > 0 ? each : 680) * Math.max(1, Number(item.quantity || 1));
+ }, 0);
+ if (!grams) return "1.5";
+ return Math.max(0.1, (grams + PACKAGING_GRAMS) / 453.592).toFixed(1);
+}
 export function buildPickList(orders: any[]) {
  const items = new Map<string, any>();
  for (const o of orders) for (const i of physicalItems(o)) {

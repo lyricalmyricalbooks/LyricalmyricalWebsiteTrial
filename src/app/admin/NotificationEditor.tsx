@@ -142,6 +142,8 @@ function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand"
     .replace(/\{\{tracking_url\}\}/g, "#")
     .replace(/\{\{cart_url\}\}/g, "#")
     .replace(/\{\{order_url\}\}/g, "#")
+    .replace(/\{\{shipping_method\}\}/g, "Canada Post Expedited Parcel")
+    .replace(/\{\{delivery_estimate\}\}/g, "2-4 business days after dispatch")
     .replace(/\n/g, "<br/>");
 
   const ctaButtonHtml = buttonText ? risoButton("#", buttonText, brandColor, brand.emailTheme) : "";
@@ -354,7 +356,7 @@ export function NotificationEditor() {
   };
 
   const placeholders = {
-    order_confirmation: ["{{customer_name}}", "{{order_id}}", "{{order_url}}", "{{items_table}}", "{{total_price}}"],
+    order_confirmation: ["{{customer_name}}", "{{order_id}}", "{{order_url}}", "{{items_table}}", "{{total_price}}", "{{shipping_method}}", "{{delivery_estimate}}"],
     shipping_confirmation: ["{{customer_name}}", "{{order_id}}", "{{tracking_carrier}}", "{{tracking_number}}", "{{tracking_url}}"],
     abandoned_cart: ["{{customer_name}}", "{{cart_url}}", "{{items_table}}"],
     order_cancelled: ["{{customer_name}}", "{{order_id}}"],

@@ -1,4 +1,5 @@
 import { regionProps } from "./features/site/storefrontRegions";
+import { trackLink } from "./features/site/orderStatus";
 import { liveCheckoutRates } from "./features/site/canadaPostRates";
 import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -178,6 +179,9 @@ export function Checkout() {
   const [notice, setNotice] = useState<null | { tone: "error" | "info"; text: string }>(null);
   const [isSuccess, setIsSuccess]       = useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  // Stripe reported the payment complete but our order record hasn't caught up yet.
+  const [paymentReceived, setPaymentReceived] = useState(false);
+  const [confirmSlow, setConfirmSlow] = useState(false);
   const [manualOrderReturn, setManualOrderReturn] = useState(false);
   const [orderNumber, setOrderNumber]   = useState("");
 
@@ -1225,6 +1229,11 @@ export function Checkout() {
             setNotice({ tone: "info", text: c("coPaymentNotFinished") });
             return;
           }
+          // Stripe confirms the payment: the bag is bought, even if the webhook is still on its way.
+          if (statusData?.status === "complete") {
+            setPaymentReceived(true);
+            clearCart();
+          }
         }
         if (isPayPalReturn) {
           const paypalOrderId = params.get("token");
@@ -1265,7 +1274,9 @@ export function Checkout() {
           }
           await new Promise(resolve => setTimeout(resolve, 2500));
         }
+        if (!cancelled) setConfirmSlow(true);
       } catch (err) {
+        if (!cancelled) setConfirmSlow(true);
         console.error("Failed to confirm payment on success landing", err);
       }
     })();
@@ -1277,7 +1288,7 @@ export function Checkout() {
   if (isSuccess) {
     const isManual = manualOrderReturn || successOrder?.paymentStatus === "pending";
     return (
-      <div data-fm-store data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout" data-fm-checkout className="h-screen fm-surface text-white flex flex-col items-center justify-center p-8 text-center relative overflow-hidden">
+      <div data-fm-store data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout" data-fm-checkout className="min-h-screen fm-surface text-white flex flex-col items-center justify-center px-6 py-16 text-center relative overflow-x-hidden">
         <StorefrontThemeStyle design={checkoutDesign} />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(var(--accent-rgb,232,64,42),0.15)_0%,transparent_70%)] pointer-events-none" />
         <motion.div {...regionProps("checkoutSuccess")} initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", duration: 0.8 }}
@@ -1288,7 +1299,7 @@ export function Checkout() {
           <p className="text-[9px] font-black tracking-[0.5em] uppercase mb-4" style={{ color: "var(--accent)" }}>
             {isManual
               ? c("coOrderPlaced")
-              : (paymentConfirmed ? c("coOrderConfirmed") : c("coFinalizing"))}
+              : (paymentConfirmed || paymentReceived ? c("coOrderConfirmed") : c("coFinalizing"))}
           </p>
           <h2 className="text-5xl font-black tracking-tighter uppercase italic text-white mb-4">{c("coThanks")}</h2>
           <p className="text-white/30 text-xs font-mono mb-2 tracking-widest">{c("coOrderNumber", { number: orderNumber })}</p>
@@ -1322,11 +1333,45 @@ export function Checkout() {
               </div>
             </div>
           ) : (
-            <p className="text-white/20 text-[10px] tracking-widest mb-14">
+            <p className="text-white/60 text-xs leading-6 mb-8" role="status">
               {paymentConfirmed
                 ? c("coConfirmationSent")
-                : c("coConfirming")}
+                : confirmSlow
+                  ? c("coConfirmingSlow", { email: successOrder?.customer?.email || customer.email || "" })
+                  : c("coConfirming")}
             </p>
+          )}
+
+          {successOrder && (successOrder.items || []).length > 0 && (
+            <section {...regionProps("checkoutSuccessSummary")} className="w-full mb-8 border border-white/10 bg-white/[0.03] p-6 text-left space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-white/70">{c("coSuccessSummary")}</h3>
+              <ul className="space-y-2 text-sm">
+                {successOrder.items.map((item: any, i: number) => (
+                  <li key={`${item.id}-${item.variantId || ""}-${i}`} className="flex justify-between gap-4">
+                    <span className="text-white/80">{item.title}{item.variantName ? ` · ${item.variantName}` : ""} × {item.quantity}</span>
+                    <span className="font-mono text-white/60">{formatPrice(Number(item.price || 0) * Number(item.quantity || 0))}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex justify-between border-t border-white/10 pt-3 text-sm font-bold">
+                <span>{c("summaryTotal")}</span>
+                <span className="font-mono">{formatPrice(Number(successOrder.total || 0))}</span>
+              </div>
+              {successOrder.shippingMethod && (
+                <div className="border-t border-white/10 pt-3 space-y-1 text-xs leading-5 text-white/60">
+                  <p><span className="text-white/80">{c("coSuccessShipping")}</span> {successOrder.shippingMethod}</p>
+                  {successOrder.shippingEstimate?.days ? (
+                    <p>{c("coCarrierTransit", { days: successOrder.shippingEstimate.days })}</p>
+                  ) : successOrder.shippingEstimate?.terms ? (
+                    <p>{successOrder.shippingEstimate.terms}</p>
+                  ) : null}
+                  {successOrder.customer?.address?.street && (
+                    <p>{c("coSuccessShipTo")} {[successOrder.customer.address.street, successOrder.customer.address.city, successOrder.customer.address.state, successOrder.customer.address.zip].filter(Boolean).join(", ")}</p>
+                  )}
+                  <p>{c("coSuccessTrackingNote")}</p>
+                </div>
+              )}
+            </section>
           )}
 
           {!currentUser && accountsEnabled(checkoutDesign) && (successOrder?.customer?.email || customer.email) && (
@@ -1340,10 +1385,16 @@ export function Checkout() {
             </section>
           )}
 
-          <Link to="/"
-            className="flex items-center gap-3 hover:bg-violet-500 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase transition-all active:scale-95 shadow-[0_10px_40px_rgba(var(--accent-rgb),0.4)]" style={{ backgroundColor: "var(--accent)" }}>
-            {c("coContinue")}
-          </Link>
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <Link {...regionProps("checkoutTrackOrder")} to={successOrder ? trackLink(successOrder) : `/track?orderId=${encodeURIComponent(orderNumber)}`}
+              className="flex items-center gap-3 hover:bg-violet-500 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase transition-all active:scale-95 shadow-[0_10px_40px_rgba(var(--accent-rgb),0.4)]" style={{ backgroundColor: "var(--accent)" }}>
+              {c("coTrackOrder")}
+            </Link>
+            <Link to="/"
+              className="flex items-center gap-3 border border-white/10 bg-white/5 hover:bg-white/10 text-white px-10 py-4 rounded-2xl text-[10px] font-black tracking-[0.3em] uppercase transition-all active:scale-95">
+              {c("coContinue")}
+            </Link>
+          </div>
         </motion.div>
       </div>
     );
