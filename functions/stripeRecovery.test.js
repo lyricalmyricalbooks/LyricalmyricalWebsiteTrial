@@ -54,3 +54,30 @@ describe("signingSecrets", () => {
     expect(signingSecrets("whsec_a", "", undefined, "whsec_a", "sk_x", " whsec_b ")).toEqual(["whsec_a", "whsec_b"]);
   });
 });
+
+import { reversalState, ordersDueReversalCheck } from "./stripeRecovery.js";
+
+describe("reversalState", () => {
+  it("reads a full refund, a partial refund and a dispute", () => {
+    expect(reversalState({ amount: 1520, amount_refunded: 1520, refunded: true, currency: "cad" })).toMatchObject({ fullyRefunded: true, partiallyRefunded: false, currency: "CAD" });
+    expect(reversalState({ amount: 1520, amount_refunded: 500, refunded: false, currency: "cad" })).toMatchObject({ fullyRefunded: false, partiallyRefunded: true, refundedMinor: 500 });
+    expect(reversalState({ amount: 1520, amount_refunded: 0 }, { status: "needs_response" })).toMatchObject({ fullyRefunded: false, partiallyRefunded: false, disputeStatus: "needs_response" });
+  });
+});
+
+describe("ordersDueReversalCheck", () => {
+  const now = Date.parse("2026-10-07T12:00:00Z");
+  const h = (n) => new Date(now - n * 3600000).toISOString();
+  it("re-reads paid Stripe orders not checked in 6 hours, never-checked first", () => {
+    const orders = [
+      { id: "fresh", paymentStatus: "paid", stripePaymentIntentId: "pi_1", paidAt: h(2), stripeCheckedAt: h(1) },
+      { id: "stale", paymentStatus: "paid", stripePaymentIntentId: "pi_2", paidAt: h(48), stripeCheckedAt: h(7) },
+      { id: "never", paymentStatus: "paid", stripePaymentIntentId: "pi_3", paidAt: h(3) },
+      { id: "refunded", paymentStatus: "refunded", stripePaymentIntentId: "pi_4", paidAt: h(3) },
+      { id: "manual", paymentStatus: "paid", paidAt: h(3) },
+      { id: "ancient", paymentStatus: "paid", stripePaymentIntentId: "pi_5", paidAt: h(24 * 200) },
+      { id: "test", paymentStatus: "paid", stripePaymentIntentId: "pi_6", paidAt: h(3), isTest: true },
+    ];
+    expect(ordersDueReversalCheck(orders, now).map((o) => o.id)).toEqual(["never", "stale"]);
+  });
+});

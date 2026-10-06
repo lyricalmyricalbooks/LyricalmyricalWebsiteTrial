@@ -56,6 +56,10 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
       "The last Stripe webhook failed its security check, so paid orders may stay unpaid. Settings › Payments › Webhook health › Reset webhook signing.", [], "webhook"));
   }
 
+  const partial = orders.filter((o) => o.partiallyRefunded && o.paymentStatus === "paid" && !isFinished(o));
+  if (partial.length) out.push(alert("partial-refund", "warning", `${plural(partial.length, "order was", "orders were")} partly refunded in Stripe`,
+    `Check what still needs to ship before packing: ${list(partial)}.`, partial));
+
   const oversold = orders.filter((o) => o.oversold && o.paymentStatus === "paid" && !isFinished(o));
   if (oversold.length) out.push(alert("oversold", "warning", `${plural(oversold.length, "paid order was", "paid orders were")} oversold`,
     `More copies were sold than were in stock: ${list(oversold)}. Restock or contact the customer.`, oversold));

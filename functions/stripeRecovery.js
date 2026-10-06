@@ -13,6 +13,8 @@ const REQUIRED_WEBHOOK_EVENTS = [
   "checkout.session.expired",
   "charge.refunded",
   "charge.dispute.created",
+  "charge.dispute.updated",
+  "charge.dispute.closed",
 ];
 
 // Which Stripe account(s) to ask about an order's payment, best guess first: the
@@ -88,4 +90,34 @@ function signingSecrets(...values) {
   return out;
 }
 
-module.exports = { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets };
+// What happened to a charge after payment, from Stripe's charge (+ dispute) objects.
+function reversalState(charge, dispute) {
+  const amountMinor = Number(charge && charge.amount) || 0;
+  const refundedMinor = Number(charge && charge.amount_refunded) || 0;
+  const fullyRefunded = !!charge && (charge.refunded === true || (amountMinor > 0 && refundedMinor >= amountMinor));
+  return {
+    amountMinor,
+    refundedMinor,
+    currency: String((charge && charge.currency) || "").toUpperCase(),
+    fullyRefunded,
+    partiallyRefunded: !fullyRefunded && refundedMinor > 0,
+    disputeStatus: dispute && dispute.status ? String(dispute.status) : null,
+  };
+}
+
+const REVERSAL_RECHECK_MS = 6 * 60 * 60 * 1000;   // each paid order at most every 6 hours
+const REVERSAL_WINDOW_MS = 120 * 24 * 60 * 60 * 1000; // refunds/disputes can arrive for ~120 days
+
+// Paid Stripe orders whose refund/dispute state should be re-read from Stripe now
+// (safety net for missed charge.refunded / charge.dispute.* webhooks), oldest check first.
+function ordersDueReversalCheck(orders, nowMs = Date.now(), limit = 40) {
+  return (orders || [])
+    .filter((o) => o && o.paymentStatus === "paid" && o.isTest !== true
+      && typeof o.stripePaymentIntentId === "string" && o.stripePaymentIntentId.startsWith("pi_")
+      && nowMs - Date.parse(o.paidAt || o.createdAt || "") <= REVERSAL_WINDOW_MS
+      && !(nowMs - Date.parse(o.stripeCheckedAt || "") < REVERSAL_RECHECK_MS))
+    .sort((a, b) => (Date.parse(a.stripeCheckedAt || "") || 0) - (Date.parse(b.stripeCheckedAt || "") || 0))
+    .slice(0, limit);
+}
+
+module.exports = { reversalState, ordersDueReversalCheck, REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets };

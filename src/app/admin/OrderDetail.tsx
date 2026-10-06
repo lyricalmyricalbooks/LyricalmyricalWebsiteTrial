@@ -105,22 +105,25 @@ export function OrderDetail({
     loadOrder();
   }, [orderId]);
 
-  // An unpaid order that has a Stripe payment: ask Stripe (server-side) once per
-  // visit whether it went through, so a missed webhook never leaves it stuck.
+  // Any order paid (or being paid) through Stripe: ask Stripe (server-side) once per
+  // visit for the truth — payment received, refunded or disputed — so a missed
+  // webhook never leaves the order out of step with Stripe.
   const autoChecked = useRef<string | null>(null);
   const [checkingPayment, setCheckingPayment] = useState(false);
   const hasStripePayment = (o: any) =>
-    !!o && o.paymentStatus === "unpaid" && (String(o.stripePaymentIntentId || "").startsWith("pi_") || String(o.stripeCheckoutSessionId || "").startsWith("cs_"));
+    !!o && ["unpaid", "paid"].includes(o.paymentStatus) && (String(o.stripePaymentIntentId || "").startsWith("pi_") || String(o.stripeCheckoutSessionId || "").startsWith("cs_"));
 
   async function checkStripePayment(manual: boolean) {
     setCheckingPayment(true);
+    const before = order?.paymentStatus;
     try {
       await adminApi.recheckStripePayment(orderId);
       const fresh = await adminApi.getOrderById(orderId);
       if (fresh) setOrder(fresh);
-      if (fresh?.paymentStatus === "paid") toast.success("Stripe confirmed the payment — order marked paid.");
-      else if (fresh?.paymentMismatch) toast.error("Stripe's amount doesn't match this order. Review it in Stripe before fulfilling.");
-      else if (manual) toast("Stripe hasn't received this payment yet.");
+      if (fresh?.paymentStatus === "refunded" && before !== "refunded") toast.success("Stripe shows this payment was refunded — order updated and stock returned.");
+      else if (fresh?.paymentStatus === "paid" && before === "unpaid") toast.success("Stripe confirmed the payment — order marked paid.");
+      else if (fresh?.paymentMismatch && fresh?.paymentStatus !== "paid") toast.error("Stripe's amount doesn't match this order. Review it in Stripe before fulfilling.");
+      else if (manual) toast(fresh?.paymentStatus === "paid" ? "In step with Stripe — no refund or dispute." : "Stripe hasn't received this payment yet.");
     } catch (err: any) {
       if (manual) toast.error(err.message || "Couldn't reach Stripe.");
     } finally {
@@ -712,7 +715,7 @@ export function OrderDetail({
             {hasStripePayment(order) && (
               <div className="fw-actions">
                 <SecondaryButton size="sm" disabled={checkingPayment} onClick={() => checkStripePayment(true)}>
-                  {checkingPayment ? "Checking with Stripe…" : "Check payment with Stripe"}
+                  {checkingPayment ? "Checking with Stripe…" : "Sync with Stripe"}
                 </SecondaryButton>
               </div>
             )}

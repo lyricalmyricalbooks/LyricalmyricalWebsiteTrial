@@ -49,4 +49,9 @@ describe("buildAdminAlerts", () => {
     expect(alertSignature(one)).not.toBe(alertSignature(two));
     expect(two.action).toBe("orders");
   });
+
+  it("warns about a partial refund on an order not yet shipped", () => {
+    const a = buildAdminAlerts([{ id: "R", paymentStatus: "paid", partiallyRefunded: true, createdAt: ago(60) }], null, now);
+    expect(ids(a)).toEqual(["partial-refund"]);
+  });
 });

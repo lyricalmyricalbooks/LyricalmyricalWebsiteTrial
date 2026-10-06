@@ -839,3 +839,10 @@ collection SEO copy. Books > Search (SEO) exposes `seoNoindex`: excluded books r
 available to shoppers, receive noindex HTML, and are omitted from the sitemap.
 Studio > Text & labels > Site & sharing owns the public Google Search Console verification
 token. Google property verification/submission still requires the owner's Search Console access.
+
+**Refund/dispute sync (7 October 2026):** `syncStripeReversal` in `functions/index.js` is the one place a Stripe
+refund or dispute changes an order (full refund → refunded/cancelled, stock back, revenue reversed, once; partial
+refund → `partiallyRefunded` + `refundedAmountMinor`, stays paid; dispute → `disputeStatus`). It is fed by the
+`charge.refunded` / `charge.dispute.*` webhooks **and** by direct Stripe reads (`checkStripeReversal`): the status
+action for paid orders (admin order open / **Sync with Stripe**) and `unpaidPaymentSweep`, which re-reads paid Stripe
+orders (≤120 days) at most every 6 h (`ordersDueReversalCheck`, `stripeCheckedAt`).

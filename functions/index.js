@@ -28,7 +28,7 @@ const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./localFulfillment");
 const { readBooks, writeStock } = require("./inventory");
-const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets } = require("./stripeRecovery");
+const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck } = require("./stripeRecovery");
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem } = require("./paymentGuards");
 
 admin.initializeApp();
@@ -1701,6 +1701,101 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
   return paidTotal !== null;
 }
 
+// Brings a paid order in line with what Stripe says happened to its charge after
+// payment: a full refund (order refunded + cancelled, stock back, revenue
+// reversed — once), a partial refund (amount recorded, order stays paid), or a
+// dispute (status recorded). Used by the charge.refunded webhook AND by the
+// direct Stripe checks, so a missed webhook can't leave a refunded order "Paid".
+async function syncStripeReversal(orderId, { charge, dispute = null, source }) {
+  const r = reversalState(charge, dispute);
+  const orderRef = db.collection("orders").doc(orderId);
+  let reversal = null;
+  await db.runTransaction(async transaction => {
+    reversal = null;
+    const orderDoc = await transaction.get(orderRef);
+    if (!orderDoc.exists) return;
+    const order = orderDoc.data();
+    const now = new Date().toISOString();
+    const notes = [];
+    const update = {};
+
+    if (r.disputeStatus && r.disputeStatus !== order.disputeStatus) {
+      update.disputeStatus = r.disputeStatus;
+      if (dispute?.id) update.disputeId = dispute.id;
+      notes.push(`Stripe dispute ${r.disputeStatus.replace(/_/g, " ")} (${source}).`);
+    }
+
+    if (r.fullyRefunded && order.paymentStatus === "paid") {
+      const itemList = order.items || [];
+      const shouldRestock = order.inventoryRestockedAt == null;
+      const books = shouldRestock ? await readBooks(transaction, db, itemList) : new Map();
+      if (shouldRestock) writeStock(transaction, db, itemList, books, 1, now);
+      Object.assign(update, {
+        paymentStatus: "refunded",
+        status: "cancelled",
+        refundedAt: now,
+        refundedBy: "stripe-dashboard",
+        refundedAmountMinor: r.refundedMinor,
+        ...(shouldRestock ? { inventoryRestockedAt: now } : {}),
+      });
+      notes.push(`Refund synced from Stripe (${(r.refundedMinor / 100).toFixed(2)} ${r.currency})${shouldRestock ? "; inventory restocked" : ""} — ${source}.`);
+      reversal = { revenue: Number(order.total) || 0, paidDay: typeof order.paidAt === "string" ? order.paidAt.split("T")[0] : null };
+    } else if (r.partiallyRefunded && order.paymentStatus === "paid" && (order.refundedAmountMinor || 0) !== r.refundedMinor) {
+      update.refundedAmountMinor = r.refundedMinor;
+      update.partiallyRefunded = true;
+      notes.push(`Partial refund in Stripe: ${(r.refundedMinor / 100).toFixed(2)} ${r.currency} of ${(r.amountMinor / 100).toFixed(2)}. Order stays paid — adjust what you ship (${source}).`);
+    }
+
+    if (!notes.length) return;
+    transaction.update(orderRef, {
+      ...update,
+      updatedAt: now,
+      activity: [...(order.activity || []), ...notes.map(message => ({ type: "event", message, createdAt: now }))],
+    });
+  });
+
+  if (reversal) {
+    const day = reversal.paidDay || new Date().toISOString().split("T")[0];
+    await db.collection("analytics").doc(day).set({
+      date: day,
+      orders: admin.firestore.FieldValue.increment(-1),
+      revenue: admin.firestore.FieldValue.increment(-(reversal.revenue || 0)),
+      refunds: admin.firestore.FieldValue.increment(1),
+      refundedRevenue: admin.firestore.FieldValue.increment(reversal.revenue || 0),
+    }, { merge: true });
+  }
+  return r;
+}
+
+// Asks Stripe for a paid order's charge (and any dispute) and syncs refunds/disputes.
+async function checkStripeReversal(orderId, order, source) {
+  const pi = String(order.stripePaymentIntentId || "");
+  if (!pi.startsWith("pi_")) return null;
+  const testMode = await shopTestMode();
+  for (const mode of modesToTry(order, testMode)) {
+    const secret = await stripeSecretFor(mode);
+    if (!secret) continue;
+    const stripe = new Stripe(secret);
+    try {
+      const intent = await stripe.paymentIntents.retrieve(pi, { expand: ["latest_charge"] });
+      if (intent.metadata?.order_id !== orderId) return null;
+      const charge = intent.latest_charge && typeof intent.latest_charge === "object" ? intent.latest_charge : null;
+      if (!charge) return null;
+      let dispute = null;
+      if (charge.disputed) {
+        const list = await stripe.disputes.list({ payment_intent: pi, limit: 1 });
+        dispute = list.data[0] || null;
+      }
+      await db.collection("orders").doc(orderId).update({ stripeCheckedAt: new Date().toISOString() });
+      return await syncStripeReversal(orderId, { charge, dispute, source });
+    } catch (err) {
+      if (err?.code === "resource_missing" || err?.statusCode === 404 || err?.type === "StripeAuthenticationError") continue;
+      throw err;
+    }
+  }
+  return null;
+}
+
 async function handleCheckoutStatus(req, res) {
   let { orderId, sessionId, paymentIntentId } = req.body || {};
   if (typeof orderId !== "string" || !orderId || orderId.includes("/")) {
@@ -1711,7 +1806,12 @@ async function handleCheckoutStatus(req, res) {
     const orderSnap = await db.collection("orders").doc(orderId).get();
     if (!orderSnap.exists) { res.status(404).json({ error: "Order not found" }); return; }
     const saved = orderSnap.data() || {};
-    if (saved.paymentStatus === "paid") { res.status(200).json({ status: "complete", paymentStatus: "paid" }); return; }
+    if (saved.paymentStatus === "paid") {
+      // Already paid: still ask Stripe whether it was since refunded or disputed.
+      const r = await checkStripeReversal(orderId, saved, "checked from the order page").catch(err => { console.warn("Reversal check failed:", err.message); return null; });
+      res.status(200).json({ status: "complete", paymentStatus: r?.fullyRefunded ? "refunded" : "paid", reversal: r || null });
+      return;
+    }
     // The tracking page and the admin may only know the order number: fall back to
     // the payment ids this server saved on the order when it created the payment.
     if (!(typeof paymentIntentId === "string" && paymentIntentId.startsWith("pi_"))) paymentIntentId = "";
@@ -1847,14 +1947,16 @@ exports.stripeWebhook = onRequest(
       } else if (event.type === "payment_intent.payment_failed" && event.data.object?.metadata?.checkout === "payment_element") {
         const reason = event.data.object.last_payment_error?.message || "unknown reason";
         await noteOnOrder(event.data.object.metadata.order_id, `Card payment attempt failed (Stripe): ${reason}`);
-      } else if (event.type === "charge.dispute.created") {
+      } else if (event.type.startsWith("charge.dispute.")) {
         const dispute = event.data.object;
         const piId = typeof dispute.payment_intent === "string" ? dispute.payment_intent : dispute.payment_intent?.id;
         if (piId) {
           const snap = await db.collection("orders").where("stripePaymentIntentId", "==", piId).limit(1).get();
           if (!snap.empty) {
             await noteOnOrder(snap.docs[0].id,
-              `Stripe dispute opened (${(dispute.amount / 100).toFixed(2)} ${(dispute.currency || "").toUpperCase()}, reason: ${dispute.reason || "unknown"}). Respond in the Stripe Dashboard before the evidence deadline.`,
+              event.type === "charge.dispute.created"
+                ? `Stripe dispute opened (${(dispute.amount / 100).toFixed(2)} ${(dispute.currency || "").toUpperCase()}, reason: ${dispute.reason || "unknown"}). Respond in the Stripe Dashboard before the evidence deadline.`
+                : `Stripe dispute is now ${String(dispute.status || "updated").replace(/_/g, " ")}.`,
               { disputeStatus: dispute.status || "needs_response", disputeId: dispute.id });
           }
         }
@@ -1895,55 +1997,11 @@ exports.stripeWebhook = onRequest(
       const paymentIntentId = typeof charge.payment_intent === "string"
         ? charge.payment_intent
         : charge.payment_intent?.id || null;
-      const fullyRefunded = charge.refunded === true || (charge.amount_refunded >= charge.amount && charge.amount > 0);
-
-      if (paymentIntentId && fullyRefunded) {
+      if (paymentIntentId) {
         try {
           const snap = await db.collection("orders")
             .where("stripePaymentIntentId", "==", paymentIntentId).limit(1).get();
-          if (!snap.empty) {
-            const orderRef = snap.docs[0].ref;
-            let reversal = null;
-            await db.runTransaction(async transaction => {
-              reversal = null; // a retried attempt must not keep the last attempt's value
-              const orderDoc = await transaction.get(orderRef);
-              if (!orderDoc.exists) return;
-              const order = orderDoc.data();
-              if (order.paymentStatus === "refunded") return; // already synced
-
-              const itemList = order.items || [];
-              const shouldRestock = order.inventoryRestockedAt == null;
-              const books = shouldRestock ? await readBooks(transaction, db, itemList) : new Map();
-
-              const now = new Date().toISOString();
-              if (shouldRestock) writeStock(transaction, db, itemList, books, 1, now);
-
-              transaction.update(orderRef, {
-                paymentStatus: "refunded",
-                status: "cancelled",
-                refundedAt: now,
-                refundedBy: "stripe-dashboard",
-                ...(shouldRestock ? { inventoryRestockedAt: now } : {}),
-                updatedAt: now,
-                activity: [
-                  ...(order.activity || []),
-                  { type: "event", message: `Refund synced from Stripe (${(charge.amount_refunded / 100).toFixed(2)} ${(charge.currency || "").toUpperCase()})${shouldRestock ? "; inventory restocked" : ""}.`, createdAt: now },
-                ],
-              });
-              reversal = { revenue: Number(order.total) || 0, paidDay: typeof order.paidAt === "string" ? order.paidAt.split("T")[0] : null };
-            });
-
-            if (reversal) {
-              const day = reversal.paidDay || new Date().toISOString().split("T")[0];
-              await db.collection("analytics").doc(day).set({
-                date: day,
-                orders: admin.firestore.FieldValue.increment(-1),
-                revenue: admin.firestore.FieldValue.increment(-(reversal.revenue || 0)),
-                refunds: admin.firestore.FieldValue.increment(1),
-                refundedRevenue: admin.firestore.FieldValue.increment(reversal.revenue || 0),
-              }, { merge: true });
-            }
-          }
+          if (!snap.empty) await syncStripeReversal(snap.docs[0].id, { charge, source: "Stripe webhook" });
         } catch (err) {
           console.error("Failed to sync charge.refunded:", err);
           res.status(500).send(`Refund sync failure: ${err.message}`);
@@ -4269,6 +4327,17 @@ exports.unpaidPaymentSweep = onSchedule(
         console.warn(`unpaidPaymentSweep: could not check order ${order.id}:`, err.message);
       }
     }
+    // Safety net for refunds/disputes made in Stripe whose webhook never arrived.
+    try {
+      const { ordersDueReversalCheck } = require("./stripeRecovery");
+      const paidSnap = await db.collection("orders").where("paymentStatus", "==", "paid").limit(500).get();
+      for (const order of ordersDueReversalCheck(paidSnap.docs.map((d) => ({ id: d.id, ...d.data() })))) {
+        await checkStripeReversal(order.id, order, "automatic check").catch(err => console.warn(`reversal check ${order.id}:`, err.message));
+      }
+    } catch (err) {
+      console.warn("unpaidPaymentSweep: reversal checks failed:", err.message);
+    }
+
     if (!found.length) return;
     const at = new Date().toISOString();
     await Promise.all(found.map((f) => db.collection("orders").doc(f.orderId).update({ paymentAlertSentAt: at })));
