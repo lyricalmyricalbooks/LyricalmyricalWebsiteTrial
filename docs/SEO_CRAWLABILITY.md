@@ -51,3 +51,7 @@ local checks cannot certify indexing, ranking, or eligibility for rich results.
 Sources:
 - https://developers.google.com/search/docs/fundamentals/get-started-developers
 - https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics
+
+The first successful public bootstrap is reused across fresh browser contexts
+within one build, reducing repeated catalog reads. It is held only in the
+renderer process and browser session; it is never embedded in generated HTML.

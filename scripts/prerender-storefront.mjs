@@ -36,6 +36,7 @@ let browser;
 try {
   browser = await chromium.launch({ headless: true });
   const captures = [];
+  let publishedCache;
   for (const route of routes) {
     // A fresh context prevents cart, wishlist, recent-book and cookie state from
     // one page contaminating another snapshot. No authentication is performed.
@@ -44,7 +45,10 @@ try {
       // Public rendering must never inflate store analytics or mutate Firestore.
       await context.route(/google\.firestore\.v1\.Firestore\/Write\//, request => request.abort());
       await context.route(/google-analytics\.com|googletagmanager\.com/, request => request.abort());
-      await context.addInitScript(() => sessionStorage.setItem(`fm_visit_${new Date().toISOString().split('T')[0]}`, 'true'));
+      await context.addInitScript(cache => {
+        sessionStorage.setItem(`fm_visit_${new Date().toISOString().split('T')[0]}`, 'true');
+        if (cache) sessionStorage.setItem('site-bootstrap-v1', cache);
+      }, publishedCache);
       const page = await context.newPage();
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
@@ -52,6 +56,7 @@ try {
       // This cache is written only after all published catalog/settings/pages
       // reads succeed. Never publish a fallback caused by a backend outage.
       await page.waitForFunction(() => !!sessionStorage.getItem('site-bootstrap-v1'), undefined, { timeout: 60000 });
+      if (!publishedCache) publishedCache = await page.evaluate(() => sessionStorage.getItem('site-bootstrap-v1'));
       if (route.startsWith('/books/')) {
         await page.waitForFunction(() => !!document.querySelector('[data-studio-label="Product page"]') && !!document.getElementById('seo-jsonld-page'), undefined, { timeout: 30000 });
       } else if (route.startsWith('/page/')) {
@@ -61,7 +66,23 @@ try {
       }
       // Finish React effects, lazy sections and motion before serializing DOM.
       await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await page.evaluate(async () => {
+        const frames = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        // Reveal real below-the-fold content before freezing its entrance
+        // animation state. Otherwise no-JavaScript readers see opacity:0 rows.
+        for (let y = 0; y < document.body.scrollHeight; y += Math.max(200, innerHeight - 150)) {
+          scrollTo(0, y);
+          await frames();
+        }
+        scrollTo(0, 0);
+        await frames();
+        const finite = document.getAnimations().filter(animation => Number.isFinite(animation.effect?.getComputedTiming().endTime));
+        await Promise.race([
+          Promise.all(finite.map(animation => animation.finished.catch(() => {}))),
+          new Promise(resolve => setTimeout(resolve, 2000)),
+        ]);
+        await frames();
+      });
       if (errors.length) throw new Error(`Render failed for ${route}: ${errors.join('; ')}`);
       const publicUrl = siteUrl + route;
       captures.push({ file: routeOutputPath(route), html: await page.evaluate(captureDocument, { template, publicUrl, localOrigin }) });
