@@ -6,7 +6,9 @@ const EVENT = "fm_wishlist_change";
 function read(): string[] {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    // Valid JSON that isn't a list (e.g. "null") must not crash every product card.
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
   } catch {
     return [];
   }

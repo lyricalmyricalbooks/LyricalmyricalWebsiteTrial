@@ -1,4 +1,5 @@
 import { regionProps } from "./storefrontRegions";
+import { quickAddChoice } from "./buyable";
 import { useEffect } from "react";
 import { Link } from "react-router";
 import { Heart, ArrowLeft, ShoppingBag, Trash2 } from "lucide-react";
@@ -68,8 +69,8 @@ export default function WishlistPage() {
         <div {...regionProps("wishlistGrid")} className="max-w-6xl mx-auto px-6 py-12 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
           {items.map(book => {
             const slug = (book as any).slug || book.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-            const stock = (book as any).stockLevel ?? 999;
-            const out = stock === 0;
+            const choice = quickAddChoice(book);
+            const out = !choice.inStock;
             return (
               <article key={book.id} className="group">
                 <Link to={`/books/${slug}`} className="block">
@@ -94,7 +95,7 @@ export default function WishlistPage() {
                 </Link>
                 <div {...regionProps("wishlistActions")} className="flex items-center gap-2 mt-3">
                   <button
-                    onClick={() => addToCart(book)}
+                    onClick={() => addToCart(book, choice.variant)}
                     disabled={out}
                     className="flex-1 flex items-center justify-center gap-2 fm-active py-2.5 rounded-full text-[9px] tracking-[0.3em] uppercase font-bold disabled:opacity-30 hover:bg-white/90 transition-all"
                   >

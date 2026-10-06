@@ -797,8 +797,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
           {tab === "pricing" && (
             <>
-              <SectionCard title="Price" description="Enter the CAD price. USD and EUR follow the live exchange rate unless you override them.">
-                <div className="be-toggles"><Toggle label="Override USD & EUR prices manually" checked={overrides} onChange={(v) => set("manualCurrencyOverrides", v)} /></div>
+              <SectionCard title="Price" description="Enter the CAD price. Shoppers who pick USD or EUR see, and are charged, the CAD price converted at today's exchange rate. The USD/EUR figures below are for your reference only.">
+                <div className="be-toggles"><Toggle label="Edit reference USD & EUR prices" checked={overrides} onChange={(v) => set("manualCurrencyOverrides", v)} /></div>
                 <div className="be-grid be-grid-3">
                   {money("Price (CAD)", "retailPrice", "$")}
                   {money("Price (USD)", "usdPrice", "$", { disabled: !overrides })}

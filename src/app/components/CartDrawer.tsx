@@ -1,7 +1,8 @@
 import { useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router";
-import { useCart } from "../CartContext";
+import { useCart, catalogUnitPrice } from "../CartContext";
+import { quickAddChoice } from "../features/site/buyable";
 import { useSiteData } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
 import { useCurrency } from "../CurrencyContext";
@@ -27,7 +28,13 @@ export function CartDrawer() {
 
   // "Complete your collection": a published book not in the bag, same category when possible.
   const cartIds = new Set(cart.map((i) => i.id));
-  const candidateBooks = (books || []).filter((b) => !cartIds.has(b.id) && b.status === "published");
+  // Only books that can actually be added right now (in stock, with a usable price).
+  const candidateBooks = (books || []).filter((b) => {
+    if (cartIds.has(b.id) || b.status !== "published") return false;
+    const choice = quickAddChoice(b);
+    return choice.inStock && Number.isFinite(catalogUnitPrice(b, choice.variant));
+  });
+  const recommendedChoice = (book: any) => quickAddChoice(book).variant;
   const cartCategories = new Set(cart.flatMap((i) => booksMap.get(i.id)?.categories || []));
   const recommendedBook = candidateBooks.find((b) => b.categories?.some((cat) => cartCategories.has(cat))) || candidateBooks[0];
 
@@ -178,9 +185,9 @@ export function CartDrawer() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="fm-bag-name">{recommendedBook.title}</h3>
-                      <p className="fm-bag-meta mt-1">{formatPrice(recommendedBook.isOnSale ? recommendedBook.salePrice! : recommendedBook.retailPrice)}</p>
+                      <p className="fm-bag-meta mt-1">{formatPrice(catalogUnitPrice(recommendedBook, recommendedChoice(recommendedBook)))}</p>
                     </div>
-                    <button onClick={() => addToCart(recommendedBook)} className="fm-bag-upsell-btn shrink-0 px-4 min-h-[44px]">
+                    <button onClick={() => addToCart(recommendedBook, recommendedChoice(recommendedBook))} className="fm-bag-upsell-btn shrink-0 px-4 min-h-[44px]">
                       {getCopy(design, "cartUpsellAdd")}
                     </button>
                   </div>

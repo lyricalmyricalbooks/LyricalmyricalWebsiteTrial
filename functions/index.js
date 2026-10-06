@@ -26,7 +26,7 @@ const { labelProblem, addressKey: guardAddressKey } = require("./fulfillmentGuar
 const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
-const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./localFulfillment");
+const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./localFulfillment");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -436,7 +436,7 @@ function computeDiscountAmount(discount, items, booksById) {
   if (discount.type === "bogo") {
     const buyQty = Number(discount.buyQuantity) || 1;
     const getQty = Number(discount.getQuantity) || 1;
-    const getVal = Number(discount.getDiscountValue) ?? 100;
+    const getVal = bogoPercent(discount.getDiscountValue);
 
     let qualItems = [];
     if (discount.appliesTo === "categories") {
@@ -2725,6 +2725,10 @@ exports.dailyOrderDigest = onSchedule(
   }
 );
 
+const ABANDONED_CART_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const ABANDONED_CART_THROTTLE_MS = 3 * 24 * 60 * 60 * 1000;
+const ABANDONED_CART_MAX_ITEMS = 20;
+
 exports.abandonedCartSweep = onSchedule(
   { schedule: "every 60 minutes", secrets: [RESEND_API_KEY] },
   async () => {
@@ -2736,26 +2740,63 @@ exports.abandonedCartSweep = onSchedule(
       .where("updatedAt", "<", cutoff)
       .get();
 
-    const pending = snap.docs.filter(doc => doc.data().notified !== true);
+    // Cart docs are written by anonymous browsers, so nothing in them is trusted
+    // for the email: items/prices are rebuilt from the catalog, text is escaped,
+    // stale or forged timestamps are skipped and each address is throttled.
+    const oldest = new Date(Date.now() - ABANDONED_CART_MAX_AGE_MS).toISOString();
+    const pending = snap.docs.filter(doc => doc.data().notified !== true && String(doc.data().updatedAt || "") >= oldest);
+    const bookCache = new Map();
+    const loadBook = async id => {
+      if (!bookCache.has(id)) bookCache.set(id, db.collection("books").doc(id).get().then(d => (d.exists ? d.data() : null)).catch(() => null));
+      return bookCache.get(id);
+    };
+    const emailedThisRun = new Set();
 
     const promises = pending.map(async (doc) => {
       const c = doc.data();
-      if (!c.email) return;
+      const email = String(c.email || "").trim().toLowerCase();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
 
+      const lines = [];
+      for (const item of (Array.isArray(c.items) ? c.items : []).slice(0, ABANDONED_CART_MAX_ITEMS)) {
+        if (!item || typeof item.id !== "string" || !item.id || item.id.includes("/")) continue;
+        const book = await loadBook(item.id);
+        if (!book) continue;
+        const variant = item.variantId ? (book.variants || []).find(v => v.id === item.variantId) : null;
+        if (item.variantId && !variant) continue;
+        const price = variant ? Number(variant.price) : (book.isOnSale && Number(book.salePrice) > 0 ? Number(book.salePrice) : Number(book.retailPrice));
+        if (!Number.isFinite(price) || price < 0) continue;
+        const qty = Math.max(1, Math.min(99, Math.floor(Number(item.qty || item.quantity) || 1)));
+        lines.push({ title: `${book.title || ""}${variant?.name ? ` (${variant.name})` : ""}`, qty, price });
+      }
+      if (!lines.length || emailedThisRun.has(email)) return;
+      emailedThisRun.add(email);
+
+      // One reminder per address per throttle window, however many cart docs exist for it.
+      const throttleRef = db.collection("abandoned-cart-throttle").doc(crypto.createHash("sha256").update(email).digest("hex"));
+      const throttled = await db.runTransaction(async tx => {
+        const t = await tx.get(throttleRef);
+        if (t.exists && Date.now() - Date.parse(t.data().lastSentAt || 0) < ABANDONED_CART_THROTTLE_MS) return true;
+        tx.set(throttleRef, { lastSentAt: new Date().toISOString() });
+        return false;
+      }).catch(() => true);
+      if (throttled) {
+        await doc.ref.update({ notified: true, notifiedAt: new Date().toISOString(), notifySkipped: "throttled" }).catch(() => {});
+        return;
+      }
+
+      const subtotal = lines.reduce((sum, line) => sum + line.price * line.qty, 0);
       const itemsTable = `
         <div style="margin: 20px 0; border-top: 1px solid #eee; padding-top: 15px;">
           <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-            ${(c.items || []).map(item => {
-              const qty = item.qty || item.quantity || 1;
-              return `
+            ${lines.map(line => `
               <tr style="border-bottom: 1px solid #eee;">
-                <td style="padding: 8px 0;">${item.title} (x${qty})</td>
-                <td style="padding: 8px 0; text-align: right; font-family: monospace;">${moneyFmt(item.price * qty)}</td>
-              </tr>`;
-            }).join("")}
+                <td style="padding: 8px 0;">${escapeHtml(line.title)} (x${line.qty})</td>
+                <td style="padding: 8px 0; text-align: right; font-family: monospace;">${moneyFmt(line.price * line.qty)}</td>
+              </tr>`).join("")}
             <tr style="font-weight: bold;">
               <td style="padding: 12px 0;">Total</td>
-              <td style="padding: 12px 0; text-align: right; font-family: monospace;">${moneyFmt(c.subtotal)}</td>
+              <td style="padding: 12px 0; text-align: right; font-family: monospace;">${moneyFmt(subtotal)}</td>
             </tr>
           </table>
         </div>
@@ -2763,7 +2804,7 @@ exports.abandonedCartSweep = onSchedule(
 
       const cartUrl = siteLink(`/checkout?cartId=${doc.id}`);
       const compiled = compileEmailTemplate("abandoned_cart", notificationSettings, {
-        customer_name: c.customer?.name || c.name || "there",
+        customer_name: escapeHtml(String(c.customer?.name || c.name || "there").slice(0, 80)),
         cart_url: cartUrl,
         button_url: cartUrl,
         items_table: itemsTable
@@ -2771,7 +2812,7 @@ exports.abandonedCartSweep = onSchedule(
 
       try {
         await sendEmail({
-          to: c.email,
+          to: email,
           subject: compiled.subject,
           html: compiled.html,
           secret: RESEND_API_KEY.value(),

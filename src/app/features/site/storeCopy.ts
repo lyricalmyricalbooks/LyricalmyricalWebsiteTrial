@@ -564,6 +564,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coCarrierTimingUnavailable", label: "Carrier timing unavailable", default: "Carrier delivery estimate unavailable" },
       { key: "coEstimated", label: "Delivery estimate", default: "Estimated {days} business days", hint: "Use {days} for the number of days." },
       { key: "coFree", label: "Free shipping label", default: "Free" },
+      { key: "coShipChoose", label: "Shipping not chosen yet (order summary)", default: "Choose an option" },
       { key: "coNoPayment", label: "No payment method message", multiline: true, default: "No payment method is currently available. Please contact the store before placing your order." },
       { key: "coStripeConfigError", label: "Card payment configuration error", multiline: true, default: "Card payments are temporarily unavailable. Please contact the store or choose another payment method." },
       { key: "coPrivacyNote", label: "Payment privacy note", multiline: true, default: "Your payment details are submitted directly to the selected payment provider and are not stored by this shop." },

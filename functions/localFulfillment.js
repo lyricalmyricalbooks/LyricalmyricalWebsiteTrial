@@ -1,3 +1,10 @@
+// BOGO "% off the free items": missing/blank/invalid means 100 (fully free);
+// otherwise clamped to 0-100. (`Number(x) ?? 100` never fell back: NaN or 0.)
+const bogoPercent = value => {
+  if (value === undefined || value === null || value === '') return 100;
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 100;
+};
 const normalizePostalCode = value => typeof value === 'string' ? value.toUpperCase().replace(/\s/g, '') : '';
 const postalPattern = /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z]\d[ABCEGHJ-NPRSTV-Z]\d$/;
 const prefixPattern = /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z]$/;
@@ -71,7 +78,7 @@ function discountedPhysicalSubtotal(items, discountAmount, discount, booksById =
     units.sort((a, b) => b.price - a.price);
     const count = Math.floor(units.length / setSize) * getQty;
     const discountedUnits = count ? units.slice(-count) : [];
-    const physicalDiscount = discountedUnits.filter(unit => unit.physical).reduce((sum, unit) => sum + Math.round(unit.price * (Number(discount.getDiscountValue) || 100) / 100), 0);
+    const physicalDiscount = discountedUnits.filter(unit => unit.physical).reduce((sum, unit) => sum + Math.round(unit.price * bogoPercent(discount.getDiscountValue) / 100), 0);
     return Math.max(0, physicalCents - Math.min(physicalDiscount, discountCents)) / 100;
   }
   const eligibleCents = eligible.reduce((sum, item) => sum + cents(item.price) * item.quantity, 0);
@@ -89,4 +96,4 @@ function resolveLocalSelection(config, selection, destination, discountedSubtota
   const fulfillment = { method: quote.method, optionId: quote.id, ...(quote.locationId ? { locationId: quote.locationId } : {}), ...(quote.zoneId ? { zoneId: quote.zoneId } : {}), name: quote.name, price: freeShipping ? 0 : quote.price, ...(quote.address ? { address: quote.address } : {}), ...(destination && quote.method === 'local_delivery' ? { destination: { street: destination.street, city: destination.city, state: destination.state, zip: normalizePostalCode(destination.zip), country: 'CA' } } : {}), instructions: quote.instructions, ...(quote.hours !== undefined ? { hours: quote.hours } : {}), estimate: quote.estimate };
   return { cost: fulfillment.price, method: quote.method, fulfillment };
 }
-module.exports = { normalizePostalCode, validPickupAddress, validateLocalFulfillment, quoteLocalFulfillment, discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem };
+module.exports = { bogoPercent, normalizePostalCode, validPickupAddress, validateLocalFulfillment, quoteLocalFulfillment, discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem };

@@ -58,25 +58,53 @@ export function sanitizeCart(raw: unknown): CartItem[] {
   return out;
 }
 
+/**
+ * The unit price the server charges (functions/index.js): a variant's own price,
+ * else the sale price only when it is a positive number, else the retail price.
+ * NaN when the catalog has no usable price (the server refuses those too).
+ * Exported for tests and for checkout cart recovery.
+ */
+export function catalogUnitPrice(book: any, variant?: any): number {
+  const bookPrice = book?.isOnSale && Number(book?.salePrice) > 0 ? Number(book.salePrice) : Number(book?.retailPrice);
+  if (variant) {
+    const own = variant.price;
+    return own === undefined || own === null || own === "" ? NaN : Number(own);
+  }
+  return bookPrice;
+}
+
+const CART_KEY = "fm_cart";
+
+function readStoredCart(): CartItem[] {
+  try {
+    const saved = localStorage.getItem(CART_KEY);
+    return saved ? sanitizeCart(JSON.parse(saved)) : [];
+  } catch {
+    // Storage blocked (private mode) or corrupt JSON: start with an empty bag.
+    return [];
+  }
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [cart, setCart] = useState<CartItem[]>([]);
+  // Restored synchronously so the save effect below never writes an empty bag over the saved one.
+  const [cart, setCart] = useState<CartItem[]>(readStoredCart);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Load from local storage
+  // Keep other open tabs in step (e.g. the bag emptied after a purchase in another tab).
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("fm_cart");
-      if (saved) setCart(sanitizeCart(JSON.parse(saved)));
-    } catch (e) {
-      // Storage blocked (private mode) or corrupt JSON: start with an empty bag.
-      console.error("Failed to restore cart", e);
-    }
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== CART_KEY) return;
+      try { setCart(e.newValue ? sanitizeCart(JSON.parse(e.newValue)) : []); } catch { /* ignore corrupt value */ }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   // Save to local storage
   useEffect(() => {
     try {
-      localStorage.setItem("fm_cart", JSON.stringify(cart));
+      const next = JSON.stringify(cart);
+      if (localStorage.getItem(CART_KEY) !== next) localStorage.setItem(CART_KEY, next);
     } catch {
       // Quota exceeded / storage unavailable: the in-memory cart still works.
     }
@@ -85,6 +113,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addToCart = (product: any, variant?: any, quantity: number = 1) => {
     const stockLimit = variant ? (variant.stockLevel ?? variant.stock) : product.stockLevel;
     if (stockLimit === 0) return;
+    const price = catalogUnitPrice(product, variant);
+    // A book with no usable price can't be charged; never put a NaN line in the bag.
+    if (!Number.isFinite(price) || price < 0) return;
 
     setCart(prev => {
       const existing = prev.find(i => i.id === product.id && i.variantId === variant?.id);
@@ -103,7 +134,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         variantId: variant?.id,
         variantName: variant?.name,
         title: product.title,
-        price: variant ? variant.price : (product.isOnSale ? product.salePrice : product.retailPrice),
+        price,
         quantity: initial,
         photoUrl: (variant && variant.photoUrl) ? variant.photoUrl : (product.photos?.[0]?.url || ""),
         stripePriceId: variant?.stripePriceId || product.stripePriceId || "",
