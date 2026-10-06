@@ -26,6 +26,8 @@ type Props = {
   onPack: () => void;
   onLabel: () => void;
   onDispatch: () => void;
+  onEditTracking?: () => void;
+  onDeliveryStatus?: (status: "out_for_delivery" | "delivered") => void;
   onLocalAdvance: () => void;
   onRelease: () => void;
 };
@@ -39,6 +41,8 @@ export function FulfillmentWorkbench({
   onPack,
   onLabel,
   onDispatch,
+  onEditTracking,
+  onDeliveryStatus,
   onLocalAdvance,
   onRelease,
 }: Props) {
@@ -276,7 +280,7 @@ export function FulfillmentWorkbench({
                 <p className="fw-summary">
                   {order.labelUrl
                     ? `${order.trackingCarrier || "Carrier"} · ${order.trackingNumber || "Tracking pending"}`
-                    : "Buy a Canada Post label, or use tracking from a label you already have."}
+                    : "Buy a Canada Post label through Shippo, or enter the carrier and tracking number yourself."}
                 </p>
                 <div className="fw-actions">
                   {order.labelUrl ? (
@@ -291,7 +295,7 @@ export function FulfillmentWorkbench({
                         Choose shipping label
                       </PrimaryButton>
                       <SecondaryButton disabled={busy} onClick={onDispatch}>
-                        Use my own tracking
+                        Enter tracking manually
                       </SecondaryButton>
                     </>
                   )}
@@ -314,10 +318,35 @@ export function FulfillmentWorkbench({
             </div>
           )}
           {queue === "In transit" && (
-            <p className="fw-summary">
-              {order.trackingCarrier || "Carrier"} ·{" "}
-              {order.trackingNumber || "No tracking recorded"}
-            </p>
+            <>
+              <p className="fw-summary">
+                {order.trackingCarrier || "Carrier"} ·{" "}
+                {order.trackingNumber || "No tracking recorded"}
+                {order.fulfillmentStatus === "out_for_delivery" ? " · Out for delivery" : ""}
+              </p>
+              {!order.isTest && (onDeliveryStatus || onEditTracking) && (
+                <div className="fw-actions">
+                  {onDeliveryStatus && order.fulfillmentStatus !== "out_for_delivery" && (
+                    <SecondaryButton disabled={busy} onClick={() => onDeliveryStatus("out_for_delivery")}>
+                      Mark out for delivery
+                    </SecondaryButton>
+                  )}
+                  {onDeliveryStatus && (
+                    <PrimaryButton disabled={busy} onClick={() => onDeliveryStatus("delivered")}>
+                      Mark delivered
+                    </PrimaryButton>
+                  )}
+                  {onEditTracking && !order.labelUrl && (
+                    <SecondaryButton disabled={busy} onClick={onEditTracking}>
+                      Edit tracking
+                    </SecondaryButton>
+                  )}
+                </div>
+              )}
+              {order.labelUrl && (
+                <p className="rp-hint">Shippo updates this parcel automatically; use these only if its tracking stalls.</p>
+              )}
+            </>
           )}
         </div>
       )}

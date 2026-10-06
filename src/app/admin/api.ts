@@ -1,4 +1,4 @@
-import { addressKey, addressIssues, packingKey, dispatchProblem, queueOf } from "./fulfillment";
+import { addressKey, addressIssues, packingKey, dispatchProblem, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
 import { themeWrite } from "./themeWrite";
 import { 
   collection, 
@@ -756,7 +756,7 @@ export const adminApi = {
     });
   },
 
-  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "dispatch" | "local_transition", payload: any = {}) => {
+  fulfillmentAction: async (id: string, action: "review" | "pack" | "hold" | "release" | "dispatch" | "local_transition" | "edit_tracking" | "delivery_status", payload: any = {}) => {
     await runTransaction(db, async tx => {
       const ref = doc(db, "orders", id);
       const privateRef = doc(db, "order-operations", id);
@@ -785,9 +785,21 @@ export const adminApi = {
       } else if (action === "release") { operations.hold = ""; message = "Fulfillment hold released.";
       } else if (action === "dispatch") {
         const problem = dispatchProblem(o); if (problem) throw new Error(problem);
-        if (!String(payload.trackingNumber || "").trim() || !String(payload.trackingCarrier || "").trim()) throw new Error("Enter the carrier and tracking number.");
-        tx.update(ref, { status: "completed", fulfillmentStatus: "shipped", trackingNumber: String(payload.trackingNumber).trim(), trackingCarrier: String(payload.trackingCarrier).trim(), shippedAt: now, updatedAt: now });
-        message = `Dispatched via ${payload.trackingCarrier}. Tracking: ${payload.trackingNumber}`;
+        const tracking = trackingFields(payload);
+        tx.update(ref, { status: "completed", fulfillmentStatus: "shipped", ...tracking, shippedAt: now, updatedAt: now });
+        message = `Dispatched via ${tracking.trackingCarrier}. Tracking: ${tracking.trackingNumber}`;
+      } else if (action === "edit_tracking") {
+        if (fulfillmentMethod(o) !== "shipping" || queueOf(o) !== "In transit") throw new Error("Tracking can only be corrected while the parcel is in transit.");
+        if (o.labelUrl) throw new Error("This order has a Shippo label. Its tracking comes from Shippo.");
+        const tracking = trackingFields(payload);
+        tx.update(ref, { ...tracking, updatedAt: now });
+        message = `Tracking corrected: ${tracking.trackingCarrier} · ${tracking.trackingNumber}`;
+      } else if (action === "delivery_status") {
+        if (fulfillmentMethod(o) !== "shipping" || queueOf(o) !== "In transit") throw new Error("Only shipped parcels in transit can be updated.");
+        const next = String(payload.status || "");
+        if (!["out_for_delivery", "delivered"].includes(next) || next === o.fulfillmentStatus) throw new Error("Choose a new delivery status.");
+        tx.update(ref, { fulfillmentStatus: next, ...(next === "delivered" ? { deliveredAt: now } : { outForDeliveryAt: now }), updatedAt: now });
+        message = next === "delivered" ? "Marked delivered by publisher." : "Marked out for delivery by publisher.";
       } else if (action === "local_transition") {
         const method = o.fulfillmentSelection?.method;
         if (!['pickup', 'local_delivery'].includes(method)) throw new Error("Only local orders can use this workflow.");

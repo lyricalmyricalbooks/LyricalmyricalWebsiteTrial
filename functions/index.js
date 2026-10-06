@@ -2166,9 +2166,21 @@ async function customerAccountsEnabled() {
   }
 }
 
-function getTrackingUrl(carrier, trackingNum) {
+// Keep in step with src/app/lib/tracking.ts. A publisher-entered link (manual
+// dispatch with a carrier we don't recognise) wins over the built-in pages.
+function getTrackingUrl(carrier, trackingNum, customUrl) {
+  try {
+    const custom = new URL(String(customUrl || "").trim());
+    if (custom.protocol === "https:" || custom.protocol === "http:") return custom.toString();
+  } catch (_) { /* no usable custom link */ }
   const cleanCarrier = (carrier || "").trim().toLowerCase();
   const cleanNum = (trackingNum || "").trim();
+  if (cleanCarrier.includes("purolator")) {
+    return `https://www.purolator.com/en/shipping/tracker?pin=${encodeURIComponent(cleanNum)}`;
+  }
+  if (cleanCarrier.includes("canpar")) {
+    return `https://www.canpar.com/en/tracking/delivery_options.htm?barcode=${encodeURIComponent(cleanNum)}`;
+  }
   if (cleanCarrier.includes("canada post")) {
     return `https://www.canadapost-postescanada.ca/track-reperage/en#/resultList?searchKeys=${encodeURIComponent(cleanNum)}`;
   }
@@ -2403,7 +2415,7 @@ exports.onOrderUpdated = onDocumentUpdated(
     if (becameShipped && notificationSettings.shipping_confirmation?.enabled !== false) {
       // Straight to the carrier's tracking page; without a tracking number, the shop's order-status page.
       const trackingUrl = after.trackingNumber
-        ? getTrackingUrl(after.trackingCarrier, after.trackingNumber)
+        ? getTrackingUrl(after.trackingCarrier, after.trackingNumber, after.trackingUrl)
         : `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`;
       const compiled = compileEmailTemplate("shipping_confirmation", notificationSettings, {
         customer_name: after.customer?.name || "there",
@@ -2447,21 +2459,22 @@ exports.onOrderUpdated = onDocumentUpdated(
       }
     }
 
-    // 2b. Delivered (manual status change by admin — Shippo webhook handles the carrier push)
+    // 2b. Out for delivery / delivered (manual status change by admin — Shippo webhook handles the carrier push)
     // Skip if Shippo already sent the email via its own webhook (shippoDeliveryNotified was just set)
-    const becameDelivered = before.fulfillmentStatus !== "delivered" && after.fulfillmentStatus === "delivered";
+    const deliveryStatus = ["out_for_delivery", "delivered"].includes(after.fulfillmentStatus) ? after.fulfillmentStatus : "";
+    const becameDelivered = !!deliveryStatus && before.fulfillmentStatus !== deliveryStatus;
     const shippoAlreadyNotified = after.shippoDeliveryNotified && after.shippoDeliveryNotified !== before.shippoDeliveryNotified;
     // Local handoffs stay out of the existing carrier-email path until the
     // store has explicitly enabled a matching customer notification workflow.
     const isLocalFulfillment = ["pickup", "local_delivery"].includes(after.fulfillmentSelection?.method);
     if (becameDelivered && !isLocalFulfillment && !shippoAlreadyNotified && notificationSettings.delivery_update?.enabled !== false) {
       const trackingUrl = after.trackingNumber
-        ? getTrackingUrl(after.trackingCarrier || "", after.trackingNumber)
+        ? getTrackingUrl(after.trackingCarrier || "", after.trackingNumber, after.trackingUrl)
         : `https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/track?orderId=${orderId}`;
       const compiled = compileEmailTemplate("delivery_update", notificationSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
-        status: "delivered",
+        status: deliveryStatus === "delivered" ? "delivered" : "out for delivery",
         tracking_carrier: after.trackingCarrier || "",
         tracking_number: after.trackingNumber || "",
         tracking_url: trackingUrl,
@@ -3647,7 +3660,7 @@ exports.shippoWebhook = onRequest(
         const notificationSettings = await loadNotificationSettings();
         if (notificationSettings.delivery_update?.enabled !== false) {
           const finalCarrier = carrier || order.trackingCarrier || "Carrier";
-          const trackingUrl = getTrackingUrl(finalCarrier, trackingNum);
+          const trackingUrl = getTrackingUrl(finalCarrier, trackingNum, order.trackingUrl);
           const humanStatus = trackingStatus === "DELIVERED" ? "delivered" : "out for delivery";
 
           const compiled = compileEmailTemplate("delivery_update", notificationSettings, {

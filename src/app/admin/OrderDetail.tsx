@@ -1,4 +1,5 @@
 import { FulfillmentWorkbench } from "./FulfillmentWorkbench";
+import { CARRIERS, cleanTrackingLink, getTrackingUrl } from "../lib/tracking";
 import {
   addressKey,
   packingKey,
@@ -30,27 +31,6 @@ import {
   TextArea,
   type BadgeTone,
 } from "./riso/components";
-
-const getTrackingUrl = (carrier: string, trackingNum: string) => {
-  const cleanCarrier = (carrier || "").trim().toLowerCase();
-  const cleanNum = (trackingNum || "").trim();
-  if (cleanCarrier.includes("canada post")) {
-    return `https://www.canadapost-postescanada.ca/track-reperage/en#/resultList?searchKeys=${encodeURIComponent(cleanNum)}`;
-  }
-  if (cleanCarrier.includes("usps")) {
-    return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(cleanNum)}`;
-  }
-  if (cleanCarrier.includes("ups")) {
-    return `https://www.ups.com/track?tracknum=${encodeURIComponent(cleanNum)}`;
-  }
-  if (cleanCarrier.includes("fedex")) {
-    return `https://www.fedex.com/apps/fedextrack/?tracknumbers=${encodeURIComponent(cleanNum)}`;
-  }
-  if (cleanCarrier.includes("dhl")) {
-    return `https://www.dhl.com/en/express/tracking.html?AWB=${encodeURIComponent(cleanNum)}`;
-  }
-  return `https://www.google.com/search?q=${encodeURIComponent(carrier + " " + cleanNum)}`;
-};
 
 export function OrderDetail({
   orderId,
@@ -115,8 +95,7 @@ export function OrderDetail({
       const data = await adminApi.getOrderById(orderId);
       setOrder(data);
       if (data) {
-        setTrackingCarrier((data as any).trackingCarrier || "Canada Post");
-        setTrackingNumber((data as any).trackingNumber || "");
+        fillTracking(data);
       }
     } catch (err) {
       console.error(err);
@@ -126,32 +105,62 @@ export function OrderDetail({
     }
   }
 
-  const [showShipForm, setShowShipForm] = useState(false);
+  // "dispatch" = first hand-off to the carrier; "edit" = correct tracking on a parcel already in transit.
+  const [showShipForm, setShowShipForm] = useState<false | "dispatch" | "edit">(false);
   const [trackingCarrier, setTrackingCarrier] = useState("Canada Post");
+  const [otherCarrier, setOtherCarrier] = useState("");
   const [trackingNumber, setTrackingNumber] = useState("");
+  const [trackingLink, setTrackingLink] = useState("");
   const [isShipping, setIsShipping] = useState(false);
+  const [deliveryStatus, setDeliveryStatus] = useState<null | "out_for_delivery" | "delivered">(null);
+  const carrierName = trackingCarrier === "Other" ? otherCarrier.trim() : trackingCarrier;
+
+  function fillTracking(data: any) {
+    const carrier = String(data?.trackingCarrier || "").trim();
+    const known = !carrier || CARRIERS.includes(carrier);
+    setTrackingCarrier(known ? carrier || "Canada Post" : "Other");
+    setOtherCarrier(known ? "" : carrier);
+    setTrackingNumber(data?.trackingNumber || "");
+    setTrackingLink(data?.trackingUrl || "");
+  }
 
   useEffect(() => {
     setChecked(new Set());
   }, [order ? packingKey(order) : ""]);
 
   const markAsShipped = async () => {
-    if (!trackingNumber.trim()) {
-      toast.error("Please enter a tracking number.");
+    if (!trackingNumber.trim() || !carrierName) {
+      toast.error("Enter the carrier and tracking number.");
       return;
     }
+    const editing = showShipForm === "edit";
     setIsShipping(true);
     try {
-      await adminApi.fulfillmentAction(orderId, "dispatch", {
-        trackingCarrier,
+      await adminApi.fulfillmentAction(orderId, editing ? "edit_tracking" : "dispatch", {
+        trackingCarrier: carrierName,
         trackingNumber,
+        trackingUrl: trackingLink,
       });
       setShowShipForm(false);
-      setTrackingNumber("");
       loadOrder();
-      toast.success("Order marked as shipped");
-    } catch (err) {
-      toast.error("Error updating order.");
+      toast.success(editing ? "Tracking updated" : "Order marked as shipped");
+    } catch (err: any) {
+      toast.error(err?.message || "Error updating order.");
+    } finally {
+      setIsShipping(false);
+    }
+  };
+
+  const updateDeliveryStatus = async () => {
+    if (!deliveryStatus) return;
+    setIsShipping(true);
+    try {
+      await adminApi.fulfillmentAction(orderId, "delivery_status", { status: deliveryStatus });
+      setDeliveryStatus(null);
+      loadOrder();
+      toast.success(deliveryStatus === "delivered" ? "Marked delivered" : "Marked out for delivery");
+    } catch (err: any) {
+      toast.error(err?.message || "Error updating order.");
     } finally {
       setIsShipping(false);
     }
@@ -468,7 +477,15 @@ export function OrderDetail({
           onCorrect={() => setEditAddress({ ...addr })}
           onPack={() => perform("pack", { packingKey: packingKey(order) })}
           onLabel={() => setShowParcel(true)}
-          onDispatch={() => setShowShipForm(true)}
+          onDispatch={() => {
+            fillTracking(order);
+            setShowShipForm("dispatch");
+          }}
+          onEditTracking={() => {
+            fillTracking(order);
+            setShowShipForm("edit");
+          }}
+          onDeliveryStatus={setDeliveryStatus}
           onLocalAdvance={() => {
             const next = order.fulfillmentSelection?.method === "pickup"
               ? order.fulfillmentStatus === "ready_for_pickup" ? "record customer collection" : "mark the order ready for pickup"
@@ -597,6 +614,7 @@ export function OrderDetail({
                   href={getTrackingUrl(
                     order.trackingCarrier,
                     order.trackingNumber,
+                    order.trackingUrl,
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -752,10 +770,14 @@ export function OrderDetail({
         </div>
       </Dialog>
       <Dialog
-        open={showShipForm}
+        open={!!showShipForm}
         onClose={() => !isShipping && setShowShipForm(false)}
-        title="Confirm dispatch"
-        description="Confirm only after handing the parcel to the carrier. This sends the customer's shipping notification."
+        title={showShipForm === "edit" ? "Correct tracking" : "Confirm dispatch"}
+        description={
+          showShipForm === "edit"
+            ? "Fix the carrier, tracking number or link. The customer is not emailed again; their account and order tracking page show the new details."
+            : "Confirm only after handing the parcel to the carrier. This sends the customer's shipping notification."
+        }
         footer={
           <>
             <SecondaryButton
@@ -765,10 +787,20 @@ export function OrderDetail({
               Cancel
             </SecondaryButton>
             <PrimaryButton
-              disabled={isShipping || !!problem || !trackingNumber.trim()}
+              disabled={
+                isShipping ||
+                (showShipForm === "dispatch" && !!problem) ||
+                !trackingNumber.trim() ||
+                !carrierName ||
+                (!!trackingLink.trim() && !cleanTrackingLink(trackingLink))
+              }
               onClick={markAsShipped}
             >
-              {isShipping ? "Saving…" : "Mark as shipped"}
+              {isShipping
+                ? "Saving…"
+                : showShipForm === "edit"
+                  ? "Save tracking"
+                  : "Mark as shipped"}
             </PrimaryButton>
           </>
         }
@@ -779,25 +811,78 @@ export function OrderDetail({
             value={trackingCarrier}
             onChange={(e) => setTrackingCarrier(e.target.value)}
           >
-            {[
-              "Canada Post",
-              "USPS",
-              "UPS",
-              "FedEx",
-              "DHL",
-              "Purolator",
-              "Other",
-            ].map((c) => (
+            {[...CARRIERS, "Other"].map((c) => (
               <option key={c}>{c}</option>
             ))}
           </SelectField>
+          {trackingCarrier === "Other" && (
+            <TextField
+              label="Carrier name"
+              value={otherCarrier}
+              onChange={(e) => setOtherCarrier(e.target.value)}
+              maxLength={80}
+              placeholder="e.g. Intelcom"
+            />
+          )}
           <TextField
             label="Tracking number"
             value={trackingNumber}
             onChange={(e) => setTrackingNumber(e.target.value)}
+            maxLength={100}
             placeholder="Enter the carrier tracking number"
           />
+          <TextField
+            label="Tracking link (optional)"
+            value={trackingLink}
+            onChange={(e) => setTrackingLink(e.target.value)}
+            placeholder="https://…"
+            error={
+              trackingLink.trim() && !cleanTrackingLink(trackingLink)
+                ? "The link must start with https://"
+                : undefined
+            }
+            hint="Leave blank to use the carrier's own tracking page. Paste a link for carriers we don't recognise."
+          />
+          {trackingNumber.trim() && carrierName && (
+            <a
+              className="rp-btn rp-btn-secondary rp-btn-sm"
+              href={getTrackingUrl(carrierName, trackingNumber, trackingLink)}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ alignSelf: "flex-start" }}
+            >
+              Test tracking link <ExternalLink size={12} aria-hidden />
+            </a>
+          )}
         </div>
+      </Dialog>
+      <Dialog
+        open={!!deliveryStatus}
+        onClose={() => !isShipping && setDeliveryStatus(null)}
+        title={deliveryStatus === "delivered" ? "Mark delivered?" : "Mark out for delivery?"}
+        description={
+          deliveryStatus === "delivered"
+            ? "Use this when the carrier shows the parcel as delivered. The order moves to Completed and the customer gets the Delivery update email (if it is switched on)."
+            : "Use this when the carrier shows the parcel out for delivery. The customer gets the Delivery update email (if it is switched on)."
+        }
+        footer={
+          <>
+            <SecondaryButton disabled={isShipping} onClick={() => setDeliveryStatus(null)}>
+              Cancel
+            </SecondaryButton>
+            <PrimaryButton disabled={isShipping} onClick={updateDeliveryStatus}>
+              {isShipping
+                ? "Saving…"
+                : deliveryStatus === "delivered"
+                  ? "Mark delivered"
+                  : "Mark out for delivery"}
+            </PrimaryButton>
+          </>
+        }
+      >
+        <p className="rp-hint" style={{ margin: 0 }}>
+          {order.trackingCarrier || "Carrier"} · {order.trackingNumber || "No tracking recorded"}
+        </p>
       </Dialog>
       <Dialog
         open={showHold}

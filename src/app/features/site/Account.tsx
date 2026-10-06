@@ -1,4 +1,5 @@
 import { regionProps } from "./storefrontRegions";
+import { getTrackingUrl } from "../../lib/tracking";
 import { accountsEnabled } from "./customerAccounts";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
@@ -336,21 +337,6 @@ export default function AccountPage() {
       `${functionUrl("downloadDigitalAsset")}?orderId=${encodeURIComponent(order.id || order.orderId)}&itemId=${encodeURIComponent(itemId)}&token=${encodeURIComponent(order.downloadToken)}`,
       "_blank"
     );
-  };
-
-  const getTrackingUrl = (carrier: string, trackingNum: string) => {
-    const cleanCarrier = (carrier || "").trim().toLowerCase();
-    const cleanNum = (trackingNum || "").trim();
-    if (cleanCarrier.includes("canada post")) {
-      return `https://www.canadapost-postescanada.ca/track-reperage/en#/resultList?searchKeys=${encodeURIComponent(cleanNum)}`;
-    }
-    if (cleanCarrier.includes("usps")) {
-      return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(cleanNum)}`;
-    }
-    if (cleanCarrier.includes("ups")) {
-      return `https://www.ups.com/track?tracknum=${encodeURIComponent(cleanNum)}`;
-    }
-    return `https://www.google.com/search?q=${encodeURIComponent(carrier + " " + cleanNum)}`;
   };
 
   if (settings && !accountsEnabled(settings.design)) {
@@ -859,7 +845,7 @@ export default function AccountPage() {
                               </p>
                             </div>
                             <a 
-                              href={getTrackingUrl(o.trackingCarrier, o.trackingNumber)} 
+                              href={getTrackingUrl(o.trackingCarrier, o.trackingNumber, o.trackingUrl)} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="px-6 py-3 fm-active hover:bg-slate-200 text-[9px] font-black tracking-widest uppercase rounded-xl transition-all flex items-center gap-2 shadow-lg"

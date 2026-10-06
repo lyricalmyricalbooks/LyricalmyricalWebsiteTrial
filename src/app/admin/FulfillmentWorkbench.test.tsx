@@ -57,7 +57,7 @@ describe("focused publisher workflow", () => {
     o.operations = { addressReviewed: addressKey(o), packed: packingKey(o) };
     const html = render(o);
     expect(html.match(/Choose shipping label/g)).toHaveLength(1);
-    expect(html).toContain("Use my own tracking");
+    expect(html).toContain("Enter tracking manually");
   });
   it("offers dispatch rather than another label purchase after purchase", () => {
     const o: any = base();
@@ -115,5 +115,5 @@ it("allows the final local delivery transition after the driver departs", () => 
   const html = render(o);
   expect(html).toContain("Confirm delivered");
   expect(html).not.toContain("Choose shipping label");
-  expect(html).not.toContain("Use my own tracking");
+  expect(html).not.toContain("Enter tracking manually");
 });

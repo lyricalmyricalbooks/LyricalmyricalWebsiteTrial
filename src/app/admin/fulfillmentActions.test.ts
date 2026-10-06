@@ -28,6 +28,29 @@ const base = () => ({ paymentStatus: "paid", status: "open", customer: { address
 beforeEach(() => { records.clear(); tx.update.mockClear(); tx.set.mockClear(); const o = base(); records.set("orders/a", o); records.set("order-operations/a", { addressReviewed: addressKey(o), packed: packingKey(o), activity: [] }); });
 describe("atomic fulfillment actions", () => {
  it("dispatches with tracking and private history, without writing payment or inventory", async () => { await adminApi.fulfillmentAction("a", "dispatch", { trackingCarrier: "Canada Post", trackingNumber: "123" }); expect(tx.update).toHaveBeenCalledWith({ path: "orders/a" }, expect.objectContaining({ fulfillmentStatus: "shipped", trackingNumber: "123" })); expect(tx.update.mock.calls[0][1]).not.toHaveProperty("paymentStatus"); expect(tx.set.mock.calls[0][0].path).toBe("order-operations/a"); });
+ it("stores a manual carrier name and tracking link, and rejects unsafe links", async () => {
+  await adminApi.fulfillmentAction("a", "dispatch", { trackingCarrier: "Intelcom", trackingNumber: "X1", trackingUrl: "https://track.example.com/X1" });
+  expect(tx.update.mock.calls[0][1]).toMatchObject({ trackingCarrier: "Intelcom", trackingNumber: "X1", trackingUrl: "https://track.example.com/X1" });
+  tx.update.mockClear();
+  await expect(adminApi.fulfillmentAction("a", "dispatch", { trackingCarrier: "Intelcom", trackingNumber: "X1", trackingUrl: "javascript:alert(1)" })).rejects.toThrow("https://");
+  expect(tx.update).not.toHaveBeenCalled();
+ });
+ it("corrects tracking and records delivery only while a manual parcel is in transit", async () => {
+  await expect(adminApi.fulfillmentAction("a", "delivery_status", { status: "delivered" })).rejects.toThrow("in transit");
+  records.set("orders/a", { ...base(), status: "completed", fulfillmentStatus: "shipped", trackingCarrier: "Canada Post", trackingNumber: "1" });
+  await adminApi.fulfillmentAction("a", "edit_tracking", { trackingCarrier: "Canada Post", trackingNumber: "2" });
+  expect(tx.update.mock.calls[0][1]).toMatchObject({ trackingNumber: "2" });
+  expect(tx.update.mock.calls[0][1]).not.toHaveProperty("fulfillmentStatus");
+  tx.update.mockClear();
+  await adminApi.fulfillmentAction("a", "delivery_status", { status: "out_for_delivery" });
+  expect(tx.update.mock.calls[0][1]).toMatchObject({ fulfillmentStatus: "out_for_delivery" });
+  tx.update.mockClear();
+  await adminApi.fulfillmentAction("a", "delivery_status", { status: "delivered" });
+  expect(tx.update.mock.calls[0][1]).toMatchObject({ fulfillmentStatus: "delivered" });
+  expect(tx.update.mock.calls[0][1]).not.toHaveProperty("paymentStatus");
+  records.set("orders/a", { ...base(), status: "completed", fulfillmentStatus: "shipped", labelUrl: "label" });
+  await expect(adminApi.fulfillmentAction("a", "edit_tracking", { trackingCarrier: "UPS", trackingNumber: "3" })).rejects.toThrow("Shippo");
+ });
  it("rejects a stale checklist without writing anything", async () => { records.set("order-operations/a", { addressReviewed: addressKey(base()) }); await expect(adminApi.fulfillmentAction("a", "pack", { packingKey: "stale" })).rejects.toThrow("Items changed"); expect(tx.update).not.toHaveBeenCalled(); expect(tx.set).not.toHaveBeenCalled(); });
  it("rejects unpaid dispatch and incomplete preparation", async () => { records.set("orders/a", { ...base(), paymentStatus: "unpaid" }); await expect(adminApi.fulfillmentAction("a", "dispatch", {})).rejects.toThrow(); expect(tx.update).not.toHaveBeenCalled(); });
  it("stores new internal notes only in private operations", async () => { await adminApi.addOrderNote("a", "Customer issue"); expect(tx.update).not.toHaveBeenCalled(); expect(tx.set.mock.calls[0][0].path).toBe("order-operations/a"); });
