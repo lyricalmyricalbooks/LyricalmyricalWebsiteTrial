@@ -8,6 +8,7 @@ export function validateDiscountDraft(form: any, now = new Date().toISOString().
   if (form.appliesTo === "categories" && !(form.selectedCategories || []).length) errors.applies = "Choose at least one category.";
   if (form.appliesTo === "products" && !(form.selectedProducts || []).length) errors.applies = "Choose at least one book.";
   if (form.expiryDate && form.expiryDate < now) errors.expiryDate = "Choose today or a future date.";
+  if (form.startDate && form.expiryDate && form.expiryDate < form.startDate) errors.expiryDate = "The end date must be on or after the start date.";
   if (form.usageLimit !== "" && (!(Number(form.usageLimit) >= 1) || !Number.isInteger(Number(form.usageLimit)))) errors.usageLimit = "Use a whole-number limit of at least 1.";
   if (form.minOrderAmount !== "" && Number(form.minOrderAmount) < 0) errors.minOrderAmount = "Minimum order cannot be negative.";
   if (form.minQuantity !== "" && (!(Number(form.minQuantity) >= 0) || !Number.isInteger(Number(form.minQuantity)))) errors.minQuantity = "Minimum quantity must be a whole number.";

@@ -1138,6 +1138,7 @@ export const adminApi = {
       type: discount.type || "percentage",
       value: discount.value ?? 0,
       isActive: discount.isActive ?? true,
+      startDate: discount.startDate || null,
       expiryDate: discount.expiryDate || null,
       minOrderAmount: discount.minOrderAmount ?? null,
       minQuantity: discount.minQuantity ?? null,
