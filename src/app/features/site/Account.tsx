@@ -727,13 +727,15 @@ export default function AccountPage() {
                       <div className="flex items-center gap-6 self-stretch md:self-auto justify-between border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
                         <div className="flex items-center gap-3">
                           {(() => {
-                            const isDelivered = o.fulfillmentStatus === "delivered" || o.status === "completed";
+                            // Dispatch also sets status "completed", so a parcel still on its way is not "Delivered".
+                            const inTransit = ["shipped", "out_for_delivery"].includes(o.fulfillmentStatus);
+                            const isDelivered = !inTransit && (["delivered", "collected"].includes(o.fulfillmentStatus) || o.status === "completed");
                             return (
                               <span
                                 className={`text-[8px] font-black tracking-widest uppercase px-3.5 py-1.5 rounded-xl border ${
                                   isDelivered
                                     ? ""
-                                    : o.fulfillmentStatus === "shipped"
+                                    : inTransit
                                     ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"
                                     : "bg-amber-500/10 text-amber-400 border-amber-500/20"
                                 }`}
@@ -747,7 +749,7 @@ export default function AccountPage() {
                                     : undefined
                                 }
                               >
-                                {getCopy(settings?.design, isDelivered ? "accountDelivered" : o.fulfillmentStatus === "shipped" ? "accountShipped" : o.fulfillmentStatus === "processing" ? "accountProcessing" : "accountUnfulfilled")}
+                                {getCopy(settings?.design, isDelivered ? "accountDelivered" : o.fulfillmentStatus === "out_for_delivery" ? "trackOutForDelivery" : o.fulfillmentStatus === "shipped" ? "accountShipped" : o.fulfillmentStatus === "processing" ? "accountProcessing" : "accountUnfulfilled")}
                               </span>
                             );
                           })()}

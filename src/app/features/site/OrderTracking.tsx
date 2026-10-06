@@ -100,7 +100,7 @@ export default function OrderTracking() {
   const shippingSteps = [
     { label: getCopy(settings?.design, "trackStepPaid"), desc: getCopy(settings?.design, "trackStepPaidDesc"), icon: CheckCircle2 },
     { label: getCopy(settings?.design, "trackStepProcessing"), desc: getCopy(settings?.design, "trackStepProcessingDesc"), icon: Package },
-    { label: getCopy(settings?.design, "trackStepShipped"), desc: getCopy(settings?.design, "trackStepShippedDesc"), icon: Truck },
+    { label: getCopy(settings?.design, fulfillmentStatus === "out_for_delivery" ? "trackOutForDelivery" : "trackStepShipped"), desc: getCopy(settings?.design, "trackStepShippedDesc"), icon: Truck },
     { label: getCopy(settings?.design, "trackStepDelivered"), desc: getCopy(settings?.design, "trackStepDeliveredDesc"), icon: MapPin },
   ];
   const localSteps = isPickup ? [

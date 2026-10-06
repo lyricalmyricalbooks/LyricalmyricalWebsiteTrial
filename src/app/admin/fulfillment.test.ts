@@ -48,3 +48,19 @@ describe("customer's checkout service on label rates", () => {
     expect(matchesCustomerService("Regular Parcel", undefined)).toBe(false);
   });
 });
+
+import { daysInTransit, isOverdueInTransit } from "./fulfillment";
+describe("parcels in transit too long", () => {
+  const now = Date.parse("2026-10-20T12:00:00Z");
+  const shipped = (shippedAt: string, extra: any = {}) => ({ ...order(), status: "completed", fulfillmentStatus: "shipped", shippedAt, ...extra });
+  it("flags shipped parcels at 14 days, not before", () => {
+    expect(daysInTransit(shipped("2026-10-10T12:00:00Z"), now)).toBe(10);
+    expect(isOverdueInTransit(shipped("2026-10-10T12:00:00Z"), now)).toBe(false);
+    expect(isOverdueInTransit(shipped("2026-10-06T12:00:00Z"), now)).toBe(true);
+  });
+  it("never flags delivered, local or undated orders", () => {
+    expect(isOverdueInTransit(shipped("2026-09-01T00:00:00Z", { fulfillmentStatus: "delivered" }), now)).toBe(false);
+    expect(isOverdueInTransit(shipped("2026-09-01T00:00:00Z", { fulfillmentSelection: { method: "local_delivery" }, fulfillmentStatus: "out_for_delivery" }), now)).toBe(false);
+    expect(isOverdueInTransit(shipped(""), now)).toBe(false);
+  });
+});

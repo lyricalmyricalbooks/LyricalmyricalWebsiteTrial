@@ -361,7 +361,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "trackPickupReady", label: "Pickup ready status", default: "Ready for pickup" },
       { key: "trackCollected", label: "Pickup completed status", default: "Collected" },
       { key: "trackReadyForDelivery", label: "Local delivery prepared status", default: "Preparing your local delivery" },
-      { key: "trackOutForDelivery", label: "Out for local delivery status", default: "Out for delivery" },
+      { key: "trackOutForDelivery", label: "Out for delivery status (tracking page & account)", default: "Out for delivery" },
       { key: "trackFulfillmentEstimate", label: "Pickup or delivery estimate label", default: "Estimate" },
       { key: "trackFulfillmentInstructions", label: "Pickup or delivery instructions label", default: "Instructions" },
       { key: "trackFulfillmentHours", label: "Pickup hours label", default: "Hours" },

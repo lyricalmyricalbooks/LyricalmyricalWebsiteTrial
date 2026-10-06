@@ -73,6 +73,15 @@ export function matchesCustomerService(rateName: unknown, shippingMethod: unknow
  const chosen = serviceName(shippingMethod);
  return !!rate && !!chosen && rate === chosen;
 }
+// Shipped parcels still not delivered after this many days get flagged so lost ones are chased early.
+export const OVERDUE_TRANSIT_DAYS = 14;
+export function daysInTransit(o: any, now: number = Date.now()): number | null {
+ if (fulfillmentMethod(o) !== "shipping" || queueOf(o) !== "In transit") return null;
+ const shipped = Date.parse(o.shippedAt || "");
+ if (!Number.isFinite(shipped)) return null;
+ return Math.max(0, Math.floor((now - shipped) / 86400000));
+}
+export const isOverdueInTransit = (o: any, now?: number) => (daysInTransit(o, now) ?? 0) >= OVERDUE_TRANSIT_DAYS;
 export function buildPickList(orders: any[]) {
  const items = new Map<string, any>();
  for (const o of orders) for (const i of physicalItems(o)) {

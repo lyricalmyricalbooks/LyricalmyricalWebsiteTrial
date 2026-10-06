@@ -7,6 +7,8 @@ import {
   physicalItems,
   isDigitalItem,
   queueOf,
+  daysInTransit,
+  isOverdueInTransit,
 } from "./fulfillment";
 import {
   Checkbox,
@@ -332,6 +334,12 @@ export function FulfillmentWorkbench({
                 {order.trackingNumber || "No tracking recorded"}
                 {order.fulfillmentStatus === "out_for_delivery" ? " · Out for delivery" : ""}
               </p>
+              {isOverdueInTransit(order) && (
+                <p className="fw-problems" role="alert">
+                  In transit for {daysInTransit(order)} days. Check the carrier's tracking; if the parcel is lost,
+                  open a claim with the carrier and contact the customer.
+                </p>
+              )}
               {!order.isTest && (onDeliveryStatus || onEditTracking) && (
                 <div className="fw-actions">
                   {onDeliveryStatus && order.fulfillmentStatus !== "out_for_delivery" && (
