@@ -38,6 +38,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "seoCheckoutDescription", label: "Checkout page description", default: "Secure checkout for {name}.", hint: "Use {name} for the site name." },
       { key: "seoAccountTitle", label: "Account page title", default: "Your Account" },
       { key: "seoAccountDescription", label: "Account page description", default: "Manage your account, orders and saved addresses." },
+      { key: "seoBookLoadingTitle", label: "Book loading search title", default: "Publication" },
       { key: "seoBookDescription", label: "Book page description (when a book has none)", default: "{title} — {name}", hint: "Use {title} for the book title and {name} for the site name." },
       { key: "seoCollectionTitle", label: "Collection page title", default: "{category} Collection", hint: "Use {category} for the collection name." },
       { key: "seoCollectionDescription", label: "Collection page description", default: "Browse the {category} collection from {name}.", hint: "Use {category} (lower-case) and {name}." },

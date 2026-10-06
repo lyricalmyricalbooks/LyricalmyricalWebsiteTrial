@@ -1,7 +1,12 @@
+import { useLocation } from "react-router";
 import { useEffect, useSyncExternalStore } from "react";
 import { getCopy } from "../features/site/storeCopy";
 
+import { canonicalUrl } from "./bookSeo";
+
 type SEO = {
+  exactTitle?: boolean;
+  noindex?: boolean;
   title?: string;
   description?: string;
   image?: string;
@@ -54,14 +59,25 @@ function clearJsonLd(id: string) {
 }
 
 export function useSEO(seo: SEO) {
+  const location = useLocation();
   const design = useSyncExternalStore(subscribe, getSiteDesign, getSiteDesign);
   useEffect(() => {
     const title = seo.title
-      ? getCopy(design, "siteTitleFormat", { title: seo.title })
+      ? (seo.exactTitle ? seo.title : getCopy(design, "siteTitleFormat", { title: seo.title }))
       : getCopy(design, "siteDefaultTitle");
     const description = seo.description || getCopy(design, "siteDefaultDescription");
-    const image = seo.image || design?.shareImageUrl || "";
-    const url = seo.url || (typeof window !== "undefined" ? window.location.href : "");
+    const rawImage = seo.image || design?.shareImageUrl || "";
+    const image = rawImage ? new URL(rawImage, window.location.href).href : "";
+    const url = canonicalUrl(seo.url || window.location.href);
+    let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.head.appendChild(canonical);
+    }
+    canonical.href = url;
+    const preview = new URLSearchParams(location.search).get("preview") === "true";
+    setMeta('meta[name="robots"]', "content", seo.noindex || preview || /^\/(admin|checkout|account|wishlist|cart|track)(\/|$)/.test(location.pathname) ? "noindex, follow" : "index, follow");
     const type = seo.type || "website";
 
     document.title = title;
@@ -70,12 +86,12 @@ export function useSEO(seo: SEO) {
     setMeta('meta[property="og:description"]', "content", description);
     setMeta('meta[property="og:type"]', "content", type);
     if (url) setMeta('meta[property="og:url"]', "content", url);
-    if (image) setMeta('meta[property="og:image"]', "content", image);
+    setMeta('meta[property="og:image"]', "content", image);
     setMeta('meta[property="og:site_name"]', "content", getCopy(design, "siteName"));
     setMeta('meta[name="author"]', "content", getCopy(design, "siteName"));
     setMeta('meta[name="twitter:title"]', "content", title);
     setMeta('meta[name="twitter:description"]', "content", description);
-    if (image) setMeta('meta[name="twitter:image"]', "content", image);
+    setMeta('meta[name="twitter:image"]', "content", image);
 
     if (seo.jsonLd) {
       setJsonLd("seo-jsonld-page", seo.jsonLd);
@@ -84,5 +100,5 @@ export function useSEO(seo: SEO) {
     return () => {
       clearJsonLd("seo-jsonld-page");
     };
-  }, [design, seo.title, seo.description, seo.image, seo.url, seo.type, JSON.stringify(seo.jsonLd || {})]);
+  }, [location.pathname, location.search, design, seo.title, seo.exactTitle, seo.noindex, seo.description, seo.image, seo.url, seo.type, JSON.stringify(seo.jsonLd || {})]);
 }

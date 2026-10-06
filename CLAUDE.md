@@ -696,3 +696,37 @@ Actual field display can be verified without submitting a payment; authenticated
 sandbox payment, webhook, refund and email verification remain separate.
 
 Stripe field appearance follows Studio checkout field background, text, border, font, accent and corner-radius controls inside the secure iframe. Riso defaults use square, visibly outlined idle fields with accent focus outlines and danger outlines for invalid fields; payment tabs share the same border treatment.
+
+
+## Book SEO pane (5 October 2026)
+
+Catalog > Edit book > Search (SEO) owns `metaTitle`, `metaDescription` and optional
+HTTPS `seoImage`, saved with the book through the existing admin-only write path.
+A custom search title is used exactly; blank fields use catalog content and the
+published Studio Site & sharing defaults. The pane previews the effective title,
+plain-text description, collision-safe canonical URL and sharing image, and offers
+content checks, catalog-default reset and a deployed-URL Rich Results Test link.
+Checks are guidance, not a ranking score. Catalog copy and URLs are never bulk rewritten.
+
+`lib/bookSeo.ts` supplies book metadata and Product + Book JSON-LD. The public
+PDP uses its displayed currency, price and selected-edition availability, including
+backorders. No reviews/ratings are fabricated. `lib/seo.ts` updates canonical and
+social URLs on router navigation, strips query/fragment parameters, clears stale
+sharing images, and marks previews and private account/checkout/tracking pages noindex.
+`index.html` has no fixed homepage canonical that conflicts with product routes.
+
+`build:sitemap` lists published book/page routes, escapes URLs and removes personal
+pages. Book/page fetch failures fail the build instead of silently dropping their
+URLs; the optional legacy collections endpoint may be unavailable and is reported.
+Robots paths follow the deployment sub-path; Google reads robots.txt at the origin
+root, so a project-folder robots.txt alone is not an origin-wide crawl restriction.
+Private pages also use noindex metadata. Rebuild/deploy the sitemap when catalog
+routes change. No new Firestore collection, rule, index or Function is required.
+
+Verification covers focused SEO regression tests, the complete Vitest suite,
+production build with public catalog reads, and local desktop/phone fixture checks
+for preview/edit/save/reset and rendered PDP metadata. Fixture save evidence is not
+live Firestore persistence. Google rankings/indexing and a live Rich Results Test
+remain external verification. GitHub Pages still uses its existing SPA 404 redirect;
+server-rendered HTML with direct 200 product routes remains a future crawlability
+improvement. After deployment submit the sitemap and inspect URLs in Search Console.
