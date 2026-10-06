@@ -843,12 +843,17 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
   let appliedDiscount = null;
   let verifiedDiscount = null;
   if (order.appliedDiscount?.code) {
-    const verified = await fetchValidDiscount(order.appliedDiscount.code);
-    verifiedDiscount = verified;
-    validateDiscountCustomer(verified, order.customer?.email);
-    await assertDiscountNotUsedByCustomer(verified, order.customer?.email);
-    discount = computeDiscountAmount(verified, items, booksById);
-    appliedDiscount = { id: verified.id, code: verified.code, type: verified.type, value: verified.value };
+    // Same "Discount code error:" prefix as the Stripe path, so checkout can drop the code and explain.
+    try {
+      const verified = await fetchValidDiscount(order.appliedDiscount.code);
+      verifiedDiscount = verified;
+      validateDiscountCustomer(verified, order.customer?.email);
+      await assertDiscountNotUsedByCustomer(verified, order.customer?.email);
+      discount = computeDiscountAmount(verified, items, booksById);
+      appliedDiscount = { id: verified.id, code: verified.code, type: verified.type, value: verified.value };
+    } catch (discountErr) {
+      throw new Error(`Discount code error: ${discountErr.message}`);
+    }
   }
   const profilesSnap = await db.collection("shipping-profiles").get();
   const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
