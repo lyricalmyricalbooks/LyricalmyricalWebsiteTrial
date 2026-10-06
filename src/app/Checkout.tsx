@@ -1,5 +1,5 @@
 import { regionProps } from "./features/site/storefrontRegions";
-import { canadaPostRates } from "./features/site/canadaPostRates";
+import { liveCheckoutRates } from "./features/site/canadaPostRates";
 import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router";
@@ -678,8 +678,9 @@ export function Checkout() {
 
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data.rates) && data.rates.length > 0) {
-            setAvailableRates(canadaPostRates(data.rates).map((rate: any) => ({ ...rate, id: rate.name })));
+          const liveRates = Array.isArray(data.rates) ? liveCheckoutRates(data.rates) : [];
+          if (liveRates.length > 0) {
+            setAvailableRates(liveRates.map((rate: any) => ({ ...rate, id: rate.name })));
             setShippoRatesLoading(false);
             return;
           }
@@ -1030,8 +1031,12 @@ export function Checkout() {
 
       const referralSource = typeof window !== "undefined" ? window.sessionStorage.getItem("referral_source") : null;
 
+      const checkoutCartId = sessionStorage.getItem("fm_checkout_cart_id");
       const orderData = {
-        customer,
+        // Lowercased so Account › My orders (matched on the sign-in email) finds it.
+        customer: { ...customer, email: String(customer.email || "").trim().toLowerCase() },
+        // Lets the server stop the abandoned-cart email once this order is paid.
+        ...(checkoutCartId ? { cartId: checkoutCartId } : {}),
         customerId: currentUser?.uid || null,
         referralSource: referralSource || "direct",
         ...(checkoutDesign.showOrderNote && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
@@ -1193,7 +1198,7 @@ export function Checkout() {
     (async () => {
       try {
         if (isManualReturn) {
-          const order: any = await adminApi.getOrderById(oid);
+          const order: any = await adminApi.getPublicOrder(oid);
           if (cancelled) return;
           if (order) setSuccessOrder(order);
           clearCart();
@@ -1236,7 +1241,7 @@ export function Checkout() {
         // Firestore is authoritative. URL flags and the capture HTTP response
         // never confirm payment on their own; wait for the paid order update.
         for (let attempt = 0; attempt < 12 && !cancelled; attempt++) {
-          const order: any = await adminApi.getOrderById(oid);
+          const order: any = await adminApi.getPublicOrder(oid);
           if (cancelled) return;
           if (order) setSuccessOrder(order);
           if (order?.paymentStatus === "paid") {

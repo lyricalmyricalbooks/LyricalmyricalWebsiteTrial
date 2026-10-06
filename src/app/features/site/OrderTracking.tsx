@@ -62,7 +62,7 @@ export default function OrderTracking() {
     setOrder(null);
 
     try {
-      const foundOrder = await adminApi.getOrderById(orderIdInput.trim());
+      const foundOrder = await adminApi.getPublicOrder(orderIdInput.trim());
       if (!foundOrder) {
         setError(getCopy(settings?.design, "trackErrNotFound"));
         return;

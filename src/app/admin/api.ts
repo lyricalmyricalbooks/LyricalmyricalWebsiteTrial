@@ -888,6 +888,14 @@ export const adminApi = {
     return result as { domain: string; applePay: string; googlePay: string };
   },
 
+  // Storefront (thank-you page, /track): the order record only. Guests may read an
+  // order by ID, but order-operations is admin-only and would deny the whole read.
+  getPublicOrder: async (id: string) => {
+    const snap = await getDoc(doc(db, "orders", id));
+    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  },
+
+  // Admin only: the order plus its private fulfillment record.
   getOrderById: async (id: string) => {
     const docRef = doc(db, "orders", id);
     const snap = await getDoc(docRef);

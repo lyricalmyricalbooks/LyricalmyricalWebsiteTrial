@@ -2259,6 +2259,14 @@ exports.onOrderUpdated = onDocumentUpdated(
 
     // 1. Order Confirmation (Order Paid)
     const becamePaid = before.paymentStatus !== "paid" && after.paymentStatus === "paid";
+    // A paid order ends its checkout cart, so abandonedCartSweep never emails a paying customer.
+    if (becamePaid && typeof after.cartId === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(after.cartId)) {
+      try {
+        await db.collection("abandoned-carts").doc(after.cartId).set({ recovered: true, recoveredAt: new Date().toISOString() }, { merge: true });
+      } catch (err) {
+        console.warn("Could not mark checkout cart recovered", err);
+      }
+    }
     if (becamePaid) {
       // If it is a manual payment method, decrement stock levels
       const isManual = after.paymentMethod && after.paymentMethod !== "Stripe" && after.paymentMethod !== "PayPal";

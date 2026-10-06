@@ -19,3 +19,11 @@ describe("Canada Post checkout choices", () => {
     expect(rates[0].name).toBe("UPS Standard");
   });
 });
+
+import { liveCheckoutRates } from "./canadaPostRates";
+describe("live checkout rates", () => {
+  it("prefers Canada Post and falls back to other carriers instead of none", () => {
+    expect(liveCheckoutRates([{ name: "Canada Post Expedited", price: 20 }, { name: "USPS Ground", price: 9 }]).map(r => r.name)).toEqual(["Canada Post Expedited"]);
+    expect(liveCheckoutRates([{ name: "UPS Ground", price: 15 }, { name: "USPS Ground", price: 9 }]).map(r => r.name)).toEqual(["USPS Ground", "UPS Ground"]);
+  });
+});
