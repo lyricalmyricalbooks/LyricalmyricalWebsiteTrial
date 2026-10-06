@@ -1488,12 +1488,125 @@ async function handleRegisterPaymentDomain(req, res) {
 
 // Served through createStripeCheckoutSession (body.action) so no new public
 // function needs deploying — the CI deploy account can't set IAM on new ones.
+// Marks a Stripe-paid order paid: stock, discount usage, download token and
+// analytics, once (idempotent — a repeat sees "paid" and only refreshes the
+// Stripe ids). `session` is a Checkout Session, or a PaymentIntent shaped like
+// one, that the server itself fetched from Stripe or received in a signed
+// webhook — never browser data. The amount and currency must match the payment
+// this order was created for.
+async function markStripeOrderPaid(orderId, session, opts = {}) {
+    const orderRef = db.collection("orders").doc(orderId);
+    let paidTotal = null;
+
+    await db.runTransaction(async transaction => {
+      paidTotal = null; // a retried attempt must not keep the last attempt's value
+      // Firestore transactions require ALL reads before any writes.
+      const orderDoc = await transaction.get(orderRef);
+      if (!orderDoc.exists) return;
+      const order = orderDoc.data();
+      const now = new Date().toISOString();
+      const paymentIntentId = typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : session.payment_intent?.id || null;
+      const stripeTransaction = {
+        stripeCheckoutSessionId: session.id,
+        stripePaymentIntentId: paymentIntentId,
+        stripeAccountId: opts.account || null,
+        stripeMode: session.livemode ? "live" : "test",
+        stripeAmountTotal: session.amount_total,
+        stripeCurrency: session.currency,
+        updatedAt: now,
+      };
+
+      if (order.paymentStatus === "paid") {
+        transaction.update(orderRef, stripeTransaction);
+        return;
+      }
+
+      const amountCheck = paidAmountCheck(order, session.amount_total, session.currency);
+      if (!amountCheck.ok) {
+        transaction.update(orderRef, {
+          ...stripeTransaction,
+          paymentMismatch: { ...amountCheck, provider: "stripe", paymentIntentId, at: now },
+          activity: [...(order.activity || []), { type: "event", message: `Stripe payment did not match the order total (expected ${amountCheck.expected.minor} ${amountCheck.expected.currency}, got ${amountCheck.paid.minor} ${amountCheck.paid.currency}). Not marked paid — refund or review in Stripe.`, createdAt: now }],
+        });
+        console.error(`Stripe amount mismatch on order ${orderId}`, amountCheck);
+        return;
+      }
+
+      const itemList = order.items || [];
+      const books = await readBooks(transaction, db, itemList);
+
+      let discountRef = null;
+      let discountDoc = null;
+      if (order.appliedDiscount?.id) {
+        discountRef = db.collection("discounts").doc(order.appliedDiscount.id);
+        discountDoc = await transaction.get(discountRef);
+      }
+
+      // Single-use token securing digital download links in emails.
+      const downloadToken = crypto.randomBytes(32).toString("hex");
+
+      transaction.update(orderRef, {
+        ...stripeTransaction,
+        paymentStatus: "paid",
+        fulfillmentStatus: "paid",
+        status: "open",
+        downloadToken,
+        stripePaymentIntentId: session.payment_intent || null,
+        paidAt: now,
+        updatedAt: now,
+        activity: [
+          ...(order.activity || []),
+          { type: "event", message: opts.message, createdAt: now }
+        ]
+      });
+
+      // Atomic stock decrement, one write per book (two editions of a book both count).
+      if (writeStock(transaction, db, itemList, books, -1, now)) transaction.update(orderRef, { oversold: true });
+
+      // Count discount redemptions so usage limits are enforceable.
+      if (discountRef && discountDoc?.exists) {
+        transaction.update(discountRef, {
+          usageCount: (discountDoc.data().usageCount || 0) + 1,
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      paidTotal = Number(order.total) || 0;
+    });
+
+    // Revenue/order analytics are recorded here — at payment time —
+    // never client-side at order creation.
+    if (paidTotal !== null) {
+      const today = new Date().toISOString().split("T")[0];
+      await db.collection("analytics").doc(today).set({
+        date: today,
+        orders: admin.firestore.FieldValue.increment(1),
+        revenue: admin.firestore.FieldValue.increment(paidTotal),
+      }, { merge: true });
+    }
+  return paidTotal !== null;
+}
+
 async function handleCheckoutStatus(req, res) {
   {
-    const { orderId, sessionId, paymentIntentId } = req.body || {};
+    let { orderId, sessionId, paymentIntentId } = req.body || {};
+    if (typeof orderId !== "string" || !orderId || orderId.includes("/")) {
+      res.status(400).json({ error: "Missing orderId" });
+      return;
+    }
+    // The tracking page may only know the order number: use the payment ids this
+    // server saved on the order when it created the payment.
+    if (!(typeof paymentIntentId === "string" && paymentIntentId.startsWith("pi_")) && !(typeof sessionId === "string" && sessionId.startsWith("cs_"))) {
+      const saved = (await db.collection("orders").doc(orderId).get()).data() || {};
+      if (saved.paymentStatus === "paid") { res.status(200).json({ status: "complete", paymentStatus: "paid" }); return; }
+      paymentIntentId = typeof saved.stripePaymentIntentId === "string" ? saved.stripePaymentIntentId : "";
+      sessionId = typeof saved.stripeCheckoutSessionId === "string" ? saved.stripeCheckoutSessionId : "";
+    }
     const isIntent = typeof paymentIntentId === "string" && paymentIntentId.startsWith("pi_");
-    if (typeof orderId !== "string" || (!isIntent && (typeof sessionId !== "string" || !sessionId.startsWith("cs_")))) {
-      res.status(400).json({ error: "Missing orderId or sessionId" });
+    if (!isIntent && !(typeof sessionId === "string" && sessionId.startsWith("cs_"))) {
+      res.status(200).json({ status: "open", paymentStatus: "unpaid" });
       return;
     }
     try {
@@ -1511,6 +1624,15 @@ async function handleCheckoutStatus(req, res) {
           res.status(404).json({ error: "Payment not found" });
           return;
         }
+        // Stripe itself says this order's payment succeeded: finish the order now
+        // rather than leaving the customer on "unpaid" if the webhook was missed or
+        // delayed. Same idempotent, amount-checked path the webhook uses.
+        if (intent.status === "succeeded") {
+          await markStripeOrderPaid(orderId, {
+            id: null, client_reference_id: orderId, payment_status: "paid", payment_intent: intent.id,
+            livemode: intent.livemode, amount_total: intent.amount_received ?? intent.amount, currency: intent.currency,
+          }, { message: "Payment confirmed with Stripe (checked from the order page)" });
+        }
         // Map onto the session vocabulary the storefront already understands.
         const status = intent.status === "succeeded" || intent.status === "processing" ? "complete" : "open";
         res.status(200).json({ status, paymentStatus: intent.status });
@@ -1520,6 +1642,9 @@ async function handleCheckoutStatus(req, res) {
       if (session.client_reference_id !== orderId) {
         res.status(404).json({ error: "Session not found" });
         return;
+      }
+      if (session.payment_status === "paid") {
+        await markStripeOrderPaid(orderId, session, { message: "Payment confirmed with Stripe (checked from the order page)" });
       }
       res.status(200).json({ status: session.status, paymentStatus: session.payment_status });
     } catch (err) {
@@ -1646,98 +1771,7 @@ exports.stripeWebhook = onRequest(
 
       if (orderId && settled) {
         try {
-          const orderRef = db.collection("orders").doc(orderId);
-          let paidTotal = null;
-
-          await db.runTransaction(async transaction => {
-            paidTotal = null; // a retried attempt must not keep the last attempt's value
-            // Firestore transactions require ALL reads before any writes.
-            const orderDoc = await transaction.get(orderRef);
-            if (!orderDoc.exists) return;
-            const order = orderDoc.data();
-            const now = new Date().toISOString();
-            const paymentIntentId = typeof session.payment_intent === "string"
-              ? session.payment_intent
-              : session.payment_intent?.id || null;
-            const stripeTransaction = {
-              stripeCheckoutSessionId: session.id,
-              stripePaymentIntentId: paymentIntentId,
-              stripeAccountId: event.account || null,
-              stripeMode: session.livemode ? "live" : "test",
-              stripeAmountTotal: session.amount_total,
-              stripeCurrency: session.currency,
-              updatedAt: now,
-            };
-
-            if (order.paymentStatus === "paid") {
-              transaction.update(orderRef, stripeTransaction);
-              return;
-            }
-
-            const amountCheck = paidAmountCheck(order, session.amount_total, session.currency);
-            if (!amountCheck.ok) {
-              transaction.update(orderRef, {
-                ...stripeTransaction,
-                paymentMismatch: { ...amountCheck, provider: "stripe", paymentIntentId, at: now },
-                activity: [...(order.activity || []), { type: "event", message: `Stripe payment did not match the order total (expected ${amountCheck.expected.minor} ${amountCheck.expected.currency}, got ${amountCheck.paid.minor} ${amountCheck.paid.currency}). Not marked paid — refund or review in Stripe.`, createdAt: now }],
-              });
-              console.error(`Stripe amount mismatch on order ${orderId}`, amountCheck);
-              return;
-            }
-
-            const itemList = order.items || [];
-            const books = await readBooks(transaction, db, itemList);
-
-            let discountRef = null;
-            let discountDoc = null;
-            if (order.appliedDiscount?.id) {
-              discountRef = db.collection("discounts").doc(order.appliedDiscount.id);
-              discountDoc = await transaction.get(discountRef);
-            }
-
-            // Single-use token securing digital download links in emails.
-            const downloadToken = crypto.randomBytes(32).toString("hex");
-
-            transaction.update(orderRef, {
-              ...stripeTransaction,
-              paymentStatus: "paid",
-              fulfillmentStatus: "paid",
-              status: "open",
-              downloadToken,
-              stripePaymentIntentId: session.payment_intent || null,
-              paidAt: now,
-              updatedAt: now,
-              activity: [
-                ...(order.activity || []),
-                { type: "event", message: isElementPayment ? "Payment completed (Stripe card form)" : "Payment completed (Stripe Webhook)", createdAt: now }
-              ]
-            });
-
-            // Atomic stock decrement, one write per book (two editions of a book both count).
-            if (writeStock(transaction, db, itemList, books, -1, now)) transaction.update(orderRef, { oversold: true });
-
-            // Count discount redemptions so usage limits are enforceable.
-            if (discountRef && discountDoc?.exists) {
-              transaction.update(discountRef, {
-                usageCount: (discountDoc.data().usageCount || 0) + 1,
-                updatedAt: new Date().toISOString()
-              });
-            }
-
-            paidTotal = Number(order.total) || 0;
-          });
-
-          // Revenue/order analytics are recorded here — at payment time —
-          // never client-side at order creation.
-          if (paidTotal !== null) {
-            const today = new Date().toISOString().split("T")[0];
-            await db.collection("analytics").doc(today).set({
-              date: today,
-              orders: admin.firestore.FieldValue.increment(1),
-              revenue: admin.firestore.FieldValue.increment(paidTotal),
-            }, { merge: true });
-          }
-
+          await markStripeOrderPaid(orderId, session, { account: event.account || null, message: isElementPayment ? "Payment completed (Stripe card form)" : "Payment completed (Stripe Webhook)" });
           console.log(`Order ${orderId} successfully processed via webhook.`);
         } catch (err) {
           console.error("Failed to process order update in transaction:", err);
@@ -4114,6 +4148,12 @@ exports.unpaidPaymentSweep = onSchedule(
         const { stripe } = await getStripeClientForMode(order.isTest === true ? "test" : "live");
         const intent = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
         if (intent.status === "succeeded" && intent.metadata?.order_id === order.id) {
+          // Stripe confirms the money arrived but the webhook never landed: finish the
+          // order (same amount-checked path the webhook uses) and tell the shop.
+          await markStripeOrderPaid(order.id, {
+            id: null, client_reference_id: order.id, payment_status: "paid", payment_intent: intent.id,
+            livemode: intent.livemode, amount_total: intent.amount_received ?? intent.amount, currency: intent.currency,
+          }, { message: "Payment confirmed with Stripe by the hourly check (the webhook was missed)" }).catch(err => console.error(`unpaidPaymentSweep: could not finish order ${order.id}:`, err));
           found.push({ orderId: order.id, email: order.customer?.email, amount: intent.amount, currency: intent.currency, intentId: intent.id });
         }
       } catch (err) {
