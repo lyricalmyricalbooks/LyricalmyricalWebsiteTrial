@@ -4,6 +4,7 @@ import { launchReadiness, readinessSummary } from "./launchReadiness";
 const goodSettings = {
   payments: { testMode: false, stripe: { connected: true, publicKey: "pk_live_" + "a".repeat(24), secretKeyStored: true } },
   policies: { shipping: "x", returns: "x", privacy: "x", terms: "x" },
+  taxes: { rates: [{ country: "CA", rate: 13 }] },
 };
 const goodBook = { title: "A", status: "published", retailPrice: 20, photos: [{ url: "u" }], description: "d" };
 const status = (items: any[], id: string) => items.find(i => i.id === id)?.status;
@@ -23,6 +24,7 @@ describe("launchReadiness", () => {
     expect(status(items, "shipping")).toBe("warn");
     expect(status(items, "policies")).toBe("warn");
     expect(status(items, "first-sale")).toBe("warn");
+    expect(status(items, "tax")).toBe("warn");
     expect(readinessSummary(items)).toBe("block");
   });
 

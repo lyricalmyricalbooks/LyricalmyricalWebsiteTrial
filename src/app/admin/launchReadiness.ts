@@ -52,6 +52,12 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
     ? { id: "shipping", label: "Shipping is configured", detail: plural(shippingProfiles.length, "shipping profile"), status: "ok", tab: "shipping", action: "Open Shipping" }
     : { id: "shipping", label: "No shipping profiles", detail: "Checkout falls back to a flat rate. Add zones and rates for the countries you ship to.", status: "warn", tab: "shipping", action: "Open Shipping" });
 
+  // Sales tax (charged server-side from Settings › Taxes rates)
+  const rates = (settings?.taxes?.rates || []).filter((r: any) => Number(r?.rate) > 0);
+  items.push(rates.length
+    ? { id: "tax", label: "Sales tax rates are set", detail: plural(rates.length, "tax rate"), status: "ok", tab: "taxes", action: "Open Taxes" }
+    : { id: "tax", label: "No sales tax rates", detail: "Checkout charges no tax. Add GST/HST/PST rates if you are registered to collect them.", status: "warn", tab: "taxes", action: "Open Taxes" });
+
   // Policies
   const missing = REQUIRED_POLICIES.filter(([k]) => !hasText(settings?.policies?.[k])).map(([, label]) => label);
   items.push(missing.length
