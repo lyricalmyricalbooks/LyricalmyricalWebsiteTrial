@@ -1,4 +1,5 @@
 import { regionProps } from "./features/site/storefrontRegions";
+import { consentAllows } from "./lib/consent";
 import { trackLink } from "./features/site/orderStatus";
 import { liveCheckoutRates } from "./features/site/canadaPostRates";
 import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
@@ -32,6 +33,7 @@ import { searchAddresses, type AddressSuggestion } from "./features/site/address
 import { arrivalDateLabel, freeShippingGap } from "./features/site/checkoutNudges";
 import { guessCountryName, parsePinned } from "./features/site/countryPicker";
 import { CountryField } from "./features/site/CountryField";
+import { matchTaxRate } from "./features/site/taxRate";
 import { designNumber } from "./features/site/designNumber";
 import { provinceFromPostal, cleanRegion, regionsFor } from "./features/site/postalRegion";
 import { readSiteCache } from "./features/site/siteCache";
@@ -660,6 +662,11 @@ export function Checkout() {
     // The backend decides whether this destination is opted into live rates.
     // Countries outside that allowlist return no live rates and follow the
     // regular profile/zone path below.
+    // E-books only: nothing to ship, so no carrier quote (the server charges $0 too).
+    if (catalogItems && !catalogItems.some(item => item.physical)) {
+      setAvailableRates([]);
+      return;
+    }
     if (!addr.street?.trim() || !addr.city?.trim() || !addr.state?.trim() || !addr.zip?.trim() || cart.length === 0) {
       calculateStaticProfileRates();
       return;
@@ -680,7 +687,10 @@ export function Checkout() {
               country: addr.country || "Canada",
               name: customer.name || "Customer"
             },
-            items: cart.map(i => ({ id: i.id, quantity: i.quantity, variantId: i.variantId }))
+            // Only the books that travel: e-books add no parcel weight.
+            items: cart
+              .filter(i => !catalogItems || catalogItems.some(item => item.physical && item.id === i.id && (item.variantId || "") === (i.variantId || "")))
+              .map(i => ({ id: i.id, quantity: i.quantity, variantId: i.variantId }))
           })
         });
 
@@ -810,6 +820,8 @@ export function Checkout() {
   }, [appliedDiscount, cart, cartTotal, booksMap]);
 
   const physicalItems = useMemo(() => catalogItems?.filter(item => item.physical) || [], [catalogItems]);
+  // Known to be e-books only (not just "catalog still loading").
+  const digitalOnly = Boolean(catalogItems && catalogItems.length && !physicalItems.length);
   const availableFulfillmentMethods = useMemo<FulfillmentSelection["method"][]>(() => {
     if (!physicalItems.length) return [];
     const methods: FulfillmentSelection["method"][] = ["shipping"];
@@ -860,15 +872,8 @@ export function Checkout() {
   }, [availableRates, fulfillmentSelection]);
 
   useEffect(() => {
-    const rateFor = (address: any) => {
-      const country = String(address?.country || "").trim().toLowerCase();
-      const state = String(address?.state || "").trim().toLowerCase();
-      const countryRates = taxRates.filter(r => {
-        const configured = String(r.country || "").trim().toLowerCase();
-        return configured === country || ((configured === "ca" || configured === "canada") && (country === "ca" || country === "canada"));
-      });
-      return countryRates.find(r => String(r.region || "").trim().toLowerCase() === state && state !== "") || countryRates.find(r => !r.region);
-    };
+    // Same matching as the server's charge, so the tax shown is the tax paid.
+    const rateFor = (address: any) => matchTaxRate(taxRates, address?.country, address?.state);
     const taxable = Math.max(0, cartTotal - discountAmount);
     if (fulfillmentSelection.method === "pickup") {
       const pickup = localQuotes.find(quote => quote.id === fulfillmentSelection.optionId && quote.method === "pickup");
@@ -911,7 +916,7 @@ export function Checkout() {
   const isFreeShipping  = appliedDiscount?.type === "freeship";
   const selectedShippingQuote = availableRates.find(rate => rate.id === fulfillmentSelection.optionId || rate.name === fulfillmentSelection.optionId);
   const selectedLocalQuote = localQuotes.find(quote => quote.id === fulfillmentSelection.optionId && quote.method === fulfillmentSelection.method);
-  const shippingCost = fulfillmentSelection.method === "shipping" ? Number(selectedShippingQuote?.price || 0) : Number(selectedLocalQuote?.price || 0);
+  const shippingCost = !physicalItems.length ? 0 : fulfillmentSelection.method === "shipping" ? Number(selectedShippingQuote?.price || 0) : Number(selectedLocalQuote?.price || 0);
   const finalShipping   = isFreeShipping ? 0 : shippingCost;
   const finalTotal      = cartTotal - discountAmount + finalShipping + taxCost;
 
@@ -937,7 +942,8 @@ export function Checkout() {
   }, []);
 
   useEffect(() => {
-    if (!customer.email || !customer.email.includes("@") || cart.length === 0) return;
+    // The cookie banner lists cart reminders under Marketing: a shopper who declined gets none.
+    if (!customer.email || !customer.email.includes("@") || cart.length === 0 || !consentAllows("marketing")) return;
     const t = setTimeout(() => {
       let recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id");
       if (!recoveryCartId) {
@@ -977,13 +983,24 @@ export function Checkout() {
     }
   }, [customer.address.zip, customer.address.country, customer.address.state]);
 
+  // A server "Discount code error: …" reply means only the code is the problem.
+  const discountRejection = (data: any) => {
+    const message = typeof data?.error === "string" ? data.error : "";
+    if (!/^Discount code error:/i.test(message)) return null;
+    return Object.assign(new Error(message), { discountRejected: true, reason: message.replace(/^Discount code error:\s*/i, "") });
+  };
+
   const completePurchase = async () => {
     if (selectedPaymentMethod === "stripe" && !stripeRoute.canPay) {
       setNotice({ tone: "error", text: c("coStripeLoadError") });
       return;
     }
-    const needsDeliveryAddress = fulfillmentSelection.method !== "pickup" || pickupNeedsAddress;
-    const validDestination = !needsDeliveryAddress || [customer.address.street, customer.address.city, customer.address.state, customer.address.zip, customer.address.country].every(value => String(value || "").trim());
+    const needsDeliveryAddress = !digitalOnly && (fulfillmentSelection.method !== "pickup" || pickupNeedsAddress);
+    // An e-book-only order still needs where the buyer is (country, and province/state where
+    // there's a fixed list) because that sets the sales tax.
+    const validDestination = digitalOnly
+      ? Boolean(String(customer.address.country || "").trim()) && (!regionsFor(customer.address.country) || Boolean(String(customer.address.state || "").trim()))
+      : !needsDeliveryAddress || [customer.address.street, customer.address.city, customer.address.state, customer.address.zip, customer.address.country].every(value => String(value || "").trim());
     const validBilling = fulfillmentSelection.method !== "pickup" || pickupNeedsAddress || [customer.billingAddress.country, customer.billingAddress.state].every(value => String(value || "").trim());
     const selectedOptionExists = !physicalItems.length || (fulfillmentSelection.method === "shipping"
       ? availableRates.some(rate => rate.id === fulfillmentSelection.optionId || rate.name === fulfillmentSelection.optionId)
@@ -1012,9 +1029,9 @@ export function Checkout() {
     try {
       // Carrier address verification applies to shipped orders. Pickup has no
       // shipping address, and local delivery uses its configured postal zone.
-      let addressVerified = fulfillmentSelection.method !== "shipping";
+      let addressVerified = fulfillmentSelection.method !== "shipping" || digitalOnly;
       let addressError = "";
-      const valResponse = fulfillmentSelection.method === "shipping" ? await fetch(functionUrl("validateAddress"), {
+      const valResponse = fulfillmentSelection.method === "shipping" && !digitalOnly ? await fetch(functionUrl("validateAddress"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1113,7 +1130,7 @@ export function Checkout() {
           }),
         });
         const result = await response.json();
-        if (!response.ok || !result.orderId) throw new CopyError(checkoutDesign, "coManualOrderError");
+        if (!response.ok || !result.orderId) throw discountRejection(result) || new CopyError(checkoutDesign, "coManualOrderError");
         orderId = result.orderId;
       } else {
         orderId = reuse ? reuse.orderId : await adminApi.createOrder(orderData);
@@ -1133,7 +1150,7 @@ export function Checkout() {
           body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
         });
         const paypalData = await paypalResponse.json();
-        if (!paypalResponse.ok) throw new CopyError(checkoutDesign, "coPaypalError");
+        if (!paypalResponse.ok) throw discountRejection(paypalData) || new CopyError(checkoutDesign, "coPaypalError");
         if (!paypalData.approvalUrl) throw new CopyError(checkoutDesign, "coErrPaypalUrl");
         purchaseNavigating.current = true;
         window.location.href = paypalData.approvalUrl;
@@ -1159,7 +1176,7 @@ export function Checkout() {
             body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, paymentElement: true }),
           });
           const intentData = await intentResponse.json();
-          if (!intentResponse.ok || !intentData.clientSecret) throw new CopyError(checkoutDesign, "coStripeError");
+          if (!intentResponse.ok || !intentData.clientSecret) throw discountRejection(intentData) || new CopyError(checkoutDesign, "coStripeError");
           clientSecret = intentData.clientSecret;
           pendingCardOrder.current = { key: cardKey, orderId, clientSecret };
         }
@@ -1175,6 +1192,15 @@ export function Checkout() {
       }
 
     } catch (err: any) {
+      if (err?.discountRejected) {
+        // The server refused the code (expired, already used, wrong email…): take it off
+        // so the next attempt can go through, and say why next to the code box.
+        setAppliedDiscount(null);
+        setDiscountOpen(true);
+        setDiscountError(err.reason);
+        setNotice({ tone: "error", text: c("coDiscountRejected", { reason: err.reason }) });
+        return;
+      }
       setNotice({ tone: "error", text: c("coCheckoutFailed", { error: copyErrorText(err, checkoutDesign, "coStripeError") }) });
     }
   };
@@ -1204,7 +1230,10 @@ export function Checkout() {
     const stripeIntentId = params.get("payment_intent") || "";
     // Drop the one-time return flags so a refresh doesn't replay this landing.
     const isManualReturn = params.get("manual") === "true";
-    window.history.replaceState(null, "", `${window.location.pathname}?order_id=${encodeURIComponent(oid)}&success=true${isManualReturn ? "&manual=true" : ""}`);
+    const settledUrl = `${window.location.pathname}?order_id=${encodeURIComponent(oid)}&success=true${isManualReturn ? "&manual=true" : ""}`;
+    // A PayPal return keeps its token in the URL until the capture has run, so a
+    // refresh mid-capture retries it instead of losing the payment.
+    if (!isPayPalReturn) window.history.replaceState(null, "", settledUrl);
     setOrderNumber(oid);
     setIsSuccess(true);
     setManualOrderReturn(isManualReturn);
@@ -1247,14 +1276,21 @@ export function Checkout() {
         }
         if (isPayPalReturn) {
           const paypalOrderId = params.get("token");
-          if (!paypalOrderId) throw new CopyError(checkoutDesign, "coErrPaypalToken");
-          const captureResponse = await fetch(functionUrl("capturePayPalOrder"), {
+          const captureResponse = paypalOrderId ? await fetch(functionUrl("capturePayPalOrder"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ orderId: oid, paypalOrderId }),
-          });
-          const captureData = await captureResponse.json();
-          if (!captureResponse.ok) throw new CopyError(checkoutDesign, "coPaypalCaptureError");
+          }).catch(() => null) : null;
+          if (cancelled) return;
+          if (!captureResponse || !captureResponse.ok) {
+            // No money was taken: never show the "thank you / payment went through" screen.
+            window.history.replaceState(null, "", window.location.pathname);
+            setIsSuccess(false);
+            setOrderNumber("");
+            setNotice({ tone: "error", text: c(paypalOrderId ? "coPaypalCaptureError" : "coErrPaypalToken") });
+            return;
+          }
+          window.history.replaceState(null, "", settledUrl);
         }
 
         // Firestore is authoritative. URL flags and the capture HTTP response
@@ -1367,7 +1403,7 @@ export function Checkout() {
                 <span>{c("summaryTotal")}</span>
                 <span className="font-mono">{formatPrice(Number(successOrder.total || 0))}</span>
               </div>
-              {successOrder.shippingMethod && (
+              {successOrder.shippingMethod && !["pickup", "local_delivery"].includes(successOrder.fulfillment?.method) && (
                 <div className="border-t border-white/10 pt-3 space-y-1 text-xs leading-5 text-white/60">
                   <p><span className="text-white/80">{c("coSuccessShipping")}</span> {successOrder.shippingMethod}</p>
                   {successOrder.shippingEstimate?.days ? (
@@ -1518,18 +1554,18 @@ export function Checkout() {
                   pinnedCodes={pinnedCountryCodes} showFlags={!checkoutDesign.hideCountryFlags}
                   words={{ search: c("coCountrySearch"), popular: c("coCountryPopular"), all: c("coCountryAll"), none: (q: string) => c("coCountryNone", { query: q }) }}
                   value={customer.address.country} onChange={v => setCustomer({ ...customer, address: { ...customer.address, country: v, state: v === customer.address.country ? customer.address.state : "" } })} />
-                {checkoutDesign.hideAddressSuggestions
+                {!digitalOnly && (checkoutDesign.hideAddressSuggestions
                   ? <Field label={c("coAddress")} value={customer.address.street} onChange={v => setCustomer({ ...customer, address: { ...customer.address, street: v } })} autoComplete="street-address" required />
                   : <AddressField label={c("coAddress")} value={customer.address.street} country={customer.address.country}
                       listLabel={c("coAddressSuggestions")} attribution={c("coAddressAttribution")}
                       onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: v } }))}
-                      onPick={sug => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: sug.street, city: sug.city || prev.address.city, state: sug.state || prev.address.state, zip: sug.zip || prev.address.zip, country: sug.country || prev.address.country } }))} />}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <Field label={c("coCity")} value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required />
+                      onPick={sug => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: sug.street, city: sug.city || prev.address.city, state: sug.state || prev.address.state, zip: sug.zip || prev.address.zip, country: sug.country || prev.address.country } }))} />)}
+                <div className={`grid grid-cols-1 gap-3 ${digitalOnly ? "" : "sm:grid-cols-3"}`}>
+                  {!digitalOnly && <Field label={c("coCity")} value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required />}
                   {regionsFor(customer.address.country)
                     ? <RegionField label={c("coState")} choose={c("coStateChoose")} regions={regionsFor(customer.address.country)!} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} />
                     : <Field label={c("coState")} value={customer.address.state} onChange={v => setCustomer({ ...customer, address: { ...customer.address, state: v } })} autoComplete="address-level1" required />}
-                  <Field label={c("coZip")} value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" required />
+                  {!digitalOnly && <Field label={c("coZip")} value={customer.address.zip} onChange={v => setCustomer({ ...customer, address: { ...customer.address, zip: v } })} autoComplete="postal-code" required />}
                 </div>
                 </>}
               </div>
@@ -1639,8 +1675,16 @@ export function Checkout() {
                     />
                   </StripePaymentSection>
                 )}
+                {hasPaypal && (
+                  <label className={`flex cursor-pointer items-center justify-between gap-4 border-t border-slate-200 px-4 py-4 ${!hasStripe ? "border-t-0" : ""}`} data-studio-target="copy:Checkout" data-studio-label="PayPal option">
+                    <div className="flex items-center gap-3">
+                      <input type="radio" name="payment-method" disabled={isCompleting} checked={selectedPaymentMethod === "paypal"} onChange={() => setSelectedPaymentMethod("paypal")} className="h-4 w-4 accent-[color:var(--accent)]" />
+                      <span className="text-sm font-medium">{c("coPaypalOption")}</span>
+                    </div>
+                  </label>
+                )}
                 {enabledManualMethods.map((method: any, index: number) => (
-                  <label key={method.id} className={`flex cursor-pointer items-center justify-between gap-4 border-t border-slate-200 px-4 py-4 ${!hasStripe && index === 0 ? "border-t-0" : ""}`}>
+                  <label key={method.id} className={`flex cursor-pointer items-center justify-between gap-4 border-t border-slate-200 px-4 py-4 ${!hasStripe && !hasPaypal && index === 0 ? "border-t-0" : ""}`}>
                     <div className="flex items-center gap-3">
                       <input type="radio" name="payment-method" disabled={isCompleting} checked={selectedPaymentMethod === `manual_${method.id}`} onChange={() => setSelectedPaymentMethod(`manual_${method.id}`)} className="h-4 w-4 accent-[color:var(--accent)]" />
                       <span className="text-sm font-medium">{method.name}</span>

@@ -216,6 +216,8 @@ export const adminApi = {
     const newDoc = await addDoc(collection(db, "books"), {
       ...data,
       title: `${data.title} (Copy)`,
+      // A copied slug would collide with the original and push its public URL to /books/<id>.
+      slug: "",
       status: "draft",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

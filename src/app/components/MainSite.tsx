@@ -598,13 +598,18 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // Prioritize global categories if they exist (new behavior), otherwise fall back to storefront or legacy
   // Published designs can outlive older editor schemas. Never let a malformed
   // legacy category value crash the storefront when returning from checkout.
-  const rawCategories = storefrontCategories(activeDesign?.categories || storefrontDesign?.categories || legacyDesign?.categories);
-  const categories = useMemo(() => rawCategories.map((cat: any, i: number) => {
+  // Keyed on the categories' content: storefrontCategories() returns a new array every
+  // render, which re-ran the category effects below on every render (a category click
+  // snapped back on /collections pages, "ALL" never stuck, string lists looped).
+  const categorySource = activeDesign?.categories || storefrontDesign?.categories || legacyDesign?.categories;
+  const categoryKey = JSON.stringify(categorySource ?? null);
+  const categories = useMemo(() => storefrontCategories(categorySource).map((cat: any, i: number) => {
     if (typeof cat === "string") {
       return { id: `cat-${i}`, name: cat, description: "", showInNav: true };
     }
     return cat;
-  }), [rawCategories]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [categoryKey]);
   // Categories and in-menu pages share one header bar; Studio › Menus › Header bar order sets the sequence.
   const navOrder = activeDesign?.navOrder || storefrontDesign?.navOrder || legacyDesign?.navOrder;
   const navItems = useMemo(() => buildNavItems(categories, pages || [], navOrder), [categories, pages, navOrder]);
@@ -637,6 +642,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const { slug: collectionSlug } = useParams();
   useEffect(() => {
     if (!collectionSlug) return;
+    if (collectionSlug === "all") { pickCategory("ALL"); return; }
     const slugOf = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
     const match = categories.find((c: any) => categoryNames(c).some((n: string) => slugOf(n) === collectionSlug));
     if (match) pickCategory(match);
@@ -645,6 +651,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   // Sync activeCategory if categories change
   useEffect(() => {
+    if (activeCategory === "ALL") return;
     if (categories.length > 0) {
       const currentName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
       const exists = categories.find((c: any) => c.name === currentName);

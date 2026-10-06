@@ -4,8 +4,10 @@ const slugify = (value = '') => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').
 export function sitemapArtifacts(siteUrl, books, pages, collections) {
   const base = siteUrl.replace(/\/$/, '');
   const urls = [{ loc: base + '/' }];
-  for (const book of resolveProductRoutes(books)) {
-    if (book.status !== 'published') continue;
+  // Same live-book set (and so the same collision-safe slugs) as the storefront's useSiteData / isLiveBook.
+  const nowISO = new Date().toISOString();
+  const live = books.filter(book => (!book.status || book.status === 'published') && (!book.scheduleDate || String(book.scheduleDate) <= nowISO));
+  for (const book of resolveProductRoutes(live)) {
     urls.push({ loc: `${base}/books/${encodeURIComponent(book.slug)}`, lastmod: book.updatedAt || book._updateTime });
   }
   for (const page of pages) {

@@ -9,7 +9,7 @@ function harness({ method = 'pickup', optionId = 'pickup:shop', paymentStatus = 
   const updates = [], stripeCalls = [], paypalCalls = [];
   const order = { items: [{ id: 'book', quantity: 1, price: 0, format: 'E-book' }], customer: { email: 'reader@example.com', name: 'Reader', address, billingAddress }, paymentStatus, status: 'pending_payment', shipping: 0, fulfillmentSelection: { method, optionId }, fulfillment: { name: 'Forged', price: 0 } };
   const docs = {
-    books: { book: { format: 'Paperback', retailPrice: 30, stockLevel: 9 } },
+    books: { book: { status: 'published', format: 'Paperback', retailPrice: 30, stockLevel: 9 } },
     settings: { website: { localFulfillment: config, taxes: { rates: [{ country: 'Canada', region: 'ON', rate: 13 }, { country: 'Canada', region: 'QC', rate: 5 }] }, payments: { stripe: { secretKey: 'sk_test_fake' }, manualMethods: [{ id: 'cash', enabled: true, name: 'Cash', instructions: 'Pay at pickup' }] } } },
     'private-integrations': { shippo: { dynamicRatesEnabled: true, dynamicRateCountries: ['CA'] } },
   };
@@ -102,12 +102,12 @@ test('manual local action creates a new trusted unpaid order without opening pro
   const app = harness(); const response = await app.call('createStripeCheckoutSession', { action: 'createManualLocalOrder', manualMethodId: 'cash', orderDraft: { customer: app.order.customer, items: app.order.items, fulfillmentSelection: app.order.fulfillmentSelection, total: 0, fulfillment: { name: 'Forged' }, paymentStatus: 'paid' } });
   expect(response.code).toBe(200);
   const saved = app.docs.orders[response.value.orderId];
-  expect(saved).toMatchObject({ paymentStatus: 'unpaid', total: 35.9, fulfillment: { method: 'pickup', name: 'Shop', price: 2 } });
+  expect(saved).toMatchObject({ paymentStatus: 'pending', total: 35.9, fulfillment: { method: 'pickup', name: 'Shop', price: 2 } });
   expect(app.stripeCalls).toHaveLength(0);
 });
 test('mixed pickup taxes physical merchandise at pickup and digital at billing province', async () => {
   const app = harness({ billingAddress: { country: 'Canada', state: 'QC' } });
-  app.docs.books.ebook = { format: 'E-book', retailPrice: 10 };
+  app.docs.books.ebook = { status: 'published', format: 'E-book', retailPrice: 10 };
   app.order.items.push({ id: 'ebook', quantity: 1, price: 0, format: 'Paperback' });
   const response = await app.call('createStripeCheckoutSession');
   expect(response.code).toBe(200);
@@ -129,7 +129,7 @@ test('manual local creation rejects disabled method and ignores paid, price and 
   expect(result.code).toBe(200);
   const saved = app.docs.orders[result.value.orderId];
   expect(saved.total).toBe(35.9);
-  expect(saved.paymentStatus).toBe('unpaid');
+  expect(saved.paymentStatus).toBe('pending');
   expect(saved.downloadToken).toBeUndefined();
   expect(saved.fulfillment.name).toBe('Shop');
 });

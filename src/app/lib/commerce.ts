@@ -1,3 +1,4 @@
+import { consentAllows } from "./consent";
 import {
   collection,
   doc,
@@ -182,7 +183,7 @@ const inEditorPreview = () =>
 
 export const funnelApi = {
   track: async (event: "view" | "add_to_cart" | "checkout_start" | "purchase") => {
-    if (inEditorPreview()) return;
+    if (inEditorPreview() || !consentAllows("analytics")) return;
     const today = new Date().toISOString().split("T")[0];
     const ref = doc(db, "analytics", today);
     try {
@@ -197,7 +198,7 @@ export const funnelApi = {
   },
 
   trackCategory: async (categoryName: string) => {
-    if (!categoryName || inEditorPreview()) return;
+    if (!categoryName || inEditorPreview() || !consentAllows("analytics")) return;
     const today = new Date().toISOString().split("T")[0];
     const ref = doc(db, "analytics", today);
     try {

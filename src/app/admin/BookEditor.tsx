@@ -738,7 +738,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                       hint={`/books/${formData.slug || "your-book"}`} />
                     <div className="be-inline-actions">
                       <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => set("slug", slugify(formData.title || ""))}><RefreshCw size={13} aria-hidden /> Regenerate from title</button>
-                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}${import.meta.env.BASE_URL}#/books/${formData.slug}`); toast.success("Link copied"); }} disabled={!formData.slug}><Copy size={13} aria-hidden /> Copy link</button>
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}${import.meta.env.BASE_URL}books/${formData.slug}`); toast.success("Link copied"); }} disabled={!formData.slug}><Copy size={13} aria-hidden /> Copy link</button>
                     </div>
                   </div>
                   <div className="be-span-2">

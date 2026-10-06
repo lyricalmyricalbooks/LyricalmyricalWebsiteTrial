@@ -1,4 +1,7 @@
 /** Resolve page overrides over root tokens; keep template trees available. */
+// A stray "%" in a typed URL (e.g. /page/50%-off) must not crash the page.
+const safeDecode = (value: string) => { try { return decodeURIComponent(value); } catch { return value; } };
+
 export function resolveSurfaceDesign(design: any, pathname: string) {
   if (!design) return design;
   const template = pathname.startsWith("/books/") ? "productPage"
@@ -10,7 +13,7 @@ export function resolveSurfaceDesign(design: any, pathname: string) {
     : pathname === "/track" ? "trackingPage"
     : pathname !== "/" && !pathname.startsWith("/admin") ? "page404" : null;
   if (!template) return design;
-  const custom = template === "page" ? design[`page:${decodeURIComponent(pathname.slice(6))}`] : null;
+  const custom = template === "page" ? design[`page:${safeDecode(pathname.slice(6))}`] : null;
   if (!design[template] && !custom) return design;
   return { ...design, ...(design[template] || {}), ...(custom || {}),
     regions: { ...design.regions, ...design[template]?.regions, ...custom?.regions } };

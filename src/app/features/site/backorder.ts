@@ -11,7 +11,17 @@ const UNLIMITED = 999;
  */
 export function applyBackorderPolicy<T extends Partial<Book>>(book: T): T {
   const b = book as any;
-  if (!b || !b.trackInventory || !b.allowBackorder) return book;
+  if (!b) return book;
+  // "Track inventory" switched off: stock isn't counted (the server never checks it),
+  // so the editor's untouched 0 must not show the book as SOLD OUT.
+  if (b.trackInventory === false) {
+    return {
+      ...b,
+      stockLevel: UNLIMITED,
+      variants: Array.isArray(b.variants) ? b.variants.map((v: any) => ({ ...v, stock: UNLIMITED, stockLevel: UNLIMITED })) : b.variants,
+    };
+  }
+  if (!b.trackInventory || !b.allowBackorder) return book;
   const variants = Array.isArray(b.variants)
     ? b.variants.map((v: any) => {
         const n = Number(v.stockLevel ?? v.stock ?? 0);
@@ -20,9 +30,12 @@ export function applyBackorderPolicy<T extends Partial<Book>>(book: T): T {
     : b.variants;
   const hasVariants = Array.isArray(variants) && variants.length > 0;
   const soldOut = !hasVariants && Number(b.stockLevel ?? 0) <= 0;
+  // With backorders on, every edition can be ordered, so the book itself isn't sold out either.
+  const editionsBackorderable = hasVariants && Number(b.stockLevel ?? 0) <= 0;
   return {
     ...b,
     variants,
     ...(soldOut ? { stockLevel: UNLIMITED, onBackorder: true } : {}),
+    ...(editionsBackorderable ? { stockLevel: UNLIMITED } : {}),
   };
 }
