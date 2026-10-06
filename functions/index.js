@@ -136,10 +136,31 @@ async function getShippoToken() {
   }
 }
 
+// Secret keys entered in the admin live in the admin-only adminSecrets/* docs.
+// Older saves put them in public settings/*; those are still honoured until the
+// admin next opens Settings (which moves them), but adminSecrets wins.
+async function readAdminSecret(id) {
+  try {
+    const snap = await db.collection("adminSecrets").doc(id).get();
+    return snap.exists ? snap.data() || {} : {};
+  } catch (err) {
+    console.warn(`Could not read adminSecrets/${id}:`, err);
+    return {};
+  }
+}
+
+async function withPrivateStripeKeys(stripeSettings) {
+  const merged = { ...(stripeSettings || {}) };
+  const priv = await readAdminSecret("stripe");
+  if (priv.secretKey) merged.secretKey = priv.secretKey;
+  if (priv.testSecretKey) merged.testSecretKey = priv.testSecretKey;
+  return merged;
+}
+
 async function getStripeClientForMode(mode, stripeAccountId = null) {
   const settingsDoc = await db.collection("settings").doc("website").get();
   const settings = settingsDoc.exists ? settingsDoc.data() || {} : {};
-  const stripeSettings = settings.payments?.stripe || {};
+  const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
   const stripeSecret = mode === "test"
     ? stripeSettings.testSecretKey
     : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
@@ -220,6 +241,9 @@ async function sendEmail({ to, subject, html, secret }) {
   } catch (err) {
     console.warn("Failed to load notifications custom API Key:", err);
   }
+
+  const privateResend = await readAdminSecret("resend");
+  if (privateResend.apiKey) { apiKey = privateResend.apiKey; keySource = "settings"; }
 
   if (typeof apiKey === "string") apiKey = apiKey.trim();
   const recipients = Array.isArray(to) ? to.join(", ") : String(to || "");
@@ -1233,7 +1257,7 @@ exports.createStripeCheckoutSession = onRequest(
       const shippingCountryCode = getCountryCode((fulfillment?.method === 'pickup' ? fulfillment.address : order.customer?.address)?.country || order.customer?.billingAddress?.country || '');
       const ipCountryMatchesShipping = !ipCountry || ipCountry.toUpperCase() === shippingCountryCode.toUpperCase();
       const testMode = settings.payments?.testMode || false;
-      const stripeSettings = settings.payments?.stripe || {};
+      const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
 
       await orderRef.update({
         // Lower-case so "one use per customer" cannot be dodged by changing the email's capitalisation.
@@ -1409,7 +1433,7 @@ async function handleRegisterPaymentDomain(req, res) {
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.exists ? settingsDoc.data() : {};
       const testMode = settings.payments?.testMode || false;
-      const stripeSettings = settings.payments?.stripe || {};
+      const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
       const stripeSecret = testMode
         ? stripeSettings.testSecretKey
         : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
@@ -1445,7 +1469,7 @@ async function handleCheckoutStatus(req, res) {
       const settingsDoc = await db.collection("settings").doc("website").get();
       const settings = settingsDoc.exists ? settingsDoc.data() : {};
       const testMode = settings.payments?.testMode || false;
-      const stripeSettings = settings.payments?.stripe || {};
+      const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
       const stripeSecret = testMode
         ? stripeSettings.testSecretKey
         : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
@@ -1492,7 +1516,7 @@ exports.stripeWebhook = onRequest(
       if (settingsDoc.exists) {
         const settings = settingsDoc.data() || {};
         testMode = settings.payments?.testMode || false;
-        const stripeSettings = settings.payments?.stripe || {};
+        const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
         if (testMode && stripeSettings.testSecretKey) {
           stripeSecret = stripeSettings.testSecretKey;
         } else if (!testMode && stripeSettings.secretKey) {
