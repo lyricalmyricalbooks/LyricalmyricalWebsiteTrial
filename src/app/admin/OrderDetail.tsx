@@ -105,11 +105,38 @@ export function OrderDetail({
     loadOrder();
   }, [orderId]);
 
+  // An unpaid order that has a Stripe payment: ask Stripe (server-side) once per
+  // visit whether it went through, so a missed webhook never leaves it stuck.
+  const autoChecked = useRef<string | null>(null);
+  const [checkingPayment, setCheckingPayment] = useState(false);
+  const hasStripePayment = (o: any) =>
+    !!o && o.paymentStatus === "unpaid" && (String(o.stripePaymentIntentId || "").startsWith("pi_") || String(o.stripeCheckoutSessionId || "").startsWith("cs_"));
+
+  async function checkStripePayment(manual: boolean) {
+    setCheckingPayment(true);
+    try {
+      await adminApi.recheckStripePayment(orderId);
+      const fresh = await adminApi.getOrderById(orderId);
+      if (fresh) setOrder(fresh);
+      if (fresh?.paymentStatus === "paid") toast.success("Stripe confirmed the payment — order marked paid.");
+      else if (fresh?.paymentMismatch) toast.error("Stripe's amount doesn't match this order. Review it in Stripe before fulfilling.");
+      else if (manual) toast("Stripe hasn't received this payment yet.");
+    } catch (err: any) {
+      if (manual) toast.error(err.message || "Couldn't reach Stripe.");
+    } finally {
+      setCheckingPayment(false);
+    }
+  }
+
   async function loadOrder() {
     setLoadFailed(false);
     try {
       const data = await adminApi.getOrderById(orderId);
       setOrder(data);
+      if (hasStripePayment(data) && autoChecked.current !== orderId) {
+        autoChecked.current = orderId;
+        void checkStripePayment(false);
+      }
       if (data) {
         fillTracking(data);
         // Start the label dialog from the books' catalog weights, not a fixed 1.5 lb.
@@ -682,11 +709,18 @@ export function OrderDetail({
                 </dd>
               </div>
             </dl>
+            {hasStripePayment(order) && (
+              <div className="fw-actions">
+                <SecondaryButton size="sm" disabled={checkingPayment} onClick={() => checkStripePayment(true)}>
+                  {checkingPayment ? "Checking with Stripe…" : "Check payment with Stripe"}
+                </SecondaryButton>
+              </div>
+            )}
             {order.stripePaymentIntentId && (
               <div className="fw-actions">
                 <a
                   className="rp-btn rp-btn-secondary rp-btn-sm"
-                  href={`https://dashboard.stripe.com/payments/${order.stripePaymentIntentId}`}
+                  href={`https://dashboard.stripe.com/${order.stripeMode === "test" ? "test/" : ""}payments/${order.stripePaymentIntentId}`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >

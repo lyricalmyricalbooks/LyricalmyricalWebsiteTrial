@@ -28,6 +28,7 @@ const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./localFulfillment");
 const { readBooks, writeStock } = require("./inventory");
+const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets } = require("./stripeRecovery");
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem } = require("./paymentGuards");
 
 admin.initializeApp();
@@ -175,6 +176,50 @@ async function getStripeClientForMode(mode, stripeAccountId = null) {
     stripe: new Stripe(stripeSecret),
     requestOptions: stripeAccountId ? { stripeAccount: stripeAccountId } : {},
   };
+}
+
+// The secret key for one Stripe mode, or "" when none is set (never throws).
+async function stripeSecretFor(mode) {
+  const settingsDoc = await db.collection("settings").doc("website").get();
+  const settings = settingsDoc.exists ? settingsDoc.data() || {} : {};
+  const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
+  if (mode === "test") return stripeSettings.testSecretKey || "";
+  try { return stripeSettings.secretKey || STRIPE_SECRET_KEY.value() || ""; } catch { return stripeSettings.secretKey || ""; }
+}
+
+async function shopTestMode() {
+  const settingsDoc = await db.collection("settings").doc("website").get();
+  return !!(settingsDoc.exists && settingsDoc.data()?.payments?.testMode);
+}
+
+// Asks Stripe (test and live accounts, the order's own mode first) for one of the
+// order's saved payments. Returns { found, mode } or null when no account knows it.
+// Only a payment whose metadata/client_reference_id names this order counts.
+async function retrieveOrderPayment(orderId, order, { paymentIntentId, sessionId } = {}) {
+  const testMode = await shopTestMode();
+  for (const mode of modesToTry(order, testMode)) {
+    const secret = await stripeSecretFor(mode);
+    if (!secret) continue;
+    const stripe = new Stripe(secret);
+    try {
+      if (paymentIntentId) {
+        const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+        if (intent.metadata?.order_id !== orderId) return null;
+        return { intent, mode };
+      }
+      if (sessionId) {
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        if (session.client_reference_id !== orderId) return null;
+        return { session, mode };
+      }
+      return null;
+    } catch (err) {
+      // Wrong account for this id: try the other one. Anything else is a real failure.
+      if (err?.code === "resource_missing" || err?.statusCode === 404 || err?.type === "StripeAuthenticationError") continue;
+      throw err;
+    }
+  }
+  return null;
 }
 
 const FROM = "Lyricalmyrical Books <orders@lyricalmyricalbooks.com>";
@@ -1074,6 +1119,7 @@ exports.createStripeCheckoutSession = onRequest(
 
     if (req.body?.action === "status") return handleCheckoutStatus(req, res);
     if (req.body?.action === "registerPaymentDomain") return handleRegisterPaymentDomain(req, res);
+    if (req.body?.action === "webhookHealth") return handleWebhookHealth(req, res);
     if (req.body?.action === 'createManualLocalOrder') {
       try {
         const source = req.body.orderDraft;
@@ -1447,6 +1493,72 @@ exports.createStripeCheckoutSession = onRequest(
 // Google Pay appear in the card form. Only allowed origins can be registered.
 // Served through createStripeCheckoutSession (body.action) so no new public
 // function needs deploying — the CI deploy account can't set IAM on new ones.
+const STRIPE_WEBHOOK_URL = "https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/stripeWebhook";
+
+// Admin: checks (and with fix: true repairs) the Stripe webhook endpoint for the
+// mode the shop is using. Repair adds missing events, re-enables a disabled
+// endpoint, or creates the endpoint and saves its signing secret privately in
+// adminSecrets/stripeWebhook so stripeWebhook can verify it.
+async function handleWebhookHealth(req, res) {
+  if (!await requireAdmin(req, res)) return;
+  try {
+    const testMode = await shopTestMode();
+    const mode = testMode ? "test" : "live";
+    const secret = await stripeSecretFor(mode);
+    if (!secret) { res.status(400).json({ error: `Add your Stripe ${mode} secret key first.` }); return; }
+    const stripe = new Stripe(secret);
+    const listed = await stripe.webhookEndpoints.list({ limit: 100 });
+    let report = webhookEndpointReport(listed.data, STRIPE_WEBHOOK_URL);
+    const actions = [];
+    // Stripe only reveals an endpoint's signing secret when it is created. If the
+    // signatures keep failing, replace the endpoint so a known secret is saved.
+    if (req.body?.recreate === true && report.found) {
+      await stripe.webhookEndpoints.del(report.endpointId);
+      report = webhookEndpointReport([], STRIPE_WEBHOOK_URL);
+      actions.push("Removed the old webhook endpoint (its signing secret didn't match).");
+    }
+    if (req.body?.fix === true || req.body?.recreate === true) {
+      if (!report.found) {
+        const created = await stripe.webhookEndpoints.create({
+          url: STRIPE_WEBHOOK_URL,
+          enabled_events: REQUIRED_WEBHOOK_EVENTS,
+          description: "Lyricalmyrical shop orders (created by Admin › Payments)",
+        });
+        await db.collection("adminSecrets").doc("stripeWebhook").set({ [mode]: created.secret, [`${mode}EndpointId`]: created.id, updatedAt: new Date().toISOString() }, { merge: true });
+        actions.push("Created the webhook endpoint in Stripe and saved its signing secret.");
+      } else {
+        const update = {};
+        if (report.missingEvents.length) {
+          const current = (listed.data.find(e => e.id === report.endpointId)?.enabled_events) || [];
+          update.enabled_events = Array.from(new Set([...current, ...report.missingEvents]));
+          actions.push(`Turned on ${report.missingEvents.length} missing event${report.missingEvents.length === 1 ? "" : "s"}: ${report.missingEvents.join(", ")}.`);
+        }
+        if (!report.enabled) { update.disabled = false; actions.push("Re-enabled the endpoint."); }
+        if (report.wrongUrl) { update.url = STRIPE_WEBHOOK_URL; actions.push("Pointed the endpoint at the shop's webhook address."); }
+        if (Object.keys(update).length) await stripe.webhookEndpoints.update(report.endpointId, update);
+      }
+      const relisted = await stripe.webhookEndpoints.list({ limit: 100 });
+      report = webhookEndpointReport(relisted.data, STRIPE_WEBHOOK_URL);
+    }
+    const status = (await db.collection("adminSecrets").doc("stripeWebhookStatus").get()).data() || {};
+    const saved = await readAdminSecret("stripeWebhook");
+    res.status(200).json({
+      mode,
+      url: STRIPE_WEBHOOK_URL,
+      ...report,
+      savedSecret: !!saved[mode],
+      lastReceivedAt: status.lastReceivedAt || null,
+      lastEventType: status.lastEventType || null,
+      lastFailureAt: status.lastFailureAt || null,
+      lastFailure: status.lastFailure || null,
+      actions,
+    });
+  } catch (err) {
+    console.error("Webhook health check failed:", err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
 async function handleRegisterPaymentDomain(req, res) {
   {
     if (!await requireAdmin(req, res)) return;
@@ -1590,67 +1702,54 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
 }
 
 async function handleCheckoutStatus(req, res) {
-  {
-    let { orderId, sessionId, paymentIntentId } = req.body || {};
-    if (typeof orderId !== "string" || !orderId || orderId.includes("/")) {
-      res.status(400).json({ error: "Missing orderId" });
-      return;
+  let { orderId, sessionId, paymentIntentId } = req.body || {};
+  if (typeof orderId !== "string" || !orderId || orderId.includes("/")) {
+    res.status(400).json({ error: "Missing orderId" });
+    return;
+  }
+  try {
+    const orderSnap = await db.collection("orders").doc(orderId).get();
+    if (!orderSnap.exists) { res.status(404).json({ error: "Order not found" }); return; }
+    const saved = orderSnap.data() || {};
+    if (saved.paymentStatus === "paid") { res.status(200).json({ status: "complete", paymentStatus: "paid" }); return; }
+    // The tracking page and the admin may only know the order number: fall back to
+    // the payment ids this server saved on the order when it created the payment.
+    if (!(typeof paymentIntentId === "string" && paymentIntentId.startsWith("pi_"))) paymentIntentId = "";
+    if (!(typeof sessionId === "string" && sessionId.startsWith("cs_"))) sessionId = "";
+    if (!paymentIntentId && !sessionId) {
+      paymentIntentId = typeof saved.stripePaymentIntentId === "string" && saved.stripePaymentIntentId.startsWith("pi_") ? saved.stripePaymentIntentId : "";
+      sessionId = typeof saved.stripeCheckoutSessionId === "string" && saved.stripeCheckoutSessionId.startsWith("cs_") ? saved.stripeCheckoutSessionId : "";
     }
-    // The tracking page may only know the order number: use the payment ids this
-    // server saved on the order when it created the payment.
-    if (!(typeof paymentIntentId === "string" && paymentIntentId.startsWith("pi_")) && !(typeof sessionId === "string" && sessionId.startsWith("cs_"))) {
-      const saved = (await db.collection("orders").doc(orderId).get()).data() || {};
-      if (saved.paymentStatus === "paid") { res.status(200).json({ status: "complete", paymentStatus: "paid" }); return; }
-      paymentIntentId = typeof saved.stripePaymentIntentId === "string" ? saved.stripePaymentIntentId : "";
-      sessionId = typeof saved.stripeCheckoutSessionId === "string" ? saved.stripeCheckoutSessionId : "";
-    }
-    const isIntent = typeof paymentIntentId === "string" && paymentIntentId.startsWith("pi_");
-    if (!isIntent && !(typeof sessionId === "string" && sessionId.startsWith("cs_"))) {
+    if (!paymentIntentId && !sessionId) {
       res.status(200).json({ status: "open", paymentStatus: "unpaid" });
       return;
     }
-    try {
-      const settingsDoc = await db.collection("settings").doc("website").get();
-      const settings = settingsDoc.exists ? settingsDoc.data() : {};
-      const testMode = settings.payments?.testMode || false;
-      const stripeSettings = await withPrivateStripeKeys(settings.payments?.stripe);
-      const stripeSecret = testMode
-        ? stripeSettings.testSecretKey
-        : (stripeSettings.secretKey || STRIPE_SECRET_KEY.value());
-      if (!stripeSecret) throw new Error("Stripe is not configured.");
-      if (isIntent) {
-        const intent = await new Stripe(stripeSecret).paymentIntents.retrieve(paymentIntentId);
-        if (intent.metadata?.order_id !== orderId) {
-          res.status(404).json({ error: "Payment not found" });
-          return;
-        }
-        // Stripe itself says this order's payment succeeded: finish the order now
-        // rather than leaving the customer on "unpaid" if the webhook was missed or
-        // delayed. Same idempotent, amount-checked path the webhook uses.
-        if (intent.status === "succeeded") {
-          await markStripeOrderPaid(orderId, {
-            id: null, client_reference_id: orderId, payment_status: "paid", payment_intent: intent.id,
-            livemode: intent.livemode, amount_total: intent.amount_received ?? intent.amount, currency: intent.currency,
-          }, { message: "Payment confirmed with Stripe (checked from the order page)" });
-        }
-        // Map onto the session vocabulary the storefront already understands.
-        const status = intent.status === "succeeded" || intent.status === "processing" ? "complete" : "open";
-        res.status(200).json({ status, paymentStatus: intent.status });
-        return;
+
+    const found = await retrieveOrderPayment(orderId, saved, paymentIntentId ? { paymentIntentId } : { sessionId });
+    if (!found) { res.status(404).json({ error: "Payment not found" }); return; }
+
+    if (found.intent) {
+      const intent = found.intent;
+      // Stripe itself says this order's payment succeeded: finish the order now
+      // rather than leaving it "unpaid" if the webhook was missed or delayed.
+      // Same idempotent, amount-checked path the webhook uses.
+      let marked = false;
+      if (intent.status === "succeeded") {
+        await markStripeOrderPaid(orderId, intentAsSession(intent), { message: "Payment confirmed with Stripe (checked from the order page)" });
+        marked = true;
       }
-      const session = await new Stripe(stripeSecret).checkout.sessions.retrieve(sessionId);
-      if (session.client_reference_id !== orderId) {
-        res.status(404).json({ error: "Session not found" });
-        return;
-      }
-      if (session.payment_status === "paid") {
-        await markStripeOrderPaid(orderId, session, { message: "Payment confirmed with Stripe (checked from the order page)" });
-      }
-      res.status(200).json({ status: session.status, paymentStatus: session.payment_status });
-    } catch (err) {
-      console.error("Stripe status check failed:", err);
-      res.status(500).json({ error: err.message });
+      const status = intent.status === "succeeded" || intent.status === "processing" ? "complete" : "open";
+      res.status(200).json({ status, paymentStatus: intent.status, mode: found.mode, checked: marked });
+      return;
     }
+    const session = found.session;
+    if (session.payment_status === "paid") {
+      await markStripeOrderPaid(orderId, session, { message: "Payment confirmed with Stripe (checked from the order page)" });
+    }
+    res.status(200).json({ status: session.status, paymentStatus: session.payment_status, mode: found.mode });
+  } catch (err) {
+    console.error("Stripe status check failed:", err);
+    res.status(500).json({ error: err.message });
   }
 }
 
@@ -1686,16 +1785,32 @@ exports.stripeWebhook = onRequest(
     const stripe = new Stripe(stripeSecret);
     const sig = req.headers["stripe-signature"];
 
+    // Test and live endpoints each sign with their own secret: accept the deployed
+    // Functions secret and the endpoint secrets saved by Settings › Payments ›
+    // "Check & fix webhook". A signature must still verify against one of them.
+    const savedSecrets = await readAdminSecret("stripeWebhook");
+    let deployedSecret = "";
+    try { deployedSecret = STRIPE_WEBHOOK_SECRET.value(); } catch { /* not set */ }
+    const secrets = signingSecrets(deployedSecret, savedSecrets.live, savedSecrets.test);
     let event;
-    try {
-      event = stripe.webhooks.constructEvent(
-        req.rawBody,
-        sig,
-        STRIPE_WEBHOOK_SECRET.value()
-      );
-    } catch (err) {
-      console.error("Signature verification failed:", err.message);
-      res.status(400).send(`Webhook Error: ${err.message}`);
+    let lastError = null;
+    for (const secret of secrets) {
+      try {
+        event = stripe.webhooks.constructEvent(req.rawBody, sig, secret);
+        break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    if (!event) {
+      const message = lastError?.message || "No webhook signing secret is configured.";
+      console.error("Signature verification failed:", message);
+      // Leave a trace the admin can see (Settings › Payments › Webhook health).
+      await db.collection("adminSecrets").doc("stripeWebhookStatus").set({
+        lastFailureAt: new Date().toISOString(),
+        lastFailure: `Signature check failed: ${String(message).slice(0, 300)}`,
+      }, { merge: true }).catch(() => {});
+      res.status(400).send(`Webhook Error: ${message}`);
       return;
     }
 
@@ -1750,21 +1865,12 @@ exports.stripeWebhook = onRequest(
       return;
     }
 
-    const isElementPayment = event.type === "payment_intent.succeeded"
-      && event.data.object?.metadata?.checkout === "payment_element";
+    // Any succeeded PaymentIntent that names one of our orders settles it (card form
+    // or hosted Checkout — a duplicate of checkout.session.completed is a no-op).
+    const isElementPayment = !!paidIntentOrderId(event);
     if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded" || isElementPayment) {
-      // A succeeded Payment Element intent is shaped into the session fields used below.
-      const session = isElementPayment
-        ? {
-          id: null,
-          client_reference_id: event.data.object.metadata.order_id,
-          payment_status: "paid",
-          payment_intent: event.data.object.id,
-          livemode: event.data.object.livemode,
-          amount_total: event.data.object.amount_received ?? event.data.object.amount,
-          currency: event.data.object.currency,
-        }
-        : event.data.object;
+      // A succeeded intent is shaped into the session fields used below.
+      const session = isElementPayment ? intentAsSession(event.data.object) : event.data.object;
       const orderId = session.client_reference_id;
       // completed can fire before delayed methods settle; only paid sessions count.
       const settled = session.payment_status === "paid" || session.payment_status === "no_payment_required";
@@ -1852,6 +1958,11 @@ exports.stripeWebhook = onRequest(
       stripeEventId: event.id,
       processedAt: new Date().toISOString(),
     });
+    await db.collection("adminSecrets").doc("stripeWebhookStatus").set({
+      lastReceivedAt: new Date().toISOString(),
+      lastEventType: event.type,
+      lastMode: event.livemode ? "live" : "test",
+    }, { merge: true }).catch(() => {});
 
     res.json({ received: true });
   }
@@ -4132,12 +4243,14 @@ exports.markOrderPaid = onRequest(
 );
 
 /**
- * Hourly safety net for the Stripe webhook: if Stripe says a payment succeeded but the
- * order is still unpaid, email the shop. Never marks orders paid — the webhook stays the
- * only authority; the owner resends the failed webhook from the Stripe dashboard.
+ * Safety net for the Stripe webhook (every 15 minutes): if Stripe says an order's
+ * payment succeeded but the order is still unpaid, finish it through the same
+ * amount-checked, idempotent path the webhook uses, and email the shop so the
+ * webhook setup gets fixed. Each order is looked up in the Stripe account (test or
+ * live) it was created in, then the other one.
  */
 exports.unpaidPaymentSweep = onSchedule(
-  { schedule: "every 60 minutes", secrets: [STRIPE_SECRET_KEY, RESEND_API_KEY] },
+  { schedule: "every 15 minutes", secrets: [STRIPE_SECRET_KEY, RESEND_API_KEY] },
   async () => {
     const { suspectOrders, alertHtml } = require("./paymentSweep");
     const snap = await db.collection("orders").where("paymentStatus", "==", "unpaid").limit(300).get();
@@ -4145,30 +4258,26 @@ exports.unpaidPaymentSweep = onSchedule(
     const found = [];
     for (const order of candidates) {
       try {
-        const { stripe } = await getStripeClientForMode(order.isTest === true ? "test" : "live");
-        const intent = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
-        if (intent.status === "succeeded" && intent.metadata?.order_id === order.id) {
-          // Stripe confirms the money arrived but the webhook never landed: finish the
-          // order (same amount-checked path the webhook uses) and tell the shop.
-          await markStripeOrderPaid(order.id, {
-            id: null, client_reference_id: order.id, payment_status: "paid", payment_intent: intent.id,
-            livemode: intent.livemode, amount_total: intent.amount_received ?? intent.amount, currency: intent.currency,
-          }, { message: "Payment confirmed with Stripe by the hourly check (the webhook was missed)" }).catch(err => console.error(`unpaidPaymentSweep: could not finish order ${order.id}:`, err));
-          found.push({ orderId: order.id, email: order.customer?.email, amount: intent.amount, currency: intent.currency, intentId: intent.id });
+        const result = await retrieveOrderPayment(order.id, order, { paymentIntentId: order.stripePaymentIntentId });
+        const intent = result?.intent;
+        if (intent && intent.status === "succeeded") {
+          const marked = await markStripeOrderPaid(order.id, intentAsSession(intent), { message: "Payment confirmed with Stripe by the automatic check (the webhook did not arrive)" })
+            .catch(err => { console.error(`unpaidPaymentSweep: could not finish order ${order.id}:`, err); return false; });
+          found.push({ orderId: order.id, email: order.customer?.email, amount: intent.amount, currency: intent.currency, intentId: intent.id, fixed: marked });
         }
       } catch (err) {
         console.warn(`unpaidPaymentSweep: could not check order ${order.id}:`, err.message);
       }
     }
     if (!found.length) return;
+    const at = new Date().toISOString();
+    await Promise.all(found.map((f) => db.collection("orders").doc(f.orderId).update({ paymentAlertSentAt: at })));
     await sendEmail({
       to: ADMIN_TO,
-      subject: `⚠ ${found.length} paid order${found.length === 1 ? "" : "s"} still marked unpaid`,
+      subject: `⚠ Stripe webhook missed ${found.length} paid order${found.length === 1 ? "" : "s"}`,
       html: alertHtml(found),
       secret: RESEND_API_KEY.value(),
     });
-    const at = new Date().toISOString();
-    await Promise.all(found.map((f) => db.collection("orders").doc(f.orderId).update({ paymentAlertSentAt: at })));
   }
 );
 
