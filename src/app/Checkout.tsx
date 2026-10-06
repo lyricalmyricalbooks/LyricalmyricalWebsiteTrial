@@ -1478,7 +1478,7 @@ export function Checkout() {
                 shippingQuotes={availableRates}
                 localQuotes={localQuotes}
                 availableMethods={availableFulfillmentMethods}
-                loading={shippoRatesLoading && fulfillmentSelection.method === "shipping"}
+                loading={shippoRatesLoading && fulfillmentSelection.method !== "local_delivery"}
                 words={{
                   group: c("coFulfillmentGroup"),
                   shipping: c("coFulfillmentShipping"),
