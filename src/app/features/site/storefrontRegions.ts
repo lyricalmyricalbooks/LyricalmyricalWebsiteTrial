@@ -30,6 +30,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "accountOrders", label: "Order count card" }, { id: "accountAddress", label: "Address card", required: true },
     { id: "accountAddressForm", label: "Address form", required: true }, { id: "accountHistory", label: "Order history", required: true },
     { id: "accountDownloads", label: "Purchased downloads", required: true }, { id: "accountShipment", label: "Shipment information", required: true },
+    { id: "accountTrackOrder", label: "Track order link" },
     { id: "accountGlow", label: "Account background glow" },
   ] },
   { id: "trackingLayout", title: "Order tracking · layout & elements", copy: "Order tracking", files: ["features/site/OrderTracking.tsx"], regions: [
@@ -37,6 +38,8 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "trackingIntro", label: "Lookup heading & description" }, { id: "trackingSummary", label: "Order summary", required: true },
     { id: "trackingTimeline", label: "Fulfillment timeline" }, { id: "trackingFulfillment", label: "Pickup and delivery details", required: true, copy: "Order tracking" }, { id: "trackingShipment", label: "Carrier information", required: true },
     { id: "trackingDownloads", label: "Purchased downloads", required: true }, { id: "trackingItems", label: "Order items & totals", required: true },
+    { id: "trackingStatusBanner", label: "Payment, cancelled & refunded notice", required: true }, { id: "trackingShipping", label: "Shipping method & estimate" },
+    { id: "trackingHelp", label: "Help line" },
     { id: "trackingGlow", label: "Tracking background glow" },
   ] },
   { id: "stripePaymentLayout", title: "Checkout · Stripe payment section", copy: "Checkout", files: ["features/site/StripePaymentSection.tsx"], regions: [
@@ -50,6 +53,7 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "checkoutForm", label: "Checkout form", required: true }, { id: "checkoutSummary", label: "Order summary", required: true },
     { id: "checkoutFulfillment", label: "Shipping, pickup & local delivery choices", required: true, copy: "Checkout" },
     { id: "checkoutPromise", label: "Message under Pay button" }, { id: "checkoutSuccess", label: "Order confirmation", required: true }, { id: "checkoutAccountOffer", label: "Order confirmation: sign-in box", copy: "Checkout" },
+    { id: "checkoutSuccessSummary", label: "Order confirmation: order summary", copy: "Checkout" }, { id: "checkoutTrackOrder", label: "Order confirmation: track order button", required: true, copy: "Checkout" },
     { id: "checkoutEmpty", label: "Empty cart", required: true },
   ] },
   { id: "searchLayout", title: "Search · layout & elements", copy: "Search & filters", files: ["features/site/SearchOverlay.tsx"], regions: [
