@@ -653,6 +653,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   // Sync activeCategory if categories change
   useEffect(() => {
+    // The route effect above owns selection on collection URLs, including first load.
+    if (collectionSlug) return;
     if (activeCategory === "ALL") return;
     if (categories.length > 0) {
       const currentName = typeof activeCategory === "string" ? activeCategory : activeCategory?.name;
@@ -664,7 +666,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
         setActiveCategory(exists);
       }
     }
-  }, [categories]);
+  }, [categories, collectionSlug]);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
