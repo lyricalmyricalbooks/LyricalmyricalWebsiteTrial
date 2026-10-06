@@ -27,6 +27,8 @@ const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./localFulfillment");
+const { readBooks, writeStock } = require("./inventory");
+const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState } = require("./paymentGuards");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -436,9 +438,9 @@ async function fetchValidDiscount(code) {
   const data = docSnap.data();
   const isActive = data.isActive ?? data.active ?? true;
   if (!isActive) throw new Error("This code is not currently active");
-  if (data.startDate && String(data.startDate) > new Date().toISOString().slice(0, 10)) throw new Error("This code is not active yet");
-  const expiry = data.expiryDate || data.expiry;
-  if (expiry && expiry < new Date().toISOString()) throw new Error("This code has expired");
+  const dateState = discountDateState(data);
+  if (dateState === "not_started") throw new Error("This code is not active yet");
+  if (dateState === "expired") throw new Error("This code has expired");
   if (data.usageLimit && (data.usageCount || 0) >= data.usageLimit) {
     throw new Error("This code has reached its usage limit");
   }
@@ -596,7 +598,7 @@ async function assertDiscountNotUsedByCustomer(discount, email) {
 function validateDiscountCustomer(discount, email) {
   const normalized = String(email || "").trim().toLowerCase();
   const emails = String(discount.allowedCustomerEmails || "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
-  const domains = String(discount.allowedEmailDomains || "").split(",").map(v => v.trim().toLowerCase().replace(/^@/, "")).filter(Boolean);
+  const domains = String(discount.allowedEmailDomains || "").split(",").map(v => v.trim().toLowerCase().replace(/^[@.]+/, "")).filter(Boolean);
   if ((emails.length || domains.length) && !normalized) throw new Error("Enter your email address to use this code.");
   if (emails.length && !emails.includes(normalized)) throw new Error("This code is restricted to selected customers.");
   if (domains.length) {
@@ -705,12 +707,15 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
     return { cost: 0, method: null, fulfillment: null };
   }
   if (selection && (selection.method !== 'shipping' || /^(pickup|local_delivery):/.test(String(selection.optionId || '')))) throw new Error('Choose an available fulfillment option.');
-  if (!freeShipping && address) {
+  if (address) {
     const configDoc = await SHIPPO_CONFIG_DOC.get();
     const config = configDoc.exists ? configDoc.data() || {} : {};
     const destinationCountry = getCountryCode(address.country);
     const enabledCountries = Array.isArray(config.dynamicRateCountries) ? config.dynamicRateCountries : [];
     if (config.dynamicRatesEnabled === true && enabledCountries.includes(destinationCountry)) {
+      // A free-shipping code covers whichever live carrier rate the shopper picked;
+      // the profile rates below never contain carrier names, so they can't match it.
+      if (freeShipping) return { cost: 0, method: String(selection?.optionId || order.shippingMethod || '').slice(0, 200) || null };
       const shippoToken = await getShippoToken();
       if (!shippoToken) throw new Error("Live carrier rates are temporarily unavailable. Please try again.");
       const settingsDoc = await db.collection("settings").doc("website").get();
@@ -870,14 +875,25 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
   const orderRef = db.collection("orders").doc(orderId);
   let paidTotal = null;
   await db.runTransaction(async transaction => {
+    paidTotal = null; // a retried attempt must not keep the last attempt's value
     const orderDoc = await transaction.get(orderRef);
     if (!orderDoc.exists) throw new Error("Order not found.");
     const order = orderDoc.data();
     if (order.paymentStatus === "paid") return;
     if (order.paypalOrderId !== paypalData.paypalOrderId) throw new Error("PayPal order does not match checkout order.");
+    const amountCheck = paidAmountCheck(order, toMinor(paypalData.capture?.amount?.value), paypalData.capture?.amount?.currency_code);
+    if (!amountCheck.ok) {
+      const at = new Date().toISOString();
+      transaction.update(orderRef, {
+        paymentMismatch: { ...amountCheck, provider: "paypal", captureId: paypalData.captureId || null, at },
+        activity: [...(order.activity || []), { type: "event", message: `PayPal capture did not match the order total (expected ${amountCheck.expected.minor} ${amountCheck.expected.currency}, got ${amountCheck.paid.minor} ${amountCheck.paid.currency}). Not marked paid — review in PayPal.`, createdAt: at }],
+        updatedAt: at,
+      });
+      console.error(`PayPal amount mismatch on order ${orderId}`, amountCheck);
+      return;
+    }
 
-    const bookRefs = (order.items || []).map(item => db.collection("books").doc(item.id));
-    const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
+    const books = await readBooks(transaction, db, order.items);
     let discountRef = null;
     let discountDoc = null;
     if (order.appliedDiscount?.id) {
@@ -895,24 +911,7 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
       paypalCapture: paypalData.capture || null,
       activity: [...(order.activity || []), { type: "event", message: "Payment completed (verified PayPal capture)", createdAt: now }],
     });
-    (order.items || []).forEach((item, index) => {
-      const bookDoc = bookDocs[index];
-      if (!bookDoc.exists || !bookDoc.data().trackInventory) return;
-      const book = bookDoc.data();
-      if (item.variantId) {
-        const variants = (book.variants || []).map(v => {
-          if (v.id === item.variantId) {
-            const currentStock = v.stockLevel !== undefined ? v.stockLevel : v.stock;
-            const newStock = Math.max(0, Number(currentStock || 0) - item.quantity);
-            return { ...v, stockLevel: newStock, stock: newStock };
-          }
-          return v;
-        });
-        transaction.update(bookRefs[index], { variants, stockLevel: Math.max(0, Number(book.stockLevel || 0) - item.quantity), updatedAt: now });
-      } else {
-        transaction.update(bookRefs[index], { stockLevel: Math.max(0, Number(book.stockLevel || 0) - item.quantity), updatedAt: now });
-      }
-    });
+    if (writeStock(transaction, db, order.items, books, -1, now)) transaction.update(orderRef, { oversold: true });
     if (discountRef && discountDoc?.exists) {
       transaction.update(discountRef, { usageCount: (discountDoc.data().usageCount || 0) + 1, updatedAt: now });
     }
@@ -936,7 +935,8 @@ exports.createPayPalOrder = onRequest(
     try {
       const { orderId, currency: requestedCurrency, returnUrl } = req.body || {};
       if (!orderId) return res.status(400).json({ error: "Missing orderId" });
-      const currency = String(requestedCurrency || "cad").toLowerCase();
+      const currency = checkoutCurrencyOf(requestedCurrency);
+      if (!currency) return res.status(400).json({ error: "Unsupported currency." });
       const orderRef = db.collection("orders").doc(orderId);
       const orderDoc = await orderRef.get();
       if (!orderDoc.exists) return res.status(404).json({ error: "Order not found" });
@@ -973,7 +973,10 @@ exports.createPayPalOrder = onRequest(
       const approvalUrl = paypalOrder.links?.find(link => link.rel === "payer-action" || link.rel === "approve")?.href;
       await orderRef.update({
         paymentMethod: "PayPal", paypalOrderId: paypalOrder.id, paypalOrderStatus: paypalOrder.status,
-        paypalCurrency: currency.toUpperCase(), updatedAt: new Date().toISOString(),
+        paypalCurrency: currency.toUpperCase(),
+        // Capture marks the order paid only for exactly this amount and currency.
+        expectedAmountMinor: toMinor(priced.convertedTotal.toFixed(2)), expectedCurrency: currency,
+        updatedAt: new Date().toISOString(),
       });
       res.json({ orderToken: paypalOrder.id, approvalUrl });
     } catch (err) {
@@ -1089,10 +1092,10 @@ exports.createStripeCheckoutSession = onRequest(
           ...(typeof source.orderNote === 'string' ? { orderNote: source.orderNote.slice(0, 500) } : {}),
           ...(typeof source.locale === 'string' ? { locale: source.locale.slice(0, 20) } : {}),
         };
-        const priced = await recalculateOrder({ update: async () => {} }, order, String(req.body.currency || 'cad').toLowerCase());
+        const priced = await recalculateOrder({ update: async () => {} }, order, checkoutCurrencyOf(req.body.currency) || 'cad');
         const { convertedTotal, settings: ignoredSettings, ...trusted } = priced;
         const orderId = crypto.randomBytes(12).toString('hex').toUpperCase();
-        await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, paymentStatus: 'unpaid', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
+        await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
         return res.status(200).json({ orderId, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
       } catch (err) {
         return res.status(400).json({ error: err.message });
@@ -1100,7 +1103,11 @@ exports.createStripeCheckoutSession = onRequest(
     }
 
     const { orderId, currency: reqCurrency, returnUrl, embedded, paymentElement } = req.body;
-    const checkoutCurrency = (reqCurrency || "cad").toLowerCase();
+    const checkoutCurrency = checkoutCurrencyOf(reqCurrency);
+    if (!checkoutCurrency) {
+      res.status(400).json({ error: "Unsupported currency." });
+      return;
+    }
     if (!orderId) {
       res.status(400).json({ error: "Missing orderId" });
       return;
@@ -1355,7 +1362,8 @@ exports.createStripeCheckoutSession = onRequest(
           description: `Order ${orderId}`,
           metadata: { order_id: orderId, checkout: "payment_element" },
         });
-        await orderRef.update({ stripePaymentIntentId: intent.id, updatedAt: new Date().toISOString() });
+        // The webhook marks the order paid only for exactly this amount and currency.
+        await orderRef.update({ stripePaymentIntentId: intent.id, expectedAmountMinor: amount, expectedCurrency: checkoutCurrency, updatedAt: new Date().toISOString() });
         res.status(200).json({ clientSecret: intent.client_secret, amount, currency: checkoutCurrency });
         return;
       }
@@ -1372,6 +1380,11 @@ exports.createStripeCheckoutSession = onRequest(
       }
       const joiner = checkoutBase.includes("?") ? "&" : "?";
 
+      await orderRef.update({
+        expectedAmountMinor: lineItems.reduce((sum, li) => sum + li.price_data.unit_amount * li.quantity, 0),
+        expectedCurrency: checkoutCurrency,
+        updatedAt: new Date().toISOString(),
+      });
       const session = await stripe.checkout.sessions.create({
         line_items: lineItems,
         mode: "payment",
@@ -1619,6 +1632,7 @@ exports.stripeWebhook = onRequest(
           let paidTotal = null;
 
           await db.runTransaction(async transaction => {
+            paidTotal = null; // a retried attempt must not keep the last attempt's value
             // Firestore transactions require ALL reads before any writes.
             const orderDoc = await transaction.get(orderRef);
             if (!orderDoc.exists) return;
@@ -1642,9 +1656,19 @@ exports.stripeWebhook = onRequest(
               return;
             }
 
+            const amountCheck = paidAmountCheck(order, session.amount_total, session.currency);
+            if (!amountCheck.ok) {
+              transaction.update(orderRef, {
+                ...stripeTransaction,
+                paymentMismatch: { ...amountCheck, provider: "stripe", paymentIntentId, at: now },
+                activity: [...(order.activity || []), { type: "event", message: `Stripe payment did not match the order total (expected ${amountCheck.expected.minor} ${amountCheck.expected.currency}, got ${amountCheck.paid.minor} ${amountCheck.paid.currency}). Not marked paid — refund or review in Stripe.`, createdAt: now }],
+              });
+              console.error(`Stripe amount mismatch on order ${orderId}`, amountCheck);
+              return;
+            }
+
             const itemList = order.items || [];
-            const bookRefs = itemList.map(item => db.collection("books").doc(item.id));
-            const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
+            const books = await readBooks(transaction, db, itemList);
 
             let discountRef = null;
             let discountDoc = null;
@@ -1671,35 +1695,8 @@ exports.stripeWebhook = onRequest(
               ]
             });
 
-            // Atomic Stock Level Decrement
-            itemList.forEach((item, idx) => {
-              const bookDoc = bookDocs[idx];
-              if (!bookDoc.exists) return;
-              const book = bookDoc.data();
-              if (!book.trackInventory) return;
-
-              if (item.variantId) {
-                const variants = book.variants || [];
-                const updatedVariants = variants.map(v => {
-                  if (v.id === item.variantId) {
-                    const currentStock = v.stockLevel !== undefined ? v.stockLevel : v.stock;
-                    const newStock = Math.max(0, (currentStock || 0) - item.quantity);
-                    return { ...v, stockLevel: newStock, stock: newStock };
-                  }
-                  return v;
-                });
-                transaction.update(bookRefs[idx], {
-                  variants: updatedVariants,
-                  stockLevel: Math.max(0, (book.stockLevel || 0) - item.quantity),
-                  updatedAt: new Date().toISOString()
-                });
-              } else {
-                transaction.update(bookRefs[idx], {
-                  stockLevel: Math.max(0, (book.stockLevel || 0) - item.quantity),
-                  updatedAt: new Date().toISOString()
-                });
-              }
-            });
+            // Atomic stock decrement, one write per book (two editions of a book both count).
+            if (writeStock(transaction, db, itemList, books, -1, now)) transaction.update(orderRef, { oversold: true });
 
             // Count discount redemptions so usage limits are enforceable.
             if (discountRef && discountDoc?.exists) {
@@ -1750,6 +1747,7 @@ exports.stripeWebhook = onRequest(
             const orderRef = snap.docs[0].ref;
             let reversal = null;
             await db.runTransaction(async transaction => {
+              reversal = null; // a retried attempt must not keep the last attempt's value
               const orderDoc = await transaction.get(orderRef);
               if (!orderDoc.exists) return;
               const order = orderDoc.data();
@@ -1757,40 +1755,10 @@ exports.stripeWebhook = onRequest(
 
               const itemList = order.items || [];
               const shouldRestock = order.inventoryRestockedAt == null;
-              const bookRefs = shouldRestock ? itemList.map(item => db.collection("books").doc(item.id)) : [];
-              const bookDocs = shouldRestock
-                ? await Promise.all(bookRefs.map(ref => transaction.get(ref)))
-                : [];
+              const books = shouldRestock ? await readBooks(transaction, db, itemList) : new Map();
 
               const now = new Date().toISOString();
-              if (shouldRestock) {
-                itemList.forEach((item, idx) => {
-                  const bookDoc = bookDocs[idx];
-                  if (!bookDoc?.exists) return;
-                  const book = bookDoc.data();
-                  if (!book.trackInventory) return;
-                  const quantity = Math.max(0, Number(item.quantity) || 0);
-                  if (item.variantId) {
-                    transaction.update(bookRefs[idx], {
-                      variants: (book.variants || []).map(v => {
-                        if (v.id === item.variantId) {
-                          const currentStock = v.stockLevel !== undefined ? v.stockLevel : v.stock;
-                          const newStock = (Number(currentStock) || 0) + quantity;
-                          return { ...v, stockLevel: newStock, stock: newStock };
-                        }
-                        return v;
-                      }),
-                      stockLevel: (Number(book.stockLevel) || 0) + quantity,
-                      updatedAt: now,
-                    });
-                  } else {
-                    transaction.update(bookRefs[idx], {
-                      stockLevel: (Number(book.stockLevel) || 0) + quantity,
-                      updatedAt: now,
-                    });
-                  }
-                });
-              }
+              if (shouldRestock) writeStock(transaction, db, itemList, books, 1, now);
 
               transaction.update(orderRef, {
                 paymentStatus: "refunded",
@@ -1917,12 +1885,7 @@ exports.refundOrder = onRequest(
 
         const itemList = freshOrder.items || [];
         const shouldRestock = restock !== false && freshOrder.inventoryRestockedAt == null;
-        const bookRefs = shouldRestock
-          ? itemList.map(item => db.collection("books").doc(item.id))
-          : [];
-        const bookDocs = shouldRestock
-          ? await Promise.all(bookRefs.map(ref => transaction.get(ref)))
-          : [];
+        const books = shouldRestock ? await readBooks(transaction, db, itemList) : new Map();
 
         let discountRef = null;
         let discountDoc = null;
@@ -1934,35 +1897,7 @@ exports.refundOrder = onRequest(
         }
 
         const now = new Date().toISOString();
-        if (shouldRestock) {
-          itemList.forEach((item, index) => {
-            const bookDoc = bookDocs[index];
-            if (!bookDoc?.exists) return;
-            const book = bookDoc.data();
-            if (!book.trackInventory) return;
-            const quantity = Math.max(0, Number(item.quantity) || 0);
-
-            if (item.variantId) {
-              transaction.update(bookRefs[index], {
-                variants: (book.variants || []).map(variant => {
-                  if (variant.id === item.variantId) {
-                    const currentStock = variant.stockLevel !== undefined ? variant.stockLevel : variant.stock;
-                    const newStock = (Number(currentStock) || 0) + quantity;
-                    return { ...variant, stockLevel: newStock, stock: newStock };
-                  }
-                  return variant;
-                }),
-                stockLevel: (Number(book.stockLevel) || 0) + quantity,
-                updatedAt: now,
-              });
-            } else {
-              transaction.update(bookRefs[index], {
-                stockLevel: (Number(book.stockLevel) || 0) + quantity,
-                updatedAt: now,
-              });
-            }
-          });
-        }
+        if (shouldRestock) writeStock(transaction, db, itemList, books, 1, now);
 
         if (discountRef && discountDoc?.exists) {
           transaction.update(discountRef, {
@@ -2392,38 +2327,9 @@ exports.onOrderUpdated = onDocumentUpdated(
         const itemList = after.items || [];
         try {
           await db.runTransaction(async transaction => {
-            const bookRefs = itemList.map(item => db.collection("books").doc(item.id));
-            const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
-            
-            itemList.forEach((item, idx) => {
-              const bookDoc = bookDocs[idx];
-              if (!bookDoc.exists) return;
-              const book = bookDoc.data();
-              if (!book.trackInventory) return;
-              
-              const quantity = Number(item.quantity) || 1;
-              if (item.variantId) {
-                const variants = book.variants || [];
-                const updatedVariants = variants.map(v => {
-                  if (v.id === item.variantId) {
-                    const currentStock = v.stockLevel !== undefined ? v.stockLevel : v.stock;
-                    const newStock = Math.max(0, (Number(currentStock) || 0) - quantity);
-                    return { ...v, stockLevel: newStock, stock: newStock };
-                  }
-                  return v;
-                });
-                transaction.update(bookRefs[idx], {
-                  variants: updatedVariants,
-                  stockLevel: Math.max(0, (Number(book.stockLevel) || 0) - quantity),
-                  updatedAt: new Date().toISOString()
-                });
-              } else {
-                transaction.update(bookRefs[idx], {
-                  stockLevel: Math.max(0, (Number(book.stockLevel) || 0) - quantity),
-                  updatedAt: new Date().toISOString()
-                });
-              }
-            });
+            const books = await readBooks(transaction, db, itemList);
+            const oversold = writeStock(transaction, db, itemList, books, -1, new Date().toISOString());
+            if (oversold) transaction.update(db.collection("orders").doc(orderId), { oversold: true });
             // Mark as decremented on the order document
             transaction.update(db.collection("orders").doc(orderId), {
               inventoryDecrementedAt: new Date().toISOString()
@@ -2663,36 +2569,8 @@ exports.onOrderUpdated = onDocumentUpdated(
         const itemList = after.items || [];
         try {
           await db.runTransaction(async transaction => {
-            const bookRefs = itemList.map(item => db.collection("books").doc(item.id));
-            const bookDocs = await Promise.all(bookRefs.map(ref => transaction.get(ref)));
-            
-            itemList.forEach((item, index) => {
-              const bookDoc = bookDocs[index];
-              if (!bookDoc?.exists) return;
-              const book = bookDoc.data();
-              if (!book.trackInventory) return;
-              const quantity = Math.max(0, Number(item.quantity) || 0);
-
-              if (item.variantId) {
-                transaction.update(bookRefs[index], {
-                  variants: (book.variants || []).map(variant => {
-                    if (variant.id === item.variantId) {
-                      const currentStock = variant.stockLevel !== undefined ? variant.stockLevel : variant.stock;
-                      const newStock = (Number(currentStock) || 0) + quantity;
-                      return { ...variant, stockLevel: newStock, stock: newStock };
-                    }
-                    return variant;
-                  }),
-                  stockLevel: (Number(book.stockLevel) || 0) + quantity,
-                  updatedAt: new Date().toISOString(),
-                });
-              } else {
-                transaction.update(bookRefs[index], {
-                  stockLevel: (Number(book.stockLevel) || 0) + quantity,
-                  updatedAt: new Date().toISOString(),
-                });
-              }
-            });
+            const books = await readBooks(transaction, db, itemList);
+            writeStock(transaction, db, itemList, books, 1, new Date().toISOString());
             // Mark as restocked on the order document
             transaction.update(db.collection("orders").doc(orderId), {
               inventoryRestockedAt: new Date().toISOString()
@@ -3012,23 +2890,24 @@ exports.getShippoRates = onRequest(
       const bookRefs = items.map(item => db.collection("books").doc(item.id));
       const bookDocs = await Promise.all(bookRefs.map(ref => ref.get()));
 
+      // Same parcel weight as the charge path (resolveShipping): physical items only,
+      // catalog weights read as grams ("450 g", "0.5 kg", bare numbers = grams).
       let totalWeightLb = 0;
       items.forEach((item, index) => {
         const bookDoc = bookDocs[index];
-        const book = bookDoc.exists ? bookDoc.data() : {};
-        const qty = item.quantity || 1;
-
-        let itemWeightLb = 1.5;
-        if (item.variantId && book.variants) {
-          const variant = book.variants.find(v => v.id === item.variantId);
-          if (variant && variant.weight) {
-            itemWeightLb = parseFloat(variant.weight) || 1.5;
-          }
-        } else if (book.weight) {
-          itemWeightLb = parseFloat(book.weight) || 1.5;
-        }
-        totalWeightLb += itemWeightLb * qty;
+        if (!bookDoc.exists) return;
+        const book = bookDoc.data();
+        const variant = item.variantId ? (book.variants || []).find(v => v.id === item.variantId) || null : null;
+        const line = { format: catalogFormat(book, variant), digital: catalogDigital(book, variant), isDigital: catalogDigital(book, variant) };
+        if (!isPhysicalItem(line)) return;
+        const qty = Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1)));
+        const grams = Number(itemWeightGrams(book, variant));
+        totalWeightLb += (Number.isFinite(grams) && grams > 0 ? grams / 453.592 : 1.5) * qty;
       });
+      if (totalWeightLb === 0) {
+        res.status(200).json({ rates: [], useRegularRates: true });
+        return;
+      }
 
       const parcel = {
         length: "10",
@@ -4132,14 +4011,14 @@ exports.markOrderPaid = onRequest(
       let paidTotal = null;
 
       await db.runTransaction(async transaction => {
+        paidTotal = null; // a retried attempt must not keep the last attempt's value
         const orderDoc = await transaction.get(orderRef);
         if (!orderDoc.exists) return;
         const order = orderDoc.data();
         if (order.paymentStatus === "paid") return; // idempotent
 
         const itemList = order.items || [];
-        const bookRefs = itemList.map(item => db.collection("books").doc(item.id));
-        const bookDocs = await Promise.all(bookRefs.map(r => transaction.get(r)));
+        const books = await readBooks(transaction, db, itemList);
 
         const downloadToken = crypto.randomBytes(32).toString("hex");
 
@@ -4156,12 +4035,10 @@ exports.markOrderPaid = onRequest(
           ]
         });
 
-        itemList.forEach((item, idx) => {
-          const bookDoc = bookDocs[idx];
-          if (!bookDoc.exists) return;
-          const patch = applyStockDelta(bookDoc.data(), item, -(Number(item.quantity) || 0));
-          if (patch) transaction.update(bookRefs[idx], patch);
-        });
+        // Stock comes out here once; recording it stops onOrderUpdated taking it out again.
+        const now = new Date().toISOString();
+        const oversold = order.inventoryDecrementedAt == null && writeStock(transaction, db, itemList, books, -1, now);
+        transaction.update(orderRef, { inventoryDecrementedAt: order.inventoryDecrementedAt || now, ...(oversold ? { oversold: true } : {}) });
 
         paidTotal = Number(order.total) || 0;
       });

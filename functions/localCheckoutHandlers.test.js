@@ -102,7 +102,7 @@ test('manual local action creates a new trusted unpaid order without opening pro
   const app = harness(); const response = await app.call('createStripeCheckoutSession', { action: 'createManualLocalOrder', manualMethodId: 'cash', orderDraft: { customer: app.order.customer, items: app.order.items, fulfillmentSelection: app.order.fulfillmentSelection, total: 0, fulfillment: { name: 'Forged' }, paymentStatus: 'paid' } });
   expect(response.code).toBe(200);
   const saved = app.docs.orders[response.value.orderId];
-  expect(saved).toMatchObject({ paymentStatus: 'unpaid', total: 35.9, fulfillment: { method: 'pickup', name: 'Shop', price: 2 } });
+  expect(saved).toMatchObject({ paymentStatus: 'pending', total: 35.9, fulfillment: { method: 'pickup', name: 'Shop', price: 2 } });
   expect(app.stripeCalls).toHaveLength(0);
 });
 test('mixed pickup taxes physical merchandise at pickup and digital at billing province', async () => {
@@ -129,7 +129,7 @@ test('manual local creation rejects disabled method and ignores paid, price and 
   expect(result.code).toBe(200);
   const saved = app.docs.orders[result.value.orderId];
   expect(saved.total).toBe(35.9);
-  expect(saved.paymentStatus).toBe('unpaid');
+  expect(saved.paymentStatus).toBe('pending');
   expect(saved.downloadToken).toBeUndefined();
   expect(saved.fulfillment.name).toBe('Shop');
 });

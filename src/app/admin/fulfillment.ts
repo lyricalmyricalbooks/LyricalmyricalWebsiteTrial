@@ -30,6 +30,8 @@ export const physicalItems = (o: any) => (o.items || []).filter((i: any) => !isD
 export const fulfillmentMethod = (o: any) => ["pickup", "local_delivery"].includes(o.fulfillmentSelection?.method) ? o.fulfillmentSelection.method : "shipping";
 export function queueOf(o: any): string {
  if (terminal(o)) return "Completed";
+ // A payment that didn't match the order total (amount or currency) was not accepted: review it.
+ if (o.paymentMismatch && o.paymentStatus !== "paid") return "Needs attention";
  if (o.paymentStatus !== "paid") return "Unpaid";
  if (o.items?.length && !physicalItems(o).length) return "Completed";
  const method = fulfillmentMethod(o);
