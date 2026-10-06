@@ -28,7 +28,7 @@ const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./localFulfillment");
 const { readBooks, writeStock } = require("./inventory");
-const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState } = require("./paymentGuards");
+const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem } = require("./paymentGuards");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -190,7 +190,7 @@ function orderRowsHtml(items = []) {
       i => `
       <tr>
         <td style="padding:12px 0;border-bottom:1px solid #eee;">
-          ${i.title}${i.variantName ? ` <span style="color:#888;">(${i.variantName})</span>` : ""}
+          ${escapeHtml(i.title)}${i.variantName ? ` <span style="color:#888;">(${escapeHtml(i.variantName)})</span>` : ""}
         </td>
         <td style="padding:12px 0;border-bottom:1px solid #eee;text-align:right;color:#888;">×${i.quantity}</td>
         <td style="padding:12px 0;border-bottom:1px solid #eee;text-align:right;">${moneyFmt(i.price * i.quantity)}</td>
@@ -818,6 +818,9 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
     if (!bookDoc.exists) throw new Error(`Book ${requested.title || requested.id} not found in library catalog.`);
     const book = bookDoc.data();
     booksById[requested.id] = book;
+    const problem = purchaseProblem(book, requested.variantId);
+    if (problem === "choose_edition") throw new Error(`Choose an edition of "${book.title || requested.id}" before checking out.`);
+    if (problem) throw new Error(`"${book.title || requested.id}" is not available to buy right now. Please remove it from your bag.`);
     const quantity = Math.max(1, Math.min(99, Math.floor(Number(requested.quantity) || 1)));
     const variant = requested.variantId
       ? (book.variants || []).find(v => v.id === requested.variantId) || null
@@ -831,7 +834,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
       ? Number(variant.price)
       : (book.isOnSale && book.salePrice ? Number(book.salePrice) : Number(book.retailPrice));
     if (!Number.isFinite(price) || price < 0) throw new Error(`Book ${requested.id} is temporarily unavailable for purchase (pricing error).`);
-    items.push({ ...requested, quantity, price, format: catalogFormat(book, variant), digital: catalogDigital(book, variant), isDigital: catalogDigital(book, variant), shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant) });
+    items.push({ ...requested, title: book.title || requested.title || "", variantName: variant ? (variant.name || null) : null, quantity, price, format: catalogFormat(book, variant), digital: catalogDigital(book, variant), isDigital: catalogDigital(book, variant), shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant) });
   }
   if (!items.length) throw new Error("Order has no items.");
 
@@ -1143,6 +1146,13 @@ exports.createStripeCheckoutSession = onRequest(
         }
         const book = bookDoc.data();
         booksById[item.id] = book;
+        const problem = purchaseProblem(book, item.variantId);
+        if (problem) {
+          res.status(400).json({ error: problem === "choose_edition"
+            ? `Choose an edition of "${book.title || item.title}" before checking out.`
+            : `"${book.title || item.title}" is not available to buy right now. Please remove it from your bag.` });
+          return;
+        }
 
         let variant = null;
         if (item.variantId) {
@@ -1173,6 +1183,9 @@ exports.createStripeCheckoutSession = onRequest(
         }
         items.push({
           ...item,
+          // Names come from the catalog, never from the browser (they go into emails).
+          title: book.title || item.title || "",
+          variantName: variant ? (variant.name || null) : null,
           price: unitPrice,
           format: catalogFormat(book, variant),
           digital: catalogDigital(book, variant),
@@ -2256,10 +2269,14 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
   let signoff = template.signoff || DEFAULT_NOTIFICATIONS[templateId].signoff;
 
   // Replace placeholders in subject and body
+  // Values are shopper-controlled (names, messages, statuses): HTML-escaped in the
+  // body, newline-stripped in the subject. A replacer function keeps "$" literal.
+  // items_table is the one var built here as trusted HTML.
   for (const [key, value] of Object.entries(vars)) {
     const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-    subject = subject.replace(regex, value || "");
-    body = body.replace(regex, value || "");
+    const text = String(value ?? "");
+    subject = subject.replace(regex, () => text.replace(/[\r\n]+/g, " "));
+    body = body.replace(regex, () => (key === "items_table" ? text : escapeHtml(text)));
   }
 
   const ctaButtonHtml = buttonText && vars.button_url ? risoButton(vars.button_url, buttonText, brandColor, brand.emailTheme) : "";
@@ -2359,7 +2376,7 @@ exports.onOrderUpdated = onDocumentUpdated(
             <table style="width:100%;font-size:12px;border-collapse:collapse;">
               ${digitalItems.map(item => `
                 <tr>
-                  <td style="padding:8px 0;border-bottom:1px solid #7c3aed10;"><strong>${item.title}</strong></td>
+                  <td style="padding:8px 0;border-bottom:1px solid #7c3aed10;"><strong>${escapeHtml(item.title)}</strong></td>
                   <td style="padding:8px 0;text-align:right;border-bottom:1px solid #7c3aed10;">
                     <a href="https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/downloadDigitalAsset?orderId=${encodeURIComponent(orderId)}&itemId=${encodeURIComponent(item.id)}&token=${encodeURIComponent(order.downloadToken || "")}"
                        style="display:inline-block;background:#7C3AED;color:#fff;text-decoration:none;padding:6px 12px;border-radius:6px;font-size:10px;font-weight:bold;letter-spacing:.05em;text-transform:uppercase;">Download File</a>
@@ -2418,7 +2435,7 @@ exports.onOrderUpdated = onDocumentUpdated(
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
           <h2 style="margin-top:0;color:#16a34a;">&#10003; Payment Received</h2>
           <p><strong>Order:</strong> ${order.orderId || orderId} &nbsp;·&nbsp; <strong>${moneyFmt(order.total)}</strong></p>
-          <p><strong>Customer:</strong> ${order.customer.name} &lt;${order.customer.email}&gt;${order.customer.phone ? ` · ${order.customer.phone}` : ""}</p>
+          <p><strong>Customer:</strong> ${escapeHtml(order.customer.name)} &lt;${escapeHtml(order.customer.email)}&gt;${order.customer.phone ? ` · ${escapeHtml(order.customer.phone)}` : ""}</p>
           <p><strong>Ship to:</strong> ${adminAddr}</p>
           <p><strong>Payment:</strong> ${order.paymentMethod || "Stripe"}</p>
           ${itemsTable}
@@ -2474,7 +2491,7 @@ exports.onOrderUpdated = onDocumentUpdated(
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
           <h2 style="margin-top:0;">&#128666; Order Shipped</h2>
           <p><strong>Order:</strong> ${after.orderId || orderId}</p>
-          <p><strong>Customer:</strong> ${after.customer?.name} &lt;${after.customer?.email}&gt;</p>
+          <p><strong>Customer:</strong> ${escapeHtml(after.customer?.name)} &lt;${escapeHtml(after.customer?.email)}&gt;</p>
           <p><strong>Carrier:</strong> ${after.trackingCarrier || "—"} &nbsp;·&nbsp; <strong>Tracking:</strong> ${after.trackingNumber || "—"}</p>
           ${after.trackingNumber ? `<p><a href="${trackingUrl}">Track shipment &rarr;</a></p>` : ""}
         </div>
@@ -2587,7 +2604,15 @@ exports.onOrderUpdated = onDocumentUpdated(
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
         // A partial refund shows what was actually refunded, not the order total.
-        total_price: Number(Number.isFinite(Number(after.refund?.amount)) ? after.refund.amount : after.total || 0).toFixed(2),
+        // The template says "CA$", while Stripe reports the refund in the checkout
+        // currency, so a USD/EUR refund is converted back with the order's rate.
+        total_price: (() => {
+          const refunded = Number(after.refund?.amount);
+          if (!Number.isFinite(refunded)) return Number(after.total || 0).toFixed(2);
+          const currency = String(after.refund?.currency || after.checkoutCurrency || "CAD").toUpperCase();
+          const rate = Number(after.exchangeRate);
+          return (currency !== "CAD" && rate > 0 ? refunded / rate : refunded).toFixed(2);
+        })(),
         button_url: await trackUrl()
       });
 
@@ -2728,7 +2753,7 @@ exports.abandonedCartSweep = onSchedule(
 
       const cartUrl = siteLink(`/checkout?cartId=${doc.id}`);
       const compiled = compileEmailTemplate("abandoned_cart", notificationSettings, {
-        customer_name: escapeHtml(String(c.customer?.name || c.name || "there").slice(0, 80)),
+        customer_name: String(c.customer?.name || c.name || "there").slice(0, 80),
         cart_url: cartUrl,
         button_url: cartUrl,
         items_table: itemsTable
@@ -3477,7 +3502,7 @@ exports.onOrderCreated = onDocumentCreated(
 
       const adminHtml = `
         <p>A new order has been placed: <strong>${order.orderId || orderId}</strong> · ${moneyFmt(order.total)}</p>
-        <p><strong>Customer:</strong> ${order.customer.name} &lt;${order.customer.email}&gt;</p>
+        <p><strong>Customer:</strong> ${escapeHtml(order.customer.name)} &lt;${escapeHtml(order.customer.email)}&gt;</p>
         <p><strong>Payment Method:</strong> ${order.paymentMethod || "Stripe"}</p>
         <p><strong>Shipping Method:</strong> ${order.shippingMethod || "Standard"}</p>
         ${itemsTable}
@@ -3508,12 +3533,19 @@ exports.onOrderCreated = onDocumentCreated(
         </table>
       `;
 
+      // Instructions come from the shop's own settings, never from the order
+      // document (which a browser can write), so nobody can make the shop email
+      // someone "pay to this account" text.
+      const websiteSettings = (await db.collection("settings").doc("website").get()).data() || {};
+      const manualMethod = (websiteSettings.payments?.manualMethods || []).find(m => m && m.name === order.paymentMethod);
+      const paymentInstructions = String(manualMethod?.instructions || "");
+      if (!manualMethod) return; // not a payment method this shop offers: no customer email
       let additionalSection = "";
-      if (order.paymentInstructions) {
+      if (paymentInstructions) {
         additionalSection = `
           <div style="margin-top:28px;padding:24px;background:#fffbeb;border-radius:16px;border:1px solid #d9770620;">
             <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#d97706;">Payment Instructions</h3>
-            <p style="font-size:12px;color:#451a03;margin-bottom:0;line-height:1.6;white-space:pre-wrap;">${order.paymentInstructions}</p>
+            <p style="font-size:12px;color:#451a03;margin-bottom:0;line-height:1.6;white-space:pre-wrap;">${escapeHtml(paymentInstructions)}</p>
           </div>
         `;
       }
@@ -3579,8 +3611,8 @@ exports.onContactMessage = onDocumentCreated(
     // Confirmation to the visitor (Settings › Notifications › Contact form › Message received).
     const notificationSettings = await loadNotificationSettings();
     if (notificationSettings.contact_reply?.enabled === false) return;
-    // Escape visitor text, and double "$" so String.replace keeps it literal.
-    const safe = (v) => escContact(v).replace(/\$/g, "$$$$");
+    // compileEmailTemplate escapes and keeps "$" literal itself.
+    const safe = (v) => String(v == null ? "" : v);
     const compiled = compileEmailTemplate("contact_reply", notificationSettings, {
       customer_name: safe(m.name || "there"),
       email: safe(m.email),

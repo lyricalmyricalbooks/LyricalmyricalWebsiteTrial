@@ -48,4 +48,16 @@ function discountDateState(discount, now = new Date()) {
   return null;
 }
 
-module.exports = { CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState };
+// Why a catalog line can't be bought right now, or null. Matches what the
+// storefront shows: only published books whose release date has arrived, and a
+// book sold in editions is bought as one of them (a bare line would be priced
+// at the book's own price and skip the editions' stock).
+function purchaseProblem(book, variantId, nowISO = new Date().toISOString()) {
+  if (!book) return "missing";
+  if (book.status !== "published") return "unavailable";
+  if (book.scheduleDate && String(book.scheduleDate) > nowISO) return "unavailable";
+  if (!variantId && Array.isArray(book.variants) && book.variants.length) return "choose_edition";
+  return null;
+}
+
+module.exports = { purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState };
