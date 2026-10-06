@@ -1081,6 +1081,11 @@ export const adminApi = {
     if (secrets.resend) await setDoc(doc(db, "adminSecrets", "resend"), { ...secrets.resend, updatedAt: serverTimestamp() }, { merge: true });
   },
 
+  getRecentEmailLog: async (count = 5) => {
+    const snap = await getDocs(query(collection(db, "emailLog"), orderBy("at", "desc"), limit(count)));
+    return snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+  },
+
   getPrivateKeyFlags: async () => {
     const read = async (id: string) => { try { const s = await getDoc(doc(db, "adminSecrets", id)); return s.exists() ? s.data() as any : {}; } catch { return {}; } };
     const [stripe, resend] = await Promise.all([read("stripe"), read("resend")]);
