@@ -4178,3 +4178,58 @@ exports.markOrderPaid = onRequest(
     }
   }
 );
+
+/**
+ * Hourly safety net for the Stripe webhook: if Stripe says a payment succeeded but the
+ * order is still unpaid, email the shop. Never marks orders paid — the webhook stays the
+ * only authority; the owner resends the failed webhook from the Stripe dashboard.
+ */
+exports.unpaidPaymentSweep = onSchedule(
+  { schedule: "every 60 minutes", secrets: [STRIPE_SECRET_KEY, RESEND_API_KEY] },
+  async () => {
+    const { suspectOrders, alertHtml } = require("./paymentSweep");
+    const snap = await db.collection("orders").where("paymentStatus", "==", "unpaid").limit(300).get();
+    const candidates = suspectOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    const found = [];
+    for (const order of candidates) {
+      try {
+        const { stripe } = await getStripeClientForMode(order.isTest === true ? "test" : "live");
+        const intent = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId);
+        if (intent.status === "succeeded" && intent.metadata?.order_id === order.id) {
+          found.push({ orderId: order.id, email: order.customer?.email, amount: intent.amount, currency: intent.currency, intentId: intent.id });
+        }
+      } catch (err) {
+        console.warn(`unpaidPaymentSweep: could not check order ${order.id}:`, err.message);
+      }
+    }
+    if (!found.length) return;
+    await sendEmail({
+      to: ADMIN_TO,
+      subject: `⚠ ${found.length} paid order${found.length === 1 ? "" : "s"} still marked unpaid`,
+      html: alertHtml(found),
+      secret: RESEND_API_KEY.value(),
+    });
+    const at = new Date().toISOString();
+    await Promise.all(found.map((f) => db.collection("orders").doc(f.orderId).update({ paymentAlertSentAt: at })));
+  }
+);
+
+/**
+ * Nightly Firestore export to the project's default Storage bucket (backups/YYYY-MM-DD).
+ * The Functions service account needs the "Cloud Datastore Import Export Admin" role
+ * and write access to the bucket.
+ */
+exports.nightlyFirestoreBackup = onSchedule(
+  { schedule: "every day 03:17", timeZone: "America/Toronto" },
+  async () => {
+    const projectId = process.env.GCLOUD_PROJECT || admin.app().options.projectId;
+    const client = new admin.firestore.v1.FirestoreAdminClient();
+    const day = new Date().toISOString().slice(0, 10);
+    const [operation] = await client.exportDocuments({
+      name: client.databasePath(projectId, "(default)"),
+      outputUriPrefix: `gs://${admin.app().options.storageBucket || `${projectId}.firebasestorage.app`}/backups/${day}`,
+      collectionIds: [],
+    });
+    console.log(`Firestore backup started: ${operation.name}`);
+  }
+);

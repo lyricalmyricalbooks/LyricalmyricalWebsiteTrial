@@ -139,6 +139,12 @@ npm run logs
   0 → available. Studio › Style › Product page layout › **Notify me when back in stock** toggles the box;
   its words are in Text & labels › Product page.
 
+- `unpaidPaymentSweep` (hourly) — emails the shop when Stripe shows a PaymentIntent `succeeded` but the
+  order is still unpaid 30 min–7 days later (`functions/paymentSweep.js`); stamps `paymentAlertSentAt`. Never
+  marks orders paid — resend the failed webhook from Stripe.
+- `nightlyFirestoreBackup` (03:17 Toronto) — exports Firestore to `gs://<storageBucket>/backups/YYYY-MM-DD`.
+  Needs the Functions service account to have **Cloud Datastore Import Export Admin** + bucket write.
+
 **Email sending:** `sendEmail` sends through Gmail SMTP (nodemailer, account `lyricalmyricalbooks@gmail.com`) first, because the shop has no Resend-verified domain. The Gmail app password is entered in Settings › Notifications › **Gmail sending** (`admin/GmailSendingCard.tsx`) and stored in the admin-only `adminSecrets/gmail` doc (never in public `settings/*`). If it is unset or Gmail fails, sending falls back to Resend (`onboarding@resend.dev` only reaches the account owner).
 
 Secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`,
@@ -486,7 +492,7 @@ orders, average order, conversion — all sales figures from paid, non-test orde
 (Sales · Stock · Readers & traffic). Keep new Overview content inside those groups.
 A **Ready to sell?** launch checklist (`launchReadiness.ts`, pure + tested) sits above "To do today" while any
 item is not green: payments/sandbox, private Stripe secret, published books missing price/photo/description,
-shipping profiles, store policies, last email delivery, and a first real paid order. Hidden once all pass.
+shipping profiles, sales-tax rates, store policies, last email delivery, and a first real paid order. Hidden once all pass.
 
 **Not yet rebuilt** (still legacy markup, styled by the scoped compatibility layer in
 `theme.css` under `.admin-reso[data-admin-theme="reso"]`, which maps old dark utilities
