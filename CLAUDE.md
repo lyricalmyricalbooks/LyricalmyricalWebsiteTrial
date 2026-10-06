@@ -808,3 +808,16 @@ Public SEO/catalog pagination uses document IDs so records without `createdAt` a
 - Order tracking (`features/site/OrderTracking.tsx`) is a Riso order slip (`features/site/trackingStyle.ts`,
   `fm-track-*`, token-only). An unpaid Stripe order re-checks automatically and offers **Check payment again**
   (Text & labels › Order tracking › `trackRecheck`, `trackRechecking`, `trackStillUnpaid`).
+
+## Stripe ↔ shop payment sync hardening (6 October 2026)
+
+- `functions/stripeRecovery.js` (pure, tested): `modesToTry` looks up an order's payment in the Stripe account it
+  was created in (`order.stripeMode`) and then the other one — sandbox orders used to be checked with the live key
+  and silently stayed unpaid. `retrieveOrderPayment` in `index.js` is used by the status check and the sweep.
+- `stripeWebhook` verifies against the Functions secret **and** endpoint secrets saved in admin-only
+  `adminSecrets/stripeWebhook` (`live`/`test`), and settles any `payment_intent.succeeded` carrying
+  `metadata.order_id` (either checkout path). It records `adminSecrets/stripeWebhookStatus` (last event / last signature failure).
+- `unpaidPaymentSweep` runs every 15 minutes (orders 10 min–7 days old) and finishes paid-in-Stripe orders.
+- Settings › Payments › Stripe › **Webhook health** (`admin/StripeWebhookHealth.tsx`, action `webhookHealth`) checks the
+  endpoint, **Fix webhook** adds missing events / re-enables / creates it, **Reset webhook signing** recreates it when
+  signatures fail. Opening an unpaid Stripe order in Orders asks Stripe automatically; **Check payment with Stripe** repeats it.

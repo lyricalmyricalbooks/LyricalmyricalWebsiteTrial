@@ -921,6 +921,37 @@ export const adminApi = {
     return result as { domain: string; applePay: string; googlePay: string };
   },
 
+  // Checks (fix/recreate: repairs) the Stripe webhook endpoint for the mode in use.
+  stripeWebhookHealth: async (opts: { fix?: boolean; recreate?: boolean } = {}) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await fetch(functionUrl("createStripeCheckoutSession"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "webhookHealth", ...opts }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Couldn't check the Stripe webhook.");
+    return result as {
+      mode: "test" | "live"; url: string; found: boolean; enabled: boolean; wrongUrl: boolean;
+      missingEvents: string[]; savedSecret: boolean; lastReceivedAt: string | null; lastEventType: string | null;
+      lastFailureAt: string | null; lastFailure: string | null; actions: string[];
+    };
+  },
+
+  // Asks Stripe (server-side) whether an unpaid order's payment went through, and
+  // finishes the order if it did. The browser never decides payment.
+  recheckStripePayment: async (orderId: string) => {
+    const response = await fetch(functionUrl("createStripeCheckoutSession"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "status", orderId }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Couldn't reach Stripe.");
+    return result as { status: string; paymentStatus: string };
+  },
+
   // Storefront (thank-you page, /track): the order record only. Guests may read an
   // order by ID, but order-operations is admin-only and would deny the whole read.
   getPublicOrder: async (id: string) => {

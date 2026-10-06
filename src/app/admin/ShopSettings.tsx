@@ -47,6 +47,7 @@ import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPE
 import { quoteShipping } from "../features/site/shippingEngine";
 import { LocalFulfillmentSettings, useLocalFulfillmentDraft } from "./LocalFulfillmentSettings";
 import { paymentHealth } from "./paymentHealth";
+import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames } from "./shippingCountries";
 
 const PURPLE = "#A855F7";
@@ -1563,12 +1564,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
                   }
                 }}>Register this site with Stripe</SecondaryButton>
               </div>
-              <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
-                <div className="rp-sect">Webhook health</div>
-                <p className="rp-hint" style={{ margin: 0 }}>
-                  Delivery status isn't reported inside this admin. Check that the <span className="rp-mono">stripeWebhook</span> endpoint shows recent successful deliveries in the Stripe Dashboard under Developers → Webhooks. If paid orders stay “unpaid”, the webhook is the first place to look.
-                </p>
-              </div>
+              <StripeWebhookHealth />
             </>
           )}
         </div>
