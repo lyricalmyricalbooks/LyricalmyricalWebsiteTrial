@@ -1,3 +1,4 @@
+import { useSEO } from "../../lib/seo";
 import { regionProps } from "./storefrontRegions";
 import { Link } from "react-router";
 import { getCopy } from "./storeCopy";
@@ -18,5 +19,6 @@ export function NotFoundContent({ design, books = [] }: { design: any; books?: a
 }
 export default function NotFoundPage() {
   const { settings, books } = useSiteData();
+  useSEO({ title: getCopy(settings?.design, "notFoundTitle"), noindex: true });
   return <NotFoundContent design={settings?.design} books={books} />;
 }

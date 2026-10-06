@@ -1,0 +1,45 @@
+// @vitest-environment jsdom
+import { act } from 'react';
+import { BrowserRouter, MemoryRouter, useNavigate } from 'react-router';
+import { createRoot } from 'react-dom/client';
+import { expect, it } from 'vitest';
+import { setSiteIdentity, useSEO } from './seo';
+(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+it('sets exact custom titles, canonical URLs, clears stale social images, and restores indexability', () => {
+  const root = createRoot(document.createElement('div'));
+  function Page(props: any) { useSEO(props); return null; }
+  setSiteIdentity({ copy: { siteTitleFormat: '{title} | Press' } });
+  act(() => root.render(<MemoryRouter><Page title="Custom search title" exactTitle url="https://example.com/shop/books/one?utm_source=x" image="https://example.com/one.jpg" noindex /></MemoryRouter>));
+  expect(document.title).toBe('Custom search title');
+  expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://example.com/shop/books/one');
+  expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, follow');
+  act(() => root.render(<MemoryRouter><Page title="Next" url="https://example.com/shop/" /></MemoryRouter>));
+  expect(document.querySelector('meta[property="og:image"]')?.getAttribute('content')).toBe('');
+  expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('index, follow');
+  act(() => root.unmount());
+});
+
+it('updates canonical and preview robots when reused page SEO props stay the same across navigation', () => {
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  window.history.replaceState(null, '', '/collections/first');
+  function Collection() {
+    const navigate = useNavigate();
+    useSEO({ title: 'Archive' });
+    return <button onClick={() => navigate('/collections/second?preview=true')}>Next category</button>;
+  }
+  act(() => root.render(<BrowserRouter><Collection /></BrowserRouter>));
+  expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toContain('/collections/first');
+  act(() => container.querySelector('button')!.click());
+  expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toContain('/collections/second');
+  expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, follow');
+  act(() => root.unmount());
+});
+
+it('marks private account pages noindex even when page SEO only supplies a title', () => {
+  const root = createRoot(document.createElement('div'));
+  function Account() { useSEO({ title: 'Account' }); return null; }
+  act(() => root.render(<MemoryRouter initialEntries={['/account/orders']}><Account /></MemoryRouter>));
+  expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, follow');
+  act(() => root.unmount());
+});

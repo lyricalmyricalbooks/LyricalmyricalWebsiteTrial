@@ -21,6 +21,7 @@ import { placeholderImage } from "./constants";
 import type { Book } from "./types";
 import { trackBookView } from "../../lib/recentlyViewed";
 import { useWishlist } from "../../lib/wishlist";
+import { bookMetadata, bookStructuredData, canonicalUrl } from "../../lib/bookSeo";
 import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
 import ReviewsSection from "./ReviewsSection";
@@ -58,7 +59,7 @@ export default function BookDetail() {
   const navigate = useNavigate();
   const { books, settings, pages, loading } = useSiteData();
   const { addToCart, setIsCartOpen, cartCount } = useCart();
-  const { formatPrice, formatBookPrice, getBookPrice } = useCurrency();
+  const { currency, formatPrice, formatBookPrice, getBookPrice, convertPrice } = useCurrency();
 
   const primaryColor  = settings?.design?.primaryColor || "#e8402a";
   const font          = settings?.design?.font || "Inter";
@@ -214,38 +215,26 @@ export default function BookDetail() {
   const { has: isWished, toggle: toggleWish } = useWishlist();
   const wished = book ? isWished(book.id) : false;
 
-  useSEO(
-    book
-      ? {
-          title: book.title,
-          description: (book as any).description || getCopy(settings?.design, "seoBookDescription", { title: book.title }),
-          image: (book as any).photos?.[0]?.url,
-          type: "book",
-          jsonLd: {
-            "@context": "https://schema.org",
-            "@type": "Book",
-            name: book.title,
-            description: (book as any).description || "",
-            image: (book as any).photos?.map((p: any) => p.url) || [],
-            isbn: (book as any).isbn,
-            inLanguage: (book as any).language,
-            offers: {
-              "@type": "Offer",
-              priceCurrency: "USD",
-              price:
-                (book as any).isOnSale && (book as any).salePrice
-                  ? (book as any).salePrice
-                  : (book as any).retailPrice,
-              availability:
-                ((book as any).stockLevel ?? 999) === 0
-                  ? "https://schema.org/OutOfStock"
-                  : "https://schema.org/InStock",
-              url: typeof window !== "undefined" ? window.location.href : undefined,
-            },
-          },
-        }
-      : { title: "Publication" },
-  );
+  const bookUrl = canonicalUrl(new URL(`${import.meta.env.BASE_URL}books/${encodeURIComponent(book?.slug || book?.id || slug || "")}`, window.location.origin).href);
+  const seoBook = selectedVariant && book ? {
+    ...book,
+    variants: [],
+    stockLevel: selectedVariant.stockLevel ?? selectedVariant.stock ?? 0,
+    onBackorder: selectedVariant.onBackorder,
+    sku: selectedVariant.sku || book.sku,
+  } : book;
+  useSEO(book ? {
+    ...bookMetadata(book),
+    description: bookMetadata(book).description || getCopy(settings?.design, "seoBookDescription", { title: book.title }),
+    url: bookUrl,
+    type: "product",
+    noindex: !!book.status && book.status !== "published",
+    jsonLd: bookStructuredData(seoBook!, {
+      currency,
+      price: selectedVariant ? convertPrice(selectedVariant.price) : getBookPrice(book),
+      url: bookUrl,
+    }),
+  } : { title: getCopy(settings?.design, "seoBookLoadingTitle"), noindex: !loading });
 
   useEffect(() => {
     if (book?.id) {

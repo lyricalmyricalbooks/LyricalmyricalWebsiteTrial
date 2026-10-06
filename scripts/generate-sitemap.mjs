@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { resolveProductRoutes } from "../src/app/features/site/productRouteData.mjs";
+import { sitemapArtifacts } from "./sitemapData.mjs";
 // Generates dist/sitemap.xml and dist/robots.txt from Firestore data.
 // Usage: node scripts/generate-sitemap.mjs
 //
@@ -48,20 +48,6 @@ function readProjectId() {
   return m ? m[1] : null;
 }
 
-function xmlUrl({ loc, lastmod, changefreq, priority }) {
-  const parts = [`    <loc>${loc}</loc>`];
-  if (lastmod) parts.push(`    <lastmod>${lastmod.split("T")[0]}</lastmod>`);
-  if (changefreq) parts.push(`    <changefreq>${changefreq}</changefreq>`);
-  if (priority) parts.push(`    <priority>${priority}</priority>`);
-  return `  <url>\n${parts.join("\n")}\n  </url>`;
-}
-
-const slugify = s =>
-  (s || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-
 async function main() {
   const projectId = readProjectId();
   if (!projectId) {
@@ -69,65 +55,16 @@ async function main() {
     process.exit(1);
   }
 
-  const today = new Date().toISOString().split("T")[0];
-
-  const urls = [
-    { loc: `${SITE_URL}/`, lastmod: today, changefreq: "daily", priority: "1.0" },
-    { loc: `${SITE_URL}/wishlist`, changefreq: "monthly", priority: "0.3" },
-    { loc: `${SITE_URL}/account`, changefreq: "monthly", priority: "0.3" },
-  ];
-
-  let books = [];
-  let pages = [];
-  let collections = [];
-  try {
-    [books, pages, collections] = await Promise.all([
-      fetchCollection(projectId, "books").catch(() => []),
-      fetchCollection(projectId, "pages").catch(() => []),
-      fetchCollection(projectId, "collections").catch(() => []),
-    ]);
-  } catch (e) {
-    console.warn("Could not fetch live data, generating shell sitemap:", e.message);
-  }
-
-  for (const b of resolveProductRoutes(books)) {
-    if (b.status !== "published") continue;
-    const slug = b.slug || slugify(b.title);
-    if (!slug) continue;
-    urls.push({
-      loc: `${SITE_URL}/books/${slug}`,
-      lastmod: b.updatedAt || b._updateTime,
-      changefreq: "weekly",
-      priority: "0.8",
-    });
-  }
-  for (const p of pages) {
-    if (p.status !== "published" || !p.slug) continue;
-    urls.push({
-      loc: `${SITE_URL}/page/${p.slug}`,
-      lastmod: p.updatedAt || p._updateTime,
-      changefreq: "monthly",
-      priority: "0.5",
-    });
-  }
-  for (const c of collections) {
-    const slug = c.slug || slugify(c.name);
-    if (!slug) continue;
-    urls.push({
-      loc: `${SITE_URL}/collections/${slug}`,
-      lastmod: c.updatedAt || c._updateTime,
-      changefreq: "weekly",
-      priority: "0.6",
-    });
-  }
-
-  const xml =
-    `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-    urls.map(xmlUrl).join("\n") +
-    `\n</urlset>\n`;
-
-  const robots = `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /checkout\nDisallow: /account\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
+  // An unavailable catalog must fail the build instead of silently deleting book URLs.
+  const [books, pages, collections] = await Promise.all([
+    fetchCollection(projectId, "books"),
+    fetchCollection(projectId, "pages"),
+    fetchCollection(projectId, "collections").catch(error => {
+      console.warn("Optional collections omitted:", error.message);
+      return [];
+    }),
+  ]);
+  const { xml, robots, count } = sitemapArtifacts(SITE_URL, books, pages, collections);
 
   for (const dir of ["dist", "public"]) {
     const out = resolve(ROOT, dir);
@@ -136,7 +73,7 @@ async function main() {
     writeFileSync(resolve(out, "robots.txt"), robots);
   }
 
-  console.log(`✓ Wrote sitemap with ${urls.length} URLs (${books.length} books, ${pages.length} pages, ${collections.length} collections)`);
+  console.log(`✓ Wrote sitemap with ${count} URLs (${books.length} books, ${pages.length} pages, ${collections.length} collections)`);
 }
 
 main().catch(err => {
