@@ -1,4 +1,5 @@
 import { regionProps } from "./storefrontRegions";
+import { getTrackingUrl } from "../../lib/tracking";
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import { 
@@ -99,7 +100,7 @@ export default function OrderTracking() {
   const shippingSteps = [
     { label: getCopy(settings?.design, "trackStepPaid"), desc: getCopy(settings?.design, "trackStepPaidDesc"), icon: CheckCircle2 },
     { label: getCopy(settings?.design, "trackStepProcessing"), desc: getCopy(settings?.design, "trackStepProcessingDesc"), icon: Package },
-    { label: getCopy(settings?.design, "trackStepShipped"), desc: getCopy(settings?.design, "trackStepShippedDesc"), icon: Truck },
+    { label: getCopy(settings?.design, fulfillmentStatus === "out_for_delivery" ? "trackOutForDelivery" : "trackStepShipped"), desc: getCopy(settings?.design, "trackStepShippedDesc"), icon: Truck },
     { label: getCopy(settings?.design, "trackStepDelivered"), desc: getCopy(settings?.design, "trackStepDeliveredDesc"), icon: MapPin },
   ];
   const localSteps = isPickup ? [
@@ -296,16 +297,7 @@ export default function OrderTracking() {
 
               {/* Shipping carrier information */}
               {order.trackingNumber && (() => {
-                const carrierTrackingUrl = (() => {
-                  const c = (order.trackingCarrier || "").toLowerCase();
-                  const n = encodeURIComponent(order.trackingNumber);
-                  if (c.includes("canada post")) return `https://www.canadapost-postescanada.ca/track-reperage/en#/resultList?searchKeys=${n}`;
-                  if (c.includes("usps")) return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${n}`;
-                  if (c.includes("ups")) return `https://www.ups.com/track?tracknum=${n}`;
-                  if (c.includes("fedex")) return `https://www.fedex.com/apps/fedextrack/?tracknumbers=${n}`;
-                  if (c.includes("dhl")) return `https://www.dhl.com/en/express/tracking.html?AWB=${n}`;
-                  return `https://www.google.com/search?q=${encodeURIComponent((order.trackingCarrier || "") + " " + order.trackingNumber)}`;
-                })();
+                const carrierTrackingUrl = getTrackingUrl(order.trackingCarrier || "", order.trackingNumber, order.trackingUrl);
                 return (
                   <div {...regionProps("trackingShipment")} className="bg-gradient-to-r from-violet-950/20 to-cyan-950/20 border border-violet-500/15 rounded-[2.5rem] p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
                     <div className="space-y-2">

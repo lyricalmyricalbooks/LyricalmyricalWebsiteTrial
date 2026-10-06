@@ -15,7 +15,7 @@ export function trackingStepIndex(method: string | undefined, status: string | u
     return 0;
   }
   if (current === "delivered" || current === "completed") return 3;
-  if (current === "shipped") return 2;
+  if (current === "shipped" || current === "out_for_delivery") return 2;
   if (["processing", "open"].includes(current)) return 1;
   return 0;
 }

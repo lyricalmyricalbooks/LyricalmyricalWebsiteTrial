@@ -13,5 +13,6 @@ it("tracks local delivery preparation and delivery while preserving carrier trac
   expect(trackingStepIndex("local_delivery", "out_for_delivery")).toBe(2);
   expect(trackingStepIndex("local_delivery", "delivered")).toBe(3);
   expect(trackingStepIndex("shipping", "shipped")).toBe(2);
+  expect(trackingStepIndex("shipping", "out_for_delivery")).toBe(2);
   expect(trackingStepIndex("shipping", "delivered")).toBe(3);
 });

@@ -1,3 +1,4 @@
+import { cleanTrackingLink } from "../lib/tracking";
 // Publisher workflow state is private; public order/payment records remain authoritative.
 export const WORK_QUEUES = ["Needs attention", "Ready to pack", "Ready to ship", "Ready for pickup", "Ready for local delivery", "In transit", "Completed", "Unpaid", "All orders"];
 const terminal = (o: any) => o.status === "cancelled" || ["refunded", "refund_pending"].includes(o.paymentStatus) || ["cancelled", "refunded"].includes(o.fulfillmentStatus);
@@ -52,6 +53,35 @@ export function dispatchProblem(o: any): string {
  if (o.operations?.packed !== packingKey(o)) return "Complete the packing checklist first.";
  return "";
 }
+// Carrier, tracking number and optional tracking link typed by the publisher
+// (for parcels sent without a Shippo label). The link replaces the built-in
+// carrier page in emails, the customer account and order tracking.
+export function trackingFields(payload: any) {
+ const trackingCarrier = String(payload?.trackingCarrier || "").trim().slice(0, 80);
+ const trackingNumber = String(payload?.trackingNumber || "").trim().slice(0, 100);
+ if (!trackingCarrier || !trackingNumber) throw new Error("Enter the carrier and tracking number.");
+ const raw = String(payload?.trackingUrl || "").trim();
+ const trackingUrl = cleanTrackingLink(raw);
+ if (raw && !trackingUrl) throw new Error("The tracking link must start with https://");
+ return { trackingCarrier, trackingNumber, trackingUrl };
+}
+// The checkout saves live carrier choices as "<provider> <service>" (e.g.
+// "Canada Post Expedited Parcel"); label rates name only the service.
+const serviceName = (name: unknown) => String(name || "").toLowerCase().replace(/^\s*canada post\s*/, "").replace(/[^a-z0-9]+/g, " ").trim();
+export function matchesCustomerService(rateName: unknown, shippingMethod: unknown): boolean {
+ const rate = serviceName(rateName);
+ const chosen = serviceName(shippingMethod);
+ return !!rate && !!chosen && rate === chosen;
+}
+// Shipped parcels still not delivered after this many days get flagged so lost ones are chased early.
+export const OVERDUE_TRANSIT_DAYS = 14;
+export function daysInTransit(o: any, now: number = Date.now()): number | null {
+ if (fulfillmentMethod(o) !== "shipping" || queueOf(o) !== "In transit") return null;
+ const shipped = Date.parse(o.shippedAt || "");
+ if (!Number.isFinite(shipped)) return null;
+ return Math.max(0, Math.floor((now - shipped) / 86400000));
+}
+export const isOverdueInTransit = (o: any, now?: number) => (daysInTransit(o, now) ?? 0) >= OVERDUE_TRANSIT_DAYS;
 export function buildPickList(orders: any[]) {
  const items = new Map<string, any>();
  for (const o of orders) for (const i of physicalItems(o)) {

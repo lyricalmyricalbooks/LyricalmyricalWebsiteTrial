@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Download, Trash2 } from "lucide-react";
 import { adminApi } from "./api";
 import toast from "react-hot-toast";
-import { WORK_QUEUES, queueOf, packingKey } from "./fulfillment";
+import { WORK_QUEUES, queueOf, packingKey, daysInTransit, isOverdueInTransit } from "./fulfillment";
 import { printOrders } from "./orderPrint";
 import { orderApi, type FulfillmentStatus } from "../lib/commerce";
 import {
@@ -372,9 +372,14 @@ export function Orders({
       key: "fulfillment",
       header: "Fulfillment",
       render: (o) => (
-        <StatusBadge tone={fulfillmentTone(fulfillmentOf(o))}>
-          {queueOf(o)}
-        </StatusBadge>
+        <>
+          <StatusBadge tone={fulfillmentTone(fulfillmentOf(o))}>
+            {queueOf(o)}
+          </StatusBadge>
+          {isOverdueInTransit(o) && (
+            <StatusBadge tone="warning">{`Overdue · ${daysInTransit(o)} days`}</StatusBadge>
+          )}
+        </>
       ),
     },
   ];
@@ -627,6 +632,9 @@ export function Orders({
                       >
                         {queueOf(o)}
                       </StatusBadge>
+                      {isOverdueInTransit(o) && (
+                        <StatusBadge tone="warning">{`Overdue · ${daysInTransit(o)} days`}</StatusBadge>
+                      )}
                       <span className="rp-mono">{`CA$${Number(o.total || 0).toFixed(2)}`}</span>
                     </div>
                   </div>

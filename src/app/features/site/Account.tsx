@@ -1,4 +1,5 @@
 import { regionProps } from "./storefrontRegions";
+import { getTrackingUrl } from "../../lib/tracking";
 import { accountsEnabled } from "./customerAccounts";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
@@ -336,21 +337,6 @@ export default function AccountPage() {
       `${functionUrl("downloadDigitalAsset")}?orderId=${encodeURIComponent(order.id || order.orderId)}&itemId=${encodeURIComponent(itemId)}&token=${encodeURIComponent(order.downloadToken)}`,
       "_blank"
     );
-  };
-
-  const getTrackingUrl = (carrier: string, trackingNum: string) => {
-    const cleanCarrier = (carrier || "").trim().toLowerCase();
-    const cleanNum = (trackingNum || "").trim();
-    if (cleanCarrier.includes("canada post")) {
-      return `https://www.canadapost-postescanada.ca/track-reperage/en#/resultList?searchKeys=${encodeURIComponent(cleanNum)}`;
-    }
-    if (cleanCarrier.includes("usps")) {
-      return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(cleanNum)}`;
-    }
-    if (cleanCarrier.includes("ups")) {
-      return `https://www.ups.com/track?tracknum=${encodeURIComponent(cleanNum)}`;
-    }
-    return `https://www.google.com/search?q=${encodeURIComponent(carrier + " " + cleanNum)}`;
   };
 
   if (settings && !accountsEnabled(settings.design)) {
@@ -741,13 +727,15 @@ export default function AccountPage() {
                       <div className="flex items-center gap-6 self-stretch md:self-auto justify-between border-t md:border-t-0 border-white/5 pt-4 md:pt-0">
                         <div className="flex items-center gap-3">
                           {(() => {
-                            const isDelivered = o.fulfillmentStatus === "delivered" || o.status === "completed";
+                            // Dispatch also sets status "completed", so a parcel still on its way is not "Delivered".
+                            const inTransit = ["shipped", "out_for_delivery"].includes(o.fulfillmentStatus);
+                            const isDelivered = !inTransit && (["delivered", "collected"].includes(o.fulfillmentStatus) || o.status === "completed");
                             return (
                               <span
                                 className={`text-[8px] font-black tracking-widest uppercase px-3.5 py-1.5 rounded-xl border ${
                                   isDelivered
                                     ? ""
-                                    : o.fulfillmentStatus === "shipped"
+                                    : inTransit
                                     ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"
                                     : "bg-amber-500/10 text-amber-400 border-amber-500/20"
                                 }`}
@@ -761,7 +749,7 @@ export default function AccountPage() {
                                     : undefined
                                 }
                               >
-                                {getCopy(settings?.design, isDelivered ? "accountDelivered" : o.fulfillmentStatus === "shipped" ? "accountShipped" : o.fulfillmentStatus === "processing" ? "accountProcessing" : "accountUnfulfilled")}
+                                {getCopy(settings?.design, isDelivered ? "accountDelivered" : o.fulfillmentStatus === "out_for_delivery" ? "trackOutForDelivery" : o.fulfillmentStatus === "shipped" ? "accountShipped" : o.fulfillmentStatus === "processing" ? "accountProcessing" : "accountUnfulfilled")}
                               </span>
                             );
                           })()}
@@ -859,7 +847,7 @@ export default function AccountPage() {
                               </p>
                             </div>
                             <a 
-                              href={getTrackingUrl(o.trackingCarrier, o.trackingNumber)} 
+                              href={getTrackingUrl(o.trackingCarrier, o.trackingNumber, o.trackingUrl)} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="px-6 py-3 fm-active hover:bg-slate-200 text-[9px] font-black tracking-widest uppercase rounded-xl transition-all flex items-center gap-2 shadow-lg"

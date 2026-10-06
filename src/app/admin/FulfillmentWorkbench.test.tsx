@@ -39,7 +39,7 @@ describe("focused publisher workflow", () => {
   it("starts at the address with no premature shipping actions", () => {
     const html = render(base());
     expect(html).toContain("Confirm address");
-    expect(html).not.toContain("Choose shipping label");
+    expect(html).not.toContain("Buy Shippo label");
     expect(html).not.toContain("Preset name");
     expect(html).not.toContain("Refund");
   });
@@ -49,15 +49,23 @@ describe("focused publisher workflow", () => {
     const html = render(o);
     expect(html).toContain("Confirm packed");
     expect(html).not.toContain("Confirm address</button>");
-    expect(html).not.toContain("Choose shipping label");
+    expect(html).not.toContain("Buy Shippo label");
     expect(html.match(/rp-btn-primary/g)).toHaveLength(1);
   });
   it("shows one label action and a secondary manual-carrier path", () => {
     const o = base();
     o.operations = { addressReviewed: addressKey(o), packed: packingKey(o) };
     const html = render(o);
-    expect(html.match(/Choose shipping label/g)).toHaveLength(1);
-    expect(html).toContain("Use my own tracking");
+    expect(html.match(/Buy Shippo label/g)).toHaveLength(1);
+    expect(html).toContain("I made my own label");
+  });
+  it("shows the service the customer chose at checkout", () => {
+    const o: any = base();
+    o.operations = { addressReviewed: addressKey(o), packed: packingKey(o) };
+    o.shippingMethod = "Canada Post Expedited Parcel"; o.shipping = 14.5;
+    const html = render(o);
+    expect(html).toContain("Canada Post Expedited Parcel");
+    expect(html).toContain("paid CA$14.50");
   });
   it("offers dispatch rather than another label purchase after purchase", () => {
     const o: any = base();
@@ -65,7 +73,7 @@ describe("focused publisher workflow", () => {
     o.labelUrl = "https://example.com/label";
     const html = render(o);
     expect(html).toContain("Confirm dispatch");
-    expect(html).not.toContain("Choose shipping label");
+    expect(html).not.toContain("Buy Shippo label");
   });
   it("does not show address blockers or shipping prompts on cancelled orders", () => {
     const o = { ...base(), status: "cancelled", customer: {} };
@@ -104,7 +112,7 @@ it("shows pickup readiness without requiring or exposing shipping actions", () =
   expect(html).toContain("5 Main, Toronto, ON");
   expect(html).toContain("Ring the bell");
   expect(html).not.toContain("Confirm address");
-  expect(html).not.toContain("Choose shipping label");
+  expect(html).not.toContain("Buy Shippo label");
 });
 
 it("allows the final local delivery transition after the driver departs", () => {
@@ -114,6 +122,6 @@ it("allows the final local delivery transition after the driver departs", () => 
   o.operations = { addressReviewed: addressKey(o), packed: packingKey(o) };
   const html = render(o);
   expect(html).toContain("Confirm delivered");
-  expect(html).not.toContain("Choose shipping label");
-  expect(html).not.toContain("Use my own tracking");
+  expect(html).not.toContain("Buy Shippo label");
+  expect(html).not.toContain("I made my own label");
 });

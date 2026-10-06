@@ -7,6 +7,8 @@ import {
   physicalItems,
   isDigitalItem,
   queueOf,
+  daysInTransit,
+  isOverdueInTransit,
 } from "./fulfillment";
 import {
   Checkbox,
@@ -26,6 +28,9 @@ type Props = {
   onPack: () => void;
   onLabel: () => void;
   onDispatch: () => void;
+  onEditTracking?: () => void;
+  onDeliveryStatus?: (status: "out_for_delivery" | "delivered") => void;
+  onResendEmail?: () => void;
   onLocalAdvance: () => void;
   onRelease: () => void;
 };
@@ -39,6 +44,9 @@ export function FulfillmentWorkbench({
   onPack,
   onLabel,
   onDispatch,
+  onEditTracking,
+  onDeliveryStatus,
+  onResendEmail,
   onLocalAdvance,
   onRelease,
 }: Props) {
@@ -273,10 +281,16 @@ export function FulfillmentWorkbench({
           ) : (
             shippingActive && (
               <>
+                {order.shippingMethod && (
+                  <p className="fw-summary">
+                    Customer chose: <strong>{order.shippingMethod}</strong>
+                    {Number.isFinite(Number(order.shipping)) ? ` · paid CA$${Number(order.shipping).toFixed(2)}` : ""}
+                  </p>
+                )}
                 <p className="fw-summary">
                   {order.labelUrl
-                    ? `${order.trackingCarrier || "Carrier"} · ${order.trackingNumber || "Tracking pending"}`
-                    : "Buy a Canada Post label, or use tracking from a label you already have."}
+                    ? `Label bought · ${order.trackingCarrier || "Carrier"} · ${order.trackingNumber || "Tracking pending"}. Print it, hand the parcel to the carrier, then confirm dispatch to email the customer.`
+                    : "Buy the label through Shippo, or make your own label and enter its tracking. The customer is emailed when you confirm dispatch."}
                 </p>
                 <div className="fw-actions">
                   {order.labelUrl ? (
@@ -288,10 +302,10 @@ export function FulfillmentWorkbench({
                   ) : (
                     <>
                       <PrimaryButton disabled={busy} onClick={onLabel}>
-                        Choose shipping label
+                        Buy Shippo label
                       </PrimaryButton>
                       <SecondaryButton disabled={busy} onClick={onDispatch}>
-                        Use my own tracking
+                        I made my own label
                       </SecondaryButton>
                     </>
                   )}
@@ -314,10 +328,46 @@ export function FulfillmentWorkbench({
             </div>
           )}
           {queue === "In transit" && (
-            <p className="fw-summary">
-              {order.trackingCarrier || "Carrier"} ·{" "}
-              {order.trackingNumber || "No tracking recorded"}
-            </p>
+            <>
+              <p className="fw-summary">
+                {order.trackingCarrier || "Carrier"} ·{" "}
+                {order.trackingNumber || "No tracking recorded"}
+                {order.fulfillmentStatus === "out_for_delivery" ? " · Out for delivery" : ""}
+              </p>
+              {isOverdueInTransit(order) && (
+                <p className="fw-problems" role="alert">
+                  In transit for {daysInTransit(order)} days. Check the carrier's tracking; if the parcel is lost,
+                  open a claim with the carrier and contact the customer.
+                </p>
+              )}
+              {!order.isTest && (onDeliveryStatus || onEditTracking) && (
+                <div className="fw-actions">
+                  {onDeliveryStatus && order.fulfillmentStatus !== "out_for_delivery" && (
+                    <SecondaryButton disabled={busy} onClick={() => onDeliveryStatus("out_for_delivery")}>
+                      Mark out for delivery
+                    </SecondaryButton>
+                  )}
+                  {onDeliveryStatus && (
+                    <PrimaryButton disabled={busy} onClick={() => onDeliveryStatus("delivered")}>
+                      Mark delivered
+                    </PrimaryButton>
+                  )}
+                  {onResendEmail && order.fulfillmentStatus !== "out_for_delivery" && order.trackingNumber && (
+                    <SecondaryButton disabled={busy} onClick={onResendEmail}>
+                      Resend shipping email
+                    </SecondaryButton>
+                  )}
+                  {onEditTracking && !order.labelUrl && (
+                    <SecondaryButton disabled={busy} onClick={onEditTracking}>
+                      Edit tracking
+                    </SecondaryButton>
+                  )}
+                </div>
+              )}
+              {order.labelUrl && (
+                <p className="rp-hint">Shippo updates this parcel automatically; use these only if its tracking stalls.</p>
+              )}
+            </>
           )}
         </div>
       )}

@@ -38,3 +38,29 @@ it("recognizes server and client digital item markers consistently", () => {
  const o: any = { ...packed(), items: [{ id: "e", quantity: 1, isDigital: true }] }; expect(queueOf(o)).toBe("Completed");
 });
 
+
+import { matchesCustomerService } from "./fulfillment";
+describe("customer's checkout service on label rates", () => {
+  it("matches with or without the Canada Post prefix, case-insensitively", () => {
+    expect(matchesCustomerService("Expedited Parcel", "Canada Post Expedited Parcel")).toBe(true);
+    expect(matchesCustomerService("Xpresspost", "canada post XPRESSPOST")).toBe(true);
+    expect(matchesCustomerService("Regular Parcel", "Canada Post Expedited Parcel")).toBe(false);
+    expect(matchesCustomerService("Regular Parcel", undefined)).toBe(false);
+  });
+});
+
+import { daysInTransit, isOverdueInTransit } from "./fulfillment";
+describe("parcels in transit too long", () => {
+  const now = Date.parse("2026-10-20T12:00:00Z");
+  const shipped = (shippedAt: string, extra: any = {}) => ({ ...order(), status: "completed", fulfillmentStatus: "shipped", shippedAt, ...extra });
+  it("flags shipped parcels at 14 days, not before", () => {
+    expect(daysInTransit(shipped("2026-10-10T12:00:00Z"), now)).toBe(10);
+    expect(isOverdueInTransit(shipped("2026-10-10T12:00:00Z"), now)).toBe(false);
+    expect(isOverdueInTransit(shipped("2026-10-06T12:00:00Z"), now)).toBe(true);
+  });
+  it("never flags delivered, local or undated orders", () => {
+    expect(isOverdueInTransit(shipped("2026-09-01T00:00:00Z", { fulfillmentStatus: "delivered" }), now)).toBe(false);
+    expect(isOverdueInTransit(shipped("2026-09-01T00:00:00Z", { fulfillmentSelection: { method: "local_delivery" }, fulfillmentStatus: "out_for_delivery" }), now)).toBe(false);
+    expect(isOverdueInTransit(shipped(""), now)).toBe(false);
+  });
+});
