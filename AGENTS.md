@@ -462,6 +462,20 @@ on the order). Both checks run in `fetchValidDiscount` / both checkout paths; to
 - Section links typed as `/path` get the site sub-path (`siteHref`). Category nav memoises on content. Untracked
   inventory never shows SOLD OUT.
 
+## Crawlable public HTML
+
+Production builds render the public sitemap into real HTML route documents via
+`scripts/prerender-storefront.mjs` (see `docs/SEO_CRAWLABILITY.md`). Home, book,
+custom-page and collection routes use the actual published storefront DOM;
+account, wishlist, checkout, tracking and admin routes are excluded. Chromium is
+installed by the Pages workflow. Snapshots update on deployment; rerun Pages
+after publishing catalog or Studio changes. Browser storage and settings objects
+are never serialized; render-time Firestore writes/analytics are blocked. Payment
+and inventory authority remain live and unchanged. Install Chromium locally with
+`pnpm exec playwright install chromium` before `npm run build`.
+
+Public SEO/catalog pagination uses document IDs so records without `createdAt` are included consistently with the sitemap. Admin sorting is unchanged. HTML builds decline analytics/marketing consent and require completed custom-page content.
+
 ## Paid-but-unpaid recovery + Riso order tracking (6 October 2026)
 
 - `markStripeOrderPaid` (functions/index.js) is the one place a Stripe order becomes paid (stock, discount

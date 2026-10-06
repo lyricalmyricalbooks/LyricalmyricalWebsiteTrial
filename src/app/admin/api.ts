@@ -13,6 +13,7 @@ import {
   setDoc,
   getDoc,
   orderBy,
+  documentId,
   limit,
   getCountFromServer,
   startAfter,
@@ -152,6 +153,14 @@ export const adminApi = {
         return { ...book, ...patch, id: snapshot.id };
       });
     });
+  },
+
+  // Document-ID ordering includes legacy books without createdAt and gives
+  // public pagination the same membership as the sitemap, without writes.
+  getStorefrontBooks: async (limitCount = 100, lastVisible = null) => {
+    const constraints = [orderBy(documentId()), ...(lastVisible ? [startAfter(lastVisible)] : []), limit(limitCount)];
+    const snap = await getDocs(query(collection(db, "books"), ...constraints));
+    return snap.docs.map(d => ({ ...d.data(), id: d.id, _lastDoc: d }));
   },
 
   getBooks: async (limitCount = 50, lastVisible = null) => {
