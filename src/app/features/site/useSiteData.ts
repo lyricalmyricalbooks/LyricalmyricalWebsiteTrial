@@ -1,9 +1,11 @@
 import { useLocation } from "react-router";
+import { consentAllows, CONSENT_EVENT } from "../../lib/consent";
+import { isLiveBook } from "./liveBook";
 import { resolveSurfaceDesign } from "./surfaceDesign";
 import { useEffect, useMemo, useState } from "react";
 import { adminApi } from "../../admin/api";
 import { DEFAULT_SETTINGS } from "./constants";
-import { readSiteCache, writeSiteCache } from "./siteCache";
+import { readSiteCache, writeSiteCache, SITE_CACHE_EVENT } from "./siteCache";
 import type { Book, SiteSettings, Page } from "./types";
 import { RISO_NOIR_TOKENS, withRisoNoirDefault } from "./risoNoir";
 import { setSiteIdentity } from "../../lib/seo";
@@ -100,7 +102,7 @@ export function useSiteData() {
         });
 
         const sessionKey = `fm_visit_${new Date().toISOString().split("T")[0]}`;
-        if (!isPreview && !sessionStorage.getItem(sessionKey)) {
+        if (!isPreview && consentAllows("analytics") && !sessionStorage.getItem(sessionKey)) {
           adminApi.recordVisit();
           sessionStorage.setItem(sessionKey, "true");
         }
@@ -191,9 +193,26 @@ export function useSiteData() {
   // Site name / default title / share image (Studio › Text & labels › Site & sharing) feed every page's <head>.
   useEffect(() => { setSiteIdentity(settings.design); }, [settings.design]);
   // Studio › Style › Custom code (public pages only; see customCode.ts).
-  useEffect(() => { applyCustomCode(settings.design, location.pathname); }, [settings.design, location.pathname]);
+  // Custom snippets are usually trackers: they wait for the shopper's analytics choice
+  // and are re-applied the moment that choice changes.
+  const [consentVersion, setConsentVersion] = useState(0);
+  useEffect(() => {
+    const bump = () => setConsentVersion(v => v + 1);
+    window.addEventListener(CONSENT_EVENT, bump);
+    return () => window.removeEventListener(CONSENT_EVENT, bump);
+  }, []);
+  useEffect(() => {
+    applyCustomCode(consentAllows("analytics") ? settings.design : null, location.pathname);
+  }, [settings.design, location.pathname, consentVersion]);
 
-  const sellableBooks = useMemo(() => resolveProductRoutes(books).map(applyBackorderPolicy), [books]);
+  // Shoppers only ever see live books. Drafts/scheduled books show only inside a real
+  // Studio preview (the editor's snapshot is present) — "?preview=true" alone isn't enough.
+  const studioPreview = isPreviewUrl() && Boolean((window as any).__studioPreviewState);
+  const sellableBooks = useMemo(() => {
+    const now = new Date().toISOString();
+    const visible = studioPreview ? books : books.filter(book => isLiveBook(book as any, now));
+    return resolveProductRoutes(visible).map(applyBackorderPolicy);
+  }, [books, studioPreview]);
 
   return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading };
 }
@@ -216,6 +235,14 @@ export function readCachedDesign(): Record<string, any> {
  */
 export function useLiveDesign(): Record<string, any> {
   const [design, setDesign] = useState<Record<string, any>>(() => readCachedDesign());
+  // Live site: follow fresh settings as soon as they load (a first visit has no cache
+  // yet, and a stale one could keep the under-construction wall up after it's switched off).
+  useEffect(() => {
+    if (isPreviewUrl()) return;
+    const refresh = () => setDesign(readCachedDesign());
+    window.addEventListener(SITE_CACHE_EVENT, refresh);
+    return () => window.removeEventListener(SITE_CACHE_EVENT, refresh);
+  }, []);
   useEffect(() => {
     if (!isPreviewUrl()) return;
     const onMessage = (event: MessageEvent) => {

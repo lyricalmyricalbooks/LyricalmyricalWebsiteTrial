@@ -1,4 +1,5 @@
 import { motion, useMotionValue, useSpring } from "motion/react";
+import { quickAddChoice } from "../features/site/buyable";
 import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
 import { Send, ChevronLeft, ChevronRight, MapPin, Clock } from "lucide-react";
 import { useCurrency } from "../CurrencyContext";
@@ -84,7 +85,7 @@ function CompositionBlock({ block, index = 0, depth = 0 }: any) {
     {block.imageUrl && <img src={block.imageUrl} alt={block.alt || ""} loading="lazy" className="w-full h-auto object-cover" />}
     {block.title && <figcaption data-theme-field="title">{block.title}</figcaption>}
   </figure>;
-  if (block.type === "button") return <div {...attrs} className="fm-composition-block" style={style}><a href={block.url || "#"} className="inline-flex min-h-11 items-center border border-current px-5 py-3 font-bold" data-theme-field="text">{block.text || fb("CompositionSection.block.text")}</a></div>;
+  if (block.type === "button") return <div {...attrs} className="fm-composition-block" style={style}><a href={siteHref(block.url)} className="inline-flex min-h-11 items-center border border-current px-5 py-3 font-bold" data-theme-field="text">{block.text || fb("CompositionSection.block.text")}</a></div>;
   return <div {...attrs} className="fm-composition-block space-y-3" style={style}>
     {block.title && <h3 className="text-2xl font-bold" data-theme-field="title">{block.title}</h3>}
     {block.body && <p className="leading-relaxed" data-theme-field="body">{block.body}</p>}
@@ -419,6 +420,17 @@ const sampleInPreview = <T,>(items: T[], sample: T[]): T[] => (items.length ? it
 const sampleHtml = (html: string | undefined, sample: string) => html || (inStudioPreview() ? sample : "");
 
 /** Site-relative links keep ?preview=true so a Studio preview never reloads into the live design. */
+/**
+ * Links typed in Studio ("/page/news", "/?catalog=true") are paths within the shop,
+ * which lives under a sub-path on GitHub Pages; a raw href would leave the site.
+ */
+function siteHref(url: string | undefined | null) {
+  if (!url) return "#";
+  if (!url.startsWith("/") || url.startsWith("//")) return url;
+  const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+  return keepPreviewParam(base + url);
+}
+
 function keepPreviewParam(href: string) {
   if (typeof window === "undefined" || new URLSearchParams(window.location.search).get("preview") !== "true") return href;
   try {
@@ -726,7 +738,7 @@ export function ImageWithTextSection({ settings, enableAnimations }: any) {
               </p>
               {settings.ctaText && (
                 <a
-                  href={settings.ctaUrl || "#"}
+                  href={siteHref(settings.ctaUrl)}
                   className="inline-block px-7 py-3 rounded-full text-[10px] font-bold tracking-[0.3em] uppercase"
                   style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
                 >
@@ -844,7 +856,7 @@ export function MulticolumnSection({ settings, enableAnimations }: any) {
                     {item.links.map((link: any, linkIdx: number) => (
                       <a
                         key={linkIdx}
-                        href={link.url || "#"}
+                        href={siteHref(link.url)}
                         className="text-xs font-bold tracking-widest uppercase text-white/80 underline"
                       >
                         {link.text}
@@ -853,7 +865,7 @@ export function MulticolumnSection({ settings, enableAnimations }: any) {
                   </div>
                 ) : (
                   item.linkText && (
-                    <a href={item.linkUrl || "#"} className="text-xs font-bold tracking-widest uppercase text-white/80 underline">
+                    <a href={siteHref(item.linkUrl)} className="text-xs font-bold tracking-widest uppercase text-white/80 underline">
                       {item.linkText}
                     </a>
                   )
@@ -923,7 +935,7 @@ export function SlideshowSection({ settings, enableAnimations }: any) {
           {slide.subtitle && <p className="text-white/70 text-lg mb-8" data-theme-field="subtitle">{slide.subtitle}</p>}
           {slide.ctaText && (
             <a
-              href={slide.ctaUrl || "#"}
+              href={siteHref(slide.ctaUrl)}
               className="px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase text-black"
               style={{ backgroundColor: slide.accentColor || "#fff" }}
               data-theme-field="ctaText"
@@ -1117,7 +1129,7 @@ export function CollectionListSection({ settings, enableAnimations }: any) {
         <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
           {items.map((item: any, idx: number) => (
             <AnimationContainer key={idx} enabled={enableAnimations} delay={idx * 0.05}>
-              <a href={item.linkUrl || "#"} {...blockEditAttrs(item, idx)} className="group relative block aspect-[3/4] overflow-hidden rounded-2xl bg-white/5">
+              <a href={siteHref(item.linkUrl)} {...blockEditAttrs(item, idx)} className="group relative block aspect-[3/4] overflow-hidden rounded-2xl bg-white/5">
                 {item.imageUrl && (
                   <img src={item.imageUrl} alt={item.title || ""} loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                 )}
@@ -1483,7 +1495,9 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
         <div className={`${gridId} grid gap-6`}>
           {items.map((book: any, idx: number) => {
             const onSale = !!book.isOnSale && book.salePrice > 0 && book.salePrice < (book.retailPrice ?? 0);
-            const soldOut = book.stockLevel === 0;
+            // Books sold in editions are added as an in-stock edition (see buyable.ts).
+            const quick = quickAddChoice(book);
+            const soldOut = !quick.inStock;
             const category = book.categories?.[0] || "";
             return (
               <AnimationContainer key={book.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
@@ -1534,7 +1548,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
                         disabled={soldOut}
                         onClick={(e: any) => {
                           e.stopPropagation();
-                          if (!soldOut) addToCart(book);
+                          if (!soldOut) addToCart(book, quick.variant);
                         }}
                         className={`absolute right-3 bottom-3 w-8 h-8 rounded-full border text-base leading-none flex items-center justify-center transition-colors ${
                           soldOut
@@ -1803,7 +1817,7 @@ export function BlogPostsSection({ settings, enableAnimations }: any) {
           {cards.map((article: any, idx: number) => (
             <AnimationContainer key={article.id || idx} enabled={enableAnimations} delay={idx * 0.05}>
               <article {...blockEditAttrs(article, idx)} className="h-full overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.06]">
-                <a href={article.linkUrl || "#"} className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded-3xl">
+                <a href={siteHref(article.linkUrl)} className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded-3xl">
                   <div className="aspect-[4/3] bg-white/5 overflow-hidden">
                     {article.imageUrl ? (
                       <img src={article.imageUrl} alt={article.title || fb("BlogPostsSection.article.title")} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
@@ -1886,7 +1900,7 @@ export function CountdownSection({ settings, enableAnimations }: any) {
           </div>
           {settings.ctaText && (
             <a
-              href={settings.ctaUrl || "#"}
+              href={siteHref(settings.ctaUrl)}
               className="inline-block mt-10 px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
               style={{ backgroundColor: settings.accentColor || "var(--btn-bg, #e8402a)", color: "var(--btn-text, #100f0d)", ...btnS(settings) }}
             >
@@ -2056,7 +2070,7 @@ function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
           {block.buttons.map((btn: any, btnIdx: number) => (
             <a
               key={btnIdx}
-              href={btn.url || "#"}
+              href={siteHref(btn.url)}
               className="inline-block px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
               style={buttonStyle}
             >
@@ -2069,7 +2083,7 @@ function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
     return (
       <div {...blockEditAttrs(block, blockIndex)} className="flex justify-center">
         <a
-          href={block.buttonUrl || "#"}
+          href={siteHref(block.buttonUrl)}
           className="inline-block px-8 py-3.5 rounded-full text-[10px] tracking-[0.3em] font-bold uppercase"
           style={buttonStyle}
         >
@@ -2104,7 +2118,7 @@ function RowBlock({ block, blockIndex = 0, accentFallback, settings }: any) {
       {block.body && <p className="text-white/60 leading-relaxed text-sm" style={settings ? bStyle(settings) : {}}>{block.body}</p>}
       {block.buttonText && (
         <a
-          href={block.buttonUrl || "#"}
+          href={siteHref(block.buttonUrl)}
           className="inline-block text-[10px] font-bold tracking-[0.25em] uppercase underline underline-offset-4"
           style={{ color: block.accentColor || accentFallback || undefined }}
         >
@@ -2181,7 +2195,7 @@ export function GallerySection({ settings, enableAnimations }: any) {
             <a
               key={idx}
               {...blockEditAttrs(item, idx)}
-              href={item.linkUrl || item.imageUrl || "#"}
+              href={siteHref(item.linkUrl || item.imageUrl)}
               target={item.linkUrl ? "_blank" : undefined}
               rel="noreferrer"
               className="block aspect-square overflow-hidden rounded-xl bg-white/5"
@@ -2254,8 +2268,8 @@ export function VideoHeroSection({ settings, onCtaClick }: any) {
         )}
         {settings.ctaText && (
           <a
-            href={settings.ctaLink || "#"}
-            onClick={(e) => { if (onCtaClick) { e.preventDefault(); onCtaClick(); } }}
+            href={siteHref(settings.ctaLink)}
+            onClick={(e) => { if (onCtaClick && !settings.ctaLink) { e.preventDefault(); onCtaClick(); } }}
             className="mt-8 inline-block px-8 py-3 text-[11px] font-bold tracking-[0.25em] uppercase bg-white text-black rounded-full transition-transform hover:scale-105"
             style={btnS(settings)}
           >
@@ -2393,7 +2407,7 @@ export function PricingTableSection({ settings, onCtaClick, enableAnimations }: 
                 )}
                 {item.ctaText && (
                   <a
-                    href={item.ctaLink || "#"}
+                    href={siteHref(item.ctaLink)}
                     onClick={(e) => { if (onCtaClick && (!item.ctaLink || item.ctaLink === "/")) { e.preventDefault(); onCtaClick(); } }}
                     className={`mt-8 inline-block text-center px-6 py-3 text-[11px] font-bold tracking-[0.2em] uppercase rounded-full transition-transform hover:scale-105 ${highlighted ? "bg-white text-black" : "bg-white/10 text-white border border-white/20"}`}
                     style={btnS(settings)}

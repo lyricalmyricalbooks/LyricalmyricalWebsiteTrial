@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense, useEffect, type ReactNode } from "react";
+import { consentAllows } from "./lib/consent";
 import { motion } from "motion/react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router";
 import { CartProvider } from "./CartContext";
@@ -45,7 +46,7 @@ export default function App() {
 
   // Capture referral traffic source if present in query parameters or HTTP referrer
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && consentAllows("analytics")) {
       const params = new URLSearchParams(window.location.search);
       const ref = params.get("ref");
       if (ref) {

@@ -29,9 +29,13 @@ export function readSiteCache(): SiteCachePayload | null {
   }
 }
 
+export const SITE_CACHE_EVENT = "fm:site-cache-updated";
+
 export function writeSiteCache(payload: SiteCachePayload) {
   try {
     sessionStorage.setItem(SITE_CACHE_KEY, JSON.stringify(payload));
+    // Chrome outside the data pipeline (under-construction wall, cookie banner) refreshes from this.
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(SITE_CACHE_EVENT));
   } catch {
     // Ignore quota and private-mode errors; Firestore remains the fallback.
   }

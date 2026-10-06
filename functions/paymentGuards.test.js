@@ -33,6 +33,7 @@ test('only live, published books (as an edition when they have editions) can be 
   const { purchaseProblem } = createRequire(import.meta.url)('./paymentGuards');
   const now = '2026-10-06T12:00:00.000Z';
   expect(purchaseProblem({ status: 'published' }, null, now)).toBeNull();
+  expect(purchaseProblem({}, null, now)).toBeNull();
   expect(purchaseProblem({ status: 'draft' }, null, now)).toBe('unavailable');
   expect(purchaseProblem({ status: 'archived' }, null, now)).toBe('unavailable');
   expect(purchaseProblem({ status: 'published', scheduleDate: '2026-10-07' }, null, now)).toBe('unavailable');

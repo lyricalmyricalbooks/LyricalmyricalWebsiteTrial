@@ -54,7 +54,8 @@ function discountDateState(discount, now = new Date()) {
 // at the book's own price and skip the editions' stock).
 function purchaseProblem(book, variantId, nowISO = new Date().toISOString()) {
   if (!book) return "missing";
-  if (book.status !== "published") return "unavailable";
+  // Books saved before statuses existed have none; the storefront treats them as published.
+  if (book.status && book.status !== "published") return "unavailable";
   if (book.scheduleDate && String(book.scheduleDate) > nowISO) return "unavailable";
   if (!variantId && Array.isArray(book.variants) && book.variants.length) return "choose_edition";
   return null;

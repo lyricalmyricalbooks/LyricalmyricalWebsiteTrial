@@ -441,3 +441,23 @@ on the order). Both checks run in `fetchValidDiscount` / both checkout paths; to
   skips carts older than 7 days and throttles to one reminder per address every 3 days (`abandoned-cart-throttle`,
   server-only). Deploy rules and functions together.
 - Order tracking accepts `#`/spaces in order numbers (`features/site/orderNumber.ts`).
+
+## Bug sweep #2 (6 October 2026)
+
+- **Payment integrity:** checkout accepts only CAD/USD/EUR (`functions/paymentGuards.js`). Stripe and PayPal store
+  `expectedAmountMinor`/`expectedCurrency` when the payment is created, and the webhook/capture marks an order paid
+  only on an exact match. A mismatch sets `paymentMismatch` and the order shows in Orders › Needs attention.
+- **Stock** changes go through `functions/inventory.js` (`readBooks`/`writeStock`), one write per book, so two
+  editions in one order both count. Oversells set `oversold: true`.
+- **Buyable books:** the server refuses draft, archived and future-dated books, and bare lines for books sold in
+  editions (`purchaseProblem`). The storefront shows only `isLiveBook` books (`features/site/liveBook.ts`, also used by
+  the sitemap) outside a real Studio preview. Order item names come from the catalog.
+- **Emails:** `compileEmailTemplate` HTML-escapes every value except `items_table`. Manual-payment instructions come from
+  settings, not the order.
+- **Checkout:** tax uses `features/site/taxRate.ts` (same matching as the server). E-book-only carts ask only
+  country/province. A server-refused discount is removed with its reason (`coDiscountRejected`). PayPal has its own
+  option (`coPaypalOption`). A failed PayPal capture returns to checkout. Discount dates follow the Toronto calendar day.
+- **Consent:** `lib/consent.ts` `consentAllows()`. Declined analytics stops funnel/visit/referral tracking and custom code.
+  Declined marketing stops abandoned-cart capture.
+- Section links typed as `/path` get the site sub-path (`siteHref`). Category nav memoises on content. Untracked
+  inventory never shows SOLD OUT.

@@ -21,6 +21,7 @@ describe("applyBackorderPolicy", () => {
     } as any) as any;
     expect(b.variants[0].onBackorder).toBe(true);
     expect(b.variants[1].stock).toBe(3);
-    expect(b.stockLevel).toBe(0);
+    // The book itself isn't sold out while its editions can be ordered.
+    expect(b.stockLevel).toBe(999);
   });
 });

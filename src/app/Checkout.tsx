@@ -1,4 +1,5 @@
 import { regionProps } from "./features/site/storefrontRegions";
+import { consentAllows } from "./lib/consent";
 import { trackLink } from "./features/site/orderStatus";
 import { liveCheckoutRates } from "./features/site/canadaPostRates";
 import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
@@ -941,7 +942,8 @@ export function Checkout() {
   }, []);
 
   useEffect(() => {
-    if (!customer.email || !customer.email.includes("@") || cart.length === 0) return;
+    // The cookie banner lists cart reminders under Marketing: a shopper who declined gets none.
+    if (!customer.email || !customer.email.includes("@") || cart.length === 0 || !consentAllows("marketing")) return;
     const t = setTimeout(() => {
       let recoveryCartId = sessionStorage.getItem("fm_checkout_cart_id");
       if (!recoveryCartId) {
