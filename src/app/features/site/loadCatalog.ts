@@ -13,3 +13,9 @@ export async function loadCatalog(fetchPage: (size: number, cursor?: any) => Pro
     cursor = next;
   }
 }
+
+/** Keep automatic product selections newest-first after document-ID pagination. */
+export function newestFirst<T extends { createdAt?: string }>(books: T[]): T[] {
+  const time = (book: T) => Date.parse(book.createdAt || "") || 0;
+  return [...books].sort((a, b) => time(b) - time(a));
+}

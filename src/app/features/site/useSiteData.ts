@@ -12,7 +12,7 @@ import { setSiteIdentity } from "../../lib/seo";
 import { applyCustomCode } from "./customCode";
 import { applyBackorderPolicy } from "./backorder";
 import { resolveProductRoutes } from "./productRoutes";
-import { loadCatalog } from "./loadCatalog";
+import { loadCatalog, newestFirst } from "./loadCatalog";
 
 const isPreviewUrl = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
 
@@ -34,7 +34,7 @@ function loadSiteData() {
     // Infinity marks an in-flight request, which every consumer should join.
     siteDataLoadedAt = Infinity;
     siteDataRequest = Promise.all([
-      loadCatalog((size, cursor) => adminApi.getBooks(size, cursor)),
+      loadCatalog((size, cursor) => adminApi.getStorefrontBooks(size, cursor)).then(newestFirst),
       adminApi.getSettings(),
       adminApi.getPublishedPages(),
     ]).then(result => {
