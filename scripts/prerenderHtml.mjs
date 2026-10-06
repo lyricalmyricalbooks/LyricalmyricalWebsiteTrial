@@ -28,6 +28,8 @@ export function captureDocument({ template, publicUrl, localOrigin }) {
   if (!root?.textContent?.trim() || document.querySelector('vite-error-overlay')) throw new Error('Cannot snapshot an empty or failed storefront');
   const pageSlug = new URL(publicUrl).pathname.split('/page/')[1];
   if (pageSlug && document.querySelector('[data-seo-page]')?.getAttribute('data-seo-page') !== decodeURIComponent(pageSlug)) throw new Error('Cannot snapshot an unfinished custom page');
+  const collectionSlug = new URL(publicUrl).pathname.split('/collections/')[1];
+  if (collectionSlug && document.querySelector('[data-seo-collection]')?.getAttribute('data-seo-collection') !== decodeURIComponent(collectionSlug)) throw new Error('Cannot snapshot an unfinished collection');
   const clone = document.documentElement.cloneNode(true);
   const original = new DOMParser().parseFromString(template, 'text/html');
   // Runtime scripts are not data. Reuse only scripts shipped in the app shell, and

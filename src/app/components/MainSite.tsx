@@ -60,6 +60,8 @@ const STICKER_ACTIVE_COLORS = [
 const STICKER_PILL_CSS =
   ".fm-sticker-pill{transition:all .2s ease}.fm-sticker-pill:hover{transform:rotate(0deg) scale(1.08)!important;opacity:1!important}";
 
+const catNameForSEO = (category: any) => typeof category === "string" ? category : category?.name;
+
 export function storefrontCategories(value: unknown) {
   return (Array.isArray(value) ? value : CATEGORIES).filter(
     (category: any) => typeof category === "string" || (category && typeof category === "object"),
@@ -601,7 +603,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // Keyed on the categories' content: storefrontCategories() returns a new array every
   // render, which re-ran the category effects below on every render (a category click
   // snapped back on /collections pages, "ALL" never stuck, string lists looped).
-  const categorySource = activeDesign?.categories || storefrontDesign?.categories || legacyDesign?.categories;
+  const categorySource = legacyDesign?.categories || activeDesign?.categories || storefrontDesign?.categories;
   const categoryKey = JSON.stringify(categorySource ?? null);
   const categories = useMemo(() => storefrontCategories(categorySource).map((cat: any, i: number) => {
     if (typeof cat === "string") {
@@ -673,13 +675,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  useEffect(() => {
-    // "ALL" is the category-chip pseudo-category (shows every published book).
-    if (activeCategory === "ALL") return;
-    if (categories.length > 0 && !categories.includes(activeCategory)) {
-      setActiveCategory(categories[0]);
-    }
-  }, [categories, activeCategory]);
+  // The category synchronization above compares stable names/IDs. Do not also
+  // reset by object identity: a fresh catalog snapshot recreates category objects
+  // and would overwrite the category selected by the collection-route effect.
 
   const baseFilteredItems = useMemo(
     () =>
@@ -725,9 +723,13 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   const { has: isWished, toggle: toggleWish, count: wishlistCount } = useWishlist();
 
+  const routeCategory = collectionSlug === "all" ? { name: getCopy(activeDesign, "catalogAllCategories") } : categories.find((category: any) => categoryNames(category).some(name => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") === collectionSlug));
+  const routeCategoryName = routeCategory?.name || "";
   useSEO({
-    title: showCatalog ? getCopy(settings?.design, "seoArchiveTitle") : undefined,
-    description: settings?.info?.description,
+    noindex: onCollectionRoute && !routeCategory,
+    url: onCollectionRoute && routeCategory ? new URL(`${import.meta.env.BASE_URL}collections/${collectionSlug === "all" ? "all" : routeCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`, window.location.origin).href : undefined,
+    title: onCollectionRoute ? getCopy(activeDesign, "seoCollectionTitle", { category: routeCategoryName }) : showCatalog ? getCopy(settings?.design, "seoArchiveTitle") : undefined,
+    description: onCollectionRoute ? routeCategory?.description || getCopy(activeDesign, "seoCollectionDescription", { category: routeCategoryName.toLowerCase() }) : settings?.info?.description,
     image: settings?.assets?.profileUrl,
     type: "website",
     jsonLd: {
@@ -932,7 +934,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   {
     return (
       <div
-        data-fm-store data-studio-target="style:colors|style:type|style:layout" data-studio-label="Page background, colours & fonts"
+        data-seo-collection={!loading && onCollectionRoute && routeCategory && (collectionSlug === "all" ? activeCategory === "ALL" : catNameForSEO(activeCategory) === routeCategoryName) ? collectionSlug : undefined} data-fm-store data-studio-target="style:colors|style:type|style:layout" data-studio-label="Page background, colours & fonts"
         className="flex min-h-screen flex-col overflow-y-auto selection:bg-white selection:text-black"
         style={{ fontFamily: `'${resolveTypography(storefrontDesign).body}', sans-serif`, backgroundColor: storefrontBg, color: storefrontText }}
       >

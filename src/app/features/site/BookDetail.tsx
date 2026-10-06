@@ -240,7 +240,7 @@ export default function BookDetail() {
     description: bookMetadata(book).description || getCopy(settings?.design, "seoBookDescription", { title: book.title }),
     url: bookUrl,
     type: "product",
-    noindex: !!book.status && book.status !== "published",
+    noindex: book.seoNoindex === true || (!!book.status && book.status !== "published"),
     jsonLd: bookStructuredData(seoBook!, {
       currency,
       price: selectedVariant ? convertPrice(selectedVariant.price) : getBookPrice(book),

@@ -43,3 +43,14 @@ it('marks private account pages noindex even when page SEO only supplies a title
   expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, follow');
   act(() => root.unmount());
 });
+
+it('publishes and removes the owner supplied Search Console verification token', () => {
+ const root = createRoot(document.createElement('div'));
+ function Page() { useSEO({ title: 'Home' }); return null; }
+ setSiteIdentity({ copy: { googleSiteVerification: 'public-verification-token' } });
+ act(() => root.render(<MemoryRouter><Page /></MemoryRouter>));
+ expect(document.querySelector('meta[name="google-site-verification"]')?.getAttribute('content')).toBe('public-verification-token');
+ act(() => setSiteIdentity({ copy: { googleSiteVerification: '' } }));
+ expect(document.querySelector('meta[name="google-site-verification"]')).toBeNull();
+ act(() => root.unmount());
+});

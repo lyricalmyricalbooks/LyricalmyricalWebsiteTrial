@@ -7,13 +7,13 @@ import { getCopy } from '../features/site/storeCopy';
 import { bookMetadata, seoChecks } from '../lib/bookSeo';
 import type { Book } from '../features/site/types';
 
-export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange: (key: string, value: string) => void }) {
+export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange: (key: string, value: string | boolean) => void }) {
   const [design, setDesign] = useState<any>(null);
   const [catalog, setCatalog] = useState<Book[]>([]);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    Promise.all([adminApi.getSettings(), loadCatalog((size, cursor) => adminApi.getBooks(size, cursor))])
+    Promise.all([adminApi.getSettings(), loadCatalog((size, cursor) => adminApi.getStorefrontBooks(size, cursor))])
       .then(([settings, books]) => { if (!cancelled) { setDesign(settings?.design); setCatalog(books as Book[]); setLoaded(true); } })
       .catch(() => { /* Show pending URL guidance; never pretend the route was verified. */ });
     return () => { cancelled = true; };
@@ -27,6 +27,8 @@ export function BookSeoPane({ book, onChange }: { book: Partial<Book>; onChange:
   const checks = seoChecks(book, title);
   return <>
     <SectionCard title="Search engine listing" description="Edit this book’s search and sharing details. Google may rewrite titles and snippets; rankings are not guaranteed.">
+      <label className="rp-hint"><input type="checkbox" checked={book.seoNoindex === true} onChange={event => onChange('seoNoindex', event.target.checked)} /> Exclude this listing from search engines</label>
+      <p className="rp-hint">Useful for test and duplicate listings. The book stays available in the shop; Google receives noindex and the sitemap omits it.</p>
       <div className="be-grid">
         <div className="be-span-2"><TextField label="Search title" value={book.metaTitle || ''} onChange={e => onChange('metaTitle', e.target.value)} placeholder={getCopy(design, 'siteTitleFormat', { title: book.title || '' })} hint={`${title.length} characters in the effective title. A custom title is used exactly as written.`} /></div>
         <div className="be-span-2"><TextArea label="Search description" value={book.metaDescription || ''} onChange={e => onChange('metaDescription', e.target.value)} rows={3} placeholder={meta.description} hint={`${description.length} characters. Leave blank to use a plain-text summary of the book description.`} /></div>

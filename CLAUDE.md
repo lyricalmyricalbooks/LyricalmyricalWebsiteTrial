@@ -821,3 +821,15 @@ Public SEO/catalog pagination uses document IDs so records without `createdAt` a
 - Settings › Payments › Stripe › **Webhook health** (`admin/StripeWebhookHealth.tsx`, action `webhookHealth`) checks the
   endpoint, **Fix webhook** adds missing events / re-enables / creates it, **Reset webhook signing** recreates it when
   signatures fail. Opening an unpaid Stripe order in Orders asks Stripe automatically; **Check payment with Stripe** repeats it.
+
+## Automatic SEO refresh and catalog search controls
+
+The Pages workflow checks published Firestore catalog/pages/settings every 15 minutes,
+compares the published-content SHA-256 marker, and rebuilds only on a change. Draft-only
+Studio edits do not trigger refreshes; scheduled release visibility does. Push/manual
+builds always run. Only successful deployments advance the public digest marker.
+Studio visible categories (including visible children) own collection sitemap URLs and
+collection SEO copy. Books > Search (SEO) exposes `seoNoindex`: excluded books remain
+available to shoppers, receive noindex HTML, and are omitted from the sitemap.
+Studio > Text & labels > Site & sharing owns the public Google Search Console verification
+token. Google property verification/submission still requires the owner's Search Console access.

@@ -15,3 +15,18 @@ it('uses unique catalog routes, escapes XML, excludes private and draft pages, a
   expect(result.robots).toContain('Disallow: /shop/admin');
   expect(result.robots).toContain('Sitemap: https://example.com/shop/sitemap.xml');
 });
+
+it('indexes only visible published Studio categories and excludes noindex books', () => {
+ const settings = { design: { categories: ['PUBLICATIONS', { name: 'Books', id: 'books' }, { name: 'Hidden', id: 'hidden', showInNav: false }, { name: 'Hidden child', parentId: 'hidden' }, { name: 'Zines', parentId: 'books' }, { name: 'Books' }] }, draftDesign: { categories: ['Draft category'] } };
+ const result = sitemapArtifacts('https://example.com/shop', [{ id: 'test', title: 'Test', status: 'published', seoNoindex: true }, { id: 'real', title: 'Real', status: 'published' }], [], [{ name: 'Old disconnected collection' }], settings);
+ expect(result.xml).toContain('/collections/publications'); expect(result.xml).toContain('/collections/books'); expect(result.xml).toContain('/collections/zines');
+ expect(result.xml).not.toContain('/books/test'); expect(result.xml).toContain('/books/real');
+ expect(result.xml).not.toContain('hidden'); expect(result.xml).not.toContain('draft-category'); expect(result.xml).not.toContain('old-disconnected');
+ expect(result.count).toBe(5);
+});
+
+it('uses activated scheduled Studio categories instead of the superseded design', () => {
+ const settings = { design: { categories: ['Old'] }, scheduledPublish: { at: '2000-01-01T00:00:00Z', design: { categories: ['Scheduled'] } } };
+ const result = sitemapArtifacts('https://example.com/shop', [], [], [], settings);
+ expect(result.xml).toContain('/collections/scheduled'); expect(result.xml).not.toContain('/collections/old');
+});
