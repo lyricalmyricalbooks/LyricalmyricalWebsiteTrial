@@ -226,6 +226,11 @@
   background: var(--rp-inverse); color: var(--rp-on-inverse); font-weight: 700;
   border-color: var(--rp-inverse); box-shadow: 3px 3px 0 var(--rp-primary);
 }
+.rp-nav-item .rp-nav-badge {
+  margin-left: auto; min-width: 22px; padding: 1px 6px; text-align: center;
+  font-family: var(--rp-font-mono); font-size: 11px; font-weight: 700;
+  background: var(--rp-primary); color: var(--rp-on-primary); border: 2px solid var(--rp-on-primary);
+}
 .rp-nav-item .rp-nav-chevron { margin-left: auto; transition: transform var(--rp-dur) var(--rp-ease); }
 .rp-nav-item[aria-expanded="true"] .rp-nav-chevron { transform: rotate(90deg); }
 .rp-nav-sublist { margin: 4px 0 8px 22px; padding-left: 12px; border-left: var(--rp-hair) solid var(--rp-divider); }

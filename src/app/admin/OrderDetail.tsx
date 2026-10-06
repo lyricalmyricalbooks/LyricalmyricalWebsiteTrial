@@ -6,6 +6,7 @@ import {
   queueOf,
   dispatchProblem,
   matchesCustomerService,
+  suggestedParcelWeightLb,
 } from "./fulfillment";
 import { printOrders } from "./orderPrint";
 import { useState, useEffect, useRef } from "react";
@@ -36,10 +37,23 @@ import {
 export function OrderDetail({
   orderId,
   onClose,
+  queueIds = [],
+  onNavigate,
 }: {
   orderId: string;
   onClose: () => void;
+  queueIds?: string[];
+  onNavigate?: (id: string) => void;
 }) {
+  const queueIndex = queueIds.indexOf(orderId);
+  const prevId = queueIndex > 0 ? queueIds[queueIndex - 1] : "";
+  const nextId = queueIndex >= 0 && queueIndex < queueIds.length - 1 ? queueIds[queueIndex + 1] : "";
+  // After finishing an order, move straight to the next one in the same queue.
+  const goToNext = () => {
+    if (!nextId || !onNavigate) return false;
+    onNavigate(nextId);
+    return true;
+  };
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -69,6 +83,7 @@ export function OrderDetail({
     distance_unit: "in",
     mass_unit: "lb",
   });
+  const parcelTouched = useRef(false);
   const [presetName, setPresetName] = useState("");
   const [presets, setPresets] = useState<any[]>(() => {
     try {
@@ -97,6 +112,8 @@ export function OrderDetail({
       setOrder(data);
       if (data) {
         fillTracking(data);
+        // Start the label dialog from the books' catalog weights, not a fixed 1.5 lb.
+        if (!parcelTouched.current) setParcel((p) => ({ ...p, weight: suggestedParcelWeightLb(data) }));
       }
     } catch (err) {
       console.error(err);
@@ -115,6 +132,8 @@ export function OrderDetail({
   const [isShipping, setIsShipping] = useState(false);
   const [deliveryStatus, setDeliveryStatus] = useState<null | "out_for_delivery" | "delivered">(null);
   const [confirmResend, setConfirmResend] = useState(false);
+  // Pickup / local delivery hand-off waiting for confirmation (e.g. "mark the order ready for pickup").
+  const [localStep, setLocalStep] = useState<string | null>(null);
   const [emailSettings, setEmailSettings] = useState<Record<string, any> | null>(null);
   useEffect(() => {
     adminApi.getNotificationSettings().then(setEmailSettings).catch(() => setEmailSettings(null));
@@ -149,10 +168,38 @@ export function OrderDetail({
         trackingUrl: trackingLink,
       });
       setShowShipForm(false);
-      loadOrder();
       toast.success(editing ? "Tracking updated" : "Order marked as shipped");
+      if (editing || !goToNext()) loadOrder();
     } catch (err: any) {
       toast.error(err?.message || "Error updating order.");
+    } finally {
+      setIsShipping(false);
+    }
+  };
+
+  // Shippo label already holds the carrier and number: one click marks it shipped
+  // and sends the customer's Shipping confirmation email.
+  const handOverToCarrier = async () => {
+    if (!order?.labelUrl || !order.trackingNumber) {
+      fillTracking(order);
+      setShowShipForm("dispatch");
+      return;
+    }
+    setIsShipping(true);
+    try {
+      await adminApi.fulfillmentAction(orderId, "dispatch", {
+        trackingCarrier: order.trackingCarrier || "Canada Post",
+        trackingNumber: order.trackingNumber,
+        trackingUrl: order.trackingUrl || "",
+      });
+      toast.success(
+        emailOn("shipping_confirmation")
+          ? `Shipped — tracking emailed to ${order.customer?.email || "the customer"}`
+          : "Marked shipped (shipping email is switched off)",
+      );
+      if (!goToNext()) loadOrder();
+    } catch (err: any) {
+      toast.error(err?.message || "Couldn't mark the order shipped.");
     } finally {
       setIsShipping(false);
     }
@@ -405,6 +452,19 @@ export function OrderDetail({
         >
           Back to orders
         </SecondaryButton>
+        {onNavigate && queueIndex >= 0 && queueIds.length > 1 && (
+          <div className="fw-toolbar-actions" aria-label="Order navigation">
+            <SecondaryButton size="sm" disabled={!prevId} onClick={() => prevId && onNavigate(prevId)}>
+              ← Previous
+            </SecondaryButton>
+            <span className="rp-hint">
+              Order {queueIndex + 1} of {queueIds.length}
+            </span>
+            <SecondaryButton size="sm" disabled={!nextId} onClick={() => nextId && onNavigate(nextId)}>
+              Next →
+            </SecondaryButton>
+          </div>
+        )}
         <div className="fw-toolbar-actions">
           <SecondaryButton size="sm" onClick={handlePrintPackingSlip}>
             Print packing slip
@@ -510,11 +570,14 @@ export function OrderDetail({
           }}
           onDeliveryStatus={setDeliveryStatus}
           onResendEmail={() => setConfirmResend(true)}
+          onCheckAll={(indices) => setChecked(new Set(indices))}
+          onPackingSlip={handlePrintPackingSlip}
+          onHandedOver={handOverToCarrier}
           onLocalAdvance={() => {
             const next = order.fulfillmentSelection?.method === "pickup"
               ? order.fulfillmentStatus === "ready_for_pickup" ? "record customer collection" : "mark the order ready for pickup"
               : order.fulfillmentStatus === "ready_for_delivery" ? "start local delivery" : order.fulfillmentStatus === "out_for_delivery" ? "mark the order delivered" : "mark the order ready for delivery";
-            if (window.confirm(`Confirm you want to ${next}?`)) void perform("local_transition", { expectedStatus: order.fulfillmentStatus || "" });
+            setLocalStep(next);
           }}
           onRelease={() => perform("release")}
         />
@@ -733,7 +796,11 @@ export function OrderDetail({
               value=""
               onChange={(e) => {
                 const selected = presets.find((p) => p.name === e.target.value);
-                if (selected) setParcel(selected.parcel);
+                if (selected) {
+                  parcelTouched.current = true;
+                  // Keep the box size; the weight still comes from this order's books.
+                  setParcel({ ...selected.parcel, weight: suggestedParcelWeightLb(order) });
+                }
               }}
             >
               <option value="">Choose a saved parcel…</option>
@@ -751,9 +818,11 @@ export function OrderDetail({
                 min="0.01"
                 step="0.01"
                 value={parcel[k]}
-                onChange={(e) =>
-                  setParcel((prev) => ({ ...prev, [k]: e.target.value }))
-                }
+                onChange={(e) => {
+                  parcelTouched.current = true;
+                  setParcel((prev) => ({ ...prev, [k]: e.target.value }));
+                }}
+                hint={k === "weight" ? `Suggested ${suggestedParcelWeightLb(order)} lb from the books' catalog weights plus packaging.` : undefined}
               />
             ))}
           </div>
@@ -922,6 +991,32 @@ export function OrderDetail({
       >
         <p className="rp-hint" style={{ margin: 0 }}>
           {order.trackingCarrier || "Carrier"} · {order.trackingNumber || "No tracking recorded"}
+        </p>
+      </Dialog>
+      <Dialog
+        open={!!localStep}
+        onClose={() => !working && setLocalStep(null)}
+        title="Confirm this step?"
+        description={localStep ? `You're about to ${localStep}.` : ""}
+        footer={
+          <>
+            <SecondaryButton disabled={working} onClick={() => setLocalStep(null)}>
+              Cancel
+            </SecondaryButton>
+            <PrimaryButton
+              disabled={working}
+              onClick={async () => {
+                await perform("local_transition", { expectedStatus: order.fulfillmentStatus || "" });
+                setLocalStep(null);
+              }}
+            >
+              Confirm
+            </PrimaryButton>
+          </>
+        }
+      >
+        <p className="rp-hint" style={{ margin: 0 }}>
+          {order.fulfillment?.name || "Local order"}
         </p>
       </Dialog>
       <Dialog

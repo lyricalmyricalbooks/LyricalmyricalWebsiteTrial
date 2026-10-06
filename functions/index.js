@@ -22,7 +22,8 @@ const { risoButton, risoLayout } = require("./emailTheme");
 const Stripe = require("stripe");
 const { calculateShipping, applyStockDelta } = require("./orderMath");
 const { quoteShipping, pickQuote, parseWeightGrams } = require("./shippingEngine");
-const { labelProblem } = require("./fulfillmentGuard");
+const { labelProblem, addressKey: guardAddressKey } = require("./fulfillmentGuard");
+const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem } = require("./localFulfillment");
@@ -2310,7 +2311,7 @@ function compileEmailTemplate(templateId, settings, vars, additionalSection) {
 // 5b. Order Paid: Trigger notifications only AFTER successful payment
 // ──────────────────────────────────────────────────────────────
 exports.onOrderUpdated = onDocumentUpdated(
-  { document: "orders/{orderId}", secrets: [RESEND_API_KEY] },
+  { document: "orders/{orderId}", secrets: [RESEND_API_KEY, SHIPPO_API_TOKEN] },
   async event => {
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
@@ -2331,6 +2332,13 @@ exports.onOrderUpdated = onDocumentUpdated(
         await db.collection("abandoned-carts").doc(after.cartId).set({ recovered: true, recoveredAt: new Date().toISOString() }, { merge: true });
       } catch (err) {
         console.warn("Could not mark checkout cart recovered", err);
+      }
+    }
+    if (becamePaid) {
+      try {
+        await autoApproveShippingAddress(orderId, after);
+      } catch (err) {
+        console.warn("Automatic address check failed; publisher review stays required", err);
       }
     }
     if (becamePaid) {
@@ -2679,6 +2687,44 @@ exports.onOrderUpdated = onDocumentUpdated(
 // ──────────────────────────────────────────────────────────────
 // 7. Abandoned cart sweep: every hour, recover carts older than 1h
 // ──────────────────────────────────────────────────────────────
+// Daily 8am (Toronto) email to the publisher listing paid parcels not shipped after
+// 3 days, parcels in transit 14+ days and label purchases that need checking in
+// Shippo. Nothing is sent on days with nothing to report.
+exports.dailyOrderDigest = onSchedule(
+  { schedule: "every day 08:00", timeZone: "America/Toronto", secrets: [RESEND_API_KEY] },
+  async () => {
+    const [paidSnap, opsSnap] = await Promise.all([
+      db.collection("orders").where("paymentStatus", "==", "paid").get(),
+      db.collection("order-operations").get(),
+    ]);
+    const orders = paidSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const ops = new Map(opsSnap.docs.map(doc => [doc.id, doc.data()]));
+    const digest = buildOrderDigest(orders, ops);
+    if (!digest.total) return;
+    const link = id => siteLink(`/admin#orders/${encodeURIComponent(id)}`);
+    const rows = (items, describe) => items.map(item => `<li style="margin:6px 0;"><a href="${link(item.id)}">${escapeHtml(item.label)}</a> — ${escapeHtml(describe(item))}</li>`).join("");
+    const section = (title, items, describe) => items.length ? `<h3 style="margin:24px 0 8px;">${title} (${items.length})</h3><ul style="padding-left:18px;">${rows(items, describe)}</ul>` : "";
+    const html = `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+        <h2 style="margin-top:0;">Orders needing you today</h2>
+        ${section("Paid, not shipped yet", digest.unshipped, o => `${o.days} days since payment${o.customer ? ` · ${o.customer}` : ""}`)}
+        ${section(`In transit ${TRANSIT_DAYS}+ days`, digest.stuck, o => `${o.days} days · ${[o.carrier, o.tracking].filter(Boolean).join(" ")} — check tracking or open a claim`)}
+        ${section("Label purchase to check in Shippo", digest.labelChecks, () => "a label purchase didn't finish; check Shippo before buying again")}
+        <p style="margin-top:24px;"><a href="${siteLink("/admin#orders")}">Open Orders &rarr;</a></p>
+      </div>`;
+    try {
+      await sendEmail({
+        to: ADMIN_TO,
+        subject: `[TO DO] ${digest.total} order${digest.total === 1 ? "" : "s"} need attention`,
+        html,
+        secret: RESEND_API_KEY.value(),
+      });
+    } catch (err) {
+      console.error("Daily order digest failed", err);
+    }
+  }
+);
+
 exports.abandonedCartSweep = onSchedule(
   { schedule: "every 60 minutes", secrets: [RESEND_API_KEY] },
   async () => {
@@ -2961,6 +3007,41 @@ exports.saveShippoConfig = onRequest(async (req, res) => {
     res.status(500).json({ error: "Unable to save the Shippo API key." });
   }
 });
+
+// Server-side carrier check of a paid order's shipping address. A valid address is
+// recorded as reviewed in the admin-only order-operations record, so the publisher
+// goes straight to packing. Anything else keeps the order in "Needs attention".
+async function autoApproveShippingAddress(orderId, order) {
+  const method = order.fulfillmentSelection?.method || order.fulfillment?.method || "shipping";
+  const address = order.customer?.address || {};
+  if (method !== "shipping" || order.isTest || !address.street || !address.city || !address.state || !address.zip) return;
+  const shippoToken = await getShippoToken();
+  if (!shippoToken) return;
+  const result = await callShippo("addresses/", "POST", {
+    name: order.customer?.name || "Customer",
+    street1: address.street,
+    city: address.city,
+    state: getStateCode(address.state),
+    zip: address.zip,
+    country: getCountryCode(address.country),
+    validate: true,
+  }, shippoToken);
+  if (result?.validation_results?.is_valid !== true) return;
+  const opsRef = db.collection("order-operations").doc(orderId);
+  const now = new Date().toISOString();
+  await db.runTransaction(async tx => {
+    const [fresh, ops] = await Promise.all([tx.get(db.collection("orders").doc(orderId)), tx.get(opsRef)]);
+    const current = fresh.data() || {};
+    const key = guardAddressKey(current);
+    // Only approve the address that was checked, and never override a publisher decision.
+    if (key !== guardAddressKey(order) || (ops.data() || {}).addressReviewed) return;
+    tx.set(opsRef, {
+      addressReviewed: key,
+      updatedAt: now,
+      activity: [...((ops.data() || {}).activity || []), { type: "event", message: "Shipping address verified automatically with the carrier after payment.", createdAt: now }],
+    }, { merge: true });
+  });
+}
 
 exports.validateAddress = onRequest(
   { secrets: [SHIPPO_API_TOKEN] },

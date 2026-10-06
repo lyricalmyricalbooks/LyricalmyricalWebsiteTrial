@@ -72,14 +72,14 @@ describe("focused publisher workflow", () => {
     o.operations = { addressReviewed: addressKey(o), packed: packingKey(o) };
     o.labelUrl = "https://example.com/label";
     const html = render(o);
-    expect(html).toContain("Confirm dispatch");
+    expect(html).toContain("Parcel handed over");
     expect(html).not.toContain("Buy Shippo label");
   });
   it("does not show address blockers or shipping prompts on cancelled orders", () => {
     const o = { ...base(), status: "cancelled", customer: {} };
     const html = render(o);
     expect(html).not.toContain("Confirm address");
-    expect(html).not.toContain("Confirm dispatch");
+    expect(html).not.toContain("Parcel handed over");
   });
 });
 

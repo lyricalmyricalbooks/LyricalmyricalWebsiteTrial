@@ -31,6 +31,9 @@ type Props = {
   onEditTracking?: () => void;
   onDeliveryStatus?: (status: "out_for_delivery" | "delivered") => void;
   onResendEmail?: () => void;
+  onCheckAll?: (indices: number[]) => void;
+  onPackingSlip?: () => void;
+  onHandedOver?: () => void;
   onLocalAdvance: () => void;
   onRelease: () => void;
 };
@@ -47,6 +50,9 @@ export function FulfillmentWorkbench({
   onEditTracking,
   onDeliveryStatus,
   onResendEmail,
+  onCheckAll,
+  onPackingSlip,
+  onHandedOver,
   onLocalAdvance,
   onRelease,
 }: Props) {
@@ -194,6 +200,29 @@ export function FulfillmentWorkbench({
             </span>
           </div>
         </div>
+        {packingActive && (onCheckAll || onPackingSlip) && (
+          <div className="fw-actions">
+            {onCheckAll && physicalItems(order).length > 1 && (
+              <SecondaryButton
+                disabled={busy}
+                onClick={() =>
+                  onCheckAll(
+                    (order.items || [])
+                      .map((item: any, index: number) => (isDigitalItem(item) ? -1 : index))
+                      .filter((index: number) => index >= 0),
+                  )
+                }
+              >
+                Tick all {physicalItems(order).length} lines
+              </SecondaryButton>
+            )}
+            {onPackingSlip && (
+              <SecondaryButton disabled={busy} onClick={onPackingSlip}>
+                Print packing slip
+              </SecondaryButton>
+            )}
+          </div>
+        )}
         <ul className="fw-items" aria-label="Order items">
           {(order.items || []).map((item: any, index: number) => (
             <li key={index}>
@@ -236,13 +265,15 @@ export function FulfillmentWorkbench({
         {packingActive && (
           <div className="fw-actions">
             <PrimaryButton
-              disabled={busy || checked.size !== physicalItems(order).length}
+              disabled={busy || (physicalItems(order).length > 1 && checked.size !== physicalItems(order).length)}
               onClick={onPack}
             >
               Confirm packed
             </PrimaryButton>
             <span className="rp-hint">
-              {checked.size} of {physicalItems(order).length} lines checked
+              {physicalItems(order).length > 1
+                ? `${checked.size} of ${physicalItems(order).length} lines checked`
+                : "One line — confirm once it's in the box"}
             </span>
           </div>
         )}
@@ -295,8 +326,17 @@ export function FulfillmentWorkbench({
                 <div className="fw-actions">
                   {order.labelUrl ? (
                     <>
-                      <PrimaryButton onClick={onDispatch} disabled={busy}>
-                        Confirm dispatch
+                      <a
+                        className="rp-btn rp-btn-secondary"
+                        href={order.labelUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink size={14} aria-hidden="true" />
+                        Print label
+                      </a>
+                      <PrimaryButton onClick={onHandedOver || onDispatch} disabled={busy}>
+                        Parcel handed over — mark shipped
                       </PrimaryButton>
                     </>
                   ) : (
@@ -313,7 +353,7 @@ export function FulfillmentWorkbench({
               </>
             )
           )}
-          {order.labelUrl && (
+          {order.labelUrl && !shippingActive && (
             <div className="fw-actions">
               {" "}
               <a

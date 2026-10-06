@@ -752,7 +752,8 @@ export const adminApi = {
       tx.update(ref, { "customer.address": cleaned, addressVerified: deleteField(), addressError: deleteField(), updatedAt: now });
       const data = privateSnap.data() || {};
       if (data.labelPurchasePending) throw new Error("Wait for label purchase reconciliation before correcting the address.");
-      tx.set(privateRef, { ...data, addressReviewed: "", updatedAt: now, activity: [...(data.activity || []), { type: "event", message: "Shipping address corrected. A new review is required.", createdAt: now }] });
+      // The publisher just typed and checked this address, so it counts as reviewed.
+      tx.set(privateRef, { ...data, addressReviewed: addressKey({ customer: { address: cleaned } }), updatedAt: now, activity: [...(data.activity || []), { type: "event", message: "Shipping address corrected and confirmed by publisher.", createdAt: now }] });
     });
   },
 

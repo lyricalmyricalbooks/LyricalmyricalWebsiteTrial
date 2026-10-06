@@ -11,7 +11,7 @@ import { BookEditor } from "./BookEditor";
 import { Discounts } from "./Discounts";
 import { Customers } from "./Customers";
 import { Inventory } from "./Inventory";
-import { Orders } from "./Orders";
+import { Orders, ordersNeedingWork, refreshOrdersCache } from "./Orders";
 import { OrderDetail } from "./OrderDetail";
 import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import { ShopSettings } from "./ShopSettings";
@@ -41,6 +41,41 @@ export function Dashboard() {
   const [editingBook, setEditingBook] = useState<any | null>(null);
   const [showEditor, setShowEditor] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  // Email links: /admin#orders opens Orders, /admin#orders/<id> opens that order.
+  useEffect(() => {
+    if (!user) return;
+    const openFromHash = () => {
+      const match = window.location.hash.match(/^#orders(?:\/([^/?#]+))?/);
+      if (!match) return;
+      setShowEditor(false);
+      setActiveTab("orders");
+      setSelectedOrder(match[1] ? { id: decodeURIComponent(match[1]) } : null);
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+    };
+    openFromHash();
+    window.addEventListener("hashchange", openFromHash);
+    return () => window.removeEventListener("hashchange", openFromHash);
+  }, [user]);
+
+  // Orders waiting on the publisher, shown as a badge on the Orders nav item.
+  const [ordersBadge, setOrdersBadge] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    const refresh = () =>
+      refreshOrdersCache()
+        .then((data) => alive && setOrdersBadge(ordersNeedingWork(data)))
+        .catch(() => {});
+    refresh();
+    const timer = window.setInterval(refresh, 5 * 60 * 1000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+    // Re-count when returning from an order, so finished work drops off the badge.
+  }, [user, selectedOrder === null]);
+  // The list the order was opened from, for Previous / Next order.
+  const [orderQueueIds, setOrderQueueIds] = useState<string[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [settingsTab, setSettingsTab] = useState("general");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -245,9 +280,14 @@ export function Dashboard() {
       case "messages": return <Messages />;
       case "orders":
         return selectedOrder ? (
-          <OrderDetail orderId={selectedOrder.id} onClose={() => setSelectedOrder(null)} />
+          <OrderDetail
+            orderId={selectedOrder.id}
+            onClose={() => setSelectedOrder(null)}
+            queueIds={orderQueueIds}
+            onNavigate={(id) => setSelectedOrder({ id })}
+          />
         ) : (
-          <Orders onSelectOrder={(order) => setSelectedOrder(order)} />
+          <Orders onSelectOrder={(order, ids) => { setOrderQueueIds(ids); setSelectedOrder(order); }} />
         );
       default:
         return (
@@ -280,7 +320,7 @@ export function Dashboard() {
           <Sidebar
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
-            items={NAV}
+            items={NAV.map((n) => (n.id === "orders" ? { ...n, badge: ordersBadge } : n))}
             activeId={showEditor ? null : navActive}
             activeChildId={navChild}
             onSelect={goTo}
