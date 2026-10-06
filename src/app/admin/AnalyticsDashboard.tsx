@@ -2,6 +2,7 @@ import { openFirstActionQueue } from "./Orders";
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { adminApi } from "./api";
+import { launchReadiness, readinessSummary } from "./launchReadiness";
 import toast from "react-hot-toast";
 import {
   DataTable, EmptyState, ErrorState, GhostButton, LoadingState, MetricCard, SecondaryButton, SectionCard,
@@ -76,8 +77,16 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
   const [stock, setStock] = useState<{ books: any[] | null; error: boolean }>({ books: null, error: false });
   const [audience, setAudience] = useState<{ data: { reviews: any[]; subscribers: any[] } | null; error: boolean }>({ data: null, error: false });
 
+  const [launch, setLaunch] = useState<{ parts: any | null; error: boolean }>({ parts: null, error: false });
+
   useEffect(() => {
     loadAnalytics();
+    Promise.all([
+      adminApi.getSettings(),
+      adminApi.getShippingProfiles().catch(() => []),
+      adminApi.getRecentEmailLog(5).catch(() => []),
+    ]).then(([settings, shippingProfiles, emailLog]) => setLaunch({ parts: { settings, shippingProfiles, emailLog }, error: false }))
+      .catch(() => setLaunch({ parts: null, error: true }));
     adminApi.getOrders(500).then((o: any[]) => setAllOrders({ orders: o, error: false }))
       .catch(() => setAllOrders({ orders: null, error: true }));
     adminApi.getBooks(200).then((b: any[]) => setStock({ books: b, error: false }))
@@ -134,6 +143,11 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
       start: p.start,
     };
   }, [allOrders.orders, stock.books, days]);
+
+  const readiness = useMemo(() => {
+    if (!launch.parts || !allOrders.orders || !stock.books) return null;
+    return launchReadiness({ ...launch.parts, books: stock.books, orders: allOrders.orders });
+  }, [launch.parts, allOrders.orders, stock.books]);
 
   // Traffic (visits, funnel) is recorded per day; only what was recorded is shown.
   const allDaily: any[] = data?.daily || [];
@@ -212,6 +226,28 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
           <MetricCard label="Visitors → sale" value={`${conv.cur.toFixed(1)}%`}
             footer={<><Trend now={conv.cur} before={conv.prev} /> <span style={{ marginLeft: 6 }}>{visits.cur.toLocaleString()} visits{trafficLimited ? ` (last ${allDaily.length} days recorded)` : ""}</span></>} />
         </div>
+      )}
+
+      {/* Launch checklist — hidden once everything is green */}
+      {launch.error ? null : !readiness ? null : readinessSummary(readiness) !== "ok" && (
+        <SectionCard flush title="Ready to sell?" description="Launch checklist — everything here should be green before you open the shop">
+          <ul className="rp-list" aria-label="Launch checklist">
+            {readiness.map(item => (
+              <li key={item.id} style={ROW}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600 }}>{item.label}</div>
+                  <div className="rp-hint">{item.detail}</div>
+                </div>
+                {item.status === "ok"
+                  ? <StatusBadge tone="success">Done</StatusBadge>
+                  : <span style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+                      <StatusBadge tone={item.status === "block" ? "danger" : "warning"}>{item.status === "block" ? "Blocking" : "Check"}</StatusBadge>
+                      <SecondaryButton size="sm" onClick={() => setActiveTab?.(item.tab)}>{item.action}</SecondaryButton>
+                    </span>}
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
       )}
 
       {/* 3 · What needs doing, next to the newest orders */}

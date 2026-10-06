@@ -484,6 +484,9 @@ outside the legacy wrapper via its `migrated` flag — add new ones there.
 orders, average order, conversion — all sales figures from paid, non-test orders via
 `overviewInsights.ts`) → "To do today" beside newest orders → trend chart → tabbed details
 (Sales · Stock · Readers & traffic). Keep new Overview content inside those groups.
+A **Ready to sell?** launch checklist (`launchReadiness.ts`, pure + tested) sits above "To do today" while any
+item is not green: payments/sandbox, private Stripe secret, published books missing price/photo/description,
+shipping profiles, store policies, last email delivery, and a first real paid order. Hidden once all pass.
 
 **Not yet rebuilt** (still legacy markup, styled by the scoped compatibility layer in
 `theme.css` under `.admin-reso[data-admin-theme="reso"]`, which maps old dark utilities
