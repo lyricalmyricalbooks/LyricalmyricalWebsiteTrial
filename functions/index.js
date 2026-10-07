@@ -1568,7 +1568,10 @@ exports.createStripeCheckoutSession = onBrowserRequest(
               await stripe.paymentIntents.cancel(previous.id);
             }
           } catch (err) {
+            // Unsure whether the earlier payment is still live: never open a second one beside it.
             console.warn(`Could not settle previous PaymentIntent for ${orderId}:`, err.message);
+            res.status(409).json({ error: "This order already has a payment in progress. Check your order status before paying again.", code: "payment_in_progress" });
+            return;
           }
         }
         const amount = lineItems.reduce((sum, li) => sum + li.price_data.unit_amount * li.quantity, 0);
@@ -3105,7 +3108,9 @@ exports.onOrderUpdated = onDocumentUpdated(
     if (becameRefunded) {
       // If it is a manual payment method, handle restocking
       const isManual = after.paymentMethod && after.paymentMethod !== "Stripe" && after.paymentMethod !== "PayPal";
-      const shouldRestock = isManual && after.restockOnRefund !== false && after.inventoryRestockedAt == null;
+      // applyOrderRefund already handled stock (or the admin's "don't restock" choice) when it set refund.provider.
+      const shouldRestock = isManual && !after.refund?.provider && after.refundRequest?.restock !== false
+        && after.restockOnRefund !== false && after.inventoryRestockedAt == null;
       if (shouldRestock) {
         const itemList = after.items || [];
         try {

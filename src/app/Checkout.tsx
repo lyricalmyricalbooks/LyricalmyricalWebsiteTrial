@@ -7,7 +7,7 @@ import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router";
 import { useCart, catalogUnitPrice, repriceCart } from "./CartContext";
-import { amountIn, orderMoney } from "./features/site/orderMoney";
+import { amountIn, orderMoney, totalNeedsConfirming } from "./features/site/orderMoney";
 import { POLICY_KEYS, policySlug, policyTitle } from "./features/site/policyPages";
 import {
   ChevronLeft, Tag, ShieldCheck, X, AlertCircle,
@@ -1261,9 +1261,12 @@ export function Checkout() {
           }
           // The server prices from the live catalog. If that differs from the total on screen,
           // stop before charging so the shopper confirms the real amount.
+          // Small gaps are rounding (the server rounds per line) or today's exchange rate; only a real
+          // difference stops here. The order and payment are kept, so pressing Pay again confirms the
+          // amount shown in the message instead of starting over.
           const shownMinor = Math.round(convertPrice(finalTotal) * 100);
-          if (Number.isFinite(Number(intentData.amount)) && Math.abs(Number(intentData.amount) - shownMinor) > 1) {
-            pendingCardOrder.current = null;
+          if (totalNeedsConfirming(Number(intentData.amount), shownMinor)) {
+            pendingCardOrder.current = { key: cardKey, orderId, clientSecret: intentData.clientSecret };
             setInlineAttemptStarted(false);
             setNotice({ tone: "error", text: c("coTotalChanged", { amount: amountIn(Number(intentData.amount) / 100, intentData.currency) }) });
             return;
