@@ -309,7 +309,8 @@ export default function BookDetail() {
     if (!book) return;
     const stock = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any).stockLevel ?? 999);
     if (Number(stock) <= 0) return;
-    addToCart(book, selectedVariant || undefined, showQtyStepper ? qty : 1);
+    // Only confirm "Added" when a line really went into the bag.
+    if (!addToCart(book, selectedVariant || undefined, showQtyStepper ? qty : 1)) return;
     funnelApi.track("add_to_cart");
     setAdded(true);
     setTimeout(() => setAdded(false), 2500);
@@ -350,7 +351,8 @@ export default function BookDetail() {
     : [{ url: placeholderImage(settings?.design) }];
   const stockLevel    = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any)?.stockLevel ?? 999);
   // Oversold stock goes below zero: that is sold out too, not "in stock".
-  const isOutOfStock  = Number(stockLevel) <= 0;
+  // An edition with no usable price can't be bought either; treat it like sold out rather than fake an add.
+  const isOutOfStock  = Number(stockLevel) <= 0 || (!!book && !Number.isFinite(catalogUnitPrice(book, selectedVariant || undefined)));
   const retailPrice   = selectedVariant ? selectedVariant.price : ((book as any)?.retailPrice ?? 0);
   const salePrice     = selectedVariant ? 0 : ((book as any)?.salePrice   ?? 0);
   const isOnSale      = selectedVariant ? false : ((book as any)?.isOnSale && salePrice > 0);

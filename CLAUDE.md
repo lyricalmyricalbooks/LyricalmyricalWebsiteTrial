@@ -943,3 +943,21 @@ limits what one code can take off an order ("20% off, up to $15"). The server en
   shipped email without tracking drops those lines (`withoutTrackingLines`), none for pickup/local delivery.
 - **Storefront:** search/wishlist use `isLiveBook`; Canadian time zones start in CAD (`currencyForTimeZone`).
 - Signed-in order reads need `email_verified`. Analytics visits can't decrease.
+
+## Readiness fixes from the 5-agent audit (7 October 2026)
+
+- **Payments:** `markOrderPaid` refuses card/PayPal and cancelled orders (`manualPaidRefusal`); checkout refuses cancelled
+  orders (`checkoutRefusal`); a payment arriving for a cancelled order is recorded but **not** marked paid
+  (`paymentMismatch.paidAfterCancel`, Orders › Needs attention). PaymentIntents use `stripeIntentKey` and hosted sessions a
+  per-minute idempotency key, so a double click can't open two live payments. "Paid" is set by the Stripe webhook, the
+  server-verified status check / sweep (`markStripeOrderPaid`), the verified PayPal capture, or `completeOrderWithoutCard`
+  for manual/$0 orders — never by the browser.
+- **Stock holds:** `functions/stockHolds.js` holds tracked stock for 30 min per order (server-only `stock-holds/{bookId}`)
+  when a Stripe/PayPal payment is created; released on payment or cancel, expires on its own, fails open.
+- **Tax gaps:** Overview › Ready to sell lists provinces/states with no matching rate (`uncoveredTaxRegions`).
+- **Customer requests:** order tracking has *Ask to cancel / return* (`action: "orderRequest"`, `order.customerRequest`,
+  Needs attention + Order detail › Mark request handled) and *Your data* (`action: "privacyRequest"` →
+  admin-only `privacyRequests`; Settings › General › **Privacy requests** exports JSON or erases, keeping orders).
+  Words: Text & labels › Order tracking (`trackReq*`, `trackPrivacy*`); boxes: Style regions `trackingRequests`/`trackingPrivacy`.
+- **Rate limits:** `clientIpOf` takes the right-most non-proxy `X-Forwarded-For` hop (Google appends the real client);
+  Shippo rate/address and PayPal create/capture have their own buckets. Deploy rules + functions before the frontend.

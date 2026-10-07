@@ -3,10 +3,18 @@
 // firestore.rules deny every browser read/write there.
 const crypto = require("crypto");
 
-// First address in X-Forwarded-For is the shopper (Cloud Functions sits behind Google's front end).
+// Google's front end (Cloud Functions v2 / Cloud Run) APPENDS the address it saw to
+// X-Forwarded-For, so anything to the left of it was typed by the client and can be
+// rotated to dodge the limits. Walk from the right and skip Google load-balancer and
+// private addresses: the first remaining entry is the real connecting client.
+const PROXY_PREFIXES = ["35.191.", "130.211.0.", "130.211.1.", "130.211.2.", "130.211.3.", "10.", "192.168.", "169.254.", "127.", "::1", "fc", "fd"];
+const isProxyAddress = ip => PROXY_PREFIXES.some(p => ip.toLowerCase().startsWith(p)) || /^172\.(1[6-9]|2\d|3[01])\./.test(ip);
 function clientIpOf(req) {
-  const fwd = String(req?.headers?.["x-forwarded-for"] || "").split(",")[0].trim();
-  return fwd || req?.ip || req?.socket?.remoteAddress || "unknown";
+  const hops = String(req?.headers?.["x-forwarded-for"] || "").split(",").map(s => s.trim()).filter(Boolean);
+  for (let i = hops.length - 1; i >= 0; i--) {
+    if (!isProxyAddress(hops[i])) return hops[i];
+  }
+  return hops[0] || req?.ip || req?.socket?.remoteAddress || "unknown";
 }
 
 // Pure: given the saved counter, decide whether this hit is allowed and what to store.
@@ -41,6 +49,9 @@ const LIMITS = {
   track: { max: 60, windowMs: 10 * 60 * 1000 },
   discount: { max: 30, windowMs: 10 * 60 * 1000 },
   checkout: { max: 30, windowMs: 10 * 60 * 1000 },
+  // Endpoints that cost money per call (Shippo rates / address checks, PayPal API).
+  shippo: { max: 60, windowMs: 10 * 60 * 1000 },
+  paypal: { max: 20, windowMs: 10 * 60 * 1000 },
 };
 
 module.exports = { clientIpOf, nextWindow, hitLimit, LIMITS };

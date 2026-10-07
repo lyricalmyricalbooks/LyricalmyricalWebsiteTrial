@@ -33,13 +33,14 @@ export const REGION_GROUPS: RegionGroup[] = [
     { id: "accountTrackOrder", label: "Track order link" },
     { id: "accountGlow", label: "Account background glow" },
   ] },
-  { id: "trackingLayout", title: "Order tracking · layout & elements", copy: "Order tracking", files: ["features/site/OrderTracking.tsx"], regions: [
+  { id: "trackingLayout", title: "Order tracking · layout & elements", copy: "Order tracking", files: ["features/site/OrderTracking.tsx", "features/site/OrderRequests.tsx"], regions: [
     { id: "trackingHeader", label: "Tracking navigation" }, { id: "trackingForm", label: "Order lookup form", required: true },
     { id: "trackingIntro", label: "Lookup heading & description" }, { id: "trackingSummary", label: "Order summary", required: true },
     { id: "trackingTimeline", label: "Fulfillment timeline" }, { id: "trackingFulfillment", label: "Pickup and delivery details", required: true, copy: "Order tracking" }, { id: "trackingShipment", label: "Carrier information", required: true },
     { id: "trackingDownloads", label: "Purchased downloads", required: true }, { id: "trackingItems", label: "Order items & totals", required: true },
     { id: "trackingStatusBanner", label: "Payment, cancelled & refunded notice", required: true }, { id: "trackingShipping", label: "Shipping method & estimate" },
     { id: "trackingHelp", label: "Help line" },
+    { id: "trackingRequests", label: "Cancel & return requests" }, { id: "trackingPrivacy", label: "Privacy request form (copy / delete my data)" },
     { id: "trackingGlow", label: "Tracking background glow" },
   ] },
   { id: "stripePaymentLayout", title: "Checkout · Stripe payment section", copy: "Checkout", files: ["features/site/StripePaymentSection.tsx"], regions: [

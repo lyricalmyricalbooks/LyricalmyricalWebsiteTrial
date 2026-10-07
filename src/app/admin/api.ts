@@ -978,6 +978,30 @@ export const adminApi = {
     };
   },
 
+  // Customer privacy requests (Settings › General › Privacy requests), newest first.
+  listPrivacyRequests: async () => {
+    const snap = await getDocs(query(collection(db, "privacyRequests"), orderBy("createdAt", "desc")));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+  },
+  closePrivacyRequest: async (id: string) => {
+    await updateDoc(doc(db, "privacyRequests", id), { status: "closed", handledAt: new Date().toISOString() });
+  },
+  // Server-side export (JSON of everything held about the email) or erase (deletes marketing,
+  // cart, alert, contact and account data; keeps orders for tax records).
+  privacyAction: async (action: "privacyExport" | "privacyErase", email: string, requestId?: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action, email, requestId }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "The privacy action failed.");
+    if (action === "privacyErase") await adminApi.recordAuditLog("privacy", `Erased personal data for ${email}`);
+    return result;
+  },
+
   // "Test connection": asks Stripe whether each saved secret key works and which account/mode it is.
   verifyStripeKeys: async () => {
     const idToken = await auth.currentUser?.getIdToken();

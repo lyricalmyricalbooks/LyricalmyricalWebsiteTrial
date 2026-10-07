@@ -49,7 +49,9 @@ export function nextToOpen(list: any[], currentId?: string | null): string | nul
 /** One short status line for a list row: what the shop does next. */
 export function rowStatus(o: any): { tone: "danger" | "warning" | "info" | "success" | "neutral"; text: string } {
   const q = queueOf(o);
+  if (o.paymentMismatch?.paidAfterCancel && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Paid after cancelling — refund" };
   if (o.paymentMismatch && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Payment doesn't match" };
+  if (o.customerRequest?.status === "open") return { tone: "danger", text: o.customerRequest.type === "cancel" ? "⚠ Customer asks to cancel" : "⚠ Customer asks to return" };
   if (Array.isArray(o.duplicatePayments) && o.duplicatePayments.length) return { tone: "danger", text: "⚠ Paid twice — refund the extra" };
   if (o.disputeStatus === "needs_response") return { tone: "danger", text: "⚠ Dispute — respond in Stripe" };
   if (o.partiallyRefunded) return { tone: "warning", text: "⚠ Partly refunded" };

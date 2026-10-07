@@ -624,6 +624,31 @@ export function OrderDetail({
           onRelease={() => perform("release")}
         />
         <aside className="rp-stack" aria-label="Order summary">
+          {order.customerRequest?.status === "open" && (
+            <SectionCard title={order.customerRequest.type === "cancel" ? "Customer asks to cancel" : "Customer asks to return"}>
+              <p className="fw-summary">
+                Asked {new Date(order.customerRequest.createdAt).toLocaleString()}.
+                {order.customerRequest.type === "cancel"
+                  ? " Cancel or refund it from More order actions, or reply to explain why it has already gone out."
+                  : " Agree the return with the customer, then refund from More order actions when the books are back."}
+              </p>
+              {order.customerRequest.message && <blockquote className="fw-summary">“{order.customerRequest.message}”</blockquote>}
+              <SecondaryButton
+                disabled={working}
+                onClick={async () => {
+                  try {
+                    await adminApi.updateOrder(order.id, { customerRequest: { ...order.customerRequest, status: "handled", handledAt: new Date().toISOString() } });
+                    toast.success("Request marked handled.");
+                    await loadOrder();
+                  } catch (err: any) {
+                    toast.error(err?.message || "Couldn't update the request.");
+                  }
+                }}
+              >
+                Mark request handled
+              </SecondaryButton>
+            </SectionCard>
+          )}
           <SectionCard title="Customer">
             <strong>{order.customer?.name || "Guest customer"}</strong>
             <p className="fw-summary">

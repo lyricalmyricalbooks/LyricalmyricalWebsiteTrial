@@ -70,3 +70,16 @@ describe("launch readiness: test-only email sender", () => {
     expect(email.label).toMatch(/only reach you/);
   });
 });
+
+import { uncoveredTaxRegions } from "../features/site/taxRate";
+describe("uncoveredTaxRegions", () => {
+  it("lists provinces with no rate when only some are set", () => {
+    const gaps = uncoveredTaxRegions([{ country: "Canada", region: "ON", rate: 13 } as any]);
+    expect(gaps[0].country).toBe("Canada");
+    expect(gaps[0].regions).toContain("Alberta");
+    expect(gaps[0].regions).not.toContain("Ontario");
+  });
+  it("treats a country-wide rate as covering every province", () => {
+    expect(uncoveredTaxRegions([{ country: "CA", region: "", rate: 5 } as any])).toEqual([]);
+  });
+});

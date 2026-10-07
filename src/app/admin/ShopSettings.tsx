@@ -49,6 +49,7 @@ import { LocalFulfillmentSettings, useLocalFulfillmentDraft } from "./LocalFulfi
 import { paymentHealth } from "./paymentHealth";
 import { stripeSecretKeyProblem } from "./privateKeys";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
+import { PrivacyRequestsCard } from "./PrivacyRequestsCard";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
 
 const PURPLE = "#A855F7";
@@ -220,6 +221,8 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
           <p className="rp-hint" style={{ margin: 0 }}>Starter text is a plain-language outline, not legal advice — edit it to match how you actually operate.</p>
         </div>
       </SectionCard>
+
+      <PrivacyRequestsCard />
 
       <InventorySync lastSync={settings.inventory?.lastSync} />
 

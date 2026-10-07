@@ -85,6 +85,15 @@ service cloud.firestore {
     match /rate-limits/{id} {
       allow read, write: if false;
     }
+    // Server-only checkout stock holds (functions/stockHolds.js).
+    match /stock-holds/{bookId} {
+      allow read, write: if false;
+    }
+    // Customer privacy requests (copy / delete my data). Created by Functions only.
+    match /privacyRequests/{requestId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if false;
+    }
     match /theme-versions/{versionId} {
       allow read, write: if isAdmin();
     }

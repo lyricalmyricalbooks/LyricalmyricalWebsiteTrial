@@ -15,6 +15,7 @@ import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { getCopy, CopyError, copyErrorText } from "./storeCopy";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { orderStage, orderStep, shippingDays, stepDates } from "./orderStatus";
+import { OrderRequestBox, PrivacyRequestBox } from "./OrderRequests";
 
 export default function OrderTracking() {
   const [orderIdInput, setOrderIdInput] = useState("");
@@ -23,6 +24,8 @@ export default function OrderTracking() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [digitalItems, setDigitalItems] = useState<Record<string, boolean>>({});
+  // How the shopper proved the order is theirs (email typed, or the emailed link key); requests reuse it.
+  const [access, setAccess] = useState<{ email?: string; key?: string }>({});
   
   const { formatPrice, currency: defaultCurrency } = useCurrency();
   const { settings, books } = useSiteData();
@@ -78,7 +81,7 @@ export default function OrderTracking() {
     let cancelled = false;
     setLoading(true);
     adminApi.getPublicOrder(linkedId, { key })
-      .then((found: any) => { if (!cancelled && found) setOrder(found); })
+      .then((found: any) => { if (!cancelled && found) { setOrder(found); setAccess({ key }); } })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -113,6 +116,7 @@ export default function OrderTracking() {
       }
 
       setOrder(foundOrder);
+      setAccess({ email: emailInput.trim() });
     } catch (err: any) {
       setError(copyErrorText(err, settings?.design, err?.code === "email_mismatch" ? "trackErrEmail" : err?.code === "too_many" ? "trackErrTooMany" : "trackError"));
     } finally {
@@ -422,11 +426,15 @@ export default function OrderTracking() {
                 </div>
               </section>
 
+              <OrderRequestBox design={settings?.design} order={order} access={access} onUpdated={setOrder} />
+
               <p {...regionProps("trackingHelp")} className="text-center text-sm leading-6 fm-muted">{getCopy(settings?.design, "trackHelp")}</p>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
+
+      {!order && <div className="px-5 sm:px-8 relative z-10"><PrivacyRequestBox design={settings?.design} /></div>}
 
       <TemplateSections design={settings?.design} templateId="trackingPage" books={books} />
       <GlobalSections design={settings?.design} books={books} />

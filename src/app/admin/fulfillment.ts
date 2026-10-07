@@ -29,7 +29,11 @@ export const isDigitalItem = (i: any) => i?.digital === true || i?.isDigital ===
 export const physicalItems = (o: any) => (o.items || []).filter((i: any) => !isDigitalItem(i));
 export const fulfillmentMethod = (o: any) => ["pickup", "local_delivery"].includes(o.fulfillmentSelection?.method) ? o.fulfillmentSelection.method : "shipping";
 export function queueOf(o: any): string {
+ // Money that arrived after the order was cancelled was not accepted: refund it.
+ if (o.paymentMismatch?.paidAfterCancel && o.paymentStatus !== "paid") return "Needs attention";
  if (terminal(o)) return "Completed";
+ // The customer asked to cancel or return: answer before packing anything.
+ if (o.customerRequest?.status === "open") return "Needs attention";
  // A payment that didn't match the order total (amount or currency) was not accepted: review it.
  if (o.paymentMismatch && o.paymentStatus !== "paid") return "Needs attention";
  if (o.paymentStatus !== "paid") return "Unpaid";
