@@ -4448,8 +4448,8 @@ exports.onBookRestocked = onDocumentUpdated(
     const bookId = event.params.bookId;
     // Only books shoppers can actually buy: no "it's back" for drafts, archived or not-yet-released books.
     if (after.isTest === true) return;
-    const problem = purchaseProblem(after, null);
-    if (problem && problem !== "choose_edition") return;
+    // (A future release date doesn't skip: the alert would otherwise wait for a second restock.)
+    if (after.status && after.status !== "published") return;
 
     // Which variant ids (and the base product, "") just went from 0 to available?
     const restocked = new Set();
@@ -4508,13 +4508,14 @@ exports.onBookRestocked = onDocumentUpdated(
           secret: RESEND_API_KEY.value(),
         });
         emailedThisRun.add(key);
-        // Remove the signup once sent (its id is per address + edition), so the shopper can
-        // ask again next time the book sells out.
-        await doc.ref.delete();
       } catch (err) {
         console.error("Back-in-stock email failed:", err);
-        await doc.ref.update({ status: "waiting" });
+        await doc.ref.update({ status: "waiting" }).catch(() => {});
+        continue;
       }
+      // Sent: remove the signup (its id is per address + edition) so the shopper can ask again
+      // next time; if that fails, mark it notified — never back to waiting, which would resend.
+      await doc.ref.delete().catch(() => doc.ref.update({ status: "notified", notifiedAt: new Date().toISOString() }).catch(() => {}));
     }
   },
 );

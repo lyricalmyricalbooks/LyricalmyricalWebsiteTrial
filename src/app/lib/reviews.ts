@@ -9,6 +9,7 @@ import {
   doc,
   updateDoc,
   writeBatch,
+  getDoc,
   deleteField,
   deleteDoc,
 } from "firebase/firestore";
@@ -27,6 +28,9 @@ export type Review = {
   /** Public reply from the store owner (admin-written). */
   reply?: { body: string; at: string };
 };
+
+// Older reviews kept the email on the public document; moved once per admin session.
+let legacyEmailsMoved = false;
 
 export const reviewsApi = {
   list: async (bookId: string, includePending = false): Promise<Review[]> => {
@@ -59,21 +63,30 @@ export const reviewsApi = {
     return { id: ref.id, ...payload };
   },
 
-  /** Admin: emails for reviews (admin-only collection), moving any older public copy there first. */
+  /**
+   * Admin: emails for the listed reviews (admin-only reviewContacts). The first call in a
+   * session also moves every older review's public email there, across the whole collection.
+   */
   contactsFor: async (reviews: Review[]): Promise<Record<string, string>> => {
     const out: Record<string, string> = {};
-    const legacy = reviews.filter(r => r.email);
-    if (legacy.length) {
-      const batch = writeBatch(db);
-      for (const r of legacy) {
-        batch.set(doc(db, "reviewContacts", r.id), { email: r.email, createdAt: r.createdAt || new Date().toISOString() });
-        batch.update(doc(db, "reviews", r.id), { email: deleteField() });
-        out[r.id] = r.email!;
+    if (!legacyEmailsMoved) {
+      const all = await getDocs(collection(db, "reviews"));
+      const legacy = all.docs.filter(d => d.data().email);
+      for (let i = 0; i < legacy.length; i += 200) {
+        const batch = writeBatch(db);
+        for (const d of legacy.slice(i, i + 200)) {
+          batch.set(doc(db, "reviewContacts", d.id), { email: String(d.data().email), createdAt: d.data().createdAt || new Date().toISOString() });
+          batch.update(d.ref, { email: deleteField() });
+          out[d.id] = String(d.data().email);
+        }
+        await batch.commit();
       }
-      await batch.commit().catch(err => console.warn("Could not move reviewer emails:", err));
+      legacyEmailsMoved = true;
     }
-    const snap = await getDocs(query(collection(db, "reviewContacts"), limit(500)));
-    snap.docs.forEach(d => { if (!out[d.id]) out[d.id] = String(d.data().email || ""); });
+    await Promise.all(reviews.filter(r => !out[r.id]).map(async r => {
+      const snap = await getDoc(doc(db, "reviewContacts", r.id)).catch(() => null);
+      if (snap?.exists()) out[r.id] = String(snap.data().email || "");
+    }));
     return out;
   },
 
