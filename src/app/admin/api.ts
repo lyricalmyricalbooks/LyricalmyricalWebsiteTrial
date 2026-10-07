@@ -29,6 +29,7 @@ import {
   runTransaction,
   deleteField,
   serverTimestamp,
+  increment,
 } from "firebase/firestore";
 import { 
   signInWithPopup, 
@@ -1009,9 +1010,23 @@ export const adminApi = {
 
   // Storefront (thank-you page, /track): the order record only. Guests may read an
   // order by ID, but order-operations is admin-only and would deny the whole read.
-  getPublicOrder: async (id: string) => {
-    const snap = await getDoc(doc(db, "orders", id));
-    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  // Guest order lookup. Orders aren't publicly readable: the server returns one
+  // only with its customer email or the emailed link key. Resolves null when
+  // there is no such order; throws an error whose `code` is "email_mismatch",
+  // "too_many" or "failed" otherwise.
+  getPublicOrder: async (id: string, proof: { email?: string; key?: string }) => {
+    const response = await fetch(functionUrl("createStripeCheckoutSession"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "track", orderId: id, email: proof.email || "", key: proof.key || "" }),
+    });
+    if (response.status === 404 || response.status === 400) return null;
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const code = response.status === 403 ? "email_mismatch" : response.status === 429 ? "too_many" : "failed";
+      throw Object.assign(new Error(code), { code });
+    }
+    return data.order || null;
   },
 
   // Admin only: the order plus its private fulfillment record.
@@ -1347,12 +1362,8 @@ export const adminApi = {
     const today = new Date().toISOString().split('T')[0];
     const docRef = doc(db, "analytics", today);
     try {
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        await updateDoc(docRef, { visits: (snap.data().visits || 0) + 1 });
-      } else {
-        await setDoc(docRef, { visits: 1, orders: 0, revenue: 0, date: today });
-      }
+      // Write-only: visitors can't read the analytics figures (firestore.rules).
+      await setDoc(docRef, { date: today, visits: increment(1) }, { merge: true });
     } catch (e) {
       console.warn("Analytics failed", e);
     }

@@ -62,20 +62,20 @@ export default function OrderTracking() {
     if (!key) return;
     let cancelled = false;
     setLoading(true);
-    adminApi.getPublicOrder(linkedId)
-      .then((found: any) => { if (!cancelled && found && found.trackingKey === key) setOrder(found); })
+    adminApi.getPublicOrder(linkedId, { key })
+      .then((found: any) => { if (!cancelled && found) setOrder(found); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
   // Order numbers are shown in capitals; accept them typed in any case.
-  const findOrder = async (input: string) => {
+  const findOrder = async (input: string, email: string) => {
     const typed = normalizeOrderNumber(input);
     if (!typed) return null;
-    const exact = await adminApi.getPublicOrder(typed);
+    const exact = await adminApi.getPublicOrder(typed, { email });
     if (exact || typed === typed.toUpperCase()) return exact;
-    return adminApi.getPublicOrder(typed.toUpperCase());
+    return adminApi.getPublicOrder(typed.toUpperCase(), { email });
   };
 
   const handleTrack = async (e: React.FormEvent) => {
@@ -90,20 +90,16 @@ export default function OrderTracking() {
     setOrder(null);
 
     try {
-      const foundOrder: any = await findOrder(orderIdInput);
+      // The server checks the email; a wrong one comes back as "email_mismatch".
+      const foundOrder: any = await findOrder(orderIdInput, emailInput.trim());
       if (!foundOrder) {
         setError(getCopy(settings?.design, "trackErrNotFound"));
         return;
       }
 
-      if (foundOrder.customer?.email?.toLowerCase().trim() !== emailInput.toLowerCase().trim()) {
-        setError(getCopy(settings?.design, "trackErrEmail"));
-        return;
-      }
-
       setOrder(foundOrder);
     } catch (err: any) {
-      setError(getCopy(settings?.design, "trackError"));
+      setError(getCopy(settings?.design, err?.code === "email_mismatch" ? "trackErrEmail" : err?.code === "too_many" ? "trackErrTooMany" : "trackError"));
     } finally {
       setLoading(false);
     }
@@ -137,7 +133,7 @@ export default function OrderTracking() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "status", orderId: orderKey }),
       }).catch(() => null);
-      const fresh: any = await adminApi.getPublicOrder(orderKey).catch(() => null);
+      const fresh: any = await adminApi.getPublicOrder(orderKey, { email: order?.customer?.email || "" }).catch(() => null);
       if (fresh) setOrder(fresh);
     } finally {
       setRechecking(false);

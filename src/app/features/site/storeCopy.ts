@@ -389,6 +389,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "trackErrFill", label: "Missing details error", default: "Please fill in both order ID and email." },
       { key: "trackErrNotFound", label: "Order not found error", default: "Order not found. Check the ID and try again." },
       { key: "trackErrEmail", label: "Email mismatch error", default: "That email doesn't match this order. Use the email you checked out with." },
+      { key: "trackErrTooMany", label: "Too many lookups error", default: "Too many tries. Please wait a few minutes and try again." },
       { key: "trackCreated", label: "Created-date label", default: "Placed" },
       { key: "trackRecheck", label: "Button: check the payment again", default: "Check payment again" },
       { key: "trackRechecking", label: "Banner: checking the payment", default: "Checking your payment with the card processor…" },
