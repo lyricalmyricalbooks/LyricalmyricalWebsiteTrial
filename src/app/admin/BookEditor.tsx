@@ -747,7 +747,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                   </div>
                   <div className="be-span-2">
                     <TextArea label="Description" name="description" value={formData.description} onChange={handleChange} rows={9}
-                      placeholder="Blurb, contents, notes on the edition…" hint={`${(formData.description || "").trim().split(/\s+/).filter(Boolean).length} words`} />
+                      placeholder="Why this book matters, what readers will discover, notes on the edition…" hint={`${(formData.description || "").trim().split(/\s+/).filter(Boolean).length} words`} />
                   </div>
                 </div>
               </SectionCard>
@@ -772,7 +772,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           )}
 
           {tab === "media" && (
-            <SectionCard title="Book images" description="Drag the ⠿ handle to reorder. The first image is the cover shown in the shop and search."
+            <SectionCard title="Book images" description="Use genuine cover and interior photographs. Drag the ⠿ handle to reorder; the first image is the cover shown in the shop and search."
               actions={<button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || formData.photos.length >= 10}><Upload size={14} aria-hidden /> Upload images</button>}>
               <div className={`be-drop ${dragOver ? "is-over" : ""}`}
                 onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragOver(true); } }}

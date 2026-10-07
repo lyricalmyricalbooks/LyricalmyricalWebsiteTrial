@@ -408,6 +408,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "trackUnsubWorking", label: "Unsubscribe: working", default: "Unsubscribing you…" },
       { key: "trackUnsubDone", label: "Unsubscribe: done", default: "You’re unsubscribed. We won’t send you reminder emails again. Order confirmations still arrive when you buy." },
       { key: "trackUnsubFailed", label: "Unsubscribe: link didn't work", multiline: true, default: "That unsubscribe link didn’t work. Reply to any of our emails and we’ll take you off the list." },
+      { key: "trackAwaitingWebhook", label: "Banner: payment confirmation pending", multiline: true, default: "Your payment provider reports payment received. We are waiting for its secure confirmation before preparing your order. Please do not pay again." },
       { key: "trackStillUnpaid", label: "Banner: payment still not found", multiline: true, default: "We still can't see a payment for this order. If your card was charged, reply to your order email and we'll sort it out right away." },
       { key: "trackAwaitingPayment", label: "Banner: payment not received", multiline: true, default: "We haven't received payment for this order yet. If you've just paid, refresh in a minute." },
       { key: "trackCancelledBanner", label: "Banner: order cancelled", multiline: true, default: "This order was cancelled." },

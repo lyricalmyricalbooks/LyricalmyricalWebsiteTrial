@@ -151,6 +151,7 @@ export default function OrderTracking() {
   // was missed or is slow: ask the server to check with Stripe (it verifies the
   // payment itself and finishes the order), then show the fresh order.
   const [rechecking, setRechecking] = useState(false);
+  const [awaitingWebhook, setAwaitingWebhook] = useState(false);
   const [recheckDone, setRecheckDone] = useState(false);
   const [recheckError, setRecheckError] = useState("");
   const orderKey = order ? (order.id || order.orderId) : "";
@@ -168,6 +169,8 @@ export default function OrderTracking() {
         body: JSON.stringify({ action: "status", orderId: orderKey }),
       });
       if (!response.ok) throw new CopyError(settings?.design, "trackError");
+      const result = await response.json();
+      setAwaitingWebhook(result.awaitingWebhook === true);
       const fresh: any = await adminApi.getPublicOrder(orderKey, access);
       if (fresh) setOrder(fresh);
     } catch (err) {
@@ -178,6 +181,7 @@ export default function OrderTracking() {
     }
   };
   useEffect(() => {
+    setAwaitingWebhook(false);
     setRecheckDone(false);
     setRecheckError("");
     if (canRecheck) recheckPayment();
@@ -313,7 +317,7 @@ export default function OrderTracking() {
                 <div {...regionProps("trackingStatusBanner")} role="status" className="fm-track-notice" data-tone={stage === "awaiting_payment" ? "warning" : "danger"}>
                   <p>
                     <strong aria-hidden="true">{stage === "awaiting_payment" ? "! " : "✕ "}</strong>
-                    {recheckError || (rechecking ? getCopy(settings?.design, "trackRechecking") : getCopy(settings?.design, stage === "awaiting_payment" ? (recheckDone && canRecheck ? "trackStillUnpaid" : "trackAwaitingPayment") : stage === "cancelled" ? "trackCancelledBanner" : "trackRefundedBanner"))}
+                    {recheckError || (rechecking ? getCopy(settings?.design, "trackRechecking") : getCopy(settings?.design, stage === "awaiting_payment" ? (awaitingWebhook ? "trackAwaitingWebhook" : recheckDone && canRecheck ? "trackStillUnpaid" : "trackAwaitingPayment") : stage === "cancelled" ? "trackCancelledBanner" : "trackRefundedBanner"))}
                   </p>
                   {canRecheck && (
                     <button type="button" onClick={recheckPayment} disabled={rechecking} className="fm-track-btn fm-track-btn-ghost">
