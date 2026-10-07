@@ -741,6 +741,8 @@ export function Checkout() {
   // Measured impact: prevents O(N*M) and O(N log N) calculations when typing in checkout inputs
   const discountAmount = useMemo(() => {
     if (!appliedDiscount) return 0;
+    const cap = Number(appliedDiscount.maxDiscountAmount);
+    const capped = (amount: number) => (cap > 0 && amount > cap ? cap : amount);
     
     // Calculate qualifying subtotal and qualifying items list
     const { qualifyingSubtotal, qualifyingItems } = (() => {
@@ -768,10 +770,10 @@ export function Checkout() {
     })();
 
     if (appliedDiscount.type === "percentage") {
-      return qualifyingSubtotal * (Number(appliedDiscount.value) / 100);
+      return capped(qualifyingSubtotal * (Number(appliedDiscount.value) / 100));
     }
     if (appliedDiscount.type === "fixed") {
-      return Math.min(Number(appliedDiscount.value), qualifyingSubtotal);
+      return capped(Math.min(Number(appliedDiscount.value), qualifyingSubtotal));
     }
     if (appliedDiscount.type === "bogo") {
       const buyQty = Number(appliedDiscount.buyQuantity) || 1;
@@ -800,7 +802,7 @@ export function Checkout() {
         discountAmount += price * (getVal / 100);
       });
 
-      return discountAmount;
+      return capped(discountAmount);
     }
     if (appliedDiscount.type === "tiered") {
       const tiers = appliedDiscount.tiers || [];
@@ -812,9 +814,9 @@ export function Checkout() {
 
       const val = Number(matchingTier.value);
       if (matchingTier.type === "percentage") {
-        return qualifyingSubtotal * (val / 100);
+        return capped(qualifyingSubtotal * (val / 100));
       } else if (matchingTier.type === "fixed") {
-        return Math.min(val, qualifyingSubtotal);
+        return capped(Math.min(val, qualifyingSubtotal));
       }
     }
     return 0;

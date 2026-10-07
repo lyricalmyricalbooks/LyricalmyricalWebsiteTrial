@@ -13,3 +13,12 @@ describe("validateDiscountDraft", () => {
   });
   it("rejects an end date before the start date", () => expect(validateDiscountDraft({ ...valid, startDate: "2026-12-10", expiryDate: "2026-12-01" }, "2026-09-29")).toMatchObject({ expiryDate: expect.any(String) }));
 });
+
+describe("maximum discount cap", () => {
+  it("accepts blank or positive caps and rejects zero or negative", () => {
+    expect(validateDiscountDraft({ ...valid, maxDiscountAmount: "" }, "2026-01-01").maxDiscountAmount).toBeUndefined();
+    expect(validateDiscountDraft({ ...valid, maxDiscountAmount: "15" }, "2026-01-01").maxDiscountAmount).toBeUndefined();
+    expect(validateDiscountDraft({ ...valid, maxDiscountAmount: "0" }, "2026-01-01").maxDiscountAmount).toBeTruthy();
+    expect(validateDiscountDraft({ ...valid, maxDiscountAmount: "-3" }, "2026-01-01").maxDiscountAmount).toBeTruthy();
+  });
+});
