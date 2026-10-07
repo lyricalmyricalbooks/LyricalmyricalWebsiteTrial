@@ -1,3 +1,5 @@
+import { AppVerificationError } from "../../../lib/appVerification";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Store copy — single source of truth for shopper-facing text.
 //
@@ -27,6 +29,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
   {
     group: "Site & sharing",
     fields: [
+      { key: "appVerificationFailed", label: "reCAPTCHA verification failed", multiline: true, default: "We couldn’t verify this request. Please refresh the page and try again." },
       { key: "googleSiteVerification", label: "Google Search Console verification token", default: "", hint: "Paste the content value from Google’s HTML verification tag. This public token is included in page metadata." },
       { key: "siteName", label: "Site name", default: "Lyricalmyrical Books", hint: "Used as {name} in the browser-tab title, share previews and search results." },
       { key: "siteDefaultTitle", label: "Home page title (browser tab / Google)", default: "{name} — Independent Publishing House", hint: "Use {name} for the site name." },
@@ -739,5 +742,6 @@ export class CopyError extends Error {
   }
 }
 export function copyErrorText(error: unknown, design: any, fallback: string): string {
+  if (error instanceof AppVerificationError) return getCopy(design, "appVerificationFailed");
   return error instanceof CopyError ? getCopy(design, error.key, error.vars) : getCopy(design, fallback);
 }

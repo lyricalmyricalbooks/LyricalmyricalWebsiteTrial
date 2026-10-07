@@ -882,3 +882,15 @@ with the oldest order that needs work opened automatically and finishing an orde
 previous `Orders` table (bulk packing, pick lists, CSV). Email links `/admin#orders/<id>` still open that order.
 The packing checklist shows each book's current cover and **Shelf location** (Books › edit › Inventory, `shelfLocation`,
 per edition when set; `packingInfo` in `fulfillment.ts`). Books are public-readable, so the shelf code is too.
+
+## reCAPTCHA / App Check
+
+Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebase.ts.
+Use functionFetch from src/app/lib/functionsBase.ts for every browser HTTP Function
+request and onBrowserRequest in functions/index.js for its server handler. Keep signed
+provider webhooks and emailed digital-download links outside browser attestation.
+APP_CHECK_MODE defaults to monitor; enforce only after registering the public site key,
+verifying traffic, and completing the rollout in docs/RECAPTCHA.md. Direct Firestore
+protection requires separate Firebase App Check console enforcement. Verification
+failure copy lives in Studio > Text & labels > Site & sharing. Tokens, debug credentials
+and provider diagnostics must never be logged or saved to public settings.

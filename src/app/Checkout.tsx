@@ -14,7 +14,7 @@ import {
 import { motion } from "motion/react";
 import { adminApi } from "./admin/api";
 import { abandonedCartApi, funnelApi } from "./lib/commerce";
-import { functionUrl } from "./lib/functionsBase";
+import { functionFetch } from "./lib/functionsBase";
 import { useSEO } from "./lib/seo";
 import { useCurrency } from "./CurrencyContext";
 import { COUNTRIES } from "./features/site/shippingZones";
@@ -676,7 +676,7 @@ export function Checkout() {
     const delayDebounce = setTimeout(async () => {
       setShippoRatesLoading(true);
       try {
-        const res = await fetch(functionUrl("getShippoRates"), {
+        const res = await functionFetch("getShippoRates", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1032,7 +1032,7 @@ export function Checkout() {
       // shipping address, and local delivery uses its configured postal zone.
       let addressVerified = fulfillmentSelection.method !== "shipping" || digitalOnly;
       let addressError = "";
-      const valResponse = fulfillmentSelection.method === "shipping" && !digitalOnly ? await fetch(functionUrl("validateAddress"), {
+      const valResponse = fulfillmentSelection.method === "shipping" && !digitalOnly ? await functionFetch("validateAddress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1114,7 +1114,7 @@ export function Checkout() {
       // and current server catalog/config. No client totals or existing order ID
       // can alter the authoritative fulfillment snapshot.
       if (isManual && physicalItems.length && ["pickup", "local_delivery"].includes(fulfillmentSelection.method)) {
-        const response = await fetch(functionUrl("createStripeCheckoutSession"), {
+        const response = await functionFetch("createStripeCheckoutSession", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1145,7 +1145,7 @@ export function Checkout() {
 
       if (selectedPaymentMethod === "paypal") {
         const returnUrl = `${window.location.origin}${import.meta.env.BASE_URL}checkout`;
-        const paypalResponse = await fetch(functionUrl("createPayPalOrder"), {
+        const paypalResponse = await functionFetch("createPayPalOrder", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
@@ -1171,7 +1171,7 @@ export function Checkout() {
         setInlineAttemptStarted(true);
         let clientSecret = reuse?.clientSecret || "";
         if (!clientSecret) {
-          const intentResponse = await fetch(functionUrl("createStripeCheckoutSession"), {
+          const intentResponse = await functionFetch("createStripeCheckoutSession", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, paymentElement: true }),
@@ -1261,7 +1261,7 @@ export function Checkout() {
         if (stripeSessionId.startsWith("cs_") || stripeIntentId.startsWith("pi_")) {
           // Ask Stripe whether this session was actually completed. "open" means
           // the shopper came back without paying — send them back to the form.
-          const statusRes = await fetch(functionUrl("createStripeCheckoutSession"), {
+          const statusRes = await functionFetch("createStripeCheckoutSession", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "status", orderId: oid, sessionId: stripeSessionId, paymentIntentId: stripeIntentId }),
@@ -1283,7 +1283,7 @@ export function Checkout() {
         }
         if (isPayPalReturn) {
           const paypalOrderId = params.get("token");
-          const captureResponse = paypalOrderId ? await fetch(functionUrl("capturePayPalOrder"), {
+          const captureResponse = paypalOrderId ? await functionFetch("capturePayPalOrder", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ orderId: oid, paypalOrderId }),
