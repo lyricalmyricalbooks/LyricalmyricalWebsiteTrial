@@ -838,6 +838,16 @@ Orders badge every 5 minutes): payment/amount mismatch, unpaid after a started S
 rejected webhooks, oversold, paid orders waiting >3 days to ship, manual payments pending >2 days. Test orders are
 ignored. Dismiss hides one for the browser session until a new order joins it.
 
+## Collection indexing (7 October 2026)
+
+Collection pages with no published, released books receive `noindex, follow` and are
+omitted from the sitemap. Empty visible Studio categories remain in the prerender
+route list so their initial HTML carries the same instruction. Search, sort and stock
+filters do not change indexing; sold-out books still count. Renamed category URLs
+canonicalize to current names. `categoryMembership.mjs` shares alias, parent and
+PUBLICATIONS membership between navigation and sitemap generation. Published and
+activated scheduled Studio designs remain authoritative; draft categories stay private.
+
 ## Automatic SEO refresh and catalog search controls
 
 The Pages workflow checks published Firestore catalog/pages/settings every 15 minutes,

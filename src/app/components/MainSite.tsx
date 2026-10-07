@@ -734,7 +734,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const routeCategory = collectionSlug === "all" ? { name: getCopy(activeDesign, "catalogAllCategories") } : categories.find((category: any) => categoryNames(category).some(name => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") === collectionSlug));
   const routeCategoryName = routeCategory?.name || "";
   useSEO({
-    noindex: onCollectionRoute && !routeCategory,
+    // Use category membership before shopper search/stock filters.
+    noindex: onCollectionRoute && (!routeCategory || (collectionSlug === "all"
+      ? publishedBooks.length === 0
+      : getFilteredItems(books, routeCategory, new Date().toISOString(), categories).length === 0)),
     url: onCollectionRoute && routeCategory ? new URL(`${import.meta.env.BASE_URL}collections/${collectionSlug === "all" ? "all" : routeCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`, window.location.origin).href : undefined,
     title: onCollectionRoute ? getCopy(activeDesign, "seoCollectionTitle", { category: routeCategoryName }) : showCatalog ? getCopy(settings?.design, "seoArchiveTitle") : undefined,
     description: onCollectionRoute ? routeCategory?.description || getCopy(activeDesign, "seoCollectionDescription", { category: routeCategoryName.toLowerCase() }) : settings?.info?.description,
