@@ -792,7 +792,8 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   };
 
   const handleSaveZone = () => {
-    const hasGeography = activeZone.restOfWorld === true || activeZone.countries.length > 0 || (activeZone.continents || []).length > 0;
+    // Older zones may be defined only by their region text (e.g. "Canada") — still valid.
+    const hasGeography = activeZone.restOfWorld === true || activeZone.countries.length > 0 || (activeZone.continents || []).length > 0 || !!String(activeZone.region || "").trim();
     if (!activeZone.name.trim() || !hasGeography) {
       toast.error("Please enter a zone name and select at least one country (or make it the rest-of-world zone).");
       return;
