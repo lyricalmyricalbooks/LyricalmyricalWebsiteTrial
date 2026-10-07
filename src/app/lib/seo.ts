@@ -12,7 +12,8 @@ type SEO = {
   image?: string;
   url?: string;
   type?: "website" | "article" | "product" | "book";
-  jsonLd?: Record<string, any>;
+  /** One schema object, or several emitted together as one @graph. */
+  jsonLd?: Record<string, any> | Record<string, any>[];
 };
 
 // Site identity (name, default title/description, share image) is edited in Studio
@@ -52,6 +53,14 @@ function setJsonLd(id: string, data: Record<string, any>) {
     document.head.appendChild(el);
   }
   el.textContent = JSON.stringify(data);
+}
+
+/** Several schema objects share the one page script (the prerenderer keeps only that id). */
+export function jsonLdDocument(data: Record<string, any> | Record<string, any>[]): Record<string, any> {
+  if (!Array.isArray(data)) return data;
+  const items = data.filter(Boolean);
+  if (items.length === 1) return items[0];
+  return { "@context": "https://schema.org", "@graph": items.map(({ "@context": _context, ...rest }) => rest) };
 }
 
 function clearJsonLd(id: string) {
@@ -97,7 +106,7 @@ export function useSEO(seo: SEO) {
     setMeta('meta[name="twitter:image"]', "content", image);
 
     if (seo.jsonLd) {
-      setJsonLd("seo-jsonld-page", seo.jsonLd);
+      setJsonLd("seo-jsonld-page", jsonLdDocument(seo.jsonLd));
     }
 
     return () => {

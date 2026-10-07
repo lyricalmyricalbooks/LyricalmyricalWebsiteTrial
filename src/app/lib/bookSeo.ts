@@ -28,7 +28,87 @@ export function bookMetadata(book: Partial<Book>) {
   };
 }
 
-export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string }) {
+export type SeoReview = { authorName?: string; rating?: number; title?: string; body?: string; createdAt?: string };
+
+const absolute = (value: string, base: string) => { try { return new URL(value, base).href; } catch { return ''; } };
+
+/** Star rating + a few review snippets, only from approved shopper reviews. Never invented. */
+export function ratingData(reviews: SeoReview[] = []) {
+  const rated = reviews.filter(r => Number(r.rating) >= 1 && Number(r.rating) <= 5);
+  if (!rated.length) return {};
+  const average = rated.reduce((sum, r) => sum + Number(r.rating), 0) / rated.length;
+  const review = rated.filter(r => searchText(r.body) && searchText(r.authorName)).slice(0, 5).map(r => ({
+    '@type': 'Review',
+    author: { '@type': 'Person', name: searchText(r.authorName) },
+    reviewRating: { '@type': 'Rating', ratingValue: Number(r.rating), bestRating: 5, worstRating: 1 },
+    ...(searchText(r.title) ? { name: searchText(r.title) } : {}),
+    reviewBody: searchText(r.body).slice(0, 1000),
+    ...(r.createdAt && /^\d{4}-\d{2}-\d{2}/.test(r.createdAt) ? { datePublished: r.createdAt.slice(0, 10) } : {}),
+  }));
+  return {
+    aggregateRating: { '@type': 'AggregateRating', ratingValue: Number(average.toFixed(1)), reviewCount: rated.length, bestRating: 5, worstRating: 1 },
+    ...(review.length ? { review } : {}),
+  };
+}
+
+/** Google shows these trails instead of the raw URL in results. */
+export function breadcrumbData(items: { name: string; url: string }[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.filter(i => i.name && i.url).map((item, index) => ({ '@type': 'ListItem', position: index + 1, name: item.name, item: canonicalUrl(item.url) })),
+  };
+}
+
+/** A shop category as a list of the books in it. */
+export function collectionStructuredData(options: { name: string; description?: string; url: string; books: { name: string; url: string; image?: string }[] }) {
+  const url = canonicalUrl(options.url);
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    '@id': url + '#collection',
+    url,
+    name: options.name,
+    ...(options.description ? { description: searchText(options.description) } : {}),
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: Math.min(options.books.length, 30),
+      itemListElement: options.books.slice(0, 30).map((book, index) => ({
+        '@type': 'ListItem', position: index + 1, url: canonicalUrl(book.url), name: book.name,
+        ...(book.image ? { image: absolute(book.image, url) } : {}),
+      })),
+    },
+  };
+}
+
+/** The shop itself (brand panel) and the website, linked by @id. */
+export function siteStructuredData(options: { name: string; url: string; description?: string; logo?: string; sameAs?: unknown[] }) {
+  const url = canonicalUrl(options.url);
+  const sameAs = (options.sameAs || []).filter((v): v is string => typeof v === 'string' && /^https:\/\//i.test(v.trim())).map(v => v.trim());
+  const logo = options.logo ? absolute(options.logo, url) : '';
+  return [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BookStore',
+      '@id': url + '#organization',
+      name: options.name,
+      url,
+      ...(options.description ? { description: searchText(options.description) } : {}),
+      ...(logo ? { logo, image: logo } : {}),
+      ...(sameAs.length ? { sameAs } : {}),
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      '@id': url + '#website',
+      name: options.name,
+      url,
+      publisher: { '@id': url + '#organization' },
+    },
+  ];
+}
+
+export function bookStructuredData(book: Book & Record<string, any>, options: { currency: string; price: number; url: string; reviews?: SeoReview[]; seller?: string }) {
   const variants = book.variants || [];
   const backorder = book.onBackorder || (variants.length > 0 && variants.every((v: any) => v.onBackorder));
   const available = variants.length ? variants.some(v => Number(v.stockLevel ?? v.stock ?? 0) > 0) : Number(book.stockLevel ?? 999) > 0;
@@ -50,7 +130,10 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
       priceCurrency: options.currency,
       price: Number(options.price).toFixed(2),
       availability: `https://schema.org/${backorder ? 'BackOrder' : available ? 'InStock' : 'OutOfStock'}`,
+      itemCondition: 'https://schema.org/NewCondition',
+      ...(options.seller ? { seller: { '@type': 'Organization', name: options.seller } } : {}),
     },
+    ...ratingData(options.reviews),
   };
 }
 

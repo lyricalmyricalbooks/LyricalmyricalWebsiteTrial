@@ -86,3 +86,24 @@ Search Console, then submit `sitemap.xml` in the property's Sitemaps screen.
 Firebase authentication does not authorize Search Console; verification and
 submission still require the owner's Google access. The token can be cleared to
 remove the tag on the next deployment. No private OAuth secret is saved in Studio.
+
+## Structured data (rich results)
+
+Each public page carries one `seo-jsonld-page` script; several schema objects share
+it as an `@graph` (`jsonLdDocument` in `src/app/lib/seo.ts`). Builders live in
+`src/app/lib/bookSeo.ts`:
+
+- **Home** — `BookStore` (name, description, logo, Instagram/social `sameAs` from
+  Studio) linked to a `WebSite`.
+- **Book pages** — `Product`+`Book` with a new-condition `Offer` sold by the shop,
+  a `BreadcrumbList` (Shop › category › book) and, only when approved shopper reviews
+  exist, `aggregateRating` plus up to five named review snippets. Nothing is invented:
+  no reviews means no rating. The snapshot waits for `data-seo-reviews="ready"`.
+- **Collections** — `CollectionPage` with an `ItemList` of up to 30 of its books
+  (books excluded from search are left out) and a breadcrumb.
+- **Custom/policy pages** — Home › page breadcrumb.
+
+The sitemap adds `<image:image>` entries (up to 10 photos per indexable book) for
+Google Images, and dates the home page by its newest book/page change.
+Not emitted yet: Offer `shippingDetails` / `hasMerchantReturnPolicy` (need structured
+return-window and shipping-time fields, not the free-text policies).

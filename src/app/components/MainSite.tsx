@@ -37,6 +37,7 @@ import { db } from "../../lib/firebase";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
 import { useWishlist } from "../lib/wishlist";
 import { useSEO } from "../lib/seo";
+import { breadcrumbData, collectionStructuredData, siteStructuredData } from "../lib/bookSeo";
 import { CatalogControls, applyCatalogControls, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { SearchOverlay } from "../features/site/SearchOverlay";
@@ -725,6 +726,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
 
   const { has: isWished, toggle: toggleWish, count: wishlistCount } = useWishlist();
 
+  const getBookSlug = (book: Book) =>
+    (book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
   const routeCategory = collectionSlug === "all" ? { name: getCopy(activeDesign, "catalogAllCategories") } : categories.find((category: any) => categoryNames(category).some(name => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") === collectionSlug));
   const routeCategoryName = routeCategory?.name || "";
   useSEO({
@@ -734,13 +738,27 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
     description: onCollectionRoute ? routeCategory?.description || getCopy(activeDesign, "seoCollectionDescription", { category: routeCategoryName.toLowerCase() }) : settings?.info?.description,
     image: settings?.assets?.profileUrl,
     type: "website",
-    jsonLd: {
-      "@context": "https://schema.org",
-      "@type": "BookStore",
-      name: settings?.info?.name || getCopy(settings?.design, "siteName"),
-      url: settings?.info?.website,
-      description: settings?.info?.description,
-    },
+    jsonLd: (() => {
+      const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
+      const siteName = settings?.info?.name || getCopy(settings?.design, "siteName");
+      if (onCollectionRoute && routeCategory) {
+        const collectionUrl = new URL(`collections/${collectionSlug === "all" ? "all" : routeCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`, siteBase).href;
+        const collectionBooks = (collectionSlug === "all" ? publishedBooks : getFilteredItems(books, routeCategory, new Date().toISOString(), categories))
+          .filter((book: any) => book.seoNoindex !== true)
+          .map((book: any) => ({ name: book.title, url: new URL(`books/${encodeURIComponent(getBookSlug(book))}`, siteBase).href, image: book.photos?.[0]?.url }));
+        return [
+          collectionStructuredData({ name: routeCategoryName, description: routeCategory?.description, url: collectionUrl, books: collectionBooks }),
+          breadcrumbData([{ name: getCopy(activeDesign, "breadcrumbHome"), url: siteBase }, { name: routeCategoryName, url: collectionUrl }]),
+        ];
+      }
+      return siteStructuredData({
+        name: siteName,
+        url: siteBase,
+        description: settings?.info?.description || getCopy(settings?.design, "siteDefaultDescription"),
+        logo: storefrontLogoDesign?.logoUrl || settings?.design?.shareImageUrl || settings?.assets?.profileUrl,
+        sameAs: Object.values(settings?.design?.social ?? DEFAULT_SOCIAL),
+      });
+    })(),
   });
 
   const isHeaderTransparent = storefrontDesign?.transparentHeader && !scrolled;
@@ -831,9 +849,6 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
       });
     }
   };
-
-  const getBookSlug = (book: Book) =>
-    (book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
   // Apply Favicon
   useEffect(() => {
