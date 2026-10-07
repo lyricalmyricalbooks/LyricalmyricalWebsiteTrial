@@ -33,9 +33,11 @@ const { resolveCountry } = require("./shippingGeo");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck } = require("./stripeRecovery");
 const { orderMoneyFmt, refundAmountText, withoutTrackingLines } = require("./emailMoney");
 const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
-const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp } = require("./paymentGuards");
+const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
+const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
 const { hitLimit, LIMITS } = require("./rateLimit");
+const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError } = require("./stockHolds");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -898,6 +900,8 @@ function authoritativeTax(items, discountAmount, discount, booksById, settings, 
   const basis = Object.keys(address).length ? address : order.customer?.billingAddress || {};
   if (!basis.country) throw new Error('Destination country is required for tax.');
   const taxRate = matchTaxRate(rates, basis.country, basis.state);
+  // Not silent: a country with rates but none for this province is flagged in Ready to sell.
+  if (!taxRate && taxableTotal > 0 && rates.length) console.warn(`No tax rate matches ${basis.country}/${basis.state || "-"}; charging no tax.`);
   return taxableTotal * (Number(taxRate?.rate || 0) / 100);
 }
 
@@ -996,6 +1000,17 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
     const order = orderDoc.data();
     if (order.paymentStatus === "paid") return;
     if (order.paypalOrderId !== paypalData.paypalOrderId) throw new Error("PayPal order does not match checkout order.");
+    if (order.status === "cancelled") {
+      if (order.paymentMismatch?.paidAfterCancel) return;
+      const at = new Date().toISOString();
+      transaction.update(orderRef, {
+        paypalCaptureId: paypalData.captureId || null,
+        paymentMismatch: { paidAfterCancel: true, provider: "paypal", captureId: paypalData.captureId || null, at },
+        activity: [...(order.activity || []), { type: "event", message: "PayPal payment arrived after this order was cancelled. Not marked paid — refund it in PayPal.", createdAt: at }],
+        updatedAt: at,
+      });
+      return;
+    }
     const amountCheck = paidAmountCheck(order, toMinor(paypalData.capture?.amount?.value), paypalData.capture?.amount?.currency_code);
     if (!amountCheck.ok) {
       const at = new Date().toISOString();
@@ -1036,6 +1051,7 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
     }
     paidTotal = sandbox ? null : Number(order.total) || 0;
   });
+  await releaseStockForOrder(db, orderId);
   if (paidTotal !== null) {
     const today = new Date().toISOString().split("T")[0];
     await db.collection("analytics").doc(today).set({
@@ -1052,6 +1068,7 @@ exports.createPayPalOrder = onBrowserRequest(
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+    if (!(await hitLimit(db, "paypal", req, LIMITS.paypal))) return res.status(429).json({ error: "Too many tries. Please wait a few minutes and try again." });
     try {
       const { orderId, currency: requestedCurrency, returnUrl } = req.body || {};
       if (!orderId) return res.status(400).json({ error: "Missing orderId" });
@@ -1061,12 +1078,20 @@ exports.createPayPalOrder = onBrowserRequest(
       const orderDoc = await orderRef.get();
       if (!orderDoc.exists) return res.status(404).json({ error: "Order not found" });
       const order = orderDoc.data();
-      if (order.paymentStatus === "paid") return res.status(409).json({ error: "Order is already paid" });
+      const refusal = checkoutRefusal(order);
+      if (refusal === "paid") return res.status(409).json({ error: "Order is already paid" });
+      if (refusal) return res.status(409).json({ error: "This order was cancelled. Please start a new order from your bag.", code: "order_closed" });
       let priced;
       try {
         priced = await recalculateOrder(orderRef, order, currency);
       } catch (pricingErr) {
         return res.status(400).json({ error: pricingErr.message });
+      }
+      try {
+        await reserveStock(db, orderId, order.items || []);
+      } catch (holdErr) {
+        if (holdErr instanceof StockHoldError) return res.status(409).json({ error: holdErr.message, code: holdErr.code });
+        throw holdErr;
       }
       const config = await getPayPalConfig();
       let checkoutBase = `${req.headers.origin || "http://localhost:5173"}/checkout`;
@@ -1113,6 +1138,7 @@ exports.capturePayPalOrder = onBrowserRequest(
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+    if (!(await hitLimit(db, "paypal", req, LIMITS.paypal))) return res.status(429).json({ error: "Too many tries. Please wait a few minutes and try again." });
     try {
       const { orderId, paypalOrderId } = req.body || {};
       if (!orderId || !paypalOrderId) return res.status(400).json({ error: "Missing order identifiers" });
@@ -1214,6 +1240,9 @@ exports.createStripeCheckoutSession = onBrowserRequest(
     if (req.body?.action === "track") return handleTrackOrder(req, res);
     if (req.body?.action === "registerPaymentDomain") return handleRegisterPaymentDomain(req, res);
     if (req.body?.action === "webhookHealth") return handleWebhookHealth(req, res);
+    if (req.body?.action === "orderRequest") return handleOrderRequest(req, res);
+    if (req.body?.action === "privacyRequest") return handlePrivacyRequest(req, res);
+    if (req.body?.action === "privacyExport" || req.body?.action === "privacyErase") return handlePrivacyAdmin(req, res);
     if (req.body?.action === "verifyStripeKeys") return handleVerifyStripeKeys(req, res);
     // Payment creation is limited per visitor so bots can't test stolen cards here.
     if (!(await hitLimit(db, "checkout", req, LIMITS.checkout))) {
@@ -1324,8 +1353,13 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         res.status(400).json({ error: "Test orders cannot enter checkout." });
         return;
       }
-      if (order.paymentStatus === "paid" || order.status === "completed") {
+      const refusal = checkoutRefusal(order);
+      if (refusal === "paid") {
         res.status(400).json({ error: "Order has already been paid" });
+        return;
+      }
+      if (refusal) {
+        res.status(409).json({ error: "This order was cancelled. Please start a new order from your bag.", code: "order_closed" });
         return;
       }
 
@@ -1558,6 +1592,18 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         });
       }
 
+      // Hold the copies for this shopper while they pay, so a second shopper can't also
+      // pay for the last one. Stock still only moves when the payment is confirmed.
+      try {
+        await reserveStock(db, orderId, items);
+      } catch (holdErr) {
+        if (holdErr instanceof StockHoldError) {
+          res.status(409).json({ error: holdErr.message, code: holdErr.code });
+          return;
+        }
+        throw holdErr;
+      }
+
       // Payment Element on the checkout page: charge the same server-priced
       // total through a PaymentIntent instead of a Checkout Session.
       if (paymentElement) {
@@ -1570,7 +1616,13 @@ exports.createStripeCheckoutSession = onBrowserRequest(
               return;
             }
             if (["requires_payment_method", "requires_confirmation", "requires_action"].includes(previous.status)) {
-              await stripe.paymentIntents.cancel(previous.id);
+              try {
+                await stripe.paymentIntents.cancel(previous.id);
+              } catch (cancelErr) {
+                // A simultaneous request may have cancelled it first; only a still-live intent blocks a new one.
+                const again = await stripe.paymentIntents.retrieve(previous.id);
+                if (again.status !== "canceled") throw cancelErr;
+              }
             }
           } catch (err) {
             // Unsure whether the earlier payment is still live: never open a second one beside it.
@@ -1588,7 +1640,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
           // one confirmation (Stripe's receipt duplicated it).
           description: `Order ${orderId}`,
           metadata: { order_id: orderId, checkout: "payment_element" },
-        });
+        }, { idempotencyKey: stripeIntentKey(orderId, amount, checkoutCurrency, order.stripePaymentIntentId) });
         // The webhook marks the order paid only for exactly this amount and currency.
         await orderRef.update({ stripePaymentIntentId: intent.id, expectedAmountMinor: amount, expectedCurrency: checkoutCurrency, updatedAt: new Date().toISOString() });
         // stripeMode lets the browser check its card form uses the same Stripe mode.
@@ -1613,6 +1665,9 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         expectedCurrency: checkoutCurrency,
         updatedAt: new Date().toISOString(),
       });
+      // Same order, amount and minute = the same session (a double click can't open two).
+      const sessionAmount = lineItems.reduce((sum, li) => sum + li.price_data.unit_amount * li.quantity, 0);
+      const sessionMinute = Math.floor(Date.now() / 60000);
       const session = await stripe.checkout.sessions.create({
         line_items: lineItems,
         mode: "payment",
@@ -1624,7 +1679,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
           metadata: { order_id: orderId },
         },
         // Shorten the unpaid-stock-hold window: session dies after 30 minutes.
-        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+        expires_at: sessionMinute * 60 + 31 * 60,
         // Embedded mode keeps the card form on the storefront's checkout page;
         // the webhook still receives checkout.session.completed either way.
         ...(embedded
@@ -1636,7 +1691,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
             success_url: `${checkoutBase}${joiner}success=true&order_id=${orderId}&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${checkoutBase}${joiner}canceled=true`,
           }),
-      });
+      }, { idempotencyKey: `cs-${orderId}-${checkoutCurrency}-${sessionAmount}-${embedded ? "e" : "h"}-${sessionMinute}` });
 
       // Save the session now so a missed webhook can still be recovered from the order alone.
       await orderRef.update({ stripeCheckoutSessionId: session.id, updatedAt: new Date().toISOString() });
@@ -1885,6 +1940,18 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
         return;
       }
 
+      // Money arrived for an order the shop had already cancelled: don't revive it (stock, emails,
+      // fulfillment). Record the payment and leave it in Needs attention so the admin refunds it.
+      if (order.status === "cancelled") {
+        if (order.paymentMismatch?.paidAfterCancel && order.paymentMismatch.paymentIntentId === paymentIntentId) return;
+        transaction.update(orderRef, {
+          ...stripeTransaction,
+          paymentMismatch: { paidAfterCancel: true, provider: "stripe", paymentIntentId, at: now },
+          activity: [...(order.activity || []), { type: "event", message: `Stripe payment ${paymentIntentId || session.id} arrived after this order was cancelled. Not marked paid — refund it in the Stripe Dashboard or reopen the order with the customer.`, createdAt: now }],
+        });
+        return;
+      }
+
       const amountCheck = paidAmountCheck(order, session.amount_total, session.currency);
       if (!amountCheck.ok) {
         transaction.update(orderRef, {
@@ -1964,6 +2031,8 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
         html: `<p>Stripe took a second payment (${escapeHtml(duplicateAlert.paymentIntentId || "")}, ${(Number(duplicateAlert.amount) / 100).toFixed(2)} ${escapeHtml(String(duplicateAlert.currency || "").toUpperCase())}) for order <strong>${escapeHtml(duplicateAlert.orderId)}</strong>, which was already paid.</p><p>Refund the second payment in the Stripe Dashboard. The order keeps its first payment.</p>`,
       }).catch(err => console.warn("duplicate payment alert failed:", err.message));
     }
+    // The stock is now taken for real; the checkout hold has done its job.
+    if (markedPaid) await releaseStockForOrder(db, orderId);
   return markedPaid;
 }
 
@@ -2223,6 +2292,154 @@ async function handleTrackOrder(req, res) {
   } catch (err) {
     console.error("Order lookup failed:", err);
     res.status(500).json({ error: "failed" });
+  }
+}
+
+// A shopper asks to cancel an order or to return it. Same proof as order tracking (email
+// or the emailed key). Nothing about money or stock changes here: the request is put on
+// the order (Orders › Needs attention) and the shop is emailed to decide.
+async function handleOrderRequest(req, res) {
+  const { orderId, email, key, type, message } = req.body || {};
+  if (typeof orderId !== "string" || !orderId || orderId.length > 64 || orderId.includes("/")) {
+    res.status(400).json({ error: "not_found" });
+    return;
+  }
+  if (!(await hitLimit(db, "track", req, LIMITS.track))) {
+    res.status(429).json({ error: "too_many" });
+    return;
+  }
+  try {
+    const orderRef = db.collection("orders").doc(orderId);
+    let problem = null;
+    let order = null;
+    await db.runTransaction(async tx => {
+      const snap = await tx.get(orderRef);
+      order = snap.exists ? snap.data() : null;
+      if (order && !canViewOrder(order, { email: typeof email === "string" ? email : "", key: typeof key === "string" ? key : "" })) {
+        problem = "email_mismatch";
+        return;
+      }
+      problem = orderRequestProblem(order, type);
+      if (problem) return;
+      const record = orderRequestRecord(type, message);
+      tx.update(orderRef, {
+        customerRequest: record,
+        updatedAt: record.createdAt,
+        activity: [...(order.activity || []), { type: "event", message: `Customer asked to ${type === "cancel" ? "cancel this order" : "return this order"}${record.message ? `: "${record.message}"` : "."}`, createdAt: record.createdAt }],
+      });
+      order = { ...order, customerRequest: record };
+    });
+    if (problem) {
+      res.status(problem === "not_found" ? 404 : problem === "email_mismatch" ? 403 : 409).json({ error: problem });
+      return;
+    }
+    const request = order.customerRequest;
+    await sendEmail({
+      to: ADMIN_TO,
+      subject: `${request.type === "cancel" ? "Cancellation" : "Return"} request · order ${orderId}`,
+      html: `<p>${escapeHtml(order.customer?.name || order.customer?.email || "A customer")} asked to <strong>${request.type === "cancel" ? "cancel" : "return"}</strong> order <strong>${escapeHtml(orderId)}</strong>.</p>${request.message ? `<blockquote>${escapeHtml(request.message)}</blockquote>` : ""}<p>Open it in Admin › Orders (Needs me). Refunds and cancellations are done from the order as usual; mark the request handled when you have replied.</p>`,
+    }).catch(err => console.warn("order request email failed:", err.message));
+    res.status(200).json({ order: publicOrderView(orderId, order) });
+  } catch (err) {
+    console.error("Order request failed:", err);
+    res.status(500).json({ error: "failed" });
+  }
+}
+
+// A privacy request (copy of my data / delete my data). Anyone can ask, so nothing is
+// sent or deleted automatically: the shop confirms the person owns the address (reply
+// from it), then uses Settings › Privacy requests to export or erase.
+async function handlePrivacyRequest(req, res) {
+  const { email, type, message } = req.body || {};
+  if (!(await hitLimit(db, "track", req, LIMITS.track))) {
+    res.status(429).json({ error: "too_many" });
+    return;
+  }
+  const record = privacyRequestRecord(email, type, message);
+  if (!record) {
+    res.status(400).json({ error: "invalid" });
+    return;
+  }
+  try {
+    await db.collection("privacyRequests").add(record);
+    await sendEmail({
+      to: ADMIN_TO,
+      subject: `Privacy request (${record.type === "delete" ? "delete data" : "copy of data"}) · ${record.email}`,
+      html: `<p><strong>${escapeHtml(record.email)}</strong> asked for ${record.type === "delete" ? "their personal data to be deleted" : "a copy of their personal data"}.</p>${record.message ? `<blockquote>${escapeHtml(record.message)}</blockquote>` : ""}<p>Confirm the request by email with that address first, then open Admin › Settings › General › Privacy requests.</p>`,
+    }).catch(err => console.warn("privacy request email failed:", err.message));
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error("Privacy request failed:", err);
+    res.status(500).json({ error: "failed" });
+  }
+}
+
+// Everything the shop holds about one email address.
+async function personalDataFor(email) {
+  const byEmail = async (collection, field = "email") => (await db.collection(collection).where(field, "==", email).get()).docs;
+  const [orders, alerts, carts, contacts, messages, newsletter] = await Promise.all([
+    byEmail("orders", "customer.email"), byEmail("stockAlerts"), byEmail("abandoned-carts"),
+    byEmail("reviewContacts"), byEmail("contactMessages"), db.collection("newsletter").doc(email).get(),
+  ]);
+  let user = null;
+  try { user = await admin.auth().getUserByEmail(email); } catch { user = null; }
+  const profile = user ? await db.collection("customers").doc(user.uid).get() : null;
+  const reviews = contacts.length
+    ? (await Promise.all(contacts.map(c => db.collection("reviews").doc(c.id).get()))).filter(r => r.exists)
+    : [];
+  return { orders, alerts, carts, contacts, messages, newsletter, user, profile, reviews };
+}
+
+async function handlePrivacyAdmin(req, res) {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  if (!/^[^\s@/]+@[^\s@/]+\.[^\s@/]{2,}$/.test(email)) {
+    res.status(400).json({ error: "Enter the customer's email address." });
+    return;
+  }
+  const requestId = typeof req.body?.requestId === "string" ? req.body.requestId : "";
+  try {
+    const data = await personalDataFor(email);
+    const rows = docs => docs.map(d => ({ id: d.id, ...d.data() }));
+    if (req.body.action === "privacyExport") {
+      const strip = o => { const { downloadToken, trackingKey, clientIp, ...rest } = o; return rest; };
+      res.status(200).json({
+        email,
+        exportedAt: new Date().toISOString(),
+        account: data.user ? { uid: data.user.uid, createdAt: data.user.metadata?.creationTime || null } : null,
+        profile: data.profile?.exists ? data.profile.data() : null,
+        newsletter: data.newsletter.exists ? data.newsletter.data() : null,
+        orders: rows(data.orders).map(strip),
+        backInStockAlerts: rows(data.alerts),
+        savedCarts: rows(data.carts),
+        reviews: data.reviews.map(r => ({ id: r.id, ...r.data() })),
+        contactMessages: rows(data.messages),
+      });
+      if (requestId) await db.collection("privacyRequests").doc(requestId).set({ status: "exported", handledAt: new Date().toISOString(), handledBy: adminUser.email }, { merge: true });
+      return;
+    }
+    // Erase: delete marketing, cart, alert, contact and account data; reviews stay but lose
+    // the name; orders stay (tax and accounting records) and are reported back.
+    const batch = db.batch();
+    for (const d of [...data.alerts, ...data.carts, ...data.contacts, ...data.messages]) batch.delete(d.ref);
+    if (data.newsletter.exists) batch.delete(data.newsletter.ref);
+    if (data.profile?.exists) batch.delete(data.profile.ref);
+    for (const r of data.reviews) batch.update(r.ref, { authorName: "Anonymous" });
+    await batch.commit();
+    if (data.user) await admin.auth().deleteUser(data.user.uid);
+    const now = new Date().toISOString();
+    await db.collection("marketing-optout").doc(optOutId(email)).set({ at: now, source: "privacy-erase" }).catch(() => {});
+    const summary = {
+      deleted: { backInStockAlerts: data.alerts.length, savedCarts: data.carts.length, reviewContacts: data.contacts.length, contactMessages: data.messages.length, newsletter: data.newsletter.exists ? 1 : 0, account: data.user ? 1 : 0 },
+      anonymizedReviews: data.reviews.length,
+      keptOrders: data.orders.map(d => d.id),
+    };
+    if (requestId) await db.collection("privacyRequests").doc(requestId).set({ status: "erased", handledAt: now, handledBy: adminUser.email, summary }, { merge: true });
+    res.status(200).json(summary);
+  } catch (err) {
+    console.error("Privacy action failed:", err);
+    res.status(500).json({ error: "The privacy action failed. Try again; nothing is half-deleted that a retry won't finish." });
   }
 }
 
@@ -3093,6 +3310,8 @@ exports.onOrderUpdated = onDocumentUpdated(
     }
 
     // 3. Order Cancelled (skip if the order is being refunded simultaneously — the refund email is more accurate)
+    // A cancelled order frees any copies it was holding at checkout.
+    if (before.status !== "cancelled" && after.status === "cancelled") await releaseStock(db, orderId, after.items || []);
     const becameCancelled = before.status !== "cancelled" && after.status === "cancelled"
       && after.paymentStatus !== "refunded" && after.paymentStatus !== "refund_pending"
       // "You will not be charged" is only true for an order that was never paid.
@@ -3409,6 +3628,7 @@ exports.getShippoRates = onBrowserRequest(
       res.status(405).send("Method Not Allowed");
       return;
     }
+    if (!(await hitLimit(db, "shippo", req, LIMITS.shippo))) return res.status(429).json({ error: "Too many tries. Please wait a few minutes and try again." });
 
     const { address, items } = req.body;
     if (!address || !items || !Array.isArray(items)) {
@@ -3600,6 +3820,7 @@ exports.validateAddress = onBrowserRequest(
       res.status(405).send("Method Not Allowed");
       return;
     }
+    if (!(await hitLimit(db, "shippo", req, LIMITS.shippo))) return res.status(429).json({ error: "Too many tries. Please wait a few minutes and try again." });
 
     const { address } = req.body;
     if (!address || !address.street || !address.city || !address.state || !address.zip) {
@@ -4657,6 +4878,7 @@ async function completeOrderWithoutCard(orderId, message) {
 
     paidTotal = Number(order.total) || 0;
   });
+  await releaseStockForOrder(db, orderId);
 
   if (paidTotal !== null) {
     const today = new Date().toISOString().split("T")[0];
@@ -4681,6 +4903,11 @@ exports.markOrderPaid = onBrowserRequest(
     if (!orderId) { res.status(400).json({ error: "Missing orderId" }); return; }
 
     try {
+      const snap = await db.collection("orders").doc(orderId).get();
+      const refusal = manualPaidRefusal(snap.exists ? snap.data() : null);
+      if (refusal === "missing") { res.status(404).json({ error: "Order not found" }); return; }
+      if (refusal === "closed") { res.status(409).json({ error: "This order is cancelled or refunded, so it can't be marked paid." }); return; }
+      if (refusal === "provider") { res.status(409).json({ error: "Card and PayPal orders are marked paid only when the payment provider confirms the payment. Use Check payment with Stripe, or check PayPal." }); return; }
       await completeOrderWithoutCard(orderId, `Payment confirmed manually by ${adminUser.email}.`);
       res.status(200).json({ success: true });
     } catch (err) {

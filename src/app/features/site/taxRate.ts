@@ -31,3 +31,19 @@ export function matchTaxRate<T extends { country?: string; region?: string }>(ra
   const regional = code ? countryRates.find(r => String(r.region || "").trim() && regionCode(r.region) === code) : undefined;
   return regional || countryRates.find(r => !String(r.region || "").trim()) || null;
 }
+
+/**
+ * Provinces/states of each country that has tax rates, where an address would
+ * match no rate at all (no regional rate and no country-wide rate) and so be
+ * charged no tax. An explicit 0% rate counts as covered.
+ */
+export function uncoveredTaxRegions(rates: { country?: string; region?: string }[]): { country: string; regions: string[] }[] {
+  const out: { country: string; regions: string[] }[] = [];
+  for (const [key, label] of [["ca", "Canada"], ["us", "United States"]] as const) {
+    const countryRates = (rates || []).filter(r => normalizeCountry(r.country) === key);
+    if (!countryRates.length) continue;
+    const regions = (regionsFor(label) || []).filter(([code]) => !matchTaxRate(countryRates, label, code)).map(([, name]) => name);
+    if (regions.length) out.push({ country: label, regions });
+  }
+  return out;
+}

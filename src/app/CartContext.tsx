@@ -15,7 +15,8 @@ interface CartItem {
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (product: any, variant?: any, quantity?: number) => void;
+  /** false when nothing could be added (sold out or no usable price). */
+  addToCart: (product: any, variant?: any, quantity?: number) => boolean;
   removeFromCart: (id: string, variantId?: string) => void;
   updateQuantity: (id: string, variantId: string | undefined, delta: number) => void;
   clearCart: () => void;
@@ -155,12 +156,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [cart]);
 
-  const addToCart = (product: any, variant?: any, quantity: number = 1) => {
+  const addToCart = (product: any, variant?: any, quantity: number = 1): boolean => {
     const stockLimit = variant ? (variant.stockLevel ?? variant.stock) : product.stockLevel;
-    if (typeof stockLimit === "number" && stockLimit <= 0) return;
+    if (typeof stockLimit === "number" && stockLimit <= 0) return false;
     const price = catalogUnitPrice(product, variant);
     // A book with no usable price can't be charged; never put a NaN line in the bag.
-    if (!Number.isFinite(price) || price < 0) return;
+    if (!Number.isFinite(price) || price < 0) return false;
 
     setCart(prev => {
       const existing = prev.find(i => i.id === product.id && i.variantId === variant?.id);
@@ -188,6 +189,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }];
     });
     setIsCartOpen(true);
+    return true;
   };
 
   const removeFromCart = (id: string, variantId?: string) => {

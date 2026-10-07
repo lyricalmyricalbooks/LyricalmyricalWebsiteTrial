@@ -43,6 +43,10 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
   if (mismatch.length) out.push(alert("mismatch", "danger", `${plural(mismatch.length, "payment doesn't", "payments don't")} match the order total`,
     `Stripe or PayPal took a different amount than the order expected: ${list(mismatch)}. Review and refund in Stripe before shipping.`, mismatch));
 
+  const requests = orders.filter((o) => o.customerRequest?.status === "open");
+  if (requests.length) out.push(alert("customer-request", "warning", `${plural(requests.length, "customer is", "customers are")} waiting on a cancel or return request`,
+    `Answer before packing: ${list(requests)}. Open the order to cancel, refund or mark the request handled.`, requests));
+
   const paidTwice = orders.filter((o) => Array.isArray(o.duplicatePayments) && o.duplicatePayments.length && o.paymentStatus === "paid" && !isFinished(o));
   if (paidTwice.length) out.push(alert("paid-twice", "danger", `${plural(paidTwice.length, "order was", "orders were")} paid twice`,
     `Stripe took a second payment for an order that was already paid: ${list(paidTwice)}. Refund the extra payment in the Stripe Dashboard.`, paidTwice));

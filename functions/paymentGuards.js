@@ -102,4 +102,34 @@ function discountUsedUp(discount) {
   return limit > 0 && (Number(discount && discount.usageCount) || 0) >= limit;
 }
 
-module.exports = { discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState };
+// Why a new payment must not be opened for this order, or null. A cancelled order is
+// closed: taking money for it would revive it behind the shop's back.
+function checkoutRefusal(order) {
+  if (!order) return "missing";
+  if (order.paymentStatus === "paid" || order.status === "completed") return "paid";
+  if (order.status === "cancelled" || order.status === "refunded" || String(order.paymentStatus || "").startsWith("refund")) return "closed";
+  return null;
+}
+
+// Why an admin may not mark this order paid by hand, or null. Card and PayPal orders are
+// paid only when the provider says so (webhook, verified status check or capture); marking
+// them by hand would ship books for money that was never taken.
+function manualPaidRefusal(order) {
+  if (!order) return "missing";
+  if (order.paymentStatus === "paid") return null; // idempotent no-op
+  if (order.status === "cancelled" || order.status === "refunded") return "closed";
+  const method = String(order.paymentMethod || "").toLowerCase();
+  if (order.stripePaymentIntentId || order.stripeCheckoutSessionId || order.paypalOrderId) return "provider";
+  if (/stripe|card|paypal|apple|google/.test(method)) return "provider";
+  return null;
+}
+
+// Stripe idempotency key for a payment attempt. Two simultaneous requests for the same order,
+// amount and currency (two tabs, a double click) get the same PaymentIntent back instead of two
+// live ones. The previous intent id is part of the key, so a deliberate retry after the earlier
+// intent was cancelled opens a fresh one.
+function stripeIntentKey(orderId, amountMinor, currency, previousIntentId) {
+  return `pi-${orderId}-${String(currency || "").toLowerCase()}-${Math.round(Number(amountMinor))}-${previousIntentId || "first"}`;
+}
+
+module.exports = { checkoutRefusal, manualPaidRefusal, stripeIntentKey, discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState };
