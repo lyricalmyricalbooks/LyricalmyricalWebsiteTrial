@@ -13,6 +13,7 @@ import { getCopy } from "./storeCopy";
 import { StorefrontPageHeader } from "./StorefrontPageHeader";
 import { googleFontHref } from "./fonts";
 import { useSEO } from "../../lib/seo";
+import { breadcrumbData } from "../../lib/bookSeo";
 
 
 /**
@@ -74,6 +75,13 @@ export function PageView() {
     title: seoPage ? seoPage.seoTitle || seoPage.title : undefined,
     description: seoPage ? seoPage.metaDescription || String(seoPage.body || "").replace(/<[^>]+>/g, " ").replace(/[#*]/g, "").replace(/\s+/g, " ").trim().substring(0, 160) : undefined,
     type: "article",
+    jsonLd: seoPage ? (() => {
+      const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
+      return breadcrumbData([
+        { name: getCopy(settings?.design, "breadcrumbHome"), url: siteBase },
+        { name: seoPage.title || seoPage.seoTitle || "", url: new URL(`page/${encodeURIComponent(slug || seoPage.slug || "")}`, siteBase).href },
+      ]);
+    })() : undefined,
   });
 
   useEffect(() => {

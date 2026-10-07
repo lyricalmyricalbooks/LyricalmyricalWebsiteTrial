@@ -21,7 +21,8 @@ import { placeholderImage } from "./constants";
 import type { Book } from "./types";
 import { trackBookView } from "../../lib/recentlyViewed";
 import { useWishlist } from "../../lib/wishlist";
-import { bookMetadata, bookStructuredData, canonicalUrl } from "../../lib/bookSeo";
+import { bookMetadata, bookStructuredData, breadcrumbData, canonicalUrl } from "../../lib/bookSeo";
+import { reviewsApi } from "../../lib/reviews";
 import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
 import ReviewsSection from "./ReviewsSection";
@@ -227,6 +228,28 @@ export default function BookDetail() {
   const { has: isWished, toggle: toggleWish } = useWishlist();
   const wished = book ? isWished(book.id) : false;
 
+  // ── catalogue-card helpers ─────────────────────────────────────────────────
+  const bk            = (book || {}) as any;
+  // Only real shop categories (Studio › Menus › Shop categories) — never old genre tags like "Photography".
+  const configuredCategories = settings?.design?.categories;
+  const shopCats      = (Array.isArray(configuredCategories) ? configuredCategories : []).filter((c: any) => !categoryNames(c).includes("PUBLICATIONS"));
+  const safeBookCategories = Array.isArray(bk.categories) ? bk.categories : [];
+  const shopCat       = shopCats.find((c: any) => safeBookCategories.some((t: string) => categoryNames(c).includes(t)));
+  const categoryLabel: string | undefined = shopCat ? catName(shopCat) : undefined;
+
+  // Approved reviews feed the search-result star rating; the snapshot waits for this read.
+  const [seoReviews, setSeoReviews] = useState<{ bookId: string; list: any[] } | null>(null);
+  useEffect(() => {
+    if (!book?.id) return;
+    let cancelled = false;
+    reviewsApi.listApproved(book.id)
+      .then(list => { if (!cancelled) setSeoReviews({ bookId: book.id, list }); })
+      .catch(() => { if (!cancelled) setSeoReviews({ bookId: book.id, list: [] }); });
+    return () => { cancelled = true; };
+  }, [book?.id]);
+  const reviewsReady = !!book && seoReviews?.bookId === book.id;
+  const siteBase = new URL(import.meta.env.BASE_URL, window.location.origin).href;
+
   const bookUrl = canonicalUrl(new URL(`${import.meta.env.BASE_URL}books/${encodeURIComponent(book?.slug || book?.id || slug || "")}`, window.location.origin).href);
   const seoBook = selectedVariant && book ? {
     ...book,
@@ -241,11 +264,20 @@ export default function BookDetail() {
     url: bookUrl,
     type: "product",
     noindex: book.seoNoindex === true || (!!book.status && book.status !== "published"),
-    jsonLd: bookStructuredData(seoBook!, {
-      currency,
-      price: selectedVariant ? convertPrice(selectedVariant.price) : getBookPrice(book),
-      url: bookUrl,
-    }),
+    jsonLd: [
+      bookStructuredData(seoBook!, {
+        currency,
+        price: selectedVariant ? convertPrice(selectedVariant.price) : getBookPrice(book),
+        url: bookUrl,
+        reviews: reviewsReady ? seoReviews!.list : [],
+        seller: getCopy(settings?.design, "siteName"),
+      }),
+      breadcrumbData([
+        { name: getCopy(settings?.design, "pdpCrumbShop"), url: siteBase },
+        ...(categoryLabel ? [{ name: categoryLabel, url: new URL(`collections/${slugify(categoryLabel)}`, siteBase).href }] : []),
+        { name: book.title, url: bookUrl },
+      ]),
+    ],
   } : { title: getCopy(settings?.design, "seoBookLoadingTitle"), noindex: !loading });
 
   useEffect(() => {
@@ -317,14 +349,6 @@ export default function BookDetail() {
   const isOnSale      = selectedVariant ? false : ((book as any)?.isOnSale && salePrice > 0);
   const activeUrl     = (selectedVariant && selectedVariant.photoUrl) ? selectedVariant.photoUrl : (photos[activePhoto]?.url || placeholderImage(settings?.design));
 
-  // ── catalogue-card helpers ─────────────────────────────────────────────────
-  const bk            = (book || {}) as any;
-  // Only real shop categories (Studio › Menus › Shop categories) — never old genre tags like "Photography".
-  const configuredCategories = settings?.design?.categories;
-  const shopCats      = (Array.isArray(configuredCategories) ? configuredCategories : []).filter((c: any) => !categoryNames(c).includes("PUBLICATIONS"));
-  const safeBookCategories = Array.isArray(bk.categories) ? bk.categories : [];
-  const shopCat       = shopCats.find((c: any) => safeBookCategories.some((t: string) => categoryNames(c).includes(t)));
-  const categoryLabel: string | undefined = shopCat ? catName(shopCat) : undefined;
   const alignCls      = productAlignment === "center" ? "items-center text-center" : "items-start text-left";
   const showThumbRail = photos.length > 1 && pdpThumbPosition !== "hidden";
   const isLowStock    = stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10);
@@ -479,6 +503,7 @@ export default function BookDetail() {
   return (
     <div
       data-fm-store data-studio-target="style:productPage|copy:Product page|style:labels" data-studio-label="Product page"
+      data-seo-reviews={reviewsReady ? "ready" : undefined}
       className="min-h-screen selection:bg-white/20"
       style={{
         fontFamily: font,

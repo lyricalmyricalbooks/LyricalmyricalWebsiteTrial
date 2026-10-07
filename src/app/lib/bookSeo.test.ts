@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bookMetadata, bookStructuredData, canonicalUrl, seoChecks } from './bookSeo';
+import { bookMetadata, bookStructuredData, breadcrumbData, canonicalUrl, collectionStructuredData, ratingData, seoChecks, siteStructuredData } from './bookSeo';
 const book = { id: 'one', title: 'Photo book', description: '<p>Art &amp; photography.</p>', retailPrice: 24, stockLevel: 0, status: 'published', slug: 'photo-book', metaTitle: 'An artist’s photo book', metaDescription: 'A unique collection of photographs.', seoImage: 'https://example.com/share.jpg' };
 describe('book search metadata', () => {
   it('uses saved search fields and sharing image', () => {
@@ -32,5 +32,41 @@ describe('book search metadata', () => {
     const checks = seoChecks({ ...book, description: '', metaDescription: '', status: 'draft' });
     expect(checks.find(c => c.id === 'description')?.ok).toBe(false);
     expect(checks.find(c => c.id === 'published')?.ok).toBe(false);
+  });
+  it('adds star ratings only from real reviews and marks new copies sold by the shop', () => {
+    const options = { currency: 'CAD', price: 24, url: 'https://example.com/books/one', seller: 'Lyricalmyrical Books' };
+    const reviews = [
+      { authorName: 'Ana', rating: 5, title: 'Lovely', body: '<p>Beautiful prints.</p>', createdAt: '2026-09-01T10:00:00Z' },
+      { authorName: 'Ben', rating: 4, body: 'Great paper.' },
+      { authorName: '', rating: 3, body: 'No name, counted but not quoted.' },
+      { authorName: 'Bad', rating: 9, body: 'Out of range is ignored.' },
+    ];
+    const data: any = bookStructuredData(book, { ...options, reviews });
+    expect(data.aggregateRating).toMatchObject({ ratingValue: 4, reviewCount: 3, bestRating: 5 });
+    expect(data.review).toHaveLength(2);
+    expect(data.review[0]).toMatchObject({ author: { name: 'Ana' }, name: 'Lovely', reviewBody: 'Beautiful prints.', datePublished: '2026-09-01' });
+    expect(data.offers).toMatchObject({ itemCondition: 'https://schema.org/NewCondition', seller: { name: 'Lyricalmyrical Books' } });
+    expect(bookStructuredData(book, { ...options, reviews: [] }).aggregateRating).toBeUndefined();
+    expect(ratingData([{ authorName: 'A', rating: 5 }])).not.toHaveProperty('review');
+  });
+  it('builds breadcrumb trails with clean absolute URLs', () => {
+    const data = breadcrumbData([{ name: 'Shop', url: 'https://example.com/shop/' }, { name: '', url: 'https://example.com/x' }, { name: 'Altrove', url: 'https://example.com/shop/books/altrove?utm=1' }]);
+    expect(data.itemListElement).toEqual([
+      { '@type': 'ListItem', position: 1, name: 'Shop', item: 'https://example.com/shop/' },
+      { '@type': 'ListItem', position: 2, name: 'Altrove', item: 'https://example.com/shop/books/altrove' },
+    ]);
+  });
+  it('describes a category as a list of its books', () => {
+    const books = Array.from({ length: 35 }, (_, i) => ({ name: `Book ${i}`, url: `https://example.com/shop/books/b${i}`, image: i === 0 ? '/shop/c.jpg' : undefined }));
+    const data: any = collectionStructuredData({ name: 'Photography', description: '<b>Photo</b> books', url: 'https://example.com/shop/collections/photography', books });
+    expect(data['@type']).toBe('CollectionPage');
+    expect(data.description).toBe('Photo books');
+    expect(data.mainEntity.itemListElement).toHaveLength(30);
+    expect(data.mainEntity.itemListElement[0]).toMatchObject({ position: 1, name: 'Book 0', image: 'https://example.com/shop/c.jpg' });
+  });
+  it('links the shop and website and keeps only https profile links', () => {
+    const [org, site]: any[] = siteStructuredData({ name: 'Lyricalmyrical Books', url: 'https://example.com/shop/', logo: '/shop/logo.png', sameAs: ['https://instagram.com/x', '', 'javascript:alert(1)', 42] });
+    expect(org).toMatchObject({ '@type': 'BookStore', '@id': 'https://example.com/shop/#organization', logo: 'https://example.com/shop/logo.png', sameAs: ['https://instagram.com/x'] });
+    expect(site).toMatchObject({ '@type': 'WebSite', publisher: { '@id': 'https://example.com/shop/#organization' } });
   });
 });

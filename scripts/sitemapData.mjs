@@ -1,6 +1,10 @@
 import { effectivePublishedSettings } from './publicStorefrontData.mjs';
 import { resolveProductRoutes } from '../src/app/features/site/productRouteData.mjs';
 const escapeXml = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[char]);
+const absoluteUrl = (value, base) => {
+  if (typeof value !== 'string' || !value.trim() || value.startsWith('data:')) return '';
+  try { const url = new URL(value.trim(), base); return /^https?:$/.test(url.protocol) ? url.href : ''; } catch { return ''; }
+};
 const slugify = (value = '') => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 export function sitemapArtifacts(siteUrl, books, pages, collections, settings = {}) {
   const base = siteUrl.replace(/\/$/, '');
@@ -10,7 +14,9 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
   const live = books.filter(book => (!book.status || book.status === 'published') && (!book.scheduleDate || String(book.scheduleDate) <= nowISO));
   for (const book of resolveProductRoutes(live)) {
     if (book.seoNoindex === true) continue;
-    urls.push({ loc: `${base}/books/${encodeURIComponent(book.slug)}`, lastmod: book.updatedAt || book._updateTime });
+    // Google Images is a main way people find photo and art books: list each listing's photos.
+    const images = [...new Set((Array.isArray(book.photos) ? book.photos : []).map(photo => absoluteUrl(photo?.url, base + '/')).filter(Boolean))].slice(0, 10);
+    urls.push({ loc: `${base}/books/${encodeURIComponent(book.slug)}`, lastmod: book.updatedAt || book._updateTime, images });
   }
   for (const page of pages) {
     if (page.status !== 'published' || !page.slug) continue;
@@ -33,10 +39,14 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
     if (slug) urls.push({ loc: `${base}/collections/${encodeURIComponent(slug)}` });
   }
   const unique = [...new Map(urls.map(url => [url.loc, url])).values()];
-  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + unique.map(url => {
+  // The home page lists every book and page, so it changes whenever they do.
+  const newest = unique.map(url => typeof url.lastmod === 'string' ? url.lastmod.slice(0, 10) : '').filter(date => /^\d{4}-\d{2}-\d{2}$/.test(date)).sort().pop();
+  if (newest) unique[0] = { ...unique[0], lastmod: newest };
+  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n' + unique.map(url => {
     const date = typeof url.lastmod === 'string' ? url.lastmod.slice(0, 10) : '';
     const lastmod = /^\d{4}-\d{2}-\d{2}$/.test(date) ? `\n    <lastmod>${date}</lastmod>` : '';
-    return `  <url>\n    <loc>${escapeXml(url.loc)}</loc>${lastmod}\n  </url>`;
+    const images = (url.images || []).map(image => `\n    <image:image>\n      <image:loc>${escapeXml(image)}</image:loc>\n    </image:image>`).join('');
+    return `  <url>\n    <loc>${escapeXml(url.loc)}</loc>${lastmod}${images}\n  </url>`;
   }).join('\n') + '\n</urlset>\n';
   const path = new URL(base).pathname.replace(/\/$/, '');
   const robots = 'User-agent: *\nAllow: /\n' + ['admin', 'checkout', 'account', 'wishlist', 'cart', 'track'].map(route => `Disallow: ${path}/${route}\n`).join('') + `\nSitemap: ${base}/sitemap.xml\n`;

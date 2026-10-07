@@ -38,3 +38,17 @@ it('published store policies are listed so they render as real pages', () => {
   expect(result.xml).not.toContain('policy-terms');
   expect(result.xml).not.toContain('policy-shipping');
 });
+
+it('lists book photos for Google Images and dates the home page by its newest content', () => {
+  const result = sitemapArtifacts('https://example.com/shop', [
+    { id: 'one', title: 'One', slug: 'one', status: 'published', updatedAt: '2026-09-02T00:00:00Z', photos: [{ url: '/shop/a.jpg' }, { url: 'https://cdn.example.com/b.jpg?x=1&y=2' }, { url: '/shop/a.jpg' }, { url: 'data:image/png;base64,AAA' }, {}] },
+    { id: 'two', title: 'Two', slug: 'two', status: 'published', updatedAt: '2026-10-01T00:00:00Z' },
+  ], [], [], {});
+  expect(result.xml).toContain('xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"');
+  expect(result.xml.match(/<image:loc>/g)).toHaveLength(2);
+  expect(result.xml).toContain('<image:loc>https://example.com/shop/a.jpg</image:loc>');
+  expect(result.xml).toContain('<image:loc>https://cdn.example.com/b.jpg?x=1&amp;y=2</image:loc>');
+  expect(result.xml).not.toContain('data:image');
+  expect(result.xml).toMatch(/<loc>https:\/\/example\.com\/shop\/<\/loc>\n    <lastmod>2026-10-01<\/lastmod>/);
+});
+

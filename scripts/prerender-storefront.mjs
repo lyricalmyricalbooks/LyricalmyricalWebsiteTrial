@@ -59,7 +59,7 @@ try {
       await page.waitForFunction(() => !!sessionStorage.getItem('site-bootstrap-v1'), undefined, { timeout: 60000 });
       if (!publishedCache) publishedCache = await page.evaluate(() => sessionStorage.getItem('site-bootstrap-v1'));
       if (route.startsWith('/books/')) {
-        await page.waitForFunction(() => !!document.querySelector('[data-studio-label="Product page"]') && !!document.getElementById('seo-jsonld-page'), undefined, { timeout: 30000 });
+        await page.waitForFunction(() => !!document.querySelector('[data-studio-label="Product page"][data-seo-reviews="ready"]') && !!document.getElementById('seo-jsonld-page'), undefined, { timeout: 30000 });
       } else if (route.startsWith('/page/')) {
         await page.waitForFunction(slug => document.querySelector('[data-seo-page]')?.getAttribute('data-seo-page') === slug, decodeURIComponent(route.slice('/page/'.length)), { timeout: 30000 });
       } else if (route.startsWith('/collections/')) {
