@@ -1,5 +1,30 @@
 import { expect, it } from 'vitest';
 import { sitemapArtifacts } from './sitemapData.mjs';
+it('retains legacy string parents whose published books belong to a child category', () => {
+  const result = sitemapArtifacts('https://example.com/shop', [{ id: 'zine', title: 'Zine', status: 'published', categories: ['Zines'] }], [], [], { design: { categories: ['Books', { name: 'Zines', parentId: 'cat-0' }] } });
+  expect(result.xml).toContain('/collections/books');
+});
+it('keeps empty published category routes available for noindex HTML rendering', () => {
+  const settings = { design: { categories: ['Empty'] } };
+  expect(sitemapArtifacts('https://example.com/shop', [], [], [], settings).xml).not.toContain('/collections/empty');
+  expect(sitemapArtifacts('https://example.com/shop', [], [], [], settings, { includeEmptyCollections: true }).xml).toContain('/collections/empty');
+});
+it('omits empty categories while retaining alias and parent membership and sold-out books', () => {
+  const categories = [{ id: 'parent', name: 'Books' }, { name: 'New zines', aliases: ['Old zines'], parentId: 'parent' }, 'Empty', 'Draft only', 'Future', 'PUBLICATIONS'];
+  const books = [
+    { id: 'one', title: 'One', status: 'published', categories: ['Old zines'], stockLevel: 0 },
+    { id: 'draft', title: 'Draft', status: 'draft', categories: ['Draft only'] },
+    { id: 'future', title: 'Future', status: 'published', scheduleDate: '2999-01-01', categories: ['Future'] },
+  ];
+  const result = sitemapArtifacts('https://example.com/shop', books, [], [], { design: { categories } });
+  expect(result.xml).toContain('/collections/books');
+  expect(result.xml).toContain('/collections/new-zines');
+  expect(result.xml).toContain('/collections/publications');
+  expect(result.xml).not.toContain('/collections/old-zines');
+  expect(result.xml).not.toContain('/collections/empty');
+  expect(result.xml).not.toContain('/collections/draft-only');
+  expect(result.xml).not.toContain('/collections/future');
+});
 it('uses unique catalog routes, escapes XML, excludes private and draft pages, and scopes robots to the deployment path', () => {
   const result = sitemapArtifacts('https://example.com/shop/', [
     { id: 'one', title: 'One', slug: 'same', status: 'published' },
@@ -18,7 +43,7 @@ it('uses unique catalog routes, escapes XML, excludes private and draft pages, a
 
 it('indexes only visible published Studio categories and excludes noindex books', () => {
  const settings = { design: { categories: ['PUBLICATIONS', { name: 'Books', id: 'books' }, { name: 'Hidden', id: 'hidden', showInNav: false }, { name: 'Hidden child', parentId: 'hidden' }, { name: 'Zines', parentId: 'books' }, { name: 'Books' }] }, draftDesign: { categories: ['Draft category'] } };
- const result = sitemapArtifacts('https://example.com/shop', [{ id: 'test', title: 'Test', status: 'published', seoNoindex: true }, { id: 'real', title: 'Real', status: 'published' }], [], [{ name: 'Old disconnected collection' }], settings);
+ const result = sitemapArtifacts('https://example.com/shop', [{ id: 'test', title: 'Test', status: 'published', seoNoindex: true }, { id: 'real', title: 'Real', status: 'published', categories: ['Zines'] }], [], [{ name: 'Old disconnected collection' }], settings);
  expect(result.xml).toContain('/collections/publications'); expect(result.xml).toContain('/collections/books'); expect(result.xml).toContain('/collections/zines');
  expect(result.xml).not.toContain('/books/test'); expect(result.xml).toContain('/books/real');
  expect(result.xml).not.toContain('hidden'); expect(result.xml).not.toContain('draft-category'); expect(result.xml).not.toContain('old-disconnected');
@@ -27,7 +52,7 @@ it('indexes only visible published Studio categories and excludes noindex books'
 
 it('uses activated scheduled Studio categories instead of the superseded design', () => {
  const settings = { design: { categories: ['Old'] }, scheduledPublish: { at: '2000-01-01T00:00:00Z', design: { categories: ['Scheduled'] } } };
- const result = sitemapArtifacts('https://example.com/shop', [], [], [], settings);
+ const result = sitemapArtifacts('https://example.com/shop', [{ id: 'scheduled-book', title: 'Book', status: 'published', categories: ['Scheduled'] }], [], [], settings);
  expect(result.xml).toContain('/collections/scheduled'); expect(result.xml).not.toContain('/collections/old');
 });
 

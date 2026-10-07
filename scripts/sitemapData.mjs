@@ -1,3 +1,4 @@
+import { bookInCategory, normalizeCategories } from '../src/app/features/site/categoryMembership.mjs';
 import { effectivePublishedSettings } from './publicStorefrontData.mjs';
 import { resolveProductRoutes } from '../src/app/features/site/productRouteData.mjs';
 const escapeXml = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[char]);
@@ -6,7 +7,7 @@ const absoluteUrl = (value, base) => {
   try { const url = new URL(value.trim(), base); return /^https?:$/.test(url.protocol) ? url.href : ''; } catch { return ''; }
 };
 const slugify = (value = '') => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-export function sitemapArtifacts(siteUrl, books, pages, collections, settings = {}) {
+export function sitemapArtifacts(siteUrl, books, pages, collections, settings = {}, { includeEmptyCollections = false } = {}) {
   const base = siteUrl.replace(/\/$/, '');
   const urls = [{ loc: base + '/' }];
   // Same live-book set (and so the same collision-safe slugs) as the storefront's useSiteData / isLiveBook.
@@ -30,9 +31,11 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
   }
   // Collection pages resolve Studio category names, not a separate Firestore collection.
   const design = effectivePublishedSettings(settings, nowISO).design || {};
-  const categories = design.categories ?? design.storefront?.categories ?? design.heroPage?.categories ?? [];
-  if (Array.isArray(categories)) for (const category of categories) {
+  const categorySource = design.categories ?? design.storefront?.categories ?? design.heroPage?.categories ?? [];
+  const categories = normalizeCategories(Array.isArray(categorySource) ? categorySource : []);
+  for (const category of categories) {
     if (category?.showInNav === false) continue;
+    if (!includeEmptyCollections && !live.some(book => book.status === 'published' && bookInCategory(book, category, categories))) continue;
     if (category?.parentId && categories.some(parent => parent?.id === category.parentId && parent.showInNav === false)) continue;
     const name = typeof category === 'string' ? category : category?.name;
     const slug = slugify(name);
