@@ -59,6 +59,16 @@ export function OrderDetail({
   };
   const [order, setOrder] = useState<any>(null);
   useEffect(() => { if (order) onChanged?.(order); }, [order]);
+  // Catalog records for the order's books: current cover + shelf location on the packing checklist.
+  const [books, setBooks] = useState<Record<string, any>>({});
+  const bookIds = Array.from(new Set((order?.items || []).map((i: any) => i?.id).filter((id: any) => typeof id === "string" && id))).sort().join("|");
+  useEffect(() => {
+    if (!bookIds) return;
+    let alive = true;
+    Promise.all(bookIds.split("|").map((id) => adminApi.getBook(id).catch(() => null)))
+      .then((list) => { if (alive) setBooks(Object.fromEntries(list.filter(Boolean).map((b: any) => [b.id, b]))); });
+    return () => { alive = false; };
+  }, [bookIds]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [note, setNote] = useState("");
@@ -579,6 +589,7 @@ export function OrderDetail({
       <div className="fw-layout">
         <FulfillmentWorkbench
           order={order}
+          books={books}
           checked={checked}
           busy={
             working || isShipping || isBuyingLabel || isVoiding || loadFailed

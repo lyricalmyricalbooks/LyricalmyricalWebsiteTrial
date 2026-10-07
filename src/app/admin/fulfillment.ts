@@ -106,3 +106,15 @@ export function buildPickList(orders: any[]) {
  return [...items.values()];
 }
 
+
+// What the packing checklist shows for one order line: the book's current cover
+// (catalog first, then the photo saved on the order) and where it sits on the shelf.
+export function packingInfo(item: any, book: any): { photo: string; shelf: string } {
+  const b = book || {};
+  const variant = (b.variants || []).find((v: any) => v && (
+    (item?.variantId && v.id === item.variantId) || (item?.variantName && v.name === item.variantName)));
+  const photo = [variant?.image, variant?.photoUrl, b.coverImage, b.photos?.[0], b.image, item?.photoUrl]
+    .find((x) => typeof x === "string" && x.trim()) || "";
+  const shelf = String(variant?.shelfLocation || b.shelfLocation || "").trim();
+  return { photo, shelf };
+}

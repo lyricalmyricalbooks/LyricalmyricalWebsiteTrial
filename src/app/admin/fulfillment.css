@@ -130,6 +130,25 @@ ul.fw-problems {
   flex-shrink: 0;
   border: 1px solid var(--rp-border);
 }
+.fw-item-cover {
+  width: 48px;
+  height: 64px;
+  flex-shrink: 0;
+}
+.fw-item-cover-empty {
+  display: block;
+  background: var(--rp-surface-inset);
+  border: 1px solid var(--rp-border);
+}
+.fw-item-name > .fw-item-shelf {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--rp-border-strong);
+  font-family: var(--rp-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+}
 .fw-item-name {
   flex: 1;
   min-width: 0;

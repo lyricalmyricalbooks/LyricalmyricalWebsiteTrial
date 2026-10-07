@@ -880,3 +880,5 @@ toggled), the full `OrderDetail` on the right — so Stripe sync, refunds, dispu
 with the oldest order that needs work opened automatically and finishing an order moving to the next (`goToNext`).
 `OrderDetail` reports reloads via `onChanged` so the list refreshes. Phones show list *or* order. **Table view** opens the
 previous `Orders` table (bulk packing, pick lists, CSV). Email links `/admin#orders/<id>` still open that order.
+The packing checklist shows each book's current cover and **Shelf location** (Books › edit › Inventory, `shelfLocation`,
+per edition when set; `packingInfo` in `fulfillment.ts`). Books are public-readable, so the shelf code is too.

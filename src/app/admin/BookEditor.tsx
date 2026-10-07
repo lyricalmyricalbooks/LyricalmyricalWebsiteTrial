@@ -853,6 +853,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 <div className="be-grid be-grid-3">
                   <TextField label={`Stock level${hasVariants ? " (from editions)" : ""}`} type="number" name="stockLevel" value={formData.stockLevel} onChange={handleChange} disabled={hasVariants} />
                   <div className="be-stock-status">{formData.trackInventory && stockBadge(num(formData.stockLevel))}</div>
+                  <TextField label="Shelf location" name="shelfLocation" value={formData.shelfLocation || ""} onChange={handleChange} placeholder="e.g. B2 or Box 4" hint="Shown next to this book on the packing checklist." />
                 </div>
                 {lowStock && <p className="be-warn" role="status">⚠ Low stock. Consider reprinting or turning on backorders.</p>}
               </SectionCard>

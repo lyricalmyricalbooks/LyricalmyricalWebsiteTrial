@@ -9,6 +9,7 @@ import {
   queueOf,
   daysInTransit,
   isOverdueInTransit,
+  packingInfo,
 } from "./fulfillment";
 import {
   Checkbox,
@@ -20,6 +21,8 @@ import "./fulfillment.css";
 
 type Props = {
   order: any;
+  /** Catalog records by book id, for the current cover and shelf location. */
+  books?: Record<string, any>;
   checked: Set<number>;
   busy: boolean;
   onCheck: (index: number) => void;
@@ -55,6 +58,7 @@ export function FulfillmentWorkbench({
   onHandedOver,
   onLocalAdvance,
   onRelease,
+  books,
 }: Props) {
   const queue = queueOf(order);
   const addr = order.customer?.address || {};
@@ -241,18 +245,30 @@ export function FulfillmentWorkbench({
                   aria-label="Packed"
                 />
               ) : null}
-              {item.photoUrl && (
-                <img src={item.photoUrl} alt="" width="36" height="48" />
-              )}
-              <div className="fw-item-name">
-                <strong>{item.title}</strong>
-                <span className="rp-hint">
-                  {[item.variantName, item.format, item.sku]
-                    .filter(Boolean)
-                    .join(" · ")}
-                  {isDigitalItem(item) ? " · Digital" : ""}
-                </span>
-              </div>
+              {(() => {
+                const info = packingInfo(item, books?.[item.id]);
+                return (
+                  <>
+                    {info.photo ? (
+                      <img className="fw-item-cover" src={info.photo} alt="" width="48" height="64" loading="lazy" />
+                    ) : (
+                      <span className="fw-item-cover fw-item-cover-empty" aria-hidden="true" />
+                    )}
+                    <div className="fw-item-name">
+                      <strong>{item.title}</strong>
+                      <span className="rp-hint">
+                        {[item.variantName, item.format, item.sku]
+                          .filter(Boolean)
+                          .join(" · ")}
+                        {isDigitalItem(item) ? " · Digital" : ""}
+                      </span>
+                      {info.shelf && !isDigitalItem(item) && (
+                        <span className="fw-item-shelf">Shelf {info.shelf}</span>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
               <span className="fw-quantity">× {item.quantity}</span>
             </li>
           ))}
