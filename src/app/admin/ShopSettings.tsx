@@ -131,7 +131,7 @@ export function ShopSettings({
   );
 }
 const POLICY_STARTERS: Record<PolicyKey, string> = {
-  shipping: "We ship orders within 2–5 business days of payment. Delivery times and costs are calculated at checkout based on your destination.\n\nYou will receive an email with tracking once your order ships. Digital titles are available to download immediately after payment.",
+  shipping: "We process orders within 1–3 business days of payment. Carrier transit time is additional and shown at checkout for your destination and selected service.\n\nYou will receive an email with tracking once your order ships. Digital titles are available to download immediately after payment.",
   returns: "If your book arrives damaged or incorrect, contact us within 30 days of delivery and we will replace it or refund you.\n\nDigital downloads are non-refundable once accessed, unless the file is faulty.",
   privacy: "We collect only what we need to fulfil your order and, if you opt in, send you our newsletter: your name, email, shipping address and order details.\n\nPayments are processed by Stripe; we never see or store your card number. We do not sell your personal information. You can ask us to delete your data at any time.",
   terms: "By placing an order you agree that the details you provide are accurate and that you are authorised to use the payment method.\n\nPrices are shown in Canadian dollars unless stated otherwise. We may cancel and refund an order if a title is unavailable or a pricing error occurred.",
@@ -840,7 +840,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
         name: "Standard Shipping",
         base: 15,
         additional: 5,
-        deliveryDays: "3-7",
+        deliveryDays: "",
         type: "flat",
         enabled: true,
         minPrice: null,
@@ -1048,7 +1048,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
               </div>
             )}
             <div style={grid}>
-              <TextField label={t === "pickup" ? "Ready in (days)" : "Estimated delivery (days)"} value={activeRate.deliveryDays || ""} placeholder="e.g. 3-7, 1-2, 5-10" onChange={(e) => set("deliveryDays", e.target.value)} />
+              <TextField label={t === "pickup" ? "Ready in (days)" : "Carrier transit after dispatch (days)"} value={activeRate.deliveryDays || ""} placeholder="Only enter a carrier-backed estimate" onChange={(e) => set("deliveryDays", e.target.value)} />
               {priced && <TextField label="Free when order reaches ($)" type="number" min={0} step="0.01" value={activeRate.freeOver ?? ""} placeholder="e.g. 75.00" hint="This rate becomes free at or above this total." onChange={(e) => set("freeOver", e.target.value)} />}
             </div>
             <fieldset style={{ border: "var(--rp-hair) solid var(--rp-divider)", padding: 12, margin: 0 }}>

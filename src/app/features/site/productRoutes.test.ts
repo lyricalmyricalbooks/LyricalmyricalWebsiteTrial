@@ -16,9 +16,14 @@ describe("product destinations", () => {
   it("resolves an exact ID before another product's slug", () => {
     expect(findProduct([{id:"a",slug:"b"},{id:"b",slug:"c"}], "b")?.id).toBe("b");
   });
-  it("does not expose unpublished products or arbitrarily resolve an ambiguous old slug", () => {
-    expect(findProduct(books, "altrove")).toBeUndefined();
+  it("hides placeholder duplicate routes but still resolves the genuine published title", () => {
+    expect(findProduct(books, "altrove")?.id).toBe("original");
     expect(findProduct([{id:"draft",status:"draft",title:"Hidden"}], "draft")).toBeUndefined();
+  });
+  it("does not resolve test/copy product pages for direct public visits", () => {
+    const placeholder = [{ id: "demo", title: "Antigravity Test Book", status: "published" }, { id: "copy", title: "Altrove (Copy)", status: "published" }];
+    expect(findProduct(placeholder, "demo")).toBeUndefined();
+    expect(findProduct(placeholder, "copy")).toBeUndefined();
   });
   it("does not let another product's slug shadow an ID or use a blank destination", () => {
     expect(resolveProductRoutes([{id:"a",slug:"b"},{id:"b",title:""}]).map(b=>b.slug)).toEqual(["a", "b"]);

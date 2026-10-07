@@ -76,6 +76,10 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
   if (partial.length) out.push(alert("partial-refund", "warning", `${plural(partial.length, "order was", "orders were")} partly refunded in Stripe`,
     `Check what still needs to ship before packing: ${list(partial)}.`, partial));
 
+  const inventoryConflict = orders.filter((o) => o.inventoryConflict && !isFinished(o));
+  if (inventoryConflict.length) out.push(alert("inventory-conflict", "danger", `${plural(inventoryConflict.length, "captured payment needs", "captured payments need")} inventory reconciliation`,
+    `Payment was captured after its stock hold expired: ${list(inventoryConflict)}. Review the provider payment and contact the customer.`, inventoryConflict));
+
   const oversold = orders.filter((o) => o.oversold && o.paymentStatus === "paid" && !isFinished(o));
   if (oversold.length) out.push(alert("oversold", "warning", `${plural(oversold.length, "paid order was", "paid orders were")} oversold`,
     `More copies were sold than were in stock: ${list(oversold)}. Restock or contact the customer.`, oversold));

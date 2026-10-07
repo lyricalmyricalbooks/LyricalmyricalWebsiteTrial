@@ -51,6 +51,7 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
   stock, counts discount redemptions, and records revenue. Orders are created
   `unpaid`. Never mark a Stripe order paid, adjust its inventory, or count its discount from
   client code or another Stripe recovery path. Preserve existing PayPal, manual/offline and free-order contracts.
+- **Tracked inventory reservations:** acquire expiring server-only holds transactionally before creating a payment and revalidate them at settlement; reservation-store failures fail closed. Release on payment/cancel and surface any already-captured payment that can no longer reserve stock for admin reconciliation.
 - **Never trust client-computed totals** for the authoritative charge. Prices,
   shipping, tax, and discounts that determine what a customer is charged must be
   computed/validated server-side via the Stripe session. The client may *display*

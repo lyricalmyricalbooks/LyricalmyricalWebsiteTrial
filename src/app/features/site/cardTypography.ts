@@ -39,14 +39,14 @@ export function cardTypographyCss(design: any): string {
     title.push(`letter-spacing:${Number(d.cardTitleTracking)}em !important;`);
   }
   if (title.length) css += `${S} .fm-card-title{${title.join("")}}`;
-  css += sizeRules(`${S} .fm-card-title`, num(d.cardTitleSize), num(d.cardTitleSizeMobile));
+  css += sizeRules(`${S} .fm-card-title`, num(d.cardTitleSize), d.cardTitleSizeMobile === undefined ? 16 : num(d.cardTitleSizeMobile));
 
   const wrap: string[] = [];
   if (d.productPriceColor) wrap.push(`color:${clean(d.productPriceColor)} !important;`);
   if (d.cardPriceFont) wrap.push(`font-family:${font(d.cardPriceFont)} !important;`);
   if (wrap.length) css += `${S} .fm-card-price-wrap{${wrap.join("")}}`;
   if (d.cardPriceWeight) css += `${S} .fm-card-price{font-weight:${num(d.cardPriceWeight) || 700} !important;}`;
-  css += sizeRules(`${S} .fm-card-price`, num(d.cardPriceSize), num(d.cardPriceSizeMobile));
+  css += sizeRules(`${S} .fm-card-price`, num(d.cardPriceSize), d.cardPriceSizeMobile === undefined ? 16 : num(d.cardPriceSizeMobile));
   if (d.cardPriceTagBg) css += `${S} .fm-card-price-tag{background-color:${clean(d.cardPriceTagBg)} !important;}`;
   if (d.cardPriceOldColor) css += `${S} .fm-card-price-old{color:${clean(d.cardPriceOldColor)} !important;opacity:1 !important;}`;
 

@@ -991,9 +991,33 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
   return { ...update, convertedTotal, settings };
 }
 
+async function reserveForConfirmedPayment(orderId, provider, paymentId) {
+  const ref = db.collection("orders").doc(orderId);
+  const snap = await ref.get();
+  if (!snap.exists) return true;
+  const order = snap.data();
+  if (order.paymentStatus === "paid" || order.status === "cancelled" || order.isTest === true || order.paypalMode === "test" || order.stripeMode === "test") return true;
+  try {
+    await reserveStock(db, orderId, order.items || []);
+    return true;
+  } catch (err) {
+    if (!(err instanceof StockHoldError)) throw err;
+    const at = new Date().toISOString();
+    await ref.update({
+      inventoryConflict: { provider, paymentId: paymentId || null, reason: err.code, at },
+      activity: [...(order.activity || []), { type: "event", message: `${provider} confirmed payment, but stock was no longer available. The order was not marked paid or fulfilled; reconcile the captured payment and contact the customer.`, createdAt: at }],
+      updatedAt: at,
+    });
+    return false;
+  }
+}
+
 async function markOrderPaidFromPayPal(orderId, paypalData) {
   const orderRef = db.collection("orders").doc(orderId);
   let paidTotal = null;
+  const initialOrder = await orderRef.get();
+  if (initialOrder.exists && initialOrder.data().paypalMode !== "test"
+      && !await reserveForConfirmedPayment(orderId, "PayPal", paypalData.captureId)) return false;
   await db.runTransaction(async transaction => {
     paidTotal = null; // a retried attempt must not keep the last attempt's value
     const orderDoc = await transaction.get(orderRef);
@@ -1061,6 +1085,7 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
       revenue: admin.firestore.FieldValue.increment(paidTotal),
     }, { merge: true });
   }
+  return paidTotal !== null || (await orderRef.get()).data()?.paymentStatus === "paid";
 }
 
 exports.createPayPalOrder = onBrowserRequest(
@@ -1089,13 +1114,15 @@ exports.createPayPalOrder = onBrowserRequest(
       } catch (pricingErr) {
         return res.status(400).json({ error: pricingErr.message });
       }
-      try {
-        await reserveStock(db, orderId, order.items || []);
-      } catch (holdErr) {
-        if (holdErr instanceof StockHoldError) return res.status(409).json({ error: holdErr.message, code: holdErr.code });
-        throw holdErr;
-      }
       const config = await getPayPalConfig();
+      if (!config.testMode) {
+        try {
+          await reserveStock(db, orderId, order.items || []);
+        } catch (holdErr) {
+          if (holdErr instanceof StockHoldError) return res.status(409).json({ error: holdErr.message, code: holdErr.code });
+          throw holdErr;
+        }
+      }
       let checkoutBase = `${req.headers.origin || "http://localhost:5173"}/checkout`;
       if (typeof returnUrl === "string" && ALLOWED_ORIGINS.some(origin => returnUrl === origin || returnUrl.startsWith(`${origin}/`))) checkoutBase = returnUrl;
       const joiner = checkoutBase.includes("?") ? "&" : "?";
@@ -1148,17 +1175,18 @@ exports.capturePayPalOrder = onBrowserRequest(
       if (!orderDoc.exists || orderDoc.data().paypalOrderId !== paypalOrderId) return res.status(400).json({ error: "PayPal order mismatch" });
       if (!canViewOrder(orderDoc.data(), { key: orderRequestKey(req), identity: await orderRequestIdentity(req) })) return res.status(403).json({ error: "access_required" });
       if (orderDoc.data().paymentStatus === "paid") return res.json({ paid: true });
+      if (!await reserveForConfirmedPayment(orderId, "PayPal", paypalOrderId)) return res.status(409).json({ error: "Stock is no longer available. Your payment was not taken.", code: "stock_unavailable" });
       const config = await getPayPalConfig();
       const captured = await paypalRequest(config, `/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
         method: "POST", headers: { "PayPal-Request-Id": `capture-${orderId}` }, body: "{}",
       });
       const capture = captured.purchase_units?.[0]?.payments?.captures?.[0];
       if (captured.status !== "COMPLETED" || capture?.status !== "COMPLETED") throw new Error("PayPal capture has not completed.");
-      await markOrderPaidFromPayPal(orderId, {
+      const markedPaid = await markOrderPaidFromPayPal(orderId, {
         paypalOrderId, captureId: capture.id, transactionId: capture.id,
         payerId: captured.payer?.payer_id || null, captureStatus: capture.status, capture,
       });
-      res.json({ paid: true });
+      res.json({ paid: markedPaid === true, paymentReview: markedPaid !== true });
     } catch (err) {
       console.error("PayPal capture failed:", err);
       res.status(500).json({ error: err.message });
@@ -1293,7 +1321,13 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         for (const cartKey of [order.cartId, `active_${order.customer.email}`].filter(Boolean)) {
           await db.collection('abandoned-carts').doc(cartKey).update({ recovered: true, recoveredAt: now }).catch(() => {});
         }
-        await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, trackingKey, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
+        await reserveStock(db, orderId, items);
+        try {
+          await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, trackingKey, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
+        } catch (createErr) {
+          await releaseStock(db, orderId, items);
+          throw createErr;
+        }
         return res.status(200).json({ orderId, trackingKey, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
       } catch (err) {
         return res.status(400).json({ error: err.message });
@@ -1599,16 +1633,17 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         });
       }
 
-      // Hold the copies for this shopper while they pay, so a second shopper can't also
-      // pay for the last one. Stock still only moves when the payment is confirmed.
-      try {
-        await reserveStock(db, orderId, items);
-      } catch (holdErr) {
-        if (holdErr instanceof StockHoldError) {
-          res.status(409).json({ error: holdErr.message, code: holdErr.code });
-          return;
+      // Sandbox sessions rehearse payment only; they do not reserve or consume live stock.
+      if (!testMode) {
+        try {
+          await reserveStock(db, orderId, items);
+        } catch (holdErr) {
+          if (holdErr instanceof StockHoldError) {
+            res.status(409).json({ error: holdErr.message, code: holdErr.code });
+            return;
+          }
+          throw holdErr;
         }
-        throw holdErr;
       }
 
       // Payment Element on the checkout page: charge the same server-priced
@@ -1907,6 +1942,14 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
     let paidTotal = null;
     let markedPaid = false;
     let duplicateAlert = null;
+    const initialOrder = await orderRef.get();
+    if (initialOrder.exists) {
+      const initial = initialOrder.data();
+      const amountCheck = paidAmountCheck(initial, session.amount_total, session.currency);
+      if (amountCheck.ok && session.livemode !== false && initial.stripeMode !== "test"
+          && initial.paymentStatus !== "paid" && initial.status !== "cancelled"
+          && !await reserveForConfirmedPayment(orderId, "Stripe", typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id)) return false;
+    }
 
     await db.runTransaction(async transaction => {
       paidTotal = null; // a retried attempt must not keep the last attempt's value
@@ -3154,6 +3197,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       if (isManual && after.inventoryDecrementedAt == null) {
         const itemList = after.items || [];
         try {
+          await reserveStock(db, orderId, itemList);
           await db.runTransaction(async transaction => {
             const books = await readBooks(transaction, db, itemList);
             const oversold = writeStock(transaction, db, itemList, books, -1, new Date().toISOString());
@@ -4893,6 +4937,8 @@ exports.onBookUpdated = onDocumentUpdated(
 async function completeOrderWithoutCard(orderId, message) {
   const orderRef = db.collection("orders").doc(orderId);
   let paidTotal = null;
+  const initial = await orderRef.get();
+  if (initial.exists && initial.data().paymentStatus !== "paid") await reserveStock(db, orderId, initial.data().items || []);
 
   await db.runTransaction(async transaction => {
     paidTotal = null; // a retried attempt must not keep the last attempt's value

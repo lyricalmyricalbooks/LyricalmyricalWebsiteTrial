@@ -1,6 +1,7 @@
 import { bookInCategory, normalizeCategories } from '../src/app/features/site/categoryMembership.mjs';
 import { effectivePublishedSettings } from './publicStorefrontData.mjs';
 import { resolveProductRoutes } from '../src/app/features/site/productRouteData.mjs';
+import { isPlaceholderCatalogRecord } from '../src/app/features/site/catalogQuality.mjs';
 const escapeXml = value => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[char]);
 const absoluteUrl = (value, base) => {
   if (typeof value !== 'string' || !value.trim() || value.startsWith('data:')) return '';
@@ -12,7 +13,7 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
   const urls = [{ loc: base + '/' }];
   // Same live-book set (and so the same collision-safe slugs) as the storefront's useSiteData / isLiveBook.
   const nowISO = new Date().toISOString();
-  const live = books.filter(book => (!book.status || book.status === 'published') && (!book.scheduleDate || String(book.scheduleDate) <= nowISO));
+  const live = books.filter(book => (!book.status || book.status === 'published') && !isPlaceholderCatalogRecord(book) && (!book.scheduleDate || String(book.scheduleDate) <= nowISO));
   for (const book of resolveProductRoutes(live)) {
     if (book.seoNoindex === true) continue;
     // Google Images is a main way people find photo and art books: list each listing's photos.

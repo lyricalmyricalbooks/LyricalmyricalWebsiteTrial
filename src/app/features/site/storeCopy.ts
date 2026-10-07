@@ -58,7 +58,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       {
         key: "cartDeliveryNote",
         label: "Delivery note",
-        default: "Estimated delivery 5–7 business days · Taxes calculated at checkout",
+        default: "Carrier transit estimates appear at checkout after you enter your address and cover time after dispatch. Processing time is separate; see the Shipping Policy for order preparation timing. Taxes are calculated at checkout.",
         multiline: true,
       },
       { key: "cartCountLabel", label: "Item count line", default: "{count} in your bag", hint: "Use {count} for the number of copies in the bag." },
@@ -605,7 +605,7 @@ export const COPY_SCHEMA: CopyGroup[] = [
       { key: "coPickup", label: "Pickup note", default: "Collect in person — no delivery" },
       { key: "coCarrierTransit", label: "Carrier transit estimate", default: "Estimated {days} business days after dispatch", hint: "Use {days} for the carrier transit estimate for this address and service." },
       { key: "coCarrierTimingUnavailable", label: "Carrier timing unavailable", default: "Carrier delivery estimate unavailable" },
-      { key: "coEstimated", label: "Delivery estimate", default: "Estimated {days} business days", hint: "Use {days} for the number of days." },
+      { key: "coEstimated", label: "Delivery estimate", default: "Preliminary carrier estimate: {days} business days in transit after dispatch", hint: "Use {days} for profile-based transit timing; address-specific carrier estimates appear after you enter your address." },
       { key: "coFree", label: "Free shipping label", default: "Free" },
       { key: "coShipChoose", label: "Shipping not chosen yet (order summary)", default: "Choose an option" },
       { key: "coPaypalOption", label: "PayPal payment option", default: "PayPal" },

@@ -62,7 +62,6 @@ async function reserveStock(db, orderId, items, now = Date.now()) {
   const byBook = linesByBook(items);
   if (!byBook.size) return;
   const ids = [...byBook.keys()].sort(); // stable lock order
-  try {
   await db.runTransaction(async tx => {
     const bookRefs = ids.map(id => db.collection("books").doc(id));
     const holdRefs = ids.map(id => db.collection("stock-holds").doc(id));
@@ -87,12 +86,6 @@ async function reserveStock(db, orderId, items, now = Date.now()) {
     });
     for (const [ref, data] of writes) tx.set(ref, data);
   });
-  } catch (err) {
-    if (err instanceof StockHoldError) throw err;
-    // Like the rate limiter, a broken hold store must never stop a real customer paying;
-    // the paid-order oversold flag still catches the rare clash.
-    console.warn(`Stock hold failed for ${orderId}, continuing without it:`, err.message);
-  }
 }
 
 // Drops the order's holds (after payment or when the order closes). Best effort: an expired

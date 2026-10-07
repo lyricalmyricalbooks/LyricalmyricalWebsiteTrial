@@ -332,7 +332,7 @@ export const adminApi = {
             name: d.serviceName || "Standard Shipping",
             base: Number(d.base) || 0,
             additional: Number(d.additional) || 0,
-            deliveryDays: d.deliveryDays || "3-7",
+            deliveryDays: d.deliveryDays || null,
             minPrice: null,
             maxPrice: d.freeThreshold && Number(d.freeThreshold) > 0 ? Number(d.freeThreshold) : null
           }
@@ -344,7 +344,7 @@ export const adminApi = {
             name: "Free Shipping",
             base: 0,
             additional: 0,
-            deliveryDays: d.deliveryDays || "3-7",
+            deliveryDays: d.deliveryDays || null,
             minPrice: Number(d.freeThreshold),
             maxPrice: null
           });
@@ -687,7 +687,7 @@ export const adminApi = {
       showSoldOutBadge: true,
       productCTA: "VIEW",
       productColumnsDesktop: 4,
-      productColumnsMobile: 2,
+      productColumnsMobile: 1,
       containerWidth: 1200,
       sectionSpacing: 64,
       cardRadius: 8,
