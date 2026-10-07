@@ -11,10 +11,10 @@ import { BookEditor } from "./BookEditor";
 import { Discounts } from "./Discounts";
 import { Customers } from "./Customers";
 import { Inventory } from "./Inventory";
-import { Orders, ordersNeedingWork, refreshOrdersCache } from "./Orders";
+import { ordersNeedingWork, refreshOrdersCache } from "./Orders";
+import { OrdersDesk } from "./OrdersDesk";
 import { AdminAlerts } from "./AdminAlerts";
 import { buildAdminAlerts, type AdminAlert } from "./adminAlerts";
-import { OrderDetail } from "./OrderDetail";
 import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import { ShopSettings } from "./ShopSettings";
 import { StudioEditor } from "./studio/StudioEditor";
@@ -86,7 +86,6 @@ export function Dashboard() {
     // Re-count when returning from an order, so finished work drops off the badge.
   }, [user, selectedOrder === null]);
   // The list the order was opened from, for Previous / Next order.
-  const [orderQueueIds, setOrderQueueIds] = useState<string[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [settingsTab, setSettingsTab] = useState("general");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -261,7 +260,7 @@ export function Dashboard() {
   const copy = PAGE_COPY[activeTab] || PAGE_COPY.overview;
   const childLabel = NAV.find((n) => n.id === "settings")?.children?.find((c) => c.id === navChild)?.label;
   const trail: Array<{ label: string; onClick?: () => void }> = [{ label: "Storefront", onClick: () => goTo("overview") }];
-  if (selectedOrder) {
+  if (selectedOrder && activeTab !== "orders") {
     trail.push({ label: "Orders", onClick: () => setSelectedOrder(null) }, { label: "Order detail" });
   } else if (navActive === "settings") {
     trail.push({ label: "Settings", onClick: () => goTo("settings") }, { label: childLabel || "General" });
@@ -298,16 +297,8 @@ export function Dashboard() {
       case "reviews": return <ReviewsModeration />;
       case "messages": return <Messages />;
       case "orders":
-        return selectedOrder ? (
-          <OrderDetail
-            orderId={selectedOrder.id}
-            onClose={() => setSelectedOrder(null)}
-            queueIds={orderQueueIds}
-            onNavigate={(id) => setSelectedOrder({ id })}
-          />
-        ) : (
-          <Orders onSelectOrder={(order, ids) => { setOrderQueueIds(ids); setSelectedOrder(order); }} />
-        );
+        // Inbox-style desk: list + the full order page (all Stripe sync/refund/label actions) side by side.
+        return <OrdersDesk selectedId={selectedOrder?.id || null} onSelect={(id) => setSelectedOrder(id ? { id } : null)} />;
       default:
         return (
           <ShopSettings
@@ -423,8 +414,8 @@ export function Dashboard() {
       >
         <PageHeader
           breadcrumbs={<Breadcrumbs trail={trail} />}
-          title={selectedOrder ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
-          description={selectedOrder ? "Payment, fulfillment, and tracking for this order." : copy.description}
+          title={selectedOrder && activeTab !== "orders" ? "Order detail" : navActive === "settings" && childLabel ? childLabel : copy.title}
+          description={selectedOrder && activeTab !== "orders" ? "Payment, fulfillment, and tracking for this order." : copy.description}
           actions={
             <SecondaryButton icon={<History size={16} aria-hidden />} onClick={() => setShowLogs(true)}>Activity Logs</SecondaryButton>
           }

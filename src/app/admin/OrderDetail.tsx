@@ -39,11 +39,14 @@ export function OrderDetail({
   onClose,
   queueIds = [],
   onNavigate,
+  onChanged,
 }: {
   orderId: string;
   onClose: () => void;
   queueIds?: string[];
   onNavigate?: (id: string) => void;
+  /** Called whenever the order is (re)loaded — after any action or a Stripe sync — so a list beside it can refresh. */
+  onChanged?: (order: any) => void;
 }) {
   const queueIndex = queueIds.indexOf(orderId);
   const prevId = queueIndex > 0 ? queueIds[queueIndex - 1] : "";
@@ -55,6 +58,7 @@ export function OrderDetail({
     return true;
   };
   const [order, setOrder] = useState<any>(null);
+  useEffect(() => { if (order) onChanged?.(order); }, [order]);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [note, setNote] = useState("");
