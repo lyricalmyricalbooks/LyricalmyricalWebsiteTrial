@@ -1,4 +1,4 @@
-import { useState, useEffect, useId, useMemo } from "react";
+import { useState, useEffect, useId, useMemo, useRef } from "react";
 import { 
   ArrowLeft,
   Search,
@@ -47,8 +47,9 @@ import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPE
 import { quoteShipping } from "../features/site/shippingEngine";
 import { LocalFulfillmentSettings, useLocalFulfillmentDraft } from "./LocalFulfillmentSettings";
 import { paymentHealth } from "./paymentHealth";
+import { stripeSecretKeyProblem } from "./privateKeys";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
-import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames } from "./shippingCountries";
+import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
 
 const PURPLE = "#A855F7";
 
@@ -58,6 +59,7 @@ export function ShopSettings({
   settings, 
   setSettings, 
   originalSettings, 
+  setOriginalSettings,
   settingsLoading,
   saveSection 
 }: any) {
@@ -77,10 +79,13 @@ export function ShopSettings({
     }
   }
 
-  const handleSaveSection = async (section: string, data: any, options: any = {}) => {
+  const handleSaveSection = async (section: string, data: any, options: any = {}): Promise<boolean> => {
     setSavingSection(section);
-    await saveSection(section, data, options);
-    setSavingSection(null);
+    try {
+      return (await saveSection(section, data, options)) !== false;
+    } finally {
+      setSavingSection(null);
+    }
   };
 
   const hasChanges = (section: string) => {
@@ -116,7 +121,7 @@ export function ShopSettings({
           {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "communications" && <CommunicationsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} refreshProfiles={loadShippingProfiles} />}
-          {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
+          {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} setOriginalSettings={setOriginalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "notifications" && <NotificationEditor />}
         </motion.div>
@@ -138,7 +143,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const set = (section: string, patch: any) => setSettings({ ...settings, [section]: { ...settings[section], ...patch } });
 
   const saveAll = async () => {
-    for (const k of dirty) await saveSection(k, { [k]: settings[k] });
+    for (const k of dirty) if (!(await saveSection(k, { [k]: settings[k] }))) break;
     toast.success("Store settings saved");
   };
   const discard = () => {
@@ -553,7 +558,7 @@ function RateTester({ profile }: { profile: any }) {
   const each = (Number(total) || 0) / qty;
   const quotes = useMemo(() => quoteShipping(
     [{ price: each, quantity: qty, shippingProfileId: profile.id, weightGrams: grams === "" ? null : (Number(grams) || 0) / qty }],
-    { country }, [profile]), [profile, country, each, qty, grams]);
+    { country }, [profile]).filter((q) => q.type !== "pickup"), [profile, country, each, qty, grams]);
   return (
     <SectionCard title="Test this profile" description="See exactly what a customer would be offered — using your unsaved edits.">
       <div style={{ display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", marginBottom: 12 }}>
@@ -628,6 +633,10 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   const [shippoLoading, setShippoLoading] = useState(true);
   const [shippoSaving, setShippoSaving] = useState(false);
   const [carrierCountrySearch, setCarrierCountrySearch] = useState("");
+  // Latest live-rate country list, updated synchronously on each click.
+  const liveCountriesRef = useRef<string[] | null>(null);
+  // Saves run one after another so the server always ends on the latest list.
+  const liveSaveChain = useRef<Promise<unknown>>(Promise.resolve());
   const [shippoMessage, setShippoMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Search/Filters
@@ -687,7 +696,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
 
   const loadBooks = async () => {
     try {
-      const b = await adminApi.getBooks(200);
+      const b = await adminApi.getAllBooks();
       setBooks(b);
     } catch (err) {
       console.error(err);
@@ -721,6 +730,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
     try {
       await adminApi.deleteShippingProfile(id);
       refreshProfiles();
+      await loadBooks(); // its books moved to General — refresh counts and health
       setSelectedProfileId(null);
       setEditingProfile(null);
     } catch {
@@ -752,7 +762,9 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
 
   const handleSaveProducts = async () => {
     try {
-      await adminApi.assignProductsToShippingProfile(editingProfile.id, selectedProductIds);
+      const wasAssigned = books.filter((b: any) => b.shippingProfileId === editingProfile.id).map((b: any) => b.id);
+      const removed = wasAssigned.filter((id: string) => !selectedProductIds.includes(id));
+      await adminApi.assignProductsToShippingProfile(editingProfile.id, selectedProductIds, removed);
       await loadBooks();
       refreshProfiles();
       setIsProductModalOpen(false);
@@ -780,18 +792,26 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   };
 
   const handleSaveZone = () => {
-    if (!activeZone.name.trim() || activeZone.countries.length === 0) {
-      toast.error("Please enter a zone name and select at least one country.");
+    // Older zones may be defined only by their region text (e.g. "Canada") — still valid.
+    const hasGeography = activeZone.restOfWorld === true || activeZone.countries.length > 0 || (activeZone.continents || []).length > 0 || !!String(activeZone.region || "").trim();
+    if (!activeZone.name.trim() || !hasGeography) {
+      toast.error("Please enter a zone name and select at least one country (or make it the rest-of-world zone).");
       return;
     }
+    // Checkout matches zones by ISO code: store codes, never display names.
+    const saved = {
+      ...activeZone,
+      countries: activeZone.restOfWorld ? [] : toCountryCodes(activeZone.countries),
+      continents: activeZone.restOfWorld ? [] : (activeZone.continents || []),
+    };
 
     setEditingProfile((prev: any) => {
       const zones = [...(prev.zones || [])];
-      const idx = zones.findIndex(z => z.id === activeZone.id);
+      const idx = zones.findIndex(z => z.id === saved.id);
       if (idx > -1) {
-        zones[idx] = activeZone;
+        zones[idx] = saved;
       } else {
-        zones.push(activeZone);
+        zones.push(saved);
       }
       return { ...prev, zones };
     });
@@ -916,7 +936,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
         </>}>
         <SearchField label="Search catalog" placeholder="Search catalog by title…" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} data-autofocus />
         <ul className="rp-list" style={{ marginTop: 12, maxHeight: 360, overflowY: "auto", border: "1px solid var(--rp-border)" }} aria-label="Books">
-          {books.filter((b) => b.title.toLowerCase().includes(productSearch.toLowerCase())).map((b) => {
+          {books.filter((b) => String(b.title || "").toLowerCase().includes(productSearch.toLowerCase())).map((b) => {
             const isChecked = selectedProductIds.includes(b.id);
             const other = b.shippingProfileId && b.shippingProfileId !== editingProfile.id
               ? (profiles.find((pr: any) => pr.id === b.shippingProfileId)?.name || "another profile") : "";
@@ -941,6 +961,9 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
           <div className="rp-stack" style={{ gap: 16 }}>
             <TextField label="Zone name" value={activeZone.name} placeholder="e.g. North America, Europe, Domestic…" data-autofocus
               onChange={(e) => setActiveZone({ ...activeZone, name: e.target.value })} />
+            <Toggle label="Rest of world — everywhere not covered by another zone" checked={activeZone.restOfWorld === true}
+              onChange={(on) => setActiveZone((prev: any) => ({ ...prev, restOfWorld: on, ...(on ? { countries: [], continents: [] } : {}) }))} />
+            {!activeZone.restOfWorld && (<>
             <div>
               <div className="rp-sect">Regional presets</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -988,6 +1011,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
                 </section>
               ))}
             </div>
+            </>)}
           </div>
         )}
       </Dialog>
@@ -1122,14 +1146,21 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
                       const selected = (shippoConfig?.dynamicRateCountries || []).includes(country.code);
                       return (
                         <Checkbox key={country.code} label={country.name} checked={selected} onChange={async () => {
-                          const countries = selected
-                            ? shippoConfig.dynamicRateCountries.filter((code: string) => code !== country.code)
-                            : [...(shippoConfig?.dynamicRateCountries || []), country.code];
+                          // Build from the latest list (not this render's), so quick clicks don't drop a country.
+                          const current = liveCountriesRef.current ?? (shippoConfig?.dynamicRateCountries || []);
+                          const countries = current.includes(country.code)
+                            ? current.filter((code: string) => code !== country.code)
+                            : [...current, country.code];
+                          liveCountriesRef.current = countries;
+                          setShippoConfig((prev: any) => ({ ...prev, dynamicRateCountries: countries }));
                           try {
-                            await adminApi.setShippoDynamicRates(true, countries);
-                            setShippoConfig((prev: any) => ({ ...prev, dynamicRateCountries: countries }));
+                            const save = liveSaveChain.current.catch(() => {}).then(() => adminApi.setShippoDynamicRates(true, countries));
+                            liveSaveChain.current = save;
+                            await save;
                             toast.success(`${country.name} ${selected ? "removed from" : "added to"} live rates`);
                           } catch (err: any) {
+                            liveCountriesRef.current = current;
+                            setShippoConfig((prev: any) => ({ ...prev, dynamicRateCountries: current }));
                             toast.error(err.message || "Failed to update live-rate countries");
                           }
                         }} />
@@ -1221,7 +1252,12 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   return (
     <div className="rp-stack">
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "space-between" }}>
-        <SecondaryButton onClick={() => { setSelectedProfileId(null); setEditingProfile(null); }}>← Back to profiles</SecondaryButton>
+        <SecondaryButton onClick={async () => {
+          const saved = profiles.find((p: any) => p.id === editingProfile?.id);
+          const dirty = saved && JSON.stringify(saved) !== JSON.stringify(editingProfile);
+          if (dirty && !(await askConfirm({ title: "Leave without saving?", message: "Your zone and rate changes to this profile haven't been saved.", confirmLabel: "Discard changes" }))) return;
+          setSelectedProfileId(null); setEditingProfile(null);
+        }}>← Back to profiles</SecondaryButton>
         <PrimaryButton onClick={handleSaveProfile}>Save profile changes</PrimaryButton>
       </div>
       <SectionHead kicker="Profile" title={editingProfile.name || "Untitled profile"} subcopy="Zone and rate edits are applied to the profile when you save." />
@@ -1320,7 +1356,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   );
 }
 
-function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
+function PaymentsSettings({ settings, setSettings, originalSettings, setOriginalSettings, hasChanges, saveSection, savingSection }: any) {
   const [askConfirm, confirmNode] = useConfirm();
   const stripe = settings.payments?.stripe || {};
   const paypal = settings.payments?.paypal || {};
@@ -1370,6 +1406,28 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
   const [methodInstructions, setMethodInstructions] = useState("");
   const [methodType, setMethodType] = useState<"bank" | "cod" | "custom">("bank");
   const [methodEnabled, setMethodEnabled] = useState(true);
+
+  // Bumped on save/discard so the write-only key boxes clear with the state.
+  const [secretFieldsKey, setSecretFieldsKey] = useState(0);
+  const [removingKey, setRemovingKey] = useState<null | "live" | "test">(null);
+  const removeStoredKey = async (mode: "live" | "test") => {
+    if (!(await askConfirm({ title: `Remove the stored ${mode} secret key?`, message: mode === "live" ? "Live checkout will use the key set in Firebase Functions (if any) until you enter a new one." : "Test (sandbox) checkout won't work until you enter a new test key.", confirmLabel: "Remove key" }))) return;
+    setRemovingKey(mode);
+    try {
+      await adminApi.removeStripeSecretKey(mode);
+      const flag = mode === "live" ? "secretKeyStored" : "testSecretKeyStored";
+      const field = mode === "live" ? "secretKey" : "testSecretKey";
+      const patchOf = (prev: any) => ({ ...prev, payments: { ...prev?.payments, stripe: { ...prev?.payments?.stripe, [flag]: false, [field]: "" } } });
+      setSettings(patchOf(settings));
+      setOriginalSettings?.(patchOf);
+      setSecretFieldsKey((k) => k + 1);
+      toast.success(`Stored ${mode} secret key removed`);
+    } catch (err: any) {
+      toast.error(err.message || "Couldn't remove the key");
+    } finally {
+      setRemovingKey(null);
+    }
+  };
 
   const updateStripe = (patch: any) => {
     setSettings({
@@ -1535,14 +1593,18 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
                   <div className="rp-sect">Live keys {!testMode && "· in use"}</div>
                   <div className="rp-stack" style={{ gap: 12 }}>
                     <InputField label="Publishable key" placeholder="pk_live_…" icon={Lock} value={stripe.publicKey || ""} onChange={(e: any) => updateStripe({ publicKey: e.target.value })} />
-                    <SecretField label="Secret key" placeholder="sk_live_…" stored={!!(stripe.secretKey || stripe.secretKeyStored)} onCommit={(v) => updateStripe({ secretKey: v })} />
+                    <SecretField key={`live-${secretFieldsKey}`} label="Secret key" placeholder="sk_live_…" stored={!!stripe.secretKeyStored}
+                      validate={(v) => stripeSecretKeyProblem(v, "live")} onCommit={(v) => updateStripe({ secretKey: v })}
+                      onRemove={stripe.secretKeyStored ? () => removeStoredKey("live") : undefined} removing={removingKey === "live"} />
                   </div>
                 </div>
                 <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 1 : 0.75 }}>
                   <div className="rp-sect">Test keys {testMode && "· in use"}</div>
                   <div className="rp-stack" style={{ gap: 12 }}>
                     <InputField label="Test publishable key" placeholder="pk_test_…" icon={Lock} value={stripe.testPublicKey || ""} onChange={(e: any) => updateStripe({ testPublicKey: e.target.value })} />
-                    <SecretField label="Test secret key" placeholder="sk_test_…" stored={!!(stripe.testSecretKey || stripe.testSecretKeyStored)} onCommit={(v) => updateStripe({ testSecretKey: v })} />
+                    <SecretField key={`test-${secretFieldsKey}`} label="Test secret key" placeholder="sk_test_…" stored={!!stripe.testSecretKeyStored}
+                      validate={(v) => stripeSecretKeyProblem(v, "test")} onCommit={(v) => updateStripe({ testSecretKey: v })}
+                      onRemove={stripe.testSecretKeyStored ? () => removeStoredKey("test") : undefined} removing={removingKey === "test"} />
                   </div>
                 </div>
               </div>
@@ -1564,7 +1626,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
                   }
                 }}>Register this site with Stripe</SecondaryButton>
               </div>
-              <StripeWebhookHealth />
+              <StripeWebhookHealth unsaved={dirty} />
             </>
           )}
         </div>
@@ -1662,8 +1724,8 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
       </SectionCard>
 
       <SaveBar dirty={dirty} saving={savingSection === "payments"} message="You have unsaved payment settings."
-        onSave={async () => { await saveSection("payments", { payments: settings.payments }); toast.success("Payment settings saved"); }}
-        onDiscard={() => setSettings({ ...settings, payments: JSON.parse(JSON.stringify(originalSettings?.payments ?? {})) })} />
+        onSave={async () => { if (await saveSection("payments", { payments: settings.payments })) { setSecretFieldsKey((k) => k + 1); toast.success("Payment settings saved"); } }}
+        onDiscard={() => { setSettings({ ...settings, payments: JSON.parse(JSON.stringify(originalSettings?.payments ?? {})) }); setSecretFieldsKey((k) => k + 1); }} />
 
       <Dialog open={isManualModalOpen} onClose={() => setIsManualModalOpen(false)} title={editingMethod ? "Edit payment method" : "Add payment method"} badge="💳"
         footer={<>
@@ -2175,13 +2237,30 @@ export function Switch({ checked, onChange, label = "Toggle setting" }: { checke
 }
 
 /** Write-only field for secrets: never echoes the stored value back into the page. */
-export function SecretField({ label, placeholder, stored, onCommit }: { label: string; placeholder: string; stored: boolean; onCommit: (v: string) => void }) {
+// Write-only key box. Every edit is passed up (clearing the box cancels the change),
+// a key that fails `validate` is never passed up, and a stored key can be removed.
+export function SecretField({ label, placeholder, stored, onCommit, validate, onRemove, removing }: {
+  label: string; placeholder: string; stored: boolean; onCommit: (v: string) => void;
+  validate?: (v: string) => string; onRemove?: () => void; removing?: boolean;
+}) {
   const [draft, setDraft] = useState("");
+  const problem = validate ? validate(draft) : "";
   return (
     <div>
       <InputField label={label} icon={Lock} type="password" value={draft} placeholder={stored ? "Stored — enter a new key to replace it" : placeholder}
-        hint={stored ? "✓ A key is stored. It is never shown here." : undefined}
-        onChange={(e: any) => { setDraft(e.target.value); if (e.target.value.trim()) onCommit(e.target.value.trim()); }} />
+        error={problem || undefined}
+        hint={!problem && stored ? "✓ A key is stored. It is never shown here." : undefined}
+        onChange={(e: any) => {
+          const value = e.target.value;
+          setDraft(value);
+          const trimmed = value.trim();
+          onCommit(validate && validate(trimmed) ? "" : trimmed);
+        }} />
+      {stored && onRemove && (
+        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" style={{ marginTop: 6 }} disabled={removing} onClick={onRemove}>
+          {removing ? "Removing…" : "Remove stored key"}
+        </button>
+      )}
     </div>
   );
 }

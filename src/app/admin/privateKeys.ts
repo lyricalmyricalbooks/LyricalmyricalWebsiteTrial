@@ -26,6 +26,7 @@ export function splitWebsiteSecrets(settings: Record<string, any>): { publicSett
     stripe.testSecretKey = "";
     delete stripe.secretKeyStored;
     delete stripe.testSecretKeyStored;
+    delete stripe.publicSecretLeak;
   }
   const comms = publicSettings.communications;
   if (comms) {
@@ -46,4 +47,35 @@ export function splitNotificationSecrets(data: Record<string, any>): { publicDat
   if (publicData.brand) { publicData.brand.resendApiKey = ""; delete publicData.brand.resendApiKeyStored; }
   if ("resendApiKey" in publicData) publicData.resendApiKey = "";
   return { publicData, secrets };
+}
+
+/** After a successful save: the same payload with secret values blanked and their
+ *  `*Stored` flags set, for local state (the values now live in adminSecrets). */
+export function scrubSavedSecrets<T extends Record<string, any>>(data: T): T {
+  const out: any = JSON.parse(JSON.stringify(data || {}));
+  const stripe = out.payments?.stripe;
+  if (stripe) {
+    if (clean(stripe.secretKey)) stripe.secretKeyStored = true;
+    if (clean(stripe.testSecretKey)) stripe.testSecretKeyStored = true;
+    if ("secretKey" in stripe) stripe.secretKey = "";
+    if ("testSecretKey" in stripe) stripe.testSecretKey = "";
+  }
+  const comms = out.communications;
+  if (comms && "resendApiKey" in comms) {
+    if (clean(comms.resendApiKey)) comms.resendApiKeyStored = true;
+    comms.resendApiKey = "";
+  }
+  return out;
+}
+
+/** "" when a Stripe secret key fits its slot, otherwise a reason. */
+export function stripeSecretKeyProblem(value: string, mode: "live" | "test"): string {
+  const v = clean(value);
+  if (!v) return "";
+  if (/^(sk|rk)_(live|test)_[A-Za-z0-9]+$/.test(v) === false) return "This doesn't look like a Stripe secret key (it should start with sk_ or rk_).";
+  const keyMode = /_(live)_/.test(v) ? "live" : "test";
+  if (keyMode !== mode) return mode === "live"
+    ? "That's a test key (sk_test_…). Put it in the Test secret key box; this box needs sk_live_…."
+    : "That's a live key (sk_live_…). Put it in the live Secret key box; this box needs sk_test_….";
+  return "";
 }

@@ -66,4 +66,28 @@ describe("rate descriptions", () => {
     expect(zones.every((z: any) => z.rates.length > 0)).toBe(true);
     expect(zones.some((z: any) => z.restOfWorld)).toBe(true);
   });
+
+  it("starter zones (with a rest-of-world zone) are ready — no false 'no destinations'", () => {
+    let n = 0; const zones = starterZones(() => `z${n++}`);
+    const summary = summarizeShipping([{ id: "general-profile", name: "General", zones }], []);
+    expect(summary.issues.filter((i) => i.severity === "blocking")).toEqual([]);
+  });
+  it("blocks a zone whose rates are all switched off or pickup-only", () => {
+    const zones = [{ id: "z", name: "Canada", countries: ["CA"], rates: [
+      { id: "a", name: "Off", enabled: false, base: 5, deliveryDays: "2" },
+      { id: "b", name: "Pickup", type: "pickup" },
+    ] }];
+    const ids = summarizeShipping([{ id: "p", name: "P", zones }], []).issues.map((i) => i.id);
+    expect(ids).toContain("profile:p:zone:z:offerable");
+  });
+  it("flags places checkout can't recognise and overlaps between a name and its code", () => {
+    const zones = [
+      { id: "a", name: "A", countries: ["Canada"], rates: [{ id: "r", name: "S", base: 1, deliveryDays: "2" }] },
+      { id: "b", name: "B", countries: ["CA", "Atlantis"], rates: [{ id: "r", name: "S", base: 1, deliveryDays: "2" }] },
+    ];
+    const ids = summarizeShipping([{ id: "p", name: "P", zones }], []).issues.map((i) => i.id);
+    expect(ids).toContain("profile:p:zone:b:unknown");
+    expect(ids).toContain("profile:p:zone:b:duplicates");
+  });
 });
+

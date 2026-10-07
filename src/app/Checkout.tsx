@@ -1177,6 +1177,10 @@ export function Checkout() {
           });
           const intentData = await intentResponse.json();
           if (!intentResponse.ok || !intentData.clientSecret) throw discountRejection(intentData) || new CopyError(checkoutDesign, "coStripeError");
+          // The shop switched test/live mode after this page loaded: the card form's key
+          // can't confirm the server's payment. Stop before charging; a reload fixes it.
+          const formMode = /^pk_live_/.test(String(stripePublicKey || "")) ? "live" : /^pk_test_/.test(String(stripePublicKey || "")) ? "test" : null;
+          if (intentData.stripeMode && formMode && intentData.stripeMode !== formMode) throw new CopyError(checkoutDesign, "coStripeError");
           clientSecret = intentData.clientSecret;
           pendingCardOrder.current = { key: cardKey, orderId, clientSecret };
         }

@@ -21,6 +21,8 @@ import { StudioEditor } from "./studio/StudioEditor";
 import ReviewsModeration from "./ReviewsModeration";
 import Messages from "./Messages";
 import { adminApi } from "./api";
+import { scrubSavedSecrets } from "./privateKeys";
+import toast from "react-hot-toast";
 import {
   AppShell, Sidebar, Topbar, PageHeader, Breadcrumbs, PrimaryButton, SecondaryButton,
   IconButton, Dialog, ToastProvider, Toggle, SyncChip, useOnline, type NavEntry,
@@ -168,9 +170,14 @@ export function Dashboard() {
     }
   }
 
-  const saveSection = async (section: string, data: any, options: any = {}) => {
+  // Returns true only when the save reached Firestore, so callers never announce a
+  // save that failed.
+  const saveSection = async (section: string, data: any, options: any = {}): Promise<boolean> => {
     try {
       await adminApi.updateSettings(data, options);
+      // Secret keys went to the admin-only store: drop them from what's on screen and
+      // mark them stored, so readiness doesn't think they're sitting in public settings.
+      data = scrubSavedSecrets(data);
       if (data.design) {
         if (options.publish) {
           setSettings((prev: any) => ({ ...prev, design: data.design, draftDesign: data.design }));
@@ -182,8 +189,11 @@ export function Dashboard() {
         // Keep the "saved" baseline in step so unsaved-change state clears after a save.
         setOriginalSettings((prev: any) => ({ ...prev, ...JSON.parse(JSON.stringify(data)) }));
       }
-    } catch (err) {
-      alert("Error saving settings");
+      return true;
+    } catch (err: any) {
+      console.error("Saving settings failed:", err);
+      toast.error(`Couldn't save — nothing was changed. ${err?.message || ""}`.trim());
+      return false;
     }
   };
 
@@ -313,6 +323,7 @@ export function Dashboard() {
             settings={settings}
             setSettings={setSettings}
             originalSettings={originalSettings}
+            setOriginalSettings={setOriginalSettings}
             settingsLoading={settingsLoading}
             saveSection={saveSection}
           />

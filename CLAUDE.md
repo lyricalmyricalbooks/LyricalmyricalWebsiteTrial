@@ -839,3 +839,31 @@ collection SEO copy. Books > Search (SEO) exposes `seoNoindex`: excluded books r
 available to shoppers, receive noindex HTML, and are omitted from the sitemap.
 Studio > Text & labels > Site & sharing owns the public Google Search Console verification
 token. Google property verification/submission still requires the owner's Search Console access.
+
+**Refund/dispute sync (7 October 2026):** `syncStripeReversal` in `functions/index.js` is the one place a Stripe
+refund or dispute changes an order (full refund → refunded/cancelled, stock back, revenue reversed, once; partial
+refund → `partiallyRefunded` + `refundedAmountMinor`, stays paid; dispute → `disputeStatus`). It is fed by the
+`charge.refunded` / `charge.dispute.*` webhooks **and** by direct Stripe reads (`checkStripeReversal`): the status
+action for paid orders (admin order open / **Sync with Stripe**) and `unpaidPaymentSweep`, which re-reads paid Stripe
+orders (≤120 days) at most every 6 h (`ordersDueReversalCheck`, `stripeCheckedAt`).
+
+## Payments & shipping panel repair (7 October 2026)
+
+- **Sandbox payments** (`session.livemode === false` / `stripeMode: "test"`, PayPal `paypalMode: "test"`) mark the
+  order `isTest: true, sandboxPayment: true` and never touch stock, discount usage or revenue — on payment or refund
+  (`functions/sandboxPayment.test.js`). `onOrderUpdated` still emails sandbox orders so the rehearsal covers email.
+- **Stripe keys:** `SecretField` passes every edit up (clearing cancels), refuses wrong-slot keys
+  (`stripeSecretKeyProblem`), and offers **Remove stored key** (`adminApi.removeStripeSecretKey`). Saves return
+  true/false (`Dashboard.saveSection`), and saved secrets are scrubbed from screen state (`scrubSavedSecrets`).
+  The "secret in public settings" blocker only fires on a real leak (`publicSecretLeak`). Test mode without a test
+  secret key blocks; live without a stored key warns.
+- **Test connection** (action `verifyStripeKeys`) and **Webhook health** (`webhookHealth`, verdicts in
+  `admin/stripeChecks.ts`): per-mode delivery status, signing-secret presence (`STRIPE_WEBHOOK_SECRET` is declared
+  on `createStripeCheckoutSession`), processing failures, signature failures recorded only for real Stripe-signed
+  requests, reset clears old failures and asks first. Checkout refuses a payment whose server `stripeMode` differs
+  from the card form's publishable key.
+- **Shipping:** zones store ISO codes (`toCountryCodes`); both engines match names too. `functions/shippingGeo.js` is
+  generated from `shippingZones.ts` COUNTRIES (`shippingGeo.parity.test.ts`). Profile rules persist. Quote ids are
+  unique per option. A zone-less profile offers nothing once any profile has zones. Live rates resolve countries
+  with `resolveCountry` and fall back to profile rates when Shippo has none; `SHIPPO_API_TOKEN` is declared on both
+  checkout functions. Product assignment sends explicit removals; the panel reads the whole catalog (`getAllBooks`).

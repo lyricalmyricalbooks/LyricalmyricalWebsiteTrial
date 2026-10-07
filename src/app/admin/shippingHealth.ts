@@ -1,3 +1,5 @@
+import { findCountry } from "../features/site/shippingZones";
+
 export type ShippingIssue = {
   id: string;
   label: string;
@@ -39,7 +41,7 @@ export function summarizeShipping(profiles: any[] = [], books: any[] = []): Ship
       issues.push({
         id: `profile:${profile.id}:zones`,
         label: `${profile.name || "Untitled profile"} has no zones`,
-        detail: "Customers using this profile cannot be matched to a destination.",
+        detail: "Books on this profile can't be shipped anywhere — checkout offers no shipping for them. Add a zone with a rate.",
         profileId: profile.id,
         severity: "blocking",
       });
@@ -47,13 +49,21 @@ export function summarizeShipping(profiles: any[] = [], books: any[] = []): Ship
     }
 
     for (const zone of zones) {
-      const zoneCountries = Array.isArray(zone?.countries) ? zone.countries : [];
-      if (zoneCountries.length === 0) {
-        issues.push({ id: `profile:${profile.id}:zone:${zone.id}:countries`, label: `${zone.name || "Untitled zone"} has no destinations`, detail: "Select at least one country so this zone can match a checkout address.", profileId: profile.id, severity: "blocking" });
+      const rawCountries: string[] = Array.isArray(zone?.countries) ? zone.countries : [];
+      const continents: string[] = Array.isArray(zone?.continents) ? zone.continents : [];
+      const catchAll = zone?.restOfWorld === true || /^(international|everywhere else|rest of world|worldwide|global|anywhere)$/i.test(String(zone?.region || "").trim());
+      // Compare by resolved ISO code — that is what checkout matches on (names and codes both resolve).
+      const unknown = rawCountries.filter((entry) => !findCountry(entry));
+      const zoneCountries = Array.from(new Set(rawCountries.map((entry) => findCountry(entry)?.code).filter(Boolean) as string[]));
+      if (zoneCountries.length === 0 && continents.length === 0 && !catchAll && !String(zone?.region || "").trim()) {
+        issues.push({ id: `profile:${profile.id}:zone:${zone.id}:countries`, label: `${zone.name || "Untitled zone"} has no destinations`, detail: "Select at least one country, or make it the rest-of-world zone, so it can match a checkout address.", profileId: profile.id, severity: "blocking" });
+      }
+      if (unknown.length > 0) {
+        issues.push({ id: `profile:${profile.id}:zone:${zone.id}:unknown`, label: `${zone.name || "Untitled zone"} lists places checkout doesn't recognise`, detail: `${unknown.slice(0, 3).join(", ")}${unknown.length > 3 ? "…" : ""} won't match any customer address. Edit the zone and pick them from the country list.`, profileId: profile.id, severity: "blocking" });
       }
       const duplicates = zoneCountries.filter((country: string) => claimedCountries.has(country));
       if (duplicates.length > 0) {
-        issues.push({ id: `profile:${profile.id}:zone:${zone.id}:duplicates`, label: `${zone.name || "Untitled zone"} overlaps another zone`, detail: `${duplicates.slice(0, 3).join(", ")}${duplicates.length > 3 ? "…" : ""} can match more than one zone. Keep each destination in one zone per profile.`, profileId: profile.id, severity: "blocking" });
+        issues.push({ id: `profile:${profile.id}:zone:${zone.id}:duplicates`, label: `${zone.name || "Untitled zone"} overlaps another zone`, detail: `${duplicates.slice(0, 3).map((c) => findCountry(c)?.name || c).join(", ")}${duplicates.length > 3 ? "…" : ""} can match more than one zone. Keep each destination in one zone per profile.`, profileId: profile.id, severity: "blocking" });
       }
       zoneCountries.forEach((country: string) => claimedCountries.add(country));
       zoneCountries.forEach((country: string) => countries.add(country));
@@ -68,13 +78,17 @@ export function summarizeShipping(profiles: any[] = [], books: any[] = []): Ship
           severity: "blocking",
         });
       }
+      const offerable = rates.filter((rate: any) => rate?.enabled !== false && (rate?.type || "flat") !== "pickup");
+      if (rates.length > 0 && offerable.length === 0) {
+        issues.push({ id: `profile:${profile.id}:zone:${zone.id}:offerable`, label: `${zone.name || "Untitled zone"} has no rate customers can choose`, detail: "Every rate here is switched off or is a pickup rate (pickup lives under Pickup & local delivery). Turn on or add a shipping rate.", profileId: profile.id, severity: "blocking" });
+      }
       const rateNames = new Set<string>();
       rates.forEach((rate: any) => {
         const normalizedName = String(rate?.name || "").trim().toLowerCase();
         if (!normalizedName) {
           issues.push({ id: `profile:${profile.id}:zone:${zone.id}:rate:${rate?.id}:name`, label: `${zone.name || "Untitled zone"} has an unnamed rate`, detail: "Give every delivery option a customer-facing name.", profileId: profile.id, severity: "blocking" });
         } else if (rateNames.has(normalizedName)) {
-          issues.push({ id: `profile:${profile.id}:zone:${zone.id}:rate:${rate?.id}:duplicate`, label: `${zone.name || "Untitled zone"} has duplicate rate names`, detail: `“${rate.name}” appears more than once and is ambiguous at checkout.`, profileId: profile.id, severity: "warning" });
+          issues.push({ id: `profile:${profile.id}:zone:${zone.id}:rate:${rate?.id}:duplicate`, label: `${zone.name || "Untitled zone"} has duplicate rate names`, detail: `“${rate.name}” appears more than once — checkout only offers one of them. Rename or delete the other.`, profileId: profile.id, severity: "blocking" });
         }
         rateNames.add(normalizedName);
         if (Number(rate?.base) < 0 || Number(rate?.additional) < 0) {
@@ -116,7 +130,6 @@ export const RATE_TYPES: { id: string; label: string; help: string }[] = [
   { id: "weight", label: "By weight", help: "Base plus a price per kg of the cart. Set book weights (or an assumed weight) so this is accurate." },
   { id: "percent", label: "Percentage of order", help: "Base plus a percentage of the book subtotal — good for high-value or signed editions." },
   { id: "free", label: "Free shipping", help: "Always free. Combine with an order-total condition for a 'free over $X' option." },
-  { id: "pickup", label: "Local pickup", help: "Free, collect in person — e.g. at a launch event or the press." },
 ];
 
 const usd = (n: any) => `$${Number(n || 0).toFixed(2)}`;
