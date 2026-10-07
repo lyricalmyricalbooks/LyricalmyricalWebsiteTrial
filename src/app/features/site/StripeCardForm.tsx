@@ -146,7 +146,12 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
         confirmParams: { return_url: returnUrl },
         redirect: "if_required",
       });
-      if (result.error) return { error: paymentErrorText || errorText };
+      if (result.error) {
+        // A declined card or a mistyped field: Stripe's own message (in the shopper's language)
+        // says what to fix. Anything else keeps the editable "check your order" text.
+        const fixable = result.error.type === "card_error" || result.error.type === "validation_error";
+        return { error: fixable && result.error.message ? result.error.message : paymentErrorText || errorText };
+      }
       return { paymentIntentId: result.paymentIntent?.id, status: result.paymentIntent?.status };
     },
   }), [errorText, validationText, paymentErrorText, state]);

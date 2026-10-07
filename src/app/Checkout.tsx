@@ -169,6 +169,12 @@ function StepBadge({ n, label }: { n: string; label: string }) {
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
+
+// Practical email check before any order is created: something@domain.tld, no spaces.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+// Stripe and PayPal refuse charges below about 50 cents in CAD, USD and EUR.
+const MIN_CARD_CHARGE = 0.5;
+
 export function Checkout() {
   const { cart, cartTotal, cartCount, clearCart, setCart } = useCart();
   const { currency, formatPrice, convertPrice } = useCurrency();
@@ -184,6 +190,8 @@ export function Checkout() {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   // Stripe reported the payment complete but our order record hasn't caught up yet.
   const [paymentReceived, setPaymentReceived] = useState(false);
+  // A bank debit Stripe accepted but has not settled: it can still fail, so it is not "paid".
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [confirmSlow, setConfirmSlow] = useState(false);
   const [manualOrderReturn, setManualOrderReturn] = useState(false);
   const [orderNumber, setOrderNumber]   = useState("");
@@ -213,6 +221,9 @@ export function Checkout() {
   // duplicate settings and catalog reads before it can paint.
   const cachedSite = useMemo(() => readSiteCache(), []);
   const [books, setBooks] = useState<any[]>(() => cachedSite?.books || []);
+  // Prices, stock and shipping are only trusted once checkout has read the live catalog itself.
+  const [catalogState, setCatalogState] = useState<"loading" | "ready" | "failed">("loading");
+  const cartRestoreDone = useRef(false);
   const [settings, setSettings] = useState<any>(() => cachedSite?.settings || null);
   // Until the saved settings arrive (or if they never do) checkout wears the Riso Noir defaults.
   const checkoutDesign = resolveSurfaceDesign(settings?.design ?? DEFAULT_SETTINGS.design, "/checkout");
@@ -302,11 +313,13 @@ export function Checkout() {
         const [profiles, siteSettings, bookList] = await Promise.all([
           adminApi.getShippingProfiles(),
           adminApi.getSettings() as Promise<any>,
-          loadCatalog((size, cursor) => adminApi.getBooks(size, cursor))
+          // Same ID-ordered reader as the shop, so books saved without createdAt are not missing here.
+          loadCatalog((size, cursor) => adminApi.getStorefrontBooks(size, cursor))
         ]);
         setShippingProfiles(profiles);
         setTaxRates(siteSettings?.taxes?.rates || []);
         setBooks(bookList);
+        setCatalogState("ready");
         const preview = new URLSearchParams(window.location.search).get("preview") === "true";
         const design = preview ? (window as any).__studioPreviewDesign || siteSettings?.draftDesign || siteSettings?.design : siteSettings?.design;
         setSettings({ ...siteSettings, design: resolveSurfaceDesign(design, "/checkout") });
@@ -325,6 +338,7 @@ export function Checkout() {
         }
       } catch (err) {
         console.error("Failed to load checkout settings", err);
+        setCatalogState("failed");
       }
     }
     loadFulfillmentSettings();
@@ -347,7 +361,11 @@ export function Checkout() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlCartId = params.get("cartId");
-    if (!urlCartId || books.length === 0) return;
+    if (!urlCartId || catalogState !== "ready" || cartRestoreDone.current) return;
+    // Restore once, then drop cartId from the address so a reload keeps the shopper's current bag.
+    cartRestoreDone.current = true;
+    params.delete("cartId");
+    window.history.replaceState(null, "", `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`);
 
     (async () => {
       try {
@@ -443,7 +461,19 @@ export function Checkout() {
         console.error("Failed to recover cart:", err);
       }
     })();
-  }, [books]);
+  }, [catalogState, books]);
+
+  // A bag saved days ago may hold old prices or books that sold out: bring it in line with
+  // the catalog the server will charge from, and say what changed.
+  useEffect(() => {
+    if (catalogState !== "ready" || !cart.length) return;
+    const next = repriceCart(cart, books);
+    if (!next.changed) return;
+    setCart(next.cart);
+    if (next.removed.length || next.repriced.length) {
+      setNotice({ tone: "info", text: c("coBagUpdated", { items: [...next.removed, ...next.repriced].join(", ") }) });
+    }
+  }, [catalogState, books, cart]);
 
   useEffect(() => {
     async function detectCountry() {
@@ -993,8 +1023,23 @@ export function Checkout() {
     return Object.assign(new Error(message), { discountRejected: true, reason: message.replace(/^Discount code error:\s*/i, "") });
   };
 
+  // A 400 from checkout carries the server's reason (stock, edition, delivery): show it.
+  const serverRefusal = (response: Response, data: any) => {
+    const message = typeof data?.error === "string" ? data.error.trim() : "";
+    if (response.status !== 400 && response.status !== 409) return null;
+    return message ? new CopyError(checkoutDesign, "coServerRefused", { reason: message }) : null;
+  };
+
   const completePurchase = async () => {
-    if (selectedPaymentMethod === "stripe" && !stripeRoute.canPay) {
+    if (catalogState !== "ready") {
+      setNotice({ tone: "error", text: c(catalogState === "failed" ? "coCatalogFailed" : "coCatalogLoading") });
+      return;
+    }
+    if (finalTotal > 0 && !selectedPaymentMethod.startsWith("manual_") && convertPrice(finalTotal) < MIN_CARD_CHARGE) {
+      setNotice({ tone: "error", text: c("coBelowMinimum", { amount: amountIn(MIN_CARD_CHARGE, currency) }) });
+      return;
+    }
+    if (selectedPaymentMethod === "stripe" && !stripeRoute.canPay && finalTotal > 0) {
       setNotice({ tone: "error", text: c("coStripeLoadError") });
       return;
     }
@@ -1012,6 +1057,11 @@ export function Checkout() {
       setNotice({ tone: "error", text: c("coErrShippingFields") });
       return;
     }
+    // A mistyped address means no confirmation and no e-book link.
+    if (!EMAIL_PATTERN.test(String(customer.email).trim())) {
+      setNotice({ tone: "error", text: c("coErrEmailFormat") });
+      return;
+    }
     if (!validBilling) {
       setNotice({ tone: "error", text: c("coErrPickupBillingFields") });
       return;
@@ -1021,7 +1071,7 @@ export function Checkout() {
       return;
     }
     setNotice(null);
-    const payingByCardForm = useCardForm && selectedPaymentMethod === "stripe";
+    const payingByCardForm = useCardForm && selectedPaymentMethod === "stripe" && finalTotal > 0;
     if (payingByCardForm) {
       const cardError = (await cardFormRef.current?.validate()) ?? (cardFormRef.current ? null : c("coStripeLoadError"));
       if (cardError) {
@@ -1113,6 +1163,22 @@ export function Checkout() {
       const reuse = payingByCardForm && pendingCardOrder.current?.key === cardKey ? pendingCardOrder.current : null;
       let orderId: string;
 
+      // A $0 order (100% discount, free e-book) has nothing to charge: the server prices it
+      // and completes it only when its own total is zero.
+      if (finalTotal === 0) {
+        const freeOrderId = await adminApi.createOrder({ ...orderData, paymentMethod: "Free" });
+        const response = await functionFetch("createStripeCheckoutSession", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "completeFreeOrder", orderId: freeOrderId, currency: currency.toLowerCase() }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw discountRejection(result) || serverRefusal(response, result) || new CopyError(checkoutDesign, "coFreeOrderError");
+        purchaseNavigating.current = true;
+        window.location.href = `${window.location.origin}${import.meta.env.BASE_URL}checkout?success=true&order_id=${encodeURIComponent(freeOrderId)}`;
+        return;
+      }
+
       // Every manual-payment order is created by Functions from a whitelisted draft
       // and the current server catalog/config. No client totals can reach it.
       if (isManual) {
@@ -1136,7 +1202,7 @@ export function Checkout() {
           }),
         });
         const result = await response.json();
-        if (!response.ok || !result.orderId) throw discountRejection(result) || new CopyError(checkoutDesign, "coManualOrderError");
+        if (!response.ok || !result.orderId) throw discountRejection(result) || serverRefusal(response, result) || new CopyError(checkoutDesign, "coManualOrderError");
         orderId = result.orderId;
       } else {
         orderId = reuse ? reuse.orderId : await adminApi.createOrder(orderData);
@@ -1156,7 +1222,7 @@ export function Checkout() {
           body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
         });
         const paypalData = await paypalResponse.json();
-        if (!paypalResponse.ok) throw discountRejection(paypalData) || new CopyError(checkoutDesign, "coPaypalError");
+        if (!paypalResponse.ok) throw discountRejection(paypalData) || serverRefusal(paypalResponse, paypalData) || new CopyError(checkoutDesign, "coPaypalError");
         if (!paypalData.approvalUrl) throw new CopyError(checkoutDesign, "coErrPaypalUrl");
         purchaseNavigating.current = true;
         window.location.href = paypalData.approvalUrl;
@@ -1175,6 +1241,9 @@ export function Checkout() {
         // have created a payment. Do not offer a competing hosted route.
         setInlineAttemptStarted(true);
         let clientSecret = reuse?.clientSecret || "";
+        // Remember the order before asking for a payment, so a retry reuses it instead of
+        // leaving another unpaid order behind.
+        pendingCardOrder.current = { key: cardKey, orderId, clientSecret };
         if (!clientSecret) {
           const intentResponse = await functionFetch("createStripeCheckoutSession", {
             method: "POST",
@@ -1182,7 +1251,20 @@ export function Checkout() {
             body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, paymentElement: true }),
           });
           const intentData = await intentResponse.json();
-          if (!intentResponse.ok || !intentData.clientSecret) throw discountRejection(intentData) || new CopyError(checkoutDesign, "coStripeError");
+          if (!intentResponse.ok || !intentData.clientSecret) {
+            // Nothing was created, so the card form may be reloaded or retried.
+            setInlineAttemptStarted(false);
+            throw discountRejection(intentData) || serverRefusal(intentResponse, intentData) || new CopyError(checkoutDesign, "coStripeError");
+          }
+          // The server prices from the live catalog. If that differs from the total on screen,
+          // stop before charging so the shopper confirms the real amount.
+          const shownMinor = Math.round(convertPrice(finalTotal) * 100);
+          if (Number.isFinite(Number(intentData.amount)) && Math.abs(Number(intentData.amount) - shownMinor) > 1) {
+            pendingCardOrder.current = null;
+            setInlineAttemptStarted(false);
+            setNotice({ tone: "error", text: c("coTotalChanged", { amount: amountIn(Number(intentData.amount) / 100, intentData.currency) }) });
+            return;
+          }
           // The shop switched test/live mode after this page loaded: the card form's key
           // can't confirm the server's payment. Stop before charging; a reload fixes it.
           const formMode = /^pk_live_/.test(String(stripePublicKey || "")) ? "live" : /^pk_test_/.test(String(stripePublicKey || "")) ? "test" : null;
@@ -1284,6 +1366,9 @@ export function Checkout() {
           if (statusData?.status === "complete") {
             setPaymentReceived(true);
             clearCart();
+          } else if (statusData?.status === "processing") {
+            setPaymentProcessing(true);
+            clearCart();
           }
         }
         if (isPayPalReturn) {
@@ -1372,9 +1457,12 @@ export function Checkout() {
               <p className="text-sm leading-6 text-white/70 mt-4" role="status">
                 {paymentConfirmed
                   ? c("coConfirmationSent")
-                  : confirmSlow
-                    ? c("coConfirmingSlow", { email: successOrder?.customer?.email || customer.email || "" })
-                    : c("coConfirming")}
+                  : paymentProcessing
+                    ? c("coPaymentProcessing", { email: successOrder?.customer?.email || customer.email || "" })
+                    : confirmSlow
+                      // "Went through" only when Stripe itself said so; otherwise ask them to check.
+                      ? c(paymentReceived ? "coConfirmingSlow" : "coConfirmingUnverified", { email: successOrder?.customer?.email || customer.email || "" })
+                      : c("coConfirming")}
               </p>
             )}
           </header>
@@ -1416,12 +1504,12 @@ export function Checkout() {
                       <span className="fm-track-mono shrink-0">{String(i + 1).padStart(2, "0")}</span>
                       <span className="text-white/85 break-words">{item.title}{item.variantName ? ` · ${item.variantName}` : ""} <span className="fm-track-mono">× {item.quantity}</span></span>
                     </span>
-                    <span className="font-mono text-white/70 shrink-0">{formatPrice(Number(item.price || 0) * Number(item.quantity || 0))}</span>
+                    <span className="font-mono text-white/70 shrink-0">{orderMoney(Number(item.price || 0) * Number(item.quantity || 0), successOrder, formatPrice)}</span>
                   </li>
                 ))}
                 <li className="fm-track-total">
                   <span className="fm-track-display text-2xl">{c("summaryTotal")}</span>
-                  <span className="font-mono text-xl font-bold">{formatPrice(Number(successOrder.total || 0))}</span>
+                  <span className="font-mono text-xl font-bold">{orderMoney(Number(successOrder.total || 0), successOrder, formatPrice)}</span>
                 </li>
               </ol>
               {successOrder.shippingMethod && !["pickup", "local_delivery"].includes(successOrder.fulfillment?.method) && (
@@ -1729,10 +1817,13 @@ export function Checkout() {
                   <span aria-hidden="true">{notice.tone === "error" ? "✕ " : "ℹ "}</span>{notice.text}
                 </div>
               )}
+              {catalogState === "failed" && !notice && (
+                <p role="alert" className="mb-4 text-sm" style={{ color: "var(--danger, #b4271a)" }}>{c("coCatalogFailed")}</p>
+              )}
               <button
                 type="button"
                 onClick={handleCompletePurchase}
-                disabled={isCompleting || (selectedPaymentMethod === "stripe" && !stripeRoute.canPay) || (!hasStripe && !hasPaypal && enabledManualMethods.length === 0)}
+                disabled={isCompleting || catalogState !== "ready" || (finalTotal > 0 && selectedPaymentMethod === "stripe" && !stripeRoute.canPay) || (finalTotal > 0 && !hasStripe && !hasPaypal && enabledManualMethods.length === 0)}
                 className="flex w-full items-center justify-center gap-2 rounded-lg fm-accent-bg px-6 py-4 text-base font-semibold text-white shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isCompleting ? <><Loader2 size={18} className="animate-spin" /> {c("coProcessing")}</> : <><Lock size={16} /> {paymentLabel}</>}

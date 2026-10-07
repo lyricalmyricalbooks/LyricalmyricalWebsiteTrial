@@ -34,8 +34,53 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
  */
 export function nextCartQuantity(existingQty: number, requested: number, stockLimit?: number): number {
   const req = Math.max(1, Math.floor(requested) || 1);
-  const next = Math.max(0, existingQty) + req;
+  const next = Math.min(MAX_LINE_QUANTITY, Math.max(0, existingQty) + req);
   return typeof stockLimit === "number" && stockLimit !== 999 ? Math.min(next, stockLimit) : next;
+}
+
+/** The server charges at most 99 copies per line (functions/index.js recalculateOrder). */
+export const MAX_LINE_QUANTITY = 99;
+
+/** How many copies a shopper may have of a line: stock when it is tracked, never above 99. */
+export function lineQuantityCap(stockLimit?: number): number {
+  return typeof stockLimit === "number" && stockLimit !== 999 ? Math.min(MAX_LINE_QUANTITY, Math.max(0, stockLimit)) : MAX_LINE_QUANTITY;
+}
+
+/**
+ * Brings a bag saved earlier in line with the current catalog, the same way the server
+ * prices it: current unit price, current stock cap, and books or editions that can no
+ * longer be bought removed. `changed` lists what moved so checkout can tell the shopper.
+ * Exported for tests.
+ */
+export function repriceCart(cart: CartItem[], books: any[]): { cart: CartItem[]; changed: boolean; removed: string[]; repriced: string[] } {
+  const byId = new Map((books || []).map((b: any) => [b.id, b]));
+  const out: CartItem[] = [];
+  const removed: string[] = [];
+  const repriced: string[] = [];
+  let changed = false;
+  for (const line of cart) {
+    const book = byId.get(line.id);
+    const variant = line.variantId ? (book?.variants || []).find((v: any) => v.id === line.variantId) : undefined;
+    const price = book ? catalogUnitPrice(book, variant) : NaN;
+    if (!book || (line.variantId && !variant) || !Number.isFinite(price) || price < 0) {
+      removed.push(line.title || line.id);
+      changed = true;
+      continue;
+    }
+    const tracked = book.trackInventory === true && book.allowBackorder !== true && !(variant?.allowBackorder);
+    const stock = Number(variant ? (variant.stock ?? variant.stockLevel) : book.stockLevel);
+    const stockLimit = tracked && Number.isFinite(stock) ? Math.max(0, stock) : 999;
+    if (stockLimit === 0) {
+      removed.push(line.title || line.id);
+      changed = true;
+      continue;
+    }
+    const quantity = Math.min(line.quantity, lineQuantityCap(stockLimit));
+    if (Math.abs(price - line.price) > 0.0001) repriced.push(line.title || line.id);
+    if (Math.abs(price - line.price) > 0.0001 || quantity !== line.quantity || stockLimit !== line.stockLimit) changed = true;
+    out.push({ ...line, price, quantity, stockLimit });
+  }
+  return { cart: changed ? out : cart, changed, removed, repriced };
 }
 
 /**
@@ -120,7 +165,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCart(prev => {
       const existing = prev.find(i => i.id === product.id && i.variantId === variant?.id);
       if (existing) {
-        if (typeof stockLimit === "number" && stockLimit !== 999 && existing.quantity >= stockLimit) {
+        if (existing.quantity >= lineQuantityCap(stockLimit)) {
           return prev;
         }
         return prev.map(i => i === existing
@@ -152,10 +197,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const updateQuantity = (id: string, variantId: string | undefined, delta: number) => {
     setCart(prev => prev.map(i => {
       if (i.id === id && i.variantId === variantId) {
-        let newQty = Math.max(1, i.quantity + delta);
-        if (typeof i.stockLimit === "number" && i.stockLimit !== 999) {
-          newQty = Math.min(newQty, i.stockLimit);
-        }
+        const newQty = Math.min(Math.max(1, i.quantity + delta), Math.max(1, lineQuantityCap(i.stockLimit)));
         return { ...i, quantity: newQty };
       }
       return i;

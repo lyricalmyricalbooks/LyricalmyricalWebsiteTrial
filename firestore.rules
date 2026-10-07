@@ -68,7 +68,7 @@ service cloud.firestore {
           'addressVerified', 'addressError', 'items', 'subtotal', 'discount', 'shipping', 'shippingMethod',
           'fulfillmentSelection', 'tax', 'total', 'status', 'paymentStatus', 'paymentMethod', 'paymentInstructions',
           'testMode', 'appliedDiscount', 'metadata', 'orderId', 'createdAt', 'updatedAt', 'activity'])
-        && (request.resource.data.paymentMethod == "Stripe" || request.resource.data.paymentMethod == "PayPal")
+        && (request.resource.data.paymentMethod == "Stripe" || request.resource.data.paymentMethod == "PayPal" || request.resource.data.paymentMethod == "Free")
         && (!('paymentInstructions' in request.resource.data) || request.resource.data.paymentInstructions == "")
         && request.resource.data.customer.email is string
         && request.resource.data.items is list

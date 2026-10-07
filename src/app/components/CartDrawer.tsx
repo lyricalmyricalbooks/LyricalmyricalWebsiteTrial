@@ -1,7 +1,7 @@
 import { useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router";
-import { useCart, catalogUnitPrice } from "../CartContext";
+import { useCart, catalogUnitPrice, MAX_LINE_QUANTITY } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
 import { useSiteData } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
@@ -145,7 +145,7 @@ export function CartDrawer() {
                             <div className="fm-bag-qty" data-style={qtyStyle} role="group" aria-label={getCopy(design, "cartQtyAria", { title: item.title })}>
                               <button onClick={() => updateQuantity(item.id, item.variantId, -1)} disabled={item.quantity <= 1} aria-label={getCopy(design, "cartDecreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><Minus size={12} /></button>
                               <span className="fm-bag-qty-n" aria-live="polite" aria-atomic="true">{item.quantity}</span>
-                              <button onClick={() => updateQuantity(item.id, item.variantId, 1)} disabled={atLimit} aria-label={getCopy(design, "cartIncreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><PlusIcon size={12} /></button>
+                              <button onClick={() => updateQuantity(item.id, item.variantId, 1)} disabled={atLimit || item.quantity >= MAX_LINE_QUANTITY} aria-label={getCopy(design, "cartIncreaseAria", { title: item.title })} className="fm-bag-qty-btn min-w-[40px] min-h-[40px] flex items-center justify-center disabled:opacity-30 transition-colors"><PlusIcon size={12} /></button>
                             </div>
                             <button
                               onClick={() => removeFromCart(item.id, item.variantId)}

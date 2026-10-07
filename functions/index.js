@@ -893,6 +893,10 @@ function catalogDigital(book, variant) {
 }
 
 async function recalculateOrder(orderRef, order, checkoutCurrency) {
+  // No receipt or e-book link can reach a malformed address, so no payment is taken for one.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(order.customer?.email || "").trim())) {
+    throw new Error("Check the email address: it doesn't look complete.");
+  }
   const booksById = {};
   const items = [];
   for (const requested of order.items || []) {
@@ -1231,6 +1235,31 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         const orderId = crypto.randomBytes(12).toString('hex').toUpperCase();
         await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
         return res.status(200).json({ orderId, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
+      } catch (err) {
+        return res.status(400).json({ error: err.message });
+      }
+    }
+
+    // A $0 order (100% discount, free e-book): priced here from the catalog, and completed
+    // only when the server's own total is zero. Nothing is charged.
+    if (req.body?.action === "completeFreeOrder") {
+      try {
+        const freeId = req.body.orderId;
+        if (typeof freeId !== "string" || !freeId || freeId.includes("/")) return res.status(400).json({ error: "Missing orderId" });
+        const freeRef = db.collection("orders").doc(freeId);
+        const freeDoc = await freeRef.get();
+        if (!freeDoc.exists) return res.status(404).json({ error: "Order not found" });
+        const freeOrder = freeDoc.data();
+        if (freeOrder.paymentStatus === "paid") return res.status(200).json({ paid: true });
+        if (freeOrder.paymentStatus !== "unpaid" || freeOrder.paymentMethod !== "Free" || freeOrder.isTest === true) {
+          return res.status(400).json({ error: "This order can't be completed without payment." });
+        }
+        const priced = await recalculateOrder(freeRef, freeOrder, checkoutCurrencyOf(req.body.currency) || "cad");
+        if (Math.round(Number(priced.total) * 100) !== 0) {
+          return res.status(400).json({ error: "This order has a total to pay. Review your bag and choose a payment method." });
+        }
+        await completeOrderWithoutCard(freeId, "Free order completed — nothing to charge.");
+        return res.status(200).json({ paid: true });
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }
@@ -2113,7 +2142,8 @@ async function handleCheckoutStatus(req, res) {
         await markStripeOrderPaid(orderId, intentAsSession(intent), { message: "Payment confirmed with Stripe (checked from the order page)" });
         marked = true;
       }
-      const status = intent.status === "succeeded" || intent.status === "processing" ? "complete" : "open";
+      // "processing" (bank debits) is not paid yet and can still fail: the page says so.
+      const status = intent.status === "succeeded" ? "complete" : intent.status === "processing" ? "processing" : "open";
       res.status(200).json({ status, paymentStatus: intent.status, mode: found.mode, checked: marked });
       return;
     }
@@ -4524,6 +4554,64 @@ exports.onBookUpdated = onDocumentUpdated(
 //     Decrements stock, records analytics, flips status to paid.
 //     onOrderUpdated fires the customer order-confirmation email automatically.
 // ──────────────────────────────────────────────────────────────
+// Marks an order paid when no card or PayPal payment is involved (manual payment confirmed
+// by the admin, or a $0 order): stock out once, discount use counted once, revenue recorded.
+async function completeOrderWithoutCard(orderId, message) {
+  const orderRef = db.collection("orders").doc(orderId);
+  let paidTotal = null;
+
+  await db.runTransaction(async transaction => {
+    paidTotal = null; // a retried attempt must not keep the last attempt's value
+    const orderDoc = await transaction.get(orderRef);
+    if (!orderDoc.exists) return;
+    const order = orderDoc.data();
+    if (order.paymentStatus === "paid") return; // idempotent
+
+    const itemList = order.items || [];
+    const books = await readBooks(transaction, db, itemList);
+    // Manual payments count toward a discount code's usage limit like card payments do.
+    const discountRef = order.appliedDiscount?.id && order.discountUsageCountedAt == null
+      ? db.collection("discounts").doc(order.appliedDiscount.id) : null;
+    const discountDoc = discountRef ? await transaction.get(discountRef) : null;
+
+    const downloadToken = crypto.randomBytes(32).toString("hex");
+
+    transaction.update(orderRef, {
+      paymentStatus: "paid",
+      fulfillmentStatus: "paid",
+      status: "open",
+      downloadToken,
+      paidAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      activity: [
+        ...(order.activity || []),
+        { type: "event", message, createdAt: new Date().toISOString() }
+      ]
+    });
+
+    // Stock comes out here once; recording it stops onOrderUpdated taking it out again.
+    const now = new Date().toISOString();
+    const oversold = order.inventoryDecrementedAt == null && writeStock(transaction, db, itemList, books, -1, now);
+    transaction.update(orderRef, { inventoryDecrementedAt: order.inventoryDecrementedAt || now, ...(oversold ? { oversold: true } : {}) });
+    if (discountRef && discountDoc?.exists) {
+      transaction.update(discountRef, { usageCount: (Number(discountDoc.data().usageCount) || 0) + 1, updatedAt: now });
+      transaction.update(orderRef, { discountUsageCountedAt: now, ...(discountUsedUp(discountDoc.data()) ? { discountOverLimit: true } : {}) });
+    }
+
+    paidTotal = Number(order.total) || 0;
+  });
+
+  if (paidTotal !== null) {
+    const today = new Date().toISOString().split("T")[0];
+    await db.collection("analytics").doc(today).set({
+      date: today,
+      orders: admin.firestore.FieldValue.increment(1),
+      revenue: admin.firestore.FieldValue.increment(paidTotal),
+    }, { merge: true });
+  }
+
+}
+
 exports.markOrderPaid = onBrowserRequest(
   async (req, res) => {
     if (applyCors(req, res)) return;
@@ -4536,59 +4624,7 @@ exports.markOrderPaid = onBrowserRequest(
     if (!orderId) { res.status(400).json({ error: "Missing orderId" }); return; }
 
     try {
-      const orderRef = db.collection("orders").doc(orderId);
-      let paidTotal = null;
-
-      await db.runTransaction(async transaction => {
-        paidTotal = null; // a retried attempt must not keep the last attempt's value
-        const orderDoc = await transaction.get(orderRef);
-        if (!orderDoc.exists) return;
-        const order = orderDoc.data();
-        if (order.paymentStatus === "paid") return; // idempotent
-
-        const itemList = order.items || [];
-        const books = await readBooks(transaction, db, itemList);
-        // Manual payments count toward a discount code's usage limit like card payments do.
-        const discountRef = order.appliedDiscount?.id && order.discountUsageCountedAt == null
-          ? db.collection("discounts").doc(order.appliedDiscount.id) : null;
-        const discountDoc = discountRef ? await transaction.get(discountRef) : null;
-
-        const downloadToken = crypto.randomBytes(32).toString("hex");
-
-        transaction.update(orderRef, {
-          paymentStatus: "paid",
-          fulfillmentStatus: "paid",
-          status: "open",
-          downloadToken,
-          paidAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          activity: [
-            ...(order.activity || []),
-            { type: "event", message: `Payment confirmed manually by ${adminUser.email}.`, createdAt: new Date().toISOString() }
-          ]
-        });
-
-        // Stock comes out here once; recording it stops onOrderUpdated taking it out again.
-        const now = new Date().toISOString();
-        const oversold = order.inventoryDecrementedAt == null && writeStock(transaction, db, itemList, books, -1, now);
-        transaction.update(orderRef, { inventoryDecrementedAt: order.inventoryDecrementedAt || now, ...(oversold ? { oversold: true } : {}) });
-        if (discountRef && discountDoc?.exists) {
-          transaction.update(discountRef, { usageCount: (Number(discountDoc.data().usageCount) || 0) + 1, updatedAt: now });
-          transaction.update(orderRef, { discountUsageCountedAt: now, ...(discountUsedUp(discountDoc.data()) ? { discountOverLimit: true } : {}) });
-        }
-
-        paidTotal = Number(order.total) || 0;
-      });
-
-      if (paidTotal !== null) {
-        const today = new Date().toISOString().split("T")[0];
-        await db.collection("analytics").doc(today).set({
-          date: today,
-          orders: admin.firestore.FieldValue.increment(1),
-          revenue: admin.firestore.FieldValue.increment(paidTotal),
-        }, { merge: true });
-      }
-
+      await completeOrderWithoutCard(orderId, `Payment confirmed manually by ${adminUser.email}.`);
       res.status(200).json({ success: true });
     } catch (err) {
       console.error("markOrderPaid failed:", err);
