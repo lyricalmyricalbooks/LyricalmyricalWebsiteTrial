@@ -1439,7 +1439,8 @@ exports.createStripeCheckoutSession = onRequest(
           amount,
           currency: checkoutCurrency,
           automatic_payment_methods: { enabled: true },
-          receipt_email: order.customer?.email || undefined,
+          // No receipt_email: the shop's own "Order confirmed" email is the customer's
+          // one confirmation (Stripe's receipt duplicated it).
           description: `Order ${orderId}`,
           metadata: { order_id: orderId, checkout: "payment_element" },
         });
@@ -2751,13 +2752,12 @@ exports.onOrderUpdated = onDocumentUpdated(
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
           <h2 style="margin-top:0;color:#16a34a;">&#10003; Payment Received</h2>
           <p><strong>Order:</strong> ${order.orderId || orderId} &nbsp;·&nbsp; <strong>${moneyFmt(order.total)}</strong></p>
+          <p style="margin:16px 0 20px;"><a href="${adminOrderUrl}" style="display:inline-block;background:#111;color:#fff;padding:12px 24px;text-decoration:none;font-size:14px;font-weight:bold;">Fulfil this order &rarr;</a></p>
           <p><strong>Customer:</strong> ${escapeHtml(order.customer.name)} &lt;${escapeHtml(order.customer.email)}&gt;${order.customer.phone ? ` · ${escapeHtml(order.customer.phone)}` : ""}</p>
           <p><strong>Ship to:</strong> ${adminAddr}</p>
           <p><strong>Payment:</strong> ${order.paymentMethod || "Stripe"}</p>
           ${itemsTable}
-          <p style="margin-top:24px;">
-            <a href="${adminOrderUrl}" style="background:#7c3aed;color:#fff;padding:10px 22px;text-decoration:none;border-radius:8px;font-size:13px;font-weight:bold;">View Order in Admin</a>
-          </p>
+          <p style="margin-top:24px;"><a href="${adminOrderUrl}">Open the order in the admin</a> to pack it, buy a label and mark it shipped.</p>
         </div>
       `;
 
@@ -2771,11 +2771,12 @@ exports.onOrderUpdated = onDocumentUpdated(
       } catch (err) {
         console.error("Payment confirmation email to customer failed", err);
       }
-      // The shop's own copy goes out even when the customer's address is rejected.
-      try {
+      // The shop's one email per paid order (Settings › Notifications › new-order alert).
+      // It goes out even when the customer's address is rejected.
+      if (notificationSettings.new_order_admin?.enabled !== false) try {
         await sendEmail({
           to: ADMIN_TO,
-          subject: `[PAYMENT SUCCESS] ${order.orderId || orderId} · ${moneyFmt(order.total)} · ${order.customer.name}`,
+          subject: `${order.sandboxPayment ? "[TEST] " : ""}[NEW ORDER] ${order.orderId || orderId} · paid · ${moneyFmt(order.total)} · ${order.customer.name}`,
           html: adminPaidHtml,
           secret: RESEND_API_KEY.value(),
         });
@@ -3804,7 +3805,10 @@ exports.onOrderCreated = onDocumentCreated(
     const notificationSettings = await loadNotificationSettings();
 
     // 1. Admin Alert: Send email to ADMIN_TO about new order
-    if (notificationSettings.new_order_admin?.enabled !== false) {
+    // Card/PayPal orders are created before payment (and many are never paid): the shop
+    // hears about those once, when they're paid (onOrderUpdated). Only manual-payment
+    // orders, which are paid later by e-Transfer/cash, are news when placed.
+    if (notificationSettings.new_order_admin?.enabled !== false && order.paymentStatus === "pending") {
       const itemsTable = `
         <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:13px;">
           ${orderRowsHtml(order.items)}
@@ -3818,6 +3822,8 @@ exports.onOrderCreated = onDocumentCreated(
 
       const adminHtml = `
         <p>A new order has been placed: <strong>${order.orderId || orderId}</strong> · ${moneyFmt(order.total)}</p>
+        <p>It's waiting for a manual payment (${escapeHtml(order.paymentMethod || "manual")}). Once the money arrives, confirm it in the order and ship it.</p>
+        <p style="margin:16px 0 20px;"><a href="${siteLink(`/admin#orders/${orderId}`)}" style="display:inline-block;background:#111;color:#fff;padding:12px 24px;text-decoration:none;font-size:14px;font-weight:bold;">Open this order &rarr;</a></p>
         <p><strong>Customer:</strong> ${escapeHtml(order.customer.name)} &lt;${escapeHtml(order.customer.email)}&gt;</p>
         <p><strong>Payment Method:</strong> ${order.paymentMethod || "Stripe"}</p>
         <p><strong>Shipping Method:</strong> ${order.shippingMethod || "Standard"}</p>
