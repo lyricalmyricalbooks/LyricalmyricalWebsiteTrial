@@ -1300,6 +1300,7 @@ export const adminApi = {
       expiryDate: discount.expiryDate || null,
       minOrderAmount: discount.minOrderAmount ?? null,
       minQuantity: discount.minQuantity ?? null,
+      maxDiscountAmount: discount.maxDiscountAmount ?? null,
       usageLimit: discount.usageLimit ?? null,
       usageCount: discount.usageCount ?? 0,
       onePerCustomer: discount.onePerCustomer ?? false,

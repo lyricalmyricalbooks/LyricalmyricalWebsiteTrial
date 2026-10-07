@@ -894,3 +894,7 @@ verifying traffic, and completing the rollout in docs/RECAPTCHA.md. Direct Fires
 protection requires separate Firebase App Check console enforcement. Verification
 failure copy lives in Studio > Text & labels > Site & sharing. Tokens, debug credentials
 and provider diagnostics must never be logged or saved to public settings.
+
+**Maximum discount cap (7 October 2026):** Discounts › New/Edit › **Maximum discount (CA$)** (`maxDiscountAmount`, blank = no cap)
+limits what one code can take off an order ("20% off, up to $15"). The server enforces it in `computeDiscountAmount`
+(`capDiscountAmount`, `functions/index.js`); `Checkout.tsx` mirrors it for display only. Shown as a **Max … off** badge in the list.

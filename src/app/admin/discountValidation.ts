@@ -11,6 +11,7 @@ export function validateDiscountDraft(form: any, now = new Date().toISOString().
   if (form.startDate && form.expiryDate && form.expiryDate < form.startDate) errors.expiryDate = "The end date must be on or after the start date.";
   if (form.usageLimit !== "" && (!(Number(form.usageLimit) >= 1) || !Number.isInteger(Number(form.usageLimit)))) errors.usageLimit = "Use a whole-number limit of at least 1.";
   if (form.minOrderAmount !== "" && Number(form.minOrderAmount) < 0) errors.minOrderAmount = "Minimum order cannot be negative.";
+  if (form.maxDiscountAmount !== "" && form.maxDiscountAmount != null && !(Number(form.maxDiscountAmount) > 0)) errors.maxDiscountAmount = "Maximum discount must be greater than zero, or leave it blank.";
   if (form.minQuantity !== "" && (!(Number(form.minQuantity) >= 0) || !Number.isInteger(Number(form.minQuantity)))) errors.minQuantity = "Minimum quantity must be a whole number.";
   if (form.type === "bogo" && (!(Number(form.buyQuantity) >= 1) || !(Number(form.getQuantity) >= 1) || Number(form.getDiscountValue) < 0 || Number(form.getDiscountValue) > 100)) errors.bogo = "BOGO quantities must be at least 1 and the discount must be 0–100%.";
   if (form.type === "tiered") {

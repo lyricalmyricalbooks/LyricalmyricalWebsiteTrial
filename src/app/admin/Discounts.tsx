@@ -25,7 +25,7 @@ const TYPE_OPTIONS = [
 ];
 
 const EMPTY: any = {
-  code: "", type: "percentage", value: 10, isActive: true, startDate: "", expiryDate: "", minOrderAmount: "", minQuantity: "",
+  code: "", type: "percentage", value: 10, isActive: true, startDate: "", expiryDate: "", minOrderAmount: "", minQuantity: "", maxDiscountAmount: "",
   usageLimit: "", onePerCustomer: false, appliesTo: "all", selectedCategories: [], selectedProducts: [],
   allowedEmailDomains: "", allowedCustomerEmails: "", description: "", buyQuantity: 1, getQuantity: 1,
   getDiscountValue: 100, tiers: [{ minSpend: 0, value: 0, type: "percentage" }],
@@ -78,6 +78,7 @@ function DiscountDialog({ initial, onClose, onSave }: { initial?: any; onClose: 
         value: form.type === "freeship" ? 0 : Number(form.value) || 0,
         minOrderAmount: form.minOrderAmount !== "" ? Number(form.minOrderAmount) : null,
         minQuantity: form.minQuantity !== "" ? Number(form.minQuantity) : null,
+        maxDiscountAmount: form.maxDiscountAmount !== "" && form.maxDiscountAmount != null && form.type !== "freeship" ? Number(form.maxDiscountAmount) : null,
         usageLimit: form.usageLimit !== "" ? Number(form.usageLimit) : null,
         selectedCategories: form.appliesTo === "categories" ? (form.selectedCategories || []) : [],
         selectedProducts: form.appliesTo === "products" ? (form.selectedProducts || []) : [],
@@ -193,6 +194,7 @@ function DiscountDialog({ initial, onClose, onSave }: { initial?: any; onClose: 
           <TextField label="Expiry date (optional)" type="date" min={today()} value={form.expiryDate || ""} onChange={e => set("expiryDate", e.target.value)} hint="Last day the code works." error={errors.expiryDate} />
           <TextField label="Minimum order (CA$)" type="number" min={0} value={form.minOrderAmount} onChange={e => set("minOrderAmount", e.target.value)} placeholder="No minimum" error={errors.minOrderAmount} />
           <TextField label="Minimum quantity" type="number" min={0} step={1} value={form.minQuantity} onChange={e => set("minQuantity", e.target.value)} placeholder="No minimum" error={errors.minQuantity} />
+          {form.type !== "freeship" && <TextField label="Maximum discount (CA$)" type="number" min={0} value={form.maxDiscountAmount ?? ""} onChange={e => set("maxDiscountAmount", e.target.value)} placeholder="No cap" hint="Most this code can take off one order, e.g. 20% off up to $15." error={errors.maxDiscountAmount} />}
           <TextField label="Total usage limit" type="number" min={1} step={1} value={form.usageLimit} onChange={e => set("usageLimit", e.target.value)} placeholder="Unlimited" error={errors.usageLimit} />
         </div>
 
@@ -282,10 +284,11 @@ export function Discounts() {
     { key: "rules", header: "Rules", render: d => (
       <span style={{ display: "inline-flex", gap: 4, flexWrap: "wrap" }}>
         {d.minOrderAmount ? <StatusBadge>Min {fmt(d.minOrderAmount)}</StatusBadge> : null}
+        {d.maxDiscountAmount ? <StatusBadge>Max {fmt(d.maxDiscountAmount)} off</StatusBadge> : null}
         {d.minQuantity ? <StatusBadge>Min qty {d.minQuantity}</StatusBadge> : null}
         {d.onePerCustomer ? <StatusBadge>1× / customer</StatusBadge> : null}
         {(d.allowedEmailDomains || d.allowedCustomerEmails) ? <StatusBadge tone="warning">Restricted emails</StatusBadge> : null}
-        {!(d.minOrderAmount || d.minQuantity || d.onePerCustomer || d.allowedEmailDomains || d.allowedCustomerEmails) && "—"}
+        {!(d.minOrderAmount || d.maxDiscountAmount || d.minQuantity || d.onePerCustomer || d.allowedEmailDomains || d.allowedCustomerEmails) && "—"}
       </span>
     ) },
     { key: "used", header: "Used", numeric: true, render: d => `${d.usageCount || 0} / ${d.usageLimit ?? "∞"}` },

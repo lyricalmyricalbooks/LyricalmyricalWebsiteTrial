@@ -509,6 +509,16 @@ async function fetchValidDiscount(code) {
 // Computes the discount amount from server-trusted item prices.
 // booksById maps item.id -> book data (for category targeting).
 function computeDiscountAmount(discount, items, booksById) {
+  return capDiscountAmount(discount, computeRawDiscountAmount(discount, items, booksById));
+}
+
+// Optional "Maximum discount" ceiling (CA$) set on a code; never raises an amount.
+function capDiscountAmount(discount, amount) {
+  const cap = Number(discount && discount.maxDiscountAmount);
+  return cap > 0 && amount > cap ? cap : amount;
+}
+
+function computeRawDiscountAmount(discount, items, booksById) {
   const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
   if (discount.minOrderAmount && subtotal < Number(discount.minOrderAmount)) {
     throw new Error(`This code requires a minimum order of ${moneyFmt(discount.minOrderAmount)}.`);
