@@ -3,9 +3,17 @@ import { cardTypographyCss } from "./cardTypography";
 import { smallPrintCss } from "./smallPrint";
 
 describe("cardTypographyCss", () => {
-  it("emits nothing until a control is set", () => {
-    expect(cardTypographyCss({})).toBe("");
-    expect(cardTypographyCss({ cardTitleSize: 0, cardPriceSize: 0 })).toBe("");
+  it("uses readable phone defaults without adding desktop overrides", () => {
+    const css = cardTypographyCss({});
+    expect(css).toContain(".fm-card-title{font-size:16px");
+    expect(css).toContain(".fm-card-price{font-size:16px");
+    expect(css).not.toContain("min-width");
+  });
+
+  it("uses readable phone defaults when no custom card type is set", () => {
+    const css = cardTypographyCss({});
+    expect(css).toContain("(max-width:767px){[data-fm-store] .fm-card-title{font-size:16px");
+    expect(css).toContain("(max-width:767px){[data-fm-store] .fm-card-price{font-size:16px");
   });
 
   it("styles the title and the price amount separately", () => {
@@ -17,7 +25,7 @@ describe("cardTypographyCss", () => {
 
   it("uses one size everywhere unless a phone size is set", () => {
     const one = cardTypographyCss({ cardTitleSize: 24 });
-    expect(one).toContain("(max-width:767px){[data-fm-store] .fm-card-title{font-size:24px");
+    expect(one).toContain("(max-width:767px){[data-fm-store] .fm-card-title{font-size:16px");
     expect(one).toContain("(min-width:768px){[data-fm-store] .fm-card-title{font-size:24px");
     const split = cardTypographyCss({ cardTitleSize: 24, cardTitleSizeMobile: 16 });
     expect(split).toContain("(max-width:767px){[data-fm-store] .fm-card-title{font-size:16px");

@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { recommendedBooks, editionFacts } from "./merchandising";
-const catalog = [{ id: "a", status: "published", categories: ["Poetry"] }, { id: "b", status: "published" }, { id: "c", status: "draft" }];
+const catalog = [{ id: "a", title: "A", status: "published", categories: ["Poetry"] }, { id: "b", title: "B", status: "published" }, { id: "c", title: "C", status: "draft" }, { id: "test", title: "test", status: "published" }, { id: "sss", title: "sss", status: "published" }, { id: "copy", title: "Altrove (Copy)", status: "published" }, { id: "copy2", title: "Copy", status: "published" }];
 describe("publisher recommendations", () => {
   it("keeps curator order and excludes missing, duplicate, current and unpublished books", () => {
     expect(recommendedBooks({ id: "a", relatedBookIds: ["c", "missing", "b", "b", "a"] }, catalog).map(b => b.id)).toEqual(["b"]);
+  });
+  it("excludes published placeholders and duplicate copies from both automatic and curated recommendations", () => {
+    expect(recommendedBooks({ id: "a", categories: ["Poetry"] }, catalog).map(b => b.id)).toEqual(["b"]);
+    expect(recommendedBooks({ id: "a", relatedBookIds: ["test", "sss", "copy", "copy2", "b"] }, catalog).map(b => b.id)).toEqual(["b"]);
   });
   it("an explicitly empty selection hides automatic recommendations", () => {
     expect(recommendedBooks({ id: "a", relatedBookIds: [] }, catalog)).toEqual([]);

@@ -966,8 +966,9 @@ limits what one code can take off an order ("20% off, up to $15"). The server en
   per-minute idempotency key, so a double click can't open two live payments. "Paid" is set by the Stripe webhook, the
   server-verified status check / sweep (`markStripeOrderPaid`), the verified PayPal capture, or `completeOrderWithoutCard`
   for manual/$0 orders — never by the browser.
-- **Stock holds:** `functions/stockHolds.js` holds tracked stock for 30 min per order (server-only `stock-holds/{bookId}`)
-  when a Stripe/PayPal payment is created; released on payment or cancel, expires on its own, fails open.
+- **Stock holds:** `functions/stockHolds.js` transactionally holds tracked stock for 30 min per order (server-only `stock-holds/{bookId}`)
+  before Stripe, PayPal, manual-payment, or free checkout can settle; payment revalidates/renews the hold. Reservation-store failures fail closed;
+  expected stock conflicts after a provider capture stay unpaid and raise an inventory-reconciliation alert. Holds release on payment or cancel and expire automatically.
 - **Tax gaps:** Overview › Ready to sell lists provinces/states with no matching rate (`uncoveredTaxRegions`).
 - **Customer requests:** order tracking has *Ask to cancel / return* (`action: "orderRequest"`, `order.customerRequest`,
   Needs attention + Order detail › Mark request handled) and *Your data* (`action: "privacyRequest"` →

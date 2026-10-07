@@ -31,6 +31,12 @@ const carts: any[] = [
 ];
 
 describe("shipping engine parity + behaviour", () => {
+  it("does not invent a transit estimate for profile rates without timing data", () => {
+    const legacyProfile = [{ id: "legacy", base: 12, additional: 4 }];
+    const client = quoteShipping([{ price: 30, quantity: 1 }], "Canada", legacyProfile as any);
+    expect(client[0]?.deliveryDays).toBeUndefined();
+  });
+
   for (const country of ["Canada", "France", "United States"]) {
     carts.forEach((cart, i) => it(`client == server: ${country} cart ${i}`, () => {
       expect(quoteShipping(cart, { country }, profiles)).toEqual(srv.quoteShipping(cart, { country }, profiles));

@@ -31,6 +31,9 @@ describe("applyGlobalStyle", () => {
     const f = (k: string) => STYLE_GROUPS.flatMap((g) => g.fields).find((x) => x.key === k) as any;
     expect(f("catalogImageFocalX").defaultValue).toBe(50);
     expect(f("newBadgeDays").defaultValue).toBe(30);
+    expect(f("productColumnsMobile").defaultValue).toBe(1);
+    expect(f("cardTitleSizeMobile").defaultValue).toBe(16);
+    expect(f("cardPriceSizeMobile").defaultValue).toBe(16);
     // a default must sit inside its own slider range
     for (const g of STYLE_GROUPS) for (const x of g.fields as any[]) {
       if (x.kind === "range" && x.defaultValue !== undefined) {

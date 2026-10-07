@@ -32,8 +32,10 @@ describe("shared storefront override layer", () => {
     expect(css).toContain("text-transform:uppercase !important;");
   });
 
-  it("emits nothing until a control is set", () => {
-    expect(storefrontOverridesCss({})).toBe("");
+  it("emits readable phone defaults without loading fonts", () => {
+    const css = storefrontOverridesCss({});
+    expect(css).toContain(".fm-card-title{font-size:16px !important;}");
+    expect(css).toContain(".fm-card-price{font-size:16px !important;}");
     expect(storefrontOverridesFontNames({})).toEqual([]);
   });
 

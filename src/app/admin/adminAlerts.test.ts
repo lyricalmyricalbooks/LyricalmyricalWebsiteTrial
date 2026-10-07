@@ -26,15 +26,16 @@ describe("buildAdminAlerts", () => {
     expect(ids(buildAdminAlerts(orders, null, now))).toEqual(["mismatch", "dispute"]);
   });
 
-  it("warns about late shipping, oversold and old manual payments", () => {
+  it("warns about inventory conflicts, late shipping, oversold and old manual payments", () => {
     const orders = [
       { id: "L", paymentStatus: "paid", fulfillmentStatus: "paid", createdAt: ago(5 * 1440) },
       { id: "S", paymentStatus: "paid", fulfillmentStatus: "shipped", createdAt: ago(5 * 1440) },
       { id: "O", paymentStatus: "paid", oversold: true, createdAt: ago(60) },
+      { id: "I", paymentStatus: "unpaid", inventoryConflict: { provider: "Stripe" }, createdAt: ago(60) },
       { id: "P", paymentStatus: "pending", status: "pending_payment", createdAt: ago(3 * 1440) },
     ];
     const a = buildAdminAlerts(orders, null, now);
-    expect(ids(a)).toEqual(["oversold", "ship-late", "manual-pending"]);
+    expect(ids(a)).toEqual(["inventory-conflict", "oversold", "ship-late", "manual-pending"]);
     expect(a.find((x) => x.id === "ship-late")!.orderIds).toEqual(["L"]);
   });
 

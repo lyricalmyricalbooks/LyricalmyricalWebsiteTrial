@@ -13,10 +13,13 @@ function harness({ method = 'pickup', optionId = 'pickup:shop', paymentStatus = 
     settings: { website: { localFulfillment: config, taxes: { rates: [{ country: 'Canada', region: 'ON', rate: 13 }, { country: 'Canada', region: 'QC', rate: 5 }] }, payments: { stripe: { secretKey: 'sk_test_fake' }, manualMethods: [{ id: 'cash', enabled: true, name: 'Cash', instructions: 'Pay at pickup' }] } } },
     'private-integrations': { shippo: { dynamicRatesEnabled: true, dynamicRateCountries: ['CA'] } },
   };
-  const db = { collection(name) { return {
-    doc(id) { return { async get() { const data = name === 'orders' ? order : docs[name]?.[id]; return { exists: !!data, data: () => data }; }, async update(change) { updates.push(change); Object.assign(order, change); }, async create(data) { docs.orders ||= {}; docs.orders[id] = data; } }; },
-    async get() { return { docs: Object.entries(docs[name] || {}).map(([id, data]) => ({ id, data: () => data })) }; },
-  }; } };
+  const db = {
+    collection(name) { return {
+      doc(id) { return { _name: name, _id: id, async get() { const data = name === 'orders' ? (id === 'order1' ? order : docs.orders?.[id]) : docs[name]?.[id]; return { exists: !!data, data: () => data }; }, async update(change) { updates.push(change); if (name === 'orders' && id === 'order1') Object.assign(order, change); else { docs[name] ||= {}; Object.assign(docs[name][id] ||= {}, change); } }, async create(data) { docs.orders ||= {}; docs.orders[id] = data; } }; },
+      async get() { return { docs: Object.entries(docs[name] || {}).map(([id, data]) => ({ id, data: () => data })) }; },
+    }; },
+    async runTransaction(fn) { return fn({ get: async ref => { const data = ref._name === 'orders' ? (ref._id === 'order1' ? order : docs.orders?.[ref._id]) : docs[ref._name]?.[ref._id]; return { exists: !!data, data: () => data }; }, set: (ref, data) => { docs[ref._name] ||= {}; docs[ref._name][ref._id] = data; } }); },
+  };
   const admin = { initializeApp() {}, firestore: () => db };
   const wrap = (...args) => args.at(-1);
   const Stripe = class { constructor() { this.checkout = { sessions: { create: async payload => { stripeCalls.push(payload); return { id: 'cs_test', url: 'https://stripe.example/test' }; } } }; this.paymentIntents = { create: async payload => { stripeCalls.push(payload); return { id: 'pi_test', client_secret: 'secret' }; } }; } };

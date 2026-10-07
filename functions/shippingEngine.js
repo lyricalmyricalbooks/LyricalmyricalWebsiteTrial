@@ -116,7 +116,7 @@ function quoteShipping(items, address, profiles, opts = {}) {
       if ((Array.isArray(p.zones) && p.zones.length) || anyZones) { perGroup.push({ g, rates: new Map(), none: true }); continue; }
       perGroup.push({ g, rates: new Map([["standard shipping", {
         id: "legacy", name: p.serviceName || "Standard Shipping", base: num(p.base, 15), additional: num(p.additional, 5),
-        deliveryDays: p.deliveryDays || "3-7", freeOver: p.freeThreshold,
+        deliveryDays: p.deliveryDays || null, freeOver: p.freeThreshold,
       }]]) });
       continue;
     }

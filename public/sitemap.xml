@@ -1,35 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
     <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/</loc>
+    <lastmod>2026-10-06</lastmod>
   </url>
   <url>
-    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/0Jpsj0tPFRj0mztWugHN</loc>
-    <lastmod>2026-10-01</lastmod>
-  </url>
-  <url>
-    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/35go3RBtXRJDwV2Czqqo</loc>
-    <lastmod>2026-10-01</lastmod>
-  </url>
-  <url>
-    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/test</loc>
-    <lastmod>2026-10-01</lastmod>
-  </url>
-  <url>
-    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/altrove-copy</loc>
-    <lastmod>2026-10-01</lastmod>
-  </url>
-  <url>
-    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/ZjixXdeKLnsnVkZhHMvF</loc>
-    <lastmod>2026-09-30</lastmod>
-  </url>
-  <url>
-    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/o2biTvudbbRdCLwlfrKo</loc>
-    <lastmod>2026-09-30</lastmod>
-  </url>
-  <url>
-    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/ukQTaqGkqTAI4PYamdFm</loc>
-    <lastmod>2026-10-01</lastmod>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/books/altrove</loc>
+    <lastmod>2026-10-06</lastmod>
+    <image:image>
+      <image:loc>https://firebasestorage.googleapis.com/v0/b/lyricalmyrical-web-v2.firebasestorage.app/o/products%2F1776368259132-dyptics2.bmp?alt=media&amp;token=756aa0c5-af2b-424f-8016-447b72fc5191</image:loc>
+    </image:image>
   </url>
   <url>
     <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/page/about</loc>
@@ -50,5 +30,20 @@
   <url>
     <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/page/history-of-lyricalmyrical</loc>
     <lastmod>2026-10-02</lastmod>
+  </url>
+  <url>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/page/policy-shipping</loc>
+  </url>
+  <url>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/page/policy-returns</loc>
+  </url>
+  <url>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/page/policy-privacy</loc>
+  </url>
+  <url>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/page/policy-terms</loc>
+  </url>
+  <url>
+    <loc>https://lyricalmyricalbooks.github.io/LyricalmyricalWebsiteTrial/collections/publications</loc>
   </url>
 </urlset>

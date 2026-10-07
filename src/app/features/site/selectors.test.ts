@@ -52,11 +52,27 @@ describe("getFilteredItems", () => {
     },
     {
       id: "6",
-      title: "Publications category test",
+      title: "Publications category item",
       status: "published",
       categories: ["Some Category"],
       retailPrice: 10,
       stockLevel: 10,
+    },
+    {
+      id: "placeholder",
+      title: "test",
+      status: "published",
+      categories: ["Fiction"],
+      retailPrice: 10,
+      stockLevel: 1,
+    },
+    {
+      id: "copy",
+      title: "Copy",
+      status: "published",
+      categories: ["Fiction"],
+      retailPrice: 10,
+      stockLevel: 1,
     },
     {
       id: "7",
@@ -83,14 +99,14 @@ describe("getFilteredItems", () => {
 
   it("returns all published valid items when category is PUBLICATIONS string", () => {
     const result = getFilteredItems(books, "PUBLICATIONS", nowISO);
-    // Should include 1, 4, 5, 6, 7
+    // Test fixtures and duplicate copies remain stored but are omitted from the public catalog.
     expect(result).toHaveLength(5);
     expect(result.map(b => b.id)).toEqual(["1", "4", "5", "6", "7"]);
   });
 
   it("returns all published valid items when category is PUBLICATIONS object", () => {
     const result = getFilteredItems(books, { name: "PUBLICATIONS" }, nowISO);
-    // Should include 1, 4, 5, 6, 7
+    // Test fixtures and duplicate copies remain stored but are omitted from the public catalog.
     expect(result).toHaveLength(5);
     expect(result.map(b => b.id)).toEqual(["1", "4", "5", "6", "7"]);
   });

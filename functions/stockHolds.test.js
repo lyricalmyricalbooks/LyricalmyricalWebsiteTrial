@@ -20,10 +20,15 @@ function fakeDb(docs) {
   return {
     docs,
     collection: col => ({ doc: id => ref(col, id) }),
-    runTransaction: async fn => fn({
-      get: async r => ({ exists: r.path in docs, data: () => docs[r.path] }),
-      set: (r, data) => { docs[r.path] = data; },
-    }),
+    _transactionTail: Promise.resolve(),
+    runTransaction: async function (fn) {
+      const next = this._transactionTail.then(() => fn({
+        get: async r => ({ exists: r.path in docs, data: () => docs[r.path] }),
+        set: (r, data) => { docs[r.path] = data; },
+      }));
+      this._transactionTail = next.catch(() => {});
+      return next;
+    },
   };
 }
 
@@ -36,6 +41,21 @@ test("a second shopper can't hold the last copy", async () => {
   // After the hold expires, the copy is free again.
   await reserveStock(db, "o2", [{ id: "b1", quantity: 1 }], 1002 + HOLD_MS + 1);
   expect(Object.keys(db.docs["stock-holds/b1"].holds)).toEqual(["o2"]);
+});
+
+test("simultaneous last-copy checkouts serialize so only one gets the hold", async () => {
+  const db = fakeDb({ "books/b1": { title: "Zine", trackInventory: true, stockLevel: 1 } });
+  const results = await Promise.allSettled([
+    reserveStock(db, "o1", [{ id: "b1", quantity: 1 }], 1000),
+    reserveStock(db, "o2", [{ id: "b1", quantity: 1 }], 1000),
+  ]);
+  expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+  expect(results.filter(result => result.status === "rejected")).toHaveLength(1);
+});
+
+test("a failed reservation transaction fails closed", async () => {
+  const db = { runTransaction: async () => { throw new Error("Firestore unavailable"); } };
+  await expect(reserveStock(db, "o1", [{ id: "b1", quantity: 1 }], 1000)).rejects.toThrow("Firestore unavailable");
 });
 
 test("untracked and backorder books are never held", async () => {
