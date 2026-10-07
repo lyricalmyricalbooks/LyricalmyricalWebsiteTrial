@@ -122,7 +122,7 @@ npm run logs
   return-page check and the wallet-domain button (no new public functions: the CI deploy account
   can't set IAM on them). Storefront card payment always uses the inline Payment Element;
   older saved redirect settings no longer move the shopper to hosted Checkout.
-- `stripeWebhook` — the **only** thing that marks orders paid; it also
+- `stripeWebhook` — the **only** path that marks Stripe orders paid; it also
   decrements stock, counts discount redemptions, and records revenue. Orders are
   created `unpaid` first.
 - Checkout **order note / gift message** (`orderNote` on the order, max 500 chars, enforced in `firestore.rules`): Studio › Style › Checkout & cart drawer › **Order note / gift message box at checkout** (`showOrderNote`, off by default); words in Text & labels › Checkout; shown to admins in Order detail › Customer.
@@ -139,9 +139,9 @@ npm run logs
   0 → available. Studio › Style › Product page layout › **Notify me when back in stock** toggles the box;
   its words are in Text & labels › Product page.
 
-- `unpaidPaymentSweep` (hourly) — emails the shop when Stripe shows a PaymentIntent `succeeded` but the
-  order is still unpaid 30 min–7 days later (`functions/paymentSweep.js`); stamps `paymentAlertSentAt`. Never
-  marks orders paid — resend the failed webhook from Stripe.
+- `unpaidPaymentSweep` (every 15 minutes) — records pending reconciliation and emails the shop when Stripe
+  shows a successful payment but the order is still unpaid 10 min–7 days later (`functions/paymentSweep.js`);
+  stamps `paymentAlertSentAt`. Never marks Stripe orders paid — resend the verified webhook event from Stripe.
 - `nightlyFirestoreBackup` (03:17 Toronto) — exports Firestore to `gs://<storageBucket>/backups/YYYY-MM-DD`.
   Needs the Functions service account to have **Cloud Datastore Import Export Admin** + bucket write.
 
@@ -617,7 +617,7 @@ Public product links retain unique slugs and use immutable book IDs when slugs c
 
 Phone navigation is a keyboard-accessible disclosure shared by the homepage and standalone page/product header. Studio > Style > Header & announcement bar > **Show phone navigation** controls visibility; existing header visibility controls apply inside it. Studio > Text & labels > Header > **Mobile menu** controls its label. Missing-page visibility controls live in Style > Custom pages; words remain in Text & labels > Custom pages & 404.
 
-Checkout rejects placeholder/wrong-mode publishable keys and disables payment until an inline Stripe Element is ready. Teardown is idempotent and exception-safe. Admin payment readiness reports invalid keys. Server totals and webhook-only paid-order/inventory authority are unchanged. A production payment is still unverified until the owner configures valid Stripe credentials and completes a sandbox order, webhook, refund, email and fulfillment walkthrough. Public placeholder content still needs owner review.
+Checkout rejects placeholder/wrong-mode publishable keys and disables payment until an inline Stripe Element is ready. Teardown is idempotent and exception-safe. Admin payment readiness reports invalid keys. Server totals and webhook-only Stripe-paid-order/inventory authority are unchanged. A production payment is still unverified until the owner configures valid Stripe credentials and completes a sandbox order, webhook, refund, email and fulfillment walkthrough. Public placeholder content still needs owner review.
 
 
 ## Publisher fulfillment desk (2 October 2026)
@@ -705,7 +705,7 @@ Studio > Style > Checkout · Stripe payment section owns responsive panel,
 selector, card badges and recovery layout; required payment/recovery controls
 cannot be hidden. Text & labels > Checkout owns all labels, badge text and retry
 copy. Existing form background, padding, radius and fonts continue to apply.
-Server totals and webhook-only paid-order/inventory authority are unchanged.
+Server totals and webhook-only Stripe-paid-order/inventory authority are unchanged.
 Checkout submission locks synchronously before asynchronous field validation,
 disables payment-method switches while processing, and retains the lock during
 provider navigation. Failed validation/service calls release it for correction.
@@ -810,11 +810,13 @@ Public SEO/catalog pagination uses document IDs so records without `createdAt` a
 
 ## Paid-but-unpaid recovery + Riso order tracking (6 October 2026)
 
-- `markStripeOrderPaid` (functions/index.js) is the one place a Stripe order becomes paid (stock, discount
-  usage, download token, analytics, amount check, idempotent). The signed webhook calls it, and so do two
-  server-verified recoveries: `createStripeCheckoutSession` `action: "status"`, which retrieves the order's own
-  saved PaymentIntent/Session from Stripe (it can be called with just `orderId`), and the hourly `unpaidPaymentSweep`.
-  The browser never decides payment; Stripe's API answer does.
+- `markStripeOrderPaid` (functions/index.js) applies Stripe paid-order mutations only when called by
+  `stripeWebhook` after signature verification (stock, discount usage, downloads, analytics and amount checks,
+  idempotently). Status requests require an authorized customer/admin identity or the order's private access key;
+  they retrieve that order's saved Stripe payment and record `reconciliationPending` when provider evidence
+  indicates payment. The 15-minute `unpaidPaymentSweep` records the same evidence and alerts the owner.
+  Neither path marks a Stripe order paid or changes stock, discount usage or revenue. Review webhook health
+  and resend the signed Stripe event before fulfillment. PayPal, manual/offline and free-order paths remain available.
 - Order tracking (`features/site/OrderTracking.tsx`) is a Riso order slip (`features/site/trackingStyle.ts`,
   `fm-track-*`, token-only). An unpaid Stripe order re-checks automatically and offers **Check payment again**
   (Text & labels › Order tracking › `trackRecheck`, `trackRechecking`, `trackStillUnpaid`).
@@ -827,10 +829,12 @@ Public SEO/catalog pagination uses document IDs so records without `createdAt` a
 - `stripeWebhook` verifies against the Functions secret **and** endpoint secrets saved in admin-only
   `adminSecrets/stripeWebhook` (`live`/`test`), and settles any `payment_intent.succeeded` carrying
   `metadata.order_id` (either checkout path). It records `adminSecrets/stripeWebhookStatus` (last event / last signature failure).
-- `unpaidPaymentSweep` runs every 15 minutes (orders 10 min–7 days old) and finishes paid-in-Stripe orders.
+- `unpaidPaymentSweep` runs every 15 minutes (orders 10 min–7 days old), records pending Stripe reconciliation
+  and alerts the owner; only a verified webhook settles the order.
 - Settings › Payments › Stripe › **Webhook health** (`admin/StripeWebhookHealth.tsx`, action `webhookHealth`) checks the
   endpoint, **Fix webhook** adds missing events / re-enables / creates it, **Reset webhook signing** recreates it when
-  signatures fail. Opening an unpaid Stripe order in Orders asks Stripe automatically; **Check payment with Stripe** repeats it.
+  signatures fail. Opening an unpaid Stripe order in Orders asks Stripe automatically; **Check payment with Stripe**
+  repeats the evidence check without marking it paid.
 
 **Admin alerts:** `admin/adminAlerts.ts` (pure, tested) turns the orders feed + `adminSecrets/stripeWebhookStatus`
 into banners shown above every admin page (`AdminAlerts.tsx`, rendered in `Dashboard.tsx`, refreshed with the
@@ -971,3 +975,38 @@ limits what one code can take off an order ("20% off, up to $15"). The server en
   Words: Text & labels › Order tracking (`trackReq*`, `trackPrivacy*`); boxes: Style regions `trackingRequests`/`trackingPrivacy`.
 - **Rate limits:** `clientIpOf` takes the right-most non-proxy `X-Forwarded-For` hop (Google appends the real client);
   Shippo rate/address and PayPal create/capture have their own buckets. Deploy rules + functions before the frontend.
+
+## Commerce access, navigation and merchandising (7 October 2026)
+
+Stripe paid-order authority belongs only to the signature-verified webhook. Authenticated or private-key
+payment status checks and the payment sweep record pending reconciliation; provider success alone does not
+release an unpaid Stripe order for fulfillment. PayPal capture, manual/offline payment and server-validated
+free orders remain supported through their existing contracts. Guest order access requires the private order
+key; an order number or payment ID alone is not authorization.
+
+Studio > Navigation > Header bar order chooses each published page's Main shopping bar or Publisher navigation
+row (`secondaryNavKeys`). Initially, exact Submissions, History, Our history and Open call(s) page titles use the
+publisher row; an explicit selection, including an empty list, overrides that grouping. Categories remain in
+shopping navigation. Style > Header layout > Show publisher navigation row controls visibility; Text & labels >
+Header owns its accessible name. Both header layouts and standalone page/product headers share this hierarchy,
+including phones, where search stays directly available under the existing search visibility control.
+
+Books > Categories & tags > Curated recommendations offers automatic category matches or up to four chosen
+books in editable display order, with full-catalog search and removal. Saving the book applies the choice; an
+empty publisher selection hides recommendations. Public rendering excludes missing, current and unpublished
+books without filling a curator's selection with automatic results. Studio's existing related-books visibility
+and heading controls still apply. Product details show supplied edition, positive page count, publisher and
+publication date; a selected variant's name takes precedence for edition. Show edition details and the four
+spec labels live in Studio. Existing contributor display, genuine photo upload, cover order and alt-text fields
+remain the content source; owner-supplied photographs and editorial facts are required, never fabricated.
+
+Checkout adds a separate optional apartment/unit field, eligible Stripe express-wallet presentation and a total
+beside payment. Studio > Checkout controls their optional visibility and Text & labels owns their words. Wallet
+availability depends on Stripe, browser, account and domain eligibility; this change does not prove live wallet
+activation. Required payment, validation and server-priced totals remain intact.
+
+Readiness distinguishes payment configuration, contributor/edition metadata and possible test titles from
+verified deployment, hosting and email delivery. Admin alerts cover pending payment reconciliation, unresolved
+label purchases and recent failed/bounced/complained email attempts, with links to the relevant workspace.
+Provider acceptance is distinct from inbox delivery. Local tests and builds do not verify deployment or live
+Stripe/PayPal payments, wallet eligibility, webhook delivery, email, refunds or carrier purchases.

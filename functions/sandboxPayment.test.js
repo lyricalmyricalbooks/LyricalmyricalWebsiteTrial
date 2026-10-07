@@ -46,7 +46,7 @@ function harness(order) {
   };
   const module = { exports: {} };
   // Expose the internal helpers under test.
-  const exposed = `${source}\nmodule.exports.__test = { markStripeOrderPaid, syncStripeReversal };`;
+  const exposed = `${source}\nmodule.exports.__test = { markStripeOrderPaid: (id, session, options) => markStripeOrderPaid(id, session, { ...options, authority: STRIPE_WEBHOOK_AUTHORITY }), syncStripeReversal };`;
   vm.runInNewContext(exposed, { module, exports: module.exports, require: mockRequire, process, Buffer, console, setTimeout, clearTimeout, URL, AbortController, fetch: async () => { throw new Error('no network'); } }, { filename: 'index.js' });
   return { docs, analyticsWrites, ...module.exports.__test };
 }

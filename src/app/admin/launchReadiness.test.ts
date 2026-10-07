@@ -10,10 +10,12 @@ const goodBook = { title: "A", status: "published", retailPrice: 20, photos: [{ 
 const status = (items: any[], id: string) => items.find(i => i.id === id)?.status;
 
 describe("launchReadiness", () => {
-  it("is all green for a ready shop", () => {
+  it("does not confuse configuration with production evidence", () => {
     const items = launchReadiness({ settings: goodSettings, books: [goodBook], shippingProfiles: [{}], emailLog: [{ status: "sent" }], orders: [{ paymentStatus: "paid" }] });
-    expect(items.filter(i => i.status !== "ok")).toEqual([]);
-    expect(readinessSummary(items)).toBe("ok");
+    expect(status(items, "email")).toBe("warn");
+    expect(status(items, "first-sale")).toBe("warn");
+    expect(status(items, "deployment")).toBe("warn");
+    expect(readinessSummary(items)).not.toBe("ok");
   });
 
   it("flags the launch blockers", () => {
@@ -21,7 +23,7 @@ describe("launchReadiness", () => {
     expect(status(items, "payments")).toBe("block");
     expect(status(items, "books")).toBe("block");
     expect(status(items, "email")).toBe("block");
-    expect(status(items, "shipping")).toBe("warn");
+    expect(status(items, "shipping")).toBe("block");
     expect(status(items, "policies")).toBe("warn");
     expect(status(items, "first-sale")).toBe("warn");
     expect(status(items, "tax")).toBe("warn");
@@ -58,7 +60,7 @@ describe("readinessProgress", () => {
   });
   it("is complete when everything is green", () => {
     const items = launchReadiness({ settings: goodSettings, books: [goodBook], shippingProfiles: [{}], emailLog: [{ status: "sent" }], orders: [{ paymentStatus: "paid" }] });
-    expect(readinessProgress(items)).toMatchObject({ done: items.length, total: items.length, open: [] });
+    expect(readinessProgress(items).open.map(i => i.id)).toContain("deployment");
   });
 });
 
@@ -81,5 +83,23 @@ describe("uncoveredTaxRegions", () => {
   });
   it("treats a country-wide rate as covering every province", () => {
     expect(uncoveredTaxRegions([{ country: "CA", region: "", rate: 5 } as any])).toEqual([]);
+  });
+});
+
+describe("readiness evidence boundaries", () => {
+  const input = { settings: goodSettings, books: [goodBook], shippingProfiles: [{ id: "p", zones: [] }], emailLog: [{ status: "sent", from: "shop@example.com" }], orders: [{ paymentStatus: "paid" }] };
+  it("blocks a profile without zones and explains provider acceptance", () => {
+    const rows = launchReadiness(input);
+    expect(status(rows, "shipping")).toBe("block");
+    expect(rows.find(i => i.id === "email")?.detail).toMatch(/accept|inbox/i);
+    expect(rows.find(i => i.id === "first-sale")?.detail).not.toMatch(/all worked/);
+  });
+  it("reviews contributor, edition and likely test titles without editing catalog data", () => {
+    const book = { ...goodBook, title: "Test book" };
+    const original = JSON.stringify(book);
+    const rows = launchReadiness({ ...input, books: [book] });
+    expect(status(rows, "catalog-metadata")).toBe("warn");
+    expect(status(rows, "catalog-test-content")).toBe("warn");
+    expect(JSON.stringify(book)).toBe(original);
   });
 });

@@ -1,4 +1,5 @@
 import { catName, categoryNames } from "./navItems";
+import { recommendedBooks, editionFacts } from "./merchandising";
 import { motion, AnimatePresence } from "motion/react";
 import { Fragment, useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -219,14 +220,7 @@ export default function BookDetail() {
     ${productPageCss(tokenSource)}
   `;
 
-  const bookCategories = (book as any)?.categories || (book as any)?.genres || [];
-  const otherBooks = (() => {
-    const published = books.filter(b => b.id !== book?.id && b.status === "published");
-    const sameCategory = published.filter(b =>
-      ((b as any).categories || (b as any).genres || []).some((c: string) => bookCategories.includes(c)),
-    );
-    return (sameCategory.length >= 4 ? sameCategory : [...sameCategory, ...published.filter(b => !sameCategory.includes(b))]).slice(0, 4);
-  })();
+  const otherBooks = recommendedBooks(book, books);
 
   const { has: isWished, toggle: toggleWish } = useWishlist();
   const wished = book ? isWished(book.id) : false;
@@ -367,6 +361,7 @@ export default function BookDetail() {
     : isBackorder ? getCopy(settings?.design, "pdpBackorder")
     : isLowStock ? getCopy(settings?.design, "pdpInStockCount", { count: stockLevel }) : getCopy(settings?.design, "pdpInStock");
   const specRows = [
+    ...(storefrontDesign.showPdpEditionDetails !== false ? editionFacts(selectedVariant ? { ...bk, edition: selectedVariant.name } : bk).map(row => ({ ...row, icon: <BookOpen size={11} /> })) : []),
     { key: "specFormat", icon: <BookOpen size={11} />, value: bk.format },
     { key: "specLanguage", icon: <Globe size={11} />, value: bk.language },
     { key: "specDimensions", icon: <Ruler size={11} />, value: bk.dimensions },
@@ -1039,7 +1034,7 @@ export default function BookDetail() {
 
         {/* ── Related books ── */}
         {showRelatedProducts && otherBooks.length > 0 && (
-          <section data-section="products" className="relative z-10 mt-16 border-t border-white/[0.06]">
+          <section data-section="products" data-studio-target="style:productPage|copy:Product page" data-studio-label="Recommended books" className="relative z-10 mt-16 border-t border-white/[0.06]">
             <div className="mx-auto px-6 py-20" style={{ maxWidth: pageMaxWidth }}>
               <div className="flex items-center gap-6 mb-12">
                 <h2 className="text-[10px] font-black tracking-[0.5em] text-white/30 uppercase">

@@ -1,10 +1,11 @@
+import { summarizeShipping } from "./shippingHealth";
 import { paymentHealth } from "./paymentHealth";
 import { isRealPaidOrder } from "./overviewInsights";
 import { uncoveredTaxRegions } from "../features/site/taxRate";
 
 /** Admin-only "Ready to sell?" checks. Read-only guidance; nothing here changes data. */
 export type ReadinessStatus = "ok" | "warn" | "block";
-export type ReadinessItem = { id: string; label: string; detail: string; status: ReadinessStatus; tab: string; action: string };
+export type ReadinessItem = { id: string; label: string; detail: string; status: ReadinessStatus; tab: string; action: string; href?: string };
 
 export type ReadinessInput = {
   settings: any;
@@ -30,7 +31,7 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   const blocking = payIssues.filter(i => i.severity === "blocking");
   if (blocking.length) items.push({ id: "payments", label: blocking[0].label, detail: blocking[0].detail, status: "block", tab: "payments", action: "Open Payments" });
   else if (payments.testMode) items.push({ id: "payments", label: "Payments are in sandbox mode", detail: "Test payments collect no money. Switch to live keys before launch.", status: "warn", tab: "payments", action: "Open Payments" });
-  else items.push({ id: "payments", label: "Payments are set up", detail: "Live mode with a valid publishable key.", status: "ok", tab: "payments", action: "Open Payments" });
+  else items.push({ id: "payments", label: "Live payment configuration is present", detail: "The publishable key is valid. Confirm the server connection and complete a checkout before relying on it.", status: "ok", tab: "payments", action: "Open Payments" });
 
   if (stripe.connected) {
     const secretStored = payments.testMode ? (stripe.testSecretKeyStored || stripe.testSecretKey) : (stripe.secretKeyStored || stripe.secretKey);
@@ -52,10 +53,17 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
       : { id: "books", label: `${plural(live.length, "published book")} ready`, detail: "Every published book has a price, photo and description.", status: "ok", tab: "catalog", action: "Open Books" });
   }
 
-  // Shipping
-  items.push((shippingProfiles || []).length
-    ? { id: "shipping", label: "Shipping is configured", detail: plural(shippingProfiles.length, "shipping profile"), status: "ok", tab: "shipping", action: "Open Shipping" }
-    : { id: "shipping", label: "No shipping profiles", detail: "Checkout falls back to a flat rate. Add zones and rates for the countries you ship to.", status: "warn", tab: "shipping", action: "Open Shipping" });
+  // Reuse the same diagnostics as Shipping, rather than treating a profile count as proof.
+  const shipping = summarizeShipping(shippingProfiles || [], live);
+  const shipIssue = shipping.issues.find(i => i.severity === "blocking") || shipping.issues[0];
+  items.push(shipIssue
+    ? { id: "shipping", label: shipIssue.label, detail: `${shipIssue.detail}${shipping.issues.length > 1 ? ` ${shipping.issues.length - 1} additional shipping checks need attention.` : ""}`, status: shipIssue.severity === "blocking" ? "block" : "warn", tab: "shipping", action: "Open Shipping" }
+    : { id: "shipping", label: "Shipping configuration passes checks", detail: `${plural(shipping.zoneCount, "zone")}, ${plural(shipping.rateCount, "rate")}. Live carrier quotes and label purchases still need a walkthrough.`, status: "ok", tab: "shipping", action: "Open Shipping" });
+
+  const metadata = live.filter(b => !hasText(b.subtitle) || (!hasText(b.edition) && !(b.variants || []).some((v: any) => hasText(v.name))));
+  items.push({ id: "catalog-metadata", label: metadata.length ? `${plural(metadata.length, "book")} need contributor or edition review` : "Contributor and edition metadata present", detail: metadata.length ? metadata.slice(0, 3).map(b => b.title || "Untitled").join(", ") + ". Review display contributors and edition details; these checks never change books." : "Published books identify their contributors and edition.", status: metadata.length ? "warn" : "ok", tab: "catalog", action: "Review Books" });
+  const testTitles = live.filter(b => /^(test|sample|demo|placeholder|untitled)(?:\b|[_-])/i.test(String(b.title || "").trim()));
+  items.push({ id: "catalog-test-content", label: testTitles.length ? `${plural(testTitles.length, "published title")} may be test content` : "No obvious test titles found", detail: testTitles.length ? testTitles.slice(0, 3).map(b => b.title).join(", ") + ". Review before launch; legitimate titles can match this check." : "This title check does not replace an owner review of the public catalog.", status: testTitles.length ? "warn" : "ok", tab: "catalog", action: "Review Books" });
 
   // Sales tax (charged server-side from Settings › Taxes rates)
   const rates = (settings?.taxes?.rates || []).filter((r: any) => Number(r?.rate) > 0);
@@ -73,24 +81,26 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   const missing = REQUIRED_POLICIES.filter(([k]) => !hasText(settings?.policies?.[k])).map(([, label]) => label);
   items.push(missing.length
     ? { id: "policies", label: `Missing store policies: ${missing.join(", ")}`, detail: "Card networks and shoppers expect shipping, returns, privacy and terms pages.", status: "warn", tab: "general", action: "Open General" }
-    : { id: "policies", label: "Store policies are published", detail: "Shipping, returns, privacy and terms.", status: "ok", tab: "general", action: "Open General" });
+    : { id: "policies", label: "Store policy content is present", detail: "Shipping, returns, privacy and terms contain text. Review their public pages for accuracy.", status: "ok", tab: "general", action: "Open General" });
 
   // Email
   const lastEmail = (emailLog || [])[0];
   items.push(!lastEmail
-    ? { id: "email", label: "No emails sent yet", detail: "Send a test from Notifications to confirm receipts reach customers.", status: "warn", tab: "notifications", action: "Open Notifications" }
+    ? { id: "email", label: "No emails sent yet", detail: "Send a test from Notifications, then verify receipt in the destination inbox.", status: "warn", tab: "notifications", action: "Open Notifications" }
     : lastEmail.status === "failed"
       ? { id: "email", label: "The last email failed to send", detail: String(lastEmail.error || "See Recent deliveries for the reason."), status: "block", tab: "notifications", action: "Open Notifications" }
       // Resend's test sender only delivers to the Resend account owner: customers get nothing.
       : String(lastEmail.from || "").toLowerCase() === "onboarding@resend.dev"
         ? { id: "email", label: "Emails only reach you, not customers", detail: "The last email went out from Resend's test address, which only delivers to your own inbox. Add the Gmail app password (Notifications › Gmail sending) or verify your domain in Resend.", status: "block", tab: "notifications", action: "Open Notifications" }
-      : { id: "email", label: "Emails are sending", detail: "The latest delivery succeeded.", status: "ok", tab: "notifications", action: "Open Notifications" });
+      : { id: "email", label: "Email accepted; inbox delivery unverified", detail: "The provider accepted the latest message. Check the destination inbox and provider delivery events; acceptance does not prove delivery.", status: "warn", tab: "notifications", action: "Open Notifications" });
 
   // End-to-end proof
   items.push((orders || []).some(isRealPaidOrder)
-    ? { id: "first-sale", label: "A real paid order has gone through", detail: "Payment, webhook and order recording all worked.", status: "ok", tab: "orders", action: "Open Orders" }
+    ? { id: "first-sale", label: "A real paid order is recorded", detail: "The order is marked paid. Inspect provider payment, webhook logs, receipt, refund and fulfillment separately to verify the full flow.", status: "warn", tab: "orders", action: "Open Orders" }
     : { id: "first-sale", label: "No real paid order yet", detail: "Place one small live order (then refund it) to prove checkout end to end.", status: "warn", tab: "orders", action: "Open Orders" });
 
+  items.push({ id: "deployment", label: "Production deployment is unverified", detail: "This dashboard has no release or deployment evidence. Compare the latest successful workflow and Firebase release with the intended production version.", status: "warn", tab: "general", action: "Check deployments", href: "https://github.com/lyricalmyricalbooks/LyricalmyricalWebsiteTrial/actions" });
+  items.push({ id: "hosting", label: "Hosting release needs verification", detail: "Confirm the live domain and Hosting release in the configured Firebase project. Frontend and Functions releases are separate.", status: "warn", tab: "general", action: "Open Firebase", href: "https://console.firebase.google.com/project/lyricalmyrical-web-v2/hosting" });
   return items;
 }
 

@@ -29,6 +29,7 @@ import { StorefrontThemeStyle } from "./features/site/StorefrontThemeStyle";
 import { accountsEnabled } from "./features/site/customerAccounts";
 import { getCopy, CopyError, copyErrorText } from "./features/site/storeCopy";
 import { DEFAULT_SETTINGS } from "./features/site/constants";
+import { orderAccessHeaders, rememberOrderAccess } from "./lib/orderAccessClient";
 import { StripeCardForm, type StripeCardFormHandle } from "./features/site/StripeCardForm";
 import { StripePaymentSection } from "./features/site/StripePaymentSection";
 import { isStripePublishableKey, stripeCheckoutState, createCheckoutSubmission } from "./features/site/stripeLifecycle";
@@ -211,7 +212,7 @@ export function Checkout() {
   const initialCountry = useRef(guessCountryName() || "Canada");
   const [customer, setCustomer] = useState({
     name: "", email: "", phone: "",
-    address: { street: "", city: "", state: "", zip: "", country: initialCountry.current },
+    address: { street: "", unit: "", city: "", state: "", zip: "", country: initialCountry.current },
     billingAddress: { state: "", country: "Canada" }
   });
 
@@ -280,6 +281,7 @@ export function Checkout() {
               billingAddress: prev.billingAddress,
               address: {
                 street: data.defaultAddress?.street || prev.address.street,
+                unit: data.defaultAddress?.unit || prev.address.unit,
                 city: data.defaultAddress?.city || prev.address.city,
                 state: cleanRegion(data.defaultAddress?.state) || prev.address.state,
                 zip: data.defaultAddress?.zip || prev.address.zip,
@@ -390,6 +392,7 @@ export function Checkout() {
               phone: cartData.customer.phone || prev.phone,
               address: {
                 street: cartData.customer.address?.street || prev.address.street,
+                unit: cartData.customer.address?.unit || prev.address.unit,
                 city: cartData.customer.address?.city || prev.address.city,
                 state: cleanRegion(cartData.customer.address?.state) || prev.address.state,
                 zip: cartData.customer.address?.zip || prev.address.zip,
@@ -715,6 +718,7 @@ export function Checkout() {
           body: JSON.stringify({
             address: {
               street: addr.street.trim(),
+              unit: addr.unit.trim(),
               city: addr.city.trim(),
               state: addr.state.trim(),
               zip: addr.zip.trim(),
@@ -748,7 +752,7 @@ export function Checkout() {
     }, 1500);
 
     return () => clearTimeout(delayDebounce);
-  }, [customer.address.street, customer.address.city, customer.address.state, customer.address.zip, customer.address.country, cart, shippingProfiles, cartTotal, catalogItems]);
+  }, [customer.address.street, customer.address.unit, customer.address.city, customer.address.state, customer.address.zip, customer.address.country, cart, shippingProfiles, cartTotal, catalogItems]);
 
 
   useEffect(() => {
@@ -878,7 +882,7 @@ export function Checkout() {
   // previously chosen price. Keep the intended method so the shopper can review it.
   const quoteContext = JSON.stringify([
     cart.map(item => [item.id, item.variantId, item.quantity, item.price]),
-    fulfillmentSelection.method === "pickup" ? null : [customer.address.street, customer.address.city, customer.address.state, customer.address.zip, customer.address.country],
+    fulfillmentSelection.method === "pickup" ? null : [customer.address.street, customer.address.unit, customer.address.city, customer.address.state, customer.address.zip, customer.address.country],
     discountAmount,
     settings?.localFulfillment,
   ]);
@@ -1094,6 +1098,7 @@ export function Checkout() {
           address: {
             name: customer.name,
             street: customer.address.street,
+            unit: customer.address.unit,
             city: customer.address.city,
             state: customer.address.state,
             zip: customer.address.zip,
@@ -1207,6 +1212,7 @@ export function Checkout() {
         const result = await response.json();
         if (!response.ok || !result.orderId) throw discountRejection(result) || serverRefusal(response, result) || new CopyError(checkoutDesign, "coManualOrderError");
         orderId = result.orderId;
+        if (result.trackingKey) rememberOrderAccess(orderId, result.trackingKey);
       } else {
         orderId = reuse ? reuse.orderId : await adminApi.createOrder(orderData);
       }
@@ -1356,7 +1362,7 @@ export function Checkout() {
           // the shopper came back without paying — send them back to the form.
           const statusRes = await functionFetch("createStripeCheckoutSession", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: await orderAccessHeaders(oid),
             body: JSON.stringify({ action: "status", orderId: oid, sessionId: stripeSessionId, paymentIntentId: stripeIntentId }),
           }).catch(() => null);
           const statusData = statusRes && statusRes.ok ? await statusRes.json() : null;
@@ -1527,7 +1533,7 @@ export function Checkout() {
                     <p>{successOrder.shippingEstimate.terms}</p>
                   ) : null}
                   {successOrder.customer?.address?.street && (
-                    <p><span className="fm-track-mono">{c("coSuccessShipTo")}</span> {[successOrder.customer.address.street, successOrder.customer.address.city, successOrder.customer.address.state, successOrder.customer.address.zip].filter(Boolean).join(", ")}</p>
+                    <p><span className="fm-track-mono">{c("coSuccessShipTo")}</span> {[successOrder.customer.address.street, successOrder.customer.address.unit, successOrder.customer.address.city, successOrder.customer.address.state, successOrder.customer.address.zip].filter(Boolean).join(", ")}</p>
                   )}
                   <p>{c("coSuccessTrackingNote")}</p>
                 </div>
@@ -1675,6 +1681,7 @@ export function Checkout() {
                       listLabel={c("coAddressSuggestions")} attribution={c("coAddressAttribution")}
                       onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: v } }))}
                       onPick={sug => setCustomer(prev => ({ ...prev, address: { ...prev.address, street: sug.street, city: sug.city || prev.address.city, state: sug.state || prev.address.state, zip: sug.zip || prev.address.zip, country: sug.country || prev.address.country } }))} />)}
+                {!digitalOnly && !checkoutDesign.hideCheckoutAddressUnit && <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Apartment or unit"><Field label={c("coAddressUnit")} value={customer.address.unit} onChange={v => setCustomer(prev => ({ ...prev, address: { ...prev.address, unit: v } }))} autoComplete="address-line2" /></div>}
                 <div className={`grid grid-cols-1 gap-3 ${digitalOnly ? "" : "sm:grid-cols-3"}`}>
                   {!digitalOnly && <Field label={c("coCity")} value={customer.address.city} onChange={v => setCustomer({ ...customer, address: { ...customer.address, city: v } })} autoComplete="address-level2" required />}
                   {regionsFor(customer.address.country)
@@ -1749,6 +1756,7 @@ export function Checkout() {
             <section>
               <StepBadge n={c("coStepOf", { n: 3 })} label={c("coPayment")} />
               <p className="-mt-3 mb-4 text-sm leading-6 text-slate-500">{c("coPaymentNote")}</p>
+              {!checkoutDesign.hideCheckoutPaymentTotal && <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Payment total" className="mb-4 flex items-center justify-between gap-3 border-b border-slate-200 pb-4" aria-live="polite"><span>{c("summaryTotal")}</span><strong>{needsDeliveryChoice ? c("coPaymentTotalPending") : formatPrice(finalTotal)}</strong></div>}
               <div className="overflow-hidden rounded-lg border border-slate-300 bg-white">
                 {hasStripe && (
                   <StripePaymentSection
@@ -1776,6 +1784,10 @@ export function Checkout() {
                       validationText={c("coCardValidationError")}
                       paymentErrorText={c("coCardPaymentError")}
                       onStateChange={setCardState}
+                      expressText={c("coExpressCheckout")}
+                      showExpress={!checkoutDesign.hideCheckoutExpressWallets}
+                      expressEnabled={!isCompleting && stripeRoute.canPay && !needsDeliveryChoice && catalogState === "ready" && finalTotal > 0}
+                      onExpressConfirm={async () => { await handleCompletePurchase(); return purchaseNavigating.current; }}
                       fontName={checkoutDesign.checkoutFieldFont || checkoutDesign.checkoutFont || checkoutDesign.font || checkoutDesign.bodyFont || undefined}
                       fieldBackground={checkoutDesign.checkoutFieldBg || undefined}
                       fieldText={checkoutDesign.checkoutFieldText || undefined}

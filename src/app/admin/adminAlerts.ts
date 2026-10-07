@@ -8,7 +8,7 @@ export type AdminAlert = {
   title: string;
   detail: string;
   orderIds: string[];
-  action: "order" | "orders" | "webhook";
+  action: "order" | "orders" | "webhook" | "notifications";
 };
 
 export type WebhookStatus = { lastReceivedAt?: string | null; lastFailureAt?: string | null; lastFailure?: string | null } | null;
@@ -20,6 +20,7 @@ const SHIP_LATE_MS = 3 * DAY;
 const MANUAL_LATE_MS = 2 * DAY;
 
 const age = (o: any, now: number) => now - Date.parse(o?.createdAt || "");
+const paidAge = (o: any, now: number) => now - Date.parse(o?.paidAt || o?.createdAt || "");
 const label = (o: any) => o?.orderId || o?.id;
 const list = (orders: any[]) => {
   const names = orders.slice(0, 3).map(label).join(", ");
@@ -35,13 +36,16 @@ function alert(id: string, tone: AlertTone, title: string, detail: string, order
   return { id, tone, title, detail, orderIds: orders.map((o) => o.id), action: action || (orders.length === 1 ? "order" : "orders") };
 }
 
-export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null, now = Date.now()): AdminAlert[] {
+export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null, now = Date.now(), emailLog: any[] = []): AdminAlert[] {
   const orders = (allOrders || []).filter((o) => o && o.isTest !== true);
   const out: AdminAlert[] = [];
 
   const mismatch = orders.filter((o) => o.paymentMismatch && o.paymentStatus !== "paid" && o.paymentStatus !== "refunded");
   if (mismatch.length) out.push(alert("mismatch", "danger", `${plural(mismatch.length, "payment doesn't", "payments don't")} match the order total`,
     `Stripe or PayPal took a different amount than the order expected: ${list(mismatch)}. Review and refund in Stripe before shipping.`, mismatch));
+
+  const reconciliation = orders.filter(o => o.reconciliationPending && o.paymentStatus !== "paid" && o.paymentStatus !== "refunded");
+  if (reconciliation.length) out.push(alert("payment-reconciliation", "danger", `${plural(reconciliation.length, "payment awaits", "payments await")} webhook reconciliation`, `Provider evidence needs reconciliation with a signed webhook: ${list(reconciliation)}. Review Payments webhook health before fulfillment.`, reconciliation));
 
   const requests = orders.filter((o) => o.customerRequest?.status === "open");
   if (requests.length) out.push(alert("customer-request", "warning", `${plural(requests.length, "customer is", "customers are")} waiting on a cancel or return request`,
@@ -57,7 +61,7 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
 
   const stuck = orders.filter((o) => o.paymentStatus === "unpaid" && hasStripePayment(o) && age(o, now) >= STRIPE_GRACE_MS && age(o, now) <= 7 * DAY && !o.paymentMismatch);
   if (stuck.length) out.push(alert("unpaid-stripe", "danger", `${plural(stuck.length, "order is", "orders are")} unpaid after starting a card payment`,
-    `The customer may have paid but Stripe hasn't confirmed it to the shop: ${list(stuck)}. Open the order — it checks with Stripe automatically.`, stuck));
+    `The customer may have paid but Stripe hasn't confirmed it to the shop: ${list(stuck)}. Open the order to review provider payment and pending webhook reconciliation. Only a verified payment webhook can mark it paid.`, stuck));
 
   const disputes = orders.filter((o) => o.disputeStatus && ["needs_response", "warning_needs_response"].includes(o.disputeStatus));
   if (disputes.length) out.push(alert("dispute", "danger", `${plural(disputes.length, "payment dispute needs", "payment disputes need")} a response`,
@@ -76,14 +80,18 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
   if (oversold.length) out.push(alert("oversold", "warning", `${plural(oversold.length, "paid order was", "paid orders were")} oversold`,
     `More copies were sold than were in stock: ${list(oversold)}. Restock or contact the customer.`, oversold));
 
-  const late = orders.filter((o) => o.paymentStatus === "paid" && !isFinished(o) && age(o, now) >= SHIP_LATE_MS);
+  const late = orders.filter((o) => o.paymentStatus === "paid" && !isFinished(o) && paidAge(o, now) >= SHIP_LATE_MS);
   if (late.length) out.push(alert("ship-late", "warning", `${plural(late.length, "paid order has", "paid orders have")} waited over 3 days to ship`,
-    `Oldest first: ${list(late.sort((a, b) => age(b, now) - age(a, now)))}.`, late));
+    `Oldest first: ${list(late.sort((a, b) => paidAge(b, now) - paidAge(a, now)))}.`, late));
 
   const manual = orders.filter((o) => o.paymentStatus === "pending" && age(o, now) >= MANUAL_LATE_MS && o.status !== "cancelled");
   if (manual.length) out.push(alert("manual-pending", "info", `${plural(manual.length, "order is", "orders are")} still waiting for a manual payment`,
     `e-Transfer / cash orders with no payment after 2 days: ${list(manual)}. Confirm the payment or cancel the order.`, manual));
 
+  const uncertain = orders.filter(o => o.operations?.labelPurchasePending === true);
+  if (uncertain.length) out.push(alert("label-purchase-uncertain", "danger", `${plural(uncertain.length, "label purchase needs", "label purchases need")} reconciliation`, `Check the existing transaction in Shippo before retrying: ${list(uncertain)}. An uncertain purchase may already have charged for a label.`, uncertain));
+  const failedEmails = emailLog.filter(e => ["failed", "bounced", "complained"].includes(e.status) && now - Date.parse(e.at || "") <= 7 * DAY);
+  if (failedEmails.length) out.push({ id: "email-failed", tone: "warning", title: `${plural(failedEmails.length, "recent email needs", "recent emails need")} attention`, detail: "Review Notifications delivery attempts and provider events. Resolve the cause before resending; sent status only proves provider acceptance.", orderIds: failedEmails.map(e => String(e.id || e.at)), action: "notifications" });
   return out;
 }
 

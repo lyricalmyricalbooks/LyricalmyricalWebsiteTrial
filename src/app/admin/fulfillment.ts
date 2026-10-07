@@ -6,7 +6,9 @@ const terminal = (o: any) => o.status === "cancelled" || ["refunded", "refund_pe
 // drive shipping in a fixed order so equivalent addresses do not look stale.
 export const addressKey = (o: any) => {
  const address = o.customer?.address || {};
- return JSON.stringify(["street", "city", "state", "zip", "country"].map(key => String(address[key] || "").trim()));
+ const fields = ["street", "city", "state", "zip", "country"].map(key => String(address[key] || "").trim());
+ const unit = String(address.unit || "").trim();
+ return JSON.stringify(unit ? [...fields, unit] : fields);
 };
 export const packingKey = (o: any) => JSON.stringify((o.items || []).map((i: any) => [i.id || i.bookId || i.title, i.variantId || i.variant || "", i.quantity]));
 export function addressIssues(o: any): string[] {

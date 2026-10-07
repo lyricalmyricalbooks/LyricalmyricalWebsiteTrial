@@ -5,7 +5,7 @@ export function printOrders(orders: any[], pickList = false) {
  const table = (items: any[]) => `<table><thead><tr><th>Book / edition</th><th>Quantity</th><th>Packed</th></tr></thead><tbody>${rows(items)}</tbody></table>`;
  const body = pickList ? `<section><h1>Publisher pick list</h1><p>${orders.length} orders</p>${table(buildPickList(orders))}<p>Orders: ${orders.map(o => escape(o.orderId || o.id)).join(", ")}</p></section>` : orders.map(o => {
   const a = o.customer?.address || {};
-  return `<section><h1>Packing slip</h1><h2>${escape(o.orderId || o.id)}</h2><p>${escape(o.customer?.name)}<br>${escape(a.street)}<br>${escape(a.city)}, ${escape(a.state)} ${escape(a.zip)}<br>${escape(a.country)}</p>${table(physicalItems(o))}${o.orderNote ? `<p>Customer note: ${escape(o.orderNote)}</p>` : ""}</section>`;
+  return `<section><h1>Packing slip</h1><h2>${escape(o.orderId || o.id)}</h2><p>${escape(o.customer?.name)}<br>${escape([a.street, a.unit].filter(Boolean).join(", "))}<br>${escape(a.city)}, ${escape(a.state)} ${escape(a.zip)}<br>${escape(a.country)}</p>${table(physicalItems(o))}${o.orderNote ? `<p>Customer note: ${escape(o.orderNote)}</p>` : ""}</section>`;
  }).join("");
  const frame = document.createElement("iframe");
  frame.title = "Packing documents"; frame.style.cssText = "position:fixed;width:1px;height:1px;left:-9999px";

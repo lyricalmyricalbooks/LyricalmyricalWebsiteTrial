@@ -1,3 +1,4 @@
+import { orderAccessHeaders } from "../../lib/orderAccessClient";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { functionFetch } from "../../lib/functionsBase";
@@ -39,7 +40,7 @@ export function OrderRequestBox({ design, order, access, onUpdated }: {
     try {
       const response = await functionFetch("createStripeCheckoutSession", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await orderAccessHeaders(order.id || order.orderId, access.key),
         body: JSON.stringify({ action: "orderRequest", orderId: order.id || order.orderId, email: access.email || order.customer?.email || "", key: access.key || "", type, message }),
       });
       const body = await response.json().catch(() => ({}));

@@ -11,3 +11,11 @@ describe("label purchase guard", () => {
  it("uses exactly the keys the admin saves", () => { expect(addressKey(o)).toBe(client.addressKey(o)); expect(packingKey(o)).toBe(client.packingKey(o)); });
  it("rejects carrier labels for validated pickup and local delivery", () => { for (const method of ['pickup', 'local_delivery']) expect(labelProblem({ ...o, fulfillment: { method } }, operations)).toBeTruthy(); });
 });
+
+it("requires address review again when apartment changes and preserves legacy address keys", () => {
+ const changed = { ...o, customer: { address: { ...o.customer.address, unit: "12" } } };
+ expect(client.addressKey(changed)).not.toBe(operations.addressReviewed);
+ expect(addressKey(changed)).toBe(client.addressKey(changed));
+ expect(labelProblem(changed, operations)).toContain("Review the address");
+ expect(client.addressKey({ ...o, customer: { address: { ...o.customer.address, unit: "" } } })).toBe(operations.addressReviewed);
+});

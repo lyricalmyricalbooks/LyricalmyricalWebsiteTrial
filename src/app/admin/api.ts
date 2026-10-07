@@ -1,3 +1,4 @@
+import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
 import { addressKey, addressIssues, packingKey, dispatchProblem, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
 import { themeWrite } from "./themeWrite";
 import { splitWebsiteSecrets, splitNotificationSecrets, type SecretPatch } from "./privateKeys";
@@ -806,7 +807,7 @@ export const adminApi = {
       if (method === "pickup") throw new Error("Pickup orders use the selected store address and do not have a customer shipping address to change.");
       if (o.status === "completed" || o.status === "cancelled" || o.paymentStatus !== "paid" || o.isTest || o.labelUrl || ["shipped", "out_for_delivery", "delivered"].includes(o.fulfillmentStatus)) throw new Error("Address changes are unavailable after label purchase or dispatch.");
       if (addressKey(o) !== originalKey) throw new Error("The address changed. Reload the order first.");
-      const cleaned = Object.fromEntries(["street", "city", "state", "zip", "country"].map(k => [k, String(address[k] || "").trim().slice(0, 200)]));
+      const cleaned = Object.fromEntries(["street", "unit", "city", "state", "zip", "country"].map(k => [k, String(address[k] || "").trim().slice(0, 200)]));
       const oldAddress = o.customer?.address || {};
       if (method === "local_delivery" && ["state", "zip", "country"].some(key => String(cleaned[key] || "").trim().toLowerCase() !== String(oldAddress[key] || "").trim().toLowerCase())) throw new Error("For a paid local delivery, province, postal code and country cannot change. Cancel and refund this order, then place a new order for the new area.");
       const problems = addressIssues({ customer: { address: cleaned } });
@@ -1018,11 +1019,11 @@ export const adminApi = {
   },
 
   // Asks Stripe (server-side) whether an unpaid order's payment went through, and
-  // finishes the order if it did. The browser never decides payment.
+  // reports discrepancies; only the verified Stripe webhook completes payment.
   recheckStripePayment: async (orderId: string) => {
     const response = await functionFetch("createStripeCheckoutSession", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await orderAccessHeaders(orderId),
       body: JSON.stringify({ action: "status", orderId }),
     });
     const result = await response.json().catch(() => ({}));
@@ -1047,8 +1048,8 @@ export const adminApi = {
   getPublicOrder: async (id: string, proof: { email?: string; key?: string }) => {
     const response = await functionFetch("createStripeCheckoutSession", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "track", orderId: id, email: proof.email || "", key: proof.key || "" }),
+      headers: await orderAccessHeaders(id, proof.key),
+      body: JSON.stringify({ action: "track", orderId: id, key: proof.key || savedOrderAccess(id) }),
     });
     if (response.status === 404 || response.status === 400) return null;
     const data = await response.json().catch(() => ({}));
@@ -1075,6 +1076,7 @@ export const adminApi = {
     const suffix = Math.floor(100000 + Math.random() * 900000);
     const extra = Math.random().toString(36).substring(2, 6).toUpperCase();
     const orderId = `${prefix}-${suffix}-${extra}`;
+    const trackingKey = newOrderAccessKey();
 
     // Orders default to UNPAID; only a verified payment-provider capture
     // handled by Cloud Functions flips them to paid and records revenue.
@@ -1082,6 +1084,7 @@ export const adminApi = {
     await setDoc(doc(db, "orders", orderId), {
       ...order,
       orderId, // Display ID
+      trackingKey,
       status: order.status || "pending_payment",
       paymentStatus: order.paymentStatus || "unpaid",
       createdAt: new Date().toISOString(),
@@ -1091,6 +1094,7 @@ export const adminApi = {
       ]
     });
 
+    rememberOrderAccess(orderId, trackingKey);
     return orderId;
   },
 

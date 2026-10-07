@@ -14,7 +14,7 @@ import {
   getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, DEFAULT_COLOR_SCHEMES,
 } from "../ThemeEditorExtensions";
 import { CATEGORIES } from "../../features/site/constants";
-import { buildNavItems, childCategories, moveNavItem, parentOf, reslotPages } from "../../features/site/navItems";
+import { splitNavigation, buildNavItems, childCategories, moveNavItem, parentOf, reslotPages } from "../../features/site/navItems";
 import { COPY_SCHEMA, DEFAULT_COPY } from "../../features/site/storeCopy";
 import { MENU_LINK_TYPES, newMenuItem, type MenuItem } from "../../features/site/storeMenu";
 import {
@@ -225,7 +225,7 @@ function MenuRow({ item, pages, depth, onChange, onRemove, onMove }: {
 }
 
 // ── Header bar order (categories + in-menu pages, one sequence) ────────────
-function NavOrderPanel({ design, pages, onChange }: { design: any; pages: any[]; onChange: (order: string[]) => void }) {
+function NavOrderPanel({ design, pages, onChange, onSecondaryChange }: { design: any; pages: any[]; onChange: (order: string[]) => void; onSecondaryChange: (keys: string[]) => void }) {
   const raw: any[] = Array.isArray(design.categories) ? design.categories : [...CATEGORIES];
   const cats = raw.map((c, i) => (typeof c === "string" ? { id: `cat-${i}`, name: c, description: "", showInNav: true } : c));
   const items = buildNavItems(cats, pages, design.navOrder);
@@ -233,13 +233,16 @@ function NavOrderPanel({ design, pages, onChange }: { design: any; pages: any[];
     <div className="p-4 space-y-3 border-b border-neutral-200" data-studio-panel="menus:header-order">
       <div>
         <p className="text-sm font-bold">Header bar order</p>
-        <p className="text-xs text-neutral-500">Categories and pages share one bar across the top of the shop. Use the arrows to put them in any order. New pages are added at the end.</p>
+        <p className="text-xs text-neutral-500">Keep shopping in the main bar and place submissions, history and open calls in publisher navigation. Use the arrows to order links; select the row for each page.</p>
       </div>
       {items.length === 0 && <p className="text-xs text-neutral-400">Nothing is set to show in the header yet.</p>}
       {items.map((it, i) => (
         <div key={it.key} className="flex items-center gap-1 border border-neutral-200 rounded-lg px-2 py-1 bg-white">
           <span className="flex-1 min-w-0 truncate text-xs font-bold uppercase">{it.label}</span>
-          <span className="text-[10px] uppercase tracking-wider text-neutral-400">{it.kind === "page" ? "Page" : "Category"}</span>
+          {it.kind === "page" ? <select aria-label={`Navigation row for ${it.label}`} className="text-xs rounded border px-1 py-1" value={splitNavigation(items, design).secondary.some(item => item.key === it.key) ? "secondary" : "primary"} onChange={(event) => {
+            const keys = splitNavigation(items, design).secondary.map(item => item.key).filter(key => key !== it.key);
+            onSecondaryChange(event.target.value === "secondary" ? [...keys, it.key] : keys);
+          }}><option value="primary">Main shopping bar</option><option value="secondary">Publisher navigation</option></select> : <span className="text-[10px] uppercase tracking-wider text-neutral-400">Category</span>}
           <button className={iconBtn} onClick={() => onChange(moveNavItem(items, i, -1))} disabled={i === 0} aria-label={`Move ${it.label} earlier`}><ChevronUp size={14} /></button>
           <button className={iconBtn} onClick={() => onChange(moveNavItem(items, i, 1))} disabled={i === items.length - 1} aria-label={`Move ${it.label} later`}><ChevronDown size={14} /></button>
         </div>
@@ -1224,7 +1227,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                 <StudioCategories design={design} published={published} onChange={(c) => setStyle("categories", c)}
                   onReorder={(c) => change(d => ({ ...d, categories: c, navOrder: categoryNavOrder(d.categories ?? [...CATEGORIES], c, pages, d.navOrder) }))}
                   onBooksChanged={(all) => setBooks(all.filter(b => b.status === "published" || !b.status))} />
-                <NavOrderPanel design={design} pages={pages} onChange={(o) => setStyle("navOrder", o)} />
+                <NavOrderPanel design={design} pages={pages} onChange={(o) => setStyle("navOrder", o)} onSecondaryChange={(keys) => setStyle("secondaryNavKeys", keys)} />
                 <MenusPanel design={design} pages={pages} onChange={(m) => setStyle("menus", m)} />
               </>
             )}

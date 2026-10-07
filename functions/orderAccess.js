@@ -1,33 +1,29 @@
-// Guest order tracking. Orders are no longer publicly readable in Firestore:
-// the browser asks the server, which hands the order back only to someone who
-// proves they own it — the matching customer email, or the private key from
-// the order email link.
+// Order IDs and email addresses are identifiers, not authentication secrets.
 const crypto = require("crypto");
-
 const normEmail = v => String(v || "").trim().toLowerCase();
-
 function sameSecret(a, b) {
-  const x = Buffer.from(String(a || ""));
-  const y = Buffer.from(String(b || ""));
-  return x.length > 0 && x.length === y.length && crypto.timingSafeEqual(x, y);
+  if (typeof a !== "string" || typeof b !== "string" || !a || a.length > 256) return false;
+  const x = Buffer.from(a), y = Buffer.from(b);
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
 }
-
-// true when the request proves ownership of this order.
-function canViewOrder(order, { email, key } = {}) {
+function canViewOrder(order, { key, identity } = {}) {
   if (!order) return false;
-  if (key && typeof order.trackingKey === "string" && sameSecret(key, order.trackingKey)) return true;
-  const owner = normEmail(order.customer?.email);
-  return Boolean(owner) && normEmail(email) === owner;
+  if (sameSecret(key, order.trackingKey)) return true;
+  if (identity?.email_verified !== true) return false;
+  const email = normEmail(identity.email);
+  return !!email && (email === normEmail(order.customer?.email) || email === "lyricalmyricalbooks@gmail.com");
 }
-
-// Fields a shopper never needs to see. The tracking key stays server-side so a
-// copied order can't be turned into a reusable link.
-const PRIVATE_FIELDS = ["trackingKey", "paymentAlertSentAt", "stripeCheckedAt", "ipCountry", "clientIp"];
-
+const PUBLIC_FIELDS = ["orderId", "createdAt", "updatedAt", "status", "paymentStatus", "fulfillmentStatus",
+  "paidAt", "shippedAt", "deliveredAt", "readyForPickupAt", "collectedAt", "readyForDeliveryAt", "outForDeliveryAt",
+  "subtotal", "discount", "shipping", "tax", "total", "checkoutCurrency", "exchangeRate", "paymentMethod",
+  "paymentInstructions", "shippingMethod", "shippingEstimate", "trackingNumber", "trackingCarrier", "trackingUrl",
+  "downloadToken", "fulfillment", "customerRequest"];
+const pick = (value, keys) => Object.fromEntries(keys.filter(k => value && Object.hasOwn(value, k)).map(k => [k, value[k]]));
 function publicOrderView(id, order) {
-  const out = { id, ...order };
-  for (const f of PRIVATE_FIELDS) delete out[f];
+  const out = { id, ...pick(order, PUBLIC_FIELDS) };
+  out.customer = pick(order.customer, ["name", "email", "phone"]);
+  out.customer.address = pick(order.customer?.address, ["street", "unit", "city", "state", "zip", "country"]);
+  out.items = (order.items || []).map(item => pick(item, ["id", "variantId", "variantName", "title", "price", "quantity", "photoUrl"]));
   return out;
 }
-
 module.exports = { canViewOrder, publicOrderView, normEmail };

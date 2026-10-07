@@ -139,7 +139,7 @@ export function FulfillmentWorkbench({
           {!reviewed || !active ? (
             <address className="fw-address">
               <strong>{order.customer?.name}</strong>
-              <span>{addr.street}</span>
+              <span>{[addr.street, addr.unit].filter(Boolean).join(", ")}</span>
               <span>
                 {addr.city}
                 {addr.state ? `, ${addr.state}` : ""} {addr.zip}
@@ -153,7 +153,7 @@ export function FulfillmentWorkbench({
               </summary>
               <address className="fw-address">
                 <strong>{order.customer?.name}</strong>
-                <span>{addr.street}</span>
+                <span>{[addr.street, addr.unit].filter(Boolean).join(", ")}</span>
                 <span>
                   {addr.city}, {addr.state} {addr.zip}
                 </span>
@@ -435,7 +435,7 @@ export function FulfillmentWorkbench({
               <h3>{method === "pickup" ? "Customer pickup" : "Local delivery"}</h3>
               <span className="rp-hint">
                 {order.fulfillment?.name || "Selected local service"}
-                {order.fulfillment?.address ? ` · ${[order.fulfillment.address.street, order.fulfillment.address.city, order.fulfillment.address.state, order.fulfillment.address.zip].filter(Boolean).join(", ")}` : ""}
+                {order.fulfillment?.address ? ` · ${[order.fulfillment.address.street, order.fulfillment.address.unit, order.fulfillment.address.city, order.fulfillment.address.state, order.fulfillment.address.zip].filter(Boolean).join(", ")}` : ""}
               </span>
             </div>
           </div>

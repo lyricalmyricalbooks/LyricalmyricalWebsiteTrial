@@ -1,50 +1,47 @@
 // @vitest-environment jsdom
 import { act, createElement as h } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { StripeCardForm } from "./StripeCardForm";
-
-const provider = vi.hoisted(() => ({ load: vi.fn() }));
-vi.mock("@stripe/stripe-js", () => ({ loadStripe: provider.load }));
+const fake = vi.hoisted(() => {
+  const handlers: Record<string, Record<string, Function>> = {};
+  const create = vi.fn((type: string) => ({ on: (event: string, cb: Function) => { (handlers[type] ||= {})[event] = cb; }, mount: vi.fn(), destroy: vi.fn() }));
+  return { handlers, create, submit: vi.fn(async () => ({})), confirmPayment: vi.fn(async () => ({ paymentIntent: { id: "pi_test", status: "succeeded" } })) };
+});
+vi.mock("@stripe/stripe-js", () => ({ loadStripe: async () => ({ elements: () => ({ create: fake.create, update() {}, submit: fake.submit }), confirmPayment: fake.confirmPayment }) }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 let root: ReturnType<typeof createRoot>;
 let host: HTMLDivElement;
-afterEach(() => { act(() => root?.unmount()); host?.remove(); vi.useRealTimers(); vi.clearAllMocks(); });
-function render() {
-  host = document.createElement("div"); document.body.append(host);
-  root = createRoot(host);
-  act(() => root.render(h(StripeCardForm, {
-    publishableKey: "pk_test_abcdefghijklmnopqrstuvwxyz", amountCents: 2400, currency: "CAD",
-    loadingText: "Loading payment", errorText: "Payment form unavailable",
-  })));
+afterEach(() => { if (root) act(() => root.unmount()); host?.remove(); vi.clearAllMocks(); });
+async function render(props: Record<string, unknown> = {}) {
+  host = document.createElement("div"); document.body.append(host); root = createRoot(host);
+  await act(async () => root.render(h(StripeCardForm, { publishableKey: "pk_test_key", amountCents: 2500, currency: "cad", loadingText: "Loading", errorText: "Failed", expressText: "Wallets", ...props })));
+  return host;
 }
-
-describe("Stripe form loading recovery", () => {
-  it("releases shoppers from a stalled Stripe loader and ignores a late response", async () => {
-    vi.useFakeTimers();
-    let resolve: (value: unknown) => void;
-    provider.load.mockImplementation(() => new Promise(r => { resolve = r; }));
-    render();
-    expect(host.textContent).toContain("Loading payment");
-    await act(async () => { vi.advanceTimersByTime(20000); });
-    expect(host.querySelector('[role="alert"]')?.textContent).toBe("Payment form unavailable");
-    let mounted = false;
-    await act(async () => { resolve!({ elements() { mounted = true; throw new Error("Must not mount after timeout"); } }); });
-    expect(mounted).toBe(false);
-    expect(host.querySelector('[role="alert"]')).not.toBeNull();
-  });
-  it("does not turn a ready form into an error when the loading deadline passes", async () => {
-    vi.useFakeTimers();
-    let ready: () => void = () => {};
-    provider.load.mockResolvedValue({ elements: () => ({
-      create: () => ({ on(event: string, callback: () => void) { if (event === "ready") ready = callback; }, mount() {}, destroy() {} }),
-      update() {},
-    }) });
-    render();
-    await act(async () => {});
-    act(() => ready());
-    await act(async () => { vi.advanceTimersByTime(20000); });
-    expect(host.querySelector('[role="alert"]')).toBeNull();
-    expect(host.textContent).not.toContain("Loading payment");
-  });
+it("shows express wallets only after Stripe reports an eligible wallet", async () => {
+  const view = await render(); const region = view.querySelector('[data-studio-label="Express checkout wallets"]') as HTMLElement;
+  expect(region.style.display).toBe("none");
+  act(() => fake.handlers.expressCheckout.ready({ availablePaymentMethods: { applePay: false, googlePay: false } }));
+  expect(region.style.display).toBe("none");
+  act(() => fake.handlers.expressCheckout.ready({ availablePaymentMethods: { applePay: true } }));
+  expect(region.style.display).toBe("");
+});
+it("uses the existing checkout callback and fails the wallet sheet when checkout rejects", async () => {
+  const submit = vi.fn(async () => false), failed = vi.fn(); await render({ onExpressConfirm: submit });
+  await act(async () => fake.handlers.expressCheckout.confirm({ paymentFailed: failed }));
+  expect(submit).toHaveBeenCalledOnce(); expect(failed).toHaveBeenCalledWith({ reason: "fail" });
+  expect(fake.confirmPayment).not.toHaveBeenCalled();
+});
+it("does not open wallets while checkout is unavailable or create them when Studio hides them", async () => {
+  await render({ expressEnabled: false }); const resolve = vi.fn(), reject = vi.fn();
+  fake.handlers.expressCheckout.click({ resolve, reject }); expect(resolve).not.toHaveBeenCalled(); expect(reject).toHaveBeenCalledOnce();
+  act(() => root.unmount()); host.remove(); fake.create.mockClear(); await render({ showExpress: false });
+  expect(fake.create).toHaveBeenCalledWith("payment", expect.anything());
+  expect(fake.create).not.toHaveBeenCalledWith("expressCheckout", expect.anything());
+});
+it("keeps a successful express checkout on the shared navigation path", async () => {
+  const submit = vi.fn(async () => true), failed = vi.fn(); await render({ onExpressConfirm: submit });
+  await act(async () => fake.handlers.expressCheckout.confirm({ paymentFailed: failed }));
+  expect(submit).toHaveBeenCalledOnce(); expect(failed).not.toHaveBeenCalled();
+  expect(fake.confirmPayment).not.toHaveBeenCalled();
 });

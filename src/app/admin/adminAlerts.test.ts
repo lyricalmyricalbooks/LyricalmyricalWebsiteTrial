@@ -55,3 +55,24 @@ describe("buildAdminAlerts", () => {
     expect(ids(a)).toEqual(["partial-refund"]);
   });
 });
+
+describe("operational alerts", () => {
+  it("ages fulfillment from payment, with legacy creation fallback", () => {
+    const rows = buildAdminAlerts([
+      { id: "recent", paymentStatus: "paid", createdAt: ago(8 * 1440), paidAt: ago(60) },
+      { id: "late", paymentStatus: "paid", createdAt: ago(8 * 1440), paidAt: ago(4 * 1440) },
+    ], null, now);
+    expect(rows.find(a => a.id === "ship-late")?.orderIds).toEqual(["late"]);
+  });
+  it("keeps uncertain label purchases visible and links failures to notifications", () => {
+    const rows = buildAdminAlerts([{ id: "label", operations: { labelPurchasePending: true } }], null, now, [{ id: "email", status: "failed", at: ago(10) }]);
+    expect(rows.find(a => a.id === "label-purchase-uncertain")?.orderIds).toEqual(["label"]);
+    expect(rows.find(a => a.id === "email-failed")?.action).toBe("notifications");
+  });
+});
+
+it("surfaces provider reconciliation without claiming it marks an order paid", () => {
+  const rows = buildAdminAlerts([{ id: "P", paymentStatus: "unpaid", reconciliationPending: { provider: "stripe" }, createdAt: ago(1) }], null, now);
+  expect(rows.find(a => a.id === "payment-reconciliation")?.orderIds).toEqual(["P"]);
+  expect(rows.find(a => a.id === "payment-reconciliation")?.detail).toMatch(/signed webhook/);
+});

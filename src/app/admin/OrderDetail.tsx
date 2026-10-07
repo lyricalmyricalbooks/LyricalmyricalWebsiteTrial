@@ -131,13 +131,13 @@ export function OrderDetail({
     setCheckingPayment(true);
     const before = order?.paymentStatus;
     try {
-      await adminApi.recheckStripePayment(orderId);
+      const report = await adminApi.recheckStripePayment(orderId);
       const fresh = await adminApi.getOrderById(orderId);
       if (fresh) setOrder(fresh);
       if (fresh?.paymentStatus === "refunded" && before !== "refunded") toast.success("Stripe shows this payment was refunded — order updated and stock returned.");
       else if (fresh?.paymentStatus === "paid" && before === "unpaid") toast.success("Stripe confirmed the payment — order marked paid.");
       else if (fresh?.paymentMismatch && fresh?.paymentStatus !== "paid") toast.error("Stripe's amount doesn't match this order. Review it in Stripe before fulfilling.");
-      else if (manual) toast(fresh?.paymentStatus === "paid" ? "In step with Stripe — no refund or dispute." : "Stripe hasn't received this payment yet.");
+      else if (manual) toast((report as any).awaitingWebhook ? "Stripe received payment. The order is awaiting its verified webhook; review Webhook health before shipping." : fresh?.paymentStatus === "paid" ? "Order payment was confirmed by the webhook." : "Stripe has not confirmed this payment yet.");
     } catch (err: any) {
       if (manual) toast.error(err.message || "Couldn't reach Stripe.");
     } finally {
@@ -690,7 +690,7 @@ export function OrderDetail({
                 onClick={async () => {
                   try {
                     await navigator.clipboard.writeText(
-                      `${order.customer?.name || ""}\n${addr.street || ""}\n${addr.city || ""}, ${addr.state || ""} ${addr.zip || ""}\n${addr.country || ""}`,
+                      `${order.customer?.name || ""}\n${[addr.street, addr.unit].filter(Boolean).join(", ")}\n${addr.city || ""}, ${addr.state || ""} ${addr.zip || ""}\n${addr.country || ""}`,
                     );
                     toast.success("Address copied");
                   } catch {
@@ -1211,11 +1211,11 @@ export function OrderDetail({
       >
         {editAddress && (
           <div className="rp-stack">
-            {["street", "city", "state", "zip", "country"].map((k) => (
+            {["street", "unit", "city", "state", "zip", "country"].map((k) => (
               <TextField
                 key={k}
                 label={
-                  k === "state"
+                  k === "unit" ? "Apartment / unit (optional)" : k === "state"
                     ? "Province / state"
                     : k === "zip"
                       ? "Postal / ZIP code"

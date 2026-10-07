@@ -2,7 +2,9 @@
 // The admin stores these exact strings when the address is reviewed / items are packed.
 const addressKey = order => {
  const address = order.customer?.address || {};
- return JSON.stringify(["street", "city", "state", "zip", "country"].map(key => String(address[key] || "").trim()));
+ const fields = ["street", "city", "state", "zip", "country"].map(key => String(address[key] || "").trim());
+ const unit = String(address.unit || "").trim();
+ return JSON.stringify(unit ? [...fields, unit] : fields);
 };
 const packingKey = order => JSON.stringify((order.items || []).map(i => [i.id || i.bookId || i.title, i.variantId || i.variant || "", i.quantity]));
 function labelProblem(order, operations = {}) {

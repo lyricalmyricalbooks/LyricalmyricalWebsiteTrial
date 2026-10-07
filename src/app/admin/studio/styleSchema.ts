@@ -229,6 +229,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     title: "Header & announcement bar",
     fields: [
       { key: "headerStyle", label: "Header layout", kind: "select", options: opts("minimal", "centered", "full") },
+      { key: "showSecondaryNavigation", label: "Show publisher navigation row", kind: "toggle", defaultValue: true },
       { key: "logoPosition", label: "Logo alignment", kind: "select", options: opts("left", "center", "right") },
       { key: "logoHeight", label: "Logo height", kind: "range", min: 12, max: 120, step: 1, suffix: "px" },
       { key: "stickyHeader", label: "Stick header to top", kind: "toggle" },
@@ -358,6 +359,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
     id: "productPage",
     title: "Product page layout",
     fields: [
+      { key: "showPdpEditionDetails", label: "Show edition details", kind: "toggle", defaultValue: true },
       { key: "lowStockProductThreshold", label: "Show “only N left” on the product page at or below", kind: "number", min: 1, max: 100, step: 1 },
       { key: "recentlyViewedCount", label: "Recently viewed: how many books", kind: "number", min: 1, max: 12, step: 1 },
       { key: "productImageLayout", label: "Image layout", kind: "select", options: [{ value: "slider", label: "Slider" }, { value: "grid", label: "Grid" }] },
@@ -463,6 +465,9 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "checkoutAccentColor", label: "Checkout accent", kind: "color" },
       { key: "checkoutBgColor", label: "Checkout background", kind: "color" },
       { key: "showOrderNote", label: "Order note / gift message box at checkout", kind: "toggle" },
+      { key: "hideCheckoutExpressWallets", label: "Hide eligible express wallets", kind: "toggle" },
+      { key: "hideCheckoutPaymentTotal", label: "Hide total beside payment", kind: "toggle" },
+      { key: "hideCheckoutAddressUnit", label: "Hide optional apartment or unit field", kind: "toggle" },
       { key: "stripeFormBg", label: "Card payment form background", kind: "color" },
       { key: "stripeFormPadding", label: "Card payment form padding", kind: "range", min: 0, max: 32, step: 2, suffix: "px" },
       { key: "checkoutInputRadius", label: "Checkout field corner radius", kind: "range", min: 0, max: 24, step: 1, suffix: "px" },

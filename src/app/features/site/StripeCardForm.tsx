@@ -33,6 +33,10 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
   errorText: string;
   validationText?: string;
   paymentErrorText?: string;
+  expressText?: string;
+  showExpress?: boolean;
+  expressEnabled?: boolean;
+  onExpressConfirm?: () => Promise<boolean>;
   onStateChange?: (state: "loading" | "ready" | "error") => void;
   /** Google Font used inside Stripe's fields (Studio › Checkout form field font). */
   fontName?: string;
@@ -42,8 +46,12 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
   accentColor?: string;
   fieldRadius?: number;
   style?: React.CSSProperties;
-}>(function StripeCardForm({ publishableKey, amountCents, currency, loadingText, errorText, validationText, paymentErrorText, onStateChange, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style }, ref) {
+}>(function StripeCardForm({ publishableKey, amountCents, currency, loadingText, errorText, validationText, paymentErrorText, onStateChange, expressText, showExpress = true, expressEnabled = true, onExpressConfirm, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style }, ref) {
   const host = useRef<HTMLDivElement>(null);
+  const expressHost = useRef<HTMLDivElement>(null);
+  const expressCallbacks = useRef({ expressEnabled, onExpressConfirm });
+  expressCallbacks.current = { expressEnabled, onExpressConfirm };
+  const [expressAvailable, setExpressAvailable] = useState(false);
   const stripeRef = useRef<Stripe | null>(null);
   const elementsRef = useRef<StripeElements | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -55,6 +63,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
     let failed = false;
     let cleanup: (() => void) | null = null;
     setState("loading");
+    setExpressAvailable(false);
     const fail = () => {
       clearTimeout(deadline);
       if (cancelled) return;
@@ -104,7 +113,29 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
           },
         });
         const payment = elements.create("payment", { layout: "tabs", wallets: { applePay: "auto", googlePay: "auto" } });
-        cleanup = createElementCleanup(payment);
+        const releasePayment = createElementCleanup(payment);
+        cleanup = releasePayment;
+        if (showExpress && expressHost.current) {
+          try {
+            const express = elements.create("expressCheckout", { paymentMethods: { applePay: "auto", googlePay: "auto" } });
+            const releaseExpress = createElementCleanup(express);
+            cleanup = () => { releaseExpress(); releasePayment(); };
+            express.on("ready", event => {
+              if (!cancelled && !failed) setExpressAvailable(Boolean(event.availablePaymentMethods && Object.values(event.availablePaymentMethods).some(Boolean)));
+            });
+            express.on("loaderror", () => { if (!cancelled) setExpressAvailable(false); });
+            express.on("click", event => {
+              if (expressCallbacks.current.expressEnabled) event.resolve();
+              else event.reject();
+            });
+            express.on("confirm", async event => {
+              try {
+                if (!expressCallbacks.current.expressEnabled || !await expressCallbacks.current.onExpressConfirm?.()) event.paymentFailed({ reason: "fail" });
+              } catch { event.paymentFailed({ reason: "fail" }); }
+            });
+            express.mount(expressHost.current);
+          } catch { setExpressAvailable(false); }
+        }
         payment.on("ready", () => {
           clearTimeout(deadline);
           if (!cancelled && !failed) setState("ready");
@@ -121,7 +152,7 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
     return () => { cancelled = true; clearTimeout(deadline); cleanup?.(); elementsRef.current = null; stripeRef.current = null; };
     // amount/currency changes are pushed with elements.update below
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publishableKey, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style?.background]);
+  }, [publishableKey, fontName, fieldBackground, fieldText, fieldBorder, accentColor, fieldRadius, style?.background, showExpress]);
 
   useEffect(() => {
     try { elementsRef.current?.update({ amount: safeAmount, currency: currency.toLowerCase() }); }
@@ -160,6 +191,10 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
     <div className="fm-stripe-card-form" style={style} data-studio-target="style:checkout" data-studio-label="Card payment form">
       {state === "loading" && <p role="status" className="py-4 text-center text-sm text-slate-500">{loadingText}</p>}
       {state === "error" && <p role="alert" className="py-4 text-center text-sm" style={{ color: "var(--danger, #b4271a)" }}>{errorText}</p>}
+      {showExpress && <div data-studio-target="copy:Checkout|style:checkout" data-studio-label="Express checkout wallets" style={{ display: expressAvailable ? undefined : "none", pointerEvents: expressEnabled ? undefined : "none", opacity: expressEnabled ? 1 : .5 }} aria-disabled={!expressEnabled}>
+        {expressText && <p className="mb-3 text-sm font-semibold">{expressText}</p>}
+        <div ref={expressHost} className="mb-4" />
+      </div>}
       <div ref={host} />
     </div>
   );

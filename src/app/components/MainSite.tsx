@@ -1,3 +1,4 @@
+import { SecondaryStorefrontNav } from "../features/site/SecondaryStorefrontNav";
 import { MobileStorefrontNav } from "../features/site/MobileStorefrontNav";
 import { accountsEnabled } from "../features/site/customerAccounts";
 import { motion, AnimatePresence } from "motion/react";
@@ -21,7 +22,7 @@ import { useSiteData } from "../features/site/useSiteData";
 import { BootSplash } from "./BootSplash";
 import { buildStorefrontTokenVars, RISO_STOREFRONT_CSS, risoGrainCss, STOREFRONT_TOKEN_CSS } from "../features/site/themeTokens";
 import { getCopy } from "../features/site/storeCopy";
-import { buildNavItems, categoryNames, childCategories, parentOf } from "../features/site/navItems";
+import { splitNavigation, buildNavItems, categoryNames, childCategories, parentOf } from "../features/site/navItems";
 import { NavDropdown } from "../features/site/NavDropdown";
 import { contentMaxWidth, navLineProps, navLinkStyle, useNavBelow, useNavFit } from "../features/site/headerNav";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
@@ -885,7 +886,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const onHome = !showCatalog && homeSections.length > 0;
   const navBar = (
               <nav ref={navRef} data-studio-target="menus:header-order|menus:categories|style:navlinks" data-studio-label="Category bar" className={`hidden md:flex shrink-0 items-center ${navLine.className} ${storefrontDesign?.navStyle === "stickers" ? "gap-2" : ""}`} style={storefrontDesign?.navStyle === "stickers" ? { ["--nav-fit" as any]: navLine.style["--nav-fit" as any] } : navLine.style}>
-                {navItems.map((item, itemIdx) => {
+                {splitNavigation(navItems, storefrontDesign).primary.map((item, itemIdx) => {
                   const stickers = storefrontDesign?.navStyle === "stickers";
                   if (item.kind === "page") {
                     return (
@@ -1070,7 +1071,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                     </button>
                   );
                 })}
-                {(pages || []).filter((p: any) => p.showInNav && p.status === "published").map((page: any) => (
+                {splitNavigation(navItems, storefrontDesign).primary.filter(item => item.kind === "page").map((item: any) => item.page).map((page: any) => (
                   <Link key={page.id} to={`/page/${page.slug}`} className="hover:opacity-70 transition-opacity">{page.title}</Link>
                 ))}
                 {!activeDesign?.hideHeaderSearch && <button onClick={() => setSearchOpen(true)} className="hover:opacity-70 transition-opacity"><span data-studio-copy="navSearch">{getCopy(activeDesign, "navSearch")}</span></button>}
@@ -1116,7 +1117,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             )}
 
             {/* Right Section */}
-            <div data-hdr-fixed data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex shrink-0 flex-nowrap gap-6 md:gap-8 items-center flex-1 justify-end ${storefrontLogoPosition === "right" ? "flex-initial" : ""}`}>
+            <div data-hdr-fixed data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart" className={`flex shrink-0 flex-nowrap gap-2 sm:gap-6 md:gap-8 items-center flex-1 justify-end ${storefrontLogoPosition === "right" ? "flex-initial" : ""}`}>
               {storefrontLogoPosition === "right" && (
                 <button 
                   onClick={() => setShowCatalog(false)} 
@@ -1135,7 +1136,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 onClick={() => setSearchOpen(true)}
                 aria-label={getCopy(activeDesign, "ariaSearch")}
                 style={{ color: headerTextColor }}
-                className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-all opacity-50 hover:opacity-100"
+                className="flex items-center justify-center min-w-11 min-h-11 rounded-full hover:bg-white/5 transition-all opacity-80 hover:opacity-100"
               >
                 <SearchIcon size={14} />
               </button>}
@@ -1156,7 +1157,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
                 to="/account"
                 aria-label={getCopy(activeDesign, "ariaAccount")}
                 style={{ color: headerTextColor }}
-                className="hidden sm:flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition-all opacity-50 hover:opacity-100"
+                className="flex items-center justify-center min-w-11 min-h-11 rounded-full hover:bg-white/5 transition-all opacity-80 hover:opacity-100"
               >
                 <UserIcon size={14} />
               </Link>}
@@ -1214,6 +1215,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
             </div>
           )}
         <MobileStorefrontNav design={activeDesign} pages={pages} onSearch={() => setSearchOpen(true)} />
+          <SecondaryStorefrontNav design={activeDesign} pages={pages || []} />
         </header>
 
         {onHome ? (

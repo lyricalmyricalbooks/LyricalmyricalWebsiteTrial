@@ -64,7 +64,7 @@ function applyCors(req, res) {
   }
   if (req.method === "OPTIONS") {
     res.set("Access-Control-Allow-Methods", "POST");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck, X-Order-Key");
     res.set("Access-Control-Max-Age", "3600");
     res.status(204).send("");
     return true;
@@ -834,6 +834,7 @@ async function resolveShipping(items, order, profiles, freeShipping, settings, d
         address_to: {
           name: order.customer?.name || "Customer",
           street1: address.street,
+        street2: address.unit || "",
           city: address.city,
           state: getStateCode(address.state),
           zip: address.zip,
@@ -1078,6 +1079,7 @@ exports.createPayPalOrder = onBrowserRequest(
       const orderDoc = await orderRef.get();
       if (!orderDoc.exists) return res.status(404).json({ error: "Order not found" });
       const order = orderDoc.data();
+      if (!canViewOrder(order, { key: orderRequestKey(req), identity: await orderRequestIdentity(req) })) return res.status(403).json({ error: "access_required" });
       const refusal = checkoutRefusal(order);
       if (refusal === "paid") return res.status(409).json({ error: "Order is already paid" });
       if (refusal) return res.status(409).json({ error: "This order was cancelled. Please start a new order from your bag.", code: "order_closed" });
@@ -1144,6 +1146,7 @@ exports.capturePayPalOrder = onBrowserRequest(
       if (!orderId || !paypalOrderId) return res.status(400).json({ error: "Missing order identifiers" });
       const orderDoc = await db.collection("orders").doc(orderId).get();
       if (!orderDoc.exists || orderDoc.data().paypalOrderId !== paypalOrderId) return res.status(400).json({ error: "PayPal order mismatch" });
+      if (!canViewOrder(orderDoc.data(), { key: orderRequestKey(req), identity: await orderRequestIdentity(req) })) return res.status(403).json({ error: "access_required" });
       if (orderDoc.data().paymentStatus === "paid") return res.json({ paid: true });
       const config = await getPayPalConfig();
       const captured = await paypalRequest(config, `/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
@@ -1238,6 +1241,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
 
     if (req.body?.action === "status") return handleCheckoutStatus(req, res);
     if (req.body?.action === "track") return handleTrackOrder(req, res);
+    if (req.body?.action === "trackingLink") return handleTrackingLink(req, res);
     if (req.body?.action === "registerPaymentDomain") return handleRegisterPaymentDomain(req, res);
     if (req.body?.action === "webhookHealth") return handleWebhookHealth(req, res);
     if (req.body?.action === "orderRequest") return handleOrderRequest(req, res);
@@ -1260,7 +1264,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         });
         const contact = source.customer || {};
         if (typeof contact.name !== 'string' || !contact.name.trim() || typeof contact.email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email)) throw new Error('Customer name and email are required.');
-        const cleanAddress = value => Object.fromEntries(['street', 'city', 'state', 'zip', 'country'].map(key => [key, typeof value?.[key] === 'string' ? value[key].trim().slice(0, 200) : '']));
+        const cleanAddress = value => Object.fromEntries(['street', 'unit', 'city', 'state', 'zip', 'country'].map(key => [key, typeof value?.[key] === 'string' ? value[key].trim().slice(0, 200) : '']));
         // Every manual order (pickup, local delivery, shipped or e-book only) is priced here from the catalog.
         const selection = source.fulfillmentSelection == null ? null : source.fulfillmentSelection;
         if (selection && (!['pickup', 'local_delivery', 'shipping'].includes(selection.method) || typeof selection.optionId !== 'string')) throw new Error('Choose a delivery option.');
@@ -1283,13 +1287,14 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         const priced = await recalculateOrder({ update: async () => {} }, order, checkoutCurrencyOf(req.body.currency) || 'cad');
         const { convertedTotal, settings: ignoredSettings, ...trusted } = priced;
         const orderId = crypto.randomBytes(12).toString('hex').toUpperCase();
+        const trackingKey = crypto.randomBytes(32).toString('hex');
         // The order is placed: stop the "you left something in your bag" reminder now, not
         // only when the thank-you page loads (it may never load) or payment arrives days later.
         for (const cartKey of [order.cartId, `active_${order.customer.email}`].filter(Boolean)) {
           await db.collection('abandoned-carts').doc(cartKey).update({ recovered: true, recoveredAt: now }).catch(() => {});
         }
-        await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
-        return res.status(200).json({ orderId, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
+        await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, trackingKey, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
+        return res.status(200).json({ orderId, trackingKey, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }
@@ -1314,6 +1319,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         const freeDoc = await freeRef.get();
         if (!freeDoc.exists) return res.status(404).json({ error: "Order not found" });
         const freeOrder = freeDoc.data();
+        if (!canViewOrder(freeOrder, { key: orderRequestKey(req), identity: await orderRequestIdentity(req) })) return res.status(403).json({ error: "access_required" });
         if (freeOrder.paymentStatus === "paid") return res.status(200).json({ paid: true });
         if (freeOrder.paymentStatus !== "unpaid" || freeOrder.paymentMethod !== "Free" || freeOrder.isTest === true) {
           return res.status(400).json({ error: "This order can't be completed without payment." });
@@ -1349,6 +1355,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       }
 
       const order = orderDoc.data();
+      if (!canViewOrder(order, { key: orderRequestKey(req), identity: await orderRequestIdentity(req) })) return res.status(403).json({ error: "access_required" });
       if (order.isTest === true) {
         res.status(400).json({ error: "Test orders cannot enter checkout." });
         return;
@@ -1893,7 +1900,9 @@ async function handleRegisterPaymentDomain(req, res) {
 // one, that the server itself fetched from Stripe or received in a signed
 // webhook — never browser data. The amount and currency must match the payment
 // this order was created for.
+const STRIPE_WEBHOOK_AUTHORITY = Symbol("verified Stripe webhook");
 async function markStripeOrderPaid(orderId, session, opts = {}) {
+    if (opts.authority !== STRIPE_WEBHOOK_AUTHORITY) throw new Error("Stripe orders require a verified webhook.");
     const orderRef = db.collection("orders").doc(orderId);
     let paidTotal = null;
     let markedPaid = false;
@@ -1983,6 +1992,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
       transaction.update(orderRef, {
         ...stripeTransaction,
         paymentStatus: "paid",
+        reconciliationPending: null,
         ...(sandbox ? { isTest: true, sandboxPayment: true } : {}),
         fulfillmentStatus: "paid",
         status: "open",
@@ -2208,6 +2218,23 @@ async function checkStripeReversal(orderId, order, source) {
   return null;
 }
 
+async function orderRequestIdentity(req) {
+  const match = String(req.headers?.authorization || "").match(/^Bearer (.+)$/);
+  if (!match) return null;
+  try { return await admin.auth().verifyIdToken(match[1]); } catch { return null; }
+}
+function orderRequestKey(req) {
+  return typeof req.body?.key === "string" ? req.body.key : String(req.headers?.["x-order-key"] || "");
+}
+async function recordStripeReconciliation(orderId, session) {
+  const ref = db.collection("orders").doc(orderId);
+  await db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (!snap.exists || snap.data().paymentStatus === "paid") return;
+    tx.update(ref, { reconciliationPending: { provider: "stripe", providerStatus: "paid", paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null, sessionId: session.id || null, checkedAt: new Date().toISOString() } });
+  });
+}
+
 async function handleCheckoutStatus(req, res) {
   let { orderId, sessionId, paymentIntentId } = req.body || {};
   if (typeof orderId !== "string" || !orderId || orderId.includes("/")) {
@@ -2218,10 +2245,10 @@ async function handleCheckoutStatus(req, res) {
     const orderSnap = await db.collection("orders").doc(orderId).get();
     if (!orderSnap.exists) { res.status(404).json({ error: "Order not found" }); return; }
     const saved = orderSnap.data() || {};
+    if (!canViewOrder(saved, { key: orderRequestKey(req), identity: await orderRequestIdentity(req) })) return res.status(403).json({ error: "access_required" });
     if (saved.paymentStatus === "paid") {
       // Already paid: still ask Stripe whether it was since refunded or disputed.
-      const r = await checkStripeReversal(orderId, saved, "checked from the order page").catch(err => { console.warn("Reversal check failed:", err.message); return null; });
-      res.status(200).json({ status: "complete", paymentStatus: r?.fullyRefunded ? "refunded" : "paid", reversal: r || null });
+      res.status(200).json({ status: "complete", paymentStatus: "paid" });
       return;
     }
     // The tracking page and the admin may only know the order number: fall back to
@@ -2242,24 +2269,17 @@ async function handleCheckoutStatus(req, res) {
 
     if (found.intent) {
       const intent = found.intent;
-      // Stripe itself says this order's payment succeeded: finish the order now
-      // rather than leaving it "unpaid" if the webhook was missed or delayed.
-      // Same idempotent, amount-checked path the webhook uses.
-      let marked = false;
-      if (intent.status === "succeeded") {
-        await markStripeOrderPaid(orderId, intentAsSession(intent), { message: "Payment confirmed with Stripe (checked from the order page)" });
-        marked = true;
-      }
-      // "processing" (bank debits) is not paid yet and can still fail: the page says so.
-      const status = intent.status === "succeeded" ? "complete" : intent.status === "processing" ? "processing" : "open";
-      res.status(200).json({ status, paymentStatus: intent.status, mode: found.mode, checked: marked });
+      const settled = intent.status === "succeeded";
+      if (settled) await recordStripeReconciliation(orderId, intentAsSession(intent));
+      const status = settled ? "complete" : intent.status === "processing" ? "processing" : "open";
+      res.status(200).json({ status, paymentStatus: saved.paymentStatus, providerPaymentStatus: intent.status, awaitingWebhook: settled, mode: found.mode });
       return;
     }
     const session = found.session;
     if (session.payment_status === "paid") {
-      await markStripeOrderPaid(orderId, session, { message: "Payment confirmed with Stripe (checked from the order page)" });
+      await recordStripeReconciliation(orderId, session);
     }
-    res.status(200).json({ status: session.status, paymentStatus: session.payment_status, mode: found.mode });
+    res.status(200).json({ status: session.status, paymentStatus: saved.paymentStatus, providerPaymentStatus: session.payment_status, awaitingWebhook: session.payment_status === "paid", mode: found.mode });
   } catch (err) {
     console.error("Stripe status check failed:", err);
     res.status(500).json({ error: err.message });
@@ -2270,8 +2290,39 @@ async function handleCheckoutStatus(req, res) {
 // publicly readable in Firestore; this returns one only to its owner: the
 // matching customer email or the private key from the order email link.
 // Served through createStripeCheckoutSession (body.action): no new public function.
+async function handleTrackingLink(req, res) {
+  const { orderId, email } = req.body || {};
+  const accepted = () => res.status(200).json({ accepted: true });
+  if (typeof orderId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(orderId) || typeof email !== "string" || email.length > 254) return accepted();
+  if (!(await hitLimit(db, "tracking-link", req, { max: 5, windowMs: 10 * 60 * 1000 }))) return res.status(429).json({ error: "too_many" });
+  try {
+    const ref = db.collection("orders").doc(orderId);
+    let order = null;
+    await db.runTransaction(async tx => {
+      order = null;
+      const snap = await tx.get(ref);
+      if (!snap.exists) return;
+      const saved = snap.data();
+      if (normMarketingEmail(saved.customer?.email) !== normMarketingEmail(email)) return;
+      if (Date.now() - Date.parse(saved.trackingLinkSentAt || "") < 60_000) return;
+      const trackingKey = typeof saved.trackingKey === "string" && /^[a-f0-9]{32,64}$/.test(saved.trackingKey) ? saved.trackingKey : crypto.randomBytes(32).toString("hex");
+      tx.update(ref, { trackingKey, trackingLinkSentAt: new Date().toISOString() });
+      order = { ...saved, trackingKey };
+    });
+    if (order) {
+      const settings = (await db.collection("settings").doc("website").get()).data() || {};
+      const copy = settings.design?.copy || {};
+      const url = siteLink(`/track?orderId=${encodeURIComponent(orderId)}&key=${order.trackingKey}`);
+      await sendEmail({ to: order.customer.email,
+        subject: String(copy.trackLinkEmailSubject ?? "Your secure order link"),
+        html: `<p>${escapeHtml(copy.trackLinkEmailIntro ?? "Use this private link to view your order and delivery updates.")}</p><p><a href="${escapeHtml(url)}">${escapeHtml(copy.trackLinkEmailButton ?? "View my order")}</a></p>` });
+    }
+  } catch (err) { console.warn("Tracking link could not be sent:", err.message); }
+  return accepted();
+}
+
 async function handleTrackOrder(req, res) {
-  const { orderId, email, key } = req.body || {};
+  const { orderId } = req.body || {};
   if (typeof orderId !== "string" || !orderId || orderId.length > 64 || orderId.includes("/")) {
     res.status(400).json({ error: "not_found" });
     return;
@@ -2284,7 +2335,7 @@ async function handleTrackOrder(req, res) {
     const snap = await db.collection("orders").doc(orderId).get();
     if (!snap.exists) { res.status(404).json({ error: "not_found" }); return; }
     const order = snap.data() || {};
-    if (!canViewOrder(order, { email: typeof email === "string" ? email : "", key: typeof key === "string" ? key : "" })) {
+    if (!canViewOrder(order, { key: orderRequestKey(req), identity: await orderRequestIdentity(req) })) {
       res.status(403).json({ error: "email_mismatch" });
       return;
     }
@@ -2312,10 +2363,11 @@ async function handleOrderRequest(req, res) {
     const orderRef = db.collection("orders").doc(orderId);
     let problem = null;
     let order = null;
+    const identity = await orderRequestIdentity(req);
     await db.runTransaction(async tx => {
       const snap = await tx.get(orderRef);
       order = snap.exists ? snap.data() : null;
-      if (order && !canViewOrder(order, { email: typeof email === "string" ? email : "", key: typeof key === "string" ? key : "" })) {
+      if (order && !canViewOrder(order, { key: orderRequestKey(req), identity })) {
         problem = "email_mismatch";
         return;
       }
@@ -2581,7 +2633,7 @@ exports.stripeWebhook = onRequest(
 
       if (orderId && settled) {
         try {
-          await markStripeOrderPaid(orderId, session, { account: event.account || null, message: isElementPayment ? "Payment completed (Stripe card form)" : "Payment completed (Stripe Webhook)" });
+          await markStripeOrderPaid(orderId, session, { authority: STRIPE_WEBHOOK_AUTHORITY, account: event.account || null, message: isElementPayment ? "Payment completed (Stripe card form)" : "Payment completed (Stripe Webhook)" });
           console.log(`Order ${orderId} successfully processed via webhook.`);
         } catch (err) {
           console.error("Failed to process order update in transaction:", err);
@@ -2969,16 +3021,16 @@ const siteLink = path => `${SITE_URL}${path}`;
 // One-click order link for emails: /track opens the order straight away when the
 // key matches, instead of asking the customer to type the order number and email.
 async function orderTrackUrl(orderId, order) {
-  let key = typeof order?.trackingKey === "string" && /^[a-f0-9]{32}$/.test(order.trackingKey) ? order.trackingKey : "";
-  if (!key) {
-    key = crypto.randomBytes(16).toString("hex");
-    try {
-      await db.collection("orders").doc(orderId).update({ trackingKey: key });
-    } catch (err) {
-      console.warn("Could not save order tracking key", err);
-      return siteLink(`/track?orderId=${encodeURIComponent(orderId)}`);
-    }
-  }
+  let key = "";
+  try {
+    await db.runTransaction(async tx => {
+      const ref = db.collection("orders").doc(orderId);
+      const snap = await tx.get(ref);
+      const saved = snap.exists ? snap.data() : order;
+      key = typeof saved?.trackingKey === "string" && /^[a-f0-9]{32,64}$/.test(saved.trackingKey) ? saved.trackingKey : crypto.randomBytes(32).toString("hex");
+      if (snap.exists && saved.trackingKey !== key) tx.update(ref, { trackingKey: key });
+    });
+  } catch (err) { return siteLink(`/track?orderId=${encodeURIComponent(orderId)}`); }
   return siteLink(`/track?orderId=${encodeURIComponent(orderId)}&key=${key}`);
 }
 
@@ -3179,7 +3231,7 @@ exports.onOrderUpdated = onDocumentUpdated(
 
       const adminOrderUrl = siteLink(`/admin#orders/${orderId}`);
       const adminAddr = order.customer?.address
-        ? [order.customer.address.street, order.customer.address.city, order.customer.address.state, order.customer.address.zip, order.customer.address.country].filter(Boolean).join(", ")
+        ? [order.customer.address.street, order.customer.address.unit, order.customer.address.city, order.customer.address.state, order.customer.address.zip, order.customer.address.country].filter(Boolean).join(", ")
         : "—";
       const adminPaidHtml = `
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
@@ -3675,6 +3727,7 @@ exports.getShippoRates = onBrowserRequest(
       const addressTo = {
         name: address.name || "Customer",
         street1: address.street,
+        street2: address.unit || "",
         city: address.city,
         state: getStateCode(address.state),
         zip: address.zip,
@@ -3788,6 +3841,7 @@ async function autoApproveShippingAddress(orderId, order) {
   const result = await callShippo("addresses/", "POST", {
     name: order.customer?.name || "Customer",
     street1: address.street,
+    street2: address.unit || "",
     city: address.city,
     state: getStateCode(address.state),
     zip: address.zip,
@@ -3866,6 +3920,7 @@ exports.validateAddress = onBrowserRequest(
       const shippoRes = await callShippo("addresses/", "POST", {
         name: address.name || "Customer",
         street1: address.street,
+        street2: address.unit || "",
         city: address.city,
         state: stateCode,
         zip: address.zip,
@@ -4013,6 +4068,7 @@ exports.createShippingLabel = onBrowserRequest(
       const addressTo = {
         name: order.customer.name || "Customer",
         street1: dest.street,
+        street2: dest.unit || "",
         city: dest.city,
         state: getStateCode(dest.state),
         zip: dest.zip,
@@ -4919,8 +4975,8 @@ exports.markOrderPaid = onBrowserRequest(
 
 /**
  * Safety net for the Stripe webhook (every 15 minutes): if Stripe says an order's
- * payment succeeded but the order is still unpaid, finish it through the same
- * amount-checked, idempotent path the webhook uses, and email the shop so the
+ * payment succeeded but the order is still unpaid, record reconciliation pending
+ * without settling it, and email the shop so the
  * webhook setup gets fixed. Each order is looked up in the Stripe account (test or
  * live) it was created in, then the other one.
  */
@@ -4939,16 +4995,16 @@ exports.unpaidPaymentSweep = onSchedule(
           : { sessionId: order.stripeCheckoutSessionId });
         if (result?.session && result.session.payment_status === "paid") {
           const session = result.session;
-          const marked = await markStripeOrderPaid(order.id, session, { message: "Payment confirmed with Stripe by the automatic check (the webhook did not arrive)" })
-            .catch(err => { console.error(`unpaidPaymentSweep: could not finish order ${order.id}:`, err); return false; });
-          found.push({ orderId: order.id, email: order.customer?.email, amount: session.amount_total, currency: session.currency, intentId: session.id, fixed: marked });
+          await recordStripeReconciliation(order.id, session)
+            .catch(err => { console.error(`unpaidPaymentSweep: could not flag order ${order.id}:`, err); return false; });
+          found.push({ orderId: order.id, email: order.customer?.email, amount: session.amount_total, currency: session.currency, intentId: session.id, fixed: false });
           continue;
         }
         const intent = result?.intent;
         if (intent && intent.status === "succeeded") {
-          const marked = await markStripeOrderPaid(order.id, intentAsSession(intent), { message: "Payment confirmed with Stripe by the automatic check (the webhook did not arrive)" })
-            .catch(err => { console.error(`unpaidPaymentSweep: could not finish order ${order.id}:`, err); return false; });
-          found.push({ orderId: order.id, email: order.customer?.email, amount: intent.amount, currency: intent.currency, intentId: intent.id, fixed: marked });
+          await recordStripeReconciliation(order.id, intentAsSession(intent))
+            .catch(err => { console.error(`unpaidPaymentSweep: could not flag order ${order.id}:`, err); return false; });
+          found.push({ orderId: order.id, email: order.customer?.email, amount: intent.amount, currency: intent.currency, intentId: intent.id, fixed: false });
         }
       } catch (err) {
         console.warn(`unpaidPaymentSweep: could not check order ${order.id}:`, err.message);

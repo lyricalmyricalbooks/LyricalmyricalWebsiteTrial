@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
-import { SecondaryButton, SectionCard, StatusBadge, GhostButton, type BadgeTone } from "./riso/components";
+import { SecondaryButton, SectionCard, StatusBadge, GhostButton, ErrorState, type BadgeTone } from "./riso/components";
 import { change } from "./overviewInsights";
-import { readinessProgress, type ReadinessItem } from "./launchReadiness";
+import { readinessProgress, readinessSummary, type ReadinessItem } from "./launchReadiness";
 
 // Small pieces shared by the Overview shell and its four detail tabs.
 
@@ -72,16 +72,16 @@ export function StatRow({ label, hint, value, tone }: { label: ReactNode; hint?:
 
 function ReadinessRow({ item, onOpen }: { item: ReadinessItem; onOpen: (tab: string) => void }) {
   return (
-    <li style={ROW}>
-      <div style={{ minWidth: 0 }}>
+    <li style={{ ...ROW, flexWrap: "wrap" }}>
+      <div style={{ minWidth: 0, flex: "1 1 240px", overflowWrap: "anywhere" }}>
         <div style={{ fontWeight: 600 }}>{item.label}</div>
         <div className="rp-hint">{item.detail}</div>
       </div>
       {item.status === "ok"
         ? <StatusBadge tone="success">Done</StatusBadge>
-        : <span style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+        : <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <StatusBadge tone={item.status === "block" ? "danger" : "warning"}>{item.status === "block" ? "Blocking" : "Check"}</StatusBadge>
-            <SecondaryButton size="sm" onClick={() => onOpen(item.tab)}>{item.action}</SecondaryButton>
+            {item.href ? <a className="rp-btn rp-btn-secondary rp-btn-sm" href={item.href} target="_blank" rel="noopener noreferrer">{item.action}</a> : <SecondaryButton size="sm" onClick={() => onOpen(item.tab)}>{item.action}</SecondaryButton>}
           </span>}
     </li>
   );
@@ -117,4 +117,10 @@ export function ReadinessStrip({ items, onOpen }: { items: ReadinessItem[]; onOp
       )}
     </SectionCard>
   );
+}
+
+/** A failed readiness read remains visible as unknown and can be retried. */
+export function ReadinessPanel({ error, items, onRetry, onOpen }: { error: boolean; items: ReadinessItem[] | null; onRetry: () => void; onOpen: (tab: string) => void }) {
+  if (error) return <ErrorState title="Launch checks unavailable" description="Settings, shipping or email records could not be loaded. Readiness is unknown until these checks refresh." onRetry={onRetry} />;
+  return items && readinessSummary(items) !== "ok" ? <ReadinessStrip items={items} onOpen={onOpen} /> : null;
 }

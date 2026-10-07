@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { accountsEnabled } from "./customerAccounts";
 import { Link } from "react-router";
 import { CurrencySelector } from "../../CurrencyContext";
-import { buildNavItems } from "./navItems";
+import { splitNavigation, buildNavItems } from "./navItems";
 import { getCopy } from "./storeCopy";
 
 export function MobileStorefrontNav({ design, pages, onSearch }: { design: any; pages: any[]; onSearch: () => void }) {
@@ -16,7 +16,7 @@ export function MobileStorefrontNav({ design, pages, onSearch }: { design: any; 
     onKeyDown={e => { if (e.key === "Escape") { close(); ref.current?.querySelector("summary")?.focus(); } }}>
     <summary className="min-h-11 cursor-pointer px-6 py-3 font-semibold">{getCopy(design, "navMenu")}</summary>
     <nav aria-label={getCopy(design, "ariaMainNavigation")} className="border-t border-current/20 pb-4">
-      {buildNavItems(d.categories || [], pages, d.navOrder).map(item => <div key={item.key}>
+      {splitNavigation(buildNavItems(d.categories || [], pages, d.navOrder), d).primary.map(item => <div key={item.key}>
         <Link className={linkClass} onClick={close} to={item.kind === "page" ? `/page/${item.page.slug}` : `/collections/${slug(item.label)}`}>{item.label}</Link>
         {item.kind === "category" && item.children.filter(c => c.showInNav !== false).map(c => <Link key={c.id} className={`${linkClass} pl-10`} onClick={close} to={`/collections/${slug(c.name)}`}>{c.name}</Link>)}
       </div>)}

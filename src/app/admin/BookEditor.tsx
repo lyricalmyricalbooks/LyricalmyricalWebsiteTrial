@@ -120,6 +120,9 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [authors, setAuthors] = useState<any[]>([]);
+  const [recommendationCatalog, setRecommendationCatalog] = useState<any[]>([]);
+  const [recommendationError, setRecommendationError] = useState(false);
+  const [recommendationSearch, setRecommendationSearch] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
   const [categoryDefinitions, setCategoryDefinitions] = useState<any[]>([]);
   // Sub-category name → its parent's name (Studio › Menus › Shop categories › "Sits under").
@@ -162,6 +165,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
   useEffect(() => {
     loadMetadata();
+    adminApi.getAllBooks().then(setRecommendationCatalog).catch(() => setRecommendationError(true));
     if (book) {
       const defaults = {
         title: "",
@@ -928,6 +932,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           )}
 
           {tab === "organize" && (
+            <>
             <SectionCard title="Categories & tags" description="Categories build the shop menus — pick every one this book belongs in. New categories created here are published to the shop and added to Design › Menus automatically. Tags power search.">
               <div className="be-chips" role="group" aria-label="Categories">
                 {categories.map((cat) => {
@@ -966,6 +971,44 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                   onKeyDown={(e) => { if ((e.key === "Enter" || e.key === ",") && tagInput.trim()) { e.preventDefault(); commitTags(); } }} />
               </div>
             </SectionCard>
+            <SectionCard title="Curated recommendations" description="Choose up to four companion books in display order. Only published books appear to shoppers. Save this book to apply your selection.">
+              <SelectField label="Recommendation source" value={Array.isArray(formData.relatedBookIds) ? "curated" : "automatic"} onChange={(event) => setFormData((prev: any) => {
+                const next = { ...prev };
+                if (event.target.value === "automatic") delete next.relatedBookIds;
+                else next.relatedBookIds = [];
+                return next;
+              })}>
+                <option value="automatic">Automatic category matches</option>
+                <option value="curated">Publisher selection (empty hides recommendations)</option>
+              </SelectField>
+              {Array.isArray(formData.relatedBookIds) && <>
+                <ol className="be-chips">
+                  {formData.relatedBookIds.map((id: string, index: number) => {
+                    const candidate = recommendationCatalog.find(item => item.id === id);
+                    return <li key={id} className="be-tag">
+                      <span>{index + 1}. {candidate?.title || "Unavailable book"}{candidate && candidate.status !== "published" ? " (not published)" : ""}</span>
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-label={`Move ${candidate?.title || "book"} up`} disabled={index === 0} onClick={() => setFormData((prev: any) => {
+                        const ids = [...prev.relatedBookIds];
+                        [ids[index - 1], ids[index]] = [ids[index], ids[index - 1]];
+                        return { ...prev, relatedBookIds: ids };
+                      })}>Move up</button>
+                      <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" aria-label={`Remove recommendation ${candidate?.title || "book"}`} onClick={() => setFormData((prev: any) => ({ ...prev, relatedBookIds: prev.relatedBookIds.filter((value: string) => value !== id) }))}>Remove</button>
+                    </li>;
+                  })}
+                </ol>
+                {recommendationError ? <p role="alert">The catalog could not be loaded. Your saved selection is preserved; reopen this editor to retry.</p> : <>
+                  <TextField label="Find a companion book" value={recommendationSearch} onChange={(event) => setRecommendationSearch(event.target.value)} />
+                  <SelectField label="Add recommendation" value="" disabled={formData.relatedBookIds.length >= 4} onChange={(event) => {
+                    const id = event.target.value;
+                    if (id) setFormData((prev: any) => ({ ...prev, relatedBookIds: [...prev.relatedBookIds, id] }));
+                  }}>
+                    <option value="">Choose a book</option>
+                    {recommendationCatalog.filter(item => item.id !== book?.id && !formData.relatedBookIds.includes(item.id) && String(item.title || "").toLowerCase().includes(recommendationSearch.toLowerCase())).map(item => <option key={item.id} value={item.id}>{item.title}{item.status !== "published" ? " (not published)" : ""}</option>)}
+                  </SelectField>
+                </>}
+              </>}
+            </SectionCard>
+            </>
           )}
 
           {tab === "seo" && (
