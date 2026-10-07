@@ -31,7 +31,7 @@ const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoP
 const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shippingGeo");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck } = require("./stripeRecovery");
-const { orderMoneyFmt } = require("./emailMoney");
+const { orderMoneyFmt, refundAmountText, withoutTrackingLines } = require("./emailMoney");
 const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
@@ -1254,6 +1254,11 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         const priced = await recalculateOrder({ update: async () => {} }, order, checkoutCurrencyOf(req.body.currency) || 'cad');
         const { convertedTotal, settings: ignoredSettings, ...trusted } = priced;
         const orderId = crypto.randomBytes(12).toString('hex').toUpperCase();
+        // The order is placed: stop the "you left something in your bag" reminder now, not
+        // only when the thank-you page loads (it may never load) or payment arrives days later.
+        for (const cartKey of [order.cartId, `active_${order.customer.email}`].filter(Boolean)) {
+          await db.collection('abandoned-carts').doc(cartKey).update({ recovered: true, recoveredAt: now }).catch(() => {});
+        }
         await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
         return res.status(200).json({ orderId, shipping: trusted.shipping, tax: trusted.tax, total: trusted.total, fulfillment: trusted.fulfillment });
       } catch (err) {
@@ -2015,7 +2020,8 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
         id: refundId,
         provider,
         amount: amountMinor != null ? amountMinor / 100 : Number(order.total) || 0,
-        currency: String(currency || order.checkoutCurrency || "CAD").toUpperCase(),
+        // A manual refund records the order total, which is CAD; a provider refund is in the currency it reports.
+        currency: amountMinor != null ? String(currency || order.checkoutCurrency || "CAD").toUpperCase() : "CAD",
         reason: String(reason || order.refundRequest?.reason || "").slice(0, 500),
         status: done ? "succeeded" : "pending",
         actor,
@@ -2645,7 +2651,7 @@ const DEFAULT_NOTIFICATIONS = {
   },
   order_refunded: {
     subject: "Order refunded: {{order_id}}",
-    body: "Hi {{customer_name}},\n\nWe have successfully refunded CA${{total_price}} for your order. The funds should return to your original payment method in 5-10 business days.",
+    body: "Hi {{customer_name}},\n\nWe have successfully refunded {{total_price}} for your order. The funds should return to your original payment method in 5-10 business days.",
     buttonText: "",
     signoff: "Best,\nThe Lyricalmyrical Team",
     enabled: true
@@ -2927,7 +2933,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       const itemsTable = customerTotalsTable(order);
 
       let paymentConfirmedSection = "";
-      if (order.paymentMethod && order.paymentMethod !== "Stripe" && order.paymentMethod !== "PayPal") {
+      if (order.paymentMethod && !["Stripe", "PayPal", "Free"].includes(order.paymentMethod)) {
         paymentConfirmedSection = `
           <div style="margin-top:28px;padding:24px;background:#ecfdf5;border-radius:16px;border:1px solid #10b98120;">
             <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:#10b981;">Payment Verified</h3>
@@ -3000,12 +3006,17 @@ exports.onOrderUpdated = onDocumentUpdated(
     const becameShipped = before.fulfillmentStatus !== "shipped" && after.fulfillmentStatus === "shipped";
     // Admin "Resend shipping email" (Order detail › In transit) stamps shippingEmailRequestedAt.
     const resendShipped = !!after.shippingEmailRequestedAt && after.shippingEmailRequestedAt !== before.shippingEmailRequestedAt;
-    if ((becameShipped || resendShipped) && notificationSettings.shipping_confirmation?.enabled !== false) {
+    const handedOverLocally = ["pickup", "local_delivery"].includes(after.fulfillmentSelection?.method);
+    if ((becameShipped || resendShipped) && !handedOverLocally && notificationSettings.shipping_confirmation?.enabled !== false) {
       // Straight to the carrier's tracking page; without a tracking number, the shop's order-status page.
       const trackingUrl = after.trackingNumber
         ? getTrackingUrl(after.trackingCarrier, after.trackingNumber, after.trackingUrl)
         : await trackUrl();
-      const compiled = compileEmailTemplate("shipping_confirmation", notificationSettings, {
+      // No tracking number: leave out the carrier/tracking lines instead of printing blanks.
+      const shippedSettings = after.trackingNumber ? notificationSettings : { ...notificationSettings, shipping_confirmation: {
+        ...notificationSettings.shipping_confirmation,
+        body: withoutTrackingLines(notificationSettings.shipping_confirmation?.body || DEFAULT_NOTIFICATIONS.shipping_confirmation.body) } };
+      const compiled = compileEmailTemplate("shipping_confirmation", shippedSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
         tracking_carrier: after.trackingCarrier || "carrier",
@@ -3083,7 +3094,9 @@ exports.onOrderUpdated = onDocumentUpdated(
 
     // 3. Order Cancelled (skip if the order is being refunded simultaneously — the refund email is more accurate)
     const becameCancelled = before.status !== "cancelled" && after.status === "cancelled"
-      && after.paymentStatus !== "refunded" && after.paymentStatus !== "refund_pending";
+      && after.paymentStatus !== "refunded" && after.paymentStatus !== "refund_pending"
+      // "You will not be charged" is only true for an order that was never paid.
+      && after.paymentStatus !== "paid";
     if (becameCancelled && notificationSettings.order_cancelled?.enabled !== false) {
       const compiled = compileEmailTemplate("order_cancelled", notificationSettings, {
         customer_name: after.customer?.name || "there",
@@ -3129,19 +3142,15 @@ exports.onOrderUpdated = onDocumentUpdated(
       }
 
       if (notificationSettings.order_refunded?.enabled !== false) {
-      const compiled = compileEmailTemplate("order_refunded", notificationSettings, {
+      // {{total_price}} now carries its own currency (e.g. "US$12.40"); older saved templates
+      // that wrote "CA${{total_price}}" are read without the hard-coded prefix.
+      const refundSettings = { ...notificationSettings, order_refunded: { ...notificationSettings.order_refunded,
+        body: String(notificationSettings.order_refunded?.body || "").replace(/CA\$\s*\{\{total_price\}\}/g, "{{total_price}}") } };
+      const compiled = compileEmailTemplate("order_refunded", refundSettings, {
         customer_name: after.customer?.name || "there",
         order_id: after.orderId || orderId,
-        // A partial refund shows what was actually refunded, not the order total.
-        // The template says "CA$", while Stripe reports the refund in the checkout
-        // currency, so a USD/EUR refund is converted back with the order's rate.
-        total_price: (() => {
-          const refunded = Number(after.refund?.amount);
-          if (!Number.isFinite(refunded)) return Number(after.total || 0).toFixed(2);
-          const currency = String(after.refund?.currency || after.checkoutCurrency || "CAD").toUpperCase();
-          const rate = Number(after.exchangeRate);
-          return (currency !== "CAD" && rate > 0 ? refunded / rate : refunded).toFixed(2);
-        })(),
+        // What was actually refunded, in the currency it went back in.
+        total_price: refundAmountText(after),
         button_url: await trackUrl()
       });
 
@@ -3751,14 +3760,11 @@ exports.createShippingLabel = onBrowserRequest(
           trackingNumber: mockTracking,
           trackingCarrier: "USPS (Sandbox)",
           updatedAt: new Date().toISOString(),
-          activity: [
-            ...(order.activity || []),
-            { 
+          activity: admin.firestore.FieldValue.arrayUnion({ 
               type: "note", 
               message: `Shipping Label #${mockTracking} generated via dashboard (Dev Fallback).`, 
               createdAt: new Date().toISOString() 
-            }
-          ]
+            })
         });
 
         await completePurchase();
@@ -3814,10 +3820,7 @@ exports.createShippingLabel = onBrowserRequest(
         const trackingNumber = transaction.tracking_number;
         const trackingCarrier = transaction.tracking_provider || "Canada Post";
         const labelUrl = transaction.label_url;
-        await orderRef.update({ labelUrl, trackingNumber, trackingCarrier, updatedAt: new Date().toISOString(), activity: [
-          ...(order.activity || []),
-          { type: "note", message: `Shipping Label #${trackingNumber} generated via dashboard. Carrier: ${trackingCarrier}.`, createdAt: new Date().toISOString() }
-        ] });
+        await orderRef.update({ labelUrl, trackingNumber, trackingCarrier, updatedAt: new Date().toISOString(), activity: admin.firestore.FieldValue.arrayUnion({ type: "note", message: `Shipping Label #${trackingNumber} generated via dashboard. Carrier: ${trackingCarrier}.`, createdAt: new Date().toISOString() }) });
         await completePurchase();
         res.status(200).json({ labelUrl, trackingNumber, trackingCarrier });
         return;
@@ -3863,14 +3866,11 @@ exports.createShippingLabel = onBrowserRequest(
         await orderRef.update({
           shippoOrderId: shippoOrder.object_id || null,
           updatedAt: new Date().toISOString(),
-          activity: [
-            ...(order.activity || []),
-            {
+          activity: admin.firestore.FieldValue.arrayUnion({
               type: "note",
               message: "Order pushed to Shippo dashboard for label creation.",
               createdAt: new Date().toISOString()
-            }
-          ]
+            })
         });
 
         res.status(200).json({
@@ -3949,14 +3949,11 @@ exports.createShippingLabel = onBrowserRequest(
         trackingNumber: trackingNumber,
         trackingCarrier: trackingCarrier,
         updatedAt: new Date().toISOString(),
-        activity: [
-          ...(order.activity || []),
-          { 
+        activity: admin.firestore.FieldValue.arrayUnion({ 
             type: "note", 
             message: `Shipping Label #${trackingNumber} generated via dashboard. Carrier: ${trackingCarrier}.`, 
             createdAt: new Date().toISOString() 
-          }
-        ]
+          })
       });
 
       await completePurchase();
@@ -4449,7 +4446,10 @@ exports.onBookRestocked = onDocumentUpdated(
     const before = event.data?.before?.data() || {};
     const after = event.data?.after?.data() || {};
     const bookId = event.params.bookId;
-    if (after.isTest === true || after.status === "draft") return;
+    // Only books shoppers can actually buy: no "it's back" for drafts, archived or not-yet-released books.
+    if (after.isTest === true) return;
+    const problem = purchaseProblem(after, null);
+    if (problem && problem !== "choose_edition") return;
 
     // Which variant ids (and the base product, "") just went from 0 to available?
     const restocked = new Set();
@@ -4462,13 +4462,16 @@ exports.onBookRestocked = onDocumentUpdated(
     // A base restock also covers signups made before variants existed.
     if (restocked.size === 0) return;
 
+    // Waiting alerts, plus any stuck in "sending" (a run that crashed mid-send) for over 15 minutes.
     const snap = await db
       .collection("stockAlerts")
       .where("bookId", "==", bookId)
-      .where("status", "==", "waiting")
+      .where("status", "in", ["waiting", "sending"])
       .limit(500)
       .get();
     if (snap.empty) return;
+    const stuckBefore = Date.now() - 15 * 60 * 1000;
+    const emailedThisRun = new Set();
 
     const link = siteLink(`/books/${encodeURIComponent(after.slug || bookId)}`);
     const esc = t => String(t || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -4476,11 +4479,17 @@ exports.onBookRestocked = onDocumentUpdated(
     for (const doc of snap.docs) {
       const alert = doc.data();
       if (!restocked.has(String(alert.variantId || ""))) continue;
+      // One email per address per book, however many signups exist for it.
+      const key = `${String(alert.email || "").trim().toLowerCase()}|${String(alert.variantId || "")}`;
+      if (emailedThisRun.has(key)) { await doc.ref.update({ status: "notified", notifiedAt: new Date().toISOString() }); continue; }
       // Claim first so a duplicate trigger never double-sends.
       const claimed = await db.runTransaction(async tx => {
         const cur = await tx.get(doc.ref);
-        if (!cur.exists || cur.data().status !== "waiting") return false;
-        tx.update(doc.ref, { status: "sending" });
+        if (!cur.exists) return false;
+        const c = cur.data();
+        const stuck = c.status === "sending" && Date.parse(c.sendingAt || 0) < stuckBefore;
+        if (c.status !== "waiting" && !stuck) return false;
+        tx.update(doc.ref, { status: "sending", sendingAt: new Date().toISOString() });
         return true;
       });
       if (!claimed) continue;
@@ -4498,7 +4507,10 @@ exports.onBookRestocked = onDocumentUpdated(
           </div>`,
           secret: RESEND_API_KEY.value(),
         });
-        await doc.ref.update({ status: "notified", notifiedAt: new Date().toISOString() });
+        emailedThisRun.add(key);
+        // Remove the signup once sent (its id is per address + edition), so the shopper can
+        // ask again next time the book sells out.
+        await doc.ref.delete();
       } catch (err) {
         console.error("Back-in-stock email failed:", err);
         await doc.ref.update({ status: "waiting" });
@@ -4519,15 +4531,16 @@ exports.onBookUpdated = onDocumentUpdated(
     if (after.isTest === true) return;
     if (!after.trackInventory) return;
 
-    const stockBefore = before.stockLevel !== undefined ? Number(before.stockLevel) : 999;
-    const stockAfter = after.stockLevel !== undefined ? Number(after.stockLevel) : 0;
+    // A missing stock field means "not counted" on both sides, so it never reads as a sale to 0.
+    const stockBefore = stockOf(before.stockLevel !== undefined ? before : null, 999);
+    const stockAfter = stockOf(after.stockLevel !== undefined ? after : null, 999);
 
     let shouldAlert = false;
     let alertLines = [];
 
     // Check parent product stock
     const parentBecameLowStock = (stockBefore > 3 && stockAfter <= 3 && stockAfter > 0);
-    const parentBecameSoldOut = (stockBefore > 0 && stockAfter === 0);
+    const parentBecameSoldOut = (stockBefore > 0 && stockAfter <= 0);
 
     if (parentBecameLowStock) {
       shouldAlert = true;
@@ -4542,11 +4555,11 @@ exports.onBookUpdated = onDocumentUpdated(
       const beforeVariants = before.variants || [];
       after.variants.forEach(vAfter => {
         const vBefore = beforeVariants.find(v => v.id === vAfter.id);
-        const vStockBefore = vBefore ? (vBefore.stockLevel !== undefined ? Number(vBefore.stockLevel) : (vBefore.stock !== undefined ? Number(vBefore.stock) : 999)) : 999;
-        const vStockAfter = vAfter.stockLevel !== undefined ? Number(vAfter.stockLevel) : (vAfter.stock !== undefined ? Number(vAfter.stock) : 0);
+        const vStockBefore = stockOf(vBefore, 999);
+        const vStockAfter = stockOf(vAfter, 999);
 
         const vBecameLowStock = (vStockBefore > 3 && vStockAfter <= 3 && vStockAfter > 0);
-        const vBecameSoldOut = (vStockBefore > 0 && vStockAfter === 0);
+        const vBecameSoldOut = (vStockBefore > 0 && vStockAfter <= 0);
 
         if (vBecameLowStock) {
           shouldAlert = true;

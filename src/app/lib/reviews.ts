@@ -8,6 +8,8 @@ import {
   limit,
   doc,
   updateDoc,
+  writeBatch,
+  deleteField,
   deleteDoc,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
@@ -43,13 +45,36 @@ export const reviewsApi = {
   },
 
   create: async (input: Omit<Review, "id" | "status" | "createdAt">) => {
-    const payload: Omit<Review, "id"> = {
-      ...input,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    };
-    const ref = await addDoc(collection(db, "reviews"), payload as any);
+    const { email, ...publicFields } = input;
+    const createdAt = new Date().toISOString();
+    const payload = { ...publicFields, title: publicFields.title || "", status: "pending" as const, createdAt };
+    // The review is public once approved; the reviewer's email goes to admin-only
+    // reviewContacts under the same id, written together.
+    const ref = doc(collection(db, "reviews"));
+    const batch = writeBatch(db);
+    batch.set(ref, payload);
+    const cleanEmail = String(email || "").trim().slice(0, 254);
+    if (cleanEmail) batch.set(doc(db, "reviewContacts", ref.id), { email: cleanEmail, createdAt });
+    await batch.commit();
     return { id: ref.id, ...payload };
+  },
+
+  /** Admin: emails for reviews (admin-only collection), moving any older public copy there first. */
+  contactsFor: async (reviews: Review[]): Promise<Record<string, string>> => {
+    const out: Record<string, string> = {};
+    const legacy = reviews.filter(r => r.email);
+    if (legacy.length) {
+      const batch = writeBatch(db);
+      for (const r of legacy) {
+        batch.set(doc(db, "reviewContacts", r.id), { email: r.email, createdAt: r.createdAt || new Date().toISOString() });
+        batch.update(doc(db, "reviews", r.id), { email: deleteField() });
+        out[r.id] = r.email!;
+      }
+      await batch.commit().catch(err => console.warn("Could not move reviewer emails:", err));
+    }
+    const snap = await getDocs(query(collection(db, "reviewContacts"), limit(500)));
+    snap.docs.forEach(d => { if (!out[d.id]) out[d.id] = String(d.data().email || ""); });
+    return out;
   },
 
   setStatus: async (id: string, status: Review["status"]) => {

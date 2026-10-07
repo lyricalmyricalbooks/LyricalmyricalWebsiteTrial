@@ -1,10 +1,15 @@
 import { useState } from "react";
-import { addDoc, collection } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
 import { getCopy } from "./storeCopy";
 
 export function isValidAlertEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()) && value.length <= 254;
+  return /^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(value.trim()) && value.length <= 254;
+}
+
+/** The alert's document id; firestore.rules requires exactly this shape, so one address gets one alert per edition. */
+export function stockAlertId(email: string, bookId: string, variantId = "") {
+  return `${email.trim().toLowerCase()}__${bookId}__${variantId}`;
 }
 
 /** "Notify me when back in stock" signup shown on sold-out product pages. */
@@ -32,15 +37,17 @@ export default function BackInStockForm({
     }
     setStatus("loading");
     try {
-      await addDoc(collection(db, "stockAlerts"), {
-        email: email.trim().toLowerCase(),
+      const clean = email.trim().toLowerCase();
+      // One alert per address + book + edition (the id); asking twice is already done.
+      await setDoc(doc(db, "stockAlerts", stockAlertId(clean, bookId, variantId || "")), {
+        email: clean,
         bookId,
         bookTitle,
         variantId: variantId || "",
         variantName: variantName || "",
         status: "waiting",
         createdAt: new Date().toISOString(),
-      });
+      }).catch((err: any) => { if (err?.code !== "permission-denied") throw err; });
       setStatus("success");
       setEmail("");
     } catch {

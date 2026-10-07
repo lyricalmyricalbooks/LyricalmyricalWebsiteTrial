@@ -91,7 +91,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   },
   order_refunded: {
     subject: "Order refunded: {{order_id}}",
-    body: "Hi {{customer_name}},\n\nWe have successfully refunded CA${{total_price}} for your order. The funds should return to your original payment method in 5-10 business days.",
+    body: "Hi {{customer_name}},\n\nWe have successfully refunded {{total_price}} for your order. The funds should return to your original payment method in 5-10 business days.",
     buttonText: "",
     signoff: "Best,\nThe Lyricalmyrical Team",
     enabled: true
@@ -145,7 +145,7 @@ function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand"
     .replace(/\{\{order_id\}\}/g, "LM-98241")
     .replace(/\{\{tracking_carrier\}\}/g, "Canada Post")
     .replace(/\{\{tracking_number\}\}/g, "123456789012")
-    .replace(/\{\{total_price\}\}/g, "45.00")
+    .replace(/\{\{total_price\}\}/g, "CA$45.00")
     .replace(/\{\{payment_method\}\}/g, "Interac e-Transfer")
     .replace(/\{\{email\}\}/g, "julianne.smith@gmail.com")
     .replace(/\{\{status\}\}/g, "out for delivery")

@@ -53,7 +53,9 @@ service cloud.firestore {
       // "track"), which checks the customer email or emailed link key.
       // Admins see everything; signed-in customers only their own orders.
       allow get, list: if isAdmin()
-        || (request.auth != null && resource.data.customer.email == request.auth.token.email);
+        // Only a verified sign-in email may list a customer's orders.
+        || (request.auth != null && request.auth.token.email_verified == true
+          && resource.data.customer.email == request.auth.token.email);
       // Orders are always created unpaid; only verified payment handlers using
       // the Admin SDK flip them to paid. Admins may create orders in any state
       // (for example, manual/sample orders).
@@ -117,7 +119,9 @@ service cloud.firestore {
       allow update: if isAdmin() || (
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['date', 'visits', 'funnel', 'categoryViews', 'sources', 'devices', 'searches', 'noResults', 'bookViews'])
+        // Visits only ever go up by one: a visitor can't reset or shrink the day's count.
         && request.resource.data.get('visits', 0) - resource.data.get('visits', 0) <= 1
+        && request.resource.data.get('visits', 0) >= resource.data.get('visits', 0)
         && analyticsMapsOk()
       );
       allow delete: if isAdmin();
@@ -134,7 +138,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     match /newsletter/{docId} {
-      allow create: if true;
+      // One signup per address: the document id is the lowercased email, so a repeat
+      // signup is an update (refused) instead of another row. Only these three fields.
+      allow create: if request.resource.data.keys().hasOnly(["email", "subscribedAt", "source"])
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.email.matches("[^@/ ]+@[^@/ ]+\\.[^@/ ]+")
+        && docId == request.resource.data.email
+        && request.resource.data.subscribedAt is string
+        && request.resource.data.subscribedAt.size() <= 40
+        && (!('source' in request.resource.data) || (request.resource.data.source is string && request.resource.data.source.size() <= 60));
       allow read, update, delete: if isAdmin();
     }
     match /contactMessages/{messageId} {
@@ -156,19 +169,45 @@ service cloud.firestore {
     }
     match /stockAlerts/{alertId} {
       // Shoppers can sign up for a back-in-stock email; only admin (and Functions) can read/change.
+      // One alert per address + book + edition: the id is "<email>__<bookId>__<variantId>",
+      // so repeats are refused instead of queueing hundreds of emails to one inbox.
       allow create: if request.resource.data.keys().hasOnly(["email", "bookId", "bookTitle", "variantId", "variantName", "status", "createdAt"])
         && request.resource.data.email is string
         && request.resource.data.email.size() <= 254
-        && request.resource.data.email.matches(".+@.+\\..+")
+        && request.resource.data.email.matches("[^@/ ]+@[^@/ ]+\\.[^@/ ]+")
         && request.resource.data.bookId is string
+        && request.resource.data.bookId.size() <= 160
+        && request.resource.data.get("variantId", "") is string
+        && alertId == request.resource.data.email + "__" + request.resource.data.bookId + "__" + request.resource.data.get("variantId", "")
+        && request.resource.data.get("bookTitle", "") is string
+        && request.resource.data.get("bookTitle", "").size() <= 300
+        && request.resource.data.get("variantName", "") is string
+        && request.resource.data.get("variantName", "").size() <= 120
         && request.resource.data.status == "waiting";
       allow read, update, delete: if isAdmin();
     }
+    match /reviewContacts/{reviewId} {
+      // The reviewer's email for a review, readable by the admin only.
+      allow create: if request.resource.data.keys().hasOnly(["email", "createdAt"])
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.createdAt is string
+        && request.resource.data.createdAt.size() <= 40;
+      allow read, update, delete: if isAdmin();
+    }
     match /reviews/{reviewId} {
-      // Public can read approved reviews (we filter client-side too)
-      allow read: if true;
-      // Anyone can submit a review (will land in "pending"); only admin can mutate after
+      // The public sees approved reviews only; pending/rejected ones are the admin's.
+      // Reviewer emails live in admin-only reviewContacts, never on the public review.
+      allow read: if isAdmin() || resource.data.status == "approved";
+      // Anyone can submit a review (lands "pending"); no reply, no email, no extra fields.
       allow create: if request.resource.data.status == "pending"
+        && request.resource.data.keys().hasOnly(["bookId", "authorName", "rating", "title", "body", "status", "createdAt"])
+        && request.resource.data.get("authorName", "") is string
+        && request.resource.data.get("authorName", "").size() <= 80
+        && request.resource.data.get("title", "") is string
+        && request.resource.data.get("title", "").size() <= 200
+        && request.resource.data.createdAt is string
+        && request.resource.data.createdAt.size() <= 40
         && request.resource.data.rating is number
         && request.resource.data.rating >= 1
         && request.resource.data.rating <= 5

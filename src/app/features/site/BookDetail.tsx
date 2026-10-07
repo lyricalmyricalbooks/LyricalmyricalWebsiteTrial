@@ -67,6 +67,9 @@ export default function BookDetail() {
   const logoDesign    = resolveLogoDesign(settings?.design?.storefront, [settings?.design?.heroPage, settings?.design]);
 
   const [activePhoto, setActivePhoto] = useState(0);
+  // A format with its own photo shows it when chosen; picking a thumbnail afterwards wins.
+  const [variantPhotoPinned, setVariantPhotoPinned] = useState(true);
+  const pickPhoto = (next: number | ((p: number) => number)) => { setVariantPhotoPinned(false); setActivePhoto(next as any); };
   const [added, setAdded]             = useState(false);
   const [addingBoth, setAddingBoth]   = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -93,7 +96,7 @@ export default function BookDetail() {
     if (fresh && fresh !== selectedVariant) setSelectedVariant(fresh);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [book]);
-  useEffect(() => { setQty(1); }, [selectedVariant?.id]);
+  useEffect(() => { setQty(1); setVariantPhotoPinned(true); }, [selectedVariant?.id]);
 
   const storefrontDesign       = resolveProductDesign(settings?.design);
   const productImageLayout     = storefrontDesign.productImageLayout     || "slider";
@@ -280,7 +283,8 @@ export default function BookDetail() {
     setTimeout(() => setAdded(false), 2500);
   };
 
-  const bundleBook = otherBooks[0];
+  // "Add both" only pairs with a companion that can actually go in the bag.
+  const bundleBook = otherBooks.find(b => quickAddChoice(b).inStock);
 
   const handleAddBothToBag = () => {
     if (!book || !bundleBook || isOutOfStock) return;
@@ -296,13 +300,16 @@ export default function BookDetail() {
     }, 1000);
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
     if (navigator.share) {
-      navigator.share({ title: book?.title, url: window.location.href });
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      toast.success(getCopy(settings?.design, "bookLinkCopied"));
+      // Closing the share sheet is not an error.
+      await navigator.share({ title: book?.title, url: window.location.href }).catch(() => {});
+      return;
     }
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success(getCopy(settings?.design, "bookLinkCopied"));
+    } catch { /* clipboard blocked: no false "copied" */ }
   };
 
   const configuredPhotos = (book as any)?.photos;
@@ -315,7 +322,7 @@ export default function BookDetail() {
   const retailPrice   = selectedVariant ? selectedVariant.price : ((book as any)?.retailPrice ?? 0);
   const salePrice     = selectedVariant ? 0 : ((book as any)?.salePrice   ?? 0);
   const isOnSale      = selectedVariant ? false : ((book as any)?.isOnSale && salePrice > 0);
-  const activeUrl     = (selectedVariant && selectedVariant.photoUrl) ? selectedVariant.photoUrl : (photos[activePhoto]?.url || placeholderImage(settings?.design));
+  const activeUrl     = (selectedVariant && selectedVariant.photoUrl && variantPhotoPinned) ? selectedVariant.photoUrl : (photos[activePhoto]?.url || placeholderImage(settings?.design));
 
   // ── catalogue-card helpers ─────────────────────────────────────────────────
   const bk            = (book || {}) as any;
@@ -558,7 +565,7 @@ export default function BookDetail() {
                         <button
                           key={i}
                           type="button"
-                          onClick={() => setActivePhoto(i)}
+                          onClick={() => pickPhoto(i)}
                           aria-current={activePhoto === i}
                           aria-label={getCopy(settings?.design, "ariaGoToPhoto", { n: i + 1 })}
                           className="fm-pdp-thumb"
@@ -653,7 +660,7 @@ export default function BookDetail() {
                       {photos.length > 1 && (
                         <>
                           <button
-                            onClick={() => setActivePhoto(p => Math.max(0, p - 1))}
+                            onClick={() => pickPhoto(p => Math.max(0, p - 1))}
                             disabled={activePhoto === 0}
                             aria-label={getCopy(settings?.design, "ariaPrevPhoto")}
                             className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all disabled:opacity-20"
@@ -661,7 +668,7 @@ export default function BookDetail() {
                             <ChevronLeft size={16} />
                           </button>
                           <button
-                            onClick={() => setActivePhoto(p => Math.min(photos.length - 1, p + 1))}
+                            onClick={() => pickPhoto(p => Math.min(photos.length - 1, p + 1))}
                             disabled={activePhoto === photos.length - 1}
                             aria-label={getCopy(settings?.design, "ariaNextPhoto")}
                             className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center border border-white/10 hover:bg-black/80 hover:border-white/20 transition-all disabled:opacity-20"
@@ -677,7 +684,7 @@ export default function BookDetail() {
                           {photos.map((_: any, i: number) => (
                             <button
                               key={i}
-                              onClick={() => setActivePhoto(i)}
+                              onClick={() => pickPhoto(i)}
                               aria-label={getCopy(settings?.design, "ariaGoToPhoto", { n: i + 1 })}
                               className={`rounded-full transition-all ${
                                 activePhoto === i ? "w-5 h-1.5 bg-white" : "w-1.5 h-1.5 bg-white/30"
@@ -798,7 +805,7 @@ export default function BookDetail() {
                               type="button"
                               onClick={() => setSelectedVariant(v)}
                               aria-pressed={selectedVariant?.id === v.id}
-                              data-soldout={vStock === 0}
+                              data-soldout={Number(vStock) <= 0}
                               className="fm-pdp-chip"
                             >
                               {v.name}{Number.isFinite(Number(v.price)) && v.price !== null && v.price !== "" ? ` · ${formatPrice(Number(v.price))}` : ""}
@@ -1015,9 +1022,11 @@ export default function BookDetail() {
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 lg:gap-8">
                 {otherBooks.map((rel, i) => {
-                  const relSlug  = (rel as any).slug || rel.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-                  const relStock = (rel as any).stockLevel ?? 999;
-                  const relPrice = (rel as any).retailPrice ?? 0;
+                  // Link by id when there is no slug (the product page resolves ids too).
+                  const relSlug  = (rel as any).slug || rel.id;
+                  const relChoice = quickAddChoice(rel);
+                  const relStock = relChoice.inStock ? 999 : 0;
+                  const relPrice = getBookPrice(rel);
                   return (
                     <motion.article
                       key={rel.id}
@@ -1057,7 +1066,7 @@ export default function BookDetail() {
                         </p>
                         {relPrice > 0 && (
                           <p className="fm-card-price-wrap fm-card-price text-[11px] font-medium text-white/25 group-hover:text-white/50 transition-colors" data-studio-target="style:products" data-studio-label="Card title & price">
-                            {formatPrice(relPrice)}
+                            {formatBookPrice(rel)}
                           </p>
                         )}
                       </Link>

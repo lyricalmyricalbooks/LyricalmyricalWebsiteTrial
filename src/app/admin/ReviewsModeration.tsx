@@ -42,7 +42,10 @@ function Queue() {
     setLoading(true); setError(false);
     try {
       const snap = await getDocs(query(collection(db, "reviews"), orderBy("createdAt", "desc"), limit(200)));
-      setReviews(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
+      const list: Review[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      // Reviewer emails are kept in the admin-only reviewContacts collection.
+      const contacts = await reviewsApi.contactsFor(list).catch(() => ({} as Record<string, string>));
+      setReviews(list.map((r) => ({ ...r, email: contacts[r.id] || undefined })));
     } catch { setError(true); } finally { setLoading(false); }
   }
   useEffect(() => { load(); }, []);

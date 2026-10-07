@@ -1389,7 +1389,7 @@ export const adminApi = {
   getAudienceSnapshot: async () => {
     const [reviewsSnap, subsSnap] = await Promise.all([
       getDocs(query(collection(db, "reviews"), orderBy("createdAt", "desc"), limit(200))),
-      getDocs(query(collection(db, "newsletter"), limit(2000))),
+      getDocs(query(collection(db, "newsletter"), orderBy("subscribedAt", "desc"), limit(5000))),
     ]);
     return {
       reviews: reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() })),

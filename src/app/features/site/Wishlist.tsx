@@ -1,3 +1,4 @@
+import { isLiveBook } from "./liveBook";
 import { regionProps } from "./storefrontRegions";
 import { quickAddChoice } from "./buyable";
 import { useEffect } from "react";
@@ -30,7 +31,8 @@ export default function WishlistPage() {
     }
   }, []);
 
-  const items = books.filter(b => ids.includes(b.id));
+  // A hearted book that was later unpublished drops off the list instead of staying buyable.
+  const items = books.filter(b => ids.includes(b.id) && isLiveBook(b as any));
 
   if (loading) {
     return (
@@ -68,7 +70,8 @@ export default function WishlistPage() {
       ) : (
         <div {...regionProps("wishlistGrid")} className="max-w-6xl mx-auto px-6 py-12 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
           {items.map(book => {
-            const slug = (book as any).slug || book.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+            // No saved slug: link by id, which the product page also resolves.
+            const slug = (book as any).slug || book.id;
             const choice = quickAddChoice(book);
             const out = !choice.inStock;
             return (

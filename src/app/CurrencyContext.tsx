@@ -30,34 +30,45 @@ const CURRENCY_SYMBOLS: Record<Currency, string> = {
   EUR: "€ ",
 };
 
+// Every Canadian IANA zone, so a shopper in Calgary or Halifax starts in CAD, not USD.
+const CANADIAN_ZONES = new Set([
+  "America/St_Johns", "America/Halifax", "America/Glace_Bay", "America/Moncton", "America/Goose_Bay",
+  "America/Blanc-Sablon", "America/Toronto", "America/Montreal", "America/Nipigon", "America/Thunder_Bay",
+  "America/Iqaluit", "America/Pangnirtung", "America/Atikokan", "America/Winnipeg", "America/Rainy_River",
+  "America/Resolute", "America/Rankin_Inlet", "America/Regina", "America/Swift_Current", "America/Edmonton",
+  "America/Cambridge_Bay", "America/Yellowknife", "America/Inuvik", "America/Creston", "America/Dawson_Creek",
+  "America/Fort_Nelson", "America/Whitehorse", "America/Dawson", "America/Vancouver",
+]);
+
+/** Starting currency for a first visit, from the browser's time zone. Exported for tests. */
+export function currencyForTimeZone(tz: string): Currency {
+  if (!tz || tz.startsWith("Canada/") || CANADIAN_ZONES.has(tz)) return "CAD";
+  if (tz.startsWith("Europe/")) return "EUR";
+  if (tz.startsWith("America/") || tz.startsWith("US/") || tz === "Pacific/Honolulu") return "USD";
+  return "CAD";
+}
+
 export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const [currency, setCurrencyState] = useState<Currency>("CAD");
   const [rates, setRates] = useState<Record<Currency, number>>(FALLBACK_RATES);
 
   const setCurrency = (c: Currency) => {
     setCurrencyState(c);
-    localStorage.setItem("fm_currency", c);
+    // Storage can be blocked (strict privacy settings, some in-app browsers): the choice still works for this visit.
+    try { localStorage.setItem("fm_currency", c); } catch { /* not remembered */ }
   };
 
   // Determine initial currency from localStorage or timezone geolocation
   useEffect(() => {
-    const saved = localStorage.getItem("fm_currency") as Currency | null;
+    let saved: Currency | null = null;
+    try { saved = localStorage.getItem("fm_currency") as Currency | null; } catch { /* storage blocked */ }
     if (saved && ["CAD", "USD", "EUR"].includes(saved)) {
       setCurrencyState(saved);
       return;
     }
 
     try {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
-      if (tz.includes("America/Toronto") || tz.includes("America/Vancouver") || tz.includes("Canada")) {
-        setCurrencyState("CAD");
-      } else if (tz.includes("Europe") || tz.includes("Atlantic") || tz.includes("GMT")) {
-        setCurrencyState("EUR");
-      } else if (tz.includes("America") || tz.includes("US")) {
-        setCurrencyState("USD");
-      } else {
-        setCurrencyState("CAD"); // Default to CAD
-      }
+      setCurrencyState(currencyForTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone || ""));
     } catch {
       setCurrencyState("CAD");
     }
