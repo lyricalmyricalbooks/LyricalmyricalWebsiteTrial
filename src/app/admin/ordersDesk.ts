@@ -50,6 +50,7 @@ export function nextToOpen(list: any[], currentId?: string | null): string | nul
 export function rowStatus(o: any): { tone: "danger" | "warning" | "info" | "success" | "neutral"; text: string } {
   const q = queueOf(o);
   if (o.paymentMismatch && o.paymentStatus !== "paid") return { tone: "danger", text: "⚠ Payment doesn't match" };
+  if (Array.isArray(o.duplicatePayments) && o.duplicatePayments.length) return { tone: "danger", text: "⚠ Paid twice — refund the extra" };
   if (o.disputeStatus === "needs_response") return { tone: "danger", text: "⚠ Dispute — respond in Stripe" };
   if (o.partiallyRefunded) return { tone: "warning", text: "⚠ Partly refunded" };
   if (q === "Needs attention") return { tone: "danger", text: "⚠ Check before packing" };

@@ -485,7 +485,7 @@ export function Checkout() {
     }
 
     // 2. Email domain / email list
-    const hasEmailRestrictions = (discount.allowedCustomerEmails && discount.allowedCustomerEmails.trim()) || 
+    const hasEmailRestrictions = discount.restrictedToCustomers || (discount.allowedCustomerEmails && discount.allowedCustomerEmails.trim()) || 
                                   (discount.allowedEmailDomains && discount.allowedEmailDomains.trim());
     if (hasEmailRestrictions && !email.trim()) {
       throw new CopyError(checkoutDesign, "coErrNeedEmail");
@@ -1095,9 +1095,10 @@ export function Checkout() {
         tax: taxCost,
         total: finalTotal,
         status: "pending_payment",
-        paymentStatus: isManual ? "pending" : "unpaid",
-        paymentMethod: isManual ? (manualMethod?.name || "Manual") : (selectedPaymentMethod === "paypal" ? "PayPal" : "Stripe"),
-        paymentInstructions: isManual ? (manualMethod?.instructions || "") : "",
+        paymentStatus: "unpaid",
+        // Manual-payment orders never use this: the server builds them (createManualLocalOrder).
+        paymentMethod: selectedPaymentMethod === "paypal" ? "PayPal" : "Stripe",
+        paymentInstructions: "",
         testMode: settings?.payments?.testMode || false,
         appliedDiscount: appliedDiscount
           ? { id: appliedDiscount.id, code: appliedDiscount.code, type: appliedDiscount.type, value: appliedDiscount.value }
@@ -1112,10 +1113,9 @@ export function Checkout() {
       const reuse = payingByCardForm && pendingCardOrder.current?.key === cardKey ? pendingCardOrder.current : null;
       let orderId: string;
 
-      // Manual local orders are created by Functions from a whitelisted draft
-      // and current server catalog/config. No client totals or existing order ID
-      // can alter the authoritative fulfillment snapshot.
-      if (isManual && physicalItems.length && ["pickup", "local_delivery"].includes(fulfillmentSelection.method)) {
+      // Every manual-payment order is created by Functions from a whitelisted draft
+      // and the current server catalog/config. No client totals can reach it.
+      if (isManual) {
         const response = await functionFetch("createStripeCheckoutSession", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1126,7 +1126,10 @@ export function Checkout() {
             orderDraft: {
               customer,
               items: cart.map(item => ({ id: item.id, variantId: item.variantId || null, quantity: item.quantity })),
-              fulfillmentSelection,
+              ...(physicalItems.length ? { fulfillmentSelection } : {}),
+              ...(orderData.shippingMethod ? { shippingMethod: orderData.shippingMethod } : {}),
+              ...(checkoutCartId ? { cartId: checkoutCartId } : {}),
+              referralSource: orderData.referralSource,
               ...(appliedDiscount?.code ? { appliedDiscount: { code: appliedDiscount.code } } : {}),
               ...(checkoutDesign.showOrderNote && orderNote.trim() ? { orderNote: orderNote.trim().slice(0, 500) } : {}),
             },

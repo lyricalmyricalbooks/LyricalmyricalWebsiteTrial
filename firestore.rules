@@ -58,15 +58,24 @@ service cloud.firestore {
       // the Admin SDK flip them to paid. Admins may create orders in any state
       // (for example, manual/sample orders).
       allow create: if isAdmin()
-        || ((request.resource.data.paymentStatus == "unpaid" || request.resource.data.paymentStatus == "pending")
+        // Guests only start card/PayPal orders here. Manual-payment orders are priced and
+        // created by Functions (createManualLocalOrder), never by the browser.
+        || (request.resource.data.paymentStatus == "unpaid"
         && request.resource.data.status == "pending_payment"
+        && request.resource.data.orderId == orderId
+        // Only checkout's own fields: no isTest, inventory/discount/refund markers or payment ids.
+        && request.resource.data.keys().hasOnly(['customer', 'cartId', 'customerId', 'referralSource', 'orderNote',
+          'addressVerified', 'addressError', 'items', 'subtotal', 'discount', 'shipping', 'shippingMethod',
+          'fulfillmentSelection', 'tax', 'total', 'status', 'paymentStatus', 'paymentMethod', 'paymentInstructions',
+          'testMode', 'appliedDiscount', 'metadata', 'orderId', 'createdAt', 'updatedAt', 'activity'])
+        && (request.resource.data.paymentMethod == "Stripe" || request.resource.data.paymentMethod == "PayPal")
+        && (!('paymentInstructions' in request.resource.data) || request.resource.data.paymentInstructions == "")
         && request.resource.data.customer.email is string
         && request.resource.data.items is list
         && request.resource.data.items.size() > 0
         && request.resource.data.items.size() <= 50
         // The guest submits only a method/option ID. Functions build the
         // priced fulfillment snapshot from current server configuration.
-        && !('fulfillment' in request.resource.data)
         && (!('orderNote' in request.resource.data) || (request.resource.data.orderNote is string && request.resource.data.orderNote.size() <= 500)));
       allow update, delete: if isAdmin();
     }

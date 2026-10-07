@@ -338,21 +338,18 @@ export function OrderDetail({
   const handleRefund = async () => {
     if (voidingRef.current) return;
     voidingRef.current = true;
-    const isManual =
-      order.paymentMethod &&
-      order.paymentMethod !== "Stripe" &&
-      order.paymentMethod !== "PayPal";
     setConfirming(null);
     setIsVoiding(true);
     try {
-      await adminApi.refundOrder(orderId, {
+      const result = await adminApi.refundOrder(orderId, {
         reason: refundReason,
         restock: restockOnRefund,
       });
+      const pending = result?.status === "pending";
       toast.success(
-        isManual
-          ? "Manual order marked as refunded"
-          : "Stripe refund issued and order cancelled",
+        result?.provider === "manual"
+          ? "Order marked as refunded. Send the money back the way the customer paid."
+          : `${result?.provider === "paypal" ? "PayPal" : "Stripe"} refund ${pending ? "started — the order updates when it completes" : "issued and order cancelled"}`,
       );
       loadOrder();
     } catch (err: any) {
