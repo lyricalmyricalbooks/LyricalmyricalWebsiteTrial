@@ -8,7 +8,7 @@ const optOutId = email => crypto.createHash("sha256").update(normEmail(email)).d
 const unsubscribeToken = (email, key) => crypto.createHmac("sha256", String(key)).update(normEmail(email)).digest("hex").slice(0, 40);
 
 function tokenMatches(email, token, key) {
-  if (!key || typeof token !== "string" || token.length !== 40) return false;
+  if (!key || typeof token !== "string" || !/^[a-f0-9]{40}$/.test(token)) return false;
   const expected = unsubscribeToken(email, key);
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(token));
 }

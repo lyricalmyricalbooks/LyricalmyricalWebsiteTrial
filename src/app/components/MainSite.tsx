@@ -32,7 +32,7 @@ import { LogoMark, wordmarkSecondaryStyle } from "./LogoMark";
 import { googleFontHref } from "../features/site/fonts";
 import { ThemeToggle } from "./theme/ThemeToggle";
 import { CurrencySelector, useCurrency } from "../CurrencyContext";
-import { addDoc, collection } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
 import { useWishlist } from "../lib/wishlist";
@@ -152,14 +152,16 @@ function Newsletter({ design }: { design?: any }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !email.includes("@")) return;
+    if (!/^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(email.trim())) { setStatus("error"); return; }
     setStatus("loading");
     try {
-      await addDoc(collection(db, "newsletter"), {
-        email,
+      const clean = email.trim().toLowerCase();
+      // One row per address (the id is the email); signing up twice is already done.
+      await setDoc(doc(db, "newsletter", clean), {
+        email: clean,
         subscribedAt: new Date().toISOString(),
         source: "website-footer",
-      });
+      }).catch((err: any) => { if (err?.code !== "permission-denied") throw err; });
       setStatus("success");
       setEmail("");
     } catch {

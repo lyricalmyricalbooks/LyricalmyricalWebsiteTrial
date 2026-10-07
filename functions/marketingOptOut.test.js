@@ -19,3 +19,7 @@ test('the footer address skips blank parts', () => {
   expect(footerAddress({ street: '456 Montrose Ave', city: 'Toronto', state: 'ON', zip: '' })).toBe('456 Montrose Ave, Toronto, ON');
   expect(footerAddress(undefined)).toBe('');
 });
+
+test('a mangled unsubscribe token is refused, not a crash', () => {
+  expect(tokenMatches('ada@example.com', 'é'.repeat(40), 'k1')).toBe(false);
+});

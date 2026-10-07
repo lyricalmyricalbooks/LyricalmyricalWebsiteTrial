@@ -931,3 +931,15 @@ limits what one code can take off an order ("20% off, up to $15"). The server en
   the sitemap/prerender; Orders CSV has tax/payment/currency/refund columns (paid/refunded only for whole lists).
 - **Not changed on purpose:** rate-limit IP source (verify the real X-Forwarded-For shape first), sales-tax model
   (shipping tax / printed-book rebate need the owner's accountant).
+
+## Bug sweep #4 (7 October 2026)
+
+- **Reviews:** public reads only `status == "approved"`; reviewer emails live in admin-only `reviewContacts/{reviewId}`
+  (`reviewsApi.create` writes both; `contactsFor` moves older public emails once per admin session).
+- **Signups:** `stockAlerts` ids are `<email>__<bookId>__<variantId>` and `newsletter` ids are the email (both enforced
+  in `firestore.rules`), so repeats are refused. `onBookRestocked` sends once per address, skips draft/archived books,
+  reclaims sends stuck >15 min and deletes the alert after sending.
+- **Emails:** refund amount in the currency refunded (`refundAmountText`); no "won't be charged" email for paid orders;
+  shipped email without tracking drops those lines (`withoutTrackingLines`), none for pickup/local delivery.
+- **Storefront:** search/wishlist use `isLiveBook`; Canadian time zones start in CAD (`currencyForTimeZone`).
+- Signed-in order reads need `email_verified`. Analytics visits can't decrease.

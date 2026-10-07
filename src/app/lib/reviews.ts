@@ -1,6 +1,5 @@
 import {
   collection,
-  addDoc,
   getDocs,
   query,
   where,
@@ -8,6 +7,9 @@ import {
   limit,
   doc,
   updateDoc,
+  writeBatch,
+  getDoc,
+  deleteField,
   deleteDoc,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
@@ -26,6 +28,8 @@ export type Review = {
   reply?: { body: string; at: string };
 };
 
+// Older reviews kept the email on the public document; moved once per admin session.
+let legacyEmailsMoved = false;
 // The product page (for search markup) and its reviews section read the same approved list;
 // share one request per book for a short while instead of reading it twice.
 const approvedCache = new Map<string, { at: number; promise: Promise<Review[]> }>();
@@ -57,14 +61,46 @@ export const reviewsApi = {
   },
 
   create: async (input: Omit<Review, "id" | "status" | "createdAt">) => {
-    const payload: Omit<Review, "id"> = {
-      ...input,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    };
-    const ref = await addDoc(collection(db, "reviews"), payload as any);
+    const { email, ...publicFields } = input;
+    const createdAt = new Date().toISOString();
+    const payload = { ...publicFields, title: publicFields.title || "", status: "pending" as const, createdAt };
+    // The review is public once approved; the reviewer's email goes to admin-only
+    // reviewContacts under the same id, written together.
+    const ref = doc(collection(db, "reviews"));
+    const batch = writeBatch(db);
+    batch.set(ref, payload);
+    const cleanEmail = String(email || "").trim().slice(0, 254);
+    if (cleanEmail) batch.set(doc(db, "reviewContacts", ref.id), { email: cleanEmail, createdAt });
+    await batch.commit();
     clearApprovedCache();
     return { id: ref.id, ...payload };
+  },
+
+  /**
+   * Admin: emails for the listed reviews (admin-only reviewContacts). The first call in a
+   * session also moves every older review's public email there, across the whole collection.
+   */
+  contactsFor: async (reviews: Review[]): Promise<Record<string, string>> => {
+    const out: Record<string, string> = {};
+    if (!legacyEmailsMoved) {
+      const all = await getDocs(collection(db, "reviews"));
+      const legacy = all.docs.filter(d => d.data().email);
+      for (let i = 0; i < legacy.length; i += 200) {
+        const batch = writeBatch(db);
+        for (const d of legacy.slice(i, i + 200)) {
+          batch.set(doc(db, "reviewContacts", d.id), { email: String(d.data().email), createdAt: d.data().createdAt || new Date().toISOString() });
+          batch.update(d.ref, { email: deleteField() });
+          out[d.id] = String(d.data().email);
+        }
+        await batch.commit();
+      }
+      legacyEmailsMoved = true;
+    }
+    await Promise.all(reviews.filter(r => !out[r.id]).map(async r => {
+      const snap = await getDoc(doc(db, "reviewContacts", r.id)).catch(() => null);
+      if (snap?.exists()) out[r.id] = String(snap.data().email || "");
+    }));
+    return out;
   },
 
   setStatus: async (id: string, status: Review["status"]) => {

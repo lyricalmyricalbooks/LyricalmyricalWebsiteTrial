@@ -1,3 +1,4 @@
+import { isLiveBook } from "./liveBook";
 import { regionProps } from "./storefrontRegions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
@@ -85,7 +86,9 @@ export function SearchOverlay({
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
+    // Only books shoppers can open and buy (no drafts, archived or not-yet-released titles).
     return books
+      .filter(b => isLiveBook(b as any))
       .map(b => ({ book: b, s: score(b, q) }))
       .filter(x => x.s > 0)
       .sort((a, b) => b.s - a.s)
