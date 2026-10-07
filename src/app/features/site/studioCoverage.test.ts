@@ -25,6 +25,7 @@ import { join } from "node:path";
 // bookkeeping, or non-design objects that happen to share a variable name.
 const NOT_STYLE_CONTROLS = new Set([
   "copy", "menus", "sections", "globalSections", "homepageSections", "altSections", "social", "categories", "navOrder",
+  "secondaryNavKeys", // Studio Navigation > Header order manages page row placement.
   "colorSchemes", "hero", "headerLinks", "sectionPresets", "heroPage", "storefront", "productPage",
   "collectionPage", "cartPage", "page", "page404", "typeScale", "mobileOverrides", "themeLibraryPreset",
   "fontSize", "data", "id", "trim", "logoUrl", "footerBadges", "sharedBlocks",

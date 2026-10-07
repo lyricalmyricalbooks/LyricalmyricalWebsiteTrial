@@ -737,3 +737,26 @@ Studio persistence, webhook delivery, refunds, email or fulfillment. Server
 prices and webhook-only paid-order authority remain unchanged.
 
 Stripe field appearance follows Studio checkout field background, text, border, font, accent and corner-radius controls inside the secure iframe. Riso defaults use square, visibly outlined idle fields with accent focus outlines and danger outlines for invalid fields; payment tabs share the same border treatment.
+
+## Shopping navigation and real catalog merchandising (7 October 2026)
+
+- [x] Separate shopping categories/pages from a Studio-editable publisher information row on both storefront
+  header layouts and standalone page/product headers, including phones. Navigation > Header bar order chooses
+  each page's row; `secondaryNavKeys` stores that structural draft setting. Initial exact Submissions, History,
+  Our history and Open call(s) labels use the publisher row until the owner makes an explicit selection.
+  Style > Header layout owns Show publisher navigation row; Text & labels > Header owns its accessible name.
+  Existing search visibility applies to the directly available phone search action.
+- [x] Add full-catalog, ordered companion-book curation in Books > Categories & tags, preserving automatic
+  category matches for unconfigured records. An explicit empty selection hides recommendations; public output
+  excludes missing/current/unpublished books and never invents replacement choices. Existing Studio related-book
+  visibility/copy remains authoritative. Product details use actual edition, pages, publisher and publication date,
+  with the selected variant name as edition; Show edition details and spec labels are Studio controls.
+- [x] Expose optional apartment/unit, eligible express wallets and payment-total presentation through Studio
+  Checkout controls and Text & labels. Required payment and validation remain functional; browser/domain/provider
+  wallet eligibility is not established by local rendering.
+
+Contributor display and uploaded photographs remain owner-provided catalog content. This milestone does not
+create author photographs, edit live catalog content or establish live payment/email/carrier/deployment success.
+Stripe status checks require an authorized identity or private order key and record pending reconciliation only;
+Stripe paid-order mutations remain exclusive to the verified signed webhook. Existing PayPal, manual/offline and
+server-validated free-order contracts remain available.

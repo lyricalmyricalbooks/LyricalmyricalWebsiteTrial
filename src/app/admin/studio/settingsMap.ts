@@ -85,7 +85,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Text wordmark", keys: ["logoText", "wordmarkStyle", "wordmarkPrimary", "wordmarkSecondary", "wordmarkSecondaryMuted", "wordmarkSecondaryColor", "wordmarkSize", "wordmarkWeight"] },
   ],
   header: [
-    { title: "Header layout", keys: ["headerStyle", "logoPosition", "logoHeight", "stickyHeader", "transparentHeader", "navStyle", "showMobileNavigation"] },
+    { title: "Header layout", keys: ["headerStyle", "logoPosition", "logoHeight", "stickyHeader", "transparentHeader", "navStyle", "showMobileNavigation", "showSecondaryNavigation"] },
     { title: "Header colours", keys: ["headerBg", "headerColor"] },
     { title: "Announcement bar", keys: ["showAnnouncement", "announcementText", "announcementBg", "announcementColor", "announcementScrolling", "announcementFontSize", "announcementWeight", "announcementTracking", "announcementSpeed"] },
     { title: "Icons & buttons in the header", keys: ["hideHeaderSearch", "hideHeaderWishlist", "hideHeaderAccount", "hideCurrencySelector", "hideThemeToggle", "hideAdminLink", "hideCartButton"] },
@@ -112,7 +112,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Page layout", keys: ["productImageLayout", "productContentPosition", "productAlignment", "productDetailsLayout"] },
     { title: "Photos", keys: ["productImageMaxWidth", "productImageAspect", "productPhotoOutline", "productImageFit", "productImageShadow", "productImageHoverScale", "showZoom", "showAmbientGlow", "glowIntensity", "productImageGlowColor"] },
     { title: "Title & add-to-bag button", keys: ["productTitleSize", "productSubtitleWeight", "addToBagLabel", "productCtaWidth", "productCtaSize", "productCtaAnimation"] },
-    { title: "Extras on the page", keys: ["showSpecs", "showSocialShare", "showBackInStock", "showBundleWidget", "productBundleLayout", "showRelatedProducts", "recentlyViewedCount", "lowStockProductThreshold"] },
+    { title: "Extras on the page", keys: ["showSpecs", "showPdpEditionDetails", "showSocialShare", "showBackInStock", "showBundleWidget", "productBundleLayout", "showRelatedProducts", "recentlyViewedCount", "lowStockProductThreshold"] },
   ],
   productCard: [
     { title: "Buy card box", keys: ["pdpCardBg", "pdpCardBorderColor", "pdpCardBorderWidth", "pdpCardShadowColor", "pdpCardShadowOffset", "pdpCardPadding", "pdpCardDividerColor"] },
@@ -136,7 +136,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Total & checkout button", keys: ["cartDrawerShowSummary", "cartDrawerTotalSize", "showCartTrustBadges", "cartDrawerCheckoutBg", "cartDrawerCheckoutText", "cartDrawerCheckoutHeight", "cartDrawerCheckoutShadow", "cartDrawerShowCheckoutArrow", "cartDrawerShowDeliveryNote"] },
   ],
   checkout: [
-    { title: "What shoppers see", keys: ["showOrderNote", "hideAddressSuggestions", "checkoutPinnedCountries", "hideCountryFlags", "checkoutSummaryOpenOnPhones", "hidePayButtonTotal", "alwaysShowDiscountBox", "hideCheckoutFreeShipNudge", "hideCheckoutLowStock", "hideCheckoutPolicyLinks"] },
+    { title: "What shoppers see", keys: ["showOrderNote", "hideCheckoutAddressUnit", "hideCheckoutPaymentTotal", "hideCheckoutExpressWallets", "hideAddressSuggestions", "checkoutPinnedCountries", "hideCountryFlags", "checkoutSummaryOpenOnPhones", "hidePayButtonTotal", "alwaysShowDiscountBox", "hideCheckoutFreeShipNudge", "hideCheckoutLowStock", "hideCheckoutPolicyLinks"] },
     { title: "Colours", keys: ["checkoutAccentColor", "checkoutBgColor"] },
     { title: "Fonts & form fields", keys: ["checkoutHeadingFont", "checkoutFont", "checkoutFieldFont", "checkoutFieldBg", "checkoutFieldText", "checkoutFieldBorder", "checkoutInputRadius"] },
     { title: "Card payment form", keys: ["stripeFormBg", "stripeFormPadding"] },

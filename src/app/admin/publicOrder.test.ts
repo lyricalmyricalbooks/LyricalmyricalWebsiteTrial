@@ -20,11 +20,11 @@ const respond = (status: number, body: unknown) =>
 afterEach(() => vi.unstubAllGlobals());
 
 describe("storefront order lookup", () => {
-  it("asks the server with the email proof and never reads Firestore directly", async () => {
+  it("asks the server with a private key and never reads Firestore directly", async () => {
     respond(200, { order: { id: "A", orderId: "A" } });
     expect(await adminApi.getPublicOrder("A", { email: "r@x.com" })).toMatchObject({ id: "A" });
     const [, init] = (fetch as any).mock.calls[0];
-    expect(JSON.parse(init.body)).toEqual({ action: "track", orderId: "A", email: "r@x.com", key: "" });
+    expect(JSON.parse(init.body)).toEqual({ action: "track", orderId: "A", key: "" });
     expect(getDoc).not.toHaveBeenCalled();
   });
 

@@ -71,10 +71,10 @@ export function Dashboard() {
     const refresh = () =>
       refreshOrdersCache()
         .then(async (data) => {
-          const webhook = await adminApi.getStripeWebhookStatus();
+          const [webhook, emailLog] = await Promise.all([adminApi.getStripeWebhookStatus().catch(() => null), adminApi.getRecentEmailLog(50).catch(() => [])]);
           if (!alive) return;
           setOrdersBadge(ordersNeedingWork(data));
-          setAlerts(buildAdminAlerts(data, webhook));
+          setAlerts(buildAdminAlerts(data, webhook, Date.now(), emailLog));
         })
         .catch(() => {});
     refresh();
@@ -422,6 +422,7 @@ export function Dashboard() {
         />
         <AdminAlerts
           alerts={alerts}
+          onOpenNotifications={() => { setActiveTab("settings"); setSettingsTab("notifications"); setShowEditor(false); setSelectedOrder(null); }}
           onOpenOrder={(id) => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder({ id }); }}
           onOpenOrders={() => { setActiveTab("orders"); setShowEditor(false); setSelectedOrder(null); }}
           onOpenWebhook={() => { setActiveTab("settings"); setSettingsTab("payments"); setShowEditor(false); setSelectedOrder(null); }}

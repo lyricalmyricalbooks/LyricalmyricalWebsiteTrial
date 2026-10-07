@@ -1,3 +1,4 @@
+import { orderAccessHeaders, rememberOrderAccess, savedOrderAccess } from "../../lib/orderAccessClient";
 import { useSEO } from "../../lib/seo";
 import { regionProps } from "./storefrontRegions";
 import { normalizeOrderNumber } from "./orderNumber";
@@ -23,6 +24,7 @@ export default function OrderTracking() {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [linkSent, setLinkSent] = useState(false);
   const [digitalItems, setDigitalItems] = useState<Record<string, boolean>>({});
   // How the shopper proved the order is theirs (email typed, or the emailed link key); requests reuse it.
   const [access, setAccess] = useState<{ email?: string; key?: string }>({});
@@ -74,7 +76,11 @@ export default function OrderTracking() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const linkedId = (params.get("orderId") || "").trim();
-    const key = (params.get("key") || "").trim();
+    const key = (params.get("key") || savedOrderAccess(linkedId) || "").trim();
+    if (key) {
+      rememberOrderAccess(linkedId, key);
+      window.history.replaceState(null, "", `${window.location.pathname}?orderId=${encodeURIComponent(linkedId)}`);
+    }
     if (!linkedId) return;
     setOrderIdInput(linkedId);
     if (!key) return;
@@ -107,18 +113,25 @@ export default function OrderTracking() {
     setError("");
     setOrder(null);
 
+    setLinkSent(false);
     try {
-      // The server checks the email; a wrong one comes back as "email_mismatch".
-      const foundOrder: any = await findOrder(orderIdInput, emailInput.trim());
-      if (!foundOrder) {
-        setError(getCopy(settings?.design, "trackErrNotFound"));
-        return;
+      let foundOrder: any = null;
+      try { foundOrder = await findOrder(orderIdInput, emailInput.trim()); } catch (err: any) {
+        if (!["email_mismatch"].includes(err?.code)) throw err;
       }
-
-      setOrder(foundOrder);
-      setAccess({ email: emailInput.trim() });
+      if (foundOrder) {
+        setOrder(foundOrder);
+        setAccess({ key: savedOrderAccess(foundOrder.id) });
+      } else {
+        const response = await functionFetch("createStripeCheckoutSession", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "trackingLink", orderId: normalizeOrderNumber(orderIdInput), email: emailInput.trim() }),
+        });
+        if (!response.ok) throw Object.assign(new Error("tracking_link_failed"), { code: response.status === 429 ? "too_many" : "failed" });
+        setLinkSent(true);
+      }
     } catch (err: any) {
-      setError(copyErrorText(err, settings?.design, err?.code === "email_mismatch" ? "trackErrEmail" : err?.code === "too_many" ? "trackErrTooMany" : "trackError"));
+      setError(copyErrorText(err, settings?.design, err?.code === "too_many" ? "trackErrTooMany" : "trackError"));
     } finally {
       setLoading(false);
     }
@@ -138,12 +151,13 @@ export default function OrderTracking() {
   // was missed or is slow: ask the server to check with Stripe (it verifies the
   // payment itself and finishes the order), then show the fresh order.
   const [rechecking, setRechecking] = useState(false);
+  const [awaitingWebhook, setAwaitingWebhook] = useState(false);
   const [recheckDone, setRecheckDone] = useState(false);
   const [recheckError, setRecheckError] = useState("");
   const orderKey = order ? (order.id || order.orderId) : "";
   const ended = ["refunded", "cancelled"].includes(String(order?.paymentStatus || "").toLowerCase()) || ["refunded", "cancelled"].includes(String(order?.status || "").toLowerCase());
   const canRecheck = Boolean(order && order.paymentStatus !== "paid" && order.paymentStatus !== "pending" && !ended
-    && (order.stripePaymentIntentId || order.stripeCheckoutSessionId || /stripe/i.test(String(order.paymentMethod || ""))));
+    && /stripe/i.test(String(order.paymentMethod || "")));
   const recheckPayment = async () => {
     if (!orderKey || rechecking) return;
     setRechecking(true);
@@ -151,11 +165,13 @@ export default function OrderTracking() {
     try {
       const response = await functionFetch("createStripeCheckoutSession", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await orderAccessHeaders(orderKey, access.key),
         body: JSON.stringify({ action: "status", orderId: orderKey }),
       });
       if (!response.ok) throw new CopyError(settings?.design, "trackError");
-      const fresh: any = await adminApi.getPublicOrder(orderKey, { email: order?.customer?.email || "" });
+      const result = await response.json();
+      setAwaitingWebhook(result.awaitingWebhook === true);
+      const fresh: any = await adminApi.getPublicOrder(orderKey, access);
       if (fresh) setOrder(fresh);
     } catch (err) {
       setRecheckError(copyErrorText(err, settings?.design, "trackError"));
@@ -165,6 +181,7 @@ export default function OrderTracking() {
     }
   };
   useEffect(() => {
+    setAwaitingWebhook(false);
     setRecheckDone(false);
     setRecheckError("");
     if (canRecheck) recheckPayment();
@@ -260,6 +277,7 @@ export default function OrderTracking() {
                   <input type="email" required placeholder={getCopy(settings?.design, "trackEmailPlaceholder")} value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)} className="fm-track-input" />
                 </label>
+                {linkSent && <p role="status" className="text-sm leading-6">{getCopy(settings?.design, "trackLinkSent")}</p>}
                 {error && (
                   <div className="fm-track-notice" data-tone="danger" role="alert"><p><strong aria-hidden="true">✕ </strong>{error}</p></div>
                 )}
@@ -299,7 +317,7 @@ export default function OrderTracking() {
                 <div {...regionProps("trackingStatusBanner")} role="status" className="fm-track-notice" data-tone={stage === "awaiting_payment" ? "warning" : "danger"}>
                   <p>
                     <strong aria-hidden="true">{stage === "awaiting_payment" ? "! " : "✕ "}</strong>
-                    {recheckError || (rechecking ? getCopy(settings?.design, "trackRechecking") : getCopy(settings?.design, stage === "awaiting_payment" ? (recheckDone && canRecheck ? "trackStillUnpaid" : "trackAwaitingPayment") : stage === "cancelled" ? "trackCancelledBanner" : "trackRefundedBanner"))}
+                    {recheckError || (rechecking ? getCopy(settings?.design, "trackRechecking") : getCopy(settings?.design, stage === "awaiting_payment" ? (awaitingWebhook ? "trackAwaitingWebhook" : recheckDone && canRecheck ? "trackStillUnpaid" : "trackAwaitingPayment") : stage === "cancelled" ? "trackCancelledBanner" : "trackRefundedBanner"))}
                   </p>
                   {canRecheck && (
                     <button type="button" onClick={recheckPayment} disabled={rechecking} className="fm-track-btn fm-track-btn-ghost">
@@ -349,7 +367,7 @@ export default function OrderTracking() {
                   <p className="fm-track-mono">{getCopy(settings?.design, "trackFulfillment")}</p>
                   <p className="fm-track-display text-2xl">{isPickup ? getCopy(settings?.design, "trackPickup") : getCopy(settings?.design, "trackLocalDelivery")} · {fulfillment.name}</p>
                   {(isPickup ? fulfillment.address : fulfillment.destination) && <address className="not-italic text-sm leading-6 fm-muted">
-                    {(() => { const a = isPickup ? fulfillment.address : fulfillment.destination; return [a.street, a.city, a.state, a.zip, a.country].filter(Boolean).join(", "); })()}
+                    {(() => { const a = isPickup ? fulfillment.address : fulfillment.destination; return [a.street, a.unit, a.city, a.state, a.zip, a.country].filter(Boolean).join(", "); })()}
                   </address>}
                   {fulfillment.hours && <p className="text-sm fm-muted">{getCopy(settings?.design, "trackFulfillmentHours")}: {fulfillment.hours}</p>}
                   {fulfillment.estimate && <p className="text-sm fm-muted">{getCopy(settings?.design, "trackFulfillmentEstimate")}: {fulfillment.estimate}</p>}

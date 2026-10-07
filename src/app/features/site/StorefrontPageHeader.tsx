@@ -1,3 +1,4 @@
+import { SecondaryStorefrontNav } from "./SecondaryStorefrontNav";
 import { MobileStorefrontNav } from "./MobileStorefrontNav";
 import { accountsEnabled } from "./customerAccounts";
 import { Heart, Search, User as UserIcon } from "lucide-react";
@@ -8,7 +9,7 @@ import { CurrencySelector } from "../../CurrencyContext";
 import { LogoMark } from "../../components/LogoMark";
 import { StoreMenu } from "../../components/StoreMenu";
 import { contentMaxWidth, navLineProps, navLinkStyle, useNavBelow, useNavFit } from "./headerNav";
-import { buildNavItems } from "./navItems";
+import { splitNavigation, buildNavItems } from "./navItems";
 import { NavDropdown } from "./NavDropdown";
 import { SearchOverlay } from "./SearchOverlay";
 import { getCopy } from "./storeCopy";
@@ -48,7 +49,7 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
               className={`hidden shrink-0 items-center md:flex ${navLine.className}`}
               style={navLine.style}
             >
-              {navItems.map((item) => {
+              {splitNavigation(navItems, storefront).primary.map((item) => {
                 const isPage = item.kind === "page";
                 const to = isPage ? `/page/${item.page.slug}` : `/collections/${slugify(item.label)}`;
                 const active = location.pathname.endsWith(to);
@@ -122,10 +123,10 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
             {!navBelow && navBar}
           </div>
 
-          <div data-hdr-fixed className="flex shrink-0 flex-nowrap items-center justify-end gap-6 md:gap-8" data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart">
+          <div data-hdr-fixed className="flex shrink-0 flex-nowrap items-center justify-end gap-2 sm:gap-6 md:gap-8" data-studio-target="style:header|copy:Header" data-studio-label="Header icons & cart">
             {storefront.menus?.header?.length > 0 && <div className="mr-2"><StoreMenu items={storefront.menus.header} /></div>}
             {!storefront.hideHeaderSearch && (
-              <button onClick={() => setSearchOpen(true)} aria-label={getCopy(design, "ariaSearch")} className="hidden h-9 w-9 items-center justify-center rounded-full opacity-50 transition-all hover:opacity-100 sm:flex">
+              <button onClick={() => setSearchOpen(true)} aria-label={getCopy(design, "ariaSearch")} className="flex min-h-11 min-w-11 items-center justify-center rounded-full opacity-80 transition-all hover:opacity-100">
                 <Search size={14} />
               </button>
             )}
@@ -170,6 +171,7 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
           </div>
         )}
       <MobileStorefrontNav design={design} pages={pages} onSearch={() => setSearchOpen(true)} />
+        <SecondaryStorefrontNav design={design} pages={pages} />
       </header>
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} books={books} design={design} />
     </>

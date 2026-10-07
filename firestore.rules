@@ -65,11 +65,13 @@ service cloud.firestore {
         || (request.resource.data.paymentStatus == "unpaid"
         && request.resource.data.status == "pending_payment"
         && request.resource.data.orderId == orderId
+        && request.resource.data.trackingKey is string
+        && request.resource.data.trackingKey.matches('^[a-f0-9]{64}$')
         // Only checkout's own fields: no isTest, inventory/discount/refund markers or payment ids.
         && request.resource.data.keys().hasOnly(['customer', 'cartId', 'customerId', 'referralSource', 'orderNote',
           'addressVerified', 'addressError', 'items', 'subtotal', 'discount', 'shipping', 'shippingMethod',
           'fulfillmentSelection', 'tax', 'total', 'status', 'paymentStatus', 'paymentMethod', 'paymentInstructions',
-          'testMode', 'appliedDiscount', 'metadata', 'orderId', 'createdAt', 'updatedAt', 'activity'])
+          'testMode', 'appliedDiscount', 'metadata', 'trackingKey', 'orderId', 'createdAt', 'updatedAt', 'activity'])
         && (request.resource.data.paymentMethod == "Stripe" || request.resource.data.paymentMethod == "PayPal" || request.resource.data.paymentMethod == "Free")
         && (!('paymentInstructions' in request.resource.data) || request.resource.data.paymentInstructions == "")
         && request.resource.data.customer.email is string

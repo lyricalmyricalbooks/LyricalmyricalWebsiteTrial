@@ -66,3 +66,12 @@ export function moveNavItem(items: NavItem[], index: number, delta: number): str
   [keys[index], keys[j]] = [keys[j], keys[index]];
   return keys;
 }
+
+/** Publisher information gets its own row; an explicit Studio list overrides the initial grouping. */
+export function splitNavigation(items: NavItem[], design: any): { primary: NavItem[]; secondary: NavItem[] } {
+  const configured = Array.isArray(design?.secondaryNavKeys) ? design.secondaryNavKeys : null;
+  const isSecondary = (item: NavItem) => item.kind === "page" && (configured
+    ? configured.includes(item.key)
+    : (/^(?:project\s+)?submissions?\b|^(?:our\s+)?history\b|^open[ -]calls?\b/i.test(item.label.trim()) || /^(?:submissions?|history(?:-of-.+)?|open-call)(?:$|-)/i.test(item.page?.slug || "")));
+  return { primary: items.filter(item => !isSecondary(item)), secondary: items.filter(isSecondary) };
+}

@@ -57,3 +57,10 @@ describe("inline Stripe payment section", () => {
     expect(view.querySelector('[data-studio-target]')).not.toBeNull();
   });
 });
+it("never advertises configured wallets as eligible card brands", () => {
+  const view = render({ design: { copy: { coCardBrands: "VISA, Apple Pay, Google Pay, Link" } } });
+  expect(view.textContent).toContain("VISA");
+  expect(view.textContent).not.toContain("Apple Pay");
+  expect(view.textContent).not.toContain("Google Pay");
+  expect(view.textContent).not.toContain("Link");
+});

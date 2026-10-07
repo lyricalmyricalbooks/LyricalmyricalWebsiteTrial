@@ -9,11 +9,12 @@ const readDismissed = (): string[] => {
 
 // Alerts shown above every admin page. Dismissing hides an alert for this browser
 // session until a new order joins it.
-export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook }: {
+export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook, onOpenNotifications }: {
   alerts: AdminAlert[];
   onOpenOrder: (id: string) => void;
   onOpenOrders: () => void;
   onOpenWebhook: () => void;
+  onOpenNotifications: () => void;
 }) {
   const [dismissed, setDismissed] = useState<string[]>(readDismissed);
   const visible = alerts.filter((a) => !dismissed.includes(alertSignature(a)));
@@ -38,8 +39,8 @@ export function AdminAlerts({ alerts, onOpenOrder, onOpenOrders, onOpenWebhook }
             <span className="rp-hint" style={{ display: "block", marginTop: 2 }}>{a.detail}</span>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <PrimaryButton size="sm" onClick={() => (a.action === "webhook" ? onOpenWebhook() : a.action === "order" ? onOpenOrder(a.orderIds[0]) : onOpenOrders())}>
-              {a.action === "webhook" ? "Open webhook health" : a.action === "order" ? "Open order" : "Review orders"}
+            <PrimaryButton size="sm" onClick={() => (a.action === "notifications" ? onOpenNotifications() : a.action === "webhook" ? onOpenWebhook() : a.action === "order" ? onOpenOrder(a.orderIds[0]) : onOpenOrders())}>
+              {a.action === "notifications" ? "Open Notifications" : a.action === "webhook" ? "Open webhook health" : a.action === "order" ? "Open order" : "Review orders"}
             </PrimaryButton>
             <SecondaryButton size="sm" onClick={() => dismiss(a)}>Dismiss</SecondaryButton>
           </div>

@@ -7,7 +7,7 @@ const source = readFileSync(new URL('./index.js', import.meta.url), 'utf8');
 const config = { enabled: true, pickupLocations: [{ id: 'shop', enabled: true, name: 'Shop', price: 2, address: { street: '1 Main', city: 'Toronto', state: 'ON', zip: 'M6G3H1', country: 'CA' }, instructions: 'Call', hours: '10-5', estimate: 'Tomorrow' }], deliveryZones: [] };
 function harness({ method = 'pickup', optionId = 'pickup:shop', paymentStatus = 'unpaid', address = null, billingAddress = { country: 'Canada', state: 'ON' } } = {}) {
   const updates = [], stripeCalls = [], paypalCalls = [];
-  const order = { items: [{ id: 'book', quantity: 1, price: 0, format: 'E-book' }], customer: { email: 'reader@example.com', name: 'Reader', address, billingAddress }, paymentStatus, status: 'pending_payment', shipping: 0, fulfillmentSelection: { method, optionId }, fulfillment: { name: 'Forged', price: 0 } };
+  const order = { items: [{ id: 'book', quantity: 1, price: 0, format: 'E-book' }], trackingKey: 'a'.repeat(64), customer: { email: 'reader@example.com', name: 'Reader', address, billingAddress }, paymentStatus, status: 'pending_payment', shipping: 0, fulfillmentSelection: { method, optionId }, fulfillment: { name: 'Forged', price: 0 } };
   const docs = {
     books: { book: { status: 'published', format: 'Paperback', retailPrice: 30, stockLevel: 9 } },
     settings: { website: { localFulfillment: config, taxes: { rates: [{ country: 'Canada', region: 'ON', rate: 13 }, { country: 'Canada', region: 'QC', rate: 5 }] }, payments: { stripe: { secretKey: 'sk_test_fake' }, manualMethods: [{ id: 'cash', enabled: true, name: 'Cash', instructions: 'Pay at pickup' }] } } },
@@ -38,7 +38,7 @@ function harness({ method = 'pickup', optionId = 'pickup:shop', paymentStatus = 
     throw new Error(`Unexpected network: ${url}`);
   };
   vm.runInNewContext(source, { module, exports: module.exports, require: mockRequire, process, Buffer, console, setTimeout, clearTimeout, URL, AbortController, fetch: mockFetch }, { filename: 'index.js' });
-  async function call(handler, body = {}) { const response = { code: 200, value: null, set() { return this; }, status(code) { this.code = code; return this; }, json(value) { this.value = value; return this; }, send(value) { this.value = value; return this; } }; await module.exports[handler]({ method: 'POST', body: { orderId: 'order1', currency: 'cad', ...body }, headers: { origin: 'http://localhost:5173' }, socket: { remoteAddress: '127.0.0.1' } }, response); return response; }
+  async function call(handler, body = {}) { const response = { code: 200, value: null, set() { return this; }, status(code) { this.code = code; return this; }, json(value) { this.value = value; return this; }, send(value) { this.value = value; return this; } }; await module.exports[handler]({ method: 'POST', body: { orderId: 'order1', currency: 'cad', ...body }, headers: { origin: 'http://localhost:5173', 'x-order-key': 'a'.repeat(64) }, socket: { remoteAddress: '127.0.0.1' } }, response); return response; }
   return { call, order, updates, stripeCalls, paypalCalls, docs };
 }
 test.each([{}, { paymentElement: true }, { embedded: true }])('Stripe checkout charges current pickup fee and persists server snapshot %j', async body => {

@@ -1,3 +1,4 @@
+import { orderAccessHeaders } from "./orderAccessClient";
 import { getToken } from "firebase/app-check";
 import { appCheck } from "../../lib/firebase";
 import { AppVerificationError } from "../../lib/appVerification";
@@ -24,6 +25,14 @@ export function functionUrl(name: string): string {
 export async function functionFetch(name: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.delete("X-Firebase-AppCheck");
+  if (["createStripeCheckoutSession", "createPayPalOrder", "capturePayPalOrder"].includes(name) && typeof init.body === "string") {
+    let body: any = null;
+    try { body = JSON.parse(init.body); } catch { /* The endpoint validates malformed requests. */ }
+    if (typeof body?.orderId === "string") {
+      const access = await orderAccessHeaders(body.orderId, body.key);
+      for (const [key, value] of Object.entries(access)) if (!headers.has(key)) headers.set(key, value);
+    }
+  }
   const enforced = import.meta.env.VITE_APP_CHECK_MODE === "enforce";
   if (appCheck && import.meta.env.VITE_APP_CHECK_MODE !== "off") {
     try {

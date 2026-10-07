@@ -2,7 +2,7 @@ import { openFirstActionQueue } from "./Orders";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { adminApi } from "./api";
-import { launchReadiness, readinessSummary } from "./launchReadiness";
+import { launchReadiness } from "./launchReadiness";
 import toast from "react-hot-toast";
 import {
   Checkbox, DataTable, EmptyState, ErrorState, LoadingState, MetricCard, SecondaryButton, SectionCard,
@@ -13,7 +13,7 @@ import {
   totals, REORDER_COVER_DAYS,
 } from "./overviewInsights";
 import { buildSeries, conversionRate, dailyWindow, funnelRates, funnelTotals, sumField, type SeriesPoint } from "./overviewTraffic";
-import { ReadinessStrip, SPLIT, TodoRow, Trend, money, percent } from "./OverviewParts";
+import { ReadinessPanel, SPLIT, TodoRow, Trend, money, percent } from "./OverviewParts";
 import { OverviewSales } from "./OverviewSales";
 import { OverviewMarketing } from "./OverviewMarketing";
 import { OverviewCustomers } from "./OverviewCustomers";
@@ -64,8 +64,8 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
     loadDaily();
     Promise.all([
       adminApi.getSettings(),
-      adminApi.getShippingProfiles().catch(() => []),
-      adminApi.getRecentEmailLog(5).catch(() => []),
+      adminApi.getShippingProfiles(),
+      adminApi.getRecentEmailLog(5),
     ]).then(([settings, shippingProfiles, emailLog]) => setLaunch({ parts: { settings, shippingProfiles, emailLog }, error: false }))
       .catch(() => setLaunch({ parts: null, error: true }));
     // The whole catalogue and every order, so 90-day and 1-year figures are never cut off.
@@ -168,9 +168,7 @@ export function AnalyticsDashboard({ setActiveTab, onEditBook }: { setActiveTab?
         } />
 
       {/* 2 · Launch checks: a slim strip while anything is open, gone once everything is green */}
-      {!launch.error && readiness && readinessSummary(readiness) !== "ok" && (
-        <ReadinessStrip items={readiness} onOpen={tab => setActiveTab?.(tab)} />
-      )}
+      <ReadinessPanel error={launch.error} items={readiness} onRetry={refresh} onOpen={tab => setActiveTab?.(tab)} />
 
       {/* 3 · Headline numbers */}
       {allOrders.error ? <ErrorState title="Sales figures unavailable" description="Orders could not be loaded, so revenue can't be calculated." onRetry={refresh} /> : (

@@ -6,8 +6,10 @@ const { nextWindow, clientIpOf } = require('./rateLimit');
 
 const order = { customer: { email: 'Reader@Example.com' }, trackingKey: 'a'.repeat(32), paymentStatus: 'paid' };
 
-test('an order opens only for its own email or email-link key', () => {
-  expect(canViewOrder(order, { email: ' reader@example.com ' })).toBe(true);
+test('an order opens only for a verified owner or private tracking key', () => {
+  expect(canViewOrder(order, { email: ' reader@example.com ' })).toBe(false);
+  expect(canViewOrder(order, { identity: { email: ' reader@example.com ', email_verified: true } })).toBe(true);
+  expect(canViewOrder(order, { identity: { email: 'Reader@Example.com', email_verified: false } })).toBe(false);
   expect(canViewOrder(order, { key: 'a'.repeat(32) })).toBe(true);
   expect(canViewOrder(order, { email: 'someone@else.com' })).toBe(false);
   expect(canViewOrder(order, { key: 'b'.repeat(32) })).toBe(false);
@@ -35,4 +37,16 @@ test('rate limit window counts hits and resets', () => {
 test('client IP is the first forwarded address', () => {
   expect(clientIpOf({ headers: { 'x-forwarded-for': '1.2.3.4, 10.0.0.1' } })).toBe('1.2.3.4');
   expect(clientIpOf({ headers: {}, ip: '5.6.7.8' })).toBe('5.6.7.8');
+});
+
+
+test('the shopper view excludes payment internals and unknown future private fields', () => {
+  const view = publicOrderView('AB-1', { ...order, stripePaymentIntentId: 'pi_private', paypalCapture: { payer: 'private' }, operations: { notes: 'private' }, paymentMismatch: { internal: true }, futureSecret: 'private', activity: [{ message: 'private admin event' }] });
+  expect(view).not.toHaveProperty('stripePaymentIntentId');
+  expect(view).not.toHaveProperty('paypalCapture');
+  expect(view).not.toHaveProperty('operations');
+  expect(view).not.toHaveProperty('paymentMismatch');
+  expect(view).not.toHaveProperty('futureSecret');
+  expect(view).not.toHaveProperty('activity');
+  expect(view.customer.email).toBe('Reader@Example.com');
 });
