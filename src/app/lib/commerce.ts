@@ -10,6 +10,7 @@ import {
   orderBy,
   where,
   limit,
+  increment,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { adminApi } from "../admin/api";
@@ -187,11 +188,8 @@ export const funnelApi = {
     const today = new Date().toISOString().split("T")[0];
     const ref = doc(db, "analytics", today);
     try {
-      const snap = await getDoc(ref);
-      const data = snap.exists() ? (snap.data() as any) : { date: today };
-      const funnel = data.funnel || { view: 0, add_to_cart: 0, checkout_start: 0, purchase: 0 };
-      funnel[event] = (funnel[event] || 0) + 1;
-      await setDoc(ref, { ...data, funnel }, { merge: true });
+      // Write-only: visitors can't read the analytics figures (firestore.rules).
+      await setDoc(ref, { date: today, funnel: { [event]: increment(1) } }, { merge: true });
     } catch {
       // best-effort, never break checkout
     }
@@ -202,12 +200,8 @@ export const funnelApi = {
     const today = new Date().toISOString().split("T")[0];
     const ref = doc(db, "analytics", today);
     try {
-      const snap = await getDoc(ref);
-      const data = snap.exists() ? (snap.data() as any) : { date: today };
-      const categoryViews = data.categoryViews || {};
       const key = categoryName.toUpperCase().trim();
-      categoryViews[key] = (categoryViews[key] || 0) + 1;
-      await setDoc(ref, { ...data, categoryViews }, { merge: true });
+      await setDoc(ref, { date: today, categoryViews: { [key]: increment(1) } }, { merge: true });
     } catch {
       // best-effort
     }

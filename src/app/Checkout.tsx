@@ -1243,10 +1243,12 @@ export function Checkout() {
     setIsSuccess(true);
     setManualOrderReturn(isManualReturn);
 
+    // Orders aren't publicly readable: the server returns this one for the email it was placed with.
+    const lookupEmail = (() => { try { return localStorage.getItem("last_customer_email") || ""; } catch { return ""; } })();
     (async () => {
       try {
         if (isManualReturn) {
-          const order: any = await adminApi.getPublicOrder(oid);
+          const order: any = await adminApi.getPublicOrder(oid, { email: lookupEmail }).catch(() => null);
           if (cancelled) return;
           if (order) setSuccessOrder(order);
           clearCart();
@@ -1301,7 +1303,7 @@ export function Checkout() {
         // Firestore is authoritative. URL flags and the capture HTTP response
         // never confirm payment on their own; wait for the paid order update.
         for (let attempt = 0; attempt < 12 && !cancelled; attempt++) {
-          const order: any = await adminApi.getPublicOrder(oid);
+          const order: any = await adminApi.getPublicOrder(oid, { email: lookupEmail }).catch(() => null);
           if (cancelled) return;
           if (order) setSuccessOrder(order);
           if (order?.paymentStatus === "paid") {

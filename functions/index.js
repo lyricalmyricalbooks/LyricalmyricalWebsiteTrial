@@ -31,6 +31,8 @@ const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shippingGeo");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck } = require("./stripeRecovery");
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem } = require("./paymentGuards");
+const { canViewOrder, publicOrderView } = require("./orderAccess");
+const { hitLimit, LIMITS } = require("./rateLimit");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -1134,9 +1136,15 @@ exports.createStripeCheckoutSession = onRequest(
     }
 
     if (req.body?.action === "status") return handleCheckoutStatus(req, res);
+    if (req.body?.action === "track") return handleTrackOrder(req, res);
     if (req.body?.action === "registerPaymentDomain") return handleRegisterPaymentDomain(req, res);
     if (req.body?.action === "webhookHealth") return handleWebhookHealth(req, res);
     if (req.body?.action === "verifyStripeKeys") return handleVerifyStripeKeys(req, res);
+    // Payment creation is limited per visitor so bots can't test stolen cards here.
+    if (!(await hitLimit(db, "checkout", req, LIMITS.checkout))) {
+      res.status(429).json({ error: "Too many checkout attempts. Please wait a few minutes and try again." });
+      return;
+    }
     if (req.body?.action === 'createManualLocalOrder') {
       try {
         const source = req.body.orderDraft;
@@ -1943,6 +1951,35 @@ async function handleCheckoutStatus(req, res) {
   } catch (err) {
     console.error("Stripe status check failed:", err);
     res.status(500).json({ error: err.message });
+  }
+}
+
+// Guest order lookup (tracking page + checkout thank-you page). Orders are not
+// publicly readable in Firestore; this returns one only to its owner: the
+// matching customer email or the private key from the order email link.
+// Served through createStripeCheckoutSession (body.action): no new public function.
+async function handleTrackOrder(req, res) {
+  const { orderId, email, key } = req.body || {};
+  if (typeof orderId !== "string" || !orderId || orderId.length > 64 || orderId.includes("/")) {
+    res.status(400).json({ error: "not_found" });
+    return;
+  }
+  if (!(await hitLimit(db, "track", req, LIMITS.track))) {
+    res.status(429).json({ error: "too_many" });
+    return;
+  }
+  try {
+    const snap = await db.collection("orders").doc(orderId).get();
+    if (!snap.exists) { res.status(404).json({ error: "not_found" }); return; }
+    const order = snap.data() || {};
+    if (!canViewOrder(order, { email: typeof email === "string" ? email : "", key: typeof key === "string" ? key : "" })) {
+      res.status(403).json({ error: "email_mismatch" });
+      return;
+    }
+    res.status(200).json({ order: publicOrderView(snap.id, order) });
+  } catch (err) {
+    console.error("Order lookup failed:", err);
+    res.status(500).json({ error: "failed" });
   }
 }
 
@@ -3760,6 +3797,10 @@ exports.validateDiscountCode = onRequest(async (req, res) => {
   const { code } = req.body;
   if (!code || typeof code !== "string") {
     res.status(400).json({ error: "Missing discount code" });
+    return;
+  }
+  if (!(await hitLimit(db, "discount", req, LIMITS.discount))) {
+    res.status(429).json({ error: "Too many attempts. Please wait a few minutes and try again." });
     return;
   }
 
