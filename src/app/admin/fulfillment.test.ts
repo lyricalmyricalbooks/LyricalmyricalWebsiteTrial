@@ -64,3 +64,13 @@ describe("parcels in transit too long", () => {
     expect(isOverdueInTransit(shipped(""), now)).toBe(false);
   });
 });
+
+import { packingInfo } from "./fulfillment";
+describe("packingInfo", () => {
+  it("prefers the edition's photo and shelf, then the book's, then the order line's photo", () => {
+    const book = { coverImage: "cover.jpg", shelfLocation: "B2", variants: [{ id: "hc", image: "hc.jpg", shelfLocation: "A1" }] };
+    expect(packingInfo({ id: "b", variantId: "hc" }, book)).toEqual({ photo: "hc.jpg", shelf: "A1" });
+    expect(packingInfo({ id: "b" }, book)).toEqual({ photo: "cover.jpg", shelf: "B2" });
+    expect(packingInfo({ id: "b", photoUrl: "line.jpg" }, null)).toEqual({ photo: "line.jpg", shelf: "" });
+  });
+});

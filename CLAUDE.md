@@ -873,3 +873,12 @@ and one shop email (`[NEW ORDER] <id> · paid …`, `new_order_admin`, on paid, 
 **Fulfil this order** button to `/admin#orders/<id>`. `onOrderCreated` emails the shop only for manual-payment
 (`pending`) orders. Card payments send no Stripe receipt (`receipt_email` removed); Stripe's own "successful payments"
 customer email must also be off in the Stripe dashboard. `functions/orderEmails.test.js` pins this.
+
+**Orders desk (7 October 2026):** Admin › Orders is an inbox-style split view (`admin/OrdersDesk.tsx`, logic in
+`ordersDesk.ts`, tested): list on the left (search; **Needs me** / **Shipped** / **All**; test orders hidden unless
+toggled), the full `OrderDetail` on the right — so Stripe sync, refunds, disputes, labels and dispatch are unchanged —
+with the oldest order that needs work opened automatically and finishing an order moving to the next (`goToNext`).
+`OrderDetail` reports reloads via `onChanged` so the list refreshes. Phones show list *or* order. **Table view** opens the
+previous `Orders` table (bulk packing, pick lists, CSV). Email links `/admin#orders/<id>` still open that order.
+The packing checklist shows each book's current cover and **Shelf location** (Books › edit › Inventory, `shelfLocation`,
+per edition when set; `packingInfo` in `fulfillment.ts`). Books are public-readable, so the shelf code is too.
