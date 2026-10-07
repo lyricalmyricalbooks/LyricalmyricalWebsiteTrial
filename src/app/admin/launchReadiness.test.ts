@@ -61,3 +61,12 @@ describe("readinessProgress", () => {
     expect(readinessProgress(items)).toMatchObject({ done: items.length, total: items.length, open: [] });
   });
 });
+
+describe("launch readiness: test-only email sender", () => {
+  it("does not call Resend's onboarding sender 'working'", () => {
+    const items = launchReadiness({ settings: {}, books: [], shippingProfiles: [], orders: [], emailLog: [{ status: "sent", from: "onboarding@resend.dev" }] });
+    const email = items.find(i => i.id === "email")!;
+    expect(email.status).toBe("block");
+    expect(email.label).toMatch(/only reach you/);
+  });
+});

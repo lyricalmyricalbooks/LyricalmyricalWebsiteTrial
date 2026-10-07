@@ -113,7 +113,7 @@ const REVERSAL_WINDOW_MS = 120 * 24 * 60 * 60 * 1000; // refunds/disputes can ar
 // (safety net for missed charge.refunded / charge.dispute.* webhooks), oldest check first.
 function ordersDueReversalCheck(orders, nowMs = Date.now(), limit = 40) {
   return (orders || [])
-    .filter((o) => o && o.paymentStatus === "paid" && o.isTest !== true
+    .filter((o) => o && (o.paymentStatus === "paid" || o.paymentStatus === "refund_pending") && o.isTest !== true
       && typeof o.stripePaymentIntentId === "string" && o.stripePaymentIntentId.startsWith("pi_")
       && nowMs - Date.parse(o.paidAt || o.createdAt || "") <= REVERSAL_WINDOW_MS
       && !(nowMs - Date.parse(o.stripeCheckedAt || "") < REVERSAL_RECHECK_MS))

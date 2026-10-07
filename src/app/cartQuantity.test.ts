@@ -15,8 +15,10 @@ describe("nextCartQuantity", () => {
     expect(nextCartQuantity(0, 10, 3)).toBe(3);
   });
 
-  it("treats 999 as untracked stock (no clamp)", () => {
-    expect(nextCartQuantity(500, 600, 999)).toBe(1100);
+  it("treats 999 as untracked stock, capped at the 99 copies the server charges", () => {
+    expect(nextCartQuantity(50, 30, 999)).toBe(80);
+    expect(nextCartQuantity(500, 600, 999)).toBe(99);
+    expect(nextCartQuantity(90, 20)).toBe(99);
   });
 
   it("floors and never adds less than 1", () => {

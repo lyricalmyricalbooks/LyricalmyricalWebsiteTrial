@@ -61,4 +61,45 @@ function purchaseProblem(book, variantId, nowISO = new Date().toISOString()) {
   return null;
 }
 
-module.exports = { purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState };
+// PayPal returns the original order for a repeated request id, so the id carries the amount and currency.
+function paypalCreateRequestId(orderId, currency, total) {
+  return `create-${orderId}-${String(currency || "").toLowerCase()}-${toMinor(Number(total).toFixed(2))}`;
+}
+
+// Stripe's checkout.session.async_payment_failed may arrive after the shopper paid another way.
+function lateFailureMayMarkFailed(order, sessionId) {
+  if (!order) return false;
+  if (order.paymentStatus === "paid" || String(order.paymentStatus || "").startsWith("refund")) return false;
+  if (order.stripeCheckoutSessionId && sessionId && order.stripeCheckoutSessionId !== sessionId) return false;
+  return true;
+}
+
+// Who can give the money back for this order. null = a card/PayPal order whose payment id is missing,
+// which must not be "refunded" by just changing its status.
+function refundProviderOf(order) {
+  if (!order) return null;
+  if (typeof order.stripePaymentIntentId === "string" && order.stripePaymentIntentId.startsWith("pi_")) return "stripe";
+  if (order.paypalCaptureId) return "paypal";
+  const method = String(order.paymentMethod || "").toLowerCase();
+  if (/stripe|card|paypal|apple|google/.test(method)) return null;
+  return "manual";
+}
+
+// The PayPal capture a refund/reversal webhook is about. REFUNDED events carry the refund
+// (its "up" link points at the capture); REVERSED/DENIED events carry the capture itself.
+function paypalReversalCaptureId(event) {
+  const type = event && event.event_type;
+  const resource = (event && event.resource) || {};
+  if (type === "PAYMENT.CAPTURE.REVERSED" || type === "PAYMENT.CAPTURE.DENIED") return resource.id || null;
+  if (type !== "PAYMENT.CAPTURE.REFUNDED") return null;
+  const up = (resource.links || []).find(l => l && l.rel === "up" && /\/captures\//.test(String(l.href || "")));
+  return up ? String(up.href).split("/captures/")[1].split(/[/?#]/)[0] || null : null;
+}
+
+// The code had already reached its usage limit before this order used it.
+function discountUsedUp(discount) {
+  const limit = Number(discount && discount.usageLimit) || 0;
+  return limit > 0 && (Number(discount && discount.usageCount) || 0) >= limit;
+}
+
+module.exports = { discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState };

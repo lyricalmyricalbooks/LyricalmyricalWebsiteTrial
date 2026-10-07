@@ -16,6 +16,12 @@ export function sitemapArtifacts(siteUrl, books, pages, collections, settings = 
     if (page.status !== 'published' || !page.slug) continue;
     urls.push({ loc: `${base}/page/${encodeURIComponent(page.slug)}`, lastmod: page.updatedAt || page._updateTime });
   }
+  // Store policies (Settings › Policies) are public pages too; card networks and Google
+  // must reach the refund and terms pages as real 200 documents.
+  for (const key of ['shipping', 'returns', 'privacy', 'terms']) {
+    const text = settings?.policies?.[key];
+    if (typeof text === 'string' && text.trim()) urls.push({ loc: `${base}/page/policy-${key}` });
+  }
   // Collection pages resolve Studio category names, not a separate Firestore collection.
   const design = effectivePublishedSettings(settings, nowISO).design || {};
   const categories = design.categories ?? design.storefront?.categories ?? design.heroPage?.categories ?? [];

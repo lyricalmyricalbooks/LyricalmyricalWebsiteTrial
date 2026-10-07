@@ -1117,7 +1117,7 @@ export const adminApi = {
       }),
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Stripe refund failed.");
+    if (!response.ok) throw new Error(result.error || "Refund failed.");
     return result;
   },
 

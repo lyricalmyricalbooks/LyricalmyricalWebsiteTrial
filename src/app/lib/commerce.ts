@@ -76,40 +76,66 @@ export const orderApi = {
     );
   },
 
-  exportToCsv: (orders: any[]): string => {
+  /**
+   * Orders as CSV for bookkeeping and sales-tax filing. By default only money that
+   * changed hands (paid, refunded) is exported; abandoned card attempts stay out.
+   * Amounts are in CAD (the shop's base currency); ChargedAmount/ChargedCurrency
+   * show what the customer actually paid when that was USD or EUR.
+   */
+  exportToCsv: (orders: any[], { paidOnly = true }: { paidOnly?: boolean } = {}): string => {
     const header = [
-      "OrderID",
-      "Date",
-      "Customer",
-      "Email",
-      "Status",
-      "FulfillmentStatus",
-      "Subtotal",
-      "Discount",
-      "Shipping",
-      "Total",
-      "TrackingCarrier",
-      "TrackingNumber",
-      "ItemCount",
+      "OrderID", "Date", "PaidAt", "Customer", "Email",
+      "Country", "Province", "PostalCode",
+      "Status", "PaymentStatus", "PaymentMethod", "FulfillmentStatus",
+      "Subtotal", "Discount", "DiscountCode", "Shipping", "Tax", "Total", "Currency",
+      "ChargedAmount", "ChargedCurrency",
+      "RefundedAt", "RefundAmount", "RefundCurrency",
+      "TrackingCarrier", "TrackingNumber", "ItemCount",
     ];
-    const rows = orders.filter(o => o.isTest !== true).map(o => [
-      o.orderId || o.id,
-      o.createdAt || "",
-      (o.customer?.name || "").replace(/[",\n]/g, " "),
-      o.customer?.email || "",
-      o.status || "",
-      o.fulfillmentStatus || (o.status === "completed" ? "delivered" : "paid"),
-      o.subtotal ?? "",
-      o.discount ?? "",
-      o.shipping ?? "",
-      o.total ?? "",
-      o.trackingCarrier || "",
-      o.trackingNumber || "",
-      (o.items || []).reduce((acc: number, i: any) => acc + (i.quantity || 0), 0),
-    ]);
-    return [header, ...rows]
-      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
-      .join("\n");
+    const money = (v: any) => (v === undefined || v === null || v === "" ? "" : (Number(v) || 0).toFixed(2));
+    const kept = orders.filter(o => o.isTest !== true
+      && (!paidOnly || ["paid", "refunded", "refund_pending"].includes(o.paymentStatus)));
+    const rows = kept.map(o => {
+      const address = o.customer?.address || o.customer?.billingAddress || {};
+      const rate = Number(o.exchangeRate);
+      const charged = o.checkoutCurrency && o.checkoutCurrency !== "CAD" && rate > 0 ? money(Number(o.total || 0) * rate) : money(o.total);
+      return [
+        o.orderId || o.id,
+        o.createdAt || "",
+        o.paidAt || "",
+        (o.customer?.name || "").replace(/[",\n]/g, " "),
+        o.customer?.email || "",
+        address.country || "",
+        address.state || "",
+        address.zip || "",
+        o.status || "",
+        o.paymentStatus || "",
+        o.paymentMethod || "",
+        o.fulfillmentStatus || (o.status === "completed" ? "delivered" : o.paymentStatus === "paid" ? "paid" : ""),
+        money(o.subtotal),
+        money(o.discount),
+        o.appliedDiscount?.code || "",
+        money(o.shipping),
+        money(o.tax),
+        money(o.total),
+        "CAD",
+        charged,
+        o.checkoutCurrency || "CAD",
+        o.refundedAt || "",
+        o.refund?.amount != null ? money(o.refund.amount) : "",
+        o.refund?.currency || "",
+        o.trackingCarrier || "",
+        o.trackingNumber || "",
+        (o.items || []).reduce((acc: number, i: any) => acc + (i.quantity || 0), 0),
+      ];
+    });
+    // A cell starting with = + - @ is run as a formula by spreadsheet apps: quote it as text.
+    const cell = (v: any) => {
+      const text = String(v);
+      const safe = /^[=+\-@\t\r]/.test(text) && !/^-?\d+(\.\d+)?$/.test(text) ? `'${text}` : text;
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
+    return [header, ...rows].map(r => r.map(cell).join(",")).join("\n");
   },
 
   downloadCsv: (filename: string, csv: string) => {

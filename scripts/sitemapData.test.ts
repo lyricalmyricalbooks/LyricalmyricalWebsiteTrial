@@ -30,3 +30,11 @@ it('uses activated scheduled Studio categories instead of the superseded design'
  const result = sitemapArtifacts('https://example.com/shop', [], [], [], settings);
  expect(result.xml).toContain('/collections/scheduled'); expect(result.xml).not.toContain('/collections/old');
 });
+
+it('published store policies are listed so they render as real pages', () => {
+  const result = sitemapArtifacts('https://example.com/shop', [], [], [], { policies: { returns: 'Thirty days.', terms: '  ', privacy: 'We keep little.' } });
+  expect(result.xml).toContain('https://example.com/shop/page/policy-returns');
+  expect(result.xml).toContain('https://example.com/shop/page/policy-privacy');
+  expect(result.xml).not.toContain('policy-terms');
+  expect(result.xml).not.toContain('policy-shipping');
+});

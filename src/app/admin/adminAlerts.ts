@@ -43,6 +43,14 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
   if (mismatch.length) out.push(alert("mismatch", "danger", `${plural(mismatch.length, "payment doesn't", "payments don't")} match the order total`,
     `Stripe or PayPal took a different amount than the order expected: ${list(mismatch)}. Review and refund in Stripe before shipping.`, mismatch));
 
+  const paidTwice = orders.filter((o) => Array.isArray(o.duplicatePayments) && o.duplicatePayments.length && o.paymentStatus === "paid" && !isFinished(o));
+  if (paidTwice.length) out.push(alert("paid-twice", "danger", `${plural(paidTwice.length, "order was", "orders were")} paid twice`,
+    `Stripe took a second payment for an order that was already paid: ${list(paidTwice)}. Refund the extra payment in the Stripe Dashboard.`, paidTwice));
+
+  const overLimit = orders.filter((o) => o.discountOverLimit && o.paymentStatus === "paid" && !isFinished(o));
+  if (overLimit.length) out.push(alert("discount-over-limit", "warning", `${plural(overLimit.length, "order used", "orders used")} a discount code past its limit`,
+    `Two shoppers used the last copy of a limited code at the same moment: ${list(overLimit)}. Decide whether to honour it before shipping.`, overLimit));
+
   const stuck = orders.filter((o) => o.paymentStatus === "unpaid" && hasStripePayment(o) && age(o, now) >= STRIPE_GRACE_MS && age(o, now) <= 7 * DAY && !o.paymentMismatch);
   if (stuck.length) out.push(alert("unpaid-stripe", "danger", `${plural(stuck.length, "order is", "orders are")} unpaid after starting a card payment`,
     `The customer may have paid but Stripe hasn't confirmed it to the shop: ${list(stuck)}. Open the order — it checks with Stripe automatically.`, stuck));

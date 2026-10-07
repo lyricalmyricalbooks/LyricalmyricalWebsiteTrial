@@ -906,3 +906,26 @@ and provider diagnostics must never be logged or saved to public settings.
 **Maximum discount cap (7 October 2026):** Discounts › New/Edit › **Maximum discount (CA$)** (`maxDiscountAmount`, blank = no cap)
 limits what one code can take off an order ("20% off, up to $15"). The server enforces it in `computeDiscountAmount`
 (`capDiscountAmount`, `functions/index.js`); `Checkout.tsx` mirrors it for display only. Shown as a **Max … off** badge in the list.
+
+## Bug sweep #3 — ready for sales (7 October 2026)
+
+- **Refunds:** `applyOrderRefund` (functions/index.js) is the one place an order becomes refunded — admin refunds
+  (Stripe, PayPal captures API, or manual via `refundProviderOf`), Stripe Dashboard refunds, lost disputes and PayPal
+  `PAYMENT.CAPTURE.REFUNDED/REVERSED` webhooks. Stock (admin's `refundRequest.restock`), discount use and revenue are
+  reversed once; `refund_pending` completes later via the reversal sweep.
+- **Payments:** PayPal request ids include amount+currency; a late `async_payment_failed` can't undo a paid order;
+  a second Stripe payment is kept in `duplicatePayments` and alerted (Orders shows "Paid twice"); a card retry
+  cancels the order's previous unfinished PaymentIntent; hosted sessions save `stripeCheckoutSessionId` at creation.
+- **Orders from browsers:** `firestore.rules` lets guests create only unpaid Stripe/PayPal/Free orders with a fixed
+  key list. Every manual-payment order is priced and created by `createManualLocalOrder`. $0 orders use
+  `action: "completeFreeOrder"` (server completes only when its own total is 0; `completeOrderWithoutCard`).
+- **Checkout:** the bag is repriced against the live catalog (`repriceCart`), Pay waits for the catalog, server
+  refusals and card declines are shown, the server total is compared before charging, 99 copies max per line,
+  email format checked on both sides. Policy links sit under Pay (Style › `hideCheckoutPolicyLinks`).
+- **Email:** customer emails use the paid currency (`functions/emailMoney.js`); manual orders get
+  `order_pending_payment`; footers add Settings › General › Location; abandoned-cart reminders honour their switch
+  and a signed unsubscribe (`functions/marketingOptOut.js`, `marketing-optout`, `/track?unsubscribe=1`).
+- **Other:** ebook downloads need the digital edition; Shippo webhook re-reads status from Shippo; policy pages are in
+  the sitemap/prerender; Orders CSV has tax/payment/currency/refund columns (paid/refunded only for whole lists).
+- **Not changed on purpose:** rate-limit IP source (verify the real X-Forwarded-For shape first), sales-tax model
+  (shipping tax / printed-book rebate need the owner's accountant).
