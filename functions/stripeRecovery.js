@@ -64,7 +64,8 @@ function webhookEndpointReport(endpoints, webhookUrl) {
   const target = normaliseUrl(webhookUrl);
   const list = Array.isArray(endpoints) ? endpoints : [];
   const match = list.find((e) => normaliseUrl(e && e.url) === target)
-    || list.find((e) => /\/stripeWebhook$/i.test(String((e && e.url) || "").replace(/\/+$/, "")));
+    // Same function on another URL form for this project only — never another shop's endpoint.
+    || list.find((e) => /lyricalmyrical-web-v2.*\/stripeWebhook$/i.test(String((e && e.url) || "").replace(/\/+$/, "")));
   if (!match) return { found: false, endpointId: null, url: null, enabled: false, missingEvents: REQUIRED_WEBHOOK_EVENTS.slice(), wrongUrl: false };
   const events = Array.isArray(match.enabled_events) ? match.enabled_events : [];
   const all = events.includes("*");

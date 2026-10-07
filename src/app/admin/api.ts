@@ -495,7 +495,11 @@ export const adminApi = {
         await adminApi.writePrivateKeys(secrets);
         await setDoc(docRef, publicSettings, { mergeFields: Object.keys(publicSettings) });
         Object.assign(merged, publicSettings);
-      } catch (err) { console.warn("Could not move secret keys out of public settings:", err); }
+      } catch (err) {
+        console.warn("Could not move secret keys out of public settings:", err);
+        // Readiness reports this (a key really is publicly readable right now).
+        if (merged.payments?.stripe && (raw.payments?.stripe?.secretKey || raw.payments?.stripe?.testSecretKey)) merged.payments.stripe.publicSecretLeak = true;
+      }
     }
     const flags = await adminApi.getPrivateKeyFlags();
     merged.payments = { ...merged.payments, stripe: { ...(merged.payments?.stripe || {}), secretKeyStored: flags.stripeLive, testSecretKeyStored: flags.stripeTest } };
@@ -941,6 +945,13 @@ export const adminApi = {
     return result as { domain: string; applePay: string; googlePay: string };
   },
 
+  // Deletes a stored Stripe secret key (admin-only adminSecrets/stripe). Live then
+  // falls back to the Firebase Functions secret, if one is set.
+  removeStripeSecretKey: async (mode: "live" | "test") => {
+    await setDoc(doc(db, "adminSecrets", "stripe"), { [mode === "live" ? "secretKey" : "testSecretKey"]: deleteField(), updatedAt: serverTimestamp() }, { merge: true });
+    await adminApi.recordAuditLog("payments", `Removed the stored Stripe ${mode} secret key`);
+  },
+
   // Checks (fix/recreate: repairs) the Stripe webhook endpoint for the mode in use.
   stripeWebhookHealth: async (opts: { fix?: boolean; recreate?: boolean } = {}) => {
     const idToken = await auth.currentUser?.getIdToken();
@@ -954,9 +965,25 @@ export const adminApi = {
     if (!response.ok) throw new Error(result.error || "Couldn't check the Stripe webhook.");
     return result as {
       mode: "test" | "live"; url: string; found: boolean; enabled: boolean; wrongUrl: boolean;
-      missingEvents: string[]; savedSecret: boolean; lastReceivedAt: string | null; lastEventType: string | null;
-      lastFailureAt: string | null; lastFailure: string | null; actions: string[];
+      missingEvents: string[]; savedSecret: boolean; deployedSecret?: boolean; lastReceivedAt: string | null; lastEventType: string | null;
+      lastFailureAt: string | null; lastFailure: string | null; lastProcessingFailureAt?: string | null; lastProcessingFailure?: string | null;
+      actions: string[];
     };
+  },
+
+  // "Test connection": asks Stripe whether each saved secret key works and which account/mode it is.
+  verifyStripeKeys: async () => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await fetch(functionUrl("createStripeCheckoutSession"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "verifyStripeKeys" }),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Couldn't reach Stripe.");
+    type ModeResult = { source: "stored" | "functions" | "none"; publishableKeyMode: "live" | "test" | "invalid" | "missing"; keyMode?: string; ok?: boolean; accountId?: string | null; accountName?: string | null; chargesEnabled?: boolean; error?: string };
+    return result as { activeMode: "live" | "test"; live: ModeResult; test: ModeResult; sameAccount: boolean | null };
   },
 
   // Asks Stripe (server-side) whether an unpaid order's payment went through, and

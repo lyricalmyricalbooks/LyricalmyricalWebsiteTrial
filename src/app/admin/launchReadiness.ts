@@ -24,7 +24,8 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
   const stripe = payments.stripe || {};
 
   // Payments
-  const payIssues = paymentHealth(payments).filter(i => i.id !== "client-secret");
+  // Secret-key findings get their own row below.
+  const payIssues = paymentHealth(payments).filter(i => !["client-secret", "stripe-test-secret", "stripe-live-secret"].includes(i.id));
   const blocking = payIssues.filter(i => i.severity === "blocking");
   if (blocking.length) items.push({ id: "payments", label: blocking[0].label, detail: blocking[0].detail, status: "block", tab: "payments", action: "Open Payments" });
   else if (payments.testMode) items.push({ id: "payments", label: "Payments are in sandbox mode", detail: "Test payments collect no money. Switch to live keys before launch.", status: "warn", tab: "payments", action: "Open Payments" });
@@ -34,7 +35,10 @@ export function launchReadiness({ settings, books, shippingProfiles, emailLog, o
     const secretStored = payments.testMode ? (stripe.testSecretKeyStored || stripe.testSecretKey) : (stripe.secretKeyStored || stripe.secretKey);
     items.push(secretStored
       ? { id: "stripe-secret", label: "Stripe secret key is stored privately", detail: "Kept in the admin-only store.", status: "ok", tab: "payments", action: "Open Payments" }
-      : { id: "stripe-secret", label: "No Stripe secret key entered here", detail: "Fine only if the STRIPE_SECRET_KEY Functions secret is set — otherwise checkout fails.", status: "warn", tab: "payments", action: "Open Payments" });
+      : payments.testMode
+        // Test mode has no fallback key: sandbox checkout cannot work without one.
+        ? { id: "stripe-secret", label: "Stripe test secret key is missing", detail: "Sandbox checkout fails without it. Add your sk_test_… key in Payments.", status: "block", tab: "payments", action: "Open Payments" }
+        : { id: "stripe-secret", label: "No Stripe secret key entered here", detail: "Fine only if the STRIPE_SECRET_KEY Functions secret is set — use Payments › Test connection to confirm.", status: "warn", tab: "payments", action: "Open Payments" });
   }
 
   // Catalogue

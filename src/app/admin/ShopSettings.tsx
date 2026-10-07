@@ -47,6 +47,7 @@ import { summarizeShipping, describeRatePrice, describeRateConditions, RATE_TYPE
 import { quoteShipping } from "../features/site/shippingEngine";
 import { LocalFulfillmentSettings, useLocalFulfillmentDraft } from "./LocalFulfillmentSettings";
 import { paymentHealth } from "./paymentHealth";
+import { stripeSecretKeyProblem } from "./privateKeys";
 import { StripeWebhookHealth } from "./StripeWebhookHealth";
 import { assignedCountryNames, countryName, groupedCountries, remainingCountryNames, toCountryCodes } from "./shippingCountries";
 
@@ -58,6 +59,7 @@ export function ShopSettings({
   settings, 
   setSettings, 
   originalSettings, 
+  setOriginalSettings,
   settingsLoading,
   saveSection 
 }: any) {
@@ -77,10 +79,13 @@ export function ShopSettings({
     }
   }
 
-  const handleSaveSection = async (section: string, data: any, options: any = {}) => {
+  const handleSaveSection = async (section: string, data: any, options: any = {}): Promise<boolean> => {
     setSavingSection(section);
-    await saveSection(section, data, options);
-    setSavingSection(null);
+    try {
+      return (await saveSection(section, data, options)) !== false;
+    } finally {
+      setSavingSection(null);
+    }
   };
 
   const hasChanges = (section: string) => {
@@ -116,7 +121,7 @@ export function ShopSettings({
           {activeTab === "general" && <GeneralSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "communications" && <CommunicationsSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "shipping" && <ShippingSettings profiles={shippingProfiles} refreshProfiles={loadShippingProfiles} />}
-          {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
+          {activeTab === "payments" && <PaymentsSettings settings={settings} setSettings={setSettings} originalSettings={originalSettings} setOriginalSettings={setOriginalSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "taxes" && <TaxesSettings settings={settings} setSettings={setSettings} hasChanges={hasChanges} saveSection={handleSaveSection} savingSection={savingSection} />}
           {activeTab === "notifications" && <NotificationEditor />}
         </motion.div>
@@ -138,7 +143,7 @@ function GeneralSettings({ settings, setSettings, originalSettings, hasChanges, 
   const set = (section: string, patch: any) => setSettings({ ...settings, [section]: { ...settings[section], ...patch } });
 
   const saveAll = async () => {
-    for (const k of dirty) await saveSection(k, { [k]: settings[k] });
+    for (const k of dirty) if (!(await saveSection(k, { [k]: settings[k] }))) break;
     toast.success("Store settings saved");
   };
   const discard = () => {
@@ -1350,7 +1355,7 @@ function ShippingSettings({ profiles, refreshProfiles }: any) {
   );
 }
 
-function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges, saveSection, savingSection }: any) {
+function PaymentsSettings({ settings, setSettings, originalSettings, setOriginalSettings, hasChanges, saveSection, savingSection }: any) {
   const [askConfirm, confirmNode] = useConfirm();
   const stripe = settings.payments?.stripe || {};
   const paypal = settings.payments?.paypal || {};
@@ -1400,6 +1405,28 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
   const [methodInstructions, setMethodInstructions] = useState("");
   const [methodType, setMethodType] = useState<"bank" | "cod" | "custom">("bank");
   const [methodEnabled, setMethodEnabled] = useState(true);
+
+  // Bumped on save/discard so the write-only key boxes clear with the state.
+  const [secretFieldsKey, setSecretFieldsKey] = useState(0);
+  const [removingKey, setRemovingKey] = useState<null | "live" | "test">(null);
+  const removeStoredKey = async (mode: "live" | "test") => {
+    if (!(await askConfirm({ title: `Remove the stored ${mode} secret key?`, message: mode === "live" ? "Live checkout will use the key set in Firebase Functions (if any) until you enter a new one." : "Test (sandbox) checkout won't work until you enter a new test key.", confirmLabel: "Remove key" }))) return;
+    setRemovingKey(mode);
+    try {
+      await adminApi.removeStripeSecretKey(mode);
+      const flag = mode === "live" ? "secretKeyStored" : "testSecretKeyStored";
+      const field = mode === "live" ? "secretKey" : "testSecretKey";
+      const patchOf = (prev: any) => ({ ...prev, payments: { ...prev?.payments, stripe: { ...prev?.payments?.stripe, [flag]: false, [field]: "" } } });
+      setSettings(patchOf(settings));
+      setOriginalSettings?.(patchOf);
+      setSecretFieldsKey((k) => k + 1);
+      toast.success(`Stored ${mode} secret key removed`);
+    } catch (err: any) {
+      toast.error(err.message || "Couldn't remove the key");
+    } finally {
+      setRemovingKey(null);
+    }
+  };
 
   const updateStripe = (patch: any) => {
     setSettings({
@@ -1565,14 +1592,18 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
                   <div className="rp-sect">Live keys {!testMode && "· in use"}</div>
                   <div className="rp-stack" style={{ gap: 12 }}>
                     <InputField label="Publishable key" placeholder="pk_live_…" icon={Lock} value={stripe.publicKey || ""} onChange={(e: any) => updateStripe({ publicKey: e.target.value })} />
-                    <SecretField label="Secret key" placeholder="sk_live_…" stored={!!(stripe.secretKey || stripe.secretKeyStored)} onCommit={(v) => updateStripe({ secretKey: v })} />
+                    <SecretField key={`live-${secretFieldsKey}`} label="Secret key" placeholder="sk_live_…" stored={!!stripe.secretKeyStored}
+                      validate={(v) => stripeSecretKeyProblem(v, "live")} onCommit={(v) => updateStripe({ secretKey: v })}
+                      onRemove={stripe.secretKeyStored ? () => removeStoredKey("live") : undefined} removing={removingKey === "live"} />
                   </div>
                 </div>
                 <div className="rp-card" style={{ padding: 16, boxShadow: "none", opacity: testMode ? 1 : 0.75 }}>
                   <div className="rp-sect">Test keys {testMode && "· in use"}</div>
                   <div className="rp-stack" style={{ gap: 12 }}>
                     <InputField label="Test publishable key" placeholder="pk_test_…" icon={Lock} value={stripe.testPublicKey || ""} onChange={(e: any) => updateStripe({ testPublicKey: e.target.value })} />
-                    <SecretField label="Test secret key" placeholder="sk_test_…" stored={!!(stripe.testSecretKey || stripe.testSecretKeyStored)} onCommit={(v) => updateStripe({ testSecretKey: v })} />
+                    <SecretField key={`test-${secretFieldsKey}`} label="Test secret key" placeholder="sk_test_…" stored={!!stripe.testSecretKeyStored}
+                      validate={(v) => stripeSecretKeyProblem(v, "test")} onCommit={(v) => updateStripe({ testSecretKey: v })}
+                      onRemove={stripe.testSecretKeyStored ? () => removeStoredKey("test") : undefined} removing={removingKey === "test"} />
                   </div>
                 </div>
               </div>
@@ -1594,7 +1625,7 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
                   }
                 }}>Register this site with Stripe</SecondaryButton>
               </div>
-              <StripeWebhookHealth />
+              <StripeWebhookHealth unsaved={dirty} />
             </>
           )}
         </div>
@@ -1692,8 +1723,8 @@ function PaymentsSettings({ settings, setSettings, originalSettings, hasChanges,
       </SectionCard>
 
       <SaveBar dirty={dirty} saving={savingSection === "payments"} message="You have unsaved payment settings."
-        onSave={async () => { await saveSection("payments", { payments: settings.payments }); toast.success("Payment settings saved"); }}
-        onDiscard={() => setSettings({ ...settings, payments: JSON.parse(JSON.stringify(originalSettings?.payments ?? {})) })} />
+        onSave={async () => { if (await saveSection("payments", { payments: settings.payments })) { setSecretFieldsKey((k) => k + 1); toast.success("Payment settings saved"); } }}
+        onDiscard={() => { setSettings({ ...settings, payments: JSON.parse(JSON.stringify(originalSettings?.payments ?? {})) }); setSecretFieldsKey((k) => k + 1); }} />
 
       <Dialog open={isManualModalOpen} onClose={() => setIsManualModalOpen(false)} title={editingMethod ? "Edit payment method" : "Add payment method"} badge="💳"
         footer={<>
@@ -2205,13 +2236,30 @@ export function Switch({ checked, onChange, label = "Toggle setting" }: { checke
 }
 
 /** Write-only field for secrets: never echoes the stored value back into the page. */
-export function SecretField({ label, placeholder, stored, onCommit }: { label: string; placeholder: string; stored: boolean; onCommit: (v: string) => void }) {
+// Write-only key box. Every edit is passed up (clearing the box cancels the change),
+// a key that fails `validate` is never passed up, and a stored key can be removed.
+export function SecretField({ label, placeholder, stored, onCommit, validate, onRemove, removing }: {
+  label: string; placeholder: string; stored: boolean; onCommit: (v: string) => void;
+  validate?: (v: string) => string; onRemove?: () => void; removing?: boolean;
+}) {
   const [draft, setDraft] = useState("");
+  const problem = validate ? validate(draft) : "";
   return (
     <div>
       <InputField label={label} icon={Lock} type="password" value={draft} placeholder={stored ? "Stored — enter a new key to replace it" : placeholder}
-        hint={stored ? "✓ A key is stored. It is never shown here." : undefined}
-        onChange={(e: any) => { setDraft(e.target.value); if (e.target.value.trim()) onCommit(e.target.value.trim()); }} />
+        error={problem || undefined}
+        hint={!problem && stored ? "✓ A key is stored. It is never shown here." : undefined}
+        onChange={(e: any) => {
+          const value = e.target.value;
+          setDraft(value);
+          const trimmed = value.trim();
+          onCommit(validate && validate(trimmed) ? "" : trimmed);
+        }} />
+      {stored && onRemove && (
+        <button type="button" className="rp-btn rp-btn-ghost rp-btn-sm" style={{ marginTop: 6 }} disabled={removing} onClick={onRemove}>
+          {removing ? "Removing…" : "Remove stored key"}
+        </button>
+      )}
     </div>
   );
 }

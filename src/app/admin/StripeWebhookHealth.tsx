@@ -1,20 +1,39 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
-import { PrimaryButton, SecondaryButton, StatusBadge } from "./riso/components";
+import { PrimaryButton, SecondaryButton, StatusBadge, useConfirm } from "./riso/components";
+import { describeKeyReport, webhookState, type Check } from "./stripeChecks";
 
 type Report = Awaited<ReturnType<typeof adminApi.stripeWebhookHealth>>;
 
-const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : "never");
+const when = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString() : "never");
 
-// Settings › Payments › Webhook health: asks Stripe whether the endpoint that tells
-// the shop "this order is paid" exists, is on, and sends every event the shop needs —
-// and repairs it in one click.
-export function StripeWebhookHealth() {
+// Settings › Payments › Stripe: "Test connection" (do the keys work, right mode,
+// right account) and "Webhook health" (does Stripe tell the shop about payments,
+// refunds and disputes) — each with one-click repair where Stripe allows it.
+export function StripeWebhookHealth({ unsaved = false }: { unsaved?: boolean }) {
+  const [askConfirm, confirmNode] = useConfirm();
   const [report, setReport] = useState<Report | null>(null);
-  const [busy, setBusy] = useState<null | "check" | "fix" | "recreate">(null);
+  const [keys, setKeys] = useState<Check[] | null>(null);
+  const [busy, setBusy] = useState<null | "keys" | "check" | "fix" | "recreate">(null);
+
+  const testKeys = async () => {
+    setBusy("keys");
+    try {
+      setKeys(describeKeyReport(await adminApi.verifyStripeKeys()));
+    } catch (err: any) {
+      setKeys([{ tone: "danger", text: err.message || "Couldn't reach Stripe." }]);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const run = async (kind: "check" | "fix" | "recreate") => {
+    if (kind === "recreate" && !(await askConfirm({
+      title: "Replace the Stripe webhook?",
+      message: "This deletes the current endpoint in Stripe and creates a new one with a signing secret the shop knows. Stripe stops retrying deliveries queued for the old endpoint — afterwards, open recent unpaid orders (or use Sync with Stripe) to catch up.",
+      confirmLabel: "Replace webhook",
+    }))) return;
     setBusy(kind);
     try {
       const r = await adminApi.stripeWebhookHealth({ fix: kind === "fix", recreate: kind === "recreate" });
@@ -22,26 +41,39 @@ export function StripeWebhookHealth() {
       if (r.actions.length) toast.success(r.actions.join(" "));
       else if (kind !== "check") toast.success("Nothing needed fixing.");
     } catch (err: any) {
+      setReport(null); // never leave an old "OK" on screen after a failed check
       toast.error(err.message);
     } finally {
       setBusy(null);
     }
   };
 
-  const signatureFailing = !!report?.lastFailureAt && (!report.lastReceivedAt || report.lastFailureAt > report.lastReceivedAt);
-  const healthy = !!report && report.found && report.enabled && !report.wrongUrl && report.missingEvents.length === 0 && !signatureFailing;
+  const state = report ? webhookState(report) : null;
 
   return (
     <div className="rp-card" style={{ padding: 16, boxShadow: "none", background: "var(--rp-surface-sunken)" }}>
-      <div className="rp-sect">Webhook health</div>
+      {confirmNode}
+      <div className="rp-sect">Connection &amp; webhook health</div>
       <p className="rp-hint" style={{ marginTop: 0 }}>
-        Stripe tells the shop an order is paid through the webhook. If it is missing or misconfigured, paid orders stay “unpaid”.
-        As a safety net the shop also asks Stripe directly every 15 minutes and whenever you open an unpaid order.
+        Checks the <strong>saved</strong> settings{unsaved ? " — save your changes first so the check uses them" : ""}.
+        Stripe tells the shop about payments, refunds and disputes through the webhook; as a safety net the shop also asks Stripe directly
+        every 15 minutes and whenever you open an order.
       </p>
-      {report && (
+
+      {keys && (
+        <ul className="rp-list" aria-label="Stripe key checks" style={{ margin: "0 0 12px", border: "1px solid var(--rp-border)" }}>
+          {keys.map((c, i) => (
+            <li key={i} style={{ padding: 10 }}>
+              <StatusBadge tone={c.tone}>{c.tone === "success" ? "OK" : c.tone === "danger" ? "Problem" : c.tone === "warning" ? "Check" : "Info"}</StatusBadge> {c.text}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {report && state && (
         <ul className="rp-list" aria-label="Webhook checks" style={{ margin: "0 0 12px", border: "1px solid var(--rp-border)" }}>
           <li style={{ padding: 10 }}>
-            <StatusBadge tone={report.found && report.enabled ? "success" : "danger"}>{report.found ? (report.enabled ? "On" : "Disabled") : "Missing"}</StatusBadge>{" "}
+            <StatusBadge tone={report.found && report.enabled && !report.wrongUrl ? "success" : "danger"}>{report.found ? (report.enabled ? (report.wrongUrl ? "Wrong address" : "On") : "Disabled") : "Missing"}</StatusBadge>{" "}
             Endpoint in Stripe ({report.mode === "test" ? "test/sandbox" : "live"} account)
           </li>
           <li style={{ padding: 10 }}>
@@ -49,20 +81,32 @@ export function StripeWebhookHealth() {
             Events{report.missingEvents.length ? `: ${report.missingEvents.join(", ")}` : ""}
           </li>
           <li style={{ padding: 10 }}>
-            <StatusBadge tone={signatureFailing ? "danger" : report.lastReceivedAt ? "success" : "neutral"}>{signatureFailing ? "Failing" : report.lastReceivedAt ? "Working" : "No events yet"}</StatusBadge>{" "}
-            Last event received: {when(report.lastReceivedAt)}{report.lastEventType ? ` (${report.lastEventType})` : ""}
-            {signatureFailing && <span className="rp-hint" style={{ display: "block", marginTop: 4 }}>{report.lastFailure} — {when(report.lastFailureAt)}</span>}
+            <StatusBadge tone={state.noSecret ? "danger" : "success"}>{state.noSecret ? "Missing" : "Set"}</StatusBadge>{" "}
+            Signing secret{state.noSecret ? " — the shop can't verify Stripe's messages. Use Fix webhook." : report.savedSecret ? " (saved by the shop)" : " (from Firebase Functions)"}
           </li>
+          <li style={{ padding: 10 }}>
+            <StatusBadge tone={state.signatureFailing ? "danger" : report.lastReceivedAt ? "success" : "neutral"}>{state.signatureFailing ? "Failing" : report.lastReceivedAt ? "Working" : "Waiting for first event"}</StatusBadge>{" "}
+            Last event from this account: {when(report.lastReceivedAt)}{report.lastEventType ? ` (${report.lastEventType})` : ""}
+            {state.signatureFailing && <span className="rp-hint" style={{ display: "block", marginTop: 4 }}>{report.lastFailure} — {when(report.lastFailureAt)}</span>}
+            {!report.lastReceivedAt && !state.signatureFailing && <span className="rp-hint" style={{ display: "block", marginTop: 4 }}>Set up correctly, but no payment has been made since — place a test order to confirm.</span>}
+          </li>
+          {state.processingFailing && (
+            <li style={{ padding: 10 }}>
+              <StatusBadge tone="danger">Error</StatusBadge> The last delivery reached the shop but failed while updating the order — Stripe will retry. {report.lastProcessingFailure} ({when(report.lastProcessingFailureAt)})
+            </li>
+          )}
         </ul>
       )}
-      {report && healthy && <p role="status" className="rp-hint" style={{ marginTop: 0 }}>✓ The webhook is set up correctly.</p>}
+      {state?.state === "healthy" && !state.processingFailing && <p role="status" className="rp-hint" style={{ marginTop: 0 }}>✓ The webhook is set up and delivering.</p>}
+
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <SecondaryButton size="sm" disabled={!!busy} onClick={testKeys}>{busy === "keys" ? "Testing…" : "Test connection"}</SecondaryButton>
         <SecondaryButton size="sm" disabled={!!busy} onClick={() => run("check")}>{busy === "check" ? "Checking…" : "Check webhook"}</SecondaryButton>
-        {report && !healthy && !signatureFailing && (
+        {state && state.state !== "healthy" && state.state !== "waiting" && (
           <PrimaryButton size="sm" disabled={!!busy} onClick={() => run("fix")}>{busy === "fix" ? "Fixing…" : "Fix webhook"}</PrimaryButton>
         )}
-        {report && signatureFailing && (
-          <PrimaryButton size="sm" disabled={!!busy} onClick={() => run("recreate")}>{busy === "recreate" ? "Resetting…" : "Reset webhook signing"}</PrimaryButton>
+        {state && (state.signatureFailing || state.noSecret) && (
+          <SecondaryButton size="sm" disabled={!!busy} onClick={() => run("recreate")}>{busy === "recreate" ? "Replacing…" : "Reset webhook signing"}</SecondaryButton>
         )}
       </div>
     </div>

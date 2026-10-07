@@ -956,16 +956,19 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
       return;
     }
 
-    const books = await readBooks(transaction, db, order.items);
+    // PayPal sandbox capture: a rehearsal — test order, no stock, discount or revenue.
+    const sandbox = order.paypalMode === "test";
+    const books = sandbox ? new Map() : await readBooks(transaction, db, order.items);
     let discountRef = null;
     let discountDoc = null;
-    if (order.appliedDiscount?.id) {
+    if (order.appliedDiscount?.id && !sandbox) {
       discountRef = db.collection("discounts").doc(order.appliedDiscount.id);
       discountDoc = await transaction.get(discountRef);
     }
     const now = new Date().toISOString();
     transaction.update(orderRef, {
       paymentStatus: "paid", fulfillmentStatus: "paid", status: "open",
+      ...(sandbox ? { isTest: true, sandboxPayment: true } : {}),
       paidAt: now, updatedAt: now, downloadToken: crypto.randomBytes(32).toString("hex"),
       paypalCaptureId: paypalData.captureId || null,
       paypalPayerId: paypalData.payerId || null,
@@ -974,11 +977,11 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
       paypalCapture: paypalData.capture || null,
       activity: [...(order.activity || []), { type: "event", message: "Payment completed (verified PayPal capture)", createdAt: now }],
     });
-    if (writeStock(transaction, db, order.items, books, -1, now)) transaction.update(orderRef, { oversold: true });
+    if (!sandbox && writeStock(transaction, db, order.items, books, -1, now)) transaction.update(orderRef, { oversold: true });
     if (discountRef && discountDoc?.exists) {
       transaction.update(discountRef, { usageCount: (discountDoc.data().usageCount || 0) + 1, updatedAt: now });
     }
-    paidTotal = Number(order.total) || 0;
+    paidTotal = sandbox ? null : Number(order.total) || 0;
   });
   if (paidTotal !== null) {
     const today = new Date().toISOString().split("T")[0];
@@ -1038,6 +1041,7 @@ exports.createPayPalOrder = onRequest(
       await orderRef.update({
         paymentMethod: "PayPal", paypalOrderId: paypalOrder.id, paypalOrderStatus: paypalOrder.status,
         paypalCurrency: currency.toUpperCase(),
+        paypalMode: config.testMode ? "test" : "live",
         // Capture marks the order paid only for exactly this amount and currency.
         expectedAmountMinor: toMinor(priced.convertedTotal.toFixed(2)), expectedCurrency: currency,
         updatedAt: new Date().toISOString(),
@@ -1132,6 +1136,7 @@ exports.createStripeCheckoutSession = onRequest(
     if (req.body?.action === "status") return handleCheckoutStatus(req, res);
     if (req.body?.action === "registerPaymentDomain") return handleRegisterPaymentDomain(req, res);
     if (req.body?.action === "webhookHealth") return handleWebhookHealth(req, res);
+    if (req.body?.action === "verifyStripeKeys") return handleVerifyStripeKeys(req, res);
     if (req.body?.action === 'createManualLocalOrder') {
       try {
         const source = req.body.orderDraft;
@@ -1440,7 +1445,8 @@ exports.createStripeCheckoutSession = onRequest(
         });
         // The webhook marks the order paid only for exactly this amount and currency.
         await orderRef.update({ stripePaymentIntentId: intent.id, expectedAmountMinor: amount, expectedCurrency: checkoutCurrency, updatedAt: new Date().toISOString() });
-        res.status(200).json({ clientSecret: intent.client_secret, amount, currency: checkoutCurrency });
+        // stripeMode lets the browser check its card form uses the same Stripe mode.
+        res.status(200).json({ clientSecret: intent.client_secret, amount, currency: checkoutCurrency, stripeMode: testMode ? "test" : "live" });
         return;
       }
 
@@ -1507,6 +1513,62 @@ exports.createStripeCheckoutSession = onRequest(
 // function needs deploying — the CI deploy account can't set IAM on new ones.
 const STRIPE_WEBHOOK_URL = "https://us-central1-lyricalmyrical-web-v2.cloudfunctions.net/stripeWebhook";
 
+// Stripe signs every delivery with "t=<timestamp>,v1=<signature>[,…]".
+function looksLikeStripeSignature(sig) {
+  return typeof sig === "string" && /(^|,)t=\d+/.test(sig) && /(^|,)v1=[0-9a-f]+/.test(sig);
+}
+
+// A delivery that verified but failed while updating the order (Stripe will retry):
+// shown in Webhook health so "Working" never hides a failing handler.
+async function recordWebhookProcessingFailure(event, err) {
+  await db.collection("adminSecrets").doc("stripeWebhookStatus").set({
+    lastProcessingFailureAt: new Date().toISOString(),
+    lastProcessingFailure: `${event?.type || "event"}: ${String(err?.message || err).slice(0, 300)}`,
+  }, { merge: true }).catch(() => {});
+}
+
+// Admin: "Test connection" — does each saved Stripe secret key work, which Stripe
+// account and mode is it, and do the publishable keys match their mode?
+async function handleVerifyStripeKeys(req, res) {
+  if (!await requireAdmin(req, res)) return;
+  try {
+    const settingsDoc = await db.collection("settings").doc("website").get();
+    const settings = settingsDoc.exists ? settingsDoc.data() || {} : {};
+    const stripeSettings = settings.payments?.stripe || {};
+    const priv = await readAdminSecret("stripe");
+    const results = {};
+    for (const mode of ["live", "test"]) {
+      const stored = mode === "live" ? priv.secretKey : priv.testSecretKey;
+      let fallback = "";
+      if (mode === "live" && !stored) { try { fallback = STRIPE_SECRET_KEY.value() || ""; } catch { fallback = ""; } }
+      const key = stored || fallback;
+      const publishable = String((mode === "live" ? stripeSettings.publicKey : stripeSettings.testPublicKey) || "").trim();
+      const r = {
+        source: stored ? "stored" : fallback ? "functions" : "none",
+        publishableKeyMode: /^pk_live_/.test(publishable) ? "live" : /^pk_test_/.test(publishable) ? "test" : publishable ? "invalid" : "missing",
+      };
+      if (key) {
+        r.keyMode = /_live_/.test(key) ? "live" : /_test_/.test(key) ? "test" : "unknown";
+        try {
+          const account = await new Stripe(key).accounts.retrieve();
+          Object.assign(r, { ok: true, accountId: account.id, accountName: account.settings?.dashboard?.display_name || account.business_profile?.name || null, chargesEnabled: account.charges_enabled !== false });
+        } catch (err) {
+          // Restricted keys may not read the account: a balance read still proves the key works.
+          try { await new Stripe(key).balance.retrieve(); Object.assign(r, { ok: true, accountId: null }); }
+          catch (err2) { Object.assign(r, { ok: false, error: err2?.message || err?.message || "Stripe rejected the key." }); }
+        }
+      }
+      results[mode] = r;
+    }
+    const activeMode = settings.payments?.testMode ? "test" : "live";
+    const sameAccount = results.live.accountId && results.test.accountId ? results.live.accountId === results.test.accountId : null;
+    res.status(200).json({ activeMode, ...results, sameAccount });
+  } catch (err) {
+    console.error("Stripe key check failed:", err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
 // Admin: checks (and with fix: true repairs) the Stripe webhook endpoint for the
 // mode the shop is using. Repair adds missing events, re-enables a disabled
 // endpoint, or creates the endpoint and saves its signing secret privately in
@@ -1537,6 +1599,8 @@ async function handleWebhookHealth(req, res) {
           description: "Lyricalmyrical shop orders (created by Admin › Payments)",
         });
         await db.collection("adminSecrets").doc("stripeWebhook").set({ [mode]: created.secret, [`${mode}EndpointId`]: created.id, updatedAt: new Date().toISOString() }, { merge: true });
+        // A fresh endpoint with a known secret: older signature failures no longer apply.
+        await db.collection("adminSecrets").doc("stripeWebhookStatus").set({ lastFailureAt: null, lastFailure: null, resetAt: new Date().toISOString() }, { merge: true });
         actions.push("Created the webhook endpoint in Stripe and saved its signing secret.");
       } else {
         const update = {};
@@ -1554,13 +1618,20 @@ async function handleWebhookHealth(req, res) {
     }
     const status = (await db.collection("adminSecrets").doc("stripeWebhookStatus").get()).data() || {};
     const saved = await readAdminSecret("stripeWebhook");
+    let deployedSecret = false;
+    try { deployedSecret = !!STRIPE_WEBHOOK_SECRET.value(); } catch { deployedSecret = false; }
+    const forMode = status[mode] || {};
     res.status(200).json({
       mode,
       url: STRIPE_WEBHOOK_URL,
       ...report,
       savedSecret: !!saved[mode],
-      lastReceivedAt: status.lastReceivedAt || null,
-      lastEventType: status.lastEventType || null,
+      deployedSecret,
+      // This account's own deliveries only (older records without per-mode data fall back).
+      lastReceivedAt: forMode.lastReceivedAt || (status.lastMode === mode ? status.lastReceivedAt : null) || null,
+      lastEventType: forMode.lastEventType || (status.lastMode === mode ? status.lastEventType : null) || null,
+      lastProcessingFailureAt: status.lastProcessingFailureAt || null,
+      lastProcessingFailure: status.lastProcessingFailure || null,
       lastFailureAt: status.lastFailureAt || null,
       lastFailure: status.lastFailure || null,
       actions,
@@ -1621,9 +1692,11 @@ async function handleRegisterPaymentDomain(req, res) {
 async function markStripeOrderPaid(orderId, session, opts = {}) {
     const orderRef = db.collection("orders").doc(orderId);
     let paidTotal = null;
+    let markedPaid = false;
 
     await db.runTransaction(async transaction => {
       paidTotal = null; // a retried attempt must not keep the last attempt's value
+      markedPaid = false;
       // Firestore transactions require ALL reads before any writes.
       const orderDoc = await transaction.get(orderRef);
       if (!orderDoc.exists) return;
@@ -1658,12 +1731,16 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
         return;
       }
 
+      // A sandbox (test-mode) payment is a rehearsal: flag the order as a test order
+      // (kept out of fulfillment, revenue and launch readiness) and never touch
+      // real stock or discount usage.
+      const sandbox = session.livemode === false || order.stripeMode === "test";
       const itemList = order.items || [];
-      const books = await readBooks(transaction, db, itemList);
+      const books = sandbox ? new Map() : await readBooks(transaction, db, itemList);
 
       let discountRef = null;
       let discountDoc = null;
-      if (order.appliedDiscount?.id) {
+      if (order.appliedDiscount?.id && !sandbox) {
         discountRef = db.collection("discounts").doc(order.appliedDiscount.id);
         discountDoc = await transaction.get(discountRef);
       }
@@ -1674,6 +1751,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
       transaction.update(orderRef, {
         ...stripeTransaction,
         paymentStatus: "paid",
+        ...(sandbox ? { isTest: true, sandboxPayment: true } : {}),
         fulfillmentStatus: "paid",
         status: "open",
         downloadToken,
@@ -1687,7 +1765,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
       });
 
       // Atomic stock decrement, one write per book (two editions of a book both count).
-      if (writeStock(transaction, db, itemList, books, -1, now)) transaction.update(orderRef, { oversold: true });
+      if (!sandbox && writeStock(transaction, db, itemList, books, -1, now)) transaction.update(orderRef, { oversold: true });
 
       // Count discount redemptions so usage limits are enforceable.
       if (discountRef && discountDoc?.exists) {
@@ -1697,7 +1775,9 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
         });
       }
 
-      paidTotal = Number(order.total) || 0;
+      // Sandbox payments are not revenue.
+      paidTotal = sandbox ? null : Number(order.total) || 0;
+      markedPaid = true;
     });
 
     // Revenue/order analytics are recorded here — at payment time —
@@ -1710,7 +1790,7 @@ async function markStripeOrderPaid(orderId, session, opts = {}) {
         revenue: admin.firestore.FieldValue.increment(paidTotal),
       }, { merge: true });
     }
-  return paidTotal !== null;
+  return markedPaid;
 }
 
 // Brings a paid order in line with what Stripe says happened to its charge after
@@ -1739,7 +1819,7 @@ async function syncStripeReversal(orderId, { charge, dispute = null, source }) {
 
     if (r.fullyRefunded && order.paymentStatus === "paid") {
       const itemList = order.items || [];
-      const shouldRestock = order.inventoryRestockedAt == null;
+      const shouldRestock = order.inventoryRestockedAt == null && order.sandboxPayment !== true;
       const books = shouldRestock ? await readBooks(transaction, db, itemList) : new Map();
       if (shouldRestock) writeStock(transaction, db, itemList, books, 1, now);
       Object.assign(update, {
@@ -1751,7 +1831,7 @@ async function syncStripeReversal(orderId, { charge, dispute = null, source }) {
         ...(shouldRestock ? { inventoryRestockedAt: now } : {}),
       });
       notes.push(`Refund synced from Stripe (${(r.refundedMinor / 100).toFixed(2)} ${r.currency})${shouldRestock ? "; inventory restocked" : ""} — ${source}.`);
-      reversal = { revenue: Number(order.total) || 0, paidDay: typeof order.paidAt === "string" ? order.paidAt.split("T")[0] : null };
+      reversal = order.sandboxPayment === true ? null : { revenue: Number(order.total) || 0, paidDay: typeof order.paidAt === "string" ? order.paidAt.split("T")[0] : null };
     } else if (r.partiallyRefunded && order.paymentStatus === "paid" && (order.refundedAmountMinor || 0) !== r.refundedMinor) {
       update.refundedAmountMinor = r.refundedMinor;
       update.partiallyRefunded = true;
@@ -1917,11 +1997,15 @@ exports.stripeWebhook = onRequest(
     if (!event) {
       const message = lastError?.message || "No webhook signing secret is configured.";
       console.error("Signature verification failed:", message);
-      // Leave a trace the admin can see (Settings › Payments › Webhook health).
-      await db.collection("adminSecrets").doc("stripeWebhookStatus").set({
-        lastFailureAt: new Date().toISOString(),
-        lastFailure: `Signature check failed: ${String(message).slice(0, 300)}`,
-      }, { merge: true }).catch(() => {});
+      // Leave a trace the admin can see (Settings › Payments › Webhook health) — but only
+      // for requests that look like Stripe's (a signed header), so bots and scanners
+      // hitting this public URL can't make a working webhook look broken.
+      if (looksLikeStripeSignature(sig)) {
+        await db.collection("adminSecrets").doc("stripeWebhookStatus").set({
+          lastFailureAt: new Date().toISOString(),
+          lastFailure: `Signature check failed: ${String(message).slice(0, 300)}`,
+        }, { merge: true }).catch(() => {});
+      }
       res.status(400).send(`Webhook Error: ${message}`);
       return;
     }
@@ -1975,7 +2059,8 @@ exports.stripeWebhook = onRequest(
       }
     } catch (err) {
       console.error(`Failed to record ${event.type}:`, err);
-      res.status(500).send(`Webhook failure: ${err.message}`);
+      await recordWebhookProcessingFailure(event, err);
+          res.status(500).send(`Webhook failure: ${err.message}`);
       return;
     }
 
@@ -1995,6 +2080,7 @@ exports.stripeWebhook = onRequest(
           console.log(`Order ${orderId} successfully processed via webhook.`);
         } catch (err) {
           console.error("Failed to process order update in transaction:", err);
+          await recordWebhookProcessingFailure(event, err);
           res.status(500).send(`Transaction failure: ${err.message}`);
           return;
         }
@@ -2016,6 +2102,7 @@ exports.stripeWebhook = onRequest(
           if (!snap.empty) await syncStripeReversal(snap.docs[0].id, { charge, source: "Stripe webhook" });
         } catch (err) {
           console.error("Failed to sync charge.refunded:", err);
+          await recordWebhookProcessingFailure(event, err);
           res.status(500).send(`Refund sync failure: ${err.message}`);
           return;
         }
@@ -2028,10 +2115,14 @@ exports.stripeWebhook = onRequest(
       stripeEventId: event.id,
       processedAt: new Date().toISOString(),
     });
+    const receivedAt = new Date().toISOString();
+    const eventMode = event.livemode ? "live" : "test";
     await db.collection("adminSecrets").doc("stripeWebhookStatus").set({
-      lastReceivedAt: new Date().toISOString(),
+      lastReceivedAt: receivedAt,
       lastEventType: event.type,
-      lastMode: event.livemode ? "live" : "test",
+      lastMode: eventMode,
+      // Per Stripe account, so a test endpoint can't make the live one look healthy.
+      [eventMode]: { lastReceivedAt: receivedAt, lastEventType: event.type },
     }, { merge: true }).catch(() => {});
 
     res.json({ received: true });
@@ -2117,13 +2208,15 @@ exports.refundOrder = onRequest(
         }
 
         const itemList = freshOrder.items || [];
-        const shouldRestock = restock !== false && freshOrder.inventoryRestockedAt == null;
+        // Sandbox payments never took stock, discount usage or revenue — nothing to put back.
+        const sandboxPaid = freshOrder.sandboxPayment === true;
+        const shouldRestock = !sandboxPaid && restock !== false && freshOrder.inventoryRestockedAt == null;
         const books = shouldRestock ? await readBooks(transaction, db, itemList) : new Map();
 
         let discountRef = null;
         let discountDoc = null;
         const shouldReverseDiscount =
-          freshOrder.appliedDiscount?.id && freshOrder.discountUsageReversedAt == null;
+          !sandboxPaid && freshOrder.appliedDiscount?.id && freshOrder.discountUsageReversedAt == null;
         if (shouldReverseDiscount) {
           discountRef = db.collection("discounts").doc(freshOrder.appliedDiscount.id);
           discountDoc = await transaction.get(discountRef);
@@ -2181,6 +2274,7 @@ exports.refundOrder = onRequest(
         // figure — not the Stripe refund amount, which is in checkout currency.
         return {
           alreadyRecorded: false,
+          skipAnalytics: sandboxPaid, // sandbox: no revenue was recorded to reverse
           reversedRevenue: Number(freshOrder.total) || 0,
           paidDay: typeof freshOrder.paidAt === "string" ? freshOrder.paidAt.split("T")[0] : null,
         };
@@ -2188,7 +2282,7 @@ exports.refundOrder = onRequest(
 
       // Net out revenue/order count for refunds. Keyed by the original paid day
       // when known (so each day's net is correct), else today.
-      if (!result.alreadyRecorded) {
+      if (!result.alreadyRecorded && !result.skipAnalytics) {
         const day = result.paidDay || new Date().toISOString().split("T")[0];
         await db.collection("analytics").doc(day).set({
           date: day,
@@ -2533,7 +2627,9 @@ exports.onOrderUpdated = onDocumentUpdated(
     const after = event.data?.after?.data() || {};
     const orderId = event.params.orderId;
 
-    if (after.isTest === true) return;
+    // Test orders send nothing — except sandbox payments, whose emails are part of
+    // the checkout rehearsal (they still never buy labels or touch stock).
+    if (after.isTest === true && after.sandboxPayment !== true) return;
     if (!after.customer?.email) return;
 
     const notificationSettings = await loadNotificationSettings();

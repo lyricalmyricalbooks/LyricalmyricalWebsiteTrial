@@ -35,9 +35,13 @@ describe("launchReadiness", () => {
     expect(books.detail).toBe("No price");
   });
 
-  it("warns in sandbox mode and when no secret key is stored", () => {
+  it("warns in sandbox mode; a missing test secret key blocks (no fallback in test mode)", () => {
     const items = launchReadiness({ settings: { ...goodSettings, payments: { testMode: true, stripe: { connected: true, testPublicKey: "pk_test_" + "a".repeat(24) } } }, books: [goodBook], shippingProfiles: [{}], emailLog: [{ status: "sent" }], orders: [] });
     expect(status(items, "payments")).toBe("warn");
+    expect(status(items, "stripe-secret")).toBe("block");
+  });
+  it("only warns when live mode has no secret key here (the Functions secret may cover it)", () => {
+    const items = launchReadiness({ settings: { ...goodSettings, payments: { stripe: { connected: true, publicKey: "pk_live_" + "a".repeat(24) } } }, books: [goodBook], shippingProfiles: [{}], emailLog: [{ status: "sent" }], orders: [] });
     expect(status(items, "stripe-secret")).toBe("warn");
   });
 });
