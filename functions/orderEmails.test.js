@@ -1,0 +1,87 @@
+// One order = one email to the customer ("Order confirmed") and one to the shop
+// ("[NEW ORDER] … paid"). Card orders send nothing when created (before payment).
+import { expect, test } from 'vitest';
+import fs from 'fs';
+import path from 'path';
+import vm from 'vm';
+import { createRequire } from 'module';
+
+const realRequire = createRequire(import.meta.url);
+const source = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), 'index.js'), 'utf8');
+
+function harness() {
+  const sent = [];
+  const intents = [];
+  const docs = { settings: { website: { payments: {} }, notifications: {} } };
+  const db = {
+    collection(name) {
+      return {
+        doc: (id) => ({
+          async get() { const data = docs[name]?.[id]; return { exists: !!data, data: () => data }; },
+          async set() {}, async update() {},
+        }),
+        add: async () => {},
+        where: () => ({ limit: () => ({ get: async () => ({ empty: true, docs: [] }) }) }),
+      };
+    },
+    async runTransaction(fn) { return fn({ get: async () => ({ exists: false, data: () => ({}) }), update() {}, set() {} }); },
+  };
+  const admin = { initializeApp() {}, firestore: Object.assign(() => db, { FieldValue: { increment: (n) => n } }) };
+  const wrap = (...args) => args.at(-1);
+  const Stripe = class { constructor() { this.paymentIntents = { create: async (p) => { intents.push(p); return { id: 'pi_1', client_secret: 's' }; } }; } };
+  const mockRequire = (name) => {
+    if (name === 'firebase-admin') return admin;
+    if (name === 'stripe') return Stripe;
+    if (name === 'resend') return { Resend: class {} };
+    if (name.startsWith('firebase-functions/v2/')) return new Proxy({}, { get: () => wrap });
+    if (name === 'firebase-functions/params') return { defineSecret: () => ({ value: () => 'fake' }) };
+    return realRequire(name);
+  };
+  const module = { exports: {} };
+  // Capture every email instead of sending it; skip the address check (network).
+  const patched = `${source}
+sendEmail = async (m) => { __sent.push(m); return { ok: true }; };
+autoApproveShippingAddress = async () => {};`;
+  vm.runInNewContext(patched, { module, exports: module.exports, require: mockRequire, process, Buffer, console, setTimeout, clearTimeout, URL, AbortController, __sent: sent, fetch: async () => { throw new Error('no network'); } }, { filename: 'index.js' });
+  return { sent, intents, exports: module.exports };
+}
+
+const order = (extra = {}) => ({ orderId: 'AB-1', customer: { name: 'Reader', email: 'reader@example.com', address: {} }, items: [{ id: 'b', title: 'Book', quantity: 1, price: 3 }], total: 3.39, subtotal: 3, shipping: 0, paymentMethod: 'Stripe', ...extra });
+const created = (data) => ({ data: { data: () => data }, params: { orderId: 'o1' } });
+const updated = (before, after) => ({ data: { before: { data: () => before }, after: { data: () => after } }, params: { orderId: 'o1' } });
+
+test('a card order sends nothing when it is created (it is not paid yet)', async () => {
+  const app = harness();
+  await app.exports.onOrderCreated(created(order({ paymentStatus: 'unpaid' })));
+  expect(app.sent).toEqual([]);
+});
+
+test('a manual-payment order tells the shop once when placed', async () => {
+  const app = harness();
+  await app.exports.onOrderCreated(created(order({ paymentStatus: 'pending', paymentMethod: 'e-Transfer' })));
+  expect(app.sent.filter((m) => m.to === 'lyricalmyricalbooks@gmail.com' && /\[NEW ORDER\]/.test(m.subject)).length).toBe(1);
+});
+
+test('becoming paid sends exactly one customer email and one shop email', async () => {
+  const app = harness();
+  await app.exports.onOrderUpdated(updated(order({ paymentStatus: 'unpaid' }), order({ paymentStatus: 'paid' })));
+  const toCustomer = app.sent.filter((m) => m.to === 'reader@example.com');
+  const toShop = app.sent.filter((m) => m.to === 'lyricalmyricalbooks@gmail.com');
+  expect(toCustomer.length).toBe(1);
+  expect(toShop.length).toBe(1);
+  expect(toShop[0].subject).toMatch(/^\[NEW ORDER\] AB-1 · paid/);
+  // One click to the order's fulfilment page in the admin.
+  expect(toShop[0].html).toMatch(/href="[^"]*\/admin#orders\/o1"[^>]*>Fulfil this order/);
+});
+
+test('a sandbox order marks the shop email [TEST]', async () => {
+  const app = harness();
+  await app.exports.onOrderUpdated(updated(order({ paymentStatus: 'unpaid' }), order({ paymentStatus: 'paid', isTest: true, sandboxPayment: true })));
+  expect(app.sent.find((m) => m.to === 'lyricalmyricalbooks@gmail.com').subject).toMatch(/^\[TEST\] \[NEW ORDER\]/);
+});
+
+test('the card payment asks Stripe for no receipt email', () => {
+  const call = source.slice(source.indexOf('stripe.paymentIntents.create({'), source.indexOf('metadata: { order_id: orderId, checkout: "payment_element" }'));
+  expect(call.length).toBeGreaterThan(0);
+  expect(call).not.toMatch(/^\s*receipt_email\s*:/m);
+});

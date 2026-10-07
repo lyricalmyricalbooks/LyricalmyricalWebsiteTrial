@@ -867,3 +867,9 @@ orders (≤120 days) at most every 6 h (`ordersDueReversalCheck`, `stripeChecked
   unique per option. A zone-less profile offers nothing once any profile has zones. Live rates resolve countries
   with `resolveCountry` and fall back to profile rates when Shippo has none; `SHIPPO_API_TOKEN` is declared on both
   checkout functions. Product assignment sends explicit removals; the panel reads the whole catalog (`getAllBooks`).
+
+**Order emails (7 October 2026):** one order = one customer email ("Order confirmed", `order_confirmation`, on paid)
+and one shop email (`[NEW ORDER] <id> · paid …`, `new_order_admin`, on paid, `[TEST]` prefix for sandbox) with a
+**Fulfil this order** button to `/admin#orders/<id>`. `onOrderCreated` emails the shop only for manual-payment
+(`pending`) orders. Card payments send no Stripe receipt (`receipt_email` removed); Stripe's own "successful payments"
+customer email must also be off in the Stripe dashboard. `functions/orderEmails.test.js` pins this.
