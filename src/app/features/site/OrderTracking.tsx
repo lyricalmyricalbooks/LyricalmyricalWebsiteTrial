@@ -8,11 +8,11 @@ import { ArrowLeft, Package, Truck, CheckCircle2, MapPin, Loader2, Download, Ext
 import { TRACKING_CSS } from "./trackingStyle";
 import { motion, AnimatePresence } from "motion/react";
 import { adminApi } from "../../admin/api";
-import { functionUrl } from "../../lib/functionsBase";
+import { functionUrl, functionFetch } from "../../lib/functionsBase";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
-import { getCopy } from "./storeCopy";
+import { getCopy, CopyError, copyErrorText } from "./storeCopy";
 import { GlobalSections, TemplateSections } from "../../components/sectionRender";
 import { orderStage, orderStep, shippingDays, stepDates } from "./orderStatus";
 
@@ -99,7 +99,7 @@ export default function OrderTracking() {
 
       setOrder(foundOrder);
     } catch (err: any) {
-      setError(getCopy(settings?.design, err?.code === "email_mismatch" ? "trackErrEmail" : err?.code === "too_many" ? "trackErrTooMany" : "trackError"));
+      setError(copyErrorText(err, settings?.design, err?.code === "email_mismatch" ? "trackErrEmail" : err?.code === "too_many" ? "trackErrTooMany" : "trackError"));
     } finally {
       setLoading(false);
     }
@@ -120,6 +120,7 @@ export default function OrderTracking() {
   // payment itself and finishes the order), then show the fresh order.
   const [rechecking, setRechecking] = useState(false);
   const [recheckDone, setRecheckDone] = useState(false);
+  const [recheckError, setRecheckError] = useState("");
   const orderKey = order ? (order.id || order.orderId) : "";
   const ended = ["refunded", "cancelled"].includes(String(order?.paymentStatus || "").toLowerCase()) || ["refunded", "cancelled"].includes(String(order?.status || "").toLowerCase());
   const canRecheck = Boolean(order && order.paymentStatus !== "paid" && order.paymentStatus !== "pending" && !ended
@@ -127,14 +128,18 @@ export default function OrderTracking() {
   const recheckPayment = async () => {
     if (!orderKey || rechecking) return;
     setRechecking(true);
+    setRecheckError("");
     try {
-      await fetch(functionUrl("createStripeCheckoutSession"), {
+      const response = await functionFetch("createStripeCheckoutSession", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "status", orderId: orderKey }),
-      }).catch(() => null);
-      const fresh: any = await adminApi.getPublicOrder(orderKey, { email: order?.customer?.email || "" }).catch(() => null);
+      });
+      if (!response.ok) throw new CopyError(settings?.design, "trackError");
+      const fresh: any = await adminApi.getPublicOrder(orderKey, { email: order?.customer?.email || "" });
       if (fresh) setOrder(fresh);
+    } catch (err) {
+      setRecheckError(copyErrorText(err, settings?.design, "trackError"));
     } finally {
       setRechecking(false);
       setRecheckDone(true);
@@ -142,6 +147,7 @@ export default function OrderTracking() {
   };
   useEffect(() => {
     setRecheckDone(false);
+    setRecheckError("");
     if (canRecheck) recheckPayment();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderKey]);
@@ -268,7 +274,7 @@ export default function OrderTracking() {
                 <div {...regionProps("trackingStatusBanner")} role="status" className="fm-track-notice" data-tone={stage === "awaiting_payment" ? "warning" : "danger"}>
                   <p>
                     <strong aria-hidden="true">{stage === "awaiting_payment" ? "! " : "✕ "}</strong>
-                    {rechecking ? getCopy(settings?.design, "trackRechecking") : getCopy(settings?.design, stage === "awaiting_payment" ? (recheckDone && canRecheck ? "trackStillUnpaid" : "trackAwaitingPayment") : stage === "cancelled" ? "trackCancelledBanner" : "trackRefundedBanner")}
+                    {recheckError || (rechecking ? getCopy(settings?.design, "trackRechecking") : getCopy(settings?.design, stage === "awaiting_payment" ? (recheckDone && canRecheck ? "trackStillUnpaid" : "trackAwaitingPayment") : stage === "cancelled" ? "trackCancelledBanner" : "trackRefundedBanner"))}
                   </p>
                   {canRecheck && (
                     <button type="button" onClick={recheckPayment} disabled={rechecking} className="fm-track-btn fm-track-btn-ghost">

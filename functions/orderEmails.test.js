@@ -5,9 +5,10 @@ import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
 import { createRequire } from 'module';
+import { fileURLToPath } from 'node:url';
 
 const realRequire = createRequire(import.meta.url);
-const source = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), 'index.js'), 'utf8');
+const source = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'index.js'), 'utf8');
 
 function harness() {
   const sent = [];

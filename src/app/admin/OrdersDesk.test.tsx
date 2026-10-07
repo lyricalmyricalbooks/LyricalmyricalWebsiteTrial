@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("./OrderDetail", () => ({ OrderDetail: (p: any) => <div data-order-detail={p.orderId} /> }));
 vi.mock("./Orders", () => ({ Orders: () => <div>table</div>, refreshOrdersCache: () => new Promise(() => {}) }));
 
-import { OrdersDesk } from "./OrdersDesk";
+import { OrdersDesk } from "./OrdersDesk.tsx";
 
 describe("OrdersDesk", () => {
   it("renders the list chrome and the full order page for the selected order", () => {

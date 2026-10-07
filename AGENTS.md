@@ -498,3 +498,15 @@ collection SEO copy. Books > Search (SEO) exposes `seoNoindex`: excluded books r
 available to shoppers, receive noindex HTML, and are omitted from the sitemap.
 Studio > Text & labels > Site & sharing owns the public Google Search Console verification
 token. Google property verification/submission still requires the owner's Search Console access.
+
+## reCAPTCHA / App Check
+
+Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebase.ts.
+Use functionFetch from src/app/lib/functionsBase.ts for every browser HTTP Function
+request and onBrowserRequest in functions/index.js for its server handler. Keep signed
+provider webhooks and emailed digital-download links outside browser attestation.
+APP_CHECK_MODE defaults to monitor; enforce only after registering the public site key,
+verifying traffic, and completing the rollout in docs/RECAPTCHA.md. Direct Firestore
+protection requires separate Firebase App Check console enforcement. Verification
+failure copy lives in Studio > Text & labels > Site & sharing. Tokens, debug credentials
+and provider diagnostics must never be logged or saved to public settings.

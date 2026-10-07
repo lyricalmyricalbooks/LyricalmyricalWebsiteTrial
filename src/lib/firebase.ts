@@ -1,7 +1,8 @@
 import { initializeApp } from "firebase/app";
-import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 import { getFirestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
+
+import { initializeBrowserAppCheck } from "./appCheck";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB9V866zhYfSoXplpzK1oaK7dTuXV7yDxA",
@@ -14,16 +15,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Firebase App Check (bot protection). Switches on only when the build has a reCAPTCHA v3
-// site key (VITE_APP_CHECK_SITE_KEY, see docs/APP_CHECK.md); without one the site runs as before.
-const appCheckKey = (import.meta as any).env?.VITE_APP_CHECK_SITE_KEY;
-if (typeof window !== "undefined" && appCheckKey) {
-  try {
-    initializeAppCheck(app, { provider: new ReCaptchaV3Provider(appCheckKey), isTokenAutoRefreshEnabled: true });
-  } catch (err) {
-    console.warn("App Check could not start", err);
-  }
-}
+// One Enterprise provider; legacy v3 keys are no longer used.
+export const appCheck = initializeBrowserAppCheck(app);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();

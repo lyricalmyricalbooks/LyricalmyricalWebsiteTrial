@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { collection, doc, getDoc, getDocs, limit, orderBy, query, setDoc } from "firebase/firestore";
 import { db, auth } from "../../lib/firebase";
-import { functionUrl } from "../lib/functionsBase";
+import { functionFetch } from "../lib/functionsBase";
 import toast from "react-hot-toast";
 import { risoButton, risoLayout } from "./emailTheme";
 import { GmailSendingCard } from "./GmailSendingCard";
@@ -330,7 +330,7 @@ export function NotificationEditor() {
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Unauthorized: You must be logged in as administrator.");
 
-      const response = await fetch(functionUrl("sendTestEmail"), {
+      const response = await functionFetch("sendTestEmail", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

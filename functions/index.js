@@ -16,6 +16,7 @@ const { defineSecret } = require("firebase-functions/params");
 const nodemailer = require("nodemailer");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
+const { browserRequestHandler } = require("./appCheck");
 const { Resend } = require("resend");
 const { explainEmailError } = require("./emailErrors");
 const { risoButton, risoLayout } = require("./emailTheme");
@@ -59,12 +60,26 @@ function applyCors(req, res) {
   }
   if (req.method === "OPTIONS") {
     res.set("Access-Control-Allow-Methods", "POST");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Firebase-AppCheck");
     res.set("Access-Control-Max-Age", "3600");
     res.status(204).send("");
     return true;
   }
   return false;
+}
+
+// All browser endpoints share attestation; their existing authorization still runs afterwards.
+function onBrowserRequest(...args) {
+  const handler = args.pop();
+  const protectedHandler = browserRequestHandler(handler, {
+    mode: () => process.env.APP_CHECK_MODE || "monitor",
+    appId: () => "1:248894589273:web:8bf4b06399c0931f1b6448",
+    emulator: IS_EMULATOR,
+    verifyToken: token => admin.appCheck().verifyToken(token),
+    applyCors,
+    log: fields => console.info(fields),
+  });
+  return onRequest(...args, protectedHandler);
 }
 
 // Verifies the Firebase ID token in the Authorization header and that it
@@ -88,7 +103,7 @@ async function requireAdmin(req, res) {
   }
 }
 
-exports.deleteTestOrders = onRequest(async (req, res) => {
+exports.deleteTestOrders = onBrowserRequest(async (req, res) => {
   if (applyCors(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).send("Method Not Allowed");
@@ -995,7 +1010,7 @@ async function markOrderPaidFromPayPal(orderId, paypalData) {
   }
 }
 
-exports.createPayPalOrder = onRequest(
+exports.createPayPalOrder = onBrowserRequest(
   // SHIPPO_API_TOKEN: live carrier rates are re-priced here; an undeclared secret reads as empty.
   { secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, SHIPPO_API_TOKEN] },
   async (req, res) => {
@@ -1056,7 +1071,7 @@ exports.createPayPalOrder = onRequest(
   }
 );
 
-exports.capturePayPalOrder = onRequest(
+exports.capturePayPalOrder = onBrowserRequest(
   { secrets: [PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET] },
   async (req, res) => {
     if (applyCors(req, res)) return;
@@ -1125,7 +1140,7 @@ exports.paypalWebhook = onRequest(
 // ──────────────────────────────────────────────────────────────
 // 1. HTTP Endpoint: Create Stripe Checkout Session (Secure)
 // ──────────────────────────────────────────────────────────────
-exports.createStripeCheckoutSession = onRequest(
+exports.createStripeCheckoutSession = onBrowserRequest(
   // SHIPPO_API_TOKEN: live carrier rates are re-priced here; STRIPE_WEBHOOK_SECRET: webhook health reports it.
   { secrets: [STRIPE_SECRET_KEY, SHIPPO_API_TOKEN, STRIPE_WEBHOOK_SECRET] },
   async (req, res) => {
@@ -2170,7 +2185,7 @@ exports.stripeWebhook = onRequest(
 // ──────────────────────────────────────────────────────────────
 // 3. HTTP Endpoint: Refund a paid Stripe order (admin only)
 // ──────────────────────────────────────────────────────────────
-exports.refundOrder = onRequest(
+exports.refundOrder = onBrowserRequest(
   { secrets: [STRIPE_SECRET_KEY] },
   async (req, res) => {
     if (applyCors(req, res)) return;
@@ -3135,7 +3150,7 @@ exports.abandonedCartSweep = onSchedule(
 // ──────────────────────────────────────────────────────────────
 // 7. HTTP Endpoint: Validate Address via Shippo (Secure)
 // ──────────────────────────────────────────────────────────────
-exports.getShippoConfig = onRequest({ secrets: [SHIPPO_API_TOKEN] }, async (req, res) => {
+exports.getShippoConfig = onBrowserRequest({ secrets: [SHIPPO_API_TOKEN] }, async (req, res) => {
   if (applyCors(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).send("Method Not Allowed");
@@ -3163,7 +3178,7 @@ exports.getShippoConfig = onRequest({ secrets: [SHIPPO_API_TOKEN] }, async (req,
   }
 });
 
-exports.setShippoDynamicRates = onRequest(async (req, res) => {
+exports.setShippoDynamicRates = onBrowserRequest(async (req, res) => {
   if (applyCors(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).send("Method Not Allowed");
@@ -3199,7 +3214,7 @@ exports.setShippoDynamicRates = onRequest(async (req, res) => {
   }
 });
 
-exports.getShippoRates = onRequest(
+exports.getShippoRates = onBrowserRequest(
   { secrets: [SHIPPO_API_TOKEN] },
   async (req, res) => {
     if (applyCors(req, res)) return;
@@ -3316,7 +3331,7 @@ exports.getShippoRates = onRequest(
 );
 
 
-exports.saveShippoConfig = onRequest(async (req, res) => {
+exports.saveShippoConfig = onBrowserRequest(async (req, res) => {
   if (applyCors(req, res)) return;
   if (req.method !== "POST") {
     res.status(405).send("Method Not Allowed");
@@ -3390,7 +3405,7 @@ async function autoApproveShippingAddress(orderId, order) {
   });
 }
 
-exports.validateAddress = onRequest(
+exports.validateAddress = onBrowserRequest(
   { secrets: [SHIPPO_API_TOKEN] },
   async (req, res) => {
     if (applyCors(req, res)) return;
@@ -3468,7 +3483,7 @@ exports.validateAddress = onRequest(
 // ──────────────────────────────────────────────────────────────
 // 8. HTTP Endpoint: Create Shipping Label via Shippo (Secure)
 // ──────────────────────────────────────────────────────────────
-exports.createShippingLabel = onRequest(
+exports.createShippingLabel = onBrowserRequest(
   { secrets: [SHIPPO_API_TOKEN] },
   async (req, res) => {
     if (applyCors(req, res)) return;
@@ -3786,7 +3801,7 @@ exports.createShippingLabel = onRequest(
 //    The discounts collection is admin-only in Firestore rules, so the
 //    storefront validates codes through this endpoint instead.
 // ──────────────────────────────────────────────────────────────
-exports.validateDiscountCode = onRequest(async (req, res) => {
+exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
   if (applyCors(req, res)) return;
 
   if (req.method !== "POST") {
@@ -4030,7 +4045,7 @@ exports.onCustomerCreated = onDocumentCreated(
 // ──────────────────────────────────────────────────────────────
 // 11. HTTP Endpoint: Send Test Email (Admin Secure)
 // ──────────────────────────────────────────────────────────────
-exports.sendTestEmail = onRequest(
+exports.sendTestEmail = onBrowserRequest(
   { secrets: [RESEND_API_KEY] },
   async (req, res) => {
     if (applyCors(req, res)) return;
@@ -4390,7 +4405,7 @@ exports.onBookUpdated = onDocumentUpdated(
 //     Decrements stock, records analytics, flips status to paid.
 //     onOrderUpdated fires the customer order-confirmation email automatically.
 // ──────────────────────────────────────────────────────────────
-exports.markOrderPaid = onRequest(
+exports.markOrderPaid = onBrowserRequest(
   async (req, res) => {
     if (applyCors(req, res)) return;
     if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
