@@ -499,6 +499,24 @@ available to shoppers, receive noindex HTML, and are omitted from the sitemap.
 Studio > Text & labels > Site & sharing owns the public Google Search Console verification
 token. Google property verification/submission still requires the owner's Search Console access.
 
+## Admin Overview (7 October 2026)
+
+**Overview layout** (`AnalyticsDashboard.tsx`, panels in `Overview{Parts,Sales,Marketing,Customers,Stock}.tsx`):
+period control (+ Refresh) → compact **Ready to sell?** strip (`ReadinessStrip`; "N of M ready", only open checks listed,
+done ones under *Show completed*, hidden when all pass; `launchReadiness.ts` + `readinessProgress`) → two KPI rows → "To do today" beside
+newest orders → Revenue/Traffic chart (every day filled, *Compare with the period before*) → **Dig deeper** tabs
+Sales · Marketing & traffic · Customers · Stock. Keep new Overview content inside those groups.
+Everything sales-related (revenue net of partial refunds, orders, AOV, **conversion = paid orders ÷ visits**, chart revenue)
+comes from real paid non-test orders (`overviewInsights.ts`); the webhook-bumped `analytics.orders/revenue` are not read.
+Orders and traffic share calendar-day windows (`periodKeys`, UTC day keys like the `analytics/<date>` docs); all orders/books are
+loaded (`getAllOrders`, `getAllBooks`), traffic via `getDailyAnalytics` (400 days). Traffic maths is in `overviewTraffic.ts` (pure, tested).
+Marketing/Customers/Stock load carts and back-in-stock sign-ups only when opened.
+**Storefront signals** (`funnelApi` in `lib/commerce.ts`, guarded by `lib/trackingGuard.ts`: analytics consent, not Studio preview, not a signed-in
+admin): daily `analytics/<date>` docs get `increment()` merges for `visits`, `funnel`, `categoryViews` plus `sources`, `devices`
+(from `trackSession`), `bookViews` (`trackProductView`) and `searches`/`noResults` (`trackSearch`, personal-looking terms dropped via
+`cleanSearchTerm`). `firestore.rules` caps those maps and lets only the admin read `analytics`. **Deploy rules before the frontend.**
+New panels say "Not recorded yet" until data exists — never a made-up zero.
+
 ## reCAPTCHA / App Check
 
 Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebase.ts.

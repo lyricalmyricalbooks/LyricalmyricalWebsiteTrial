@@ -1,4 +1,5 @@
-import { consentAllows } from "./consent";
+import { inEditorPreview, trackingAllowed } from "./trackingGuard";
+import { cleanSearchTerm, deviceOf } from "../admin/overviewTraffic";
 import {
   collection,
   doc,
@@ -163,12 +164,12 @@ export const abandonedCartApi = {
     } catch {}
   },
 
-  list: async () => {
+  list: async (max = 100) => {
     const snap = await getDocs(
       query(
         collection(db, "abandoned-carts"),
         orderBy("updatedAt", "desc"),
-        limit(100),
+        limit(max),
       ),
     );
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -176,34 +177,66 @@ export const abandonedCartApi = {
 };
 
 // ──────────────────────────────────────────────────────────────
-// Funnel analytics
+// Funnel + traffic analytics
 // ──────────────────────────────────────────────────────────────
-// The Studio preview iframe runs the real storefront; it must not count as shopper traffic.
-const inEditorPreview = () =>
-  typeof window !== "undefined" && window.location.search.includes("preview=true");
+// Everything lands in today's `analytics/<date>` doc as `increment(1)` merges, which Firestore applies itself, so
+// shoppers arriving at the same moment never overwrite each other's counts. Each call checks consent, the Studio
+// preview and the admin session (see trackingGuard). Best-effort: tracking must never break browsing or checkout.
+const dayKey = () => new Date().toISOString().split("T")[0];
+const mapKey = (v: string) => v.replace(/[.~*/[\]]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
+
+async function bump(patch: Record<string, Record<string, ReturnType<typeof increment>>>) {
+  if (!(await trackingAllowed())) return;
+  const today = dayKey();
+  try {
+    await setDoc(doc(db, "analytics", today), { date: today, ...patch }, { merge: true });
+  } catch {
+    // best-effort
+  }
+}
+
+/** True the first time `key` is seen this browser session (so reloads and back-and-forth don't double count). */
+function firstThisSession(key: string): boolean {
+  try {
+    if (window.sessionStorage.getItem(key)) return false;
+    window.sessionStorage.setItem(key, "1");
+  } catch {
+    // storage unavailable: count it
+  }
+  return true;
+}
 
 export const funnelApi = {
   track: async (event: "view" | "add_to_cart" | "checkout_start" | "purchase") => {
-    if (inEditorPreview() || !consentAllows("analytics")) return;
-    const today = new Date().toISOString().split("T")[0];
-    const ref = doc(db, "analytics", today);
-    try {
-      // Write-only: visitors can't read the analytics figures (firestore.rules).
-      await setDoc(ref, { date: today, funnel: { [event]: increment(1) } }, { merge: true });
-    } catch {
-      // best-effort, never break checkout
-    }
+    await bump({ funnel: { [event]: increment(1) } });
   },
 
   trackCategory: async (categoryName: string) => {
-    if (!categoryName || inEditorPreview() || !consentAllows("analytics")) return;
-    const today = new Date().toISOString().split("T")[0];
-    const ref = doc(db, "analytics", today);
-    try {
-      const key = categoryName.toUpperCase().trim();
-      await setDoc(ref, { date: today, categoryViews: { [key]: increment(1) } }, { merge: true });
-    } catch {
-      // best-effort
-    }
+    const key = mapKey((categoryName || "").toUpperCase());
+    if (!key || inEditorPreview()) return;
+    await bump({ categoryViews: { [key]: increment(1) } });
+  },
+
+  /** Where this session came from and on what kind of screen — once per session, in its own write. */
+  trackSession: async () => {
+    if (typeof window === "undefined" || !firstThisSession(`fm_session_${dayKey()}`)) return;
+    let source = "direct";
+    try { source = mapKey((window.sessionStorage.getItem("referral_source") || "direct").toLowerCase()) || "direct"; } catch { /* direct */ }
+    await bump({ sources: { [source]: increment(1) }, devices: { [deviceOf(window.innerWidth)]: increment(1) } });
+  },
+
+  /** A product page opened — once per book per session. */
+  trackProductView: async (bookId: string) => {
+    if (!bookId || typeof window === "undefined" || !firstThisSession(`fm_bookview_${bookId}`)) return;
+    await bump({ bookViews: { [mapKey(bookId)]: increment(1) } });
+  },
+
+  /** What shoppers type into search, and whether it found anything. Personal-looking terms are never stored. */
+  trackSearch: async (rawTerm: string, resultCount: number) => {
+    const term = cleanSearchTerm(rawTerm);
+    if (!term || typeof window === "undefined") return;
+    const field = resultCount > 0 ? "searches" : "noResults";
+    if (!firstThisSession(`fm_search_${field}_${term}`)) return;
+    await bump({ [field]: { [term]: increment(1) } });
   },
 };

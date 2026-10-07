@@ -486,13 +486,21 @@ Orders list + detail, Overview, Books catalog, Discounts, Settings › General,
 Payments, Shipping (profiles/zones/rates + dialogs), Notifications (+ Inventory sync). `Dashboard.tsx` renders migrated pages
 outside the legacy wrapper via its `migrated` flag — add new ones there.
 
-**Overview layout** (`AnalyticsDashboard.tsx`): one period control → headline KPIs (revenue,
-orders, average order, conversion — all sales figures from paid, non-test orders via
-`overviewInsights.ts`) → "To do today" beside newest orders → trend chart → tabbed details
-(Sales · Stock · Readers & traffic). Keep new Overview content inside those groups.
-A **Ready to sell?** launch checklist (`launchReadiness.ts`, pure + tested) sits above "To do today" while any
-item is not green: payments/sandbox, private Stripe secret, published books missing price/photo/description,
-shipping profiles, sales-tax rates, store policies, last email delivery, and a first real paid order. Hidden once all pass.
+**Overview layout** (`AnalyticsDashboard.tsx`, panels in `Overview{Parts,Sales,Marketing,Customers,Stock}.tsx`):
+period control (+ Refresh) → compact **Ready to sell?** strip (`ReadinessStrip`; "N of M ready", only open checks listed,
+done ones under *Show completed*, hidden when all pass; `launchReadiness.ts` + `readinessProgress`) → two KPI rows → "To do today" beside
+newest orders → Revenue/Traffic chart (every day filled, *Compare with the period before*) → **Dig deeper** tabs
+Sales · Marketing & traffic · Customers · Stock. Keep new Overview content inside those groups.
+Everything sales-related (revenue net of partial refunds, orders, AOV, **conversion = paid orders ÷ visits**, chart revenue)
+comes from real paid non-test orders (`overviewInsights.ts`); the webhook-bumped `analytics.orders/revenue` are not read.
+Orders and traffic share calendar-day windows (`periodKeys`, UTC day keys like the `analytics/<date>` docs); all orders/books are
+loaded (`getAllOrders`, `getAllBooks`), traffic via `getDailyAnalytics` (400 days). Traffic maths is in `overviewTraffic.ts` (pure, tested).
+Marketing/Customers/Stock load carts and back-in-stock sign-ups only when opened.
+**Storefront signals** (`funnelApi` in `lib/commerce.ts`, guarded by `lib/trackingGuard.ts`: analytics consent, not Studio preview, not a signed-in
+admin): daily `analytics/<date>` docs get `increment()` merges for `visits`, `funnel`, `categoryViews` plus `sources`, `devices`
+(from `trackSession`), `bookViews` (`trackProductView`) and `searches`/`noResults` (`trackSearch`, personal-looking terms dropped via
+`cleanSearchTerm`). `firestore.rules` caps those maps and lets only the admin read `analytics`. **Deploy rules before the frontend.**
+New panels say "Not recorded yet" until data exists — never a made-up zero.
 
 **Not yet rebuilt** (still legacy markup, styled by the scoped compatibility layer in
 `theme.css` under `.admin-reso[data-admin-theme="reso"]`, which maps old dark utilities

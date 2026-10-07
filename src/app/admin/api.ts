@@ -774,7 +774,8 @@ export const adminApi = {
   },
 
   // ORDERS
-  getFulfillmentOrders: async () => {
+  // Every order, newest first, read in pages so nothing is cut off at a fixed count.
+  getAllOrders: async () => {
     const orders: any[] = [];
     let cursor: any = null;
     while (true) {
@@ -783,6 +784,11 @@ export const adminApi = {
       if (page.length < 200) break;
       cursor = page[page.length - 1]._lastDoc;
     }
+    return orders;
+  },
+
+  getFulfillmentOrders: async () => {
+    const orders = await adminApi.getAllOrders();
     const operations = await getDocs(collection(db, "order-operations"));
     const byId = new Map(operations.docs.map(d => [d.id, d.data()]));
     return orders.map(o => ({ ...o, operations: byId.get(o.id) || {} }));
@@ -1359,191 +1365,24 @@ export const adminApi = {
   },
 
   // ANALYTICS
+  // One counter bump per shopper session. `increment` is applied by Firestore itself, so two shoppers arriving at
+  // once can't overwrite each other's count (the old read-then-write could).
   recordVisit: async () => {
     const today = new Date().toISOString().split('T')[0];
-    const docRef = doc(db, "analytics", today);
     try {
-      // Write-only: visitors can't read the analytics figures (firestore.rules).
-      await setDoc(docRef, { date: today, visits: increment(1) }, { merge: true });
+      await setDoc(doc(db, "analytics", today), { date: today, visits: increment(1) }, { merge: true });
     } catch (e) {
       console.warn("Analytics failed", e);
     }
   },
 
-  getAnalytics: async () => {
-    const q = query(collection(db, "analytics"), orderBy("date", "desc"), limit(60));
-    const settingsRef = doc(db, "settings", "website");
-
-    // ⚡ Bolt Performance Optimization: Fetch all independent data concurrently
-    // Expected impact: Eliminates waterfall queries, loading analytics ~3-4x faster
-    const [snap, ordersSnap, booksSnap, settingsSnap] = await Promise.all([
-      getDocs(q),
-      getDocs(collection(db, "orders")),
-      getDocs(collection(db, "books")),
-      getDoc(settingsRef)
-    ]);
-
-    const dailyData = snap.docs.map(d => d.data()).reverse();
-    
-    // Also get top sellers from orders
-    // Paid, real orders only: unpaid checkouts and test orders must not inflate sales figures.
-    const orders = ordersSnap.docs.map(d => d.data()).filter((order: any) => order.isTest !== true && order.paymentStatus === "paid");
-
-    // Get all books to map IDs to categories and photos
-    const books = booksSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-    // Get website settings for categories configuration
-    const settings = settingsSnap.exists() ? settingsSnap.data() : {};
-    
-    // Get configured categories
-    const categoriesList = settings.design?.categories || ["PUBLICATIONS", "EPHEMERA", "IMPRINT", "OUT OF PRINT"];
-    
-    // Build book lookup map
-    const bookMap = new Map();
-    books.forEach((b: any) => {
-      bookMap.set(b.id, b);
-    });
-
-    // Time ranges for product trend calculation (e.g. 30 days vs previous 30 days)
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
-
-    const productStats: any = {};
-    orders.forEach((o: any) => {
-      const orderDate = new Date(o.createdAt);
-      const isCurrentPeriod = orderDate >= thirtyDaysAgo;
-      const isPreviousPeriod = orderDate >= sixtyDaysAgo && orderDate < thirtyDaysAgo;
-
-      o.items?.forEach((item: any) => {
-        const book = bookMap.get(item.id);
-        const photoUrl = item.photoUrl || book?.photos?.[0]?.url || "";
-        if (!productStats[item.id]) {
-          productStats[item.id] = { 
-            id: item.id, 
-            title: item.title || book?.title || "Unknown Book", 
-            sold: 0, 
-            revenue: 0, 
-            photoUrl,
-            currentPeriodSold: 0,
-            previousPeriodSold: 0
-          };
-        }
-        productStats[item.id].sold += item.quantity;
-        productStats[item.id].revenue += (item.quantity * item.price);
-
-        if (isCurrentPeriod) {
-          productStats[item.id].currentPeriodSold += item.quantity;
-        } else if (isPreviousPeriod) {
-          productStats[item.id].previousPeriodSold += item.quantity;
-        }
-      });
-    });
-
-    // Compute sales trend for each product
-    Object.values(productStats).forEach((p: any) => {
-      const current = p.currentPeriodSold;
-      const previous = p.previousPeriodSold;
-      if (previous === 0) {
-        p.trend = current > 0 ? "+100%" : "0%";
-      } else {
-        const pct = ((current - previous) / previous) * 100;
-        p.trend = `${pct >= 0 ? "+" : ""}${pct.toFixed(0)}%`;
-      }
-    });
-
-    // Process category stats
-    // Accumulate total views by category from daily analytics categoryViews
-    const categoryViewsAccum: Record<string, number> = {};
-    dailyData.forEach((d: any) => {
-      if (d.categoryViews) {
-        Object.entries(d.categoryViews).forEach(([cat, count]) => {
-          const formattedCat = cat.toUpperCase().trim();
-          categoryViewsAccum[formattedCat] = (categoryViewsAccum[formattedCat] || 0) + (count as number);
-        });
-      }
-    });
-
-    // Accumulate sales & revenue by category
-    const categorySalesAccum: Record<string, { sold: number; revenue: number }> = {};
-    orders.forEach((o: any) => {
-      o.items?.forEach((item: any) => {
-        const book = bookMap.get(item.id);
-        const itemCategories: string[] = book?.categories || book?.genres || [];
-        const cats = itemCategories.length > 0 ? itemCategories : ["PUBLICATIONS"];
-        
-        cats.forEach((cat: string) => {
-          const formattedCat = cat.toUpperCase().trim();
-          if (!categorySalesAccum[formattedCat]) {
-            categorySalesAccum[formattedCat] = { sold: 0, revenue: 0 };
-          }
-          categorySalesAccum[formattedCat].sold += item.quantity;
-          categorySalesAccum[formattedCat].revenue += (item.quantity * item.price);
-        });
-      });
-    });
-
-    // Compile dynamic categories list
-    const categoriesData = categoriesList.map((catItem: any) => {
-      const catName = typeof catItem === "string" ? catItem : catItem.name;
-      const key = (catName || "").toUpperCase().trim();
-      const views = categoryViewsAccum[key] || 0;
-      const sold = categorySalesAccum[key]?.sold || 0;
-      const revenue = categorySalesAccum[key]?.revenue || 0;
-      return {
-        name: catName,
-        views,
-        sold,
-        revenue
-      };
-    });
-
-    // Process referral source statistics from orders
-    const referralStats: Record<string, { name: string; ordersCount: number; revenue: number }> = {};
-    const dailyOrderStats: Record<string, { gross: number; net: number }> = {};
-
-    orders.forEach((o: any) => {
-      const source = (o.referralSource || "direct").trim().toLowerCase();
-      if (!referralStats[source]) {
-        referralStats[source] = {
-          name: source.charAt(0).toUpperCase() + source.slice(1),
-          ordersCount: 0,
-          revenue: 0
-        };
-      }
-      referralStats[source].ordersCount += 1;
-      referralStats[source].revenue += (o.total || 0);
-
-      // Process daily revenue curves
-      if (o.createdAt) {
-        const dateStr = o.createdAt.split("T")[0];
-        if (!dailyOrderStats[dateStr]) {
-          dailyOrderStats[dateStr] = { gross: 0, net: 0 };
-        }
-        dailyOrderStats[dateStr].gross += (o.subtotal || 0);
-        dailyOrderStats[dateStr].net += (o.total || 0);
-      }
-    });
-
-    const referralData = Object.values(referralStats).sort((a: any, b: any) => b.revenue - a.revenue);
-
-    // Merge gross and net revenue into dailyData
-    dailyData.forEach((d: any) => {
-      let dateKey = d.date || "";
-      if (dateKey.includes("T")) {
-        dateKey = dateKey.split("T")[0];
-      }
-      const stats = dailyOrderStats[dateKey] || { gross: 0, net: 0 };
-      d.grossRevenue = stats.gross || d.revenue || 0;
-      d.netRevenue = stats.net || d.revenue || 0;
-    });
-
-    return {
-      daily: dailyData,
-      topSellers: Object.values(productStats).sort((a: any, b: any) => b.revenue - a.revenue).slice(0, 5),
-      categories: categoriesData,
-      referrals: referralData
-    };
+  // The recorded daily traffic docs only (visits, funnel, sources, devices, searches, bookViews, categoryViews).
+  // Sales, categories and referrals are worked out from the orders and books the Overview already loads, so
+  // nothing is read twice and every figure comes from the same paid orders. 400 days covers a year plus a
+  // little of the block before it.
+  getDailyAnalytics: async (days = 400) => {
+    const snap = await getDocs(query(collection(db, "analytics"), orderBy("date", "desc"), limit(days)));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse();
   },
 
   // Audience signals for the Overview (admin-only reads per firestore.rules).
@@ -1556,6 +1395,12 @@ export const adminApi = {
       reviews: reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
       subscribers: subsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
     };
+  },
+
+  // "Notify me when back in stock" sign-ups (admin-only per firestore.rules): demand the Overview shows beside reprints.
+  getStockAlerts: async () => {
+    const snap = await getDocs(query(collection(db, "stockAlerts"), limit(2000)));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
 
   seedAnalyticsData: async () => {

@@ -6,6 +6,7 @@ import { Search, X } from "lucide-react";
 import { useCurrency } from "../../CurrencyContext";
 import { designNumber } from "./designNumber";
 import { getCopy } from "./storeCopy";
+import { funnelApi } from "../../lib/commerce";
 
 type Book = any;
 
@@ -91,6 +92,13 @@ export function SearchOverlay({
       .slice(0, Math.max(1, designNumber(design, "searchResultLimit", 8)))
       .map(x => x.book);
   }, [query, books, design]);
+
+  // Once shoppers stop typing, note what they looked for and whether it found anything (never stored with a name).
+  useEffect(() => {
+    if (!open || !query.trim()) return;
+    const t = setTimeout(() => { funnelApi.trackSearch(query, results.length); }, 1200);
+    return () => clearTimeout(t);
+  }, [open, query, results.length]);
 
   return (
     <AnimatePresence>
