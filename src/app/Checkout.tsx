@@ -6,7 +6,9 @@ import { liveCheckoutRates } from "./features/site/canadaPostRates";
 import { resolveSurfaceDesign } from "./features/site/surfaceDesign";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router";
-import { useCart, catalogUnitPrice } from "./CartContext";
+import { useCart, catalogUnitPrice, repriceCart } from "./CartContext";
+import { amountIn, orderMoney } from "./features/site/orderMoney";
+import { POLICY_KEYS, policySlug, policyTitle } from "./features/site/policyPages";
 import {
   ChevronLeft, Tag, ShieldCheck, X, AlertCircle,
   Package, Truck, CheckCircle2, Loader2, Lock, Building, Check
@@ -227,6 +229,7 @@ export function Checkout() {
   const [settings, setSettings] = useState<any>(() => cachedSite?.settings || null);
   // Until the saved settings arrive (or if they never do) checkout wears the Riso Noir defaults.
   const checkoutDesign = resolveSurfaceDesign(settings?.design ?? DEFAULT_SETTINGS.design, "/checkout");
+  const checkoutPolicies = POLICY_KEYS.filter(k => Boolean(String((settings as any)?.policies?.[k] || "").trim()));
   useEffect(() => { if (settings?.design?.checkoutSummaryOpenOnPhones) setSummaryOpen(true); }, [settings?.design?.checkoutSummaryOpenOnPhones]);
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(checkoutDesign, key, vars);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("stripe");
@@ -1835,6 +1838,18 @@ export function Checkout() {
                 <ShieldCheck size={16} className="mt-0.5 shrink-0" style={{ color: "var(--success)" }} />
                 <p>{c("coPrivacyNote")}</p>
               </div>
+              {!checkoutDesign.hideCheckoutPolicyLinks && checkoutPolicies.length > 0 && (
+                // Card networks and PayPal expect the refund/terms policies to be visible where shoppers pay.
+                <p data-studio-target="copy:Checkout|style:checkout" data-studio-label="Checkout policy links" className="mt-3 text-center text-xs leading-5 text-slate-500">
+                  {c("coPolicyAgree")}{" "}
+                  {checkoutPolicies.map((k, i) => (
+                    <span key={k}>
+                      {i > 0 && (i === checkoutPolicies.length - 1 ? ` ${c("coPolicyAnd")} ` : ", ")}
+                      <Link to={`/page/${policySlug(k)}`} target="_blank" rel="noopener" className="underline underline-offset-2 hover:text-slate-900">{policyTitle(checkoutDesign, k)}</Link>
+                    </span>
+                  ))}
+                </p>
+              )}
             </div>
 
             <footer className="flex flex-wrap justify-center gap-x-5 gap-y-2 border-t border-slate-200 pt-6 text-xs text-slate-500">

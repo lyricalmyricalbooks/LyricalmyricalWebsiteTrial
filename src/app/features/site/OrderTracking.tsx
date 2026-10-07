@@ -51,6 +51,21 @@ export default function OrderTracking() {
     checkDigitalAssets();
   }, [order]);
 
+  // The "Unsubscribe" link in reminder emails lands here: ?unsubscribe=1&e=…&t=…
+  const [unsubscribe, setUnsubscribe] = useState<"" | "working" | "done" | "failed">("");
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("unsubscribe") !== "1") return;
+    setUnsubscribe("working");
+    functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "unsubscribe", email: params.get("e") || "", token: params.get("t") || "" }),
+    })
+      .then(response => setUnsubscribe(response.ok ? "done" : "failed"))
+      .catch(() => setUnsubscribe("failed"));
+  }, []);
+
   // Email links carry ?orderId=…&key=…: a matching key opens the order straight away;
   // otherwise the order number is filled in and the customer confirms their email.
   useEffect(() => {
@@ -224,6 +239,12 @@ export default function OrderTracking() {
                 <h1 className="fm-track-display text-5xl sm:text-6xl">{getCopy(settings?.design, "trackTitle")}</h1>
                 <p className="mt-4 text-base leading-7 fm-muted">{getCopy(settings?.design, "trackSubtitle")}</p>
               </div>
+              {unsubscribe && (
+                <div className="fm-track-notice mb-6" data-tone={unsubscribe === "failed" ? "danger" : undefined} role="status"
+                  data-studio-target="copy:Order tracking" data-studio-label="Unsubscribe message">
+                  <p>{getCopy(settings?.design, unsubscribe === "working" ? "trackUnsubWorking" : unsubscribe === "done" ? "trackUnsubDone" : "trackUnsubFailed")}</p>
+                </div>
+              )}
               <form onSubmit={handleTrack} className="fm-track-card p-6 sm:p-8 space-y-5">
                 <label className="block space-y-2">
                   <span className="fm-track-mono block">{getCopy(settings?.design, "trackOrderLabel")}</span>

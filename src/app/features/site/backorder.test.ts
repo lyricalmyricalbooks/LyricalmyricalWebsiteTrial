@@ -25,3 +25,14 @@ describe("applyBackorderPolicy", () => {
     expect(b.stockLevel).toBe(999);
   });
 });
+
+describe("older books with no inventory setting", () => {
+  it("are not shown sold out at stock 0, because the shop doesn't count their stock", () => {
+    const out: any = applyBackorderPolicy({ id: "old", stockLevel: 0 } as any);
+    expect(out.stockLevel).toBe(999);
+  });
+  it("tracked books at 0 stay sold out", () => {
+    const out: any = applyBackorderPolicy({ id: "t", trackInventory: true, stockLevel: 0 } as any);
+    expect(out.stockLevel).toBe(0);
+  });
+});

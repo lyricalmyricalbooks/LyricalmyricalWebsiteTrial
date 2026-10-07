@@ -16,7 +16,7 @@ describe("order fulfillment states", () => {
 });
 
 describe("orders CSV export", () => {
-  const base = { createdAt: "2026-09-20", customer: { name: 'Ada "The" Lovelace,\nJr', email: "a@x.com" }, status: "open", subtotal: 10, shipping: 5, total: 15, items: [{}, {}] };
+  const base = { createdAt: "2026-09-20", paymentStatus: "paid", customer: { name: 'Ada "The" Lovelace,\nJr', email: "a@x.com" }, status: "open", subtotal: 10, shipping: 5, total: 15, items: [{}, {}] };
 
   it("never exports marked test orders", () => {
     const csv = orderApi.exportToCsv([{ ...base, orderId: "LM-1" }, { ...base, orderId: "LM-TEST", isTest: true }]);
@@ -29,5 +29,26 @@ describe("orders CSV export", () => {
     const dataRow = csv.split("\n").slice(1).join("\n");
     expect(dataRow).not.toContain('"The"');
     expect(dataRow.split("\n")).toHaveLength(1);
+  });
+
+  it("exports paid and refunded orders with tax, payment and currency columns", () => {
+    const csv = orderApi.exportToCsv([
+      { ...base, orderId: "LM-USD", tax: 1.3, paymentMethod: "Stripe", checkoutCurrency: "USD", exchangeRate: 0.7, customer: { ...base.customer, address: { country: "Canada", state: "ON", zip: "M5V" } } },
+      { ...base, orderId: "LM-ABANDONED", paymentStatus: "unpaid" },
+      { ...base, orderId: "LM-REF", paymentStatus: "refunded", refundedAt: "2026-09-21", refund: { amount: 15, currency: "CAD" } },
+    ]);
+    const [header, ...rows] = csv.split("\n");
+    expect(header).toContain('"Tax"');
+    expect(header).toContain('"PaymentStatus"');
+    expect(header).toContain('"Province"');
+    expect(csv).not.toContain("LM-ABANDONED");
+    expect(rows.find(r => r.includes("LM-USD"))).toContain('"10.50"');
+    expect(rows.find(r => r.includes("LM-REF"))).toContain('"2026-09-21"');
+  });
+
+  it("includes unpaid orders only when asked, and never runs cells as formulas", () => {
+    const csv = orderApi.exportToCsv([{ ...base, orderId: "LM-U", paymentStatus: "unpaid", customer: { name: "=HYPERLINK(1)", email: "a@x.com" } }], { paidOnly: false });
+    expect(csv).toContain("LM-U");
+    expect(csv).toContain(`"'=HYPERLINK(1)"`);
   });
 });

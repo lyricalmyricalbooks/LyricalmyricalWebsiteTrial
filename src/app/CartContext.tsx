@@ -157,7 +157,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const addToCart = (product: any, variant?: any, quantity: number = 1) => {
     const stockLimit = variant ? (variant.stockLevel ?? variant.stock) : product.stockLevel;
-    if (stockLimit === 0) return;
+    if (typeof stockLimit === "number" && stockLimit <= 0) return;
     const price = catalogUnitPrice(product, variant);
     // A book with no usable price can't be charged; never put a NaN line in the bag.
     if (!Number.isFinite(price) || price < 0) return;

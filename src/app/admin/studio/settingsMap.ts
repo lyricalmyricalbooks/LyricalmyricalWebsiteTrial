@@ -136,7 +136,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Total & checkout button", keys: ["cartDrawerShowSummary", "cartDrawerTotalSize", "showCartTrustBadges", "cartDrawerCheckoutBg", "cartDrawerCheckoutText", "cartDrawerCheckoutHeight", "cartDrawerCheckoutShadow", "cartDrawerShowCheckoutArrow", "cartDrawerShowDeliveryNote"] },
   ],
   checkout: [
-    { title: "What shoppers see", keys: ["showOrderNote", "hideAddressSuggestions", "checkoutPinnedCountries", "hideCountryFlags", "checkoutSummaryOpenOnPhones", "hidePayButtonTotal", "alwaysShowDiscountBox", "hideCheckoutFreeShipNudge", "hideCheckoutLowStock"] },
+    { title: "What shoppers see", keys: ["showOrderNote", "hideAddressSuggestions", "checkoutPinnedCountries", "hideCountryFlags", "checkoutSummaryOpenOnPhones", "hidePayButtonTotal", "alwaysShowDiscountBox", "hideCheckoutFreeShipNudge", "hideCheckoutLowStock", "hideCheckoutPolicyLinks"] },
     { title: "Colours", keys: ["checkoutAccentColor", "checkoutBgColor"] },
     { title: "Fonts & form fields", keys: ["checkoutHeadingFont", "checkoutFont", "checkoutFieldFont", "checkoutFieldBg", "checkoutFieldText", "checkoutFieldBorder", "checkoutInputRadius"] },
     { title: "Card payment form", keys: ["stripeFormBg", "stripeFormPadding"] },

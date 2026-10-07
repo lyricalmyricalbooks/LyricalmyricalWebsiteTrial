@@ -37,6 +37,7 @@ type NotificationSettings = {
     resendApiKeyStored?: boolean;
   };
   order_confirmation: TemplateFields;
+  order_pending_payment: TemplateFields;
   shipping_confirmation: TemplateFields;
   abandoned_cart: TemplateFields;
   order_cancelled: TemplateFields;
@@ -56,6 +57,13 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   order_confirmation: {
     subject: "Order confirmed: {{order_id}}",
     body: "Hi {{customer_name}},\n\nThank you for your purchase! We've received your order and are preparing it for shipment. We will send you another email when it has shipped.",
+    buttonText: "View your order",
+    signoff: "Thanks,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
+  order_pending_payment: {
+    subject: "Order received — payment needed: {{order_id}}",
+    body: "Hi {{customer_name}},\n\nThank you for your order! It is reserved for you, but it is not paid yet. Please pay {{total_price}} by {{payment_method}} using the instructions below. We'll confirm by email as soon as your payment arrives and then prepare your order.",
     buttonText: "View your order",
     signoff: "Thanks,\nThe Lyricalmyrical Team",
     enabled: true
@@ -113,6 +121,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 
 const TABS = [
   { id: "order_confirmation", label: "Order Paid" },
+  { id: "order_pending_payment", label: "Awaiting Payment" },
   { id: "shipping_confirmation", label: "Order Shipped" },
   { id: "abandoned_cart", label: "Abandoned Cart" },
   { id: "order_cancelled", label: "Order Cancelled" },
@@ -137,6 +146,7 @@ function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand"
     .replace(/\{\{tracking_carrier\}\}/g, "Canada Post")
     .replace(/\{\{tracking_number\}\}/g, "123456789012")
     .replace(/\{\{total_price\}\}/g, "45.00")
+    .replace(/\{\{payment_method\}\}/g, "Interac e-Transfer")
     .replace(/\{\{email\}\}/g, "julianne.smith@gmail.com")
     .replace(/\{\{status\}\}/g, "out for delivery")
     .replace(/\{\{subject\}\}/g, "Stocking your books")
@@ -151,7 +161,7 @@ function compilePreviewHtml(templateId: keyof Omit<NotificationSettings, "brand"
   const ctaButtonHtml = buttonText ? risoButton("#", buttonText, brandColor, brand.emailTheme) : "";
 
   let itemsTableHtml = "";
-  if (templateId === "order_confirmation" || templateId === "abandoned_cart") {
+  if (templateId === "order_confirmation" || templateId === "order_pending_payment" || templateId === "abandoned_cart") {
     itemsTableHtml = `
       <div style="margin: 30px 0; border-top: 1px solid #eeeeee; padding-top: 20px;">
         <h4 style="margin-top: 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #888888;">Order Details</h4>
@@ -234,6 +244,7 @@ export function NotificationEditor() {
         const loaded = {
           brand: { ...DEFAULT_SETTINGS.brand, ...(dbData.brand || {}) },
           order_confirmation: { ...DEFAULT_SETTINGS.order_confirmation, ...(dbData.order_confirmation || {}) },
+          order_pending_payment: { ...DEFAULT_SETTINGS.order_pending_payment, ...(dbData.order_pending_payment || {}) },
           shipping_confirmation: { ...DEFAULT_SETTINGS.shipping_confirmation, ...(dbData.shipping_confirmation || {}) },
           abandoned_cart: { ...DEFAULT_SETTINGS.abandoned_cart, ...(dbData.abandoned_cart || {}) },
           order_cancelled: { ...DEFAULT_SETTINGS.order_cancelled, ...(dbData.order_cancelled || {}) },
@@ -364,6 +375,7 @@ export function NotificationEditor() {
 
   const placeholders = {
     order_confirmation: ["{{customer_name}}", "{{order_id}}", "{{order_url}}", "{{items_table}}", "{{total_price}}", "{{shipping_method}}", "{{delivery_estimate}}"],
+    order_pending_payment: ["{{customer_name}}", "{{order_id}}", "{{total_price}}", "{{payment_method}}", "{{items_table}}"],
     shipping_confirmation: ["{{customer_name}}", "{{order_id}}", "{{tracking_carrier}}", "{{tracking_number}}", "{{tracking_url}}"],
     abandoned_cart: ["{{customer_name}}", "{{cart_url}}", "{{items_table}}"],
     order_cancelled: ["{{customer_name}}", "{{order_id}}"],

@@ -31,6 +31,8 @@ const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoP
 const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shippingGeo");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck } = require("./stripeRecovery");
+const { orderMoneyFmt } = require("./emailMoney");
+const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { hitLimit, LIMITS } = require("./rateLimit");
@@ -247,7 +249,22 @@ function moneyFmt(n) {
   return `$${Number(n || 0).toFixed(2)}`;
 }
 
-function orderRowsHtml(items = []) {
+// The customer's items + totals table, in the currency they paid.
+function customerTotalsTable(order) {
+  const m = v => orderMoneyFmt(v, order);
+  return `
+        <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:13px;">
+          ${orderRowsHtml(order.items, order)}
+          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${m(order.subtotal)}</td></tr>
+          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${m(order.shipping)}</td></tr>
+          ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${m(order.tax)}</td></tr>` : ""}
+          ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">Discount</td><td style="text-align:right;color:#0a7;">−${m(order.discount)}</td></tr>` : ""}
+          <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${m(order.total)}</td></tr>
+        </table>
+      `;
+}
+
+function orderRowsHtml(items = [], order = null) {
   return items
     .map(
       i => `
@@ -256,7 +273,7 @@ function orderRowsHtml(items = []) {
           ${escapeHtml(i.title)}${i.variantName ? ` <span style="color:#888;">(${escapeHtml(i.variantName)})</span>` : ""}
         </td>
         <td style="padding:12px 0;border-bottom:1px solid #eee;text-align:right;color:#888;">×${i.quantity}</td>
-        <td style="padding:12px 0;border-bottom:1px solid #eee;text-align:right;">${moneyFmt(i.price * i.quantity)}</td>
+        <td style="padding:12px 0;border-bottom:1px solid #eee;text-align:right;">${order ? orderMoneyFmt(i.price * i.quantity, order) : moneyFmt(i.price * i.quantity)}</td>
       </tr>`,
     )
     .join("");
@@ -279,6 +296,7 @@ async function sendEmail({ to, subject, html, secret }) {
   let fromEmail = "orders@lyricalmyricalbooks.com";
   let replyTo = null;
   let brand = {};
+  let mailingAddress = "";
 
   try {
     const settingsDoc = await db.collection("settings").doc("website").get();
@@ -289,6 +307,7 @@ async function sendEmail({ to, subject, html, secret }) {
       if (comms.replyTo) replyTo = comms.replyTo;
       if (comms.fromEmail) fromEmail = comms.fromEmail;
       if (comms.resendApiKey) { apiKey = comms.resendApiKey; keySource = "settings"; }
+      mailingAddress = footerAddress(settings.location);
     }
   } catch (err) {
     console.warn("Failed to load custom sender details, using default fallbacks:", err);
@@ -312,6 +331,8 @@ async function sendEmail({ to, subject, html, secret }) {
 
   if (typeof apiKey === "string") apiKey = apiKey.trim();
   const recipients = Array.isArray(to) ? to.join(", ") : String(to || "");
+  // Every email footer carries the shop's postal address (Settings › General › Location).
+  const withFooter = doc => mailingAddress && doc ? doc.replace("<!--fm-footer-extra-->", ` &middot; ${escapeHtml(mailingAddress)}`) : doc;
 
   // Gmail SMTP is the primary sender while the shop has no verified domain in Resend. Gmail
   // always sends from the authenticated account, so customers get real inbox delivery.
@@ -333,7 +354,7 @@ async function sendEmail({ to, subject, html, secret }) {
         from: `"${String(fromName).replace(/"/g, "")}" <${ADMIN_TO}>`,
         to,
         subject,
-        html,
+        html: withFooter(html),
         replyTo: replyTo || undefined,
       });
       await logEmailAttempt({ to: recipients, subject: String(subject || ""), status: "sent", from: ADMIN_TO, keySource: "gmail", id: info.messageId || null });
@@ -370,7 +391,7 @@ async function sendEmail({ to, subject, html, secret }) {
     from: `${fromName} <${fromAddress}>`,
     to,
     subject,
-    html,
+    html: withFooter(html),
     replyTo: replyTo || undefined
   }).catch(err => ({ data: null, error: { message: err?.message || String(err) } }));
 
@@ -1238,6 +1259,15 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       } catch (err) {
         return res.status(400).json({ error: err.message });
       }
+    }
+
+    // One-click unsubscribe from marketing email (the link in abandoned-cart reminders).
+    if (req.body?.action === "unsubscribe") {
+      const email = normMarketingEmail(req.body.email);
+      const key = (await readAdminSecret("marketing")).unsubscribeKey;
+      if (!email || !tokenMatches(email, String(req.body.token || ""), key)) return res.status(400).json({ error: "invalid_link" });
+      await db.collection("marketing-optout").doc(optOutId(email)).set({ at: new Date().toISOString(), source: "email-link" });
+      return res.status(200).json({ unsubscribed: true });
     }
 
     // A $0 order (100% discount, free e-book): priced here from the catalog, and completed
@@ -2603,6 +2633,13 @@ const DEFAULT_NOTIFICATIONS = {
     signoff: "Best,\nThe Lyricalmyrical Team",
     enabled: true
   },
+  order_pending_payment: {
+    subject: "Order received — payment needed: {{order_id}}",
+    body: "Hi {{customer_name}},\n\nThank you for your order! It is reserved for you, but it is not paid yet. Please pay {{total_price}} by {{payment_method}} using the instructions below. We'll confirm by email as soon as your payment arrives and then prepare your order.",
+    buttonText: "View your order",
+    signoff: "Thanks,\nThe Lyricalmyrical Team",
+    enabled: true
+  },
   order_refunded: {
     subject: "Order refunded: {{order_id}}",
     body: "Hi {{customer_name}},\n\nWe have successfully refunded CA${{total_price}} for your order. The funds should return to your original payment method in 5-10 business days.",
@@ -2884,16 +2921,7 @@ exports.onOrderUpdated = onDocumentUpdated(
         `;
       }
 
-      const itemsTable = `
-        <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:13px;">
-          ${orderRowsHtml(order.items)}
-          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${moneyFmt(order.subtotal)}</td></tr>
-          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${moneyFmt(order.shipping)}</td></tr>
-          ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${moneyFmt(order.tax)}</td></tr>` : ""}
-          ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">Discount</td><td style="text-align:right;color:#0a7;">−${moneyFmt(order.discount)}</td></tr>` : ""}
-          <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${moneyFmt(order.total)}</td></tr>
-        </table>
-      `;
+      const itemsTable = customerTotalsTable(order);
 
       let paymentConfirmedSection = "";
       if (order.paymentMethod && order.paymentMethod !== "Stripe" && order.paymentMethod !== "PayPal") {
@@ -2920,7 +2948,7 @@ exports.onOrderUpdated = onDocumentUpdated(
         order_url: await trackUrl(),
         button_url: await trackUrl(),
         items_table: itemsTable,
-        total_price: moneyFmt(order.total)
+        total_price: orderMoneyFmt(order.total, order)
       }, combinedSection);
 
       const adminOrderUrl = siteLink(`/admin#orders/${orderId}`);
@@ -3168,6 +3196,17 @@ exports.dailyOrderDigest = onSchedule(
   }
 );
 
+// Secret for signing unsubscribe links, created once and kept server-only in adminSecrets.
+async function marketingUnsubscribeKey() {
+  const ref = db.collection("adminSecrets").doc("marketing");
+  const snap = await ref.get();
+  const existing = snap.exists ? String(snap.data()?.unsubscribeKey || "") : "";
+  if (existing.length >= 32) return existing;
+  const key = crypto.randomBytes(32).toString("hex");
+  await ref.set({ unsubscribeKey: key }, { merge: true });
+  return key;
+}
+
 const ABANDONED_CART_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const ABANDONED_CART_THROTTLE_MS = 3 * 24 * 60 * 60 * 1000;
 const ABANDONED_CART_MAX_ITEMS = 20;
@@ -3176,6 +3215,9 @@ exports.abandonedCartSweep = onSchedule(
   { schedule: "every 60 minutes", secrets: [RESEND_API_KEY] },
   async () => {
     const notificationSettings = await loadNotificationSettings();
+    // Settings › Notifications › Abandoned Cart can switch these reminders off.
+    if (notificationSettings.abandoned_cart?.enabled === false) return;
+    const unsubscribeKey = await marketingUnsubscribeKey();
     const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const snap = await db
       .collection("abandoned-carts")
@@ -3199,6 +3241,8 @@ exports.abandonedCartSweep = onSchedule(
       const c = doc.data();
       const email = String(c.email || "").trim().toLowerCase();
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+      // Someone who unsubscribed never gets another reminder.
+      if ((await db.collection("marketing-optout").doc(optOutId(email)).get()).exists) return;
 
       const lines = [];
       for (const item of (Array.isArray(c.items) ? c.items : []).slice(0, ABANDONED_CART_MAX_ITEMS)) {
@@ -3248,12 +3292,13 @@ exports.abandonedCartSweep = onSchedule(
       `;
 
       const cartUrl = siteLink(`/checkout?cartId=${doc.id}`);
+      const unsubscribeUrl = siteLink(`/track?unsubscribe=1&e=${encodeURIComponent(normMarketingEmail(email))}&t=${unsubscribeToken(email, unsubscribeKey)}`);
       const compiled = compileEmailTemplate("abandoned_cart", notificationSettings, {
         customer_name: String(c.customer?.name || c.name || "there").slice(0, 80),
         cart_url: cartUrl,
         button_url: cartUrl,
         items_table: itemsTable
-      });
+      }, `<p style="margin-top:28px;font-size:11px;color:#888;">Don't want reminders like this? <a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe</a>.</p>`);
 
       try {
         await sendEmail({
@@ -4027,17 +4072,8 @@ exports.onOrderCreated = onDocumentCreated(
     }
 
     // 2. Customer Email: Send "Order Received (Pending Payment)" confirmation email if order was placed via manual payment method (i.e. starts as "pending")
-    if (order.paymentStatus === "pending") {
-      const itemsTable = `
-        <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:13px;">
-          ${orderRowsHtml(order.items)}
-          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Subtotal</td><td style="text-align:right;">${moneyFmt(order.subtotal)}</td></tr>
-          <tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Shipping</td><td style="text-align:right;">${moneyFmt(order.shipping)}</td></tr>
-          ${order.tax ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#666;">Tax</td><td style="text-align:right;">${moneyFmt(order.tax)}</td></tr>` : ""}
-          ${order.discount ? `<tr><td colspan="2" style="padding:8px 0;text-align:right;color:#0a7;">Discount</td><td style="text-align:right;color:#0a7;">−${moneyFmt(order.discount)}</td></tr>` : ""}
-          <tr><td colspan="2" style="padding:12px 0;text-align:right;font-weight:bold;">Total</td><td style="text-align:right;font-weight:bold;">${moneyFmt(order.total)}</td></tr>
-        </table>
-      `;
+    if (order.paymentStatus === "pending" && notificationSettings.order_pending_payment?.enabled !== false) {
+      const itemsTable = customerTotalsTable(order);
 
       // Instructions come from the shop's own settings, never from the order
       // document (which a browser can write), so nobody can make the shop email
@@ -4056,18 +4092,20 @@ exports.onOrderCreated = onDocumentCreated(
         `;
       }
 
-      const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
+      // Not paid yet: its own template, so the customer isn't told the order is paid for.
+      const compiled = compileEmailTemplate("order_pending_payment", notificationSettings, {
         customer_name: order.customer.name || "there",
         order_id: order.orderId || orderId,
+        payment_method: order.paymentMethod || "",
         button_url: await orderTrackUrl(orderId, order),
         items_table: itemsTable,
-        total_price: moneyFmt(order.total)
+        total_price: orderMoneyFmt(order.total, order)
       }, additionalSection);
 
       try {
         await sendEmail({
           to: order.customer.email,
-          subject: `Order Received (Pending Payment) - #${order.orderId || orderId}`,
+          subject: compiled.subject,
           html: compiled.html,
           secret: RESEND_API_KEY.value(),
         });

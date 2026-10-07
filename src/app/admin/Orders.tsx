@@ -160,7 +160,8 @@ export function Orders({
       toast.error("Nothing to export");
       return;
     }
-    const csv = orderApi.exportToCsv(list);
+    // Rows the admin ticked are exported as they are; a whole list keeps only paid/refunded orders.
+    const csv = orderApi.exportToCsv(list, { paidOnly: selected.size === 0 });
     orderApi.downloadCsv(
       `orders-${new Date().toISOString().split("T")[0]}.csv`,
       csv,

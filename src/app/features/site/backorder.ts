@@ -12,9 +12,10 @@ const UNLIMITED = 999;
 export function applyBackorderPolicy<T extends Partial<Book>>(book: T): T {
   const b = book as any;
   if (!b) return book;
-  // "Track inventory" switched off: stock isn't counted (the server never checks it),
-  // so the editor's untouched 0 must not show the book as SOLD OUT.
-  if (b.trackInventory === false) {
+  // "Track inventory" off — or never set on an older book, which the admin shows as
+  // "Not tracked": stock isn't counted (the server never checks it), so an untouched 0
+  // must not show the book as SOLD OUT.
+  if (!b.trackInventory) {
     return {
       ...b,
       stockLevel: UNLIMITED,
