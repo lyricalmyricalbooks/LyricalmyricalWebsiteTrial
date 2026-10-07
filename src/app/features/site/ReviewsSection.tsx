@@ -65,7 +65,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
   async function load() {
     setLoading(true);
     try {
-      const list = await reviewsApi.list(bookId);
+      const list = await reviewsApi.listApproved(bookId);
       setReviews(list);
     } catch {
       setReviews([]);

@@ -1,6 +1,5 @@
 import {
   collection,
-  addDoc,
   getDocs,
   query,
   where,
@@ -31,8 +30,21 @@ export type Review = {
 
 // Older reviews kept the email on the public document; moved once per admin session.
 let legacyEmailsMoved = false;
+// The product page (for search markup) and its reviews section read the same approved list;
+// share one request per book for a short while instead of reading it twice.
+const approvedCache = new Map<string, { at: number; promise: Promise<Review[]> }>();
+const clearApprovedCache = () => approvedCache.clear();
 
 export const reviewsApi = {
+  listApproved: (bookId: string): Promise<Review[]> => {
+    const hit = approvedCache.get(bookId);
+    if (hit && Date.now() - hit.at < 30_000) return hit.promise;
+    const promise = reviewsApi.list(bookId, false);
+    approvedCache.set(bookId, { at: Date.now(), promise });
+    promise.catch(() => approvedCache.delete(bookId));
+    return promise;
+  },
+
   list: async (bookId: string, includePending = false): Promise<Review[]> => {
     const base = collection(db, "reviews");
     const q = includePending
@@ -60,6 +72,7 @@ export const reviewsApi = {
     const cleanEmail = String(email || "").trim().slice(0, 254);
     if (cleanEmail) batch.set(doc(db, "reviewContacts", ref.id), { email: cleanEmail, createdAt });
     await batch.commit();
+    clearApprovedCache();
     return { id: ref.id, ...payload };
   },
 
@@ -92,15 +105,18 @@ export const reviewsApi = {
 
   setStatus: async (id: string, status: Review["status"]) => {
     await updateDoc(doc(db, "reviews", id), { status });
+    clearApprovedCache();
   },
 
   setReply: async (id: string, body: string) => {
     const text = body.trim().slice(0, 1000);
     await updateDoc(doc(db, "reviews", id), { reply: text ? { body: text, at: new Date().toISOString() } : null });
+    clearApprovedCache();
   },
 
   remove: async (id: string) => {
     await deleteDoc(doc(db, "reviews", id));
+    clearApprovedCache();
   },
 
   aggregate: async (bookId: string): Promise<{ count: number; average: number }> => {

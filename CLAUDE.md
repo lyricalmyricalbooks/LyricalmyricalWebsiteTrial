@@ -794,6 +794,8 @@ on the order). Both checks run in `fetchValidDiscount` / both checkout paths; to
 
 ## Crawlable public HTML
 
+**Rich results (October 2026):** pages emit one JSON-LD `@graph` — home BookStore+WebSite, book Product/Book + breadcrumb + star rating from approved reviews only (`reviewsApi.listApproved`, shared with the reviews section), collection CollectionPage/ItemList, page breadcrumbs (`lib/bookSeo.ts`, `docs/SEO_CRAWLABILITY.md`). The sitemap lists book photos as `image:image`.
+
 Production builds render the public sitemap into real HTML route documents via
 `scripts/prerender-storefront.mjs` (see `docs/SEO_CRAWLABILITY.md`). Home, book,
 custom-page and collection routes use the actual published storefront DOM;
