@@ -890,3 +890,19 @@ with the oldest order that needs work opened automatically and finishing an orde
 previous `Orders` table (bulk packing, pick lists, CSV). Email links `/admin#orders/<id>` still open that order.
 The packing checklist shows each book's current cover and **Shelf location** (Books › edit › Inventory, `shelfLocation`,
 per edition when set; `packingInfo` in `fulfillment.ts`). Books are public-readable, so the shelf code is too.
+
+## reCAPTCHA / App Check
+
+Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebase.ts.
+Use functionFetch from src/app/lib/functionsBase.ts for every browser HTTP Function
+request and onBrowserRequest in functions/index.js for its server handler. Keep signed
+provider webhooks and emailed digital-download links outside browser attestation.
+APP_CHECK_MODE defaults to monitor; enforce only after registering the public site key,
+verifying traffic, and completing the rollout in docs/RECAPTCHA.md. Direct Firestore
+protection requires separate Firebase App Check console enforcement. Verification
+failure copy lives in Studio > Text & labels > Site & sharing. Tokens, debug credentials
+and provider diagnostics must never be logged or saved to public settings.
+
+**Maximum discount cap (7 October 2026):** Discounts › New/Edit › **Maximum discount (CA$)** (`maxDiscountAmount`, blank = no cap)
+limits what one code can take off an order ("20% off, up to $15"). The server enforces it in `computeDiscountAmount`
+(`capDiscountAmount`, `functions/index.js`); `Checkout.tsx` mirrors it for display only. Shown as a **Max … off** badge in the list.

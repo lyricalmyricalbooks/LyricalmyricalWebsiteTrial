@@ -14,7 +14,7 @@ import {
 import { motion } from "motion/react";
 import { adminApi } from "./admin/api";
 import { abandonedCartApi, funnelApi } from "./lib/commerce";
-import { functionUrl } from "./lib/functionsBase";
+import { functionFetch } from "./lib/functionsBase";
 import { useSEO } from "./lib/seo";
 import { useCurrency } from "./CurrencyContext";
 import { COUNTRIES } from "./features/site/shippingZones";
@@ -676,7 +676,7 @@ export function Checkout() {
     const delayDebounce = setTimeout(async () => {
       setShippoRatesLoading(true);
       try {
-        const res = await fetch(functionUrl("getShippoRates"), {
+        const res = await functionFetch("getShippoRates", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -741,6 +741,8 @@ export function Checkout() {
   // Measured impact: prevents O(N*M) and O(N log N) calculations when typing in checkout inputs
   const discountAmount = useMemo(() => {
     if (!appliedDiscount) return 0;
+    const cap = Number(appliedDiscount.maxDiscountAmount);
+    const capped = (amount: number) => (cap > 0 && amount > cap ? cap : amount);
     
     // Calculate qualifying subtotal and qualifying items list
     const { qualifyingSubtotal, qualifyingItems } = (() => {
@@ -768,10 +770,10 @@ export function Checkout() {
     })();
 
     if (appliedDiscount.type === "percentage") {
-      return qualifyingSubtotal * (Number(appliedDiscount.value) / 100);
+      return capped(qualifyingSubtotal * (Number(appliedDiscount.value) / 100));
     }
     if (appliedDiscount.type === "fixed") {
-      return Math.min(Number(appliedDiscount.value), qualifyingSubtotal);
+      return capped(Math.min(Number(appliedDiscount.value), qualifyingSubtotal));
     }
     if (appliedDiscount.type === "bogo") {
       const buyQty = Number(appliedDiscount.buyQuantity) || 1;
@@ -800,7 +802,7 @@ export function Checkout() {
         discountAmount += price * (getVal / 100);
       });
 
-      return discountAmount;
+      return capped(discountAmount);
     }
     if (appliedDiscount.type === "tiered") {
       const tiers = appliedDiscount.tiers || [];
@@ -812,9 +814,9 @@ export function Checkout() {
 
       const val = Number(matchingTier.value);
       if (matchingTier.type === "percentage") {
-        return qualifyingSubtotal * (val / 100);
+        return capped(qualifyingSubtotal * (val / 100));
       } else if (matchingTier.type === "fixed") {
-        return Math.min(val, qualifyingSubtotal);
+        return capped(Math.min(val, qualifyingSubtotal));
       }
     }
     return 0;
@@ -1032,7 +1034,7 @@ export function Checkout() {
       // shipping address, and local delivery uses its configured postal zone.
       let addressVerified = fulfillmentSelection.method !== "shipping" || digitalOnly;
       let addressError = "";
-      const valResponse = fulfillmentSelection.method === "shipping" && !digitalOnly ? await fetch(functionUrl("validateAddress"), {
+      const valResponse = fulfillmentSelection.method === "shipping" && !digitalOnly ? await functionFetch("validateAddress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1114,7 +1116,7 @@ export function Checkout() {
       // and current server catalog/config. No client totals or existing order ID
       // can alter the authoritative fulfillment snapshot.
       if (isManual && physicalItems.length && ["pickup", "local_delivery"].includes(fulfillmentSelection.method)) {
-        const response = await fetch(functionUrl("createStripeCheckoutSession"), {
+        const response = await functionFetch("createStripeCheckoutSession", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1145,7 +1147,7 @@ export function Checkout() {
 
       if (selectedPaymentMethod === "paypal") {
         const returnUrl = `${window.location.origin}${import.meta.env.BASE_URL}checkout`;
-        const paypalResponse = await fetch(functionUrl("createPayPalOrder"), {
+        const paypalResponse = await functionFetch("createPayPalOrder", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
@@ -1171,7 +1173,7 @@ export function Checkout() {
         setInlineAttemptStarted(true);
         let clientSecret = reuse?.clientSecret || "";
         if (!clientSecret) {
-          const intentResponse = await fetch(functionUrl("createStripeCheckoutSession"), {
+          const intentResponse = await functionFetch("createStripeCheckoutSession", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, paymentElement: true }),
@@ -1243,10 +1245,12 @@ export function Checkout() {
     setIsSuccess(true);
     setManualOrderReturn(isManualReturn);
 
+    // Orders aren't publicly readable: the server returns this one for the email it was placed with.
+    const lookupEmail = (() => { try { return localStorage.getItem("last_customer_email") || ""; } catch { return ""; } })();
     (async () => {
       try {
         if (isManualReturn) {
-          const order: any = await adminApi.getPublicOrder(oid);
+          const order: any = await adminApi.getPublicOrder(oid, { email: lookupEmail }).catch(() => null);
           if (cancelled) return;
           if (order) setSuccessOrder(order);
           clearCart();
@@ -1259,7 +1263,7 @@ export function Checkout() {
         if (stripeSessionId.startsWith("cs_") || stripeIntentId.startsWith("pi_")) {
           // Ask Stripe whether this session was actually completed. "open" means
           // the shopper came back without paying — send them back to the form.
-          const statusRes = await fetch(functionUrl("createStripeCheckoutSession"), {
+          const statusRes = await functionFetch("createStripeCheckoutSession", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "status", orderId: oid, sessionId: stripeSessionId, paymentIntentId: stripeIntentId }),
@@ -1281,7 +1285,7 @@ export function Checkout() {
         }
         if (isPayPalReturn) {
           const paypalOrderId = params.get("token");
-          const captureResponse = paypalOrderId ? await fetch(functionUrl("capturePayPalOrder"), {
+          const captureResponse = paypalOrderId ? await functionFetch("capturePayPalOrder", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ orderId: oid, paypalOrderId }),
@@ -1301,7 +1305,7 @@ export function Checkout() {
         // Firestore is authoritative. URL flags and the capture HTTP response
         // never confirm payment on their own; wait for the paid order update.
         for (let attempt = 0; attempt < 12 && !cancelled; attempt++) {
-          const order: any = await adminApi.getPublicOrder(oid);
+          const order: any = await adminApi.getPublicOrder(oid, { email: lookupEmail }).catch(() => null);
           if (cancelled) return;
           if (order) setSuccessOrder(order);
           if (order?.paymentStatus === "paid") {

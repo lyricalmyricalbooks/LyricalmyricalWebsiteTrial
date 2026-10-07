@@ -516,3 +516,15 @@ admin): daily `analytics/<date>` docs get `increment()` merges for `visits`, `fu
 (from `trackSession`), `bookViews` (`trackProductView`) and `searches`/`noResults` (`trackSearch`, personal-looking terms dropped via
 `cleanSearchTerm`). `firestore.rules` caps those maps and lets only the admin read `analytics`. **Deploy rules before the frontend.**
 New panels say "Not recorded yet" until data exists — never a made-up zero.
+
+## reCAPTCHA / App Check
+
+Invisible reCAPTCHA Enterprise initializes before Firestore/Auth in src/lib/firebase.ts.
+Use functionFetch from src/app/lib/functionsBase.ts for every browser HTTP Function
+request and onBrowserRequest in functions/index.js for its server handler. Keep signed
+provider webhooks and emailed digital-download links outside browser attestation.
+APP_CHECK_MODE defaults to monitor; enforce only after registering the public site key,
+verifying traffic, and completing the rollout in docs/RECAPTCHA.md. Direct Firestore
+protection requires separate Firebase App Check console enforcement. Verification
+failure copy lives in Studio > Text & labels > Site & sharing. Tokens, debug credentials
+and provider diagnostics must never be logged or saved to public settings.

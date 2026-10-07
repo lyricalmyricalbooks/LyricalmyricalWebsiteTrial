@@ -2,6 +2,8 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
+import { initializeBrowserAppCheck } from "./appCheck";
+
 const firebaseConfig = {
   apiKey: "AIzaSyB9V866zhYfSoXplpzK1oaK7dTuXV7yDxA",
   authDomain: "lyricalmyrical-web-v2.firebaseapp.com",
@@ -12,6 +14,9 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
+// One Enterprise provider; legacy v3 keys are no longer used.
+export const appCheck = initializeBrowserAppCheck(app);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();

@@ -48,11 +48,11 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
     match /orders/{orderId} {
-      // Single-document fetch with a known order ID acts as token-like access
-      // for guest order tracking. Listing/querying is restricted: admins see
-      // everything, signed-in customers only their own orders.
-      allow get: if true;
-      allow list: if isAdmin()
+      // Guests never read orders directly: order tracking and the checkout
+      // thank-you page ask the server (createStripeCheckoutSession action
+      // "track"), which checks the customer email or emailed link key.
+      // Admins see everything; signed-in customers only their own orders.
+      allow get, list: if isAdmin()
         || (request.auth != null && resource.data.customer.email == request.auth.token.email);
       // Orders are always created unpaid; only verified payment handlers using
       // the Admin SDK flip them to paid. Admins may create orders in any state
@@ -69,6 +69,10 @@ service cloud.firestore {
         && !('fulfillment' in request.resource.data)
         && (!('orderNote' in request.resource.data) || (request.resource.data.orderNote is string && request.resource.data.orderNote.size() <= 500)));
       allow update, delete: if isAdmin();
+    }
+    // Server-only counters for the public-endpoint rate limits (functions/rateLimit.js).
+    match /rate-limits/{id} {
+      allow read, write: if false;
     }
     match /theme-versions/{versionId} {
       allow read, write: if isAdmin();

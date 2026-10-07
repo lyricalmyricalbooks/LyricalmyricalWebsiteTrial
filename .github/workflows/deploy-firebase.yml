@@ -39,6 +39,13 @@ jobs:
         run: npm ci
         working-directory: functions
 
+      - name: Configure App Check rollout
+        env:
+          APP_CHECK_MODE: ${{ vars.APP_CHECK_MODE || 'monitor' }}
+        run: |
+          case "$APP_CHECK_MODE" in off|monitor|enforce) ;; *) echo "::error::Invalid APP_CHECK_MODE"; exit 1 ;; esac
+          printf 'APP_CHECK_MODE=%s\n' "$APP_CHECK_MODE" > functions/.env.lyricalmyrical-web-v2
+
       - name: Deploy to Firebase
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

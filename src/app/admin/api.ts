@@ -39,7 +39,7 @@ import {
   signInWithCredential,
 } from "firebase/auth";
 import { db, auth, googleProvider } from "../../lib/firebase";
-import { functionUrl } from "../lib/functionsBase";
+import { functionFetch } from "../lib/functionsBase";
 // Storage + the legacy Realtime Database are admin-only and heavy; they are
 // imported on demand so the public storefront bundle never downloads them.
 const loadLegacy = () => import("../../lib/legacyFirebase");
@@ -906,7 +906,7 @@ export const adminApi = {
   deleteTestOrders: async (orderIds: string[]) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to delete test orders.");
-    const response = await fetch(functionUrl("deleteTestOrders"), {
+    const response = await functionFetch("deleteTestOrders", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -942,7 +942,7 @@ export const adminApi = {
   registerStripePaymentDomain: async (origin: string) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
-    const response = await fetch(functionUrl("createStripeCheckoutSession"), {
+    const response = await functionFetch("createStripeCheckoutSession", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
       body: JSON.stringify({ action: "registerPaymentDomain", origin }),
@@ -963,7 +963,7 @@ export const adminApi = {
   stripeWebhookHealth: async (opts: { fix?: boolean; recreate?: boolean } = {}) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
-    const response = await fetch(functionUrl("createStripeCheckoutSession"), {
+    const response = await functionFetch("createStripeCheckoutSession", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
       body: JSON.stringify({ action: "webhookHealth", ...opts }),
@@ -982,7 +982,7 @@ export const adminApi = {
   verifyStripeKeys: async () => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
-    const response = await fetch(functionUrl("createStripeCheckoutSession"), {
+    const response = await functionFetch("createStripeCheckoutSession", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
       body: JSON.stringify({ action: "verifyStripeKeys" }),
@@ -996,7 +996,7 @@ export const adminApi = {
   // Asks Stripe (server-side) whether an unpaid order's payment went through, and
   // finishes the order if it did. The browser never decides payment.
   recheckStripePayment: async (orderId: string) => {
-    const response = await fetch(functionUrl("createStripeCheckoutSession"), {
+    const response = await functionFetch("createStripeCheckoutSession", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "status", orderId }),
@@ -1016,9 +1016,23 @@ export const adminApi = {
 
   // Storefront (thank-you page, /track): the order record only. Guests may read an
   // order by ID, but order-operations is admin-only and would deny the whole read.
-  getPublicOrder: async (id: string) => {
-    const snap = await getDoc(doc(db, "orders", id));
-    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  // Guest order lookup. Orders aren't publicly readable: the server returns one
+  // only with its customer email or the emailed link key. Resolves null when
+  // there is no such order; throws an error whose `code` is "email_mismatch",
+  // "too_many" or "failed" otherwise.
+  getPublicOrder: async (id: string, proof: { email?: string; key?: string }) => {
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "track", orderId: id, email: proof.email || "", key: proof.key || "" }),
+    });
+    if (response.status === 404 || response.status === 400) return null;
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const code = response.status === 403 ? "email_mismatch" : response.status === 429 ? "too_many" : "failed";
+      throw Object.assign(new Error(code), { code });
+    }
+    return data.order || null;
   },
 
   // Admin only: the order plus its private fulfillment record.
@@ -1090,7 +1104,7 @@ export const adminApi = {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to refund an order.");
 
-    const response = await fetch(functionUrl("refundOrder"), {
+    const response = await functionFetch("refundOrder", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1111,7 +1125,7 @@ export const adminApi = {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to view Shippo settings.");
 
-    const response = await fetch(functionUrl("getShippoConfig"), {
+    const response = await functionFetch("getShippoConfig", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1127,7 +1141,7 @@ export const adminApi = {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to save Shippo settings.");
 
-    const response = await fetch(functionUrl("saveShippoConfig"), {
+    const response = await functionFetch("saveShippoConfig", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1144,7 +1158,7 @@ export const adminApi = {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to save Shippo settings.");
 
-    const response = await fetch(functionUrl("setShippoDynamicRates"), {
+    const response = await functionFetch("setShippoDynamicRates", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1163,7 +1177,7 @@ export const adminApi = {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to generate labels.");
 
-    const response = await fetch(functionUrl("createShippingLabel"), {
+    const response = await functionFetch("createShippingLabel", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1213,7 +1227,7 @@ export const adminApi = {
   getCanadaPostLabelRates: async (orderId: string, parcel?: any) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to view label rates.");
-    const response = await fetch(functionUrl("createShippingLabel"), {
+    const response = await functionFetch("createShippingLabel", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
       body: JSON.stringify({ orderId, mode: "rates", parcel }),
@@ -1226,7 +1240,7 @@ export const adminApi = {
   buyCanadaPostLabel: async (orderId: string, shipmentId: string, rateId: string) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to buy labels.");
-    const response = await fetch(functionUrl("createShippingLabel"), {
+    const response = await functionFetch("createShippingLabel", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
       body: JSON.stringify({ orderId, mode: "purchase", shipmentId, rateId }),
@@ -1239,7 +1253,7 @@ export const adminApi = {
   markOrderPaid: async (orderId: string) => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");
-    const response = await fetch(functionUrl("markOrderPaid"), {
+    const response = await functionFetch("markOrderPaid", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
       body: JSON.stringify({ orderId }),
@@ -1257,7 +1271,7 @@ export const adminApi = {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin to push orders to Shippo.");
 
-    const response = await fetch(functionUrl("createShippingLabel"), {
+    const response = await functionFetch("createShippingLabel", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1292,6 +1306,7 @@ export const adminApi = {
       expiryDate: discount.expiryDate || null,
       minOrderAmount: discount.minOrderAmount ?? null,
       minQuantity: discount.minQuantity ?? null,
+      maxDiscountAmount: discount.maxDiscountAmount ?? null,
       usageLimit: discount.usageLimit ?? null,
       usageCount: discount.usageCount ?? 0,
       onePerCustomer: discount.onePerCustomer ?? false,
@@ -1337,7 +1352,7 @@ export const adminApi = {
     // The discounts collection is admin-only in Firestore rules, so the
     // public checkout validates codes through a Cloud Function. The server
     // re-validates again at payment time regardless.
-    const response = await fetch(functionUrl("validateDiscountCode"), {
+    const response = await functionFetch("validateDiscountCode", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code }),

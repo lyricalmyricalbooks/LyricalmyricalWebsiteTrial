@@ -45,7 +45,17 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
 
-      - run: pnpm run build
+      - name: Build with reCAPTCHA App Check configuration
+        env:
+          VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.RECAPTCHA_ENTERPRISE_SITE_KEY }}
+          VITE_APP_CHECK_MODE: ${{ vars.APP_CHECK_MODE || 'monitor' }}
+        run: |
+          case "$VITE_APP_CHECK_MODE" in off|monitor|enforce) ;; *) echo "::error::Invalid APP_CHECK_MODE"; exit 1 ;; esac
+          if [ "$VITE_APP_CHECK_MODE" = "enforce" ] && [ -z "$VITE_RECAPTCHA_ENTERPRISE_SITE_KEY" ]; then
+            echo "::error::Register reCAPTCHA Enterprise and set RECAPTCHA_ENTERPRISE_SITE_KEY before enforcing App Check."
+            exit 1
+          fi
+          pnpm run build
         if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
 
       - uses: actions/upload-pages-artifact@v3
