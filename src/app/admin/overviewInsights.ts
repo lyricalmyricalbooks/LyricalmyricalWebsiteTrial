@@ -14,33 +14,70 @@ export type Book = Record<string, any>;
 export const isRealPaidOrder = (o: Order) => o?.isTest !== true && o?.paymentStatus === "paid";
 const ts = (v: any) => { const t = new Date(v).getTime(); return Number.isNaN(t) ? 0 : t; };
 
-/** Paid orders inside [now - days, now) and the equally long window before it. */
-export function splitPeriods(orders: Order[], days: number, now = Date.now()) {
-  const paid = orders.filter(isRealPaidOrder);
-  const start = now - days * DAY;
-  const prevStart = start - days * DAY;
+/** UTC calendar day ("2026-09-29") — the same key the daily `analytics/<date>` docs use. */
+export const dateKey = (t: number) => new Date(t).toISOString().slice(0, 10);
+/** Normalises a stored date ("2026-09-29" or an ISO string) to its day key; "" when unreadable. */
+export const dayOf = (v: unknown) => { const s = String(v ?? ""); return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : ""; };
+
+/**
+ * The calendar days a period covers, counted back from today inclusive, plus the equally long block before it.
+ * Orders and traffic both use these keys so "30 days" and "today" mean the same thing everywhere.
+ */
+export function periodKeys(days: number, now = Date.now()) {
   return {
-    paid,
-    current: paid.filter(o => { const t = ts(o.createdAt); return t >= start && t <= now; }),
-    previous: paid.filter(o => { const t = ts(o.createdAt); return t >= prevStart && t < start; }),
-    start,
+    endKey: dateKey(now),
+    startKey: dateKey(now - (days - 1) * DAY),
+    prevStartKey: dateKey(now - (2 * days - 1) * DAY),
   };
 }
 
-export interface PeriodTotals {
-  orders: number; revenue: number; units: number; aov: number;
-  shipping: number; discounts: number; discountRate: number;
+/** Paid orders in the period's calendar days and in the equally long block before it. */
+export function splitPeriods(orders: Order[], days: number, now = Date.now()) {
+  const paid = orders.filter(isRealPaidOrder);
+  const { startKey, prevStartKey, endKey } = periodKeys(days, now);
+  const inRange = (o: Order, from: string, to: string) => { const k = dayOf(o.createdAt) || (ts(o.createdAt) ? dateKey(ts(o.createdAt)) : ""); return k !== "" && k >= from && k <= to; };
+  return {
+    paid,
+    current: paid.filter(o => inRange(o, startKey, endKey)),
+    previous: paid.filter(o => inRange(o, prevStartKey, dateKey(Date.parse(`${startKey}T00:00:00Z`) - DAY))),
+    start: Date.parse(`${startKey}T00:00:00Z`),
+    startKey, prevStartKey, endKey,
+  };
 }
 
+/**
+ * The part of a paid order's total that was refunded (CAD). Refunds are recorded in the charged currency
+ * (`refundedAmountMinor`), so the share is taken against `expectedAmountMinor` and applied to the CAD `total`.
+ */
+export function refundedAmount(o: Order): number {
+  const minor = Number(o?.refundedAmountMinor) || 0;
+  const total = Number(o?.total) || 0;
+  if (minor <= 0 || total <= 0) return 0;
+  const expected = Number(o?.expectedAmountMinor) || 0;
+  if (expected > 0) return Math.min(total, (total * minor) / expected);
+  const cur = String(o?.checkoutCurrency || o?.expectedCurrency || "CAD").toUpperCase();
+  return cur === "CAD" ? Math.min(total, minor / 100) : 0;
+}
+
+export interface PeriodTotals {
+  orders: number; revenue: number; refunded: number; net: number; units: number; aov: number;
+  shipping: number; tax: number; subtotal: number; discounts: number; discountRate: number;
+}
+
+/** `revenue` is what customers paid; `net` takes partial refunds off it. Average order uses `net`. */
 export function totals(orders: Order[]): PeriodTotals {
-  const revenue = orders.reduce((s, o) => s + (Number(o.total) || 0), 0);
-  const units = orders.reduce((s, o) => s + (o.items || []).reduce((n: number, i: any) => n + (Number(i.quantity) || 0), 0), 0);
-  const shipping = orders.reduce((s, o) => s + (Number(o.shipping) || 0), 0);
-  const discounts = orders.reduce((s, o) => s + (Number(o.discount) || 0), 0);
-  const subtotal = orders.reduce((s, o) => s + (Number(o.subtotal) || 0), 0);
+  const sumOf = (f: (o: Order) => number) => orders.reduce((s, o) => s + f(o), 0);
+  const revenue = sumOf(o => Number(o.total) || 0);
+  const refunded = sumOf(refundedAmount);
+  const net = revenue - refunded;
+  const units = sumOf(o => (o.items || []).reduce((n: number, i: any) => n + (Number(i.quantity) || 0), 0));
+  const shipping = sumOf(o => Number(o.shipping) || 0);
+  const tax = sumOf(o => Number(o.tax) || 0);
+  const discounts = sumOf(o => Number(o.discount) || 0);
+  const subtotal = sumOf(o => Number(o.subtotal) || 0);
   return {
-    orders: orders.length, revenue, units, shipping, discounts,
-    aov: orders.length ? revenue / orders.length : 0,
+    orders: orders.length, revenue, refunded, net, units, shipping, tax, subtotal, discounts,
+    aov: orders.length ? net / orders.length : 0,
     discountRate: subtotal > 0 ? (discounts / subtotal) * 100 : 0,
   };
 }
@@ -186,4 +223,14 @@ export function bestSellers(orders: Order[], limit = 5): BestSeller[] {
     .sort((a, b) => b.revenue - a.revenue || b.units - a.units)
     .slice(0, limit)
     .map(r => ({ ...r, share: total > 0 ? (r.revenue / total) * 100 : 0 }));
+}
+
+/** Units sold per title id in a set of orders — used to show each best seller's change against the period before. */
+export function unitsById(orders: Order[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const o of orders) for (const i of o.items || []) {
+    const qty = Number(i.quantity) || 0;
+    if (i.id && qty > 0) map.set(i.id, (map.get(i.id) || 0) + qty);
+  }
+  return map;
 }

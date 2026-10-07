@@ -79,15 +79,34 @@ service cloud.firestore {
     match /analytics/{docId} {
       // Visitors may bump traffic/funnel counters, but order and revenue
       // figures are written exclusively by the payment webhook (Admin SDK).
-      allow read: if true;
+      // Only the admin reads the daily docs (revenue, search terms): the storefront
+      // writes counters with increment() and never needs to read them back.
+      allow read: if isAdmin();
+      // Each recorded map stays small, so a forged client can't bloat the doc, and
+      // one write can't raise the visit counter by more than one.
+      function analyticsMapsOk() {
+        let d = request.resource.data;
+        return (!('funnel' in d) || (d.funnel is map && d.funnel.size() <= 4))
+          && (!('sources' in d) || (d.sources is map && d.sources.size() <= 60))
+          && (!('devices' in d) || (d.devices is map && d.devices.size() <= 4))
+          && (!('searches' in d) || (d.searches is map && d.searches.size() <= 150))
+          && (!('noResults' in d) || (d.noResults is map && d.noResults.size() <= 150))
+          && (!('bookViews' in d) || (d.bookViews is map && d.bookViews.size() <= 300))
+          && (!('categoryViews' in d) || (d.categoryViews is map && d.categoryViews.size() <= 100));
+      }
       allow create: if isAdmin() || (
-        request.resource.data.keys().hasOnly(['date', 'visits', 'orders', 'revenue', 'conversion', 'funnel', 'categoryViews'])
+        request.resource.data.keys().hasOnly(['date', 'visits', 'orders', 'revenue', 'conversion', 'funnel', 'categoryViews', 'sources', 'devices', 'searches', 'noResults', 'bookViews'])
         && (!('orders' in request.resource.data) || request.resource.data.orders == 0)
         && (!('revenue' in request.resource.data) || request.resource.data.revenue == 0)
+        && request.resource.data.get('visits', 0) <= 1
+        && analyticsMapsOk()
       );
-      allow update: if isAdmin()
-        || request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['date', 'visits', 'funnel', 'categoryViews']);
+      allow update: if isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['date', 'visits', 'funnel', 'categoryViews', 'sources', 'devices', 'searches', 'noResults', 'bookViews'])
+        && request.resource.data.get('visits', 0) - resource.data.get('visits', 0) <= 1
+        && analyticsMapsOk()
+      );
       allow delete: if isAdmin();
     }
     match /discounts/{docId} {

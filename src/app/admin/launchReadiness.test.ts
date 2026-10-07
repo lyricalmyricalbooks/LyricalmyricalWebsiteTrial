@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { launchReadiness, readinessSummary } from "./launchReadiness";
+import { launchReadiness, readinessProgress, readinessSummary } from "./launchReadiness";
 
 const goodSettings = {
   payments: { testMode: false, stripe: { connected: true, publicKey: "pk_live_" + "a".repeat(24), secretKeyStored: true } },
@@ -43,5 +43,21 @@ describe("launchReadiness", () => {
   it("only warns when live mode has no secret key here (the Functions secret may cover it)", () => {
     const items = launchReadiness({ settings: { ...goodSettings, payments: { stripe: { connected: true, publicKey: "pk_live_" + "a".repeat(24) } } }, books: [goodBook], shippingProfiles: [{}], emailLog: [{ status: "sent" }], orders: [] });
     expect(status(items, "stripe-secret")).toBe("warn");
+  });
+});
+
+describe("readinessProgress", () => {
+  it("counts green checks and lists the open ones, blocking first", () => {
+    const items = launchReadiness({ settings: { ...goodSettings, policies: {} }, books: [goodBook], shippingProfiles: [], emailLog: [{ status: "failed", error: "x" }], orders: [] });
+    const p = readinessProgress(items);
+    expect(p.total).toBe(items.length);
+    expect(p.done + p.open.length).toBe(p.total);
+    expect(p.completed.every(i => i.status === "ok")).toBe(true);
+    expect(p.open[0].status).toBe("block");
+    expect(p.open.map(i => i.id)).toEqual(expect.arrayContaining(["shipping", "policies", "email", "first-sale"]));
+  });
+  it("is complete when everything is green", () => {
+    const items = launchReadiness({ settings: goodSettings, books: [goodBook], shippingProfiles: [{}], emailLog: [{ status: "sent" }], orders: [{ paymentStatus: "paid" }] });
+    expect(readinessProgress(items)).toMatchObject({ done: items.length, total: items.length, open: [] });
   });
 });

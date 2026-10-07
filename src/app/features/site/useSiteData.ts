@@ -4,6 +4,7 @@ import { isLiveBook } from "./liveBook";
 import { resolveSurfaceDesign } from "./surfaceDesign";
 import { useEffect, useMemo, useState } from "react";
 import { adminApi } from "../../admin/api";
+import { funnelApi } from "../../lib/commerce";
 import { DEFAULT_SETTINGS } from "./constants";
 import { readSiteCache, writeSiteCache, SITE_CACHE_EVENT } from "./siteCache";
 import type { Book, SiteSettings, Page } from "./types";
@@ -104,6 +105,8 @@ export function useSiteData() {
         const sessionKey = `fm_visit_${new Date().toISOString().split("T")[0]}`;
         if (!isPreview && consentAllows("analytics") && !sessionStorage.getItem(sessionKey)) {
           adminApi.recordVisit();
+          // Where the session came from and on what kind of screen (its own best-effort write).
+          funnelApi.trackSession();
           sessionStorage.setItem(sessionKey, "true");
         }
       } catch {

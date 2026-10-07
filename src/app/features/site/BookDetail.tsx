@@ -252,6 +252,7 @@ export default function BookDetail() {
     if (book?.id) {
       trackBookView(book.id);
       funnelApi.track("view");
+      funnelApi.trackProductView(book.id);
       const bookCategories = (book as any)?.categories || (book as any)?.genres || [];
       bookCategories.forEach((cat: string) => {
         funnelApi.trackCategory(cat);

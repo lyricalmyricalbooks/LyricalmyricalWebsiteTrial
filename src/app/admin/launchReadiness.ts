@@ -89,3 +89,9 @@ export function readinessSummary(items: ReadinessItem[]): ReadinessStatus {
   if (items.some(i => i.status === "warn")) return "warn";
   return "ok";
 }
+
+/** "6 of 8 ready": how many checks are green, and the ones still open (blocking first). */
+export function readinessProgress(items: ReadinessItem[]) {
+  const open = items.filter(i => i.status !== "ok").sort((a, b) => Number(b.status === "block") - Number(a.status === "block"));
+  return { done: items.length - open.length, total: items.length, open, completed: items.filter(i => i.status === "ok") };
+}

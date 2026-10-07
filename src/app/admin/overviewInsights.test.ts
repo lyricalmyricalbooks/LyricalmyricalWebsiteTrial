@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  change, customerMix, dormantStock, formatMix, newsletterSummary, reprintWatch, reviewSummary,
+  change, customerMix, periodKeys, refundedAmount, unitsById, dormantStock, formatMix, newsletterSummary, reprintWatch, reviewSummary,
   splitPeriods, stockValue, titleStock, toFulfil, topCountries, totals,
 } from "./overviewInsights";
 
@@ -107,5 +107,48 @@ describe("bestSellers", () => {
     expect(r[0]).toMatchObject({ units: 2, revenue: 20 });
     expect(Math.round(r[0].share)).toBe(67);
     expect(bestSellers(orders, 1)).toHaveLength(1);
+  });
+});
+
+describe("calendar-day periods", () => {
+  it("covers today plus the previous days, and the equally long block before", () => {
+    expect(periodKeys(1, NOW)).toEqual({ endKey: "2026-09-29", startKey: "2026-09-29", prevStartKey: "2026-09-28" });
+    expect(periodKeys(30, NOW)).toMatchObject({ startKey: "2026-08-31", prevStartKey: "2026-08-01" });
+  });
+  it("splits orders by day key: boundary days land on the right side", () => {
+    const orders = [
+      order({ id: "today", createdAt: "2026-09-29T00:30:00Z" }),
+      order({ id: "first", createdAt: "2026-08-31T23:59:00Z" }),
+      order({ id: "lastPrev", createdAt: "2026-08-30T10:00:00Z" }),
+      order({ id: "tooOld", createdAt: "2026-07-31T10:00:00Z" }),
+      order({ id: "future", createdAt: "2026-09-30T01:00:00Z" }),
+      order({ id: "nodate" }),
+    ];
+    const p = splitPeriods(orders, 30, NOW);
+    expect(p.current.map(o => o.id)).toEqual(["today", "first"]);
+    expect(p.previous.map(o => o.id)).toEqual(["lastPrev"]);
+    expect(p.start).toBe(Date.parse("2026-08-31T00:00:00Z"));
+  });
+});
+
+describe("refunds", () => {
+  it("applies the refunded share of the charge to the CAD total, whatever currency was charged", () => {
+    // Charged US$ 15.00, refunded US$ 5.00 of it: a third of the CA$ 20 total.
+    expect(refundedAmount({ total: 20, refundedAmountMinor: 500, expectedAmountMinor: 1500, checkoutCurrency: "USD" })).toBeCloseTo(6.67, 2);
+    expect(refundedAmount({ total: 20, refundedAmountMinor: 500 })).toBe(5);
+    expect(refundedAmount({ total: 20, refundedAmountMinor: 500, checkoutCurrency: "USD" })).toBe(0);
+    expect(refundedAmount({ total: 20, refundedAmountMinor: 9999, expectedAmountMinor: 2000 })).toBe(20);
+    expect(refundedAmount({ total: 20 })).toBe(0);
+  });
+  it("reports gross, refunded and net, and averages the net", () => {
+    const t = totals([order({ total: 40, tax: 4, refundedAmountMinor: 1000, expectedAmountMinor: 4000 }), order({ total: 20, tax: 2 })]);
+    expect(t).toMatchObject({ revenue: 60, refunded: 10, net: 50, aov: 25, tax: 6 });
+  });
+});
+
+describe("unitsById", () => {
+  it("adds units per title and skips lines with no id or quantity", () => {
+    const m = unitsById([order({ items: [{ id: "a", quantity: 2 }, { quantity: 5 }] }), order({ items: [{ id: "a", quantity: 1 }, { id: "b", quantity: 0 }] })]);
+    expect([...m.entries()]).toEqual([["a", 3]]);
   });
 });
