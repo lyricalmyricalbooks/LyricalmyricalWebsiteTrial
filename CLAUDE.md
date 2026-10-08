@@ -497,7 +497,12 @@ it. Don't add new compat rules for new work; compose the components instead.
 
 ## Verification
 
-- **CI** (`.github/workflows/ci.yml`) runs `pnpm test`, `pnpm run typecheck` and `vite build` on every PR.
+- **CI** (`.github/workflows/ci.yml`) runs `pnpm test`, `pnpm run typecheck`, `vite build` and the Studio browser
+  checks (`pnpm run test:studio`) on every PR.
+- **Studio fixture:** `pnpm dev` then open `/studio-fixture.html` — the real Studio with in-memory data
+  (`studio/fixture/fakeStudioApi.ts`; writes are recorded in `window.__studioFixture.calls`, nothing reaches
+  Firestore). `pnpm run test:studio` drives it in Chromium (`CHROMIUM_PATH` to reuse an installed browser,
+  `STUDIO_SHOTS=dir` for screenshots). Extend `scripts/studio-e2e.mjs` when Studio behaviour changes.
   `pnpm run typecheck` (`scripts/typecheck-ratchet.mjs`) fails when any file gains type errors over
   `scripts/typecheck-baseline.json`; after fixing errors run it with `--update` to lower the baseline.
 - `npm test` (vitest, node env): includes the registry/renderer parity test, nav,
@@ -507,7 +512,7 @@ it. Don't add new compat rules for new work; compose the components instead.
 - Use `pnpm install` (the lockfile pins `react`/`react-dom` 18.3.1, which are optional peer deps —
   a plain `npm install` leaves them out). Vitest also runs `functions/*.test.js`, so run
   `npm ci` in `functions/` first.
-- Page-level visual checks used a throwaway harness that mounts a page with mocked
+- Older page-level visual checks used a throwaway harness that mounts a page with mocked
   `adminApi` data (not committed). Screenshots: `docs/screenshots/riso/`.
 
 ## Security notes

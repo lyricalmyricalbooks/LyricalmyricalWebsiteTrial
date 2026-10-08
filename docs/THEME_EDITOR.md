@@ -184,7 +184,12 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       Studio lists unpublished pages as "(draft)" templates and previews them; Preview collection lists the
       shop's own categories. One breakpoint module (`features/site/breakpoints.ts`, phone ≤767px) for sections,
       blocks and built-in elements. Featured product shows the shopper's currency.
-- [ ] 0.3 Studio test harness (jsdom Studio tests, fixture route, Playwright flows).
+- [x] 0.3 Studio test harness. `studio/fixture/fakeStudioApi.ts` swaps Studio's `adminApi` calls for in-memory
+      data and records every write. `studio/StudioEditor.test.tsx` mounts the real editor in jsdom (add section,
+      undo/redo, Save draft never publishes, Publish needs confirmation, Theme settings, Find). `studio-fixture.html`
+      (served by `vite` in development only) opens the real Studio with that data, and `pnpm run test:studio`
+      (`scripts/studio-e2e.mjs`, Chromium) drives it: preview connects with the unsaved design, add/undo/redo/save,
+      device widths, Find anything, click a section in the preview, phone-sized editor. CI runs both.
 - [ ] 0.4 Theme store: drafts/saved themes/schedules in admin-only docs, light public read path, revision-checked saves.
 - [ ] 0.5 Design value model: one resolver, All-pages writes without duplication, compaction, page-override review.
 

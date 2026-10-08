@@ -42,3 +42,35 @@ jobs:
       # Bundle only: the full `build` also prerenders live Firestore data, which the Pages workflow does.
       - name: Build
         run: pnpm exec vite build
+
+  studio-browser:
+    # Drives the real Design studio in Chromium against the local fixture (studio-fixture.html):
+    # in-memory data, no sign-in, nothing written to Firestore.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - name: Studio browser checks
+        run: pnpm run test:studio
+        env:
+          STUDIO_SHOTS: studio-shots
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: studio-screenshots
+          path: studio-shots
+          if-no-files-found: ignore

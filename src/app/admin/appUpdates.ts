@@ -9,6 +9,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-test-harness", date: "2026-10-08", title: "Design studio is now tested in a real browser",
+    summary: "Every change to the app now opens the Design studio in a test browser and checks the basics: the preview shows your unsaved work, adding a section, undo and redo, Save draft that never publishes, device sizes, Find anything and clicking a section to edit it. Nothing changes in how you use the studio.",
+    links: [{ label: "Open the Design studio", tab: "settings", settingsTab: "designer" }],
+  },
+  {
     id: "studio-2-repairs", date: "2026-10-08", title: "Design studio repairs",
     summary: "Image uploads in the Design studio work again: pictures are shrunk automatically, and a clear message explains any failed upload. Section backgrounds and category pictures gained an Upload button. Linked shared blocks now show in every section type. A section that breaks no longer blanks the whole page. Unpublished pages can be designed and previewed. Built-in page parts switch to their phone layout at the same width as sections, so large phones held sideways (640–767 pixels wide) now show phone layouts. Featured product shows the shopper's currency. Creating a category while editing a book no longer publishes unrelated draft categories.",
     links: [{ label: "Open the Design studio", tab: "settings", settingsTab: "designer" }, { label: "Edit a book's categories", tab: "catalog" }],
