@@ -1056,3 +1056,5 @@ Every PR must prepend one entry to `src/app/admin/appUpdates.ts`: stable unique 
 
 Checkout country dropdowns pair option backgrounds and text with Studio's Checkout field colours, including Stripe's Windows dropdown; highlighted Stripe options use contrasting text on the checkout accent.
 Stripe payment fields retain Studio colours when readable and choose contrasting black/white text for insufficient-contrast pairs; labels follow the surrounding checkout text.
+
+Custom-page navigation resolves published bodies from useSiteData's shared snapshot, including Studio preview updates. Avoid separate slug fetches that clear the header/content on each link; cold custom-page loading retains the shared header.
