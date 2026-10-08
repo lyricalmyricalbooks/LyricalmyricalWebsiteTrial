@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle } from "./styleSchema";
+import { layerDesign } from "../../features/site/designModel";
 
 describe("applyGlobalStyle", () => {
   const design = {
@@ -7,18 +8,22 @@ describe("applyGlobalStyle", () => {
     heroPage: { buttonColor: "#222", sections: [1] },
     storefront: { buttonColor: "#333", sections: [2] },
   };
-  it("writes root and every surface, keeping surface sections", () => {
+  it("sets the root and clears page overrides, keeping page sections", () => {
     const n = applyGlobalStyle(design, "buttonColor", "#fff", ["heroPage", "storefront", "productPage"]);
     expect(n.buttonColor).toBe("#fff");
-    expect(n.heroPage).toEqual({ buttonColor: "#fff", sections: [1] });
-    expect(n.storefront.buttonColor).toBe("#fff");
-    expect(n.productPage).toEqual({ buttonColor: "#fff" });
+    expect(n.heroPage).toEqual({ sections: [1] });
+    expect(n.storefront).toEqual({ sections: [2] });
+    expect(n.productPage).toBeUndefined();
+    for (const surface of [n.heroPage, n.storefront]) expect(layerDesign(n, surface).buttonColor).toBe("#fff");
     expect(design.heroPage.buttonColor).toBe("#222");
   });
   it("handles dotted paths and clearing", () => {
-    const n = applyGlobalStyle({ social: { instagram: "a", tiktok: "b" }, heroPage: {} }, "social.instagram", "", ["heroPage"]);
+    const n = applyGlobalStyle({ social: { instagram: "a", tiktok: "b" }, heroPage: { social: { instagram: "a", tiktok: "old" } } }, "social.instagram", "", ["heroPage"]);
     expect(n.social).toEqual({ tiktok: "b" });
-    expect(n.heroPage.social).toEqual({ tiktok: "b" });
+    // A page's own social map would replace the shop-wide one, so it is cleared entirely.
+    expect(layerDesign(n, n.heroPage).social).toEqual({ tiktok: "b" });
+    const copy = applyGlobalStyle({ copy: { a: "x", b: "y" }, heroPage: { copy: { a: "page", b: "page" } } }, "copy.a", "new", ["heroPage"]);
+    expect(layerDesign(copy, copy.heroPage).copy).toEqual({ a: "new", b: "page" });
     const c = applyGlobalStyle({ copy: { a: "x" }, heroPage: { copy: { a: "x" } } }, "cartTitle", undefined, ["heroPage"]);
     expect("cartTitle" in c).toBe(false);
   });

@@ -46,11 +46,13 @@ import { ActionMenu, Dialog, SecondaryButton } from "../riso/components";
 import { applyInlineText, INLINE_STYLE_KEYS } from "./inlineText";
 import { StudioSharedLayout } from "./StudioSharedLayout";
 import { filterSettingGroups } from "./studioNavigation";
-import { designChecks as buildDesignChecks } from "./studioChecks";
+import { designChecks as buildDesignChecks, designSize } from "./studioChecks";
 import { EXTRA_STYLE_CATEGORIES, TEXT_BLURBS, TEXT_HEADINGS, THEME_HEADINGS, blurbFor, changedCopyCount, changedCounts, changedFields, defaultFor, isChanged, subsectionsFor } from "./settingsMap";
 import { CategoryHeader, SettingsHome, SettingsSubsection, StudioTips, type HomeHeading } from "./StudioSettingsHome";
 
 import { saveSavedThemes, type Workspace } from "../themeStore";
+import { writeDesignValue } from "../../features/site/designModel";
+import { StudioPageOverrides } from "./StudioPageOverrides";
 import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "shared";
@@ -1048,6 +1050,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               <label>Editing scope<select aria-label="Style scope" value={styleScope} onChange={e => setStyleScope(e.target.value as any)}><option value="all">All pages</option><option value="page">This page only: {template.label}</option></select></label>
               {styleSearch && <button className={btn} onClick={() => setStyleSearch("")}>Clear search</button>}
             </div>}
+            {leftTab === "style" && !styleSearch.trim() && !styleCategory && !styleFocus && !showGlobal && (
+              <StudioPageOverrides design={design} surface={template.id} pageLabel={template.label}
+                onUseAll={key => change(d => writeDesignValue(d, key, undefined, { surface: template.id }))}
+                onMakeAll={(key, value) => change(d => writeDesignValue(d, key, value, "all"))} />
+            )}
             {leftTab === "style" && !styleSearch.trim() && !styleCategory && !styleFocus && (
               <SettingsHome headings={themeHome} onOpen={(id) => setStyleCategory(id)}
                 changedTotal={changed.total} onOpenChanged={() => setStyleCategory(CHANGED_CATEGORY)} />
@@ -1314,7 +1321,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         </div>}
       </Dialog>
       <Dialog open={checksOpen} onClose={() => setChecksOpen(false)} title="Pre-publish check" description="A quick accessibility, content and performance review of this draft.">
-        <div className="space-y-2">{designChecks(design).map((r, i) => <p key={i} className={`p-3 rounded-lg text-sm ${r.tone === "warn" ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-900"}`}>{r.tone === "warn" ? "⚠" : "✓"} {r.text}</p>)}</div>
+        <div className="space-y-2">{[...designChecks(design), designSize(design)].map((r, i) => <p key={i} className={`p-3 rounded-lg text-sm ${r.tone === "warn" ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-900"}`}>{r.tone === "warn" ? "⚠" : "✓"} {r.text}</p>)}</div>
       </Dialog>
     </div>
   );

@@ -7,6 +7,7 @@ import { StudioCopyField } from "./StudioCopyField";
 import { StudioRegionBrowser } from "./StudioRegionBrowser";
 import { applyGlobalStyle, STYLE_GROUPS } from "./styleSchema";
 import { COPY_SCHEMA, getCopy } from "../../features/site/storeCopy";
+import { layerDesign } from "../../features/site/designModel";
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 const host = document.createElement("div");
@@ -26,10 +27,11 @@ describe("Studio public element controls", () => {
     expect(host.querySelector("label")?.htmlFor).toBe(input.id);
     act(() => Simulate.change(input, { target: { value: "" } } as any));
     expect(design.copy.wishlistTitle).toBe("");
-    expect(design.wishlistPage.copy.wishlistTitle).toBe("");
+    // The stale page copy is cleared, so the wishlist page shows the new (blank) value too.
+    expect(getCopy(layerDesign(design, design.wishlistPage), "wishlistTitle")).toBe("");
     expect(host.textContent).toContain("Intentionally blank");
     act(() => host.querySelector<HTMLButtonElement>("button")!.click());
-    expect(design.copy).not.toHaveProperty("wishlistTitle");
+    expect(design.copy?.wishlistTitle).toBeUndefined();
     expect(input.value).toBe(getCopy({}, "wishlistTitle"));
     expect(design.wishlistPage.sections).toEqual([1]);
   });

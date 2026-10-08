@@ -277,6 +277,13 @@ Admin tools that change one design field outside Studio call `draftFieldUpdate`.
 with `adminApi.getPublicSettings()`, never `getSettings()` (which also reads admin-only key flags).
 Deploy Firestore rules before (or with) the frontend; until then Studio safely stays on the legacy fields.
 
+**One design resolver (0.5):** storefront code must resolve page designs only through
+`features/site/designModel.ts` (`layerDesign`, or the `resolve*Design` helpers in `surfaceDesign.ts`) — never
+`{ ...design, ...design.storefront }` by hand. Shop structure (`ROOT_ONLY_KEYS`) always comes from the root; `copy` and
+`regions` merge per entry. Studio "All pages" writes go through `writeDesignValue` (sets root, clears page
+overrides); "This page only" writes set the page surface. `designModel.property.test.ts` guards this against the
+published design snapshot.
+
 Studio is a Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the
 section/block contract, and the Studio 2.0 roadmap.

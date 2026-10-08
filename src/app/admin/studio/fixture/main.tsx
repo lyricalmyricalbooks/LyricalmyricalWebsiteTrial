@@ -7,7 +7,10 @@ import { adminApi } from "../../api";
 import { StudioEditor } from "../StudioEditor";
 import { createStudioFixture, installFakeStudioApi } from "./fakeStudioApi";
 
-const fixture = createStudioFixture();
+// `?live=1` loads a snapshot of the published design (features/site/__fixtures__/liveDesign.json).
+const live = new URLSearchParams(location.search).has("live")
+  ? (await import("../../../features/site/__fixtures__/liveDesign.json")).default as any : null;
+const fixture = createStudioFixture(live ? { settings: { design: live.design, draftDesign: live.design } } : {});
 installFakeStudioApi(adminApi as any, fixture);
 (window as any).__studioFixture = fixture;
 

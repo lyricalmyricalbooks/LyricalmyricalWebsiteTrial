@@ -1,3 +1,4 @@
+import { layerDesign } from "../features/site/designModel";
 import { CartShippingPreview } from "./CartShippingPreview";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
@@ -49,8 +50,8 @@ export function CartDrawer() {
 
   // Resolve storefront design settings (flat or nested under `.storefront`).
   const rawDesign = (settings as any)?.design || {};
-  // Merge (not replace) so root-only keys still apply — same resolution as MainSite's storefrontDesign.
-  const design = rawDesign.storefront && Object.keys(rawDesign.storefront).length > 0 ? { ...rawDesign, ...rawDesign.storefront } : rawDesign;
+  // Same resolution as MainSite's catalog design (designModel.layerDesign).
+  const design = layerDesign(rawDesign, rawDesign.storefront);
   const showFreeShipBar = design.showFreeShipBar ?? true;
   const showTrustBadges = design.showCartTrustBadges ?? true;
   const showCount = design.cartDrawerShowCount ?? true;

@@ -1,3 +1,4 @@
+import { layerDesign } from "./designModel";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -19,7 +20,8 @@ describe("page-by-page designer coverage", () => {
   it("preserves unrelated page-local region settings when applying one global field", () => {
     const d = { regions: { wishlistTitleSize: 12 }, wishlistPage: { regions: { wishlistCountVisible: false }, sections: [1] } };
     const next = applyGlobalStyle(d, "regions.wishlistTitleSize", 30, STATIC_SURFACES);
-    expect(next.wishlistPage.regions).toEqual({ wishlistTitleSize: 30, wishlistCountVisible: false });
+    expect(next.wishlistPage.regions).toEqual({ wishlistCountVisible: false });
+    expect(layerDesign(next, next.wishlistPage).regions).toEqual({ wishlistTitleSize: 30, wishlistCountVisible: false });
     expect(next.wishlistPage.sections).toEqual([1]);
     expect(d.wishlistPage.regions).toEqual({ wishlistCountVisible: false });
   });

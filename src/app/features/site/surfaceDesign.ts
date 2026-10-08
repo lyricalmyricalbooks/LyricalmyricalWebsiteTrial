@@ -1,3 +1,5 @@
+import { layerDesign } from "./designModel";
+
 /** Resolve page overrides over root tokens; keep template trees available. */
 // A stray "%" in a typed URL (e.g. /page/50%-off) must not crash the page.
 const safeDecode = (value: string) => { try { return decodeURIComponent(value); } catch { return value; } };
@@ -15,9 +17,7 @@ export function resolveSurfaceDesign(design: any, pathname: string) {
   if (!template) return design;
   const custom = template === "page" ? design[`page:${safeDecode(pathname.slice(6))}`] : null;
   if (!design[template] && !custom) return design;
-  return { ...design, ...(design[template] || {}), ...(custom || {}),
-    ...(Array.isArray(design.categories) ? { categories: design.categories } : {}),
-    regions: { ...design.regions, ...design[template]?.regions, ...custom?.regions } };
+  return layerDesign(design, design[template], custom);
 }
 
 /** MainSite owns home, catalog and routed collections; their tokens must follow the active canvas. */
@@ -25,12 +25,11 @@ export function resolveMainDesign(design: any, catalog: boolean, collection: boo
   const base = design || {};
   const primary = collection || catalog ? base.storefront : base.heroPage;
   const local = collection ? base.collectionPage : null;
-  return { ...base, ...primary, ...local, ...(Array.isArray(base.categories) ? { categories: base.categories } : {}), regions: { ...base.regions, ...primary?.regions, ...local?.regions } };
+  return layerDesign(base, primary, local);
 }
 
 /** Product controls inherit catalog defaults, then retain the product canvas overrides. */
 export function resolveProductDesign(design: any) {
   const base = design || {};
-  return { ...base, ...base.storefront, ...base.productPage,
-    regions: { ...base.regions, ...base.storefront?.regions, ...base.productPage?.regions } };
+  return layerDesign(base, base.storefront, base.productPage);
 }

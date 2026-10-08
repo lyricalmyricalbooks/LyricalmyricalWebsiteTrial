@@ -21,12 +21,12 @@ if (shots) mkdirSync(shots, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 
 const results = [];
-async function check(name, viewport, run) {
+async function check(name, viewport, run, query = "") {
   const page = await browser.newPage({ viewport });
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   try {
-    await page.goto(`${base}/studio-fixture.html`);
+    await page.goto(`${base}/studio-fixture.html${query}`);
     await page.waitForSelector("[data-studio-editor]", { timeout: 30000 });
     await run(page);
     if (errors.length) throw new Error(`page errors: ${errors.join(" | ")}`);
@@ -98,6 +98,18 @@ await check("clicking a section in the preview opens its settings", desktop, asy
   await frame.locator("[data-fm-section]").first().click({ position: { x: 8, y: 8 }, timeout: 15000 });
   await page.getByRole("button", { name: "Close settings" }).waitFor({ timeout: 8000 });
 });
+
+await check("page-only overrides are listed and can follow all pages", desktop, async page => {
+  await page.getByLabel("Page to edit").selectOption({ label: "Catalog / Shop" });
+  await page.getByRole("button", { name: "Theme settings" }).click();
+  const card = page.locator("[data-studio-page-overrides]");
+  await card.locator("summary").click();
+  const count = async () => Number(await card.locator(".studio-overrides-count").textContent());
+  const before = await count();
+  if (!(before > 0)) throw new Error("no page overrides listed for the live catalog page");
+  await card.getByRole("button", { name: "Use all-pages value" }).first().click();
+  await page.waitForFunction(n => Number(document.querySelector("[data-studio-page-overrides] .studio-overrides-count")?.textContent) === n - 1, before);
+}, "?live=1");
 
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);

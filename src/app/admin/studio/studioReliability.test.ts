@@ -65,3 +65,11 @@ describe("Studio editing reliability", () => {
     expect(checks[0]).toMatchObject({ tone: "warn" });
   });
 });
+
+describe("design size guard", () => {
+  it("measures the stored design and refuses one that cannot be saved", async () => {
+    const { designSize, DESIGN_MAX_BYTES } = await import("./studioChecks");
+    expect(designSize({ a: 1 })).toMatchObject({ tone: "ok", tooBig: false });
+    expect(designSize({ big: "x".repeat(DESIGN_MAX_BYTES) })).toMatchObject({ tone: "warn", tooBig: true });
+  });
+});

@@ -57,3 +57,14 @@ export function designChecks(
   results.push({ tone: "warn", text: "Contrast is not automatically measured here. Check that text stays easy to read on its background in the preview, on desktop and phone, before publishing." });
   return results;
 }
+
+/** A design is stored in one Firestore document (1 MiB limit) that every shopper downloads. */
+export const DESIGN_WARN_BYTES = 600_000;
+export const DESIGN_MAX_BYTES = 900_000;
+export function designSize(design: any): { bytes: number; tone: "ok" | "warn"; text: string; tooBig: boolean } {
+  const bytes = new TextEncoder().encode(JSON.stringify(design ?? {})).length;
+  const kb = Math.round(bytes / 1024);
+  if (bytes > DESIGN_MAX_BYTES) return { bytes, tone: "warn", tooBig: true, text: `Design size: ${kb} KB — too large to save (limit about ${Math.round(DESIGN_MAX_BYTES / 1024)} KB). Remove unused sections or large pasted content.` };
+  if (bytes > DESIGN_WARN_BYTES) return { bytes, tone: "warn", tooBig: false, text: `Design size: ${kb} KB. Shoppers download the whole design, so keep it lean — remove unused sections or pasted images.` };
+  return { bytes, tone: "ok", tooBig: false, text: `Design size: ${kb} KB (shoppers download this on every visit; under ${Math.round(DESIGN_WARN_BYTES / 1024)} KB is comfortable).` };
+}

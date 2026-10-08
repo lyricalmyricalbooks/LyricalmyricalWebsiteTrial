@@ -190,3 +190,13 @@
 .studio-tips kbd { font: 600 10px/1 var(--rp-font-mono, monospace); padding: 2px 4px; border: 1px solid var(--rp-border); }
 .studio-tips .studio-reset { justify-self: start; }
 .studio-editor .studio-upload-error, .rp .studio-upload-error { color: var(--rp-danger); font-weight: 600; }
+.studio-overrides { margin: 12px; border: 2px solid var(--rp-border-strong); background: var(--rp-surface); padding: 10px 12px; }
+.studio-overrides summary { cursor: pointer; display: grid; gap: 2px; }
+.studio-overrides summary small { color: var(--rp-text-muted); font-size: 12px; }
+.studio-overrides-title { display: flex; align-items: center; gap: 6px; }
+.studio-overrides-count { display: inline-block; min-width: 22px; padding: 0 6px; margin-left: 6px; background: var(--rp-primary, var(--rp-surface-2)); color: var(--rp-on-primary, var(--rp-text)); font-weight: 800; font-size: 12px; text-align: center; }
+.studio-overrides ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+.studio-overrides li { display: grid; gap: 4px; border-top: 1px solid var(--rp-border); padding-top: 8px; }
+.studio-overrides-name { font-weight: 700; font-size: 13px; }
+.studio-overrides-values { font-size: 12px; color: var(--rp-text-muted); }
+.studio-overrides-actions { display: flex; flex-wrap: wrap; gap: 6px; }

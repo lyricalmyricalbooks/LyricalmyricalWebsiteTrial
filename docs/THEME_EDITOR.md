@@ -205,7 +205,18 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       the private draft without bumping `rev` (`draftFieldUpdate`). Shoppers read `adminApi.getPublicSettings()`
       (no admin lookups, draft/My themes stripped). Unsaved-work recovery is one record per tab
       (`studio-recovery-v2:…:<tabId>`, newest offered, 14-day expiry).
-- [ ] 0.5 Design value model: one resolver, All-pages writes without duplication, compaction, page-override review.
+- [x] 0.5 Design value model (`features/site/designModel.ts`). Every storefront route resolves its design with
+      `layerDesign` (used by `resolveSurfaceDesign` / `resolveMainDesign` / `resolveProductDesign`, the cart drawer and
+      the page header): shop structure (`ROOT_ONLY_KEYS`: menus, categories, navOrder, secondaryNavKeys, footerBadges,
+      sectionPresets, sharedBlocks, globalSections) always comes from the root, `copy`/`regions` merge per entry, and a
+      page surface never carries another surface. "All pages" writes (`writeDesignValue`, behind `applyGlobalStyle` and
+      `applyThemeKeysToSurfaces`) set the root and clear the matching page overrides instead of copying the value into
+      every page. `compactDesign` (run by `normalizeDesign`) drops page values that equal what the page inherits.
+      `designModel.property.test.ts` proves on the published design (`__fixtures__/liveDesign.json`) that tidying changes
+      no page and that the only differences from the old resolver are the intended fixes (categories, copy,
+      globalSections, navOrder). Theme settings shows **This page differs from all pages (N)** for the current page
+      with **Use all-pages value** / **Make this the all-pages value** (`StudioPageOverrides.tsx`). Check before
+      publishing reports the design size; saves over ~900 KB are refused with a plain message.
 
 **Phase 1 — Navigation overhaul ("one tree, one inspector")**
 - [ ] 1.1 Editor frame: icon rail, resizable/collapsible panels, docked inspector, zoom-to-fit, one page picker, remembered state.

@@ -9,6 +9,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-what-you-see", date: "2026-10-08", title: "What you see in the studio is what goes live",
+    summary: "The shop now uses exactly the values the Design studio shows. Fixed along the way: your footer wordmark text now appears on every page (it was missing on Contact, About, Account and Tracking), product and custom-page headers list all your shop categories, the menu order is the same on every page, and an old \"Why choose us\" sample block that only showed above the catalog footer (and couldn't be edited) is gone. When a page keeps its own value for a setting, Theme settings now lists it under \"This page differs from all pages\", with buttons to use the all-pages value or make it the all-pages value.",
+    links: [{ label: "Review page differences in Theme settings", tab: "settings", settingsTab: "designer" }],
+  },
+  {
     id: "studio-2-private-drafts", date: "2026-10-08", title: "Private drafts and safe saving in two tabs",
     summary: "Your unpublished Design studio draft and My themes are now stored privately instead of in the settings every shopper's browser downloads, so the shop loads less data and unannounced designs stay hidden. My themes no longer has a size limit. If the studio is open in two tabs or devices, saving no longer silently overwrites the other one: changes to different settings are combined, and you choose when both changed the same setting. This needs the updated Firestore rules deployed; until then the studio keeps working as before.",
     links: [{ label: "Open the Design studio", tab: "settings", settingsTab: "designer" }],

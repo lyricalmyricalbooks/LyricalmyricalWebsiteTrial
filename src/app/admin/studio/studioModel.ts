@@ -2,6 +2,7 @@
 // to a `design` object goes through here so it can be unit-tested and so the
 // editor never mutates state in place.
 
+import { compactDesign } from "../../features/site/designModel";
 import { MAX_BLOCK_DEPTH, normalizeBlocks, resolveSharedBlocks, type SharedBlock, type StudioBlock } from "../../features/site/sharedBlocks";
 export { MAX_BLOCK_DEPTH, normalizeBlocks, resolveSharedBlocks, type SharedBlock, type StudioBlock };
 
@@ -108,7 +109,9 @@ export function normalizeDesign(incoming: any, defaults: any = {}) {
   for (const key of Object.keys(normalized)) {
     if (Array.isArray(normalized[key]?.sections)) normalized[key] = { ...normalized[key], sections: identify(normalized[key].sections) };
   }
-  return normalized;
+  // Drop page values that can never show (shop structure, nested pages) or that equal what the
+  // page inherits anyway — the shop looks identical, and Studio's values are the ones that go live.
+  return compactDesign(normalized).design;
 }
 
 export function targetKey(t: SectionTarget) {

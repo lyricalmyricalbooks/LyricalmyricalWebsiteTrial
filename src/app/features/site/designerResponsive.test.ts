@@ -1,3 +1,4 @@
+import { layerDesign } from "./designModel";
 import { describe, expect, it } from "vitest";
 import { applyGlobalStyle, STYLE_GROUPS } from "../../admin/studio/styleSchema";
 import { getCopy } from "./storeCopy";
@@ -8,7 +9,7 @@ describe("designer responsive region editing", () => {
     const original = { copy: { wishlistTitle: "Saved" }, wishlistPage: { copy: { wishlistEmpty: "Your shelf is empty" }, sections: [1] } };
     const blank = applyGlobalStyle(original, "copy.wishlistTitle", "", ["wishlistPage"]);
     expect(getCopy(blank, "wishlistTitle")).toBe("");
-    expect(getCopy(blank.wishlistPage, "wishlistTitle")).toBe("");
+    expect(getCopy(layerDesign(blank, blank.wishlistPage), "wishlistTitle")).toBe("");
     expect(blank.wishlistPage.copy.wishlistEmpty).toBe("Your shelf is empty");
     expect(blank.wishlistPage.sections).toEqual([1]);
     const reset = applyGlobalStyle(blank, "copy.wishlistTitle", undefined, ["wishlistPage"]);
@@ -72,7 +73,9 @@ it("commits inline copy through the same page-aware writer as Text & labels", as
     sectionFields: () => [], blockFields: () => [], blocksKey: () => "items", copyKeys: ["wishlistTitle"], styleKeys: [],
     applyStyle: (design, path, value) => applyGlobalStyle(design, path, value, ["wishlistPage"]),
   });
-  expect(next.wishlistPage.copy).toEqual({ wishlistTitle: "", wishlistEmpty: "Empty" });
+  // The stale page title is cleared; the page keeps its other page-only words.
+  expect(next.wishlistPage.copy).toEqual({ wishlistEmpty: "Empty" });
+  expect(layerDesign(next, next.wishlistPage).copy).toEqual({ wishlistTitle: "", wishlistEmpty: "Empty" });
 });
 
 it("keeps border thickness and per-side padding consistent with inherited editor values", async () => {

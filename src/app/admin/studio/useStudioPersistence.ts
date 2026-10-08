@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { auth } from "../../../lib/firebase";
 import { discardDraft, publishDesign, saveDraft, studioTabId, ThemeConflictError, type Workspace } from "../themeStore";
 import { sameDesign } from "./studioModel";
+import { designSize } from "./studioChecks";
 import { createSnapshotWriter, mergeDesigns, newestRecovery, parseRecovery, RECOVERY_PREFIX } from "./studioWorkflow";
 
 type Kind = "draft" | "publish" | "discard";
@@ -60,6 +61,8 @@ export function useStudioPersistence(props: {
 
   const persist = async (kind: Kind, override?: any): Promise<void> => {
     if (locked.current) return;
+    const size = designSize(override ?? (kind === "discard" ? current.current.published : current.current.design));
+    if (size.tooBig) { current.current.say("err", size.text); return; }
     locked.current = true; setBusy(kind);
     const p = current.current;
     let lost: ThemeConflictError | null = null;
