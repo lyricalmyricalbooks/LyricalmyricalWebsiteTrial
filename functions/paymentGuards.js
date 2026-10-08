@@ -111,6 +111,27 @@ function checkoutRefusal(order) {
   return null;
 }
 
+// Why an admin may not cancel this order as "unpaid", or null. A paid (or refunding) order
+// must go through Refund, never a plain cancel that would hide money already taken.
+function cancelRefusal(order) {
+  if (!order) return "missing";
+  if (order.paymentStatus === "paid") return "paid";
+  if (String(order.paymentStatus || "").startsWith("refund")) return "refunded";
+  if (order.status === "cancelled") return "already_cancelled";
+  if (order.status === "completed") return "completed";
+  return null;
+}
+
+// A payment that arrived after the order was cancelled, or a mismatch, that the owner has dealt with.
+/** Stripe already has (or is about to have) this order's money: never cancel it as "unpaid". */
+function stripePaymentTaken(intent, session) {
+  if (intent && ["succeeded", "processing", "requires_capture"].includes(intent.status)) return true;
+  return !!(session && (session.payment_status === "paid" || session.status === "complete"));
+}
+function mismatchResolved(order) {
+  return !!(order && order.paymentMismatch && order.paymentMismatch.resolvedAt);
+}
+
 // Why an admin may not mark this order paid by hand, or null. Card and PayPal orders are
 // paid only when the provider says so (webhook, verified status check or capture); marking
 // them by hand would ship books for money that was never taken.
@@ -132,4 +153,4 @@ function stripeIntentKey(orderId, amountMinor, currency, previousIntentId) {
   return `pi-${orderId}-${String(currency || "").toLowerCase()}-${Math.round(Number(amountMinor))}-${previousIntentId || "first"}`;
 }
 
-module.exports = { checkoutRefusal, manualPaidRefusal, stripeIntentKey, discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState };
+module.exports = { cancelRefusal, mismatchResolved, stripePaymentTaken, checkoutRefusal, manualPaidRefusal, stripeIntentKey, discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState };

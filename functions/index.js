@@ -28,17 +28,18 @@ const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./localFulfillment");
+const { catalogUnitPrice } = require("./catalogPrice");
 const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shippingGeo");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck } = require("./stripeRecovery");
 const { orderMoneyFmt, refundAmountText, withoutTrackingLines } = require("./emailMoney");
 const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
-const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey } = require("./paymentGuards");
+const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
 const { hitLimit, LIMITS } = require("./rateLimit");
-const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError } = require("./stockHolds");
+const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner } = require("./stockHolds");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -533,7 +534,10 @@ async function fetchValidDiscount(code) {
 // Computes the discount amount from server-trusted item prices.
 // booksById maps item.id -> book data (for category targeting).
 function computeDiscountAmount(discount, items, booksById) {
-  return capDiscountAmount(discount, computeRawDiscountAmount(discount, items, booksById));
+  // Never more than the books cost (a 150% tier must not eat into shipping and tax), never negative.
+  const subtotal = items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const raw = Number(computeRawDiscountAmount(discount, items, booksById)) || 0;
+  return capDiscountAmount(discount, Math.max(0, Math.min(raw, subtotal)));
 }
 
 // Optional "Maximum discount" ceiling (CA$) set on a code; never raises an amount.
@@ -642,7 +646,7 @@ function computeRawDiscountAmount(discount, items, booksById) {
 
     const val = Number(matchingTier.value);
     if (matchingTier.type === "percentage") {
-      return qualSubtotal * (val / 100);
+      return qualSubtotal * (Math.min(100, Math.max(0, val)) / 100);
     } else if (matchingTier.type === "fixed") {
       return Math.min(val, qualSubtotal);
     }
@@ -666,7 +670,7 @@ function computeRawDiscountAmount(discount, items, booksById) {
     if (qualifying === 0) throw new Error("This code only applies to specific products not in your cart.");
   }
 
-  if (discount.type === "percentage") return qualifying * (Number(discount.value) / 100);
+  if (discount.type === "percentage") return qualifying * (Math.min(100, Math.max(0, Number(discount.value))) / 100);
   if (discount.type === "fixed") return Math.min(Number(discount.value), qualifying);
   return 0;
 }
@@ -943,9 +947,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
       const available = variant ? Number(variant.stock || 0) : Number(book.stockLevel || 0);
       if (available < quantity) throw new Error(`Insufficient stock for ${requested.title}. Only ${available} left.`);
     }
-    const price = variant
-      ? Number(variant.price)
-      : (book.isOnSale && book.salePrice ? Number(book.salePrice) : Number(book.retailPrice));
+    const price = catalogUnitPrice(book, variant);
     if (!Number.isFinite(price) || price < 0) throw new Error(`Book ${requested.id} is temporarily unavailable for purchase (pricing error).`);
     items.push({ ...requested, title: book.title || requested.title || "", variantName: variant ? (variant.name || null) : null, quantity, price, format: catalogFormat(book, variant), digital: catalogDigital(book, variant), isDigital: catalogDigital(book, variant), shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant) });
   }
@@ -992,6 +994,36 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
   return { ...update, convertedTotal, settings };
 }
 
+// A shopper who retries (switches card ↔ PayPal ↔ e-Transfer, or edits the bag) gets a new
+// order; their own earlier unpaid attempt must not keep the last copy held against them for
+// 30 minutes. The browser names that earlier order; it is released only when it is still
+// unpaid and belongs to the same customer email.
+async function releaseSupersededAttempt(req, email, currentOrderId) {
+  const prevId = req.body?.previousOrderId;
+  if (typeof prevId !== "string" || !prevId || prevId.includes("/") || prevId === currentOrderId) return;
+  try {
+    const snap = await db.collection("orders").doc(prevId).get();
+    if (!snap.exists) return;
+    const prev = snap.data();
+    const same = String(prev.customer?.email || "").trim().toLowerCase() === String(email || "").trim().toLowerCase();
+    if (!same || prev.paymentStatus !== "unpaid" || checkoutRefusal(prev)) return;
+    // A payment that may have gone through (webhook not here yet) keeps its hold, so the
+    // retry can't sell the same last copy twice.
+    if (prev.reconciliationPending || prev.paypalCaptureId) return;
+    const intentId = String(prev.stripePaymentIntentId || ""), sessionId = String(prev.stripeCheckoutSessionId || "");
+    if (intentId.startsWith("pi_") || sessionId.startsWith("cs_")) {
+      const { stripe, requestOptions } = await getStripeClientForMode(prev.stripeMode === "test" ? "test" : "live", prev.stripeAccountId || null);
+      const intent = intentId.startsWith("pi_") ? await stripe.paymentIntents.retrieve(intentId, {}, requestOptions) : null;
+      const session = sessionId.startsWith("cs_") ? await stripe.checkout.sessions.retrieve(sessionId, {}, requestOptions) : null;
+      if (stripePaymentTaken(intent, session)) return;
+      if (intent && !["requires_payment_method", "canceled"].includes(intent.status)) return;
+    }
+    await releaseStock(db, prevId, prev.items || []);
+  } catch (err) {
+    console.warn(`Could not release superseded attempt ${prevId}:`, err.message);
+  }
+}
+
 async function reserveForConfirmedPayment(orderId, provider, paymentId) {
   const ref = db.collection("orders").doc(orderId);
   const snap = await ref.get();
@@ -999,7 +1031,7 @@ async function reserveForConfirmedPayment(orderId, provider, paymentId) {
   const order = snap.data();
   if (order.paymentStatus === "paid" || order.status === "cancelled" || order.isTest === true || order.paypalMode === "test" || order.stripeMode === "test") return true;
   try {
-    await reserveStock(db, orderId, order.items || []);
+    await reserveStock(db, orderId, order.items || [], Date.now(), holdOwner(order));
     return true;
   } catch (err) {
     if (!(err instanceof StockHoldError)) throw err;
@@ -1117,8 +1149,9 @@ exports.createPayPalOrder = onBrowserRequest(
       }
       const config = await getPayPalConfig();
       if (!config.testMode) {
+        await releaseSupersededAttempt(req, order.customer?.email, orderId);
         try {
-          await reserveStock(db, orderId, order.items || []);
+          await reserveStock(db, orderId, order.items || [], Date.now(), holdOwner(order));
         } catch (holdErr) {
           if (holdErr instanceof StockHoldError) return res.status(409).json({ error: holdErr.message, code: holdErr.code });
           throw holdErr;
@@ -1174,12 +1207,17 @@ exports.capturePayPalOrder = onBrowserRequest(
       if (!orderId || !paypalOrderId) return res.status(400).json({ error: "Missing order identifiers" });
       const orderDoc = await db.collection("orders").doc(orderId).get();
       if (!orderDoc.exists || orderDoc.data().paypalOrderId !== paypalOrderId) return res.status(400).json({ error: "PayPal order mismatch" });
-      if (!canViewOrder(orderDoc.data(), { key: orderRequestKey(req), identity: await orderRequestIdentity(req) })) return res.status(403).json({ error: "access_required" });
+      // The PayPal order id (checked above) is the proof here: it only reaches a browser through
+      // PayPal's own approval redirect, which may land in a new tab without this tab's order key.
+      // Capturing can only complete the shop's own order; it reveals nothing about it.
       if (orderDoc.data().paymentStatus === "paid") return res.json({ paid: true });
+      // A cancelled or refunded order must not take the shopper's money.
+      if (checkoutRefusal(orderDoc.data()) === "closed") return res.status(409).json({ error: "This order was cancelled. Your payment was not taken.", code: "order_closed" });
       if (!await reserveForConfirmedPayment(orderId, "PayPal", paypalOrderId)) return res.status(409).json({ error: "Stock is no longer available. Your payment was not taken.", code: "stock_unavailable" });
       const config = await getPayPalConfig();
       const captured = await paypalRequest(config, `/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
-        method: "POST", headers: { "PayPal-Request-Id": `capture-${orderId}` }, body: "{}",
+        // One id per PayPal order: a new PayPal order (new total, new attempt) gets its own capture.
+        method: "POST", headers: { "PayPal-Request-Id": `capture-${orderId}-${paypalOrderId}` }, body: "{}",
       });
       const capture = captured.purchase_units?.[0]?.payments?.captures?.[0];
       if (captured.status !== "COMPLETED" || capture?.status !== "COMPLETED") throw new Error("PayPal capture has not completed.");
@@ -1273,6 +1311,8 @@ exports.createStripeCheckoutSession = onBrowserRequest(
     if (req.body?.action === "trackingLink") return handleTrackingLink(req, res);
     if (req.body?.action === "registerPaymentDomain") return handleRegisterPaymentDomain(req, res);
     if (req.body?.action === "webhookHealth") return handleWebhookHealth(req, res);
+    if (req.body?.action === "cancelOrder") return handleCancelOrder(req, res);
+    if (req.body?.action === "resolvePaymentMismatch") return handleResolveMismatch(req, res);
     if (req.body?.action === "orderRequest") return handleOrderRequest(req, res);
     if (req.body?.action === "privacyRequest") return handlePrivacyRequest(req, res);
     if (req.body?.action === "privacyExport" || req.body?.action === "privacyErase") return handlePrivacyAdmin(req, res);
@@ -1322,7 +1362,8 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         for (const cartKey of [order.cartId, `active_${order.customer.email}`].filter(Boolean)) {
           await db.collection('abandoned-carts').doc(cartKey).update({ recovered: true, recoveredAt: now }).catch(() => {});
         }
-        await reserveStock(db, orderId, items);
+        await releaseSupersededAttempt(req, order.customer.email, orderId);
+        await reserveStock(db, orderId, items, Date.now(), holdOwner(order));
         try {
           await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, trackingKey, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
         } catch (createErr) {
@@ -1356,13 +1397,14 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         const freeOrder = freeDoc.data();
         if (!canViewOrder(freeOrder, { key: orderRequestKey(req), identity: await orderRequestIdentity(req) })) return res.status(403).json({ error: "access_required" });
         if (freeOrder.paymentStatus === "paid") return res.status(200).json({ paid: true });
-        if (freeOrder.paymentStatus !== "unpaid" || freeOrder.paymentMethod !== "Free" || freeOrder.isTest === true) {
+        if (freeOrder.paymentStatus !== "unpaid" || freeOrder.paymentMethod !== "Free" || freeOrder.isTest === true || checkoutRefusal(freeOrder)) {
           return res.status(400).json({ error: "This order can't be completed without payment." });
         }
         const priced = await recalculateOrder(freeRef, freeOrder, checkoutCurrencyOf(req.body.currency) || "cad");
         if (Math.round(Number(priced.total) * 100) !== 0) {
           return res.status(400).json({ error: "This order has a total to pay. Review your bag and choose a payment method." });
         }
+        await releaseSupersededAttempt(req, freeOrder.customer?.email, freeId);
         await completeOrderWithoutCard(freeId, "Free order completed — nothing to charge.");
         return res.status(200).json({ paid: true });
       } catch (err) {
@@ -1445,9 +1487,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
           }
         }
 
-        const unitPrice = variant
-          ? Number(variant.price)
-          : (book.isOnSale && book.salePrice ? Number(book.salePrice) : Number(book.retailPrice));
+        const unitPrice = catalogUnitPrice(book, variant);
         if (!Number.isFinite(unitPrice) || unitPrice < 0) {
           res.status(400).json({ error: `"${item.title}" is temporarily unavailable for purchase (pricing error).` });
           return;
@@ -1636,8 +1676,9 @@ exports.createStripeCheckoutSession = onBrowserRequest(
 
       // Sandbox sessions rehearse payment only; they do not reserve or consume live stock.
       if (!testMode) {
+        await releaseSupersededAttempt(req, order.customer?.email, orderId);
         try {
-          await reserveStock(db, orderId, items);
+          await reserveStock(db, orderId, items, Date.now(), holdOwner(order));
         } catch (holdErr) {
           if (holdErr instanceof StockHoldError) {
             res.status(409).json({ error: holdErr.message, code: holdErr.code });
@@ -2115,7 +2156,8 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
       if (!done) { alreadyRecorded = true; return; }
       transaction.update(orderRef, {
         paymentStatus: "refunded",
-        ...(order.returnProgress && order.returnProgress.state !== "rejected" ? { returnProgress: { ...order.returnProgress, state: "completed", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
+        ...(provider === "dispute" && order.customerRequest?.status === "open" ? { customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
+      ...(order.returnProgress && order.returnProgress.state !== "rejected" && provider !== "dispute" ? { returnProgress: { ...order.returnProgress, state: "completed", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
         ...(order.refund ? { refund: { ...order.refund, status: "succeeded" } } : {}),
         updatedAt: now,
         activity: [...(order.activity || []), { type: "event", message: `${label} refund completed${amountText}${note ? ` — ${note}` : ""}.`, createdAt: now }],
@@ -2140,7 +2182,8 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     }
     transaction.update(orderRef, {
       paymentStatus: done ? "refunded" : "refund_pending",
-      ...(order.returnProgress && order.returnProgress.state !== "rejected" ? { returnProgress: { ...order.returnProgress, state: done ? "completed" : "refund_pending", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
+      ...(provider === "dispute" && order.customerRequest?.status === "open" ? { customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
+      ...(order.returnProgress && order.returnProgress.state !== "rejected" && provider !== "dispute" ? { returnProgress: { ...order.returnProgress, state: done ? "completed" : "refund_pending", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
       status: "cancelled",
       refund: {
         id: refundId,
@@ -2208,6 +2251,14 @@ async function syncStripeReversal(orderId, { charge, dispute = null, source }) {
       update.disputeStatus = r.disputeStatus;
       if (dispute?.id) update.disputeId = dispute.id;
       notes.push(`Stripe dispute ${r.disputeStatus.replace(/_/g, " ")} (${source}).`);
+    }
+
+    // Money taken after the order was cancelled (or for the wrong amount), now fully refunded:
+    // the problem is dealt with, so it leaves Needs attention and the alerts.
+    if (r.fullyRefunded && order.paymentMismatch && !mismatchResolved(order) && order.paymentStatus !== "paid") {
+      update["paymentMismatch.resolvedAt"] = now;
+      update["paymentMismatch.resolvedBy"] = "stripe-refund";
+      notes.push(`The unexpected Stripe payment was refunded (${source}).`);
     }
 
     if ((r.fullyRefunded || r.disputeStatus === "lost") && ["paid", "refund_pending"].includes(order.paymentStatus)) {
@@ -2280,6 +2331,95 @@ async function recordStripeReconciliation(orderId, session) {
     if (!snap.exists || snap.data().paymentStatus === "paid") return;
     tx.update(ref, { reconciliationPending: { provider: "stripe", providerStatus: "paid", paymentIntentId: typeof session.payment_intent === "string" ? session.payment_intent : null, sessionId: session.id || null, checkedAt: new Date().toISOString() } });
   });
+}
+
+// Admin: cancel an unpaid order. Done in a transaction so an order that was paid a moment
+// ago (webhook) is refused instead of quietly hidden, then the payment the shopper may still
+// be completing is stopped (Stripe PaymentIntent cancelled / Checkout Session expired).
+async function handleCancelOrder(req, res) {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+  const orderId = req.body?.orderId;
+  if (typeof orderId !== "string" || !orderId || orderId.includes("/")) return res.status(400).json({ error: "Missing orderId" });
+  const ref = db.collection("orders").doc(orderId);
+  try {
+    // Ask Stripe first: an order still "unpaid" here may already be paid there (missed webhook).
+    // Cancelling it would leave a charged customer with no books and no alert.
+    const before = await ref.get();
+    const pre = before.exists ? before.data() : null;
+    const intentId = String(pre?.stripePaymentIntentId || "");
+    const sessionId = String(pre?.stripeCheckoutSessionId || "");
+    let stripeCtx = null, intent = null, session = null;
+    if (pre && !cancelRefusal(pre) && (intentId.startsWith("pi_") || sessionId.startsWith("cs_"))) {
+      try {
+        stripeCtx = await getStripeClientForMode(pre.stripeMode === "test" ? "test" : "live", pre.stripeAccountId || null);
+        if (intentId.startsWith("pi_")) intent = await stripeCtx.stripe.paymentIntents.retrieve(intentId, {}, stripeCtx.requestOptions);
+        if (sessionId.startsWith("cs_")) session = await stripeCtx.stripe.checkout.sessions.retrieve(sessionId, {}, stripeCtx.requestOptions);
+      } catch (err) {
+        if (!(err?.code === "resource_missing" || err?.statusCode === 404)) {
+          return res.status(503).json({ error: "Couldn't check this payment with Stripe. Try again in a minute.", code: "stripe_unreachable" });
+        }
+      }
+      if (stripePaymentTaken(intent, session)) {
+        await recordStripeReconciliation(orderId, { id: session?.id || null, payment_intent: intent?.id || session?.payment_intent || null }).catch(() => {});
+        return res.status(409).json({ error: "Stripe shows this order as paid. Don't cancel it: resend the payment event from Stripe (Webhook health), then ship or refund it.", code: "paid_in_stripe" });
+      }
+    }
+    const order = await db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      const current = snap.exists ? snap.data() : null;
+      const refusal = cancelRefusal(current);
+      if (refusal) {
+        const message = refusal === "paid" ? "This order has just been paid. Refund it instead of cancelling."
+          : refusal === "refunded" ? "This order is being refunded." : refusal === "missing" ? "Order not found" : "This order is already closed.";
+        const err = new Error(message); err.status = refusal === "missing" ? 404 : 409; err.code = refusal; throw err;
+      }
+      const now = new Date().toISOString();
+      tx.update(ref, {
+        status: "cancelled", cancelledAt: now, cancelledBy: adminUser.email || adminUser.uid, updatedAt: now,
+        activity: admin.firestore.FieldValue.arrayUnion({ type: "event", message: `Unpaid order cancelled by ${adminUser.email || "administrator"}.`, createdAt: now }),
+      });
+      return current;
+    });
+    // Best effort: stop a payment the shopper may still finish. A payment that slips through
+    // anyway is recorded as "paid after cancelling" by the webhook, and the sweep still checks
+    // cancelled orders with a Stripe payment.
+    const stopped = [];
+    try {
+      if (stripeCtx) {
+        const { stripe, requestOptions } = stripeCtx;
+        if (session && session.status === "open") {
+          await stripe.checkout.sessions.expire(session.id, {}, requestOptions).then(() => stopped.push("checkout")).catch(() => {});
+        }
+        if (intent && ["requires_payment_method", "requires_confirmation", "requires_action"].includes(intent.status)) {
+          await stripe.paymentIntents.cancel(intent.id, {}, requestOptions).then(() => stopped.push("card")).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn(`cancelOrder ${orderId}: could not stop the Stripe payment:`, err.message);
+    }
+    await releaseStock(db, orderId, order.items || []);
+    return res.status(200).json({ cancelled: true, stopped });
+  } catch (err) {
+    return res.status(err.status || 500).json({ error: err.message, code: err.code });
+  }
+}
+
+// Admin: the extra/late payment on this order has been refunded in Stripe or PayPal.
+async function handleResolveMismatch(req, res) {
+  const adminUser = await requireAdmin(req, res);
+  if (!adminUser) return;
+  const orderId = req.body?.orderId;
+  if (typeof orderId !== "string" || !orderId || orderId.includes("/")) return res.status(400).json({ error: "Missing orderId" });
+  const ref = db.collection("orders").doc(orderId);
+  const snap = await ref.get();
+  if (!snap.exists || !snap.data().paymentMismatch) return res.status(404).json({ error: "Nothing to resolve on this order." });
+  const now = new Date().toISOString();
+  await ref.update({
+    "paymentMismatch.resolvedAt": now, "paymentMismatch.resolvedBy": adminUser.email || adminUser.uid, updatedAt: now,
+    activity: admin.firestore.FieldValue.arrayUnion({ type: "event", message: `Payment problem marked as refunded/resolved by ${adminUser.email || "administrator"}.`, createdAt: now }),
+  });
+  return res.status(200).json({ resolved: true });
 }
 
 async function handleCheckoutStatus(req, res) {
@@ -2750,9 +2890,13 @@ exports.cartShippingPreview = onBrowserRequest({}, async (req, res) => {
       const book = snap.data();
       if (!snap.exists || purchaseProblem(book, item.variantId)) throw new Error("invalid_cart");
       const variant = item.variantId ? (book.variants || []).find(value => value.id === item.variantId) : null;
-      const price = variant ? Number(variant.price) : Number(book.isOnSale && book.salePrice ? book.salePrice : book.retailPrice);
+      // An edition that no longer exists is refused here exactly as checkout refuses it.
+      if (item.variantId && !variant) throw new Error("invalid_cart");
+      const price = catalogUnitPrice(book, variant);
       if (!Number.isFinite(price) || price < 0) throw new Error("invalid_cart");
-      return { price, quantity: item.quantity, shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant), digital: catalogDigital(book, variant) };
+      // E-books and audiobooks are recognised by format too, as checkout does (isPhysicalItem).
+      const digital = !isPhysicalItem({ format: catalogFormat(book, variant), digital: catalogDigital(book, variant) });
+      return { price, quantity: item.quantity, shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant), digital };
     }));
     const profilesSnap = await db.collection("shipping-profiles").get();
     const physical = lines.filter(item => !item.digital);
@@ -2811,6 +2955,17 @@ exports.refundOrder = onBrowserRequest(
     const orderRef = db.collection("orders").doc(orderId);
     const actor = adminUser.email || adminUser.uid;
     const reasonText = String(reason || "Admin refund").slice(0, 500);
+    const claimedAt = new Date().toISOString();
+    let claimed = false, providerAccepted = false, providerCalled = false;
+    // Only these mean the provider certainly took no refund; anything else may still complete.
+    const DEFINITE_REFUSALS = ["StripeInvalidRequestError", "StripeCardError", "StripePermissionError", "StripeAuthenticationError"];
+    // A refund attempt that never reached the provider must not leave its claim behind:
+    // a stale refundRequest would block every later return step on this order.
+    const releaseClaim = () => db.runTransaction(async transaction => {
+      const snap = await transaction.get(orderRef);
+      const current = snap.exists ? snap.data() : null;
+      if (current && current.paymentStatus === "paid" && current.refundRequest?.at === claimedAt) transaction.update(orderRef, { refundRequest: null });
+    }).catch(err => console.warn(`Could not release refund claim for ${orderId}:`, err.message));
     try {
       // Claim the refund first and save the admin's restock choice, so a Stripe/PayPal
       // refund webhook that lands before we finish follows the same choice.
@@ -2822,15 +2977,19 @@ exports.refundOrder = onBrowserRequest(
           const e = new Error(current.paymentStatus === "refunded" ? "This order has already been refunded." : "Only paid orders can be refunded.");
           e.status = 409; throw e;
         }
-        if (current.customerRequest?.type === "return" && current.customerRequest.status === "open" && current.returnProgress?.state !== "inspected") {
+        // Books on their way back (approved / received) are inspected before the money goes back.
+        // A request the shop hasn't approved (e-book orders, goodwill refunds) can be refunded directly.
+        if (current.customerRequest?.type === "return" && current.customerRequest.status === "open" && ["approved", "received"].includes(current.returnProgress?.state)) {
           const error = new Error("Receive and inspect the returned books before refunding this return."); error.status = 409; throw error;
         }
-        transaction.update(orderRef, { refundRequest: { restock: restock !== false, reason: reasonText, actor, at: new Date().toISOString() } });
+        transaction.update(orderRef, { refundRequest: { restock: restock !== false, reason: reasonText, actor, at: claimedAt } });
         return current;
       });
+      claimed = true;
 
       const provider = refundProviderOf(order);
       if (!provider) {
+        await releaseClaim();
         res.status(409).json({ error: "This order has no saved card or PayPal payment to refund. Refund it in Stripe or PayPal directly; the order updates itself." });
         return;
       }
@@ -2838,6 +2997,7 @@ exports.refundOrder = onBrowserRequest(
       if (provider === "stripe") {
         const stripeMode = order.stripeMode === "test" ? "test" : "live";
         const { stripe, requestOptions } = await getStripeClientForMode(stripeMode, order.stripeAccountId || null);
+        providerCalled = true;
         const refund = await stripe.refunds.create({
           payment_intent: order.stripePaymentIntentId,
           reason: "requested_by_customer",
@@ -2851,6 +3011,7 @@ exports.refundOrder = onBrowserRequest(
         const config = await getPayPalConfig();
         if (order.paypalMode === "test") config.testMode = true;
         else if (order.paypalMode === "live") config.testMode = false;
+        providerCalled = true;
         const refund = await paypalRequest(config, `/v2/payments/captures/${encodeURIComponent(order.paypalCaptureId)}/refund`, {
           method: "POST",
           headers: { "PayPal-Request-Id": `refund-${orderId}-full` },
@@ -2869,6 +3030,7 @@ exports.refundOrder = onBrowserRequest(
         outcome = { refundId: null, amountMinor: null, currency: null, status: "succeeded" };
       }
 
+      providerAccepted = true;
       const result = await applyOrderRefund(orderId, {
         provider, ...outcome, restock: restock !== false, reason: reasonText, actor,
       });
@@ -2882,6 +3044,9 @@ exports.refundOrder = onBrowserRequest(
       });
     } catch (err) {
       console.error("refundOrder failed:", err);
+      // Keep the claim only when the provider may have taken the refund (accepted, or a lost
+      // connection): its webhook then follows the admin's restock choice.
+      if (claimed && !providerAccepted && (!providerCalled || DEFINITE_REFUSALS.includes(err?.type) || (err?.status >= 400 && err?.status < 500))) await releaseClaim();
       const status = err.status || (err.type?.startsWith("Stripe") ? 400 : 500);
       res.status(status).json({ error: err.message || "Refund failed" });
     }
@@ -3258,7 +3423,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       if (isManual && after.inventoryDecrementedAt == null) {
         const itemList = after.items || [];
         try {
-          await reserveStock(db, orderId, itemList);
+          await reserveStock(db, orderId, itemList, Date.now(), holdOwner(after));
           await db.runTransaction(async transaction => {
             const books = await readBooks(transaction, db, itemList);
             const oversold = writeStock(transaction, db, itemList, books, -1, new Date().toISOString());
@@ -3641,7 +3806,7 @@ exports.abandonedCartSweep = onSchedule(
         if (!book) continue;
         const variant = item.variantId ? (book.variants || []).find(v => v.id === item.variantId) : null;
         if (item.variantId && !variant) continue;
-        const price = variant ? Number(variant.price) : (book.isOnSale && Number(book.salePrice) > 0 ? Number(book.salePrice) : Number(book.retailPrice));
+        const price = catalogUnitPrice(book, variant);
         if (!Number.isFinite(price) || price < 0) continue;
         const qty = Math.max(1, Math.min(99, Math.floor(Number(item.qty || item.quantity) || 1)));
         lines.push({ title: `${book.title || ""}${variant?.name ? ` (${variant.name})` : ""}`, qty, price });
@@ -4385,6 +4550,8 @@ exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
         value: d.value,
         minOrderAmount: d.minOrderAmount ?? null,
         minQuantity: d.minQuantity ?? null,
+        // Checkout shows the same "up to $X off" ceiling the server applies.
+        maxDiscountAmount: d.maxDiscountAmount ?? null,
         onePerCustomer: d.onePerCustomer ?? false,
         appliesTo: d.appliesTo ?? "all",
         selectedCategories: d.selectedCategories ?? [],
@@ -4995,11 +5162,14 @@ exports.onBookUpdated = onDocumentUpdated(
 // ──────────────────────────────────────────────────────────────
 // Marks an order paid when no card or PayPal payment is involved (manual payment confirmed
 // by the admin, or a $0 order): stock out once, discount use counted once, revenue recorded.
-async function completeOrderWithoutCard(orderId, message) {
+async function completeOrderWithoutCard(orderId, message, { reserve = true } = {}) {
   const orderRef = db.collection("orders").doc(orderId);
   let paidTotal = null;
   const initial = await orderRef.get();
-  if (initial.exists && initial.data().paymentStatus !== "paid") await reserveStock(db, orderId, initial.data().items || []);
+  // A free order checks the 30-minute stock hold like any checkout. A manual payment the owner
+  // confirms days later is money already received: it is recorded even if the books have
+  // since sold (the stock write below flags oversold for the owner).
+  if (reserve && initial.exists && initial.data().paymentStatus !== "paid") await reserveStock(db, orderId, initial.data().items || [], Date.now(), holdOwner(initial.data()));
 
   await db.runTransaction(async transaction => {
     paidTotal = null; // a retried attempt must not keep the last attempt's value
@@ -5071,7 +5241,7 @@ exports.markOrderPaid = onBrowserRequest(
       if (refusal === "missing") { res.status(404).json({ error: "Order not found" }); return; }
       if (refusal === "closed") { res.status(409).json({ error: "This order is cancelled or refunded, so it can't be marked paid." }); return; }
       if (refusal === "provider") { res.status(409).json({ error: "Card and PayPal orders are marked paid only when the payment provider confirms the payment. Use Check payment with Stripe, or check PayPal." }); return; }
-      await completeOrderWithoutCard(orderId, `Payment confirmed manually by ${adminUser.email}.`);
+      await completeOrderWithoutCard(orderId, `Payment confirmed manually by ${adminUser.email}.`, { reserve: false });
       res.status(200).json({ success: true });
     } catch (err) {
       console.error("markOrderPaid failed:", err);
@@ -5091,7 +5261,13 @@ exports.unpaidPaymentSweep = onSchedule(
   { schedule: "every 15 minutes", secrets: [STRIPE_SECRET_KEY, RESEND_API_KEY] },
   async () => {
     const { suspectOrders, alertHtml } = require("./paymentSweep");
-    const snap = await db.collection("orders").where("paymentStatus", "==", "unpaid").limit(300).get();
+    // Newest unpaid orders first, within the 7-day window the sweep checks. Without an order
+    // the 300 returned were an arbitrary slice, so new orders could be skipped for good.
+    // Falls back to the old query while the composite index is still building.
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const snap = await db.collection("orders").where("paymentStatus", "==", "unpaid").where("createdAt", ">=", since)
+      .orderBy("createdAt", "desc").limit(300).get()
+      .catch(err => { console.error("unpaidPaymentSweep: ordered query failed (deploy firestore:indexes), using unordered:", err.message); return db.collection("orders").where("paymentStatus", "==", "unpaid").limit(300).get(); });
     const candidates = suspectOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     const found = [];
     for (const order of candidates) {
@@ -5120,8 +5296,19 @@ exports.unpaidPaymentSweep = onSchedule(
     // Safety net for refunds/disputes made in Stripe whose webhook never arrived.
     try {
       const { ordersDueReversalCheck } = require("./stripeRecovery");
-      const paidSnap = await db.collection("orders").where("paymentStatus", "in", ["paid", "refund_pending"]).limit(500).get();
-      for (const order of ordersDueReversalCheck(paidSnap.docs.map((d) => ({ id: d.id, ...d.data() })))) {
+      const paidSince = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
+      const paidStatuses = ["paid", "refund_pending"];
+      // Recent payments by paidAt, plus recent orders by createdAt (older records may lack paidAt).
+      const parts = await Promise.all([
+        db.collection("orders").where("paymentStatus", "in", paidStatuses).where("paidAt", ">=", paidSince).orderBy("paidAt", "desc").limit(500).get(),
+        db.collection("orders").where("paymentStatus", "in", paidStatuses).where("createdAt", ">=", paidSince).orderBy("createdAt", "desc").limit(500).get(),
+      ]).catch(async err => {
+        console.error("unpaidPaymentSweep: ordered reversal query failed (deploy firestore:indexes); using an unordered slice:", err.message);
+        return [await db.collection("orders").where("paymentStatus", "in", paidStatuses).limit(500).get()];
+      });
+      const paidById = new Map();
+      for (const part of parts) for (const d of part.docs) paidById.set(d.id, { id: d.id, ...d.data() });
+      for (const order of ordersDueReversalCheck([...paidById.values()])) {
         await checkStripeReversal(order.id, order, "automatic check").catch(err => console.warn(`reversal check ${order.id}:`, err.message));
       }
     } catch (err) {

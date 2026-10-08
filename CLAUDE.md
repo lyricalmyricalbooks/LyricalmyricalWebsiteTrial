@@ -403,7 +403,7 @@ classes); its words are in Text & labels › Product page (`pdp*` copy keys). Th
 **Shopping bag (cart drawer):** `components/CartDrawer.tsx` is a Riso "order slip" — ruled header, free-shipping
 meter, numbered line items (photo, title, per-copy price, line total, qty stepper, Remove), "Complete your collection"
 card, then Subtotal / Shipping / Total ledger, trust badges and checkout button. Every piece is a Studio › Style ›
-**Cart drawer (shopping bag)** control (`cartDrawer*` keys + `showFreeShipBar`/`freeShipThreshold`/`showCartTrustBadges`,
+**Cart drawer (shopping bag)** control (`cartDrawer*` keys + `showFreeShipBar`/`showCartTrustBadges`; the bar's amount comes from Settings › Shipping,
 CSS from `features/site/cartDrawerStyle.ts`, `fm-bag-*` classes); words are Text & labels › Cart. Each region carries
 its own click-to-edit target (Bag heading, Free-shipping bar, Bag line items, Bag suggestion, Bag total & checkout).
 
@@ -1051,3 +1051,64 @@ Stripe payment fields retain Studio colours when readable and choose contrasting
 
 Custom-page navigation resolves published bodies from useSiteData's shared snapshot, including Studio preview updates. Avoid separate slug fetches that clear the header/content on each link; cold custom-page loading retains the shared header.
 Grouped footer navigation defaults to Explore and Participate & connect, with policies in a wrapping row above copyright. Studio > Style > Footer & social links selects grouped/classic layout and group/location/heading visibility; Text & labels > Footer owns headings. Menus > Footer menu can customize automatic links, assign groups, edit destinations/labels, reorder and hide links, preserving sub-links. Contact pages suppress the duplicate automatic email link. Preview click-to-edit and inline copy hooks remain available.
+
+## Bug sweep #5 (8 October 2026)
+
+- **Cancelling:** Orders › **Cancel unpaid order** is server-side (`createStripeCheckoutSession` action `cancelOrder`,
+  `cancelRefusal` in `functions/paymentGuards.js`): refused once paid, and it stops the Stripe PaymentIntent / Checkout
+  session and releases stock holds. It asks Stripe first and refuses (recording `reconciliationPending`) when Stripe
+  already has the money (`stripePaymentTaken`); the sweep keeps checking cancelled orders with a Stripe payment. PayPal capture and `completeFreeOrder` refuse cancelled orders; the PayPal capture
+  request id includes the PayPal order id and a matching `paypalOrderId` is the proof (shoppers may return in a new tab).
+- **Paid after cancelling / mismatched payments** clear once refunded: a full Stripe refund sets
+  `paymentMismatch.resolvedAt`, or the admin presses **Mark refunded** on the order (action `resolvePaymentMismatch`).
+  Queues, alerts and the Orders desk ignore resolved mismatches.
+- **Disputes:** an open `disputeStatus` puts a paid, not-yet-sent order in Needs attention; dispatch, label purchase and
+  local handover refuse it. Sent parcels stay In transit so delivery can still be recorded.
+- Manual **Mark paid** after the 30-min hold no longer fails (`completeOrderWithoutCard(…, { reserve: false })`).
+  Sweeps read bounded, ordered windows (new `orders` indexes); the "webhook missed" alert skips cancelled/mismatched orders.
+- **Discounts** can't exceed the qualifying subtotal; tier percentages are 0–100 (admin refuses > 100%).
+  An edition with an empty price can't be saved. Address correction can't change country/province on carrier orders.
+- **Checkout:** a retry (card, PayPal, manual or free) releases the shopper's own previous unpaid attempt's hold
+  (`previousOrderId`, `releaseSupersededAttempt`: unpaid, same email, and Stripe shows no payment in progress). Pickup choices stay picked. An address-checker outage continues as
+  unverified (`addressError: "verification_unavailable"`, shown in the address step of the order). Tax shows its real
+  amount (CA$0.00 too) once country and a recognised province are known; unrecognised saved provinces are cleared.
+- **Bag free-shipping bar** follows Settings › Shipping (`features/site/freeShipThreshold.ts`): only a rule that makes
+  every option free everywhere counts (profile `freeShippingOver` / `freeThreshold`, or `freeOver` on every rate); highest
+  across profiles; hidden otherwise or for an e-book-only bag. The Studio
+  "Free shipping over" number was removed — Studio keeps the on/off and look.
+- Download buttons appear only for digital lines (`features/site/digitalLine.ts`). Review inputs carry the rules' length
+  limits. A page missing from the cached site shows Loading until the fresh read (`useSiteData().fresh`), not a 404.
+- **Deploy** Firestore indexes + Functions + frontend together. Owner decisions still open: should free-shipping codes
+  cover express/live rates, a "change cookie choice" link, and the sales-tax model.
+## Bug sweep #6 + shop filters (8 October 2026)
+
+- **Shop filters:** `features/site/CatalogControls.tsx` adds Shopify-style **Format** chips (paperback, hardcover,
+  e-book, audiobook, other — from the book's and every edition's format, `bookFormats`), **Price** Min/Max boxes
+  (typed in the shopper's currency, `priceRangeFor`) and **Clear filters**. Chips show only when the current view has
+  2+ formats and the price boxes only with 2+ prices (`filterView`); a hidden filter never applies (`appliedFilters`).
+  "In stock" counts editions and backorders (`bookInStock`); search also matches ISBN. Each piece is a Studio region
+  (`catalogFormat`, `catalogPrice`, `catalogClear` — show/hide + layout in Theme settings › Fine-tune single elements › Catalog & shared content · layout);
+  words are Text & labels › Search & filters (`filterFormat*`, `filterPrice*`, `filterClear`). The bar itself still
+  follows Style › Catalog page header & filters › **Show search, sort & in-stock bar**.
+- **Display price:** `features/site/displayPrice.ts` — a book sold only in editions shows its cheapest edition
+  (CurrencyContext `getBookPrice`, shop cards, search, showcase grid, filters/sort) instead of CA$ 0.00.
+- **Server prices:** `functions/catalogPrice.js` `catalogUnitPrice` mirrors `CartContext.catalogUnitPrice` everywhere
+  (a `"0"`/negative sale price is ignored; an edition with no price is refused, never charged $0).
+- **Discounts:** `validateDiscountCode` returns `maxDiscountAmount` (checkout showed the uncapped amount);
+  `functions/discountPayload.test.js` fails if checkout reads a field the server doesn't send. Every discount is clamped
+  to 0…items value on both sides; percent tiers over 100 are refused in the editor. The card-retry key includes the code.
+- **Stock holds:** holds carry `owner` (sha256 of the email, `holdOwner`); a shopper's own earlier attempt never blocks
+  their retry, other shoppers are still held off.
+- **Digital vs physical:** one rule (`isPhysicalItem` / admin `isDigitalItem`) in the cart estimate, returns, label guard
+  and publish review — audiobooks/EPUBs/format-only e-books are never shipped, returned or weight-checked.
+- **Returns:** a return request the shop hasn't approved can be refunded directly (only approved/received block refunds);
+  the workbench offers **Close request without a return**; a closed request can't be reopened; a refund that never reached
+  the provider clears its `refundRequest` claim; a lost dispute doesn't show the customer "refund complete"; refunding an
+  undispatched order follows the admin's restock choice.
+- **Storefront:** `lib/ScrollToTop.tsx` opens each newly clicked page at the top; account data is cleared on sign-out /
+  user change (no address carry-over) and order rows/fields are keyboard + screen-reader accessible; product views count
+  once; product **Back** goes home when the shopper landed directly; the quantity stepper counts copies already in the bag
+  and `addToCart` returns false when nothing was added; Recently viewed updates between books; search overlay traps focus;
+  footer icon links have labels (Text & labels › Footer); the grouped legal row hides with no policies; wishlist badges
+  count only live books; the cart estimate guesses the country and hands its destination to checkout only after **Estimate**.
+- Deploy Functions with this frontend. No Firestore rule or index changes.

@@ -51,7 +51,7 @@ const isStudioPreview = () => typeof window !== "undefined" && new URLSearchPara
 
 export function PageView() {
   const { slug } = useParams<{ slug: string }>();
-  const { settings, books, pages, loading: siteLoading } = useSiteData();
+  const { settings, books, pages, loading: siteLoading, fresh } = useSiteData();
   // The shared storefront snapshot already contains full published page bodies.
   // Resolve from it on every slug change instead of clearing the screen for a
   // second Firestore request. Studio snapshots and background refreshes still
@@ -106,7 +106,9 @@ export function PageView() {
   const themedText = d?.textColor || "#f3f1ee";
 
   const shown = page || policyPage;
-  if (!shown && siteLoading) {
+  // A page published after this browser cached the site isn't in that cache yet:
+  // keep showing "Loading" until the fresh read, rather than a false 404.
+  if (!shown && (siteLoading || !fresh)) {
     return (
       <div data-fm-store data-studio-target="pages|copy:Custom pages & 404" data-studio-label="Page" className="min-h-screen fm-page flex flex-col">
         <StorefrontThemeStyle design={settings?.design} />

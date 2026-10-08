@@ -1,5 +1,5 @@
 import { CartShippingPreview } from "./CartShippingPreview";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router";
 import { useCart, catalogUnitPrice, MAX_LINE_QUANTITY } from "../CartContext";
@@ -11,6 +11,13 @@ import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { cartDrawerCss, cartDrawerFontNames, cartDrawerWidth } from "../features/site/cartDrawerStyle";
 import { googleFontHref } from "../features/site/fonts";
 import { useFocusTrap } from "../lib/useFocusTrap";
+import { adminApi } from "../admin/api";
+import { catalogFulfillmentItems } from "../features/site/checkoutFulfillment";
+import { bagFreeShipThreshold } from "../features/site/freeShipThreshold";
+
+// Shipping rules are read once per visit (public collection) the first time the bag opens.
+let shippingProfilesLoad: Promise<any[] | null> | null = null;
+const loadShippingProfiles = () => (shippingProfilesLoad ||= adminApi.getShippingProfiles().catch(() => { shippingProfilesLoad = null; return null; }));
 import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldCheck, Truck, Lock } from "lucide-react";
 
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
@@ -61,9 +68,20 @@ export function CartDrawer() {
   const grayscaleThumbs = design.cartDrawerGrayscaleThumbs ?? false;
   const itemCount = cart.reduce((n, i) => n + (i.quantity || 0), 0);
 
-  const FREE_SHIP_THRESHOLD = Math.max(0, design.freeShipThreshold ?? 100);
-  const remaining = Math.max(0, FREE_SHIP_THRESHOLD - cartTotal);
-  const progress = FREE_SHIP_THRESHOLD > 0 ? Math.min(100, (cartTotal / FREE_SHIP_THRESHOLD) * 100) : 100;
+  // The bar follows Settings › Shipping's own free-shipping rules, so it never promises
+  // something checkout won't charge. No rule (or an e-book-only bag) → no bar.
+  const [shippingProfiles, setShippingProfiles] = useState<any[] | null>(null);
+  useEffect(() => {
+    if (!isCartOpen || shippingProfiles) return;
+    let live = true;
+    loadShippingProfiles().then((profiles) => { if (live) setShippingProfiles(profiles); });
+    return () => { live = false; };
+  }, [isCartOpen, shippingProfiles]);
+  const fulfillmentItems = useMemo(() => catalogFulfillmentItems(cart, booksMap), [cart, booksMap]);
+  const hasPhysicalItems = fulfillmentItems ? fulfillmentItems.some((item) => item.physical) : cart.length > 0;
+  const FREE_SHIP_THRESHOLD = bagFreeShipThreshold(shippingProfiles, hasPhysicalItems);
+  const remaining = FREE_SHIP_THRESHOLD ? Math.max(0, FREE_SHIP_THRESHOLD - cartTotal) : 0;
+  const progress = FREE_SHIP_THRESHOLD ? Math.min(100, (cartTotal / FREE_SHIP_THRESHOLD) * 100) : 100;
   const pad2 = (n: number) => String(n).padStart(2, "0");
   const goCheckout = () => { setIsCartOpen(false); navigate("/checkout"); };
 
@@ -112,7 +130,7 @@ export function CartDrawer() {
             </div>
 
             {/* Free shipping meter */}
-            {cart.length > 0 && showFreeShipBar && (
+            {cart.length > 0 && showFreeShipBar && FREE_SHIP_THRESHOLD != null && (
               <div data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Free-shipping bar" className="fm-bag-pad fm-bag-meter fm-bag-rule border-b py-4" role="status">
                 <div className="fm-bag-meta flex items-center gap-2 mb-2">
                   <Truck size={13} aria-hidden="true" />

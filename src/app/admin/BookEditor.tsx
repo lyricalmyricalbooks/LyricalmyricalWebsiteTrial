@@ -422,6 +422,11 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     }
     if (!formData.title.trim()) problems.push("Book title is required.");
     if (formData.retailPrice < 0) problems.push("Retail price cannot be negative.");
+    // An edition saved with a blank price would sell for $0.
+    (formData.variants || []).forEach((v: any, i: number) => {
+      const p = v?.price;
+      if (p === "" || p == null || !Number.isFinite(Number(p)) || Number(p) < 0) problems.push(`Edition ${v?.name || i + 1} needs a price (0 or more).`);
+    });
     if (formData.manualCurrencyOverrides) {
       if (formData.usdPrice < 0 || formData.eurPrice < 0) problems.push("Override prices cannot be negative.");
       if (formData.costPrice < 0 || formData.usdCostPrice < 0 || formData.eurCostPrice < 0) problems.push("Cost prices cannot be negative.");
@@ -917,7 +922,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                       <div className="be-span-2"><TextField label="Edition name" placeholder="e.g. Signed Collector's Copy" value={v.name} onChange={(e) => updateVariant(v.id, "name", e.target.value)} /></div>
                       <TextField label="SKU" value={v.sku || ""} onChange={(e) => updateVariant(v.id, "sku", e.target.value)} />
                       <TextField label="Weight" placeholder="0.5 kg" value={v.weight || ""} onChange={(e) => updateVariant(v.id, "weight", e.target.value)} />
-                      <TextField label="Price (CAD)" type="number" min={0} step="0.01" value={v.price} onChange={(e) => updateVariant(v.id, "price", Number(e.target.value))} />
+                      <TextField label="Price (CAD)" type="number" min={0} step="0.01" value={v.price} onChange={(e) => updateVariant(v.id, "price", e.target.value === "" ? "" : Number(e.target.value))} />
                       <TextField label="Price (USD)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).usdPrice ?? 0} onChange={(e) => updateVariant(v.id, "usdPrice", Number(e.target.value))} />
                       <TextField label="Price (EUR)" type="number" min={0} step="0.01" disabled={!overrides} value={(v as any).eurPrice ?? 0} onChange={(e) => updateVariant(v.id, "eurPrice", Number(e.target.value))} />
                       <TextField label="Stock" type="number" min={0} value={v.stock} onChange={(e) => updateVariant(v.id, "stock", Number(e.target.value))} />

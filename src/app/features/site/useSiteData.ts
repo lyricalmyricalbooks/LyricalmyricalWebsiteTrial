@@ -63,6 +63,8 @@ export function useSiteData() {
   });
   const [pages, setPages] = useState<Page[]>(snap?.pages || cached?.pages || []);
   const [loading, setLoading] = useState(!cached && !snap);
+  // True once this mount's own load has finished (cached content may be shown before that).
+  const [fresh, setFresh] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,7 +114,7 @@ export function useSiteData() {
         if (cancelled) return;
         console.warn("Using fallback data - backend connection unavailable.");
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) { setLoading(false); setFresh(true); }
       }
     }
 
@@ -202,7 +204,7 @@ export function useSiteData() {
     return resolveProductRoutes(visible).map(applyBackorderPolicy);
   }, [books, studioPreview]);
 
-  return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading };
+  return { books: sellableBooks, settings: { ...settings, design: resolveSurfaceDesign(settings.design, location.pathname) }, pages, loading, fresh };
 }
 
 /**

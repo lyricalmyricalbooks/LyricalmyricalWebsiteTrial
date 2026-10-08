@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({ data: { settings: { design: {}, policies: {} }
   { id: "about", slug: "about", title: "About", body: "About body", status: "published" },
   { id: "contact", slug: "contact", title: "Contact", body: "Contact body", status: "published" },
   { id: "draft", slug: "draft", title: "Private draft", body: "Private", status: "draft" },
-], loading: false }, fetch: vi.fn(() => new Promise(() => {})) }));
+], loading: false, fresh: true }, fetch: vi.fn(() => new Promise(() => {})) }));
 vi.mock("./useSiteData", () => ({ useSiteData: () => state.data }));
 vi.mock("../../admin/api", () => ({ adminApi: { getPageBySlug: state.fetch } }));
 vi.mock("../../components/MainSite", () => ({ SiteFooter: () => <footer>Footer</footer> }));
@@ -74,5 +74,25 @@ it("retains navigation on a cold load and renders policies without a separate pa
       expect(container.textContent).toContain("Return policy body");
       expect(container.querySelector("header")).not.toBeNull();
     } finally { await act(async () => policyRoot.unmount()); }
+  } finally { state.data = original; }
+});
+
+it("keeps loading, not a 404, while a cached copy is missing a newly published page", async () => {
+  (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  const original = state.data;
+  try {
+    state.data = { ...original, pages: [], loading: false, fresh: false };
+    await act(async () => root.render(<MemoryRouter initialEntries={["/page/new-page"]}>
+      <Routes><Route path="/page/:slug" element={<PageView />} /></Routes></MemoryRouter>));
+    expect(container.textContent).not.toContain("Missing page");
+    await act(async () => root.unmount());
+    state.data = { ...original, pages: [], loading: false, fresh: true };
+    const freshRoot = createRoot(container);
+    await act(async () => freshRoot.render(<MemoryRouter initialEntries={["/page/new-page"]}>
+      <Routes><Route path="/page/:slug" element={<PageView />} /></Routes></MemoryRouter>));
+    expect(container.textContent).toBe("Missing page");
+    await act(async () => freshRoot.unmount());
   } finally { state.data = original; }
 });

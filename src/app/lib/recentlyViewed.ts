@@ -20,8 +20,16 @@ function write(ids: string[]) {
   } catch {}
 }
 
+const CHANGED = "fm-recently-viewed";
+
 export function useRecentlyViewed() {
   const [ids, setIds] = useState<string[]>(() => (typeof window === "undefined" ? [] : read()));
+  // Product pages stay mounted while the shopper moves between books: follow every new view.
+  useEffect(() => {
+    const refresh = () => setIds(read());
+    window.addEventListener(CHANGED, refresh);
+    return () => window.removeEventListener(CHANGED, refresh);
+  }, []);
 
   const track = useCallback((id: string) => {
     if (!id) return;
@@ -36,10 +44,6 @@ export function useRecentlyViewed() {
 
 export function trackBookView(id: string) {
   if (!id || typeof window === "undefined") return;
-  try {
-    const raw = sessionStorage.getItem(KEY);
-    const current: string[] = raw ? JSON.parse(raw) : [];
-    const next = [id, ...current.filter(x => x !== id)].slice(0, MAX);
-    sessionStorage.setItem(KEY, JSON.stringify(next));
-  } catch {}
+  write([id, ...read().filter(x => x !== id)]);
+  window.dispatchEvent(new Event(CHANGED));
 }

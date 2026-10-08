@@ -368,11 +368,8 @@ export function OrderDetail({
     setConfirming(null);
     setIsVoiding(true);
     try {
-      await adminApi.updateOrder(orderId, { status: "cancelled" });
-      await adminApi.addOrderEvent(
-        orderId,
-        "Unpaid order cancelled by administrator.",
-      );
+      // Server-side so an order paid a moment ago is refused, and the shopper's payment is stopped.
+      await adminApi.cancelUnpaidOrder(orderId);
       await loadOrder();
       toast.success("Unpaid order cancelled");
     } catch (err: any) {
@@ -625,7 +622,20 @@ export function OrderDetail({
           onRelease={() => perform("release")}
         />
         <aside className="rp-stack" aria-label="Order summary">
-          {order.customerRequest?.type === "return" && <ReturnWorkbench key={`${order.id}-${order.returnProgress?.state || "requested"}`} order={order} onUpdated={loadOrder} />}
+          {order.paymentMismatch && !order.paymentMismatch.resolvedAt && order.paymentStatus !== "paid" && (
+            <SectionCard title={order.paymentMismatch.paidAfterCancel ? "Paid after cancelling" : "Payment doesn't match"}>
+              <p className="fw-summary">
+                {order.paymentMismatch.paidAfterCancel
+                  ? "The customer paid after this order was cancelled. Refund the payment in Stripe or PayPal, then mark it here."
+                  : "The amount taken doesn't match this order. Refund or correct it in Stripe or PayPal, then mark it here."}
+              </p>
+              <SecondaryButton onClick={async () => {
+                try { await adminApi.resolvePaymentMismatch(orderId); toast.success("Marked as refunded"); await loadOrder(); }
+                catch (err: any) { toast.error(err.message || "Couldn't update the order."); }
+              }}>Mark refunded</SecondaryButton>
+            </SectionCard>
+          )}
+          {order.customerRequest?.type === "return" && (order.customerRequest.status === "open" || order.returnProgress) && <ReturnWorkbench key={`${order.id}-${order.returnProgress?.state || "requested"}`} order={order} onUpdated={loadOrder} />}
           {order.customerRequest?.status === "open" && order.customerRequest.type !== "return" && (
             <SectionCard title={order.customerRequest.type === "cancel" ? "Customer asks to cancel" : "Customer asks to return"}>
               <p className="fw-summary">

@@ -2,6 +2,7 @@ import { useState, lazy, Suspense, useEffect, type ReactNode } from "react";
 import { consentAllows } from "./lib/consent";
 import { motion } from "motion/react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router";
+import { ScrollToTop } from "./lib/ScrollToTop";
 import { CartProvider } from "./CartContext";
 import { CurrencyProvider } from "./CurrencyContext";
 import { Toaster } from "react-hot-toast";
@@ -87,6 +88,7 @@ export default function App() {
       <CurrencyProvider>
         <CartProvider>
           <BrowserRouter basename={ROUTER_BASENAME}>
+          <ScrollToTop />
           <RouteErrorBoundary>
           <CartDrawer />
           <CookieConsent />
