@@ -79,15 +79,15 @@ it('lists book photos for Google Images and dates the home page by its newest co
 
 
 
-it("does not publish test or duplicate-copy records as product routes", () => {
+it("uses reviewed publication status to exclude drafts from product routes", () => {
   const result = sitemapArtifacts("https://example.com/shop", [
-    { id: "test", title: "test", status: "published" },
-    { id: "antigravity-test", title: "Antigravity Test Book", status: "published" },
+    { id: "test", title: "test", status: "draft" },
+    { id: "antigravity-test", title: "Antigravity Test Book", status: "draft" },
     { id: "copy", title: "Altrove (Copy)", status: "published" },
     { id: "real", title: "Real Book", status: "published" },
   ] as any, [], [], {});
   expect(result.xml).toContain("/books/real-book");
   expect(result.xml).not.toContain("/books/test");
   expect(result.xml).not.toContain("antigravity-test");
-  expect(result.xml).not.toContain("altrove-copy");
+  expect(result.xml).toContain("altrove-copy");
 });

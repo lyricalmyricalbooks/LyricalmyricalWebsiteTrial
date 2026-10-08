@@ -74,3 +74,5 @@ describe("packingInfo", () => {
     expect(packingInfo({ id: "b", photoUrl: "line.jpg" }, null)).toEqual({ photo: "line.jpg", shelf: "" });
   });
 });
+
+it("blocks dispatch while a customer return is open", () => { expect(dispatchProblem({ ...packed(), customerRequest: { type: "return", status: "open" } })).toContain("return"); });

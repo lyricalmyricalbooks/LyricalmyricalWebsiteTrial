@@ -1,7 +1,6 @@
 import { placeholderImage } from "./constants";
 import type { Book } from "./types";
 import { bookInCategory } from "./navItems";
-import { isPlaceholderCatalogRecord } from "./catalogQuality.mjs";
 
 const LOGO_DESIGN_FIELDS = [
   "logoUrl", "logoText", "logoColor", "logoTint", "logoHeight",
@@ -29,9 +28,9 @@ export function resolveLogoPosition(surfaceDesign: any, fallbackDesigns: any[] =
 }
 
 export function getFeaturedBooks(books: Book[]) {
-  const featuredBooks = books.filter((book) => book.status === "published" && !isPlaceholderCatalogRecord(book) && book.isFeatured).slice(0, 4);
+  const featuredBooks = books.filter((book) => book.status === "published" && book.isFeatured).slice(0, 4);
   // Nothing starred as featured → show the first eligible published books rather than invented ones.
-  return featuredBooks.length > 0 ? featuredBooks : books.filter((book) => book.status === "published" && !isPlaceholderCatalogRecord(book)).slice(0, 4);
+  return featuredBooks.length > 0 ? featuredBooks : books.filter((book) => book.status === "published").slice(0, 4);
 }
 
 export function getPublications(books: Book[], design?: any) {
@@ -45,12 +44,11 @@ export function getFilteredItems(books: Book[], activeCategory: any, nowISO: str
   return books.filter(
     (book) =>
       book.status === "published" &&
-      !isPlaceholderCatalogRecord(book) &&
       (!book.scheduleDate || book.scheduleDate <= nowISO) &&
       bookInCategory(book, activeCategory, allCategories),
   );
 }
 
 export function getPublishedBooks(books: Book[]) {
-  return books.filter((book) => book.status === "published" && !isPlaceholderCatalogRecord(book));
+  return books.filter((book) => book.status === "published");
 }

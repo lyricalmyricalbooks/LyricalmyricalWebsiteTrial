@@ -50,3 +50,8 @@ test('the shopper view excludes payment internals and unknown future private fie
   expect(view).not.toHaveProperty('activity');
   expect(view.customer.email).toBe('Reader@Example.com');
 });
+
+test('return progress reveals instructions but never inspection or admin identity', () => {
+  const view = publicOrderView('A', { ...order, returnProgress: { state: 'inspected', instructions: 'Return address', actor: 'admin', inspection: [{ private: true }], internalNote: 'secret' } });
+  expect(view.returnProgress).toEqual({ state: 'inspected', instructions: 'Return address' });
+});

@@ -1,3 +1,4 @@
+import { ReturnWorkbench } from "./ReturnWorkbench";
 import { FulfillmentWorkbench } from "./FulfillmentWorkbench";
 import { CARRIERS, cleanTrackingLink, getTrackingUrl } from "../lib/tracking";
 import {
@@ -624,7 +625,8 @@ export function OrderDetail({
           onRelease={() => perform("release")}
         />
         <aside className="rp-stack" aria-label="Order summary">
-          {order.customerRequest?.status === "open" && (
+          {order.customerRequest?.type === "return" && <ReturnWorkbench key={`${order.id}-${order.returnProgress?.state || "requested"}`} order={order} onUpdated={loadOrder} />}
+          {order.customerRequest?.status === "open" && order.customerRequest.type !== "return" && (
             <SectionCard title={order.customerRequest.type === "cancel" ? "Customer asks to cancel" : "Customer asks to return"}>
               <p className="fw-summary">
                 Asked {new Date(order.customerRequest.createdAt).toLocaleString()}.

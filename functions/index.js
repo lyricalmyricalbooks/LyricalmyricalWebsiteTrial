@@ -35,6 +35,7 @@ const { orderMoneyFmt, refundAmountText, withoutTrackingLines } = require("./ema
 const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
 const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
+const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
 const { hitLimit, LIMITS } = require("./rateLimit");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError } = require("./stockHolds");
@@ -2114,6 +2115,7 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
       if (!done) { alreadyRecorded = true; return; }
       transaction.update(orderRef, {
         paymentStatus: "refunded",
+        ...(order.returnProgress && order.returnProgress.state !== "rejected" ? { returnProgress: { ...order.returnProgress, state: "completed", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
         ...(order.refund ? { refund: { ...order.refund, status: "succeeded" } } : {}),
         updatedAt: now,
         activity: [...(order.activity || []), { type: "event", message: `${label} refund completed${amountText}${note ? ` — ${note}` : ""}.`, createdAt: now }],
@@ -2122,10 +2124,11 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     }
     if (order.paymentStatus !== "paid") { alreadyRecorded = true; return; }
 
-    const itemList = order.items || [];
+    const opsSnap = order.returnProgress ? await transaction.get(db.collection("order-operations").doc(orderId)) : null;
+    const itemList = returnRestockItems(order, opsSnap?.data()?.returnCase);
     const sandboxPaid = order.sandboxPayment === true;
     const wantsRestock = restock !== undefined ? restock !== false : order.refundRequest?.restock !== false;
-    const shouldRestock = !sandboxPaid && wantsRestock && order.inventoryRestockedAt == null;
+    const shouldRestock = !sandboxPaid && wantsRestock && itemList.length > 0 && order.inventoryRestockedAt == null;
     const books = shouldRestock ? await readBooks(transaction, db, itemList) : new Map();
     const shouldReverseDiscount = !sandboxPaid && order.appliedDiscount?.id && order.discountUsageReversedAt == null;
     const discountRef = shouldReverseDiscount ? db.collection("discounts").doc(order.appliedDiscount.id) : null;
@@ -2137,6 +2140,7 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     }
     transaction.update(orderRef, {
       paymentStatus: done ? "refunded" : "refund_pending",
+      ...(order.returnProgress && order.returnProgress.state !== "rejected" ? { returnProgress: { ...order.returnProgress, state: done ? "completed" : "refund_pending", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
       status: "cancelled",
       refund: {
         id: refundId,
@@ -2732,6 +2736,60 @@ exports.stripeWebhook = onRequest(
 // ──────────────────────────────────────────────────────────────
 // 3. HTTP Endpoint: Refund a paid Stripe order (admin only)
 // ──────────────────────────────────────────────────────────────
+// Read-only profile estimate. Checkout resolves live carrier rates and reprices independently.
+exports.cartShippingPreview = onBrowserRequest({}, async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+  if (!(await hitLimit(db, "cart-shipping", req, LIMITS.track))) return res.status(429).json({ error: "too_many" });
+  const { items: requested, country, postalCode } = req.body || {};
+  if (!Array.isArray(requested) || requested.length < 1 || requested.length > 50 || typeof country !== "string" || !resolveCountry(country) || typeof postalCode !== "string" || !postalCode.trim() || postalCode.length > 20) return res.status(400).json({ error: "invalid_destination" });
+  try {
+    const lines = await Promise.all(requested.map(async item => {
+      if (typeof item?.id !== "string" || !item.id || item.id.includes("/") || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 99) throw new Error("invalid_cart");
+      const snap = await db.collection("books").doc(item.id).get();
+      const book = snap.data();
+      if (!snap.exists || purchaseProblem(book, item.variantId)) throw new Error("invalid_cart");
+      const variant = item.variantId ? (book.variants || []).find(value => value.id === item.variantId) : null;
+      const price = variant ? Number(variant.price) : Number(book.isOnSale && book.salePrice ? book.salePrice : book.retailPrice);
+      if (!Number.isFinite(price) || price < 0) throw new Error("invalid_cart");
+      return { price, quantity: item.quantity, shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant), digital: catalogDigital(book, variant) };
+    }));
+    const profilesSnap = await db.collection("shipping-profiles").get();
+    const physical = lines.filter(item => !item.digital);
+    // No invented fallback rate when shipping has not been configured.
+    const profiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const quotes = profiles.length ? quoteShipping(physical, { country }, profiles).filter(quote => quote.type !== "pickup") : [];
+    res.status(200).json({ quotes, digitalOnly: physical.length === 0, preliminary: true });
+  } catch (error) { res.status(error.message === "invalid_cart" ? 409 : 500).json({ error: error.message === "invalid_cart" ? "invalid_cart" : "unavailable" }); }
+});
+
+// Admin-only return decisions; operational inspection details stay private.
+exports.manageReturn = onBrowserRequest({}, async (req, res) => {
+  if (applyCors(req, res)) return;
+  if (req.method !== "POST") return res.status(405).send("Method Not Allowed");
+  const user = await requireAdmin(req, res);
+  if (!user) return;
+  const { orderId, action, instructions, inspection } = req.body || {};
+  if (typeof orderId !== "string" || !orderId || orderId.length > 64 || orderId.includes("/")) return res.status(400).json({ error: "Invalid order ID." });
+  try {
+    const progress = await db.runTransaction(async tx => {
+      const orderRef = db.collection("orders").doc(orderId);
+      const opsRef = db.collection("order-operations").doc(orderId);
+      const [orderSnap, opsSnap] = await Promise.all([tx.get(orderRef), tx.get(opsRef)]);
+      if (!orderSnap.exists) { const error = new Error("Order not found."); error.status = 404; throw error; }
+      const order = orderSnap.data(), ops = opsSnap.data() || {};
+      const now = new Date().toISOString();
+      const next = returnTransition(order, ops.returnCase, action, { instructions, inspection }, now, user.email || user.uid);
+      if (next === ops.returnCase) return publicReturn(next);
+      const progress = publicReturn(next);
+      tx.set(opsRef, { ...ops, returnCase: next, updatedAt: now, activity: [...(ops.activity || []), { type: "event", message: `Return ${action}.`, createdAt: now, actor: user.email || user.uid }] });
+      tx.update(orderRef, { returnProgress: progress, customerRequest: { ...order.customerRequest, status: action === "rejected" ? "handled" : "open" }, updatedAt: now });
+      return progress;
+    });
+    res.status(200).json({ progress });
+  } catch (error) { res.status(error.status || 500).json({ error: error.message || "Could not update return." }); }
+});
+
 exports.refundOrder = onBrowserRequest(
   { secrets: [STRIPE_SECRET_KEY, PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET] },
   async (req, res) => {
@@ -2763,6 +2821,9 @@ exports.refundOrder = onBrowserRequest(
         if (current.paymentStatus !== "paid") {
           const e = new Error(current.paymentStatus === "refunded" ? "This order has already been refunded." : "Only paid orders can be refunded.");
           e.status = 409; throw e;
+        }
+        if (current.customerRequest?.type === "return" && current.customerRequest.status === "open" && current.returnProgress?.state !== "inspected") {
+          const error = new Error("Receive and inspect the returned books before refunding this return."); error.status = 409; throw error;
         }
         transaction.update(orderRef, { refundRequest: { restock: restock !== false, reason: reasonText, actor, at: new Date().toISOString() } });
         return current;

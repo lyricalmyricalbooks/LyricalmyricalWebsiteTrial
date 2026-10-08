@@ -1,3 +1,4 @@
+import { readCartDestination, prefillCartAddress } from "./features/site/cartDestination";
 import { regionProps } from "./features/site/storefrontRegions";
 import { TRACKING_CSS } from "./features/site/trackingStyle";
 import { consentAllows } from "./lib/consent";
@@ -209,10 +210,11 @@ export function Checkout() {
   const [shippoRatesLoading, setShippoRatesLoading] = useState(false);
 
 
-  const initialCountry = useRef(guessCountryName() || "Canada");
+  const cartDestination = useRef(readCartDestination());
+  const initialCountry = useRef(cartDestination.current?.country || guessCountryName() || "Canada");
   const [customer, setCustomer] = useState({
     name: "", email: "", phone: "",
-    address: { street: "", unit: "", city: "", state: "", zip: "", country: initialCountry.current },
+    address: { street: "", unit: "", city: "", state: "", zip: cartDestination.current?.postalCode || "", country: initialCountry.current },
     billingAddress: { state: "", country: "Canada" }
   });
 
@@ -279,14 +281,7 @@ export function Checkout() {
               email: u.email || prev.email,
               phone: data.phone || prev.phone,
               billingAddress: prev.billingAddress,
-              address: {
-                street: data.defaultAddress?.street || prev.address.street,
-                unit: data.defaultAddress?.unit || prev.address.unit,
-                city: data.defaultAddress?.city || prev.address.city,
-                state: cleanRegion(data.defaultAddress?.state) || prev.address.state,
-                zip: data.defaultAddress?.zip || prev.address.zip,
-                country: data.defaultAddress?.country || prev.address.country,
-              }
+              address: prefillCartAddress(prev.address, { ...data.defaultAddress, state: cleanRegion(data.defaultAddress?.state) }, cartDestination.current)
             }));
           } else {
             setCustomer(prev => ({
@@ -390,14 +385,7 @@ export function Checkout() {
               name: cartData.customer.name || prev.name,
               email: cartData.customer.email || cartData.email || prev.email,
               phone: cartData.customer.phone || prev.phone,
-              address: {
-                street: cartData.customer.address?.street || prev.address.street,
-                unit: cartData.customer.address?.unit || prev.address.unit,
-                city: cartData.customer.address?.city || prev.address.city,
-                state: cleanRegion(cartData.customer.address?.state) || prev.address.state,
-                zip: cartData.customer.address?.zip || prev.address.zip,
-                country: cartData.customer.address?.country || prev.address.country,
-              }
+              address: prefillCartAddress(prev.address, { ...cartData.customer.address, state: cleanRegion(cartData.customer.address?.state) }, cartDestination.current)
             }));
           } else if (cartData.email) {
             setCustomer(prev => ({

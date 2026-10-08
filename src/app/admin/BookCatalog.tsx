@@ -1,3 +1,5 @@
+import { CatalogReviewDialog } from "./CatalogReviewDialog";
+import { catalogPublishIssues } from "./catalogPublishReview";
 import { useState, useEffect, useMemo } from "react";
 import { Download, Plus } from "lucide-react";
 import { catalogToCsv, previewPrices, type PriceMode } from "./bulkPricing";
@@ -48,6 +50,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const [sort, setSort] = useState<SortKey>("newest");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
+  const [review, setReview] = useState<"publish" | "draft" | null>(null);
+  const [qualityOnly, setQualityOnly] = useState(false);
   const [priceOpen, setPriceOpen] = useState(false);
   const [priceMode, setPriceMode] = useState<PriceMode>("percent");
   const [priceValue, setPriceValue] = useState("10");
@@ -58,7 +62,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   async function loadBooks() {
     setFailed(false);
     try {
-      setBooks(await adminApi.getBooks());
+      setBooks(await adminApi.getAllBooks());
     } catch (err) {
       console.error(err);
       setFailed(true);
@@ -80,6 +84,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
 
   const rows = useMemo(() => {
     const list = books.filter(b => {
+      if (qualityOnly && !catalogPublishIssues(b).length) return false;
       if (q) {
         let h = haystackCache.get(b);
         if (!h) { h = [b.title, b.isbn, b.sku, b.authorName].join(" ").toLowerCase(); haystackCache.set(b, h); }
@@ -103,9 +108,9 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
       "stock-desc": (a, b) => (b.stockLevel || 0) - (a.stockLevel || 0),
     };
     return [...list].sort(cmp[sort]);
-  }, [books, q, categoryFilter, formatFilter, statusFilter, sort, haystackCache]);
+  }, [books, q, categoryFilter, formatFilter, statusFilter, sort, haystackCache, qualityOnly]);
 
-  useEffect(() => { setPage(1); setSelected([]); }, [q, categoryFilter, formatFilter, statusFilter, sort]);
+  useEffect(() => { setPage(1); setSelected([]); }, [q, categoryFilter, formatFilter, statusFilter, sort, qualityOnly]);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const cur = Math.min(page, pageCount);
@@ -113,10 +118,9 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   const allSelected = pageRows.length > 0 && pageRows.every(b => selected.includes(b.id));
   const toggle = (id: string) => setSelected(p => (p.includes(id) ? p.filter(x => x !== id) : [...p, id]));
 
-  const bulk = async (action: "publish" | "draft" | "delete") => {
+  const bulkDelete = async () => {
     if (!selected.length) return;
-    const promise = Promise.all(selected.map(id =>
-      action === "delete" ? adminApi.deleteBook(id) : adminApi.updateBook(id, { status: action === "publish" ? "published" : "draft" })));
+    const promise = Promise.all(selected.map(id => adminApi.deleteBook(id)));
     toast.promise(promise, { loading: "Applying changes…", success: "Bulk update successful", error: "Some updates failed" });
     try { await promise; } catch { /* surfaced by toast */ }
     setSelected([]);
@@ -205,6 +209,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
 
   return (
     <div className="rp-stack">
+      <Checkbox label="Show books needing publish review" checked={qualityOnly} onChange={event => setQualityOnly(event.target.checked)} />
       <FilterBar>
         <div className="rp-grow"><SearchField label="Search books" placeholder="Search title, author, ISBN or SKU…" value={search} onChange={e => setSearch(e.target.value)} /></div>
         <SelectField label="Publication status" hideLabel value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
@@ -236,8 +241,8 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
             <SecondaryButton size="sm" icon={<Download size={14} aria-hidden />} onClick={exportCsv}>{selected.length ? "Export selected" : "Export CSV"}</SecondaryButton>
             {selected.length > 0 && (
               <>
-                <SecondaryButton size="sm" onClick={() => bulk("publish")}>Publish</SecondaryButton>
-                <SecondaryButton size="sm" onClick={() => bulk("draft")}>Set draft</SecondaryButton>
+                <SecondaryButton size="sm" onClick={() => setReview("publish")}>Publish</SecondaryButton>
+                <SecondaryButton size="sm" onClick={() => setReview("draft")}>Move to draft</SecondaryButton>
                 <SecondaryButton size="sm" onClick={() => setPriceOpen(true)}>Change price</SecondaryButton>
                 <SecondaryButton size="sm" onClick={() => bulkFeature(true)}>Feature</SecondaryButton>
                 <SecondaryButton size="sm" onClick={() => bulkFeature(false)}>Unfeature</SecondaryButton>
@@ -252,6 +257,15 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         {rows.length > PAGE_SIZE && <Pagination page={cur} pageCount={pageCount} onPage={setPage} />}
       </SectionCard>
 
+      {review && <CatalogReviewDialog books={selectedBooks} action={review} onClose={() => setReview(null)} onConfirm={async chosen => {
+        const results = await Promise.allSettled(chosen.map(book => adminApi.updateBook(book.id, { status: review === "publish" ? "published" : "draft" })));
+        const failed = chosen.filter((_, index) => results[index].status === "rejected");
+        setSelected(failed.map(book => book.id));
+        setReview(null);
+        if (failed.length) toast.error(`Could not update: ${failed.map(book => book.title).join(", ")}. These books remain selected for retry.`);
+        else toast.success(`Updated ${chosen.length} books.`);
+        await loadBooks();
+      }} />}
       <Dialog open={priceOpen} onClose={() => setPriceOpen(false)} title={`Change price for ${selected.length} title${selected.length === 1 ? "" : "s"}`}
         description="Preview the new prices before anything is saved."
         footer={<><SecondaryButton onClick={() => setPriceOpen(false)}>Cancel</SecondaryButton>
@@ -272,7 +286,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
       </Dialog>
       <ConfirmDialog open={confirm?.kind === "bulk"} title={`Delete ${selected.length} title${selected.length === 1 ? "" : "s"}?`} confirmLabel="Delete permanently"
         message="This permanently removes the selected books from the catalog. Set them to draft instead if you may want them back."
-        onConfirm={() => { setConfirm(null); bulk("delete"); }} onCancel={() => setConfirm(null)} />
+        onConfirm={() => { setConfirm(null); bulkDelete(); }} onCancel={() => setConfirm(null)} />
       <ConfirmDialog open={confirm?.kind === "one"} title="Delete this title?" confirmLabel="Delete title"
         message={confirm?.kind === "one" ? `Are you sure you want to delete “${confirm.book.title}”? This cannot be undone.` : ""}
         onConfirm={() => { const b = (confirm as any).book; setConfirm(null); deleteOne(b); }} onCancel={() => setConfirm(null)} />

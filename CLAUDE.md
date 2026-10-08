@@ -1011,3 +1011,42 @@ verified deployment, hosting and email delivery. Admin alerts cover pending paym
 label purchases and recent failed/bounced/complained email attempts, with links to the relevant workspace.
 Provider acceptance is distinct from inbox delivery. Local tests and builds do not verify deployment or live
 Stripe/PayPal payments, wallet eligibility, webhook delivery, email, refunds or carrier purchases.
+
+
+## Cart estimates, returns and catalog review (7 October 2026)
+
+The cart offers country/postal-code shipping previews from current server catalog prices,
+edition weights and configured shipping profiles. These are preliminary profile estimates;
+live carrier prices and eligibility require the full checkout address. They exclude discounts
+and tax, never authorize a charge and reset when the cart/destination changes. Session storage
+carries the destination into checkout. Matching saved addresses may fill street details;
+other saved/recovered destinations cannot overwrite or mix with the selected destination.
+Studio > Style > Cart drawer > Total & checkout button owns Show shipping cost preview;
+Text & labels > Cart owns its words. Inputs use the shared cart palette and typography.
+
+Orders > Customer return progresses through approval/decline with customer-visible instructions,
+parcel receipt, full-order inspection and an explicitly confirmed full-order refund. Mixed-condition
+lines record a resellable quantity. Only eligible physical copies restock, once, through the existing
+provider/admin-authorized refund path. Approval and receipt never change money or inventory.
+Full-order refunds include shipping, tax and digital items; partial financial refunds remain a
+separate provider workflow. Cash/e-Transfer refunds must be sent externally before recording them.
+Private inspection/actor/history data live in admin-only order-operations.returnCase. A limited
+returnProgress summary appears in secure customer tracking with Studio-owned status words and the
+existing trackingRequests region controls. Open returns block dispatch/local fulfillment and label
+purchases. Stripe paid-order authority remains webhook-only; supported PayPal/manual authority is
+unchanged. New endpoints cartShippingPreview and manageReturn use functionFetch and App Check.
+
+Books loads the full catalog. Show books needing publish review flags cover/interior images,
+contributor credits, base/sale/edition prices, format/edition/page count, shipping weight, publisher
+copy and possible placeholders. Single-book saves to Published and bulk Publish open a reviewed
+selection; invalid title/prices block publishing, other warnings require explicit acknowledgement.
+Bulk Move to draft previews the chosen records and preserves their content, inventory and order
+history. Failed updates remain selected for retry. Publication status controls public routes,
+lists, recommendations and sitemap: titles never automatically hide products. Owners must review
+and draft currently published test/duplicate records before releasing this visibility change.
+
+Deploy the Functions bundle with the frontend so cart estimates, return transitions and refund
+completion agree (including Stripe/PayPal webhooks and reconciliation). Existing books/orders/
+order-operations access patterns require no new rules or composite indexes; inspection remains
+private. Local handler tests and provider-isolated browser fixtures prove workflow behavior,
+not deployed functions, real payment/refund acceptance, carrier rates or email delivery.

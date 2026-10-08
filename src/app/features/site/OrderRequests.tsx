@@ -31,6 +31,15 @@ export function OrderRequestBox({ design, order, access, onUpdated }: {
   const [error, setError] = useState("");
   const options = requestOptions(order);
   const open = order?.customerRequest?.status === "open";
+  const progress = order?.returnProgress;
+  if (progress) return <section {...regionProps("trackingRequests")} className="fm-track-card p-6 sm:p-8 space-y-4">
+    <p className="fm-track-mono">{getCopy(design, "trackReturnHeading")}</p>
+    <p role="status">{getCopy(design, `trackReturn_${progress.state}`)}</p>
+    {progress.instructions && <p className="whitespace-pre-wrap text-sm leading-6">{progress.instructions}</p>}
+    <ol className="list-none p-0 space-y-2">
+      {["approved", "received", "inspected"].filter(step => progress[`${step}At`]).map(step => <li key={step}>{getCopy(design, `trackReturn_${step}`)} · {new Date(progress[`${step}At`]).toLocaleDateString()}</li>)}
+    </ol>
+  </section>;
   if (!open && !options.cancel && !options.ret) return null;
 
   const send = async () => {

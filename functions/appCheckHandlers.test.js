@@ -5,7 +5,7 @@ import { join } from "node:path";
 import vm from "node:vm";
 const require = createRequire(import.meta.url);
 const source = readFileSync(join(__dirname, "index.js"), "utf8");
-const endpoints = ["deleteTestOrders", "createPayPalOrder", "capturePayPalOrder", "createStripeCheckoutSession", "refundOrder", "getShippoConfig", "setShippoDynamicRates", "getShippoRates", "saveShippoConfig", "validateAddress", "createShippingLabel", "validateDiscountCode", "sendTestEmail", "markOrderPaid"];
+const endpoints = ["cartShippingPreview", "manageReturn", "deleteTestOrders", "createPayPalOrder", "capturePayPalOrder", "createStripeCheckoutSession", "refundOrder", "getShippoConfig", "setShippoDynamicRates", "getShippoRates", "saveShippoConfig", "validateAddress", "createShippingLabel", "validateDiscountCode", "sendTestEmail", "markOrderPaid"];
 function harness() {
   const db = { collection: () => ({ doc: () => ({ get: () => { throw new Error("Unverified request reached Firestore"); } }) }) };
   const admin = { initializeApp() {}, firestore: () => db, appCheck: () => ({ verifyToken: async () => { throw new Error("invalid token"); } }) };
