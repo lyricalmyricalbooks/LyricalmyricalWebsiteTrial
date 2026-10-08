@@ -78,3 +78,16 @@ test("a shopper's own earlier order doesn't lock them out of the last copy, but 
   await expect(reserveStock(db, "bob", [{ id: "b1", quantity: 1 }], 3000, bob)).rejects.toBeInstanceOf(StockHoldError);
   await expect(reserveStock(db, "anon", [{ id: "b1", quantity: 1 }], 3000, "")).rejects.toBeInstanceOf(StockHoldError);
 });
+
+test("a shopper's retry replaces their earlier hold, so another paid shopper still settles", async () => {
+  const now = Date.now();
+  const db = fakeDb({ "books/b1": { title: "Zine", trackInventory: true, stockLevel: 2 } });
+  const ada = holdOwner({ customer: { email: "ada@example.com" } }), bob = holdOwner({ customer: { email: "bob@example.com" } });
+  await reserveStock(db, "ada1", [{ id: "b1", quantity: 1 }], now, ada);
+  await reserveStock(db, "bob1", [{ id: "b1", quantity: 1 }], now, bob);
+  await reserveStock(db, "ada2", [{ id: "b1", quantity: 1 }], now, ada);
+  expect(Object.keys(db.docs["stock-holds/b1"].holds).sort()).toEqual(["ada2", "bob1"]);
+  db.docs["books/b1"].stockLevel = 1; // Ada paid ada2
+  delete db.docs["stock-holds/b1"].holds.ada2;
+  await expect(reserveStock(db, "bob1", [{ id: "b1", quantity: 1 }], now + 1, bob)).resolves.toBeUndefined();
+});

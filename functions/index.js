@@ -2156,7 +2156,8 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
       if (!done) { alreadyRecorded = true; return; }
       transaction.update(orderRef, {
         paymentStatus: "refunded",
-        ...(order.returnProgress && order.returnProgress.state !== "rejected" && provider !== "dispute" ? { returnProgress: { ...order.returnProgress, state: "completed", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
+        ...(provider === "dispute" && order.customerRequest?.status === "open" ? { customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
+      ...(order.returnProgress && order.returnProgress.state !== "rejected" && provider !== "dispute" ? { returnProgress: { ...order.returnProgress, state: "completed", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
         ...(order.refund ? { refund: { ...order.refund, status: "succeeded" } } : {}),
         updatedAt: now,
         activity: [...(order.activity || []), { type: "event", message: `${label} refund completed${amountText}${note ? ` — ${note}` : ""}.`, createdAt: now }],
@@ -2181,6 +2182,7 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     }
     transaction.update(orderRef, {
       paymentStatus: done ? "refunded" : "refund_pending",
+      ...(provider === "dispute" && order.customerRequest?.status === "open" ? { customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
       ...(order.returnProgress && order.returnProgress.state !== "rejected" && provider !== "dispute" ? { returnProgress: { ...order.returnProgress, state: done ? "completed" : "refund_pending", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
       status: "cancelled",
       refund: {
@@ -2954,7 +2956,9 @@ exports.refundOrder = onBrowserRequest(
     const actor = adminUser.email || adminUser.uid;
     const reasonText = String(reason || "Admin refund").slice(0, 500);
     const claimedAt = new Date().toISOString();
-    let claimed = false, providerAccepted = false;
+    let claimed = false, providerAccepted = false, providerCalled = false;
+    // Only these mean the provider certainly took no refund; anything else may still complete.
+    const DEFINITE_REFUSALS = ["StripeInvalidRequestError", "StripeCardError", "StripePermissionError", "StripeAuthenticationError"];
     // A refund attempt that never reached the provider must not leave its claim behind:
     // a stale refundRequest would block every later return step on this order.
     const releaseClaim = () => db.runTransaction(async transaction => {
@@ -2993,6 +2997,7 @@ exports.refundOrder = onBrowserRequest(
       if (provider === "stripe") {
         const stripeMode = order.stripeMode === "test" ? "test" : "live";
         const { stripe, requestOptions } = await getStripeClientForMode(stripeMode, order.stripeAccountId || null);
+        providerCalled = true;
         const refund = await stripe.refunds.create({
           payment_intent: order.stripePaymentIntentId,
           reason: "requested_by_customer",
@@ -3006,6 +3011,7 @@ exports.refundOrder = onBrowserRequest(
         const config = await getPayPalConfig();
         if (order.paypalMode === "test") config.testMode = true;
         else if (order.paypalMode === "live") config.testMode = false;
+        providerCalled = true;
         const refund = await paypalRequest(config, `/v2/payments/captures/${encodeURIComponent(order.paypalCaptureId)}/refund`, {
           method: "POST",
           headers: { "PayPal-Request-Id": `refund-${orderId}-full` },
@@ -3040,7 +3046,7 @@ exports.refundOrder = onBrowserRequest(
       console.error("refundOrder failed:", err);
       // Keep the claim only when the provider may have taken the refund (accepted, or a lost
       // connection): its webhook then follows the admin's restock choice.
-      if (claimed && !providerAccepted && err?.type !== "StripeConnectionError") await releaseClaim();
+      if (claimed && !providerAccepted && (!providerCalled || DEFINITE_REFUSALS.includes(err?.type) || (err?.status >= 400 && err?.status < 500))) await releaseClaim();
       const status = err.status || (err.type?.startsWith("Stripe") ? 400 : 500);
       res.status(status).json({ error: err.message || "Refund failed" });
     }

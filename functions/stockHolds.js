@@ -86,10 +86,11 @@ async function reserveStock(db, orderId, items, now = Date.now(), owner = "") {
       const book = bookSnap.data();
       if (!book.trackInventory || book.allowBackorder) return; // nothing to hold
       const existing = holdSnap.exists ? holdSnap.data().holds : {};
-      const others = activeHolds(existing, now, orderId);
+      // The shopper's newer attempt replaces their earlier holds, so holds never add up past stock.
+      const others = activeHolds(existing, now, orderId, owner);
       const lines = byBook.get(id);
       for (const [key, qty] of Object.entries(lines)) {
-        const available = Math.max(0, stockOf(book, key) - heldUnits(activeHolds(existing, now, orderId, owner), key));
+        const available = Math.max(0, stockOf(book, key) - heldUnits(others, key));
         if (qty > available) {
           const variant = key === "_" ? null : (book.variants || []).find(v => v.id === key);
           throw new StockHoldError(variant?.name ? `${book.title} (${variant.name})` : book.title || "This book", available);

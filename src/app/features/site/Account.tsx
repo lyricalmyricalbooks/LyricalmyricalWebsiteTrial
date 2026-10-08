@@ -231,7 +231,7 @@ export default function AccountPage() {
     } catch (err) {
       console.error("Failed to load account data", err);
     } finally {
-      setLoadingData(false);
+      if (!stale()) setLoadingData(false);
     }
   }
 
