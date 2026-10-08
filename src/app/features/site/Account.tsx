@@ -1,3 +1,4 @@
+import { lineIsDigital } from "./digitalLine";
 import { regionProps } from "./storefrontRegions";
 import { getTrackingUrl } from "../../lib/tracking";
 import { accountsEnabled } from "./customerAccounts";
@@ -239,14 +240,12 @@ export default function AccountPage() {
     }
 
     // 2. Fetch all unique items concurrently
-    const digitalStatusMap: Record<string, boolean> = {};
+    const booksById: Record<string, any> = {};
     await Promise.all(
       Array.from(uniqueItemIds).map(async (id) => {
         try {
           const book = await adminApi.getBook(id);
-          if (book && book.digitalFileName) {
-            digitalStatusMap[id] = true;
-          }
+          if (book && book.digitalFileName) booksById[id] = book;
         } catch (err) {
           console.warn("E-Book metadata scan error:", err);
         }
@@ -258,7 +257,8 @@ export default function AccountPage() {
       if (order.paymentStatus !== "paid") continue;
       const orderDigitalItems: Record<string, boolean> = {};
       for (const item of order.items || []) {
-        if (digitalStatusMap[item.id]) {
+        // Only the e-book edition's line gets a download button (the server checks the same).
+        if (lineIsDigital(item, booksById[item.id])) {
           orderDigitalItems[item.id] = true;
         }
       }

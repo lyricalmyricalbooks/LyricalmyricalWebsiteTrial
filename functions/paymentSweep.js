@@ -6,6 +6,9 @@ const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // older ones are stale
 function suspectOrders(orders, nowMs = Date.now()) {
   return (orders || []).filter((o) => {
     if (!o || o.paymentStatus === "paid" || o.paymentAlertSentAt) return false;
+    // Cancelled, mismatched or stock-conflicted orders were handled by the webhook; they need a
+    // refund decision, not a "webhook missed" alert.
+    if (o.status === "cancelled" || o.paymentMismatch || o.inventoryConflict) return false;
     const hasIntent = typeof o.stripePaymentIntentId === "string" && o.stripePaymentIntentId.startsWith("pi_");
     const hasSession = typeof o.stripeCheckoutSessionId === "string" && o.stripeCheckoutSessionId.startsWith("cs_");
     if (!hasIntent && !hasSession) return false;

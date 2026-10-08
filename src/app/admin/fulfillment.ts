@@ -24,7 +24,9 @@ export function addressIssues(o: any): string[] {
  if (us && (canadian || /^[A-Z]\d[A-Z]\d[A-Z]\d$/.test(postal))) issues.push("The country conflicts with a Canadian province or postal code. Correct the address with the customer.");
  if (ca && (!canadian || !/^[ABCEGHJ-NPRSTVXY]\d[A-Z]\d[A-Z]\d$/.test(postal))) issues.push("Check the Canadian province and postal code.");
  if (us && !/^\d{5}(-\d{4})?$/.test(postal)) issues.push("Check the US ZIP code.");
- if (o.addressVerified === false) issues.push(o.addressError || "Postal verification failed. Confirm the address with the customer.");
+ if (o.addressVerified === false) issues.push(o.addressError === "verification_unavailable"
+   ? "The address checker was unavailable when this order was placed. Confirm the address before shipping."
+   : o.addressError || "Postal verification failed. Confirm the address with the customer.");
  return issues;
 }
 export const isDigitalItem = (i: any) => i?.digital === true || i?.isDigital === true || /digital|e-book|ebook|epub|pdf|audiobook/.test(String(i.format || "").toLowerCase());
@@ -32,13 +34,15 @@ export const physicalItems = (o: any) => (o.items || []).filter((i: any) => !isD
 export const fulfillmentMethod = (o: any) => ["pickup", "local_delivery"].includes(o.fulfillmentSelection?.method) ? o.fulfillmentSelection.method : "shipping";
 export function queueOf(o: any): string {
  // Money that arrived after the order was cancelled was not accepted: refund it.
- if (o.paymentMismatch?.paidAfterCancel && o.paymentStatus !== "paid") return "Needs attention";
+ if (o.paymentMismatch?.paidAfterCancel && !o.paymentMismatch?.resolvedAt && o.paymentStatus !== "paid") return "Needs attention";
  if (terminal(o)) return "Completed";
  // The customer asked to cancel or return: answer before packing anything.
  if (o.customerRequest?.status === "open") return "Needs attention";
  // A payment that didn't match the order total (amount or currency) was not accepted: review it.
- if (o.paymentMismatch && o.paymentStatus !== "paid") return "Needs attention";
+ if (o.paymentMismatch && !o.paymentMismatch.resolvedAt && o.paymentStatus !== "paid") return "Needs attention";
  if (o.paymentStatus !== "paid") return "Unpaid";
+ // An open chargeback: hold the books until it is settled.
+ if (disputeOpen(o)) return "Needs attention";
  if (o.items?.length && !physicalItems(o).length) return "Completed";
  const method = fulfillmentMethod(o);
  if (["delivered", "collected"].includes(o.fulfillmentStatus)) return "Completed";
@@ -50,6 +54,8 @@ export function queueOf(o: any): string {
  if (o.operations?.packed !== packingKey(o)) return "Ready to pack";
  return method === "pickup" ? "Ready for pickup" : method === "local_delivery" ? "Ready for local delivery" : "Ready to ship";
 }
+/** A card dispute the shop hasn't won or closed yet. */
+export const disputeOpen = (o: any) => !!o?.disputeStatus && !["won", "lost", "warning_closed", "closed", "charge_refunded"].includes(String(o.disputeStatus));
 export function dispatchProblem(o: any): string {
  if (o.isTest) return "Test orders cannot be fulfilled.";
  if (terminal(o) || o.paymentStatus !== "paid") return "Only active paid orders can be dispatched.";
@@ -57,6 +63,7 @@ export function dispatchProblem(o: any): string {
  if (fulfillmentMethod(o) !== "shipping") return "Local pickup and delivery orders cannot use carrier dispatch.";
  if (q === "In transit" || q === "Completed") return "This order has already been dispatched.";
  if (o.customerRequest?.type === "return" && o.customerRequest.status === "open") return "Resolve the active return before dispatching the order.";
+ if (disputeOpen(o)) return "This payment is disputed. Don't ship until the dispute is settled in Stripe.";
  if (o.operations?.hold) return `Order on hold: ${o.operations.hold}`;
  if (addressIssues(o).length || o.operations?.addressReviewed !== addressKey(o)) return "Review and confirm the shipping address first.";
  if (o.operations?.packed !== packingKey(o)) return "Complete the packing checklist first.";

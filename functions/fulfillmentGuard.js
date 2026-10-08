@@ -14,6 +14,7 @@ function labelProblem(order, operations = {}) {
  if (order.labelUrl) return "A label already exists. Reprint the existing label.";
  if (operations.labelPurchasePending) return "A label purchase is pending. Check Shippo before attempting another purchase.";
  if (order.customerRequest?.type === "return" && order.customerRequest.status === "open") return "Resolve the active return before buying a fulfillment label.";
+ if (order.disputeStatus && !["won", "lost", "warning_closed", "closed", "charge_refunded"].includes(String(order.disputeStatus))) return "This payment is disputed. Don't buy a label until the dispute is settled in Stripe.";
  if (operations.hold) return "Release the fulfillment hold before buying a label.";
  if (operations.addressReviewed !== addressKey(order)) return "Review the address before buying a label.";
  if (operations.packed !== packingKey(order)) return "Complete the packing checklist before buying a label.";
