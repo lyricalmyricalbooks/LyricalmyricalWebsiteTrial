@@ -70,7 +70,7 @@ export function productPageCss(design: any): string {
   css += `${S} .fm-pdp-media{display:grid;gap:14px;align-items:start;grid-template-columns:minmax(0,1fr);}`;
   css += `${S} .fm-pdp-media[data-thumbs="side"]{grid-template-columns:76px minmax(0,1fr);}`;
   css += `${S} .fm-pdp-rail{display:flex;gap:10px;overflow-x:auto;padding-bottom:2px;}`;
-  css += `${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-rail{flex-direction:column;overflow:visible;}`;
+  css += `${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-rail{flex-direction:column;max-height:min(80vh, 760px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;}`;
   css += `${S} .fm-pdp-media[data-thumbs="below"] .fm-pdp-rail{order:2;}`;
   css += `${S} .fm-pdp-thumb{flex:none;width:64px;padding:0;overflow:hidden;background:var(--surface);border:2px solid rgba(var(--border-rgb), 0.5);opacity:.72;transition:opacity 140ms,border-color 140ms;}`;
   css += `${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-thumb{width:100%;}`;
@@ -121,7 +121,7 @@ export function productPageCss(design: any): string {
 
   css += `@media (max-width:${PHONE_MAX}px){`
     + `${S} .fm-pdp-media[data-thumbs="side"]{grid-template-columns:minmax(0,1fr);}`
-    + `${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-rail{flex-direction:row;overflow-x:auto;order:2;}`
+    + `${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-rail{flex-direction:row;max-height:none;overflow-x:auto;overflow-y:hidden;order:2;}`
     + `${S} .fm-pdp-media[data-thumbs="side"] .fm-pdp-thumb{width:64px;}`
     + `${S} .fm-pdp-card-section,${S} .fm-pdp-panel{padding:${Math.min(pad, 18)}px;}`
     + `${S} .fm-pdp-record{grid-template-columns:minmax(0,1fr);}`
