@@ -31,11 +31,12 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 }
 
 const results = [];
-async function check(name, viewport, run, query = "") {
+async function check(name, viewport, run, query = "", prepare = null) {
   const page = await browser.newPage({ viewport });
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
   try {
+    if (prepare) await prepare(page);
     await page.goto(`${base}/studio-fixture.html${query}`);
     await page.waitForSelector("[data-studio-editor]", { timeout: 30000 });
     await run(page);
@@ -128,6 +129,15 @@ await check("clicking a section in the preview opens its settings", desktop, asy
   await frame.locator("[data-fm-section]").first().click({ position: { x: 8, y: 8 }, timeout: 15000 });
   await page.getByRole("button", { name: "Close settings" }).waitFor({ timeout: 8000 });
 });
+
+await check("a slow preview never clears what the owner selected", desktop, async page => {
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await page.getByRole("button", { name: "Close settings" }).waitFor({ timeout: 5000 });
+  await expectText(page, "Preview connected", 30000);
+  await page.waitForTimeout(1500);
+  if (!(await page.getByRole("button", { name: "Close settings" }).count())) throw new Error("the section was deselected when the preview connected");
+}, "", page => page.route(/preview=true/, async route => { await new Promise(r => setTimeout(r, 5000)); await route.continue(); }));
 
 await check("page structure lists the header, follows the pointer and opens the bag", desktop, async page => {
   await expectText(page, "Preview connected", 30000);

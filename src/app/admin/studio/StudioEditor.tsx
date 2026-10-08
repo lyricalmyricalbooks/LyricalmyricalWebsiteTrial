@@ -353,6 +353,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [remembered] = useState(() => ({ ...loadUiState(uiKey), ...(initialLocation || {}), ...(initialLocation?.templateId && !initialLocation.showGlobal ? { showGlobal: false } : {}) }));
   const [leftTab, setLeftTab] = useState<LeftTab>((remembered.leftTab as LeftTab) || "sections");
   const [templateId, setTemplateId] = useState(remembered.templateId || "heroPage");
+  // Read by the preview message handler, which is not re-created on every page switch.
+  const templateIdRef = useRef(templateId); templateIdRef.current = templateId;
   const [showGlobal, setShowGlobal] = useState(remembered.showGlobal === true);
   const [device, setDevice] = useState<keyof typeof DEVICE_W>(remembered.device || "desktop");
   const [zoom, setZoom] = useState<Zoom>(remembered.zoom ?? "fit");
@@ -763,7 +765,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       if (d.type === "PREVIEW_READY") { setPreviewStatus("ready"); sendPreviewState(); sendCopyMap(); highlight(selectedId); iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); postPreview({ type: "SET_TARGET_LABELS", labels: TARGET_LABELS }); }
       if (d.type === "STUDIO_ROUTE" && typeof d.href === "string") {
         const route = previewRoute(d.href, import.meta.env.BASE_URL);
-        if (route && templates.some(t => t.id === route.templateId)) { setTemplateId(route.templateId); setShowGlobal(false); setSelectedId(null); setBlockId(null); }
+        // Only a real page change resets the selection: the preview also reports its route when it
+        // finishes loading, which can arrive after the owner has already selected something.
+        if (route && templates.some(t => t.id === route.templateId) && route.templateId !== templateIdRef.current) { setTemplateId(route.templateId); setShowGlobal(false); setSelectedId(null); setBlockId(null); }
         if (route?.product) setProductSlug(route.product);
         if (route?.collection) setCollectionSlug(route.collection);
         sendPreviewState();
