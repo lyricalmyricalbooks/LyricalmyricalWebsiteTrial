@@ -31,9 +31,9 @@ function preorderLine(book, now = new Date()) {
 const isDigitalLine = item => item && (item.digital === true || item.isDigital === true || /digital|e-book|ebook|epub|pdf|audiobook/.test(String(item.format || "").toLowerCase()));
 
 // The pre-order lines that still hold a parcel back: physical, and released neither by date
-// nor by the publisher ("Ready to ship now" sets operations.preorderReleased).
+// nor by the publisher ("Ready to ship now" stamps order.preorderReleasedAt + operations.preorderReleased).
 function waitingPreorderLines(order, operations = {}, now = new Date()) {
-  if (!order || (operations && operations.preorderReleased)) return [];
+  if (!order || order.preorderReleasedAt || (operations && operations.preorderReleased)) return [];
   const today = shopDate(now);
   return (order.items || []).filter(item => item && item.preorder === true && !isDigitalLine(item) && (!item.releaseDate || String(item.releaseDate) > today));
 }
@@ -42,6 +42,17 @@ function waitingPreorderLines(order, operations = {}, now = new Date()) {
 function shipDateOf(lines) {
   if (!lines.length || lines.some(item => !item.releaseDate)) return "";
   return lines.map(item => String(item.releaseDate)).sort().pop();
+}
+
+// When the parcel could first ship because of its pre-orders (ms), for "waited too long to ship"
+// clocks: the early-release moment, else the latest physical pre-order release day. 0 = no pre-order.
+function preorderClockStart(order, operations = {}) {
+  const physical = (order && order.items || []).filter(item => item && item.preorder === true && !isDigitalLine(item));
+  if (!physical.length) return 0;
+  const early = Date.parse((order && order.preorderReleasedAt) || (operations && operations.preorderReleasedAt) || "");
+  if (Number.isFinite(early)) return early;
+  const dated = physical.filter(item => item.releaseDate).map(item => String(item.releaseDate)).sort().pop();
+  return dated ? Date.parse(`${dated}T12:00:00Z`) || 0 : 0;
 }
 
 // Plain-text lines for order emails (customer and shop). [] for orders with no pre-orders.
@@ -58,4 +69,4 @@ function preorderEmailLines(order, now = new Date()) {
   return out;
 }
 
-module.exports = { releaseDateOf, preorderActive, preorderLine, waitingPreorderLines, shipDateOf, preorderEmailLines };
+module.exports = { releaseDateOf, preorderActive, preorderLine, waitingPreorderLines, shipDateOf, preorderClockStart, preorderEmailLines, isDigitalLine };

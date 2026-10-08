@@ -1,4 +1,4 @@
-import { waitingPreorderLines } from "../features/site/preorder";
+import { waitingPreorderLines, preorderClockStart } from "../features/site/preorder";
 // Admin-wide alerts shown above every admin page (AdminAlerts.tsx). Pure, tested.
 // Payment problems come first: money that arrived but isn't recorded, or vice versa.
 
@@ -22,9 +22,9 @@ const MANUAL_LATE_MS = 2 * DAY;
 
 const age = (o: any, now: number) => now - Date.parse(o?.createdAt || "");
 const paidAge = (o: any, now: number) => now - Date.parse(o?.paidAt || o?.createdAt || "");
-// A pre-order can't ship before its release, so its shipping clock starts on the latest release date.
-const releasedAt = (o: any) => Math.max(0, ...((o?.items || []).filter((i: any) => i?.preorder && i.releaseDate).map((i: any) => Date.parse(`${i.releaseDate}T12:00:00Z`) || 0)));
-const shipAge = (o: any, now: number) => Math.min(paidAge(o, now), now - releasedAt(o));
+// A pre-order can't ship before its release, so its shipping clock starts when the printed
+// pre-orders were released (by date or "Ready to ship now"); digital pre-orders don't count.
+const shipAge = (o: any, now: number) => Math.min(paidAge(o, now), now - preorderClockStart(o, o?.operations || {}));
 const label = (o: any) => o?.orderId || o?.id;
 const list = (orders: any[]) => {
   const names = orders.slice(0, 3).map(label).join(", ");

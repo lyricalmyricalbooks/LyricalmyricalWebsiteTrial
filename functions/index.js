@@ -3119,8 +3119,10 @@ exports.downloadDigitalAsset = onRequest(
         return;
       }
       // A pre-ordered e-book unlocks on its publication date (the live catalog decides, so a
-      // release the publisher brings forward unlocks early too).
-      if (preorderActive(book)) {
+      // release the publisher brings forward unlocks early too). Only lines bought as a
+      // pre-order wait: turning pre-order on later for a new edition never locks earlier buyers out.
+      const boughtAsPreorder = lines.some(line => line.preorder === true && !isPhysicalItem(line));
+      if (boughtAsPreorder && preorderActive(book)) {
         res.status(403).send(book.publishDate ? `This pre-order can be downloaded from ${String(book.publishDate).slice(0, 10)}.` : "This pre-order can be downloaded once the book is released.");
         return;
       }

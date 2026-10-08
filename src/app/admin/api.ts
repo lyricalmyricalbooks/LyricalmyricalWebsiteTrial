@@ -1,5 +1,6 @@
 import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
 import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
+import { restampPreorderItems } from "../features/site/preorder";
 import { themeWrite } from "./themeWrite";
 import { splitWebsiteSecrets, splitNotificationSecrets, type SecretPatch } from "./privateKeys";
 import { toCountryCodes } from "./shippingCountries";
@@ -221,6 +222,22 @@ export const adminApi = {
     });
     await adminApi.recordAuditLog("catalog", `Updated book: ${dataToSave.title}`);
     return { id, ...dataToSave };
+  },
+
+  // The publisher changed a book's pre-order switch or Publication date: carry the new release date
+  // onto that book's pre-order lines in paid, unsent orders, so their queue, emails and the customer's
+  // tracking page follow it. Returns how many orders changed.
+  syncPreorderOrders: async (bookId: string, book: any): Promise<number> => {
+    const orders = await adminApi.getAllOrders();
+    let changed = 0;
+    for (const o of orders) {
+      const items = restampPreorderItems(o, bookId, book);
+      if (!items) continue;
+      await updateDoc(doc(db, "orders", o.id), { items, updatedAt: new Date().toISOString() });
+      changed++;
+    }
+    if (changed) await adminApi.recordAuditLog("orders", `Pre-order release date for ${book?.title || bookId} updated on ${changed} order(s).`);
+    return changed;
   },
 
   deleteBook: async (id: string) => {
@@ -853,7 +870,10 @@ export const adminApi = {
       } else if (action === "release_preorder") {
         // The pre-ordered books arrived before their release date: let this order be packed now.
         if (queueOf(o) !== "Awaiting release") throw new Error("This order is not waiting for a pre-order release.");
-        operations.preorderReleased = true; message = "Pre-order released early by publisher: ready to pack and ship.";
+        operations.preorderReleased = true; operations.preorderReleasedAt = now;
+        // Public too, so the customer's tracking page stops promising the later date.
+        tx.update(ref, { preorderReleasedAt: now, updatedAt: now });
+        message = "Pre-order released early by publisher: ready to pack and ship.";
       } else if (action === "dispatch") {
         const problem = dispatchProblem(o); if (problem) throw new Error(problem);
         const tracking = trackingFields(payload);

@@ -1130,10 +1130,12 @@ prices, holds and payment authority are unchanged: pre-orders use the book's nor
 pre-orders; backorders or untracked stock = unlimited). Both checkout item builders stamp each line with
 `preorder`/`releaseDate` from the catalog (`preorderLine`, a browser flag never sticks). Paid orders with a physical
 pre-order line wait in the **Awaiting release** queue (`queueOf`, Orders desk **Pre-orders** tab) until the latest
-release date, or until **Ready to ship now** (`fulfillmentAction("release_preorder")` → `operations.preorderReleased`);
+release date, or until **Ready to ship now** (`fulfillmentAction("release_preorder")` → public `order.preorderReleasedAt` +
+`operations.preorderReleased`). Saving a book whose pre-order switch or date changed re-stamps the release date on its
+paid, unsent pre-order lines (`restampPreorderItems`, `adminApi.syncPreorderOrders`; switched off = released today);
 `dispatchProblem`, local handover and the server `labelProblem` refuse until then. The 3-day ship-late alert and the
-daily digest start counting on release day. Pre-ordered e-books unlock on release (`downloadDigitalAsset` checks the live
-book). Order emails get a Pre-order block (`preorderEmailLines`); the shop email subject says `[NEW PRE-ORDER]`.
+daily digest start counting when the printed pre-orders were released (`preorderClockStart`). E-books bought as a
+pre-order unlock on release (`downloadDigitalAsset` checks the line and the live book). Order emails get a Pre-order block (`preorderEmailLines`); the shop email subject says `[NEW PRE-ORDER]`.
 Storefront: product page stock line + **Pre-order** button, shop-card badge, bag/checkout line notes, a checkout
 summary notice (region `checkoutPreorder`), order-tracking note (region `trackingPreorder`), and `PreOrder` +
 `availabilityStarts` JSON-LD. Studio: Style › Badges & shop labels › **Pre-order badge** (`showPreorderBadge`), Cart

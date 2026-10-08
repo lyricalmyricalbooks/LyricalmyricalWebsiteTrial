@@ -449,6 +449,15 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       if (book) {
         await adminApi.updateBook(book.id, formData);
         toast.success("Book updated successfully");
+        // Pre-order switch or release date changed: paid, unsent pre-orders follow the new date.
+        if (!!(book as any).preorder !== !!formData.preorder || ((book as any).preorder || formData.preorder) && String((book as any).publishDate || "") !== String(formData.publishDate || "")) {
+          try {
+            const n = await adminApi.syncPreorderOrders(book.id, formData);
+            if (n) toast.success(`Release date updated on ${n} paid pre-order${n === 1 ? "" : "s"}.`);
+          } catch {
+            toast.error("Book saved, but its paid pre-orders couldn't be updated. Save again to retry.");
+          }
+        }
       } else {
         await adminApi.createBook(formData);
         toast.success("New title added to library");

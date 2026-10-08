@@ -117,7 +117,7 @@ export function FulfillmentWorkbench({
             <p>
               {preorderShipDate(order)
                 ? `Ships from ${formatReleaseDate(preorderShipDate(order), "en-CA")}. It moves to Ready to pack on that day by itself.`
-                : "The release date hasn't been announced. Set it in Books › edit › Inventory, or ship when the books arrive."}
+                : "The release date hasn't been announced. Setting it in Books › edit › Inventory updates this order; press Ready to ship now when the books arrive."}
             </p>
           </div>
           {onReleasePreorder && !order.isTest && (

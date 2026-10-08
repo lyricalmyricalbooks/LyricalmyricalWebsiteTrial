@@ -3,6 +3,10 @@ import { queueOf, dispatchProblem, addressKey, packingKey, preorderShipDate } fr
 import { deskOrders, rowStatus } from "./ordersDesk";
 import { buildAdminAlerts as adminAlerts } from "./adminAlerts";
 import { repriceCart } from "../CartContext";
+import { restampPreorderItems, preorderClockStart, waitingPreorderLines } from "../features/site/preorder";
+// @ts-ignore
+import * as serverRule from "../../../functions/preorder.js";
+const srvRule: any = (serverRule as any).default ?? serverRule;
 // @ts-ignore - CommonJS server modules
 import * as guard from "../../../functions/fulfillmentGuard.js";
 // @ts-ignore
@@ -60,6 +64,41 @@ describe("pre-orders in the fulfillment desk", () => {
     expect(adminAlerts([o], null, Date.parse("2026-11-16T16:00:00Z")).some((a: any) => a.id === "ship-late")).toBe(true);
     const d = buildOrderDigest([o], new Map(), NOW.getTime());
     expect(d.unshipped).toEqual([]);
+  });
+});
+
+describe("review fixes", () => {
+  it("a digital pre-order next to an in-stock paperback doesn't silence the ship-late alert or digest", () => {
+    const o = paidOrder([{ id: "p", title: "Ready", quantity: 1, price: 10, format: "Paperback" }, { ...pre, id: "e", format: "E-book (EPUB)", digital: true, releaseDate: "2026-12-31" }]);
+    expect(queueOf(o)).not.toBe("Awaiting release");
+    expect(adminAlerts([o], null, NOW.getTime()).some((a: any) => a.id === "ship-late")).toBe(true);
+    expect(buildOrderDigest([o], new Map(), NOW.getTime()).unshipped.map((x: any) => x.id)).toEqual(["o1"]);
+  });
+
+  it("“Ready to ship now” starts the ship-late clock at the early release, for dated and undated pre-orders", () => {
+    for (const releaseDate of ["2026-12-31", null]) {
+      const o = paidOrder([{ ...pre, releaseDate }], { preorderReleasedAt: "2026-10-01T12:00:00Z" });
+      expect(waitingPreorderLines(o)).toEqual([]);
+      expect(preorderClockStart(o)).toBe(srvRule.preorderClockStart(o));
+      expect(adminAlerts([o], null, Date.parse("2026-10-03T12:00:00Z")).some((a: any) => a.id === "ship-late")).toBe(false);
+      expect(adminAlerts([o], null, NOW.getTime()).some((a: any) => a.id === "ship-late")).toBe(true);
+      expect(buildOrderDigest([o], new Map(), NOW.getTime()).unshipped.length).toBe(1);
+    }
+  });
+
+  it("changing a book's release date carries onto paid, unsent pre-orders only", () => {
+    const tba = paidOrder([{ ...pre, releaseDate: null }, { id: "other", title: "X", quantity: 1, price: 5, preorder: false, releaseDate: null }]);
+    const dated = restampPreorderItems(tba, "b1", { preorder: true, publishDate: "2026-12-05" }, NOW)!;
+    expect(dated[0].releaseDate).toBe("2026-12-05");
+    expect(dated[1]).toBe(tba.items[1]);
+    // Pre-order switched off (books arrived): released today, still marked as a pre-order.
+    const off = restampPreorderItems(tba, "b1", { preorder: false, publishDate: "2026-12-05" }, NOW)!;
+    expect(off[0]).toMatchObject({ preorder: true, releaseDate: "2026-10-08" });
+    vi.useFakeTimers(); vi.setSystemTime(NOW);
+    expect(queueOf({ ...tba, items: off })).toBe("Ready to pack");
+    expect(restampPreorderItems({ ...tba, fulfillmentStatus: "shipped" }, "b1", { preorder: false }, NOW)).toBeNull();
+    expect(restampPreorderItems({ ...tba, paymentStatus: "unpaid" }, "b1", { preorder: false }, NOW)).toBeNull();
+    expect(restampPreorderItems(tba, "b1", { preorder: true, publishDate: "" }, NOW)).toBeNull();
   });
 });
 

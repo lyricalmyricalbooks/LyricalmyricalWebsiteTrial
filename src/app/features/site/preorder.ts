@@ -28,7 +28,7 @@ const isDigitalLine = (item: any) => !!item && (item.digital === true || item.is
 
 /** Physical pre-order lines that still hold the parcel back (none once released by date or by the publisher). */
 export function waitingPreorderLines(order: any, operations: any = {}, now: Date = new Date()): any[] {
-  if (!order || operations?.preorderReleased) return [];
+  if (!order || order.preorderReleasedAt || operations?.preorderReleased) return [];
   const today = shopDate(now);
   return (order.items || []).filter((item: any) => item && item.preorder === true && !isDigitalLine(item) && (!item.releaseDate || String(item.releaseDate) > today));
 }
@@ -37,6 +37,37 @@ export function waitingPreorderLines(order: any, operations: any = {}, now: Date
 export function shipDateOf(lines: any[]): string {
   if (!lines.length || lines.some((item) => !item.releaseDate)) return "";
   return lines.map((item) => String(item.releaseDate)).sort().pop() || "";
+}
+
+/** When the parcel could first ship because of its pre-orders (ms): early release, else latest physical release day. 0 = none. */
+export function preorderClockStart(order: any, operations: any = {}): number {
+  const physical = (order?.items || []).filter((item: any) => item && item.preorder === true && !isDigitalLine(item));
+  if (!physical.length) return 0;
+  const early = Date.parse(order?.preorderReleasedAt || operations?.preorderReleasedAt || "");
+  if (Number.isFinite(early)) return early;
+  const dated = physical.filter((item: any) => item.releaseDate).map((item: any) => String(item.releaseDate)).sort().pop();
+  return dated ? Date.parse(`${dated}T12:00:00Z`) || 0 : 0;
+}
+
+/**
+ * The publisher changed a book's pre-order switch or Publication date: the new release date for
+ * that book's pre-order lines on a paid, not-yet-sent order, or null when nothing changes. Lines keep
+ * `preorder: true` (emails and ship-late clocks still know they were pre-orders); a book that is no
+ * longer on pre-order gets a release date of today at the latest, so the order is released.
+ */
+export function restampPreorderItems(order: any, bookId: string, book: any, now: Date = new Date()): any[] | null {
+  if (!order || order.paymentStatus !== "paid" || order.status === "cancelled") return null;
+  if (["shipped", "out_for_delivery", "delivered", "collected", "cancelled", "refunded"].includes(order.fulfillmentStatus)) return null;
+  const today = shopDate(now);
+  const date = releaseDateOf(book);
+  const next = preorderActive(book, now) ? (date || null) : (date && date <= today ? date : today);
+  let changed = false;
+  const items = (order.items || []).map((item: any) => {
+    if (!item || item.id !== bookId || item.preorder !== true || (item.releaseDate || null) === next) return item;
+    changed = true;
+    return { ...item, releaseDate: next };
+  });
+  return changed ? items : null;
 }
 
 /** "12 Nov 2026" in the shopper's language; the date is a calendar day, so it is read as UTC. */
