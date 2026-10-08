@@ -9,6 +9,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "seo-book-search-details", date: "2026-10-08", title: "Richer Google listings for your books",
+    summary: "Book pages now tell Google each edition's format, page count, publication date, edition name and ISBN (as a barcode number, only when the ISBN is valid), and the alt text you write for book photos is now used on the product page, which helps Google Images. Search snippets end on a whole word, Google may show your covers as large previews, and Pinterest/Facebook shares carry the price and stock. Nothing is invented: blank catalog fields are simply left out. The new details reach Google after the next site build and crawl.",
+    links: [{ label: "Fill in book details and photo alt text", tab: "catalog" }],
+  },
+  {
     id: "book-photos-20", date: "2026-10-08", title: "Up to 20 photos per book",
     summary: "Each book can now hold 20 photos instead of 10 (Books › edit › Media). On the product page, a long thumbnail strip beside the photo now scrolls instead of stretching the page.",
     links: [{ label: "Add photos in Books", tab: "catalog" }],

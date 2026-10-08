@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bookMetadata, bookStructuredData, breadcrumbData, canonicalUrl, collectionStructuredData, ratingData, seoChecks, siteStructuredData } from './bookSeo';
+import { bookMetadata, bookStructuredData, breadcrumbData, canonicalUrl, collectionStructuredData, isbn13, ratingData, seoChecks, siteStructuredData, snippet } from './bookSeo';
 const book = { id: 'one', title: 'Photo book', description: '<p>Art &amp; photography.</p>', retailPrice: 24, stockLevel: 0, status: 'published', slug: 'photo-book', metaTitle: 'An artist’s photo book', metaDescription: 'A unique collection of photographs.', seoImage: 'https://example.com/share.jpg' };
 describe('book search metadata', () => {
   it('uses saved search fields and sharing image', () => {
@@ -25,7 +25,7 @@ describe('book search metadata', () => {
     expect(bookStructuredData({ ...book, variants: [{ stock: 2 }, { stock: 0 }] }, options).offers.availability).toBe('https://schema.org/InStock');
   });
   it('resolves relative cover images to absolute URLs for crawlers', () => {
-    const data = bookStructuredData({ ...book, photos: [{ url: '/shop/cover.jpg' }] }, { currency: 'CAD', price: 24, url: 'https://example.com/shop/books/one' });
+    const data = bookStructuredData({ ...book, seoImage: '', photos: [{ url: '/shop/cover.jpg' }] }, { currency: 'CAD', price: 24, url: 'https://example.com/shop/books/one' });
     expect(data.image).toEqual(['https://example.com/shop/cover.jpg']);
   });
   it('flags missing content and draft visibility with actionable checks', () => {
@@ -68,5 +68,27 @@ describe('book search metadata', () => {
     const [org, site]: any[] = siteStructuredData({ name: 'Lyricalmyrical Books', url: 'https://example.com/shop/', logo: '/shop/logo.png', sameAs: ['https://instagram.com/x', '', 'javascript:alert(1)', 42] });
     expect(org).toMatchObject({ '@type': 'BookStore', '@id': 'https://example.com/shop/#organization', logo: 'https://example.com/shop/logo.png', sameAs: ['https://instagram.com/x'] });
     expect(site).toMatchObject({ '@type': 'WebSite', publisher: { '@id': 'https://example.com/shop/#organization' } });
+  });
+  it('cuts long fallback descriptions at a word boundary but keeps custom ones exact', () => {
+    const long = 'Photographs '.repeat(20).trim();
+    const meta = bookMetadata({ ...book, metaDescription: '', description: long });
+    expect(meta.description.length).toBeLessThanOrEqual(160);
+    expect(meta.description.endsWith('Photographs…')).toBe(true);
+    expect(snippet('Short text.')).toBe('Short text.');
+    const custom = 'x'.repeat(200);
+    expect(bookMetadata({ ...book, metaDescription: custom }).description).toBe(custom);
+  });
+  it('adds only the edition facts the catalog holds, with a validated ISBN-13 as GTIN', () => {
+    expect(isbn13('978-0-306-40615-7')).toBe('9780306406157');
+    expect(isbn13('978-0-306-40615-8')).toBe('');
+    expect(isbn13('0306406152')).toBe('');
+    const data = bookStructuredData({ ...book, isbn: '978-0-306-40615-7', format: 'Hardcover', pageCount: 128, publishDate: '2025-04-01T00:00:00Z', edition: 'First edition' }, { currency: 'CAD', price: 24, url: 'https://example.com/books/one' });
+    expect(data).toMatchObject({ gtin13: '9780306406157', bookFormat: 'https://schema.org/Hardcover', numberOfPages: 128, datePublished: '2025-04-01', bookEdition: 'First edition' });
+    const bare = bookStructuredData({ ...book, isbn: 'pending', pageCount: 0, format: 'Print' }, { currency: 'CAD', price: 24, url: 'https://example.com/books/one' });
+    for (const key of ['gtin13', 'bookFormat', 'numberOfPages', 'datePublished', 'bookEdition']) expect(bare).not.toHaveProperty(key);
+  });
+  it('includes the sharing image in product images without duplicates', () => {
+    const data = bookStructuredData({ ...book, photos: [{ url: 'https://example.com/share.jpg' }, { url: '/back.jpg' }] }, { currency: 'CAD', price: 24, url: 'https://example.com/books/one' });
+    expect(data.image).toEqual(['https://example.com/share.jpg', 'https://example.com/back.jpg']);
   });
 });

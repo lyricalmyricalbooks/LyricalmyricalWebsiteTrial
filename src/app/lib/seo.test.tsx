@@ -14,8 +14,10 @@ it('sets exact custom titles, canonical URLs, clears stale social images, and re
   expect(document.querySelector('link[rel="canonical"]')?.getAttribute('href')).toBe('https://example.com/shop/books/one');
   expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex, follow');
   act(() => root.render(<MemoryRouter><Page title="Next" url="https://example.com/shop/" /></MemoryRouter>));
-  expect(document.querySelector('meta[property="og:image"]')?.getAttribute('content')).toBe('');
-  expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('index, follow');
+  expect(document.querySelector('meta[property="og:image"]')).toBeNull();
+  expect(document.querySelector('meta[name="twitter:image"]')).toBeNull();
+  expect(document.querySelector('meta[name="twitter:card"]')?.getAttribute('content')).toBe('summary');
+  expect(document.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('index, follow, max-image-preview:large');
   act(() => root.unmount());
 });
 
@@ -53,4 +55,25 @@ it('publishes and removes the owner supplied Search Console verification token',
  act(() => setSiteIdentity({ copy: { googleSiteVerification: '' } }));
  expect(document.querySelector('meta[name="google-site-verification"]')).toBeNull();
  act(() => root.unmount());
+});
+
+it('describes the share image, publishes product price tags and drops the static shop markup', () => {
+  const root = createRoot(document.createElement('div'));
+  const stale = document.createElement('script');
+  stale.id = 'seo-jsonld-static';
+  stale.type = 'application/ld+json';
+  document.head.appendChild(stale);
+  function Page(props: any) { useSEO(props); return null; }
+  setSiteIdentity({ copy: {} });
+  act(() => root.render(<MemoryRouter><Page title="Photo book" exactTitle image="https://example.com/cover.jpg" product={{ price: 24, currency: 'CAD', availability: 'in stock' }} /></MemoryRouter>));
+  expect(document.getElementById('seo-jsonld-static')).toBeNull();
+  expect(document.querySelector('meta[property="og:image:alt"]')?.getAttribute('content')).toBe('Photo book');
+  expect(document.querySelector('meta[name="twitter:card"]')?.getAttribute('content')).toBe('summary_large_image');
+  expect(document.querySelector('meta[property="product:price:amount"]')?.getAttribute('content')).toBe('24.00');
+  expect(document.querySelector('meta[property="product:price:currency"]')?.getAttribute('content')).toBe('CAD');
+  expect(document.querySelector('meta[property="product:availability"]')?.getAttribute('content')).toBe('in stock');
+  act(() => root.render(<MemoryRouter><Page title="About" /></MemoryRouter>));
+  expect(document.querySelector('meta[property="product:price:amount"]')).toBeNull();
+  expect(document.querySelector('meta[property="product:availability"]')).toBeNull();
+  act(() => root.unmount());
 });
