@@ -63,6 +63,10 @@ export function StorefrontThemeStyle({ design }: { design?: any }) {
   const fieldBg = d.checkoutFieldBg || "var(--surface, #0a0a0a)";
   const fieldText = d.checkoutFieldText || "inherit";
   const checkoutTypeCss = `
+    [data-fm-checkout] select option {
+      background-color:${fieldBg} !important;
+      color:${d.checkoutFieldText || "rgb(var(--fg-rgb))"} !important;
+    }
     ${d.checkoutFont ? `[data-fm-checkout]{ font-family:${fontStack(d.checkoutFont)} !important; }` : ''}
     ${d.checkoutHeadingFont ? `[data-fm-checkout] h1, [data-fm-checkout] h2, [data-fm-checkout] h3 { font-family:${fontStack(d.checkoutHeadingFont)} !important; }` : ''}
     ${d.checkoutFieldFont ? `[data-fm-checkout] input, [data-fm-checkout] select, [data-fm-checkout] textarea, [data-fm-checkout] .fm-address-suggest { font-family:${fontStack(d.checkoutFieldFont)} !important; }` : ''}

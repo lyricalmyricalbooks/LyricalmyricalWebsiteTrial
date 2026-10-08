@@ -102,6 +102,9 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
               ...(fontName ? { fontFamily: `'${fontName.replace(/'/g, "")}', system-ui, sans-serif` } : {}),
             },
             rules: {
+              // Windows dropdowns otherwise retain a white system menu beneath light theme text.
+              ".DropdownItem": { backgroundColor: "var(--colorBackground)", color: "var(--colorText)" },
+              ".DropdownItem--highlight": { backgroundColor: "var(--colorPrimary)", color: "var(--accessibleColorOnColorPrimary)" },
               ".Input": { border: "1px solid var(--inputColorBorder)", boxShadow: "none" },
               ".Input:focus": { borderColor: "var(--colorPrimary)", boxShadow: "0 0 0 1px var(--colorPrimary)" },
               ".Input--invalid": { borderColor: "var(--colorDanger)", boxShadow: "0 0 0 1px var(--colorDanger)" },
