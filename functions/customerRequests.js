@@ -12,6 +12,7 @@ const clean = (value, max) => String(value || "").replace(/[\u0000-\u0008\u000b\
 // Why this order can't take this request, or null.
 function orderRequestProblem(order, type) {
   if (!order) return "not_found";
+  if (type === "return" && order.returnProgress) return "already_open";
   if (!ORDER_REQUEST_TYPES.includes(type)) return "invalid";
   if (order.customerRequest && order.customerRequest.status === "open") return "already_open";
   const status = String(order.status || "").toLowerCase();

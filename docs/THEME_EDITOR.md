@@ -760,3 +760,23 @@ create author photographs, edit live catalog content or establish live payment/e
 Stripe status checks require an authorized identity or private order key and record pending reconciliation only;
 Stripe paid-order mutations remain exclusive to the verified signed webhook. Existing PayPal, manual/offline and
 server-validated free-order contracts remain available.
+
+
+### Cart shipping preview and return progress (7 October 2026)
+
+- [x] Cart drawer > Total & checkout button > Shipping cost preview in cart controls
+  the estimator visibility. Cart Text & labels owns destination fields, quote actions,
+  errors, empty/digital results and preliminary-estimate wording. The shared cart input
+  palette/font rules and data-studio-target hooks apply in the live preview and shop.
+- [x] Secure tracking return progress uses the existing trackingRequests region and
+  its responsive controls; Order tracking Text & labels owns approval, receipt,
+  inspection, provider-pending, completion and declined status words. Return instructions
+  are order-specific publisher data, with private inspection details kept out of tracking.
+- [x] Catalog publication review uses explicit administrator acknowledgement and reviewed
+  bulk draft changes. Public visibility follows publication status, including recommendations
+  and sitemap, instead of title-based guesses.
+
+Validation: handler tests cover authority, selective/idempotent restocking and profile
+estimates; local desktop/phone browser fixtures cover forms/dialogs and customer progress.
+The actual checkout destination handoff was exercised without creating an order/payment.
+These checks do not prove deployed providers or live refunds.

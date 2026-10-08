@@ -1,3 +1,4 @@
+import { CatalogReviewDialog } from "./CatalogReviewDialog";
 import { useState, useEffect, useRef } from "react";
 import { 
   X, 
@@ -118,6 +119,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     metaDescription: "",
   });
 
+  const [publishReview, setPublishReview] = useState(false);
   const [shippingProfiles, setShippingProfiles] = useState<any[]>([]);
   const [authors, setAuthors] = useState<any[]>([]);
   const [recommendationCatalog, setRecommendationCatalog] = useState<any[]>([]);
@@ -406,7 +408,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     onClose();
   };
 
-  const handleSave = async (e?: React.FormEvent) => {
+  const handleSave = async (e?: React.FormEvent, reviewed = false) => {
     if (e) e.preventDefault();
     if (loading) return;
 
@@ -430,6 +432,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       return;
     }
 
+    if (formData.status === "published" && !reviewed) { setPublishReview(true); return; }
     setLoading(true);
     try {
       if (book) {
@@ -1016,6 +1019,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
           )}
         </form>
 
+        {publishReview && <CatalogReviewDialog books={[{ ...formData, id: book?.id || "new" }]} action="publish" onClose={() => setPublishReview(false)} onConfirm={async () => { setPublishReview(false); await handleSave(undefined, true); }} />}
         <aside className="be-rail" aria-label="Book summary">
           <div className="be-rail-card">
             <div className="be-rail-cover">{cover ? <img src={cover} alt={formData.photos?.[0]?.altText || ""} /> : <span>No cover yet</span>}</div>

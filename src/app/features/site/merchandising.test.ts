@@ -5,15 +5,15 @@ describe("publisher recommendations", () => {
   it("keeps curator order and excludes missing, duplicate, current and unpublished books", () => {
     expect(recommendedBooks({ id: "a", relatedBookIds: ["c", "missing", "b", "b", "a"] }, catalog).map(b => b.id)).toEqual(["b"]);
   });
-  it("excludes published placeholders and duplicate copies from both automatic and curated recommendations", () => {
-    expect(recommendedBooks({ id: "a", categories: ["Poetry"] }, catalog).map(b => b.id)).toEqual(["b"]);
-    expect(recommendedBooks({ id: "a", relatedBookIds: ["test", "sss", "copy", "copy2", "b"] }, catalog).map(b => b.id)).toEqual(["b"]);
+  it("uses publication status rather than title guesses for recommendations", () => {
+    expect(recommendedBooks({ id: "a", categories: ["Poetry"] }, catalog).map(b => b.id)).toEqual(["b", "test", "sss", "copy"]);
+    expect(recommendedBooks({ id: "a", relatedBookIds: ["test", "sss", "copy", "copy2", "b"] }, catalog).map(b => b.id)).toEqual(["test", "sss", "copy", "copy2"]);
   });
   it("an explicitly empty selection hides automatic recommendations", () => {
     expect(recommendedBooks({ id: "a", relatedBookIds: [] }, catalog)).toEqual([]);
   });
   it("preserves automatic matches for older records without a selection", () => {
-    expect(recommendedBooks({ id: "a", categories: ["Poetry"] }, catalog).map(b => b.id)).toEqual(["b"]);
+    expect(recommendedBooks({ id: "a", categories: ["Poetry"] }, catalog).map(b => b.id)).toEqual(["b", "test", "sss", "copy"]);
   });
 });
 describe("real edition details", () => {

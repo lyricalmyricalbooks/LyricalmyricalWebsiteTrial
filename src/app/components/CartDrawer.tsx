@@ -1,4 +1,5 @@
-import { useMemo, useRef } from "react";
+import { CartShippingPreview } from "./CartShippingPreview";
+import { useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router";
 import { useCart, catalogUnitPrice, MAX_LINE_QUANTITY } from "../CartContext";
@@ -16,6 +17,7 @@ import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldChec
 // features/site/cartDrawerStyle.ts); its words are Studio › Text & labels › Cart.
 export function CartDrawer() {
   const { cart, addToCart, removeFromCart, updateQuantity, cartTotal, isCartOpen, setIsCartOpen } = useCart();
+  const [shippingEstimate, setShippingEstimate] = useState<number | null>(null);
   const navigate = useNavigate();
   const { books, settings } = useSiteData();
   const { formatPrice } = useCurrency();
@@ -175,6 +177,8 @@ export function CartDrawer() {
                 </div>
               )}
 
+              {cart.length > 0 && (design.cartDrawerShowShippingPreview ?? true) && <CartShippingPreview cart={cart} design={design} formatPrice={formatPrice} onEstimate={setShippingEstimate} />}
+
               {/* Complete your collection */}
               {cart.length > 0 && showUpsell && recommendedBook && (
                 <div data-studio-target="style:cartDrawer|copy:Cart" data-studio-label="Bag suggestion" className="fm-bag-pad fm-bag-rule border-t pt-6 pb-8">
@@ -201,12 +205,12 @@ export function CartDrawer() {
                 {showSummary && (
                   <div className="space-y-2">
                     <div className="fm-bag-row fm-bag-meta"><span>{getCopy(design, "cartSubtotalLabel")}</span><span>{formatPrice(cartTotal)}</span></div>
-                    <div className="fm-bag-row fm-bag-meta"><span>{getCopy(design, "cartShippingLabel")}</span><span>{getCopy(design, "cartShippingValue")}</span></div>
+                    <div className="fm-bag-row fm-bag-meta"><span>{getCopy(design, "cartShippingLabel")}</span><span>{shippingEstimate !== null && (design.cartDrawerShowShippingPreview ?? true) ? formatPrice(shippingEstimate) : getCopy(design, "cartShippingValue")}</span></div>
                   </div>
                 )}
                 <div className={`fm-bag-row ${showSummary ? "fm-bag-total pt-3" : ""}`}>
                   <span className="fm-bag-meta">{getCopy(design, "cartTotalLabel")}</span>
-                  <span className="fm-bag-total-n">{formatPrice(cartTotal)}</span>
+                  <span className="fm-bag-total-n">{formatPrice(cartTotal + ((design.cartDrawerShowShippingPreview ?? true) ? shippingEstimate || 0 : 0))}</span>
                 </div>
 
                 {showTrustBadges && (

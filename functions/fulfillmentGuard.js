@@ -13,6 +13,7 @@ function labelProblem(order, operations = {}) {
  if (!(order.items || []).some(i => !/e-book|epub|pdf|audiobook/.test(String(i.format || "").toLowerCase()))) return "This order has no physical books to ship.";
  if (order.labelUrl) return "A label already exists. Reprint the existing label.";
  if (operations.labelPurchasePending) return "A label purchase is pending. Check Shippo before attempting another purchase.";
+ if (order.customerRequest?.type === "return" && order.customerRequest.status === "open") return "Resolve the active return before buying a fulfillment label.";
  if (operations.hold) return "Release the fulfillment hold before buying a label.";
  if (operations.addressReviewed !== addressKey(order)) return "Review the address before buying a label.";
  if (operations.packed !== packingKey(order)) return "Complete the packing checklist before buying a label.";

@@ -543,6 +543,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "cartDrawerCheckoutHeight", label: "Checkout button height", kind: "range", defaultValue: 56, min: 40, max: 80, step: 2, suffix: "px" },
       { key: "cartDrawerCheckoutShadow", label: "Offset shadow on the checkout button", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowCheckoutArrow", label: "Arrow on the checkout button", kind: "toggle", defaultValue: true },
+      { key: "cartDrawerShowShippingPreview", label: "Shipping cost preview in cart", kind: "toggle", defaultValue: true },
       { key: "cartDrawerShowDeliveryNote", label: "Delivery note under the button", kind: "toggle", defaultValue: true },
     ],
   },

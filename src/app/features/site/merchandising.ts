@@ -1,10 +1,8 @@
 import type { Book } from "./types";
-import { isPlaceholderCatalogRecord } from "./catalogQuality.mjs";
 
 /** Saved selections are intentional: an empty array means no recommendations. */
 export function recommendedBooks(book: any, catalog: Book[], limit = 4): Book[] {
-  const eligible = (candidate: Book) => candidate.id !== book?.id && candidate.status === "published"
-    && !isPlaceholderCatalogRecord(candidate);
+  const eligible = (candidate: Book) => candidate.id !== book?.id && candidate.status === "published";
   const published = catalog.filter(eligible);
   if (Array.isArray(book?.relatedBookIds)) {
     return [...new Set<string>(book.relatedBookIds)].flatMap(id => {

@@ -51,6 +51,17 @@ export const COPY_SCHEMA: CopyGroup[] = [
   {
     group: "Cart",
     fields: [
+      { key: "cartEstimateHeading", label: "Shipping preview · Heading", default: "Preview shipping" },
+      { key: "cartEstimateCountry", label: "Shipping preview · Country", default: "Country" },
+      { key: "cartEstimatePostal", label: "Shipping preview · Postal", default: "Postal / ZIP code" },
+      { key: "cartEstimateButton", label: "Shipping preview · Button", default: "Estimate shipping" },
+      { key: "cartEstimateLoading", label: "Shipping preview · Loading", default: "Checking shipping…" },
+      { key: "cartEstimateOptions", label: "Shipping preview · Options", default: "Estimated shipping options" },
+      { key: "cartEstimateNone", label: "Shipping preview · None", default: "No profile estimate is available for this destination. Enter your full address at checkout to check carrier availability." },
+      { key: "cartEstimateDigital", label: "Shipping preview · Digital", default: "No shipping is needed for digital items." },
+      { key: "cartEstimateError", label: "Shipping preview · Error", default: "Shipping estimates could not be loaded. Please try again or continue to checkout." },
+      { key: "cartEstimateNotice", label: "Shipping preview · Notice", default: "Preliminary profile estimates before discounts and tax. Live carrier prices and eligibility require your full address at checkout. Transit starts after dispatch; processing time is separate. Your destination carries into checkout." },
+
       { key: "cartTitle", label: "Cart heading", default: "Shopping Bag" },
       { key: "cartEmpty", label: "Empty cart message", default: "The archive is empty." },
       { key: "cartTotalLabel", label: "Total label", default: "Estimated total" },
@@ -352,6 +363,14 @@ export const COPY_SCHEMA: CopyGroup[] = [
   {
     group: "Order tracking",
     fields: [
+      { key: "trackReturnHeading", label: "Return progress heading", default: "Your return" },
+      { key: "trackReturn_approved", label: "Return approved", default: "Return approved — follow the instructions below." },
+      { key: "trackReturn_rejected", label: "Return rejected", default: "Return request declined — see the explanation below." },
+      { key: "trackReturn_received", label: "Return received", default: "Return parcel received." },
+      { key: "trackReturn_inspected", label: "Return inspected", default: "Books inspected — awaiting refund." },
+      { key: "trackReturn_refund_pending", label: "Return refund_pending", default: "Your refund is being processed by the payment provider." },
+      { key: "trackReturn_completed", label: "Return completed", default: "Your refund is complete." },
+
       { key: "trackEyebrow", label: "Eyebrow", default: "Your order" },
       { key: "trackTitle", label: "Heading", default: "Track Order" },
       { key: "trackSubtitle", label: "Subheading", default: "Enter your order number and email to receive a private tracking link" },

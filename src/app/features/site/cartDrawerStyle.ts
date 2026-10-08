@@ -86,6 +86,7 @@ export function cartDrawerCss(design: any): string {
     `${S} .fm-bag-thumb{width:${thumbW}px;aspect-ratio:3/4;flex-shrink:0;overflow:hidden;background:var(--bag-surface);${thumbOutline ? "outline:var(--bag-edge-w) solid var(--bag-edge);outline-offset:-1px;" : ""}}`,
     `${S} .fm-bag-name{font-family:${titleFont};font-size:${itemSize}px;line-height:1.1;text-transform:${titleCase};margin:0;}`,
     `${S} .fm-bag-line{font-family:${titleFont};font-size:${itemSize}px;white-space:nowrap;}`,
+    `${S} .fm-bag-input{background:var(--bag-surface);color:inherit;border:1px solid var(--bag-edge);padding:10px;font:inherit;font-size:${Math.max(16, metaSize + 2)}px;min-height:44px;}`,
     `${S} .fm-bag-qty{display:inline-flex;align-items:stretch;}`,
     `${S} .fm-bag-qty[data-style="boxes"]{border:var(--bag-edge-w) solid var(--bag-edge);}`,
     `${S} .fm-bag-qty[data-style="boxes"] .fm-bag-qty-n{border-left:1px solid var(--bag-rule);border-right:1px solid var(--bag-rule);}`,

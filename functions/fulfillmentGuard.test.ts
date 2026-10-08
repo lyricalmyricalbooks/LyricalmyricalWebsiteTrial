@@ -19,3 +19,5 @@ it("requires address review again when apartment changes and preserves legacy ad
  expect(labelProblem(changed, operations)).toContain("Review the address");
  expect(client.addressKey({ ...o, customer: { address: { ...o.customer.address, unit: "" } } })).toBe(operations.addressReviewed);
 });
+
+it("blocks money-spending labels for an open return", () => { expect(labelProblem({ ...o, customerRequest: { type: "return", status: "open" } }, operations)).toContain("return"); });

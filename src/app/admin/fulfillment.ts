@@ -56,6 +56,7 @@ export function dispatchProblem(o: any): string {
  const q = queueOf(o);
  if (fulfillmentMethod(o) !== "shipping") return "Local pickup and delivery orders cannot use carrier dispatch.";
  if (q === "In transit" || q === "Completed") return "This order has already been dispatched.";
+ if (o.customerRequest?.type === "return" && o.customerRequest.status === "open") return "Resolve the active return before dispatching the order.";
  if (o.operations?.hold) return `Order on hold: ${o.operations.hold}`;
  if (addressIssues(o).length || o.operations?.addressReviewed !== addressKey(o)) return "Review and confirm the shipping address first.";
  if (o.operations?.packed !== packingKey(o)) return "Complete the packing checklist first.";

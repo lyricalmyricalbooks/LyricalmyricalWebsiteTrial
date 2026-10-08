@@ -871,6 +871,7 @@ export const adminApi = {
         tx.update(ref, { fulfillmentStatus: next, ...(next === "delivered" ? { deliveredAt: now } : { outForDeliveryAt: now }), updatedAt: now });
         message = next === "delivered" ? "Marked delivered by publisher." : "Marked out for delivery by publisher.";
       } else if (action === "local_transition") {
+        if (o.customerRequest?.type === "return" && o.customerRequest.status === "open") throw new Error("Resolve the active return before continuing fulfillment.");
         const method = o.fulfillmentSelection?.method;
         if (!['pickup', 'local_delivery'].includes(method)) throw new Error("Only local orders can use this workflow.");
         const current = String(o.fulfillmentStatus || "");
@@ -1126,6 +1127,15 @@ export const adminApi = {
       const data = snap.data() || {};
       tx.set(ref, { ...data, activity: [...(data.activity || []), { type: "event", message, createdAt: new Date().toISOString() }] });
     });
+  },
+
+  manageReturn: async (orderId: string, action: string, details: any = {}) => {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw new Error("Sign in as admin to manage a return.");
+    const response = await functionFetch("manageReturn", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ orderId, action, ...details }) });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.error || "Could not update return.");
+    return body;
   },
 
   refundOrder: async (orderId: string, options?: { reason?: string; restock?: boolean }) => {

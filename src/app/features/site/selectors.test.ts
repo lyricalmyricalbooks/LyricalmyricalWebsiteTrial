@@ -87,28 +87,28 @@ describe("getFilteredItems", () => {
 
   it("filters correctly by string category", () => {
     const result = getFilteredItems(books, "Fiction", nowISO);
-    expect(result).toHaveLength(3);
-    expect(result.map(b => b.id)).toEqual(["1", "4", "7"]);
+    expect(result).toHaveLength(5);
+    expect(result.map(b => b.id)).toEqual(["1", "4", "placeholder", "copy", "7"]);
   });
 
   it("filters correctly by object category", () => {
     const result = getFilteredItems(books, { name: "Fiction" }, nowISO);
-    expect(result).toHaveLength(3);
-    expect(result.map(b => b.id)).toEqual(["1", "4", "7"]);
+    expect(result).toHaveLength(5);
+    expect(result.map(b => b.id)).toEqual(["1", "4", "placeholder", "copy", "7"]);
   });
 
   it("returns all published valid items when category is PUBLICATIONS string", () => {
     const result = getFilteredItems(books, "PUBLICATIONS", nowISO);
-    // Test fixtures and duplicate copies remain stored but are omitted from the public catalog.
-    expect(result).toHaveLength(5);
-    expect(result.map(b => b.id)).toEqual(["1", "4", "5", "6", "7"]);
+    // Publication status controls visibility; admin review does not hide by title.
+    expect(result).toHaveLength(7);
+    expect(result.map(b => b.id)).toEqual(["1", "4", "5", "6", "placeholder", "copy", "7"]);
   });
 
   it("returns all published valid items when category is PUBLICATIONS object", () => {
     const result = getFilteredItems(books, { name: "PUBLICATIONS" }, nowISO);
-    // Test fixtures and duplicate copies remain stored but are omitted from the public catalog.
-    expect(result).toHaveLength(5);
-    expect(result.map(b => b.id)).toEqual(["1", "4", "5", "6", "7"]);
+    // Publication status controls visibility; admin review does not hide by title.
+    expect(result).toHaveLength(7);
+    expect(result.map(b => b.id)).toEqual(["1", "4", "5", "6", "placeholder", "copy", "7"]);
   });
 
   it("handles missing categories array on book", () => {
