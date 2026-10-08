@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { APP_UPDATES } from "./appUpdates";
 import { NAV } from "./riso/nav";
+import { parseStudioLocation } from "../lib/studioLocation";
 
 describe("app release notes", () => {
   it("keeps unique dated entries with working admin destinations", () => {
@@ -15,6 +16,7 @@ describe("app release notes", () => {
         const destination = NAV.find((item) => item.id === link.tab);
         expect(destination, link.label).toBeDefined();
         if (link.settingsTab) expect(destination?.children?.some((child) => child.id === link.settingsTab), link.label).toBe(true);
+        if (link.studio) expect(parseStudioLocation(link.studio), link.label).not.toBeNull();
       }
     }
   });

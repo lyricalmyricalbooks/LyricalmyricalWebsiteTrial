@@ -229,7 +229,17 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       replacing the three dropdowns; switching page keeps the open workspace. Page, workspace, device, zoom and
       preview book/collection are remembered per browser (`studioUiState.ts`). Phones keep the
       outline / preview / settings switcher with the rail across the top.
-- [ ] 1.2 Commands, Riso dialogs, undo toasts, shortcuts, deep links, Edit in Studio from the live site.
+- [x] 1.2 Dialogs, undo, shortcuts and Studio links. No `window.confirm/prompt` left in Studio: undoable actions
+      (delete section/block, apply a preset or saved theme, install a layout) happen at once with an **Undo**
+      button in the toast; permanent ones (leave with unsaved edits, delete a saved theme or page) use Riso
+      `useConfirm`, names use `usePrompt`. History steps are named (`change(fn, { label, coalesce })`,
+      `commit` in `studioModel.ts`) so Undo/Redo say what they will do, and typing in one field within a second
+      is one step. One keyboard listener driven by `studio/shortcuts.ts` (`SHORTCUTS` + `resolveShortcut`): Ctrl/⌘ K,
+      S, Z, Shift Z / Y, D, Delete, Alt ↑/↓, Esc, 1/2/3 devices, E edit/browse, **?** opens the cheat sheet; the
+      preview forwards Ctrl/⌘ shortcuts (`KEY_COMMAND`). Studio links (`lib/studioLocation.ts`:
+      `/admin#designer?t=…&b=…&c=…&tab=…&d=…`) open Studio at a page and tool — used by What's new (`links[].studio`),
+      Books › edit › **Design this page**, and an owner-only **Edit in Studio** button on the live site
+      (`admin/EditInStudioButton.tsx`, hidden for shoppers, in the preview and in prerendered HTML).
 - [ ] 1.3 Element manifest + typed preview bridge.
 - [ ] 1.4 Page structure tree (header → page content → footer → overlays).
 - [ ] 1.5 Unified inspector (Content / Style / Layout / Visibility) for any element, section or block.

@@ -3,11 +3,17 @@ export type AppUpdate = {
   date: string;
   title: string;
   summary: string;
-  links: Array<{ label: string; tab: string; settingsTab?: string }>;
+  /** `studio` (a `#designer?…` link, see studio/studioLocation.ts) opens the Design studio at that page/tool. */
+  links: Array<{ label: string; tab: string; settingsTab?: string; studio?: string }>;
 };
 
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
+  {
+    id: "studio-2-undo-shortcuts-links", date: "2026-10-08", title: "Undo everywhere, shortcuts and Edit in Studio",
+    summary: "Deleting a section or applying a theme in the Design studio now happens straight away with an Undo button, instead of a browser pop-up asking first. Undo and Redo say what they will change. Press ? in the studio for keyboard shortcuts (for example Delete, Alt+arrows to move a section, 1/2/3 for desktop, tablet and phone). While you're signed in, an \"Edit in Studio\" button on your live shop opens the studio on the page you're looking at, and a book's editor has \"Design this page\".",
+    links: [{ label: "Open the Design studio", tab: "settings", settingsTab: "designer" }, { label: "Open a book to design its page", tab: "catalog" }],
+  },
   {
     id: "studio-2-editor-frame", date: "2026-10-08", title: "A roomier, easier Design studio",
     summary: "The studio's tools now sit in a slim icon rail on the left. Drag the edges between the settings panel, the preview and the inspector to size them; the studio remembers your layout. The preview shrinks to fit your screen, so you see the whole desktop page at once (use Zoom for 100%). One \"Page to edit\" box now finds any page, collection or book by typing its name, and switching pages keeps you in the same tool. The studio reopens where you left off.",
@@ -16,7 +22,7 @@ export const APP_UPDATES: AppUpdate[] = [
   {
     id: "studio-2-what-you-see", date: "2026-10-08", title: "What you see in the studio is what goes live",
     summary: "The shop now uses exactly the values the Design studio shows. Fixed along the way: your footer wordmark text now appears on every page (it was missing on Contact, About, Account and Tracking), product and custom-page headers list all your shop categories, the menu order is the same on every page, and an old \"Why choose us\" sample block that only showed above the catalog footer (and couldn't be edited) is gone. When a page keeps its own value for a setting, Theme settings now lists it under \"This page differs from all pages\", with buttons to use the all-pages value or make it the all-pages value.",
-    links: [{ label: "Review page differences in Theme settings", tab: "settings", settingsTab: "designer" }],
+    links: [{ label: "Review page differences in Theme settings", tab: "settings", settingsTab: "designer", studio: "#designer?t=storefront&tab=style" }],
   },
   {
     id: "studio-2-private-drafts", date: "2026-10-08", title: "Private drafts and safe saving in two tabs",
@@ -56,7 +62,7 @@ export const APP_UPDATES: AppUpdate[] = [
   {
     id: "grouped-footer-navigation", date: "2026-10-08", title: "A shorter, clearer footer",
     summary: "Footer links now sit in Explore and Participate & connect groups, with policies in a compact row. Studio lets you edit group headings, move or hide links, and switch back to classic columns.",
-    links: [{ label: "Edit the footer in Studio", tab: "settings", settingsTab: "designer" }],
+    links: [{ label: "Edit the footer in Studio", tab: "settings", settingsTab: "designer", studio: "#designer?tab=shared" }],
   },
   {
     id: "seamless-page-navigation", date: "2026-10-08", title: "Smoother storefront page switching",

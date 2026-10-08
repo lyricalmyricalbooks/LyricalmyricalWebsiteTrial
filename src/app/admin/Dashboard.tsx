@@ -28,6 +28,7 @@ import {
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog } from "./riso/shellParts";
 import { WhatsNew } from "./WhatsNew";
+import { parseStudioLocation, type StudioLocation } from "../lib/studioLocation";
 import { NAV, PAGE_COPY } from "./riso/nav";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
@@ -47,11 +48,22 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [editingBook, setEditingBook] = useState<any | null>(null);
   const [showEditor, setShowEditor] = useState(false);
+  const [studioLocation, setStudioLocation] = useState<(StudioLocation & { key: number }) | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
   // Email links: /admin#orders opens Orders, /admin#orders/<id> opens that order.
   useEffect(() => {
     if (!user) return;
     const openFromHash = () => {
+      // Studio links: /admin#designer?t=productPage&b=<book>&tab=style opens the Design studio there.
+      const studio = parseStudioLocation(window.location.hash);
+      if (studio) {
+        setShowEditor(false);
+        setStudioLocation({ ...studio, key: Date.now() });
+        setActiveTab("settings");
+        setSettingsTab("designer");
+        history.replaceState(null, "", window.location.pathname + window.location.search);
+        return;
+      }
       const match = window.location.hash.match(/^#orders(?:\/([^/?#]+))?/);
       if (!match) return;
       setShowEditor(false);
@@ -348,7 +360,7 @@ export function Dashboard() {
             </>}
             footer={
               <>
-              <WhatsNew appearance={appearance} onHistoryOpen={() => setSidebarOpen(false)} onNavigate={(link) => { goTo(link.tab); if (link.settingsTab) setSettingsTab(link.settingsTab); }} />
+              <WhatsNew appearance={appearance} onHistoryOpen={() => setSidebarOpen(false)} onNavigate={(link) => { if (link.studio) { window.location.hash = link.studio; return; } goTo(link.tab); if (link.settingsTab) setSettingsTab(link.settingsTab); }} />
               <div className="rp-account-card">
                 <div className="rp-account-row">
                   {avatar}
@@ -503,6 +515,8 @@ export function Dashboard() {
             >
               <Suspense fallback={<div className="rp" data-rp-appearance={appearance} style={{ height: "100%", display: "grid", placeItems: "center" }}><LoadingState label="Opening Design studio…" /></div>}>
               <StudioEditor
+                key={studioLocation?.key}
+                initialLocation={studioLocation || undefined}
                 appearance={appearance}
                 settings={settings}
                 onExit={() => setSettingsTab("general")}

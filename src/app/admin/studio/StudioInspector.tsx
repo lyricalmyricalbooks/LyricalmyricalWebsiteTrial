@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Copy, Eye, EyeOff, Trash2, X } from "lucide-react";
 import { uploadStudioImage } from "./mediaUpload";
 import { BlockFieldEditor, BlockListFieldEditor, getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, SectionFieldEditor, SectionSettingsPanel } from "../ThemeEditorExtensions";
-import { IconButton, useFocusTrap } from "../riso/components";
+import { IconButton, useFocusTrap, usePrompt } from "../riso/components";
 import { findBlock, freshBlockIds, mapBlock, removeBlock, resolveSharedBlocks, type Section, type SharedBlock } from "./studioModel";
 import { updateBlocks } from "./studioWorkflow";
 import { blockLabel } from "./StudioOutline";
@@ -19,6 +19,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   onNotice?: (text: string) => void;
 }) {
   const [tab, setTab] = useState("content");
+  const [askText, promptNode] = usePrompt();
   const [search, setSearch] = useState("");
   // Docked in its own resizable panel on tablets and desktops; a full-screen sheet on phones.
   const [overlay, setOverlay] = useState(() => !!window.matchMedia?.("(max-width: 767px)").matches);
@@ -58,6 +59,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   };
   const title = block ? blockLabel(block, blocks.indexOf(block), meta?.blockLabel) : meta?.label || section.type;
   return <aside ref={ref} className="studio-inspector" role={overlay ? "dialog" : undefined} aria-modal={overlay || undefined} aria-label="Content settings" tabIndex={-1}>
+    {promptNode}
     <header className="studio-inspector-head">
       <div><small>{block ? `${meta?.label} / Block` : "SECTION"}</small><h2>{title}</h2></div>
       <IconButton label="Close settings" onClick={onClose}><X size={17} /></IconButton>
@@ -75,8 +77,8 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
         onSelectBlock(copy.id);
       } : onDuplicate}><Copy size={15} /></IconButton>
       <IconButton label={block ? "Remove block" : "Delete section"} tone="danger" onClick={block ? () => {
-        if (!window.confirm("Remove this block? You can undo this change.")) return;
         onPatch(updateBlocks(section, key, list => removeBlock(list, block.id))); onSelectBlock(null);
+        onNotice?.("Block removed. Press Ctrl/Cmd+Z to bring it back.");
       } : onDelete}><Trash2 size={15} /></IconButton>
       <small>{(block ? block.hidden : section.visible === false) ? "Hidden on storefront" : "Visible on storefront"}</small>
     </div>
@@ -100,7 +102,7 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
           {section.type === "CompositionSection" && <div className="studio-grid-fields">
             {[["column", "Column", 1, 24], ["span", "Width", 1, 24], ["row", "Row", 1, 30], ["rowSpan", "Height", 1, 12], ["z", "Layer", 0, 20]].map(([field, label, min, max]) => <label key={String(field)}>{label}<input type="number" min={Number(min)} max={Number(max)} value={block.grid?.[device]?.[String(field)] || ""} onChange={e => patchResponsive("grid", String(field), e.target.value ? Number(e.target.value) : undefined)} /></label>)}
           </div>}
-          <button className="studio-link-button" onClick={() => { const name = window.prompt("Name this shared block:", title); if (name?.trim()) onSaveShared(block.id, name.trim()); }}>Save as linked shared block</button>
+          <button className="studio-link-button" onClick={async () => { const name = await askText({ title: "Save as linked shared block", label: "Name", defaultValue: title, confirmLabel: "Save block" }); if (name?.trim()) onSaveShared(block.id, name.trim()); }}>Save as linked shared block</button>
           {block.sharedBlockId && <small>Linked to {sharedBlocks.find(s => s.id === block.sharedBlockId)?.name || "a missing shared block"}. Content updates from its library source; layout stays local.</small>}
         </div>}
       </>}

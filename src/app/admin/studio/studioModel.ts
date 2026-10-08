@@ -188,23 +188,49 @@ export function patchBlockField(list: Section[], sectionId: string, blockId: str
 }
 
 // ── Undo / redo ────────────────────────────────────────────────────────────
-export type History<T> = { past: T[]; present: T; future: T[] };
+export type History<T> = {
+  past: T[]; present: T; future: T[];
+  /** What each step did ("Move Newsletter up"), parallel to `past` / `future`, for Undo/Redo labels. */
+  pastLabels?: string[]; futureLabels?: string[];
+  /** Typing in one field within a moment is one undo step, not one per keystroke. */
+  lastKey?: string; lastAt?: number;
+};
 export const HISTORY_LIMIT = 100;
+export const COALESCE_MS = 1000;
 
-export const initHistory = <T,>(present: T): History<T> => ({ past: [], present, future: [] });
+export const initHistory = <T,>(present: T): History<T> => ({ past: [], present, future: [], pastLabels: [], futureLabels: [] });
 
-export function commit<T>(h: History<T>, next: T): History<T> {
+export function commit<T>(h: History<T>, next: T, meta: { label?: string; coalesce?: string; now?: number } = {}): History<T> {
   if (next === h.present) return h;
-  return { past: [...h.past, h.present].slice(-HISTORY_LIMIT), present: next, future: [] };
+  const now = meta.now ?? Date.now();
+  if (meta.coalesce && h.lastKey === meta.coalesce && h.lastAt != null && now - h.lastAt < COALESCE_MS && h.past.length) {
+    return { ...h, present: next, future: [], futureLabels: [], lastAt: now };
+  }
+  const labels = h.pastLabels ?? h.past.map(() => "Edit");
+  return {
+    past: [...h.past, h.present].slice(-HISTORY_LIMIT), present: next, future: [],
+    pastLabels: [...labels, meta.label || "Edit"].slice(-HISTORY_LIMIT), futureLabels: [],
+    lastKey: meta.coalesce, lastAt: now,
+  };
 }
 export function undo<T>(h: History<T>): History<T> {
   if (!h.past.length) return h;
-  const past = h.past.slice(0, -1);
-  return { past, present: h.past[h.past.length - 1], future: [h.present, ...h.future] };
+  const labels = h.pastLabels ?? h.past.map(() => "Edit");
+  return {
+    past: h.past.slice(0, -1), present: h.past[h.past.length - 1], future: [h.present, ...h.future],
+    pastLabels: labels.slice(0, -1), futureLabels: [labels[labels.length - 1] || "Edit", ...(h.futureLabels ?? h.future.map(() => "Edit"))],
+  };
 }
 export function redo<T>(h: History<T>): History<T> {
   if (!h.future.length) return h;
-  return { past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1) };
+  const labels = h.futureLabels ?? h.future.map(() => "Edit");
+  return {
+    past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1),
+    pastLabels: [...(h.pastLabels ?? h.past.map(() => "Edit")), labels[0] || "Edit"], futureLabels: labels.slice(1),
+  };
 }
+/** "Undo: Move Newsletter up" / "Redo: …" labels for the toolbar buttons. */
+export const undoLabel = (h: History<any>) => h.past.length ? (h.pastLabels?.[h.pastLabels.length - 1] || "Edit") : "";
+export const redoLabel = (h: History<any>) => h.future.length ? (h.futureLabels?.[0] || "Edit") : "";
 
 export const sameDesign = (a: any, b: any) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);

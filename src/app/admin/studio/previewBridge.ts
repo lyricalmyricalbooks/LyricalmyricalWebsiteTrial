@@ -57,6 +57,8 @@ export const PREVIEW_BRIDGE_SOURCE = String.raw`(function(){
     menu.style.left=Math.max(8,Math.min(x,innerWidth-r.width-8))+'px';menu.style.top=Math.max(8,Math.min(y,innerHeight-r.height-8))+'px';
     var first=menu.querySelector('button');if(first)first.focus();}
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeMenu();},true);
+  // Studio shortcuts keep working while the preview has focus (Ctrl/Cmd + K, S, Z, Y, D).
+  document.addEventListener('keydown',function(e){if(editing||!(e.ctrlKey||e.metaKey)||e.altKey||closest(e.target,'input,textarea,select,[contenteditable=true]'))return;var k=(e.key||'').toLowerCase();if(['k','s','z','y','d'].indexOf(k)<0)return;e.preventDefault();send({type:'KEY_COMMAND',key:k,ctrl:e.ctrlKey,meta:e.metaKey,shift:e.shiftKey,alt:false});},true);
   window.addEventListener('scroll',function(){if(menu&&Date.now()-menuAt>600)closeMenu();},true);
   document.addEventListener('mouseover',function(e){if(mode!=='edit'||closest(e.target,'[data-studio-overlay]'))return;var b=closest(e.target,BLK),sec=closest(e.target,SEC);
     var textTarget=resolveTextTarget(e.target);if(textTarget){place(hover,textTarget.node,textTarget.editable?'Text · double-click to type':'Formatted text · use inspector');return;}

@@ -8,6 +8,7 @@ import {
   Upload, 
   Trash2, 
   ExternalLink,
+  Palette,
   ChevronRight,
   Plus,
   Loader2,
@@ -41,6 +42,7 @@ import { Book, Variant } from "../features/site/types";
 import { useCurrency } from "../CurrencyContext";
 import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, StatusBadge, Tabs } from "./riso/components";
 import { prepareProductImage } from "./prepareImage";
+import { studioHash } from "../lib/studioLocation";
 
 import { BookSeoPane } from "./BookSeoPane";
 
@@ -712,6 +714,13 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
             >
               <ExternalLink size={14} aria-hidden /> Preview page
             </a>
+          )}
+          {book?.slug && book.status === "published" && (
+            <button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" disabled={isDirty}
+              title={isDirty ? "Save the book first, then design its page in the Design studio." : "Open the Design studio on this book's page"}
+              onClick={() => { window.location.hash = studioHash({ templateId: "productPage", productSlug: book.slug }); }}>
+              <Palette size={14} aria-hidden /> Design this page
+            </button>
           )}
           <button type="button" onClick={handleClose} className="rp-btn rp-btn-ghost rp-btn-sm">Cancel</button>
           <button type="button" onClick={() => handleSave()} disabled={loading} className="rp-btn rp-btn-primary rp-btn-sm" title="Ctrl/⌘ + S">

@@ -116,9 +116,8 @@ await check("find anything opens a setting", desktop, async page => {
 await check("clicking a section in the preview opens its settings", desktop, async page => {
   await page.getByRole("button", { name: "Add section" }).first().click();
   await page.getByRole("button", { name: /^Newsletter/ }).first().click();
-  await page.keyboard.press("Escape");
-  await page.locator(".studio-inspector, [aria-label='Close settings']").first().waitFor({ timeout: 5000 });
   await page.getByRole("button", { name: "Close settings" }).click();
+  await page.getByText("Nothing selected").waitFor({ timeout: 5000 });
   await expectText(page, "Preview connected", 30000);
   // Studio sends its click-to-edit maps shortly after the preview connects.
   await page.waitForTimeout(1500);
@@ -140,6 +139,29 @@ await check("page-only overrides are listed and can follow all pages", desktop, 
   await card.getByRole("button", { name: "Use all-pages value" }).first().click();
   await page.waitForFunction(n => Number(document.querySelector("[data-studio-page-overrides] .studio-overrides-count")?.textContent) === n - 1, before);
 }, "?live=1");
+
+await check("deleting a section is instant and Undo brings it back", desktop, async page => {
+  await page.getByRole("button", { name: "Add section" }).first().click();
+  await page.getByRole("button", { name: /^Newsletter/ }).first().click();
+  await expectText(page, "Home · 1 section");
+  await page.getByRole("button", { name: "Delete section" }).click();
+  await expectText(page, "Home · 0 sections");
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expectText(page, "Home · 1 section");
+  const title = await page.getByRole("button", { name: "Undo (Ctrl+Z)" }).getAttribute("title");
+  if (!/Undo: Add Newsletter/.test(title || "")) throw new Error(`undo button says "${title}"`);
+});
+
+await check("? opens the keyboard shortcuts", desktop, async page => {
+  await page.locator("body").press("?");
+  await page.getByRole("dialog", { name: "Keyboard shortcuts" }).waitFor({ timeout: 5000 });
+});
+
+await check("a Studio link opens the right page and tool", desktop, async page => {
+  await page.waitForFunction(() => document.querySelector("[aria-label='Page to edit']")?.textContent?.includes("Paper Weather"));
+  const pressed = await page.getByRole("button", { name: "Theme settings" }).getAttribute("aria-pressed");
+  if (pressed !== "true") throw new Error("the link did not open Theme settings");
+}, "#designer?b=paper-weather&tab=style");
 
 await check("phone-sized editor loads without errors", { width: 390, height: 844 }, async page => {
   await page.waitForTimeout(1500);

@@ -21,7 +21,7 @@ import { automaticFooterItems, footerGroup } from "../../features/site/footerNav
 import { MENU_LINK_TYPES, newMenuItem, slugify, type MenuItem } from "../../features/site/storeMenu";
 import {
   commit, duplicateSection, findBlock, getSections, initHistory, insertSection, makeSection, mapBlock, moveBlockBefore, newId, normalizeDesign,
-  patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo,
+  patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo, undoLabel, redoLabel, moveSection,
   resolveSharedBlocks, type Section, type SectionTarget, type SharedBlock,
 } from "./studioModel";
 import { STATIC_SURFACES, STYLE_GROUPS, STYLE_TARGET_FIELDS, applyGlobalStyle, readStyle, regionStyleFields, type StyleField, type StyleGroup } from "./styleSchema";
@@ -42,7 +42,7 @@ import { buildStudioIndex, type SearchEntry } from "./studioSearch";
 import { autoFitSections, autoFitRegions } from "./autoMobile";
 import { applyCanvasAction, applyPageStyle, buildPreviewState, deliverPreviewState, findSectionOwner, PAGE_STYLE_GROUPS, PREVIEW_CHANNEL, previewRoute, withDraftPage } from "./studioWorkflow";
 import { useStudioPersistence } from "./useStudioPersistence";
-import { ActionMenu, Dialog, SecondaryButton } from "../riso/components";
+import { ActionMenu, Dialog, SecondaryButton, useConfirm, usePrompt } from "../riso/components";
 import { applyInlineText, INLINE_STYLE_KEYS } from "./inlineText";
 import { StudioSharedLayout } from "./StudioSharedLayout";
 import { filterSettingGroups } from "./studioNavigation";
@@ -55,15 +55,17 @@ import { writeDesignValue } from "../../features/site/designModel";
 import { StudioPageOverrides } from "./StudioPageOverrides";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { StudioRail } from "./StudioRail";
+import { resolveShortcut, SHORTCUTS, type ShortcutAction } from "./shortcuts";
 import { StudioPreviewFrame } from "./StudioPreviewFrame";
 import { TemplatePicker } from "./TemplatePicker";
 import { currentOption, pickerOptions, type PickerOption } from "./templatePicker";
 import { loadUiState, saveUiState, uiStateKey, type Zoom } from "./studioUiState";
 import { auth } from "../../../lib/firebase";
+import type { StudioLocation } from "../../lib/studioLocation";
 import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "shared";
-type Toast = { kind: "ok" | "err"; text: string } | null;
+type Toast = { kind: "ok" | "err"; text: string; action?: { label: string; run: () => void } } | null;
 type ThemeVersion = { id: string; kind: "draft" | "published"; label: string; createdAt: string; design: any };
 
 function describeChanges(from: any, to: any): string[] {
@@ -86,6 +88,13 @@ function designChecks(design: any) {
 }
 
 const DEVICE_W = { desktop: "1200px", tablet: "820px", mobile: "390px" } as const;
+
+const SETTING_LABELS = new Map<string, string>([
+  ...STYLE_GROUPS.flatMap(g => g.fields.map(f => [f.key, f.label] as [string, string])),
+  ...COPY_SCHEMA.flatMap(g => g.fields.map(f => [`copy.${f.key}`, `“${f.label}” text`] as [string, string])),
+]);
+/** Plain name of a setting for undo labels: "Change Accent colour". */
+const settingLabel = (path: string) => SETTING_LABELS.get(path) || path.replace(/^copy\./, "").replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 
 /** "heroPage.sections" → "Home › sections" for the save-conflict dialog. */
 function conflictLabel(path: string, templates: { id: string; label: string }[]) {
@@ -313,8 +322,10 @@ function MenusPanel({ design, settings, pages, onChange }: { design: any; settin
 }
 
 // ── Main editor ────────────────────────────────────────────────────────────
-export function StudioEditor({ settings, onExit, onPersisted, appearance = "light", workspace: openedWorkspace }: {
+export function StudioEditor({ settings, onExit, onPersisted, appearance = "light", workspace: openedWorkspace, initialLocation }: {
   appearance?: "light" | "dark";
+  /** Opened from a Studio link (#designer?…): start on that page/tool instead of where you left off. */
+  initialLocation?: StudioLocation;
   settings: any;
   /** Private working copy opened by StudioWorkspace; without it Studio uses the legacy settings fields. */
   workspace?: Workspace;
@@ -336,7 +347,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [draftPage, setDraftPage] = useState<any | null>(null);
   // Where you were last time (this browser): page, workspace, device, zoom.
   const uiKey = uiStateKey(import.meta.env.BASE_URL, auth.currentUser?.uid || "local-preview");
-  const [remembered] = useState(() => loadUiState(uiKey));
+  const [remembered] = useState(() => ({ ...loadUiState(uiKey), ...(initialLocation || {}), ...(initialLocation?.templateId && !initialLocation.showGlobal ? { showGlobal: false } : {}) }));
   const [leftTab, setLeftTab] = useState<LeftTab>((remembered.leftTab as LeftTab) || "sections");
   const [templateId, setTemplateId] = useState(remembered.templateId || "heroPage");
   const [showGlobal, setShowGlobal] = useState(remembered.showGlobal === true);
@@ -379,12 +390,15 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [checksOpen, setChecksOpen] = useState(false);
   const [copiedSection, setCopiedSection] = useState<Section | null>(null);
   const [findOpen, setFindOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [openPage, setOpenPage] = useState<{ slug: string; nonce: number } | null>(null);
   const canvasSelectionRef = useRef<{sectionId: string; blockId: string | null} | null>(null);
   const inlineEditingRef = useRef(false);
   const [inlineEditing, setInlineEditing] = useState<string | null>(null);
 
   const [toast, setToast] = useState<Toast>(null);
+  const [askConfirm, confirmNode] = useConfirm();
+  const [askText, promptNode] = usePrompt();
   const [copyFilter, setCopyFilter] = useState("");
   const [savedThemes, setSavedThemes] = useState<SavedTheme[]>(() => (Array.isArray(settings?.savedThemes) ? settings.savedThemes : []));
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -409,9 +423,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const dirtyDraft = useMemo(() => !sameDesign(design, savedDraft), [design, savedDraft]);
   const unpublished = useMemo(() => !sameDesign(design, published), [design, published]);
 
-  const say = (kind: "ok" | "err", text: string) => {
-    setToast({ kind, text });
-    if (kind === "ok") setTimeout(() => setToast((t) => (t?.text === text ? null : t)), 3500);
+  const say = (kind: "ok" | "err", text: string, action?: { label: string; run: () => void }) => {
+    setToast({ kind, text, action });
+    if (kind === "ok") setTimeout(() => setToast((t) => (t?.text === text ? null : t)), action ? 8000 : 3500);
   };
 
   // load pages + books for the preview pickers
@@ -429,9 +443,12 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     catch { say("err", "Could not load version history. Check your connection and try again."); }
   }, []);
 
-  const change = useCallback((fn: (d: any) => any) => setHist((h) => { const next = normalizeDesign(fn(h.present), defaults); return sameDesign(next, h.present) ? h : commit(h, next); }), [defaults]);
-  const setList = (fn: (l: Section[]) => Section[]) => change((d) => setSections(d, target, fn(getSections(d, target))));
-  const patchSelected = (patch: Record<string, any>) => selectedId && setList((l) => patchSectionSettings(l, selectedId, patch));
+  // Every edit is one undo step with a name ("Undo: Move Newsletter up"); typing in one field merges.
+  const change = useCallback((fn: (d: any) => any, meta?: { label?: string; coalesce?: string }) =>
+    setHist((h) => { const next = normalizeDesign(fn(h.present), defaults); return sameDesign(next, h.present) ? h : commit(h, next, meta); }), [defaults]);
+  const setList = (fn: (l: Section[]) => Section[], meta?: { label?: string; coalesce?: string }) => change((d) => setSections(d, target, fn(getSections(d, target))), meta);
+  const patchSelected = (patch: Record<string, any>) => selectedId && setList((l) => patchSectionSettings(l, selectedId, patch),
+    { label: `Edit ${selected ? sectionTitle(selected).label : "section"}`, coalesce: `patch:${selectedId}:${Object.keys(patch).sort().join(",")}` });
   const saveSharedBlock = (id: string, name: string) => {
     if (!selected) return;
     const key = getBlocksKey(selected.type), blocks = selected.settings[key] || selected.settings.blocks || [];
@@ -454,32 +471,29 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     sharedBlocks: (d.sharedBlocks || []).map((shared: SharedBlock) => shared.id === sharedId
       ? { ...shared, block: { ...shared.block, ...patch }, updatedAt: new Date().toISOString() } : shared),
   }));
-  const setStyle = (path: string, value: any) => change((d) => applyGlobalStyle(d, path, value, surfaceIds));
+  const setStyle = (path: string, value: any) => change((d) => applyGlobalStyle(d, path, value, surfaceIds), { label: `Change ${settingLabel(path)}`, coalesce: `style:${path}` });
   const applyNoirLook = () => {
-    if (!window.confirm("Apply the Riso Noir look (black background, white text, flare accent) to every page? Your sections and text are kept.")) return;
-    change((d) => applyThemeKeysToSurfaces(d, { ...RISO_NOIR_TOKENS, themeLibraryPreset: RISO_NOIR_ID }, surfaceIds));
-    say("ok", "Riso Noir applied to the draft — Publish to make it live.");
+    change((d) => applyThemeKeysToSurfaces(d, { ...RISO_NOIR_TOKENS, themeLibraryPreset: RISO_NOIR_ID }, surfaceIds), { label: "Apply Riso Noir look" });
+    say("ok", "Riso Noir applied to the draft — Publish to make it live.", { label: "Undo", run: () => setHist(undo) });
   };
   const installNoirHome = () => {
     const tpl = HOME_LAYOUT_TEMPLATES.find((t) => t.id === RISO_NOIR_ID);
     if (!tpl) return;
-    if (!window.confirm("Replace the Homepage sections with the Riso Noir layout? You can Undo (Ctrl+Z) until you save.")) return;
     change((d) => setSections(d, { kind: "template", id: "heroPage" }, tpl.sections.map((s) =>
-      makeSection(s.type, { ...(getSectionMeta(s.type)?.defaults || {}), ...(s.settings || {}) }))));
+      makeSection(s.type, { ...(getSectionMeta(s.type)?.defaults || {}), ...(s.settings || {}) }))), { label: "Install Riso Noir home layout" });
     setTemplateId("heroPage");
     setShowGlobal(false);
-    say("ok", "Noir homepage layout installed on the draft.");
+    say("ok", "Noir homepage layout installed on the draft.", { label: "Undo", run: () => setHist(undo) });
   };
   const applyLibraryTheme = (theme: any) => {
-    if (!window.confirm(`Apply the "${theme.name}" look to every page? Your sections and text are kept.`)) return;
     const palette = PALETTES.find((p: any) => p.id === theme.palettePreset);
     const base: Record<string, any> = {
       ...(palette ? { palettePreset: palette.id, primaryColor: palette.accent, backgroundColor: palette.bg, textColor: palette.text } : {}),
       themeStyle: "default",
     };
     for (const k of THEME_APPLIED_KEYS) if (theme[k] !== undefined) base[k] = theme[k];
-    change((d) => applyThemeKeysToSurfaces(d, { ...base, ...(theme.global || {}), themeLibraryPreset: theme.id }, surfaceIds));
-    say("ok", `“${theme.name}” applied to the draft — Publish to make it live.`);
+    change((d) => applyThemeKeysToSurfaces(d, { ...base, ...(theme.global || {}), themeLibraryPreset: theme.id }, surfaceIds), { label: `Apply “${theme.name}” look` });
+    say("ok", `“${theme.name}” applied to the draft (sections and text kept) — Publish to make it live.`, { label: "Undo", run: () => setHist(undo) });
   };
   const persistThemes = async (next: SavedTheme[], okText: string) => {
     // In the legacy layout every saved theme sits inside settings/website (one 1 MiB Firestore doc):
@@ -492,18 +506,17 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     try { await saveSavedThemes(workspace, savedThemes, next); setSavedThemes(next); say("ok", okText); }
     catch (err: any) { say("err", `Could not save themes: ${err?.message || err}`); }
   };
-  const saveCurrentAsTheme = () => {
-    const name = window.prompt("Name this theme (it saves the whole design: style, text, menus and sections):", "");
+  const saveCurrentAsTheme = async () => {
+    const name = await askText({ title: "Save to My themes", label: "Theme name (it saves the whole design: style, text, menus and sections)", confirmLabel: "Save theme" });
     if (name === null) return;
     persistThemes(addSavedTheme(savedThemes, name, designRef.current), `Saved “${name.trim() || "Untitled theme"}” to My themes.`);
   };
   const applySavedTheme = (t: SavedTheme) => {
-    if (!window.confirm(`Replace the current draft with “${t.name}”? This changes sections, text and style. You can Undo (Ctrl+Z) until you save.`)) return;
-    change(() => normalizeDesign(JSON.parse(JSON.stringify(t.design)), defaults));
-    say("ok", `“${t.name}” loaded into the draft — Publish to make it live.`);
+    change(() => normalizeDesign(JSON.parse(JSON.stringify(t.design)), defaults), { label: `Load “${t.name}”` });
+    say("ok", `“${t.name}” loaded into the draft — Publish to make it live.`, { label: "Undo", run: () => setHist(undo) });
   };
-  const renameTheme = (t: SavedTheme) => {
-    const name = window.prompt("Rename this theme:", t.name);
+  const renameTheme = async (t: SavedTheme) => {
+    const name = await askText({ title: "Rename theme", label: "Theme name", defaultValue: t.name, confirmLabel: "Rename" });
     if (name === null || !name.trim()) return;
     persistThemes(renameSavedTheme(savedThemes, t.id, name), "Theme renamed.");
   };
@@ -695,6 +708,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         if (route?.collection) setCollectionSlug(route.collection);
         sendPreviewState();
       }
+      if (d.type === "KEY_COMMAND" && typeof d.key === "string") {
+        const action = resolveShortcut({ key: d.key, ctrl: !!d.ctrl, meta: !!d.meta, shift: !!d.shift, alt: !!d.alt });
+        if (action) shortcutRef.current(action);
+        return;
+      }
       if (d.type === "STUDIO_TARGET" && typeof d.target === "string") {
         const target = d.target as string;
         const [kind, rest = ""] = target.split(":");
@@ -791,7 +809,11 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const exit = () => {
     if (inlineEditingRef.current) { say("err", "Finish or cancel the preview text edit before leaving Studio."); return; }
     if (pageBusy) { say("err", "Wait for the page save to finish before leaving Studio."); return; }
-    if ((dirtyDraft || draftPage) && !window.confirm("You have unsaved edits. Leave without saving?")) return;
+    if (dirtyDraft || draftPage) {
+      void askConfirm({ title: "Leave without saving?", message: "You have unsaved edits. They stay recoverable on this device, but they are not saved as your draft.", confirmLabel: "Leave Studio" })
+        .then(ok => { if (ok) onExit(); });
+      return;
+    }
     onExit();
   };
 
@@ -801,26 +823,53 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     window.addEventListener("beforeunload", before);
     return () => window.removeEventListener("beforeunload", before);
   }, [dirtyDraft, draftPage, pageBusy]);
+  // One keyboard listener for the whole editor; the latest handlers are read through a ref, so it
+  // is registered once. The preview forwards its key presses here too (KEY_COMMAND).
+  const runShortcut = (action: ShortcutAction) => {
+    if (busy === "discard") return;
+    if (inlineEditingRef.current && ["save", "undo", "redo", "delete", "duplicate", "moveUp", "moveDown"].includes(action)) return;
+    const index = selected ? sections.findIndex(x => x.id === selected.id) : -1;
+    switch (action) {
+      case "find": setFindOpen(true); break;
+      case "save": if (leftTab !== "pages") saveDraft(); break;
+      case "undo": setHist(undo); break;
+      case "redo": setHist(redo); break;
+      case "help": setShortcutsOpen(true); break;
+      case "desktop": case "tablet": case "mobile": setDevice(action); break;
+      case "toggleMode": setMode(m => m === "edit" ? "browse" : "edit"); break;
+      case "deselect": if (selectedId) { setSelectedId(null); setBlockId(null); } break;
+      case "delete": if (selected && !blockId) delSection(selected.id); break;
+      case "duplicate": if (selected) dupSection(selected.id); break;
+      case "moveUp": case "moveDown": {
+        const to = index + (action === "moveUp" ? -1 : 1);
+        if (index < 0 || to < 0 || to >= sections.length) break;
+        setList(l => moveSection(l, index, to), { label: `Move ${sectionTitle(selected!).label} ${action === "moveUp" ? "up" : "down"}` });
+        break;
+      }
+    }
+  };
+  const shortcutRef = useRef(runShortcut);
+  shortcutRef.current = runShortcut;
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      const mod = e.ctrlKey || e.metaKey;
-      const typing = /input|textarea|select/i.test((e.target as HTMLElement)?.tagName || "") || (e.target as HTMLElement)?.isContentEditable;
-      if (busy === "discard") { e.preventDefault(); return; }
-      if (inlineEditingRef.current && mod && ["s", "z", "y"].includes(e.key.toLowerCase())) { e.preventDefault(); return; }
-      if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); setFindOpen(true); return; }
-      if (mod && e.key.toLowerCase() === "s" && leftTab !== "pages") { e.preventDefault(); saveDraft(); }
-      else if (mod && e.key.toLowerCase() === "z" && !typing) { e.preventDefault(); setHist((h) => (e.shiftKey ? redo(h) : undo(h))); }
+      const el = e.target as HTMLElement;
+      const typing = /input|textarea|select/i.test(el?.tagName || "") || !!el?.isContentEditable;
+      const dialogOpen = !!document.querySelector("[role=dialog][aria-modal=true], .rp-dialog-root [role=dialog]");
+      const action = resolveShortcut({ key: e.key, ctrl: e.ctrlKey, meta: e.metaKey, shift: e.shiftKey, alt: e.altKey, typing, dialogOpen });
+      if (!action) return;
+      e.preventDefault();
+      shortcutRef.current(action);
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  });
+  }, []);
 
   // ── section actions ──
   const addSection = (type: string) => {
     const meta = getSectionMeta(type);
     const s = makeSection(type, meta?.defaults || {});
     const at = adding ?? sections.length;
-    setList((l) => insertSection(l, s, at));
+    setList((l) => insertSection(l, s, at), { label: `Add ${meta?.label || "section"}` });
     setSelectedId(s.id);
     setAdding(null);
     setBlockId(null);
@@ -829,21 +878,23 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   };
   const dupSection = (id: string) => {
     const r = duplicateSection(sections, id);
-    setList(() => r.list);
+    setList(() => r.list, { label: "Duplicate section" });
     if (r.newId) { setSelectedId(r.newId); setBlockId(null); }
   };
+  // Deleting is instant and undoable (toast › Undo, or Ctrl/Cmd+Z) — no confirmation pop-up.
   const delSection = (id: string) => {
-    if (!window.confirm("Delete this section?")) return;
-    setList((l) => removeSection(l, id));
-    if (selectedId === id) setSelectedId(null);
+    const gone = sections.find(x => x.id === id);
+    setList((l) => removeSection(l, id), { label: `Delete ${gone ? sectionTitle(gone).label : "section"}` });
+    if (selectedId === id) { setSelectedId(null); setBlockId(null); }
+    say("ok", `Deleted ${gone ? sectionTitle(gone).label : "the section"}.`, { label: "Undo", run: () => setHist(undo) });
   };
   const pasteSection = () => {
     if (!copiedSection) return;
     const clone = duplicateSection([copiedSection], copiedSection.id).list[1];
-    setList(l => insertSection(l, clone, l.length)); setSelectedId(clone.id); say("ok", "Section pasted onto this page.");
+    setList(l => insertSection(l, clone, l.length), { label: "Paste section" }); setSelectedId(clone.id); say("ok", "Section pasted onto this page.");
   };
-  const saveSection = (section: Section) => {
-    const name = window.prompt("Name this saved section:", sectionTitle(section).label);
+  const saveSection = async (section: Section) => {
+    const name = await askText({ title: "Save section for reuse", label: "Name", defaultValue: sectionTitle(section).label, confirmLabel: "Save section" });
     if (name === null) return;
     const preset = { id: `preset-${Date.now()}`, name: name.trim() || sectionTitle(section).label, section: JSON.parse(JSON.stringify(section)) };
     setStyle("sectionPresets", [...(design.sectionPresets || []), preset]); say("ok", "Section saved. Add it to any page from Add section › Your saved sections.");
@@ -852,7 +903,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     const source = preset.section;
     const clone = duplicateSection([source], source.id).list[1];
     const at = adding;
-    setList(l => insertSection(l, clone, at ?? l.length)); setSelectedId(clone.id); setAdding(null); setBlockId(null);
+    setList(l => insertSection(l, clone, at ?? l.length), { label: `Add ${preset.name || "saved section"}` }); setSelectedId(clone.id); setAdding(null); setBlockId(null);
   };
 
   // ── Find anything (Ctrl/Cmd+K): one search over every control, word, page, section and action ──
@@ -1067,7 +1118,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                         onClick={() => persistThemes(duplicateSavedTheme(savedThemes, t.id), "Theme duplicated.")}><Copy size={14} /></button>
                       <button type="button" aria-label={`Download ${t.name} as a file`} title="Download file" className={iconBtn} onClick={() => exportTheme(t)}><Download size={14} /></button>
                       <button type="button" aria-label={`Delete ${t.name}`} className={iconBtn}
-                        onClick={() => { if (window.confirm(`Delete saved theme “${t.name}”?`)) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }}><Trash2 size={14} /></button>
+                        onClick={() => { void askConfirm({ title: "Delete saved theme?", message: `“${t.name}” will be removed from My themes. This can't be undone.`, confirmLabel: "Delete theme" }).then(ok => { if (ok) persistThemes(removeSavedTheme(savedThemes, t.id), "Theme deleted."); }); }}><Trash2 size={14} /></button>
                     </div>
                   ))}
                 </div>
@@ -1270,8 +1321,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         </div>
         <button className={btn} aria-pressed={mode === "browse"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}>{mode === "edit" ? "Edit mode" : "Browse mode"}</button>
 
-        <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.past.length} onClick={() => setHist(undo)} aria-label="Undo (Ctrl+Z)"><Undo2 size={15} /></button>
-        <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.future.length} onClick={() => setHist(redo)} aria-label="Redo (Ctrl+Shift+Z)"><Redo2 size={15} /></button>
+        <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.past.length} onClick={() => setHist(undo)} aria-label="Undo (Ctrl+Z)" title={hist.past.length ? `Undo: ${undoLabel(hist)} (Ctrl+Z)` : "Nothing to undo"}><Undo2 size={15} /></button>
+        <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.future.length} onClick={() => setHist(redo)} aria-label="Redo (Ctrl+Shift+Z)" title={hist.future.length ? `Redo: ${redoLabel(hist)} (Ctrl+Shift+Z or Ctrl+Y)` : "Nothing to redo"}><Redo2 size={15} /></button>
         <div className="flex-1" />
         <span className="text-xs font-bold px-2 py-1 rounded-full bg-neutral-100" role="status">
           {dirtyDraft ? "Unsaved changes" : unpublished ? "Draft saved · not live" : "Live"}
@@ -1295,6 +1346,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         <div role={toast.kind === "err" ? "alert" : "status"}
           className={`absolute top-16 left-1/2 -translate-x-1/2 z-[350] px-4 py-2 rounded-lg text-sm font-bold shadow-lg ${toast.kind === "err" ? "bg-red-600 text-white" : "bg-neutral-900 text-white"}`}>
           {toast.text}
+          {toast.action && <button className="ml-3 underline" onClick={() => { toast.action!.run(); setToast(null); }}>{toast.action.label}</button>}
           {toast.kind === "err" && <button className="ml-3 underline" onClick={() => setToast(null)}>Dismiss</button>}
         </div>
       )}
@@ -1323,6 +1375,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       </div>
       </FocusContext.Provider>
 
+      {confirmNode}
+      {promptNode}
+      <Dialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} title="Keyboard shortcuts" description="Plain-key shortcuts work when you aren't typing in a field.">
+        <div className="studio-shortcuts">
+          {[...new Set(SHORTCUTS.map(x => x.group))].map(group => <section key={group}>
+            <h3>{group}</h3>
+            <dl>{SHORTCUTS.filter(x => x.group === group).map(x => <div key={x.action}><dt><kbd>{x.keys}</kbd></dt><dd>{x.label}</dd></div>)}</dl>
+          </section>)}
+        </div>
+      </Dialog>
       <StudioSearch open={findOpen} onClose={() => setFindOpen(false)} index={searchIndex} onPick={goToResult} />
       {adding !== null && <AddSectionDialog onPick={addSection} onClose={() => setAdding(null)} presets={design.sectionPresets || []} onPickPreset={addPreset} />}
       <Dialog open={historyOpen} onClose={() => { setHistoryOpen(false); setHistoryPreview(null); }} title="Version history" description="Every saved draft and publish is kept here. Previewing never changes your draft." size="lg">

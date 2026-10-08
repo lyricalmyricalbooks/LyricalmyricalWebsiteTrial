@@ -6,6 +6,7 @@ import { adminApi } from "../api";
 import { duplicatePage, movePage, seoHints } from "../pageInsights";
 import type { Page } from "../../features/site/types";
 import { reconcileSavedPage } from "./studioWorkflow";
+import { useConfirm } from "../riso/components";
 
 const btn =
   "inline-flex items-center gap-1.5 px-3 h-9 text-xs font-bold border border-neutral-300 rounded-lg bg-white hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed";
@@ -36,6 +37,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
   loadError?: boolean;
   onRetryLoad?: () => void;
 }) {
+  const [askConfirm, confirmNode] = useConfirm();
   const [editing, setEditing] = useState<Partial<Page> | null>(null);
   const [original, setOriginal] = useState("");
   const [isNew, setIsNew] = useState(false);
@@ -55,7 +57,11 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
     const page = pages.find((p) => p.slug === openSlug.slug);
     if (page) open(page, false);
   }, [openSlug?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
-  const back = () => { if (locked.current) return; if (dirty && !window.confirm("Discard your unsaved changes to this page?")) return; setEditing(null); };
+  const back = async () => {
+    if (locked.current) return;
+    if (dirty && !(await askConfirm({ title: "Discard page changes?", message: "Your unsaved changes to this page will be lost.", confirmLabel: "Discard changes" }))) return;
+    setEditing(null);
+  };
 
   async function save() {
     if (!editing || locked.current) return;
@@ -84,7 +90,8 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
   });
 
   async function remove(p: Partial<Page>) {
-    if (locked.current || !p.id || !window.confirm(`Delete “${p.title}”? It will be removed from the storefront and its menu. This cannot be undone.`)) return;
+    if (locked.current || !p.id) return;
+    if (!(await askConfirm({ title: "Delete page?", message: `“${p.title}” will be removed from the storefront and its menu. This can't be undone.`, confirmLabel: "Delete page" }))) return;
     try { await adminApi.deletePage(p.id); setPages((prev) => prev.filter((x) => x.id !== p.id)); setEditing(null); say("ok", "Page deleted."); }
     catch { say("err", "Could not delete the page."); }
   }
@@ -104,6 +111,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
     const set = (patch: Partial<Page>) => setEditing((p) => ({ ...p, ...patch }));
     return (
       <div className="p-4 space-y-4">
+        {confirmNode}
         <div className="flex items-center gap-2">
           <button className={btn} onClick={back} disabled={saving}><ArrowLeft size={14} /> All pages</button>
           {!isNew && editing.status === "published" && (
@@ -153,6 +161,7 @@ export function StudioPages({ pages, setPages, say, onEditSections, onDraft, onR
 
   return (
     <div className="p-4 space-y-3">
+      {confirmNode}
       {loadError && <div role="alert" className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between gap-3"><span>Pages could not be loaded. Your existing list is preserved.</span><button className={btn} onClick={onRetryLoad}>Retry</button></div>}
       <div>
         <p className="text-sm font-bold">Pages</p>

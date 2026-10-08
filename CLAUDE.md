@@ -284,6 +284,11 @@ Deploy Firestore rules before (or with) the frontend; until then Studio safely s
 overrides); "This page only" writes set the page surface. `designModel.property.test.ts` guards this against the
 published design snapshot.
 
+**Studio interaction rules (1.2):** never use `window.confirm/prompt/alert` in Studio — undoable actions run at once
+with `say("ok", text, { label: "Undo", run })`, permanent ones use Riso `useConfirm`, names use `usePrompt`. Name every
+edit: `change(fn, { label, coalesce })`. Add shortcuts to `studio/shortcuts.ts` (the cheat sheet reads the same table).
+Link into Studio with `studioHash()` from `lib/studioLocation.ts` (`/admin#designer?…`); What's new links can carry `studio`.
+
 Studio is a Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the
 section/block contract, and the Studio 2.0 roadmap.
