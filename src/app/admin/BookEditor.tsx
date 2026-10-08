@@ -46,6 +46,8 @@ import { studioHash } from "../lib/studioLocation";
 
 import { BookSeoPane } from "./BookSeoPane";
 
+const MAX_BOOK_PHOTOS = 20;
+
 type BookTab = "details" | "media" | "pricing" | "inventory" | "editions" | "organize" | "seo";
 
 function SortablePhoto({ photo, index, onRemove, onAlt, onMakeCover }: {
@@ -444,7 +446,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     setLoading(true);
     try {
       if (book) {
-        await adminApi.updateBook(book.id, formData);
+        // Pass what the editor loaded so untouched stock keeps its live value.
+        await adminApi.updateBook(book.id, formData, initialData);
         toast.success("Book updated successfully");
       } else {
         await adminApi.createBook(formData);
@@ -469,8 +472,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
   const addPhoto = () => {
     if (!photoInput) return;
-    if (formData.photos.length >= 10) {
-      toast.error("Maximum 10 photos allowed");
+    if (formData.photos.length >= MAX_BOOK_PHOTOS) {
+      toast.error(`Maximum ${MAX_BOOK_PHOTOS} photos allowed`);
       return;
     }
     setFormData((prev: any) => ({
@@ -483,8 +486,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
   const uploadFiles = async (files: FileList | null) => {
     const list = Array.from(files || []).filter((f) => f.type.startsWith("image/"));
     if (!list.length) return;
-    const room = 10 - (formData.photos?.length || 0);
-    if (room <= 0) { toast.error("Maximum 10 photos allowed"); return; }
+    const room = MAX_BOOK_PHOTOS - (formData.photos?.length || 0);
+    if (room <= 0) { toast.error(`Maximum ${MAX_BOOK_PHOTOS} photos allowed`); return; }
     if (list.length > room) toast(`Only ${room} more image${room === 1 ? "" : "s"} fit — extra files skipped.`);
     setUploading(true);
     try {
@@ -791,7 +794,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
 
           {tab === "media" && (
             <SectionCard title="Book images" description="Use genuine cover and interior photographs. Drag the ⠿ handle to reorder; the first image is the cover shown in the shop and search."
-              actions={<button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || formData.photos.length >= 10}><Upload size={14} aria-hidden /> Upload images</button>}>
+              actions={<button type="button" className="rp-btn rp-btn-secondary rp-btn-sm" onClick={() => fileInputRef.current?.click()} disabled={uploading || formData.photos.length >= MAX_BOOK_PHOTOS}><Upload size={14} aria-hidden /> Upload images</button>}>
               <div className={`be-drop ${dragOver ? "is-over" : ""}`}
                 onDragOver={(e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragOver(true); } }}
                 onDragLeave={() => setDragOver(false)}
@@ -805,7 +808,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                           onMakeCover={(id) => setFormData((prev: any) => { const p = prev.photos.find((x: any) => x.id === id); return { ...prev, photos: [p, ...prev.photos.filter((x: any) => x.id !== id)] }; })} />
                       ))}
                     </SortableContext>
-                    {formData.photos.length < 10 && (
+                    {formData.photos.length < MAX_BOOK_PHOTOS && (
                       <button type="button" className="be-photo-add" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
                         {uploading ? <Loader2 size={22} className="animate-spin" aria-hidden /> : <Upload size={22} aria-hidden />}
                         <span>{uploading ? "Uploading…" : "Add or drop images"}</span>
@@ -815,7 +818,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                 </DndContext>
               </div>
               <input type="file" ref={fileInputRef} multiple onChange={(e) => uploadFiles(e.target.files)} accept="image/*" className="hidden" />
-              <p className="be-note">{formData.photos.length}/10 images. Add alt text so the cover is described to screen readers and search engines.</p>
+              <p className="be-note">{formData.photos.length}/{MAX_BOOK_PHOTOS} images. Add alt text so the cover is described to screen readers and search engines.</p>
               <div className="be-url-row">
                 <TextField label="Add image from URL" value={photoInput} onChange={(e) => setPhotoInput(e.target.value)} placeholder="https://…/cover.jpg"
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPhoto(); } }} />

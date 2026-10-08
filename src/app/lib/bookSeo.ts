@@ -1,4 +1,5 @@
 import type { Book } from '../features/site/types';
+import { formatKey } from '../features/site/CatalogControls';
 
 /** Search descriptions are plain text, even when catalog descriptions are rich HTML. */
 export function searchText(value = ''): string {
@@ -19,11 +20,44 @@ export function canonicalUrl(value: string): string {
   return url.href;
 }
 
+/** Shortens a search snippet at a word boundary (with an ellipsis) instead of mid-word. */
+export function snippet(text: string, max = 160): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max - 1);
+  const space = cut.lastIndexOf(' ');
+  return (space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s.,;:!?\-–—]+$/, '') + '…';
+}
+
+/** A valid ISBN-13 (978/979, correct check digit) without hyphens, or ''. Never invented. */
+export function isbn13(value: unknown): string {
+  const digits = String(value ?? '').replace(/[\s-]/g, '');
+  if (!/^97[89]\d{10}$/.test(digits)) return '';
+  const sum = [...digits.slice(0, 12)].reduce((total, d, i) => total + Number(d) * (i % 2 ? 3 : 1), 0);
+  return (10 - (sum % 10)) % 10 === Number(digits[12]) ? digits : '';
+}
+
+const BOOK_FORMATS: Record<string, string> = { paperback: 'Paperback', hardcover: 'Hardcover', ebook: 'EBook', audiobook: 'AudiobookFormat' };
+
+/** The edition facts the catalog actually holds, as schema.org Book properties. */
+function bookFacts(book: Book & Record<string, any>) {
+  const format = BOOK_FORMATS[formatKey(book.format) || ''];
+  const pages = Math.floor(Number(book.pageCount));
+  const date = typeof book.publishDate === 'string' && /^\d{4}(-\d{2}(-\d{2})?)?/.test(book.publishDate) ? book.publishDate.match(/^\d{4}(-\d{2}(-\d{2})?)?/)![0] : '';
+  const gtin = isbn13(book.isbn);
+  return {
+    ...(format ? { bookFormat: `https://schema.org/${format}` } : {}),
+    ...(pages > 0 ? { numberOfPages: pages } : {}),
+    ...(date ? { datePublished: date } : {}),
+    ...(searchText(book.edition) ? { bookEdition: searchText(book.edition) } : {}),
+    ...(gtin ? { gtin13: gtin } : {}),
+  };
+}
+
 export function bookMetadata(book: Partial<Book>) {
   return {
     title: searchText(book.metaTitle) || searchText(book.title),
     exactTitle: !!searchText(book.metaTitle),
-    description: searchText(book.metaDescription) || searchText(book.description).slice(0, 160),
+    description: searchText(book.metaDescription) || snippet(searchText(book.description)),
     image: book.seoImage?.trim() || book.photos?.[0]?.url || '',
   };
 }
@@ -119,8 +153,9 @@ export function bookStructuredData(book: Book & Record<string, any>, options: { 
     url: options.url,
     name: book.title,
     description: searchText(book.description),
-    image: (book.photos || []).map(p => p.url).filter(Boolean).map(url => new URL(url, options.url).href),
-    ...(book.isbn ? { isbn: book.isbn } : {}),
+    image: [...new Set([...(book.photos || []).map(p => p.url), book.seoImage].filter((url): url is string => !!url?.trim()).map(url => absolute(url.trim(), options.url)).filter(Boolean))],
+    ...(book.isbn ? { isbn: String(book.isbn).trim() } : {}),
+    ...bookFacts(book),
     ...(book.sku ? { sku: book.sku } : {}),
     ...(book.language ? { inLanguage: book.language } : {}),
     ...(book.authorName ? { author: { '@type': 'Person', name: book.authorName } } : {}),

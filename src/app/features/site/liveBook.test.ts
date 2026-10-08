@@ -19,3 +19,13 @@ it("books with inventory tracking off, or editions on backorder, are not shown a
   expect(b.variants[0].onBackorder).toBe(true);
   expect((applyBackorderPolicy({ trackInventory: true, stockLevel: 0 } as any) as any).stockLevel).toBe(0);
 });
+
+import { releaseArrived } from "./liveBook";
+it("a plain release date starts that day in Toronto, not at midnight UTC", () => {
+  // 8:30pm Toronto on Oct 7 is already Oct 8 in UTC: the Oct 8 release isn't out yet.
+  expect(isLiveBook({ status: "published", scheduleDate: "2026-10-08" }, "2026-10-08T00:30:00.000Z")).toBe(false);
+  // 12:30am Toronto on Oct 8.
+  expect(isLiveBook({ status: "published", scheduleDate: "2026-10-08" }, "2026-10-08T04:30:00.000Z")).toBe(true);
+  expect(releaseArrived("2026-10-08T12:00:00.000Z", "2026-10-08T11:00:00.000Z")).toBe(false);
+  expect(releaseArrived(undefined)).toBe(true);
+});

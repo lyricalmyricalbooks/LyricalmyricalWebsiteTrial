@@ -936,11 +936,13 @@ export function Checkout() {
   }, [customer.address.country, customer.address.state, customer.billingAddress.country, customer.billingAddress.state, fulfillmentSelection, localQuotes, physicalSubtotalAfterDiscount, cartTotal, appliedDiscount, taxRates, discountAmount]);
 
   const applyDiscount = async () => {
-    if (!discountCode) return;
+    // Pasted codes often carry spaces; the server trims too.
+    const code = discountCode.trim();
+    if (!code) return;
     setIsApplying(true);
     setDiscountError("");
     try {
-      const discount = await adminApi.validateDiscount(discountCode);
+      const discount = await adminApi.validateDiscount(code);
       validateDiscountRestrictions(discount, customer.email, cart, booksMap, cartCount, cartTotal);
       setAppliedDiscount(discount);
     } catch (err: any) {

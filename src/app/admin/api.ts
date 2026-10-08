@@ -1,3 +1,4 @@
+import { keepLiveStock } from "./bookStockMerge";
 import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
 import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
 import { themeWrite } from "./themeWrite";
@@ -210,16 +211,30 @@ export const adminApi = {
     return { id: docRef.id, ...dataToSave };
   },
 
-  updateBook: async (id: string, book: any) => {
+  /**
+   * `loaded` = the book as the editor first showed it. When given, stock the owner didn't
+   * change keeps its live value (read in the same transaction), so a sale made while the
+   * editor was open is never undone by saving (keepLiveStock).
+   */
+  updateBook: async (id: string, book: any, loaded?: any) => {
     const docRef = doc(db, "books", id);
-    const dataToSave = { ...book };
+    let dataToSave = { ...book };
     delete dataToSave.id;
     delete dataToSave._lastDoc;
 
-    await updateDoc(docRef, {
-      ...dataToSave,
-      updatedAt: new Date().toISOString(),
-    });
+    if (loaded) {
+      dataToSave = await runTransaction(db, async tx => {
+        const snap = await tx.get(docRef);
+        const merged = snap.exists() ? keepLiveStock(dataToSave, loaded, snap.data()) : dataToSave;
+        tx.update(docRef, { ...merged, updatedAt: new Date().toISOString() });
+        return merged;
+      });
+    } else {
+      await updateDoc(docRef, {
+        ...dataToSave,
+        updatedAt: new Date().toISOString(),
+      });
+    }
     await adminApi.recordAuditLog("catalog", `Updated book: ${dataToSave.title}`);
     return { id, ...dataToSave };
   },
@@ -1444,6 +1459,11 @@ export const adminApi = {
     const now = new Date().toISOString();
     const payload = { ...data, updatedAt: now };
     delete payload.id;
+    delete payload._lastDoc;
+    // Redemptions are counted by the server (stripeWebhook / refunds). Writing back the count
+    // the editor loaded earlier would undo uses made since and let a capped code run over.
+    delete payload.usageCount;
+    delete payload.createdAt;
     await updateDoc(doc(db, "discounts", id), payload);
     await adminApi.recordAuditLog("campaigns", `Updated campaign: ${payload.code || id}`);
     return { id, ...payload };

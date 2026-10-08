@@ -34,6 +34,8 @@ export type Book = {
   language?: string;
   status?: string;
   isFeatured?: boolean;
+  /** Older records stored the flag as `featured`; still read as a fallback. */
+  featured?: boolean;
   scheduleDate?: string;
   categories?: string[];
   photos?: BookPhoto[];

@@ -805,6 +805,8 @@ on the order). Both checks run in `fetchValidDiscount` / both checkout paths; to
 
 ## Crawlable public HTML
 
+**Richer book listings (8 October 2026):** Book JSON-LD adds `bookFormat`, `numberOfPages`, `datePublished`, `bookEdition` (selected edition wins) and `gtin13` (only a check-digit-valid ISBN-13, `isbn13`) — blank fields are omitted. Fallback meta descriptions end on a word (`snippet`); custom ones stay exact. `useSEO` sets `max-image-preview:large` on indexable pages, drops empty `og:image`/`twitter:image` (card falls back to `summary`), adds `og:image:alt`, optional `product:price:*`/`product:availability` (PDP passes `product`), and removes index.html's no-JS fallback `#seo-jsonld-static`. PDP photos use each photo's Media alt text, falling back to Text & labels `bookPhotoAlt`.
+
 **Rich results (October 2026):** pages emit one JSON-LD `@graph` — home BookStore+WebSite, book Product/Book + breadcrumb + star rating from approved reviews only (`reviewsApi.listApproved`, shared with the reviews section), collection CollectionPage/ItemList, page breadcrumbs (`lib/bookSeo.ts`, `docs/SEO_CRAWLABILITY.md`). The sitemap lists book photos as `image:image`.
 
 Production builds render the public sitemap into real HTML route documents via
@@ -1130,4 +1132,27 @@ Grouped footer navigation defaults to Explore and Participate & connect, with po
   and `addToCart` returns false when nothing was added; Recently viewed updates between books; search overlay traps focus;
   footer icon links have labels (Text & labels › Footer); the grouped legal row hides with no policies; wishlist badges
   count only live books; the cart estimate guesses the country and hands its destination to checkout only after **Estimate**.
+- Deploy Functions with this frontend. No Firestore rule or index changes.
+
+## Bug sweep #7 (8 October 2026)
+
+- **Stock on book save:** `adminApi.updateBook(id, form, loaded)` re-reads the book in a transaction and keeps the live
+  `stockLevel` / edition stock for any count the owner didn't change (`admin/bookStockMerge.ts` `keepLiveStock`), so a
+  sale made while the editor was open is never undone. **Discount edits** never write `usageCount`/`createdAt`
+  (server-owned). Duplicate codes are refused in the editor (`validateDiscountDraft(…, otherCodes)`); the server trims
+  codes and uses the usable copy when old duplicates exist (`fetchValidDiscount` / `discountProblem`).
+- **Display price:** a book sold in editions shows its cheapest edition and never a SALE badge (`displayPrice`,
+  `showsSale` in `features/site/displayPrice.ts`) — it's always charged an edition's price. Search/wishlist/sections use it.
+- **Backorders:** `backorderable(book)` (CartContext, book-level `allowBackorder` like the server) — no stock cap in
+  `addToCart` or the product page quantity. The bag drawer reprices saved lines once the live catalog loads (never in
+  preview; lines that can't be bought are left for checkout's notice).
+- **Release dates:** a plain `scheduleDate` opens at midnight Toronto (`releaseArrived` in `liveBook.ts`, mirrored in
+  `functions/paymentGuards.js` and `scripts/publicStorefrontData.mjs`); admin discount "today" and Expires use the shop day.
+- **PayPal:** partial refunds accumulate (`paypalRefundedTotalMinor`, `paypalRefundIds`) and a full total refunds the
+  order; capture uses the order's own `paypalMode`. Order emails list download links for every non-physical line
+  (`isPhysicalItem`); the shop's paid-order email escapes the address.
+- **Admin:** bulk Feature writes `isFeatured`; Approve/Reject selected acts only on visible reviews and the queue loads
+  every pending review; Orders CSV includes partial refunds; Overview stock skips `trackInventory: false` books and the
+  format mix uses each line's sold edition.
+- **Account:** email-link sign-in survives blocked storage; order rows count copies.
 - Deploy Functions with this frontend. No Firestore rule or index changes.

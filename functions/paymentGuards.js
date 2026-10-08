@@ -48,6 +48,16 @@ function discountDateState(discount, now = new Date()) {
   return null;
 }
 
+// A plain release date ("2026-10-08") starts on that day in Toronto, not at 00:00 UTC
+// (8pm the evening before). Mirrors src/app/features/site/liveBook.ts.
+function releaseArrived(scheduleDate, nowISO = new Date().toISOString()) {
+  if (!scheduleDate) return true;
+  const value = String(scheduleDate);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value <= shopDate(new Date(nowISO));
+  const at = Date.parse(value);
+  return Number.isFinite(at) ? at <= Date.parse(nowISO) : value <= nowISO;
+}
+
 // Why a catalog line can't be bought right now, or null. Matches what the
 // storefront shows: only published books whose release date has arrived, and a
 // book sold in editions is bought as one of them (a bare line would be priced
@@ -56,7 +66,7 @@ function purchaseProblem(book, variantId, nowISO = new Date().toISOString()) {
   if (!book) return "missing";
   // Books saved before statuses existed have none; the storefront treats them as published.
   if (book.status && book.status !== "published") return "unavailable";
-  if (book.scheduleDate && String(book.scheduleDate) > nowISO) return "unavailable";
+  if (!releaseArrived(book.scheduleDate, nowISO)) return "unavailable";
   if (!variantId && Array.isArray(book.variants) && book.variants.length) return "choose_edition";
   return null;
 }
@@ -153,4 +163,21 @@ function stripeIntentKey(orderId, amountMinor, currency, previousIntentId) {
   return `pi-${orderId}-${String(currency || "").toLowerCase()}-${Math.round(Number(amountMinor))}-${previousIntentId || "first"}`;
 }
 
-module.exports = { cancelRefusal, mismatchResolved, stripePaymentTaken, checkoutRefusal, manualPaidRefusal, stripeIntentKey, discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState };
+module.exports = { cancelRefusal, mismatchResolved, stripePaymentTaken, checkoutRefusal, manualPaidRefusal, stripeIntentKey, discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState, releaseArrived };
+
+/**
+ * PayPal sends one PAYMENT.CAPTURE.REFUNDED per refund, carrying only that refund's amount.
+ * Two $10 refunds of a $20 order must add up to a full refund. Prefer PayPal's own running
+ * total; otherwise add this refund to what is already recorded (once per refund id).
+ */
+function paypalRefundedTotalMinor(order, refund) {
+  const total = refund?.seller_payable_breakdown?.total_refunded_amount?.value;
+  if (total != null && Number.isFinite(Number(total))) return toMinor(total);
+  const thisRefund = refund?.amount?.value != null ? toMinor(refund.amount.value) : null;
+  if (thisRefund == null) return null;
+  const seen = Array.isArray(order?.paypalRefundIds) ? order.paypalRefundIds : [];
+  const already = Number(order?.refundedAmountMinor) || 0;
+  if (refund?.id && seen.includes(refund.id)) return Math.max(already, thisRefund);
+  return already + thisRefund;
+}
+module.exports.paypalRefundedTotalMinor = paypalRefundedTotalMinor;

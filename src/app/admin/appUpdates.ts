@@ -45,6 +45,21 @@ export const APP_UPDATES: AppUpdate[] = [
     links: [{ label: "Open the Design studio", tab: "settings", settingsTab: "designer" }],
   },
   {
+    id: "bug-sweep-7", date: "2026-10-08", title: "Stock, discounts and prices stay correct",
+    summary: "Saving a book no longer puts back a stock count from before a sale, and editing a discount no longer resets how many times it was used. Two discounts can't share a code, and dates show the shop's own day. Books sold in editions show the price shoppers pay, backorder books can be ordered past their stock, and release dates open at midnight in Toronto. Bulk Feature now shows books as featured on the shop, Approve selected only acts on the reviews you can see, and the Orders CSV includes partial refunds. Functions need deploying with this release for the PayPal refund, discount code and email fixes to apply.",
+    links: [{ label: "Review books", tab: "catalog" }, { label: "Review discounts", tab: "discounts" }, { label: "Moderate reviews", tab: "reviews" }],
+  },
+  {
+    id: "seo-book-search-details", date: "2026-10-08", title: "Richer Google listings for your books",
+    summary: "Book pages now tell Google each edition's format, page count, publication date, edition name and ISBN (as a barcode number, only when the ISBN is valid), and the alt text you write for book photos is now used on the product page, which helps Google Images. Search snippets end on a whole word, Google may show your covers as large previews, and Pinterest/Facebook shares carry the price and stock. Nothing is invented: blank catalog fields are simply left out. The new details reach Google after the next site build and crawl.",
+    links: [{ label: "Fill in book details and photo alt text", tab: "catalog" }],
+  },
+  {
+    id: "book-photos-20", date: "2026-10-08", title: "Up to 20 photos per book",
+    summary: "Each book can now hold 20 photos instead of 10 (Books › edit › Media). On the product page, a long thumbnail strip beside the photo now scrolls instead of stretching the page.",
+    links: [{ label: "Add photos in Books", tab: "catalog" }],
+  },
+  {
     id: "shop-filters-bug-sweep-6", date: "2026-10-08", title: "Shop filters and checkout fixes",
     summary: "Shoppers can filter the shop by format (paperback, hardcover, e-book, audiobook) and price, and clear filters in one click; \"In stock\" now counts editions. Checkout shows the same capped discount the shop charges, a declined card no longer locks a shopper out of the last copy, and e-book return requests can be refunded or closed directly. Functions need deploying with this release for the server-side fixes to apply.",
     links: [{ label: "Turn on shop filters in Studio", tab: "settings", settingsTab: "designer" }, { label: "Handle returns in Orders", tab: "orders" }, { label: "Review discount codes", tab: "discounts" }],
