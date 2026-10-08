@@ -152,3 +152,24 @@ describe("unitsById", () => {
     expect([...m.entries()]).toEqual([["a", 3]]);
   });
 });
+
+describe("untracked stock and edition formats", () => {
+  it("leaves books with Track inventory off out of the stock panels", async () => {
+    const { titleStock, stockValue } = await import("./overviewInsights");
+    const books: any[] = [{ id: "pod", title: "POD", stockLevel: 0, trackInventory: false, retailPrice: 10 }];
+    expect(titleStock([], books)).toEqual([]);
+    expect(titleStock([], [{ ...books[0], trackInventory: true }])).toHaveLength(1);
+    expect(stockValue(books).soldOut).toBe(0);
+  });
+});
+
+describe("format mix", () => {
+  it("counts the edition actually sold, not the book's main format", async () => {
+    const { formatMix } = await import("./overviewInsights");
+    const books: any[] = [{ id: "b", format: "Paperback" }];
+    const orders: any[] = [{ items: [{ id: "b", quantity: 1, price: 10, format: "EPUB", digital: true }, { id: "b", quantity: 1, price: 20 }] }];
+    const mix: any = formatMix(orders, books);
+    expect(mix.formats.map((f: any) => f.format).sort()).toEqual(["EPUB", "Paperback"]);
+    expect(mix.digitalShare).toBeCloseTo(100 / 3, 1);
+  });
+});

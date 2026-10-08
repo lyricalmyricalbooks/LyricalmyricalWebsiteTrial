@@ -1,3 +1,4 @@
+import { releaseArrived } from "../features/site/liveBook";
 import { CatalogReviewDialog } from "./CatalogReviewDialog";
 import { catalogPublishIssues } from "./catalogPublishReview";
 import { useState, useEffect, useMemo } from "react";
@@ -36,7 +37,8 @@ function stockBadge(b: any): { tone: BadgeTone; text: string } {
 
 function publicationBadge(b: any): { tone: BadgeTone; text: string } {
   if (b.status === "draft") return { tone: "neutral", text: "Draft" };
-  if (b.scheduleDate && new Date(b.scheduleDate) > new Date()) return { tone: "info", text: "Scheduled" };
+  // Same Toronto-day rule as the storefront and checkout (liveBook.ts releaseArrived).
+  if (b.scheduleDate && !releaseArrived(b.scheduleDate)) return { tone: "info", text: "Scheduled" };
   return { tone: "success", text: "Published" };
 }
 
@@ -145,7 +147,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
   };
 
   const bulkFeature = async (featured: boolean) => {
-    const promise = Promise.all(selectedBooks.map(b => adminApi.updateBook(b.id, { title: b.title, featured })));
+    const promise = Promise.all(selectedBooks.map(b => adminApi.updateBook(b.id, { title: b.title, isFeatured: featured, featured })));
     toast.promise(promise, { loading: "Applying changes…", success: featured ? "Marked as featured" : "Removed from featured", error: "Some updates failed" });
     try { await promise; } catch { /* surfaced by toast */ }
     setSelected([]);
@@ -181,7 +183,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         </div>
       </div>
     ) },
-    { key: "status", header: "Status", render: b => { const s = publicationBadge(b); return <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}><StatusBadge tone={s.tone}>{s.text}</StatusBadge>{b.featured && <StatusBadge tone="primary">Featured</StatusBadge>}{preorderActive(b) && <StatusBadge tone="info">{releaseDateOf(b) ? `Pre-order · ${releaseDateOf(b)}` : "Pre-order"}</StatusBadge>}</span>; } },
+    { key: "status", header: "Status", render: b => { const s = publicationBadge(b); return <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}><StatusBadge tone={s.tone}>{s.text}</StatusBadge>{(b.isFeatured ?? b.featured) && <StatusBadge tone="primary">Featured</StatusBadge>}{preorderActive(b) && <StatusBadge tone="info">{releaseDateOf(b) ? `Pre-order · ${releaseDateOf(b)}` : "Pre-order"}</StatusBadge>}</span>; } },
     { key: "format", header: "Format", render: b => b.format || "—" },
     { key: "isbn", header: "ISBN / SKU", render: b => <span className="rp-mono">{b.isbn || b.sku || "—"}</span> },
     { key: "stock", header: "Inventory", render: b => { const s = stockBadge(b); return <StatusBadge tone={s.tone}>{s.text}</StatusBadge>; } },

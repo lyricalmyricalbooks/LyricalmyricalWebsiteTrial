@@ -447,7 +447,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     setLoading(true);
     try {
       if (book) {
-        await adminApi.updateBook(book.id, formData);
+        // Pass what the editor loaded so untouched stock keeps its live value.
+        await adminApi.updateBook(book.id, formData, initialData);
         toast.success("Book updated successfully");
         // Pre-order switch or release date changed: paid, unsent pre-orders follow the new date.
         if (!!(book as any).preorder !== !!formData.preorder || ((book as any).preorder || formData.preorder) && String((book as any).publishDate || "") !== String(formData.publishDate || "")) {

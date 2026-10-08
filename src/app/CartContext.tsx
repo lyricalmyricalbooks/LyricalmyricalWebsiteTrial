@@ -127,6 +127,14 @@ export function catalogUnitPrice(book: any, variant?: any): number {
   return bookPrice;
 }
 
+/**
+ * A tracked book the shop lets shoppers order past its stock (Books › edit › Inventory ›
+ * Allow backorders). Book-level only, like the server's stock check (functions/index.js).
+ */
+export function backorderable(book: any, _variant?: any): boolean {
+  return book?.trackInventory === true && book?.allowBackorder === true;
+}
+
 const CART_KEY = "fm_cart";
 
 function readStoredCart(): CartItem[] {
@@ -165,7 +173,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [cart]);
 
   const addToCart = (product: any, variant?: any, quantity: number = 1): boolean => {
-    const stockLimit = variant ? (variant.stockLevel ?? variant.stock) : product.stockLevel;
+    // Backorderable lines have no stock cap (same rule as repriceCart and the server).
+    const stockLimit = backorderable(product, variant) ? undefined : (variant ? (variant.stockLevel ?? variant.stock) : product.stockLevel);
     if (typeof stockLimit === "number" && stockLimit <= 0) return false;
     const price = catalogUnitPrice(product, variant);
     // A book with no usable price can't be charged; never put a NaN line in the bag.

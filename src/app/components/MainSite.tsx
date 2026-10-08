@@ -40,7 +40,7 @@ import { db } from "../../lib/firebase";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
 import { useWishlist, liveWishlistCount } from "../lib/wishlist";
 import { isLiveBook } from "../features/site/liveBook";
-import { displayPrice as cardDisplayPrice } from "../features/site/displayPrice";
+import { displayPrice as cardDisplayPrice, showsSale } from "../features/site/displayPrice";
 import { useSEO } from "../lib/seo";
 import { breadcrumbData, collectionStructuredData, siteStructuredData } from "../lib/bookSeo";
 import { CatalogControls, applyCatalogControls, appliedFilters, filterView, EMPTY_FILTERS, type CatalogFilterState, type SortKey } from "../features/site/CatalogControls";
@@ -1368,9 +1368,9 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               const stock = item.stockLevel ?? 999;
               const isOutOfStock = stock === 0;
               const isLowStock = stock > 0 && stock !== 999 && stock <= designNumber(activeDesign, "lowStockCardThreshold", 5);
-              const onSale = !!item.isOnSale && item.salePrice > 0 && item.salePrice < (item.retailPrice ?? 0);
-              // A book sold only in editions shows its cheapest edition (formatBookPrice does the same).
-              const displayPrice = onSale ? item.salePrice : cardDisplayPrice(item);
+              // A book sold in editions shows its cheapest edition and never a SALE badge (formatBookPrice does the same).
+              const onSale = showsSale(item);
+              const displayPrice = cardDisplayPrice(item);
               const isNewArrival = (() => {
                 if (!item.createdAt) return false;
                 const created = new Date(item.createdAt).getTime();

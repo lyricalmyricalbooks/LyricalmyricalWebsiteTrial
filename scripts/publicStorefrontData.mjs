@@ -40,9 +40,20 @@ export function effectivePublishedSettings(settings, now = new Date().toISOStrin
   if (scheduledPublish?.at && scheduledPublish?.design && new Date(scheduledPublish.at).getTime() <= new Date(now).getTime()) published.design = scheduledPublish.design;
   return published;
 }
+// A plain release date starts that day in Toronto (src/app/features/site/liveBook.ts releaseArrived).
+export function releaseArrived(scheduleDate, nowISO = new Date().toISOString()) {
+  if (!scheduleDate) return true;
+  const value = String(scheduleDate);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(nowISO));
+    return value <= today;
+  }
+  const at = Date.parse(value);
+  return Number.isFinite(at) ? at <= Date.parse(nowISO) : value <= nowISO;
+}
 export function publishedFingerprint({ books, pages, settings }, now = new Date().toISOString()) {
   const publishedSettings = effectivePublishedSettings(settings, now);
-  const live = books.filter(book => (!book.status || book.status === 'published') && (!book.scheduleDate || String(book.scheduleDate) <= now));
+  const live = books.filter(book => (!book.status || book.status === 'published') && releaseArrived(book.scheduleDate, now));
   const snapshot = { books: [...live].sort((a, b) => a.id.localeCompare(b.id)), pages: pages.filter(page => page.status === 'published').sort((a, b) => a.id.localeCompare(b.id)), settings: publishedSettings };
   return createHash('sha256').update(JSON.stringify(stable(snapshot))).digest('hex');
 }

@@ -1,4 +1,6 @@
-export function validateDiscountDraft(form: any, now = new Date().toISOString().slice(0, 10)): Record<string, string> {
+import { today } from "./discountState";
+/** `otherCodes`: codes of the shop's other discounts — two copies of one code make checkout ambiguous. */
+export function validateDiscountDraft(form: any, now = today(), otherCodes: string[] = []): Record<string, string> {
   const errors: Record<string, string> = {};
   const code = String(form.code || "").trim();
   if (!code) errors.code = "Enter a code customers will type at checkout.";
@@ -19,5 +21,7 @@ export function validateDiscountDraft(form: any, now = new Date().toISOString().
     if (tiers.some((tier: any) => (tier.type || "percentage") === "percentage" && Number(tier.value) > 100)) errors.tiers = "A percentage tier can't be more than 100%.";
     else if (!tiers.length || tiers.some((tier: any) => Number(tier.value) <= 0) || tiers.some((tier: any, index: number) => index > 0 && Number(tier.minSpend) <= Number(tiers[index - 1].minSpend))) errors.tiers = "Add positive discounts with minimum spends in ascending order.";
   }
+  if (!errors.code && otherCodes.some(c => String(c || "").trim().toUpperCase() === code.toUpperCase()))
+    errors.code = "Another discount already uses this code. Edit or delete that one instead.";
   return errors;
 }

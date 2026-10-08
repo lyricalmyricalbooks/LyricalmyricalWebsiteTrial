@@ -9,7 +9,7 @@ import {
   Package, Share2, Check, BookOpen, Globe, Ruler,
   Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus
 } from "lucide-react";
-import { useCart, catalogUnitPrice, lineQuantityCap } from "../../CartContext";
+import { useCart, catalogUnitPrice, lineQuantityCap, backorderable } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
 import { StorefrontPageHeader } from "./StorefrontPageHeader";
@@ -256,17 +256,22 @@ export default function BookDetail() {
     stockLevel: selectedVariant.stockLevel ?? selectedVariant.stock ?? 0,
     onBackorder: selectedVariant.onBackorder,
     sku: selectedVariant.sku || book.sku,
+    edition: selectedVariant.name || book.edition,
+    format: (selectedVariant as any).format || book.format,
   } : book;
+  const seoPrice = book ? (selectedVariant ? convertPrice(selectedVariant.price) : getBookPrice(book)) : 0;
+  const seoOffer = seoBook ? bookStructuredData(seoBook, { currency, price: seoPrice, url: bookUrl }).offers.availability : "";
   useSEO(book ? {
     ...bookMetadata(book),
     description: bookMetadata(book).description || getCopy(settings?.design, "seoBookDescription", { title: book.title }),
     url: bookUrl,
     type: "product",
+    product: { price: seoPrice, currency, availability: seoOffer.endsWith("InStock") ? "in stock" : seoOffer.endsWith("BackOrder") ? "backorder" : "out of stock" },
     noindex: book.seoNoindex === true || (!!book.status && book.status !== "published"),
     jsonLd: [
       bookStructuredData(seoBook!, {
         currency,
-        price: selectedVariant ? convertPrice(selectedVariant.price) : getBookPrice(book),
+        price: seoPrice,
         url: bookUrl,
         reviews: reviewsReady ? seoReviews!.list : [],
         seller: getCopy(settings?.design, "siteName"),
@@ -308,7 +313,12 @@ export default function BookDetail() {
     const stock = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any).stockLevel ?? 999);
     if (Number(stock) <= 0) return;
     // Only confirm "Added" when a line really went into the bag.
-    if (!addToCart(book, selectedVariant || undefined, showQtyStepper ? qty : 1)) return;
+    if (!addToCart(book, selectedVariant || undefined, showQtyStepper ? qty : 1)) {
+      // Already at the most this line can hold: open the bag, where the line shows its limit,
+      // instead of a click that seems to do nothing.
+      if (inBag > 0) setIsCartOpen(true);
+      return;
+    }
     funnelApi.track("add_to_cart");
     setAdded(true);
     setTimeout(() => setAdded(false), 2500);
@@ -320,9 +330,11 @@ export default function BookDetail() {
   const handleAddBothToBag = () => {
     if (!book || !bundleBook || isOutOfStock) return;
     // The edition the shopper has selected, and an in-stock edition of the companion book.
-    addToCart(book, selectedVariant || undefined);
+    const addedThis = addToCart(book, selectedVariant || undefined);
     const companion = quickAddChoice(bundleBook);
-    if (companion.inStock) addToCart(bundleBook, companion.variant);
+    const addedCompanion = companion.inStock ? addToCart(bundleBook, companion.variant) : false;
+    // Nothing went in (both lines already at their limit): just show the bag.
+    if (!addedThis && !addedCompanion) { setIsCartOpen(true); return; }
     setAddingBoth(true);
     funnelApi.track("add_to_cart");
     setTimeout(() => {
@@ -350,7 +362,7 @@ export default function BookDetail() {
   const stockLevel    = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any)?.stockLevel ?? 999);
   // Copies of this edition already in the bag count toward its stock and the 99-per-line limit.
   const inBag = cart.find(item => item.id === book?.id && item.variantId === (selectedVariant?.id || undefined))?.quantity || 0;
-  const qtyMax = Math.max(1, lineQuantityCap(stockLevel === 999 ? undefined : Number(stockLevel)) - inBag);
+  const qtyMax = Math.max(1, lineQuantityCap(stockLevel === 999 || backorderable(book, selectedVariant) ? undefined : Number(stockLevel)) - inBag);
   useEffect(() => { setQty(q => Math.min(q, qtyMax)); }, [qtyMax]);
   // Oversold stock goes below zero: that is sold out too, not "in stock".
   // An edition with no usable price can't be bought either; treat it like sold out rather than fake an add.
@@ -632,7 +644,7 @@ export default function BookDetail() {
                         <motion.img
                           key={activePhoto}
                           src={activeUrl}
-                          alt={getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: activePhoto + 1 })}
+                          alt={(activeUrl === photos[activePhoto]?.url && photos[activePhoto]?.altText?.trim()) || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: activePhoto + 1 })}
                           className={`w-full h-full ${productImageFitClass}`}
                           decoding="async"
                           {...(activePhoto === 0 ? { fetchpriority: "high" } : {})}
@@ -742,7 +754,7 @@ export default function BookDetail() {
                 <div className={productImageLayout === "grid" ? "grid grid-cols-2 gap-4" : "space-y-4"}>
                   {photos.map((photo: any, i: number) => (
                     <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame fm-photo-frame-pdp overflow-hidden`} style={{ aspectRatio: productImageAspect, borderRadius: `${productBorderRadius}px` }}>
-                      <img src={photo.url} alt={getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
+                      <img src={photo.url} alt={photo.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
                           <span

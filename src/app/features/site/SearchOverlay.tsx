@@ -1,4 +1,5 @@
 import { isLiveBook } from "./liveBook";
+import { displayPrice } from "./displayPrice";
 import { regionProps } from "./storefrontRegions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
@@ -163,7 +164,7 @@ export function SearchOverlay({
               )}
               {results.map(b => {
                 const photo = b.photos?.[0]?.url || b.coverPhoto?.url || "";
-                const price = b.isOnSale && b.salePrice > 0 ? b.salePrice : b.retailPrice;
+                const price = displayPrice(b);
                 return (
                   <Link {...regionProps("searchResult")}
                     key={b.id}
@@ -188,7 +189,7 @@ export function SearchOverlay({
                         <p {...regionProps("searchAuthor")} className="text-[11px] text-white/40 truncate">{b.authorName}</p>
                       )}
                     </div>
-                    {price != null && (
+                    {price > 0 && (
                       <span className="fm-card-price-wrap fm-card-price text-[11px] tracking-widest text-white/60 font-mono" data-studio-target="style:products" data-studio-label="Card title & price">
                         {formatBookPrice(b)}
                       </span>

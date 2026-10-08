@@ -50,7 +50,7 @@ function targetLabel(d: any) {
 
 // ─── Create / edit dialog ─────────────────────────────────────────────────────
 
-function DiscountDialog({ initial, onClose, onSave }: { initial?: any; onClose: () => void; onSave: (data: any) => Promise<void> }) {
+function DiscountDialog({ initial, otherCodes = [], onClose, onSave }: { initial?: any; otherCodes?: string[]; onClose: () => void; onSave: (data: any) => Promise<void> }) {
   const isEdit = !!initial?.id;
   const [form, setForm] = useState<any>(initial ?? EMPTY);
   const [saving, setSaving] = useState(false);
@@ -63,7 +63,7 @@ function DiscountDialog({ initial, onClose, onSave }: { initial?: any; onClose: 
   }, []);
 
   const validate = () => {
-    const e = validateDiscountDraft(form);
+    const e = validateDiscountDraft(form, undefined, otherCodes);
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -216,6 +216,12 @@ function DiscountDialog({ initial, onClose, onSave }: { initial?: any; onClose: 
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+// A plain date ("2026-10-31") is that calendar day; new Date() would read it as UTC midnight
+// and show the day before anywhere west of UTC.
+const shopDay = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date)
+  ? new Date(`${date}T12:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
+  : new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+
 export function Discounts() {
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -295,7 +301,7 @@ export function Discounts() {
     { key: "orders", header: "Orders", numeric: true, render: d => perf.get(String(d.code).toUpperCase())?.orders ?? 0 },
     { key: "revenue", header: "Revenue", numeric: true, render: d => fmt(perf.get(String(d.code).toUpperCase())?.revenue ?? 0) },
     { key: "given", header: "Discounted", numeric: true, render: d => fmt(perf.get(String(d.code).toUpperCase())?.discountGiven ?? 0) },
-    { key: "expiry", header: "Expires", render: d => d.expiryDate ? new Date(d.expiryDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "Never" },
+    { key: "expiry", header: "Expires", render: d => d.expiryDate ? shopDay(d.expiryDate) : "Never" },
     { key: "status", header: "Status", render: d => { const s = state(d); return <StatusBadge tone={s.tone}>{s.label}</StatusBadge>; } },
     { key: "actions", header: "Actions", render: d => (
       <ActionMenu label={`Actions for ${d.code}`} actions={[
@@ -347,7 +353,7 @@ export function Discounts() {
         </>
       )}
 
-      {dialogOpen && <DiscountDialog initial={editing} onClose={() => { setDialogOpen(false); setEditing(null); }} onSave={handleSave} />}
+      {dialogOpen && <DiscountDialog initial={editing} otherCodes={discounts.filter(d => d.id !== editing?.id).map(d => d.code)} onClose={() => { setDialogOpen(false); setEditing(null); }} onSave={handleSave} />}
 
       <ConfirmDialog open={!!deleting} title="Delete this discount code?" confirmLabel="Delete code"
         message={deleting ? `“${deleting.code}” will stop working immediately. Pause it instead if you may reuse it.` : ""}
