@@ -9,6 +9,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "grouped-footer-navigation", date: "2026-10-08", title: "A shorter, clearer footer",
+    summary: "Footer links now sit in Explore and Participate & connect groups, with policies in a compact row. Studio lets you edit group headings, move or hide links, and switch back to classic columns.",
+    links: [{ label: "Edit the footer in Studio", tab: "settings", settingsTab: "designer" }],
+  },
+  {
     id: "seamless-page-navigation", date: "2026-10-08", title: "Smoother storefront page switching",
     summary: "About, Contact and other custom pages open from the loaded published content without briefly clearing the screen. Navigation stays visible during initial page loading.",
     links: [{ label: "Review pages in Studio", tab: "settings", settingsTab: "designer" }],

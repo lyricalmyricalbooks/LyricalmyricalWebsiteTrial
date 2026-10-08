@@ -16,6 +16,7 @@ import {
 import { CATEGORIES } from "../../features/site/constants";
 import { splitNavigation, buildNavItems, childCategories, moveNavItem, parentOf, reslotPages } from "../../features/site/navItems";
 import { COPY_SCHEMA, DEFAULT_COPY } from "../../features/site/storeCopy";
+import { automaticFooterItems, footerGroup } from "../../features/site/footerNavigation";
 import { MENU_LINK_TYPES, newMenuItem, type MenuItem } from "../../features/site/storeMenu";
 import {
   commit, duplicateSection, findBlock, getSections, initHistory, insertSection, makeSection, mapBlock, moveBlockBefore, newId, normalizeDesign,
@@ -174,8 +175,8 @@ function AddSectionDialog({ onPick, onClose, presets = [], onPickPreset }: {
 }
 
 // ── Menu editor ────────────────────────────────────────────────────────────
-function MenuRow({ item, pages, depth, onChange, onRemove, onMove }: {
-  item: MenuItem; pages: any[]; depth: number; onChange: (n: MenuItem) => void; onRemove: () => void; onMove: (d: number) => void;
+function MenuRow({ item, pages, footer = false, depth, onChange, onRemove, onMove }: {
+  item: MenuItem; pages: any[]; footer?: boolean; depth: number; onChange: (n: MenuItem) => void; onRemove: () => void; onMove: (d: number) => void;
 }) {
   const kids = item.children || [];
   const setKids = (c: MenuItem[]) => onChange({ ...item, children: c });
@@ -205,6 +206,12 @@ function MenuRow({ item, pages, depth, onChange, onRemove, onMove }: {
             className="flex-1 min-w-0 border border-neutral-200 rounded-md px-2 h-8 text-xs" />
         ) : null}
       </div>
+      {footer && depth === 0 && <div className="flex items-center gap-2">
+        <select aria-label="Footer link group" value={footerGroup(item)} onChange={e => onChange({ ...item, footerGroup: e.target.value as any })} className="flex-1 border border-neutral-200 rounded-md h-8 text-xs px-1">
+          <option value="explore">Explore</option><option value="connect">Participate & connect</option>
+        </select>
+        <label className="text-xs flex gap-1"><input type="checkbox" checked={!item.hidden} onChange={e => onChange({ ...item, hidden: !e.target.checked })} />Show link</label>
+      </div>}
       {depth === 0 && (
         <>
           {kids.map((k, i) => (
@@ -251,7 +258,7 @@ function NavOrderPanel({ design, pages, onChange, onSecondaryChange }: { design:
   );
 }
 
-function MenusPanel({ design, pages, onChange }: { design: any; pages: any[]; onChange: (menus: any) => void }) {
+function MenusPanel({ design, settings, pages, onChange }: { design: any; settings: any; pages: any[]; onChange: (menus: any) => void }) {
   const [which, setWhich] = useState<"header" | "footer">("header");
   const focus = useContext(FocusContext);
   useEffect(() => { if (focus.id === "menus:header" || focus.id === "menus:footer") setWhich(focus.id === "menus:footer" ? "footer" : "header"); }, [focus]);
@@ -269,8 +276,9 @@ function MenusPanel({ design, pages, onChange }: { design: any; pages: any[]; on
         ))}
       </div>
       <p className="text-xs text-neutral-500">Leave empty to use the automatic menu built from your pages.</p>
+      {which === "footer" && !items.length && <button className={btn} onClick={() => set(automaticFooterItems({ ...settings, design }, pages))}>Customize automatic footer links</button>}
       {items.map((it, i) => (
-        <MenuRow key={it.id} item={it} pages={pages} depth={0}
+        <MenuRow key={it.id} item={it} pages={pages} footer={which === "footer"} depth={0}
           onChange={(n) => set(items.map((x, j) => (j === i ? n : x)))}
           onRemove={() => set(items.filter((_, j) => j !== i))}
           onMove={(d) => {
@@ -1228,7 +1236,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   onReorder={(c) => change(d => ({ ...d, categories: c, navOrder: categoryNavOrder(d.categories ?? [...CATEGORIES], c, pages, d.navOrder) }))}
                   onBooksChanged={(all) => setBooks(all.filter(b => b.status === "published" || !b.status))} />
                 <NavOrderPanel design={design} pages={pages} onChange={(o) => setStyle("navOrder", o)} onSecondaryChange={(keys) => setStyle("secondaryNavKeys", keys)} />
-                <MenusPanel design={design} pages={pages} onChange={(m) => setStyle("menus", m)} />
+                <MenusPanel design={design} settings={settings} pages={pages} onChange={(m) => setStyle("menus", m)} />
               </>
             )}
           </div>
