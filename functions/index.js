@@ -34,7 +34,7 @@ const { resolveCountry } = require("./shippingGeo");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck } = require("./stripeRecovery");
 const { orderMoneyFmt, refundAmountText, withoutTrackingLines } = require("./emailMoney");
 const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
-const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved } = require("./paymentGuards");
+const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
@@ -1007,6 +1007,17 @@ async function releaseSupersededAttempt(req, email, currentOrderId) {
     const prev = snap.data();
     const same = String(prev.customer?.email || "").trim().toLowerCase() === String(email || "").trim().toLowerCase();
     if (!same || prev.paymentStatus !== "unpaid" || checkoutRefusal(prev)) return;
+    // A payment that may have gone through (webhook not here yet) keeps its hold, so the
+    // retry can't sell the same last copy twice.
+    if (prev.reconciliationPending || prev.paypalCaptureId) return;
+    const intentId = String(prev.stripePaymentIntentId || ""), sessionId = String(prev.stripeCheckoutSessionId || "");
+    if (intentId.startsWith("pi_") || sessionId.startsWith("cs_")) {
+      const { stripe, requestOptions } = await getStripeClientForMode(prev.stripeMode === "test" ? "test" : "live", prev.stripeAccountId || null);
+      const intent = intentId.startsWith("pi_") ? await stripe.paymentIntents.retrieve(intentId, {}, requestOptions) : null;
+      const session = sessionId.startsWith("cs_") ? await stripe.checkout.sessions.retrieve(sessionId, {}, requestOptions) : null;
+      if (stripePaymentTaken(intent, session)) return;
+      if (intent && !["requires_payment_method", "canceled"].includes(intent.status)) return;
+    }
     await releaseStock(db, prevId, prev.items || []);
   } catch (err) {
     console.warn(`Could not release superseded attempt ${prevId}:`, err.message);
@@ -1393,6 +1404,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
         if (Math.round(Number(priced.total) * 100) !== 0) {
           return res.status(400).json({ error: "This order has a total to pay. Review your bag and choose a payment method." });
         }
+        await releaseSupersededAttempt(req, freeOrder.customer?.email, freeId);
         await completeOrderWithoutCard(freeId, "Free order completed — nothing to charge.");
         return res.status(200).json({ paid: true });
       } catch (err) {
@@ -2329,6 +2341,28 @@ async function handleCancelOrder(req, res) {
   if (typeof orderId !== "string" || !orderId || orderId.includes("/")) return res.status(400).json({ error: "Missing orderId" });
   const ref = db.collection("orders").doc(orderId);
   try {
+    // Ask Stripe first: an order still "unpaid" here may already be paid there (missed webhook).
+    // Cancelling it would leave a charged customer with no books and no alert.
+    const before = await ref.get();
+    const pre = before.exists ? before.data() : null;
+    const intentId = String(pre?.stripePaymentIntentId || "");
+    const sessionId = String(pre?.stripeCheckoutSessionId || "");
+    let stripeCtx = null, intent = null, session = null;
+    if (pre && !cancelRefusal(pre) && (intentId.startsWith("pi_") || sessionId.startsWith("cs_"))) {
+      try {
+        stripeCtx = await getStripeClientForMode(pre.stripeMode === "test" ? "test" : "live", pre.stripeAccountId || null);
+        if (intentId.startsWith("pi_")) intent = await stripeCtx.stripe.paymentIntents.retrieve(intentId, {}, stripeCtx.requestOptions);
+        if (sessionId.startsWith("cs_")) session = await stripeCtx.stripe.checkout.sessions.retrieve(sessionId, {}, stripeCtx.requestOptions);
+      } catch (err) {
+        if (!(err?.code === "resource_missing" || err?.statusCode === 404)) {
+          return res.status(503).json({ error: "Couldn't check this payment with Stripe. Try again in a minute.", code: "stripe_unreachable" });
+        }
+      }
+      if (stripePaymentTaken(intent, session)) {
+        await recordStripeReconciliation(orderId, { id: session?.id || null, payment_intent: intent?.id || session?.payment_intent || null }).catch(() => {});
+        return res.status(409).json({ error: "Stripe shows this order as paid. Don't cancel it: resend the payment event from Stripe (Webhook health), then ship or refund it.", code: "paid_in_stripe" });
+      }
+    }
     const order = await db.runTransaction(async tx => {
       const snap = await tx.get(ref);
       const current = snap.exists ? snap.data() : null;
@@ -2345,21 +2379,18 @@ async function handleCancelOrder(req, res) {
       });
       return current;
     });
-    // Best effort: stop a payment the shopper may still finish. A late payment is still caught
-    // and recorded as "paid after cancelling" by the webhook.
+    // Best effort: stop a payment the shopper may still finish. A payment that slips through
+    // anyway is recorded as "paid after cancelling" by the webhook, and the sweep still checks
+    // cancelled orders with a Stripe payment.
     const stopped = [];
     try {
-      const mode = order.stripeMode === "test" ? "test" : "live";
-      if (String(order.stripePaymentIntentId || "").startsWith("pi_") || String(order.stripeCheckoutSessionId || "").startsWith("cs_")) {
-        const { stripe, requestOptions } = await getStripeClientForMode(mode, order.stripeAccountId || null);
-        if (String(order.stripeCheckoutSessionId || "").startsWith("cs_")) {
-          await stripe.checkout.sessions.expire(order.stripeCheckoutSessionId, {}, requestOptions).then(() => stopped.push("checkout")).catch(() => {});
+      if (stripeCtx) {
+        const { stripe, requestOptions } = stripeCtx;
+        if (session && session.status === "open") {
+          await stripe.checkout.sessions.expire(session.id, {}, requestOptions).then(() => stopped.push("checkout")).catch(() => {});
         }
-        if (String(order.stripePaymentIntentId || "").startsWith("pi_")) {
-          const intent = await stripe.paymentIntents.retrieve(order.stripePaymentIntentId, {}, requestOptions).catch(() => null);
-          if (intent && ["requires_payment_method", "requires_confirmation", "requires_action"].includes(intent.status)) {
-            await stripe.paymentIntents.cancel(intent.id, {}, requestOptions).then(() => stopped.push("card")).catch(() => {});
-          }
+        if (intent && ["requires_payment_method", "requires_confirmation", "requires_action"].includes(intent.status)) {
+          await stripe.paymentIntents.cancel(intent.id, {}, requestOptions).then(() => stopped.push("card")).catch(() => {});
         }
       }
     } catch (err) {
@@ -5230,7 +5261,7 @@ exports.unpaidPaymentSweep = onSchedule(
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const snap = await db.collection("orders").where("paymentStatus", "==", "unpaid").where("createdAt", ">=", since)
       .orderBy("createdAt", "desc").limit(300).get()
-      .catch(err => { console.warn("unpaidPaymentSweep: ordered query failed, using unordered:", err.message); return db.collection("orders").where("paymentStatus", "==", "unpaid").limit(300).get(); });
+      .catch(err => { console.error("unpaidPaymentSweep: ordered query failed (deploy firestore:indexes), using unordered:", err.message); return db.collection("orders").where("paymentStatus", "==", "unpaid").limit(300).get(); });
     const candidates = suspectOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     const found = [];
     for (const order of candidates) {
@@ -5260,10 +5291,18 @@ exports.unpaidPaymentSweep = onSchedule(
     try {
       const { ordersDueReversalCheck } = require("./stripeRecovery");
       const paidSince = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
-      const paidSnap = await db.collection("orders").where("paymentStatus", "in", ["paid", "refund_pending"]).where("paidAt", ">=", paidSince)
-        .orderBy("paidAt", "desc").limit(500).get()
-        .catch(() => db.collection("orders").where("paymentStatus", "in", ["paid", "refund_pending"]).limit(500).get());
-      for (const order of ordersDueReversalCheck(paidSnap.docs.map((d) => ({ id: d.id, ...d.data() })))) {
+      const paidStatuses = ["paid", "refund_pending"];
+      // Recent payments by paidAt, plus recent orders by createdAt (older records may lack paidAt).
+      const parts = await Promise.all([
+        db.collection("orders").where("paymentStatus", "in", paidStatuses).where("paidAt", ">=", paidSince).orderBy("paidAt", "desc").limit(500).get(),
+        db.collection("orders").where("paymentStatus", "in", paidStatuses).where("createdAt", ">=", paidSince).orderBy("createdAt", "desc").limit(500).get(),
+      ]).catch(async err => {
+        console.error("unpaidPaymentSweep: ordered reversal query failed (deploy firestore:indexes); using an unordered slice:", err.message);
+        return [await db.collection("orders").where("paymentStatus", "in", paidStatuses).limit(500).get()];
+      });
+      const paidById = new Map();
+      for (const part of parts) for (const d of part.docs) paidById.set(d.id, { id: d.id, ...d.data() });
+      for (const order of ordersDueReversalCheck([...paidById.values()])) {
         await checkStripeReversal(order.id, order, "automatic check").catch(err => console.warn(`reversal check ${order.id}:`, err.message));
       }
     } catch (err) {

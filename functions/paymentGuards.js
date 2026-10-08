@@ -123,6 +123,11 @@ function cancelRefusal(order) {
 }
 
 // A payment that arrived after the order was cancelled, or a mismatch, that the owner has dealt with.
+/** Stripe already has (or is about to have) this order's money: never cancel it as "unpaid". */
+function stripePaymentTaken(intent, session) {
+  if (intent && ["succeeded", "processing", "requires_capture"].includes(intent.status)) return true;
+  return !!(session && (session.payment_status === "paid" || session.status === "complete"));
+}
 function mismatchResolved(order) {
   return !!(order && order.paymentMismatch && order.paymentMismatch.resolvedAt);
 }
@@ -148,4 +153,4 @@ function stripeIntentKey(orderId, amountMinor, currency, previousIntentId) {
   return `pi-${orderId}-${String(currency || "").toLowerCase()}-${Math.round(Number(amountMinor))}-${previousIntentId || "first"}`;
 }
 
-module.exports = { cancelRefusal, mismatchResolved, checkoutRefusal, manualPaidRefusal, stripeIntentKey, discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState };
+module.exports = { cancelRefusal, mismatchResolved, stripePaymentTaken, checkoutRefusal, manualPaidRefusal, stripeIntentKey, discountUsedUp, refundProviderOf, paypalReversalCaptureId, paypalCreateRequestId, lateFailureMayMarkFailed, purchaseProblem, CHECKOUT_CURRENCIES, checkoutCurrencyOf, paidAmountCheck, toMinor, shopDate, discountDateState };
