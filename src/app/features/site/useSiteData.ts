@@ -162,20 +162,6 @@ export function useSiteData() {
           }
         });
       }
-
-      if (event.data.type === "PAGE_PREVIEW_UPDATE" && event.data.page) {
-        setPages((prev) => {
-          const updatedPage = event.data.page;
-          const index = prev.findIndex(p => p.id === updatedPage.id);
-          if (index !== -1) {
-            const newPages = [...prev];
-            newPages[index] = { ...newPages[index], ...updatedPage };
-            return newPages;
-          } else {
-            return [updatedPage, ...prev];
-          }
-        });
-      }
     };
 
     window.addEventListener("message", handleMessage);

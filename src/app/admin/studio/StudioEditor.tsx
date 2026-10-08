@@ -635,12 +635,6 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         if (route?.collection) setCollectionSlug(route.collection);
         sendPreviewState();
       }
-      if (d.type === "COPY_SELECT" && typeof d.key === "string" && COPY_SCHEMA.some(g => g.fields.some(f => f.key === d.key))) {
-        setMobilePanel("outline");
-        setLeftTab("text");
-        setCopyFilter(d.key);
-        setTimeout(() => document.querySelector<HTMLElement>(`[data-copy-key="${CSS.escape(d.key)}"] input, [data-copy-key="${CSS.escape(d.key)}"] textarea`)?.focus(), 150);
-      }
       if (d.type === "STUDIO_TARGET" && typeof d.target === "string") {
         const target = d.target as string;
         const [kind, rest = ""] = target.split(":");

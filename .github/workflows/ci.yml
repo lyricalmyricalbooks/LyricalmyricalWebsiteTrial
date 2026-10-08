@@ -1,0 +1,44 @@
+name: CI
+
+# Runs the full test suite, a production bundle build and the type-check ratchet on
+# every pull request and on main, so contract tests (Studio coverage, section parity,
+# copy coverage…) actually guard changes before they ship.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Vitest also runs the Cloud Functions tests, which load the functions' own packages.
+      - run: npm ci
+        working-directory: functions
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Type-check (no new errors)
+        run: pnpm run typecheck
+
+      # Bundle only: the full `build` also prerenders live Firestore data, which the Pages workflow does.
+      - name: Build
+        run: pnpm exec vite build

@@ -1,8 +1,9 @@
 # Theme Editor — Architecture & Shopify-Parity Roadmap
 
-This is the **north star** for the theme editor. The editor is large
-(~11k lines) and spread across several files with some overlapping/legacy
-structures, so any AI session or contributor should **read this file first**,
+This is the **north star** for the theme editor. Studio (`src/app/admin/studio/`) is
+the only designer — the legacy `ThemeEditor.tsx` / `ThemeEditorPro.tsx` /
+`ThemeEditorBuilder.tsx` files are gone, so older roadmap entries below that name
+them are history. Any AI session or contributor should **read this file first**,
 then read the relevant source, before changing the editor. The goal is to reach
 **Shopify-level theme editing**. Work the roadmap below milestone by milestone —
 complete one end-to-end and check it off, rather than making a single timid
@@ -49,7 +50,7 @@ The editor is **not** a blank slate. It already supports:
   **Preview in new tab** sends the same snapshot over
   `BroadcastChannel("studio_preview")` to a top-level `?preview=true` window
   (`features/site/previewTab.ts`), which re-dispatches it as a window message.
-- **Import/export** of a theme design as JSON (in `ThemeEditorPro`).
+- **Import/export** of a theme design as a `.theme.json` file (Studio › My themes, `studio/savedThemes.ts`).
 - A **token/CSS-variable layer** applied to every storefront surface.
 - **Shared shop categories** edited in Studio › Menus, with create-and-assign also
   available in the admin book editor. Catalog-created categories update the
@@ -60,10 +61,11 @@ The editor is **not** a blank slate. It already supports:
 
 | File | Owns |
 |------|------|
-| `src/app/admin/ThemeEditor.tsx` | Top-level editor shell and panels: Style, Colors, Navigation, Homepage. `HomepagePanel` drives the section list (drag/reorder, duplicate, visibility, delete) and the per-section/block settings forms. The section library is unified on the registry-driven `NewSectionLibraryModal`; the legacy `SECTION_TEMPLATES` + `SectionLibraryModal` dead code has been removed. |
-| `src/app/admin/ThemeEditorExtensions.tsx` | The real **`SECTION_REGISTRY`** (32 section types), `getSectionFields`, `getBlockFields`, `BlocksEditor`, `NewSectionLibraryModal`, `getSectionMeta`. Field types: `text`, `textarea`, `html`, `richtext`, `color`, `number`, `range`, `select`, `toggle`, `date`, `image`. |
-| `src/app/admin/ThemeEditorPro.tsx` | Color math/normalization, palette & color-scheme tooling, theme import/export. |
-| `src/app/admin/ThemeEditorBuilder.tsx` | Builder UI that consumes the registry helpers (`getSectionMeta`, `getSectionFields`, `getBlockFields`, `NewSectionLibraryModal`). |
+| `src/app/admin/studio/StudioEditor.tsx` | Studio shell: top bar (page picker, device, Edit/Browse, undo/redo, Save draft, Publish, Theme actions), left rail (Page layout, Shared layout, Theme settings, Text & labels, Navigation, Pages), preview iframe wiring and the single `change(fn)` edit entry point. |
+| `src/app/admin/studio/StudioOutline.tsx` / `StudioInspector.tsx` | Section/block outline and the section/block inspector (Content, Layout & style). |
+| `src/app/admin/studio/styleSchema.ts` / `settingsMap.ts` | Every Theme settings control (`STYLE_GROUPS`, region groups) and where each one lives. |
+| `src/app/admin/studio/previewBridge.ts` / `canvasBridge.ts` | Script injected into the preview: click-to-edit, inline text, canvas toolbar, spacing handles. |
+| `src/app/admin/ThemeEditorExtensions.tsx` | The real **`SECTION_REGISTRY`** (34 section types), `getSectionFields`, `getBlockFields`, `getSectionMeta`, the shared field editors and the per-section **Layout & style** panel (`SectionSettingsPanel`). Field types: `text`, `textarea`, `html`, `richtext`, `color`, `number`, `range`, `select`, `toggle`, `date`, `image`. |
 | `src/app/components/SectionComponents.tsx` | **One storefront renderer per registry section type** (the components that actually draw each section) + shared style helpers (spacing, background, button styles, animation wrappers). Registry and renderers are at parity — every `SECTION_REGISTRY` type has a matching renderer. |
 | `src/app/components/sectionRender.tsx` | **Shared section renderer** (single source of truth for section→renderer mapping). `SectionList` (pure: maps a `sections` array → renderers via `(Sections as any)[type]` and emits stable `data-fm-section` / `data-section-id` edit hooks); `TemplateSections` (renders `design[templateId].sections` for a page-type template); `GlobalSections` (renders the flat `design.globalSections`). Used by MainSite **and** every standalone page. |
 | `src/app/components/MainSite.tsx` | Renders the homepage/storefront. Uses `SectionList` for `heroPage.sections` and the shared `GlobalSections` from `sectionRender`. |
@@ -103,7 +105,7 @@ To add (or fix) a section end-to-end, all of these must line up:
    surface: the homepage (`heroPage.sections`), each page-type template via
    `TemplateSections` (product/collection/page/cart), and `globalSections`. No
    per-page wiring is needed for a new section type.
-4. **Section library** — make sure it's exposed in `NewSectionLibraryModal`
+4. **Section library** — make sure it's exposed in Studio's **Add section** dialog
    (registry-driven; this is the only section library).
 5. **Verify on the live storefront**, not just in the editor preview — render it,
    reorder it, hide/show it, and save+publish.
@@ -136,7 +138,7 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
   behave exactly as before. Custom pages use the themed storefront header
   (logo, header menu, published in-header pages, wishlist and account controls),
   and newly created pages opt into that header navigation by default.
-- **Full-theme presets** (`THEME_LIBRARY` in `ThemeEditor.tsx`) may carry a
+- **Full-theme presets** (`THEME_LIBRARY` in `studio/themeLibrary.ts`) may carry a
   `global` record; `applyThemePreset` bulk-writes those keys to the design
   root and **every static/dynamic page surface** in one undo step via
   `applyGlobalDesignKeys`. The same mechanism powers the editor's **All pages**
@@ -148,10 +150,8 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
 
 ## Known gaps & inconsistencies (seed for the roadmap)
 
-- **Section library unified.** The single library is the registry-driven
-  `NewSectionLibraryModal` over `SECTION_REGISTRY` (32 types) in
-  `ThemeEditorExtensions.tsx`. The legacy `SECTION_TEMPLATES` +
-  `SectionLibraryModal` dead code in `ThemeEditor.tsx` has been removed.
+- **Section library unified.** The single library is Studio's **Add section**
+  dialog over `SECTION_REGISTRY` (34 types) in `ThemeEditorExtensions.tsx`.
 - **Registry↔renderer parity.** Every `SECTION_REGISTRY` type has an identically
   named renderer in `SectionComponents.tsx` (verify before each change with the
   grep in "Verifying"). Keep them in lockstep when adding section types.
@@ -161,7 +161,46 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
   (including Wishlist/Account/OrderTracking). The remaining follow-up is
   click-to-edit routing per template (noted in roadmap A).
 
-## Shopify-parity roadmap
+## Studio 2.0 roadmap (October 2026 — active)
+
+The owner asked for a designer that is easy to navigate and Shopify-level. This program supersedes the
+older lists below. Each milestone ships end-to-end (tests, docs, appUpdates entry, walkthrough) and keeps
+the public storefront looking identical unless it says otherwise. Not in scope (owner decision): AI
+assistant, personalization/A-B tests, author/series/event pages, multi-language storefront.
+
+**Phase 0 — Foundations**
+- [x] 0.1 Infra: CI (`.github/workflows/ci.yml`: tests, type-check ratchet, bundle build), `tsconfig.json` +
+      `scripts/typecheck-ratchet.mjs`, Studio lazy-loaded in its own chunk, dead code removed
+      (`BlocksEditor`, `COPY_SELECT`/`PAGE_PREVIEW_UPDATE` handlers, unrouted `CollectionPage.tsx`), docs drift fixed.
+- [ ] 0.2 Repairs: Studio uploads (allowed storage paths, compression, visible errors), shared blocks on every
+      section, per-section error boundary, scheduled-publish guard, version flood, book-editor categories,
+      collection/draft-page preview, one phone breakpoint, FeaturedProduct currency.
+- [ ] 0.3 Studio test harness (jsdom Studio tests, fixture route, Playwright flows).
+- [ ] 0.4 Theme store: drafts/saved themes/schedules in admin-only docs, light public read path, revision-checked saves.
+- [ ] 0.5 Design value model: one resolver, All-pages writes without duplication, compaction, page-override review.
+
+**Phase 1 — Navigation overhaul ("one tree, one inspector")**
+- [ ] 1.1 Editor frame: icon rail, resizable/collapsible panels, docked inspector, zoom-to-fit, one page picker, remembered state.
+- [ ] 1.2 Commands, Riso dialogs, undo toasts, shortcuts, deep links, Edit in Studio from the live site.
+- [ ] 1.3 Element manifest + typed preview bridge.
+- [ ] 1.4 Page structure tree (header → page content → footer → overlays).
+- [ ] 1.5 Unified inspector (Content / Style / Layout / Visibility) for any element, section or block.
+- [ ] 1.6 Theme settings as the global design system; slimmer search.
+- [ ] 1.7 Command palette 2.0; legacy draft path cleanup.
+
+**Phase 2 — Shopify OS 2.0 features**
+- [ ] 2.1 One header and footer on every page. - [ ] 2.2 Header/footer/popup section groups.
+- [ ] 2.3 Pickers (link, book, category, page, video, font) + catalog sources. - [ ] 2.4 Media library + responsive images.
+- [ ] 2.5 Colour schemes 2.0. - [ ] 2.6 Section library 2.0 + new sections.
+- [ ] 2.7 Custom book fields + dynamic sources. - [ ] 2.8 Alternate templates. - [ ] 2.9 Product information as blocks.
+
+**Phase 3 — Theme management & quality**
+- [ ] 3.1 Version history 2.0. - [ ] 3.2 Live sync. - [ ] 3.3 Studio Health. - [ ] 3.4 Themes workspace + share previews.
+- [ ] 3.5 Scheduling & campaigns.
+
+**Phase 4 — Performance (continuous).**
+
+## Shopify-parity roadmap (history)
 
 Status legend: `[ ]` todo · `[~]` partial · `[x]` done. Update these as work
 lands. Pick a milestone, take it **end-to-end** (schema → renderer → mapping →

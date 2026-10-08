@@ -9,6 +9,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-foundations-infra", date: "2026-10-08", title: "Design studio opens faster",
+    summary: "The Design studio now loads only when you open it, so the rest of the admin starts quicker. Every change to the app is now automatically tested before it can ship. This is the first step of a larger Design studio upgrade.",
+    links: [{ label: "Open the Design studio", tab: "settings", settingsTab: "designer" }],
+  },
+  {
     id: "grouped-footer-navigation", date: "2026-10-08", title: "A shorter, clearer footer",
     summary: "Footer links now sit in Explore and Participate & connect groups, with policies in a compact row. Studio lets you edit group headings, move or hide links, and switch back to classic columns.",
     links: [{ label: "Edit the footer in Studio", tab: "settings", settingsTab: "designer" }],

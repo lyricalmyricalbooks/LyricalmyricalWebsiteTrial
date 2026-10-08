@@ -168,10 +168,11 @@ profile, rate dialog).
 
 > [!IMPORTANT]
 > **The default Admin → Settings → Design editor is the new Studio editor**
-> (`src/app/admin/studio/StudioEditor.tsx`; left tabs **Sections / Style / Text & labels / Menus**).
-> The big `ThemeEditor.tsx` described below is only the legacy editor (opens with `?editor=legacy`).
-> **Always add or change theme/design features in the Studio editor first** — the user only sees
-> Studio. Shop categories (the storefront category bar) are edited in Studio › **Menus** ›
+> (`src/app/admin/studio/StudioEditor.tsx`; left rail **Page layout / Shared layout / Theme settings /
+> Text & labels / Navigation / Pages**). It is the **only** designer: the old `ThemeEditor.tsx`,
+> `ThemeEditorPro.tsx`, `ThemeEditorBuilder.tsx`, `NewSectionLibraryModal` and `?editor=legacy` no
+> longer exist. **Add or change every theme/design feature in Studio** — the user only sees Studio.
+> The Studio 2.0 roadmap (navigation overhaul, Shopify-level features) is in `docs/THEME_EDITOR.md`. Shop categories (the storefront category bar) are edited in Studio › **Menus** ›
 > **Shop categories**. They can also be created while editing a book in **Categories & tags**;
 > that catalog workflow publishes the category immediately and synchronizes Studio's working copy.
 > Custom pages (About, Journal…) also live only in Studio › **Pages** tab
@@ -263,33 +264,22 @@ size controls desktop/tablet/phone scope; Reset removes that size's overrides. N
 spacing fields also live in Layout & style. The shared renderer applies padding once
 at the content box and carries the same responsive overrides onto the storefront.
 
-A large (~11k-line) Shopify-style theme editor under `/admin`. **Read
+Studio is a Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the
-section/block contract, and the Shopify-parity roadmap.
+section/block contract, and the Studio 2.0 roadmap.
 
-- `src/app/admin/ThemeEditor.tsx` — editor shell + panels + `HomepagePanel`
-  (section list, drag/reorder, duplicate, visibility, and library-to-outline
-  insertion drop zones). The section library is
-  unified on the registry-driven `NewSectionLibraryModal`; the legacy
-  `SECTION_TEMPLATES` + `SectionLibraryModal` dead code has been removed.
-  The top bar accurately distinguishes Live, Draft, and Unsaved states; when a
-  working copy differs from the published design, **Discard Draft** provides a
-  confirmed reset that also clears local undo/redo history.
-  Visual/feature panels also expose **All pages / This page only** scope;
-  all-pages writes update every static and dynamic template without replacing
-  its section stack.
-- `src/app/admin/ThemeEditorExtensions.tsx` — the real `SECTION_REGISTRY`,
-  `getSectionFields`/`getBlockFields`, `BlocksEditor`, `NewSectionLibraryModal`;
-  it includes reusable commerce/content sections such as `BlogPostsSection`
-  and the catalog-driven "Lyricalmyrical Punk" set (`ProductCoverCarouselSection`,
-  `ProductShowcaseGridSection`, `StaffNotesTableSection`, `EphemeraRowSection`).
+- `src/app/admin/studio/` — Studio itself: `StudioEditor.tsx` (shell, top bar, rail, preview
+  wiring), `StudioOutline.tsx` / `StudioInspector.tsx` (sections and blocks), `styleSchema.ts`
+  (every Theme settings control), `settingsMap.ts` (where controls live), `studioModel.ts`
+  (immutable design ops + undo), `previewBridge.ts` / `canvasBridge.ts` (in-preview editing),
+  `useStudioPersistence.ts` (Save draft / Publish / recovery).
+- `src/app/admin/ThemeEditorExtensions.tsx` — the `SECTION_REGISTRY` (34 section types),
+  `getSectionFields`/`getBlockFields`, the shared field editors (`SectionFieldEditor`,
+  `BlockFieldEditor`) and the per-section **Layout & style** panel (`SectionSettingsPanel`).
   It also exports `buildPageTemplates(pages)` — static `PAGE_TEMPLATES` plus one
-  dynamic `page:<slug>` template per published custom page, so pages like About
-  and Journal get their own editable section stacks
+  dynamic `page:<slug>` template per published custom page
   (`design["page:<slug>"].sections`, rendered by `PageView` with fallback to the
   shared `design.page.sections`).
-- `src/app/admin/ThemeEditorPro.tsx` — color math, schemes, import/export.
-- `src/app/admin/ThemeEditorBuilder.tsx` — builder UI over the registry helpers.
 - `src/app/components/SectionComponents.tsx` — the storefront section renderers
   (one per registry type; registry and renderers are now at parity).
 - `src/app/components/sectionRender.tsx` — shared renderer: `SectionList` maps a
@@ -325,17 +315,6 @@ section/block contract, and the Shopify-parity roadmap.
 > cannot screenshot the live authenticated UI themselves — write the walkthrough
 > from the actual on-screen labels in the code (accordion `title`s, tab labels,
 > button text), not from memory or guesswork.
-
-Recommended next theme-editor increments after the insertion-zone DnD work
-(mega-menu child/grandchild sortable lists are now done — see below; nested
-block drag/drop has an initial `kind: "list"` sub-list field in `BlocksEditor`,
-demonstrated on `PricingTableSection`'s features — full recursive multi-field
-nested blocks across more section types remains a follow-up):
-1. live-preview iframe drag/drop using `data-fm-section` / `data-fm-block`;
-2. extend nested block drag/drop in `BlocksEditor` to more section types and
-   richer (multi-field, not just plain-text) nested items;
-3. CSS-grid visual positioning with guarded coordinates and overlap;
-4. per-breakpoint layout overrides tied to the device preview toggle.
 
 > [!IMPORTANT]
 > **Everything shopper-facing must be editable in Studio — nothing "built into the site".**
@@ -512,14 +491,16 @@ it. Don't add new compat rules for new work; compose the components instead.
 
 ## Verification
 
+- **CI** (`.github/workflows/ci.yml`) runs `pnpm test`, `pnpm run typecheck` and `vite build` on every PR.
+  `pnpm run typecheck` (`scripts/typecheck-ratchet.mjs`) fails when any file gains type errors over
+  `scripts/typecheck-baseline.json`; after fixing errors run it with `--update` to lower the baseline.
 - `npm test` (vitest, node env): includes the registry/renderer parity test, nav,
   discount-state, order-status/CSV, cart-quantity and the **theme draft/publish
   separation** test (Firestore mocked) — a draft/discard must never write `design`.
-- There is **no `tsconfig.json`** in the repo, so `tsc -p .` checks nothing. To type-check,
-  use a temporary tsconfig (strict off, `jsx: react-jsx`, `moduleResolution: bundler`,
-  `@types/react` installed, `include: src/**`); baseline has ~23 pre-existing errors.
-- `react`/`react-dom` are optional peer deps: a plain `npm install` leaves tests/build
-  failing; install them (`--no-save`) locally.
+- `tsconfig.json` (strict off, `noEmit`) exists for type-checking only; Vite does not use it.
+- Use `pnpm install` (the lockfile pins `react`/`react-dom` 18.3.1, which are optional peer deps —
+  a plain `npm install` leaves them out). Vitest also runs `functions/*.test.js`, so run
+  `npm ci` in `functions/` first.
 - Page-level visual checks used a throwaway harness that mounts a page with mocked
   `adminApi` data (not committed). Screenshots: `docs/screenshots/riso/`.
 
@@ -556,7 +537,7 @@ Each suggestion is one or two lines:
 Then offer to do the top one right away.
 
 ### What makes a suggestion good here
-- Tied to what just changed. First ask yourself: did this edit open an edge case, threaten offline sync, or leave an obvious next step? Lead with that.
+- Tied to what just changed. First ask yourself: did this edit open an edge case, risk a lost or wrong save, or leave an obvious next step? Lead with that.
 - High-leverage, not generic. Skip boilerplate best-practice filler.
 - Specific. Name the file, function, or screen.
 - Honest. If nothing is genuinely worth doing, say "nothing pressing" and stop.
@@ -564,12 +545,12 @@ Then offer to do the top one right away.
 
 ### Constraints every suggestion must respect
 > [!IMPORTANT]
-> - **Vanilla JS:** No framework, no build step, no bundler.
-> - **Serverless Backend:** Firebase Firestore database and static hosting on GitHub Pages. No server or secret keys in client code.
-> - **Offline Resilience:** Must work fully offline (PWA) and synchronize local queue states later.
+> - **Stack:** React 18 + TypeScript + Vite single-page app; no new frameworks or servers.
+> - **Serverless Backend:** Firebase (Firestore, Auth, Storage, Cloud Functions) and static hosting on GitHub Pages. No server or secret keys in client code.
+> - **Shopper safety:** never weaken checkout, payment, inventory or webhook authority.
 
 ### Angles worth scanning each time
-Bug / edge case the change introduced · the next logical feature · offline & sync robustness · Firestore data integrity · the speed of a slow screen · keeping catalog and ledger consistent.
+Bug / edge case the change introduced · the next logical feature · draft/publish & save robustness · Firestore data integrity · the speed of a slow screen · keeping catalog and ledger consistent.
 
 ## Pull Requests
 - When asked for "a new pull request", "new PR", or similar: **create it immediately** from the current branch.
