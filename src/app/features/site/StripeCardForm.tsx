@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import { googleFontHref } from "./fonts";
 import { loadStripe, type Stripe, type StripeElements } from "@stripe/stripe-js";
 import { createElementCleanup } from "./stripeLifecycle";
+import { readablePaymentText } from "./paymentContrast";
 
 export type StripeCardFormHandle = {
   /** Validates the form fields; returns an error message or null. */
@@ -78,6 +79,9 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
         if (cancelled || failed || !host.current) return;
         if (!stripe) { fail(); return; }
         const el = host.current;
+        const fieldBg = tokenColor(el, fieldBackground || style?.background as string || "var(--surface, #ffffff)");
+        const surroundingText = getComputedStyle(el).color;
+        const paymentText = readablePaymentText(fieldBg, fieldText ? tokenColor(el, fieldText) : surroundingText);
         const elements = stripe.elements({
           mode: "payment",
           amount: safeAmount,
@@ -89,8 +93,9 @@ export const StripeCardForm = forwardRef<StripeCardFormHandle, {
             labels: "above",
             variables: {
               colorPrimary: tokenColor(el, accentColor || "var(--accent, #e8402a)"),
-              colorBackground: tokenColor(el, fieldBackground || style?.background as string || "var(--surface, #ffffff)"),
-              colorText: fieldText ? tokenColor(el, fieldText) : getComputedStyle(el).color,
+              colorBackground: fieldBg,
+              colorText: paymentText,
+              labelColorText: surroundingText,
               fontSizeBase: "16px",
               inputColorBorder: tokenColor(el, fieldBorder || "var(--muted, #777777)"),
               inputFocusColorBorder: tokenColor(el, accentColor || "var(--accent, #e8402a)"),
