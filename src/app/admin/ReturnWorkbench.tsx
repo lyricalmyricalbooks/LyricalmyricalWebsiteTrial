@@ -1,6 +1,7 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { adminApi } from "./api";
+import { isDigitalItem } from "./fulfillment";
 import { SectionCard, TextArea, TextField, SelectField, PrimaryButton, SecondaryButton, ConfirmDialog } from "./riso/components";
 
 export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: () => Promise<void> }) {
@@ -10,13 +11,15 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
   const [inspection, setInspection] = useState<Record<number, { quantity: number; condition: string; restockQuantity?: number }>>({});
   const [busy, setBusy] = useState(false);
   const [confirmRefund, setConfirmRefund] = useState(false);
-  const lines = (order.items || []).map((item: any, index: number) => ({ ...item, index })).filter((item: any) => !item.digital && !item.isDigital && !/digital|ebook|e-book|pdf/i.test(String(item.format || item.variantName || "")));
+  const lines = (order.items || []).map((item: any, index: number) => ({ ...item, index })).filter((item: any) => !isDigitalItem({ ...item, format: item.format || item.variantName }));
   const run = async (action: string) => {
     setBusy(true);
     try {
       if (action === "refund") await adminApi.refundOrder(order.id, { reason: "Customer return", restock: true });
+      // Nothing to send back (e-book order, goodwill refund): close the request without a return.
+      else if (action === "close") await adminApi.updateOrder(order.id, { customerRequest: { ...order.customerRequest, status: "handled", handledAt: new Date().toISOString() } });
       else await adminApi.manageReturn(order.id, action, { instructions, inspection: lines.map((item: any) => ({ index: item.index, ...inspection[item.index] })) });
-      toast.success(action === "refund" ? "Refund recorded; provider status determines completion." : "Return updated.");
+      toast.success(action === "refund" ? "Refund recorded; provider status determines completion." : action === "close" ? "Request marked handled." : "Return updated.");
       await onUpdated();
     } catch (error: any) { toast.error(error.message || "Could not update return."); }
     finally { setBusy(false); }
@@ -30,6 +33,8 @@ export function ReturnWorkbench({ order, onUpdated }: { order: any; onUpdated: (
         <TextArea label="Customer-visible instructions or decision" hint="Include the return address, packing instructions, deadline and who pays postage. These appear on the secure order tracking page." maxLength={3000} value={instructions} onChange={event => setInstructions(event.target.value)} />
         <PrimaryButton disabled={busy || !instructions.trim() || !lines.length} onClick={() => run("approved")}>Approve and publish instructions</PrimaryButton>
         <SecondaryButton disabled={busy || !instructions.trim()} onClick={() => run("rejected")}>Decline with explanation</SecondaryButton>
+        {!lines.length && <p className="rp-hint">This order has no printed books to send back. Refund it from More order actions if you agree, then close the request.</p>}
+        <SecondaryButton disabled={busy} onClick={() => run("close")}>Close request without a return</SecondaryButton>
       </>}
       {saved?.instructions && state !== "requested" && <p style={{ whiteSpace: "pre-wrap" }}>{saved.instructions}</p>}
       {state === "approved" && <PrimaryButton disabled={busy} onClick={() => run("received")}>Record parcel received</PrimaryButton>}

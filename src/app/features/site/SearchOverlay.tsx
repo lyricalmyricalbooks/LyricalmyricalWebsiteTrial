@@ -8,6 +8,7 @@ import { useCurrency } from "../../CurrencyContext";
 import { designNumber } from "./designNumber";
 import { getCopy } from "./storeCopy";
 import { funnelApi } from "../../lib/commerce";
+import { useFocusTrap } from "../../lib/useFocusTrap";
 
 type Book = any;
 
@@ -64,7 +65,10 @@ export function SearchOverlay({
   const c = (key: string, vars?: Record<string, string | number>) => getCopy(design, key, vars);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const { formatBookPrice } = useCurrency();
+  // aria-modal: keep Tab inside the dialog and hand focus back to the search button on close.
+  useFocusTrap(dialogRef, open, onClose);
 
   useEffect(() => {
     if (!open) return;
@@ -113,6 +117,7 @@ export function SearchOverlay({
           transition={{ duration: 0.2 }}
           className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-start justify-center pt-24 px-4"
           onClick={onClose}
+          ref={dialogRef}
           role="dialog"
           data-studio-target="copy:Search & filters" data-studio-label="Search overlay"
           aria-modal="true"
@@ -130,6 +135,7 @@ export function SearchOverlay({
               <Search size={16} className="text-white/40" />
               <input {...regionProps("searchField")}
                 ref={inputRef}
+                data-autofocus
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 placeholder={c("searchPlaceholder")}

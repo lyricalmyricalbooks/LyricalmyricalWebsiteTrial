@@ -1,6 +1,6 @@
 import { test, expect } from "vitest";
 import { createRequire } from "node:module";
-const { activeHolds, heldUnits, linesByBook, reserveStock, StockHoldError, HOLD_MS } = createRequire(import.meta.url)("./stockHolds");
+const { activeHolds, heldUnits, linesByBook, reserveStock, StockHoldError, HOLD_MS, holdOwner } = createRequire(import.meta.url)("./stockHolds");
 
 test("expired holds and the order's own hold don't count", () => {
   const holds = { a: { lines: { _: 2 }, expiresAt: 100 }, b: { lines: { _: 1 }, expiresAt: 50 }, me: { lines: { _: 5 }, expiresAt: 999 } };
@@ -62,4 +62,19 @@ test("untracked and backorder books are never held", async () => {
   const db = fakeDb({ "books/b1": { title: "Ebook", trackInventory: false, stockLevel: 0 } });
   await reserveStock(db, "o1", [{ id: "b1", quantity: 3 }], 1);
   expect(db.docs["stock-holds/b1"]).toBeUndefined();
+});
+
+test("a shopper's own earlier order doesn't lock them out of the last copy, but still blocks others", async () => {
+  const db = fakeDb({ "books/b1": { title: "Zine", trackInventory: true, stockLevel: 1 } });
+  const ada = holdOwner({ customer: { email: " Ada@Example.com " } });
+  expect(ada).toBe(holdOwner({ customer: { email: "ada@example.com" } }));
+  expect(ada).not.toContain("@");
+  expect(holdOwner({})).toBe("");
+  await reserveStock(db, "first", [{ id: "b1", quantity: 1 }], 1000, ada);
+  // Card declined, Ada fixes a typo: a new order for the same copy.
+  await expect(reserveStock(db, "retry", [{ id: "b1", quantity: 1 }], 2000, ada)).resolves.toBeUndefined();
+  // Someone else still can't take it, and an anonymous order is never treated as Ada's.
+  const bob = holdOwner({ customer: { email: "bob@example.com" } });
+  await expect(reserveStock(db, "bob", [{ id: "b1", quantity: 1 }], 3000, bob)).rejects.toBeInstanceOf(StockHoldError);
+  await expect(reserveStock(db, "anon", [{ id: "b1", quantity: 1 }], 3000, "")).rejects.toBeInstanceOf(StockHoldError);
 });

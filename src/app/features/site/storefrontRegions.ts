@@ -6,6 +6,8 @@ export const REGION_GROUPS: RegionGroup[] = [
   { id: "catalogElements", title: "Catalog & shared content · layout", copy: "Search & filters", files: ["features/site/CatalogControls.tsx", "features/site/RecentlyViewedRow.tsx", "components/MainSite.tsx"], regions: [
     { id: "catalogSearch", label: "Catalog search field" }, { id: "catalogSort", label: "Catalog sort selector" },
     { id: "catalogStock", label: "In-stock filter" }, { id: "catalogResults", label: "Filter result count" },
+    { id: "catalogFormat", label: "Format filter" }, { id: "catalogPrice", label: "Price filter" },
+    { id: "catalogClear", label: "Clear filters button" },
     { id: "recentGrid", label: "Recently viewed grid", grid: true, copy: "Collection & wishlist pages" },
     { id: "newsletterPanel", label: "Newsletter box", copy: "Newsletter" },
     { id: "newsletterHeading", label: "Newsletter heading", copy: "Newsletter" }, { id: "newsletterText", label: "Newsletter description", copy: "Newsletter" },

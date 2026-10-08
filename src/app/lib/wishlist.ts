@@ -48,3 +48,13 @@ export function useWishlist() {
 
   return { ids, toggle, remove, has, count: ids.length };
 }
+
+/**
+ * How many saved books a shopper can still open: the same rule as the Wishlist page
+ * (a book later unpublished, scheduled or deleted drops off). Before the catalog has
+ * loaded, every saved id counts so the badge doesn't flicker to zero.
+ */
+export function liveWishlistCount(ids: string[], books: any[], isLive: (book: any) => boolean): number {
+  if (!books.length) return ids.length;
+  return ids.filter(id => books.some(book => book.id === id && isLive(book))).length;
+}

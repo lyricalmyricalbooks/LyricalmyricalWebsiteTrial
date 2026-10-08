@@ -3,13 +3,13 @@ import { recommendedBooks, editionFacts } from "./merchandising";
 import { motion, AnimatePresence } from "motion/react";
 import { Fragment, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { useParams, Link, useNavigate } from "react-router";
+import { useParams, Link, useNavigate, useLocation } from "react-router";
 import {
   ChevronLeft, ChevronRight, ShoppingBag, ArrowLeft,
   Package, Share2, Check, BookOpen, Globe, Ruler,
   Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus
 } from "lucide-react";
-import { useCart, catalogUnitPrice } from "../../CartContext";
+import { useCart, catalogUnitPrice, lineQuantityCap } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
 import { StorefrontPageHeader } from "./StorefrontPageHeader";
@@ -60,8 +60,9 @@ function SpecItem({ icon, label, value }: { icon: React.ReactNode; label: string
 export default function BookDetail() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { books, settings, pages, loading } = useSiteData();
-  const { addToCart, setIsCartOpen, cartCount } = useCart();
+  const { addToCart, setIsCartOpen, cartCount, cart } = useCart();
   const { currency, formatPrice, formatBookPrice, getBookPrice, convertPrice } = useCurrency();
 
   const primaryColor  = settings?.design?.primaryColor || "#e8402a";
@@ -287,7 +288,9 @@ export default function BookDetail() {
         funnelApi.trackCategory(cat);
       });
     }
-  }, [book?.id, book]);
+    // Once per book: a background catalog refresh hands us a new `book` object for the same title.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book?.id]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -344,6 +347,10 @@ export default function BookDetail() {
     ? configuredPhotos
     : [{ url: placeholderImage(settings?.design) }];
   const stockLevel    = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any)?.stockLevel ?? 999);
+  // Copies of this edition already in the bag count toward its stock and the 99-per-line limit.
+  const inBag = cart.find(item => item.id === book?.id && item.variantId === (selectedVariant?.id || undefined))?.quantity || 0;
+  const qtyMax = Math.max(1, lineQuantityCap(stockLevel === 999 ? undefined : Number(stockLevel)) - inBag);
+  useEffect(() => { setQty(q => Math.min(q, qtyMax)); }, [qtyMax]);
   // Oversold stock goes below zero: that is sold out too, not "in stock".
   // An edition with no usable price can't be bought either; treat it like sold out rather than fake an add.
   const isOutOfStock  = Number(stockLevel) <= 0 || (!!book && !Number.isFinite(catalogUnitPrice(book, selectedVariant || undefined)));
@@ -540,7 +547,8 @@ export default function BookDetail() {
           {pdpShowBackLink && (
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              // Arriving straight from a link (search, email, social) has no shop page to go back to.
+              onClick={() => (location.key === "default" ? navigate("/") : navigate(-1))}
               aria-label={getCopy(settings?.design, "backToCatalog")}
               className="fm-pdp-meta mt-4 mb-2 inline-flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity"
             >
@@ -855,12 +863,9 @@ export default function BookDetail() {
                         <output aria-live="polite">{qty}</output>
                         <button
                           type="button"
-                          onClick={() => setQty((q) => {
-                            const max = stockLevel !== 999 ? stockLevel : 99;
-                            return Math.min(max, q + 1);
-                          })}
+                          onClick={() => setQty((q) => Math.min(qtyMax, q + 1))}
                           aria-label={getCopy(settings?.design, "ariaQtyUp")}
-                          disabled={stockLevel !== 999 && qty >= stockLevel}
+                          disabled={qty >= qtyMax}
                         >
                           <Plus size={14} />
                         </button>

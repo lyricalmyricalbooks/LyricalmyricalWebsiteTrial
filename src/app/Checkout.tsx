@@ -767,7 +767,8 @@ export function Checkout() {
   const discountAmount = useMemo(() => {
     if (!appliedDiscount) return 0;
     const cap = Number(appliedDiscount.maxDiscountAmount);
-    const capped = (amount: number) => (cap > 0 && amount > cap ? cap : amount);
+    // Same as the server: the "Maximum discount" ceiling, then never below 0 or above the bag.
+    const capped = (amount: number) => Math.max(0, Math.min(cap > 0 && amount > cap ? cap : amount, cartTotal) || 0);
     
     // Calculate qualifying subtotal and qualifying items list
     const { qualifyingSubtotal, qualifyingItems } = (() => {
@@ -1155,7 +1156,8 @@ export function Checkout() {
       // Save customer email in localStorage to recover cart on payment success landing
       localStorage.setItem("last_customer_email", customer.email);
       
-      const cardKey = JSON.stringify([orderData.items, orderData.total, orderData.customer, currency, fulfillmentSelection]);
+      // The code is part of the key: removing a refused code must make a fresh order, even when the total is unchanged.
+      const cardKey = JSON.stringify([orderData.items, orderData.total, orderData.customer, currency, fulfillmentSelection, orderData.appliedDiscount?.code || null]);
       const reuse = payingByCardForm && pendingCardOrder.current?.key === cardKey ? pendingCardOrder.current : null;
       let orderId: string;
 

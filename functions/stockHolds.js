@@ -6,16 +6,28 @@
 // paying, or giving up, releases them. Stock itself still only moves when the payment is
 // confirmed (webhook / verified capture), exactly as before.
 
+const crypto = require("crypto");
+
 const HOLD_MS = 30 * 60 * 1000; // matches the hosted Stripe session lifetime
+
+// Who a hold belongs to: a hash of the shopper's email (never the address itself). A shopper
+// who fixes a typo or changes delivery after a declined card gets a new order; their earlier
+// order's hold must not lock them out of the copy they were already buying.
+function holdOwner(order) {
+  const email = String(order?.customer?.email || "").trim().toLowerCase();
+  return email ? crypto.createHash("sha256").update(email).digest("hex").slice(0, 32) : "";
+}
 
 const lineKey = variantId => variantId || "_";
 
-// Pure: holds still active at `now`, without the given order's own hold.
-function activeHolds(holds, now, exceptOrderId) {
+// Pure: holds still active at `now`, without the given order's own hold (and, when `owner`
+// is given, without the same shopper's other holds).
+function activeHolds(holds, now, exceptOrderId, owner = "") {
   const out = {};
   for (const [orderId, hold] of Object.entries(holds || {})) {
     if (orderId === exceptOrderId) continue;
     if (!hold || Number(hold.expiresAt) <= now) continue;
+    if (owner && hold.owner === owner) continue;
     out[orderId] = hold;
   }
   return out;
@@ -58,7 +70,7 @@ class StockHoldError extends Error {
 
 // Holds the order's tracked stock for HOLD_MS (renewing its own earlier hold). Throws
 // StockHoldError when someone else's active holds leave too little.
-async function reserveStock(db, orderId, items, now = Date.now()) {
+async function reserveStock(db, orderId, items, now = Date.now(), owner = "") {
   const byBook = linesByBook(items);
   if (!byBook.size) return;
   const ids = [...byBook.keys()].sort(); // stable lock order
@@ -73,16 +85,17 @@ async function reserveStock(db, orderId, items, now = Date.now()) {
       if (!bookSnap.exists) return;
       const book = bookSnap.data();
       if (!book.trackInventory || book.allowBackorder) return; // nothing to hold
-      const others = activeHolds(holdSnap.exists ? holdSnap.data().holds : {}, now, orderId);
+      const existing = holdSnap.exists ? holdSnap.data().holds : {};
+      const others = activeHolds(existing, now, orderId);
       const lines = byBook.get(id);
       for (const [key, qty] of Object.entries(lines)) {
-        const available = Math.max(0, stockOf(book, key) - heldUnits(others, key));
+        const available = Math.max(0, stockOf(book, key) - heldUnits(activeHolds(existing, now, orderId, owner), key));
         if (qty > available) {
           const variant = key === "_" ? null : (book.variants || []).find(v => v.id === key);
           throw new StockHoldError(variant?.name ? `${book.title} (${variant.name})` : book.title || "This book", available);
         }
       }
-      writes.push([holdRefs[i], { holds: { ...others, [orderId]: { lines, expiresAt: now + HOLD_MS } }, updatedAt: new Date(now).toISOString() }]);
+      writes.push([holdRefs[i], { holds: { ...others, [orderId]: { lines, expiresAt: now + HOLD_MS, ...(owner ? { owner } : {}) } }, updatedAt: new Date(now).toISOString() }]);
     });
     for (const [ref, data] of writes) tx.set(ref, data);
   });
@@ -117,4 +130,4 @@ async function releaseStockForOrder(db, orderId) {
   }
 }
 
-module.exports = { HOLD_MS, activeHolds, heldUnits, linesByBook, reserveStock, releaseStock, releaseStockForOrder, StockHoldError };
+module.exports = { HOLD_MS, holdOwner, activeHolds, heldUnits, linesByBook, reserveStock, releaseStock, releaseStockForOrder, StockHoldError };

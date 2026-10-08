@@ -5,3 +5,10 @@ test("reviews real catalog fields without inventing facts", () => { expect(catal
 test("blocks invalid base, sale and variant prices while free orders require review", () => { for (const patch of [{ retailPrice: null }, { retailPrice: -1 }, { retailPrice: NaN }, { isOnSale: true, salePrice: "" }, { variants: [{ price: -2 }] }]) expect(catalogPublishIssues({ ...complete, ...patch }).some(issue => issue.key === "price" && issue.blocking)).toBe(true); expect(catalogPublishIssues({ ...complete, retailPrice: 0 }).find(issue => issue.key === "free")?.blocking).toBe(false); });
 test("weight required for physical editions but not digital-only books", () => { expect(catalogPublishIssues({ ...complete, weight: "" }).some(issue => issue.key === "weight")).toBe(true); expect(catalogPublishIssues({ ...complete, format: "E-book", weight: "" }).some(issue => issue.key === "weight")).toBe(false); });
 test("copy words prompt editorial review without changing the record", () => { const book = { ...complete, title: "The Copy Shop", status: "published" }; expect(catalogPublishIssues(book).some(issue => issue.key === "placeholder")).toBe(true); expect(book.status).toBe("published"); });
+test("audiobooks and digital editions need no weight; edition weights count", () => {
+  const weightFlag = (book: any) => catalogPublishIssues(book).some(issue => issue.key === "weight");
+  expect(weightFlag({ ...complete, format: "Audiobook", weight: "" })).toBe(false);
+  expect(weightFlag({ ...complete, format: "EPUB", weight: "" })).toBe(false);
+  expect(weightFlag({ ...complete, weight: "", variants: [{ id: "p", name: "Paperback", price: 20, weight: "250g" }, { id: "e", name: "E-book (EPUB)", price: 9 }] })).toBe(false);
+  expect(weightFlag({ ...complete, weight: "", variants: [{ id: "p", name: "Paperback", price: 20 }] })).toBe(true);
+});
