@@ -1,13 +1,11 @@
 import { SiteFooter } from "../../components/MainSite";
 import { NotFoundContent } from "./NotFoundPage";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams } from "react-router";
-import { adminApi } from "../../admin/api";
 import { useSiteData } from "./useSiteData";
 import { StorefrontThemeStyle } from "./StorefrontThemeStyle";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 import { CurrentPageContext, PageContentSection } from "../../components/SectionComponents";
-import type { Page } from "./types";
 import { policyPageFor } from "./policyPages";
 import { getCopy } from "./storeCopy";
 import { StorefrontPageHeader } from "./StorefrontPageHeader";
@@ -52,22 +50,13 @@ export function sitePageStyle(design: any, eyebrow: string): Record<string, any>
 export function PageView() {
   const { slug } = useParams<{ slug: string }>();
   const { settings, books, pages, loading: siteLoading } = useSiteData();
-  const [page, setPage] = useState<Page | null>(null);
-  const [loading, setLoading] = useState(true);
+  // The shared storefront snapshot already contains full published page bodies.
+  // Resolve from it on every slug change instead of clearing the screen for a
+  // second Firestore request. Studio snapshots and background refreshes still
+  // update this same collection.
+  const page = pages.find(p => p.slug === slug && p.status === "published");
   // Store policies (Settings › General) are served as synthetic pages at /page/policy-<key>.
   const policyPage = policyPageFor(slug, (settings as any)?.policies, (settings as any)?.design);
-
-  useEffect(() => {
-    if (!slug) return;
-    let cancelled = false;
-    setLoading(true);
-    setPage(null);
-    adminApi.getPageBySlug(slug)
-      .then(p => { if (!cancelled) setPage(p?.status === "published" ? p : null); })
-      .catch(() => { if (!cancelled) setPage(null); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [slug]);
 
   // Tab title + description follow Text & labels › Site & sharing (title format, site name).
   const seoPage: any = policyPage || page;
@@ -113,22 +102,19 @@ export function PageView() {
   const themedBg = d?.backgroundColor || "#0a0910";
   const themedText = d?.textColor || "#f3f1ee";
 
-  const isPolicySlug = /^policy-/.test(slug || "");
-  // Studio preview: show the page from the unsaved snapshot (typed edits appear before Save).
-  const isPreview = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
-  const previewPage = isPreview ? (pages || []).find((p: any) => p.slug === slug && p.status === "published") : undefined;
-  if (!previewPage && (loading || (isPolicySlug && siteLoading && !page))) {
+  const shown = page || policyPage;
+  if (!shown && siteLoading) {
     return (
-      <div data-fm-store data-studio-target="pages|copy:Custom pages & 404" data-studio-label="Page" className="min-h-screen fm-page flex items-center justify-center">
+      <div data-fm-store data-studio-target="pages|copy:Custom pages & 404" data-studio-label="Page" className="min-h-screen fm-page flex flex-col">
         <StorefrontThemeStyle design={settings?.design} />
-        <p className="text-white/40 text-[10px] tracking-[0.4em] uppercase animate-pulse">
+        <StorefrontPageHeader design={settings?.design} pages={pages} books={books} />
+        <p className="flex-1 flex items-center justify-center text-white/40 text-[10px] tracking-[0.4em] uppercase animate-pulse">
           {getCopy(settings?.design, "pageLoading")}
         </p>
       </div>
     );
   }
 
-  const shown = previewPage || page || policyPage;
   if (!shown) return <NotFoundContent design={settings?.design} />;
 
   const isHistoryPage = /^(history|history-of-lm)$/.test(slug || "");
