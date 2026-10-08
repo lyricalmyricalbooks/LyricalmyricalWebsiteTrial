@@ -625,7 +625,7 @@ Stripe payment fields retain Studio colours when readable and choose contrasting
 Custom-page navigation resolves published bodies from useSiteData's shared snapshot, including Studio preview updates. Avoid separate slug fetches that clear the header/content on each link; cold custom-page loading retains the shared header.
 Grouped footer navigation defaults to Explore and Participate & connect, with policies in a wrapping row above copyright. Studio > Style > Footer & social links selects grouped/classic layout and group/location/heading visibility; Text & labels > Footer owns headings. Menus > Footer menu can customize automatic links, assign groups, edit destinations/labels, reorder and hide links, preserving sub-links. Contact pages suppress the duplicate automatic email link. Preview click-to-edit and inline copy hooks remain available.
 
-## Bug sweep #5 + shop filters (8 October 2026)
+## Bug sweep #6 + shop filters (8 October 2026)
 
 - **Shop filters:** `features/site/CatalogControls.tsx` adds Shopify-style **Format** chips (paperback, hardcover,
   e-book, audiobook, other — from the book's and every edition's format, `bookFormats`), **Price** Min/Max boxes

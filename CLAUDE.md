@@ -1060,7 +1060,32 @@ Stripe payment fields retain Studio colours when readable and choose contrasting
 Custom-page navigation resolves published bodies from useSiteData's shared snapshot, including Studio preview updates. Avoid separate slug fetches that clear the header/content on each link; cold custom-page loading retains the shared header.
 Grouped footer navigation defaults to Explore and Participate & connect, with policies in a wrapping row above copyright. Studio > Style > Footer & social links selects grouped/classic layout and group/location/heading visibility; Text & labels > Footer owns headings. Menus > Footer menu can customize automatic links, assign groups, edit destinations/labels, reorder and hide links, preserving sub-links. Contact pages suppress the duplicate automatic email link. Preview click-to-edit and inline copy hooks remain available.
 
-## Bug sweep #5 + shop filters (8 October 2026)
+## Bug sweep #5 (8 October 2026)
+
+- **Cancelling:** Orders › **Cancel unpaid order** is server-side (`createStripeCheckoutSession` action `cancelOrder`,
+  `cancelRefusal` in `functions/paymentGuards.js`): refused once paid, and it stops the Stripe PaymentIntent / Checkout
+  session and releases stock holds. PayPal capture and `completeFreeOrder` refuse cancelled orders; the PayPal capture
+  request id includes the PayPal order id and a matching `paypalOrderId` is the proof (shoppers may return in a new tab).
+- **Paid after cancelling / mismatched payments** clear once refunded: a full Stripe refund sets
+  `paymentMismatch.resolvedAt`, or the admin presses **Mark refunded** on the order (action `resolvePaymentMismatch`).
+  Queues, alerts and the Orders desk ignore resolved mismatches.
+- **Disputes:** an open `disputeStatus` puts a paid order in Needs attention; dispatch and label purchase refuse it.
+- Manual **Mark paid** after the 30-min hold no longer fails (`completeOrderWithoutCard(…, { reserve: false })`).
+  Sweeps read bounded, ordered windows (new `orders` indexes); the "webhook missed" alert skips cancelled/mismatched orders.
+- **Discounts** can't exceed the qualifying subtotal; tier percentages are 0–100 (admin refuses > 100%).
+  An edition with an empty price can't be saved. Address correction can't change country/province on carrier orders.
+- **Checkout:** a retry releases the shopper's own previous unpaid attempt's hold (`previousOrderId`,
+  `releaseSupersededAttempt`: unpaid, same email). Pickup choices stay picked. An address-checker outage continues as
+  unverified (`addressError: "verification_unavailable"`, shown in the address step of the order). Tax shows its real
+  amount (CA$0.00 too) once country and a recognised province are known; unrecognised saved provinces are cleared.
+- **Bag free-shipping bar** follows Settings › Shipping (lowest profile `freeShippingOver` / `freeThreshold` / rate
+  `freeOver`, `features/site/freeShipThreshold.ts`); hidden with no rule or an e-book-only bag. The Studio
+  "Free shipping over" number was removed — Studio keeps the on/off and look.
+- Download buttons appear only for digital lines (`features/site/digitalLine.ts`). Review inputs carry the rules' length
+  limits. A page missing from the cached site shows Loading until the fresh read (`useSiteData().fresh`), not a 404.
+- **Deploy** Firestore indexes + Functions + frontend together. Owner decisions still open: should free-shipping codes
+  cover express/live rates, a "change cookie choice" link, and the sales-tax model.
+## Bug sweep #6 + shop filters (8 October 2026)
 
 - **Shop filters:** `features/site/CatalogControls.tsx` adds Shopify-style **Format** chips (paperback, hardcover,
   e-book, audiobook, other — from the book's and every edition's format, `bookFormats`), **Price** Min/Max boxes

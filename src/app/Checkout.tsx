@@ -51,6 +51,9 @@ import { FulfillmentMethodPicker, bestFirst, type FulfillmentSelection } from ".
 function RegionField({ value, onChange, label, choose, regions }: { value: string; onChange: (v: string) => void; label: string; choose: string; regions: [string, string][] }) {
   // Saved addresses may hold the full name ("Ontario"); match it to its code.
   const match = regions.find(([code, name]) => code === value.toUpperCase() || name.toLowerCase() === value.toLowerCase());
+  // A saved value that isn't on the list (typo, other country) would show "Choose…" yet still
+  // be sent and taxed as typed. Clear it so the shopper picks a real one.
+  useEffect(() => { if (value.trim() && !match) onChange(""); }, [value, !!match]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="relative">
       <select
@@ -178,6 +181,17 @@ function StepBadge({ n, label }: { n: string; label: string }) {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 // Stripe and PayPal refuse charges below about 50 cents in CAD, USD and EUR.
 const MIN_CARD_CHARGE = 0.5;
+
+
+// This tab's last unpaid checkout attempt. Sent with the next attempt so the server can free
+// the stock that attempt was holding (only if it is still unpaid and has the same email).
+const ATTEMPT_KEY = "fm_last_checkout_order";
+function previousAttempt(): string | undefined {
+  try { return sessionStorage.getItem(ATTEMPT_KEY) || undefined; } catch { return undefined; }
+}
+function rememberAttempt(orderId: string) {
+  try { sessionStorage.setItem(ATTEMPT_KEY, orderId); } catch { /* storage blocked */ }
+}
 
 export function Checkout() {
   const { cart, cartTotal, cartCount, clearCart, setCart } = useCart();
@@ -875,13 +889,16 @@ export function Checkout() {
     discountAmount,
     settings?.localFulfillment,
   ]);
-  const previousQuoteContext = useRef("");
+  // Remembered with the method it was computed for: switching between pickup and shipping is
+  // the shopper making a choice, not a price change, so it must not clear the option just picked.
+  const previousQuoteContext = useRef<{ method: string; context: string } | null>(null);
   useEffect(() => {
-    if (previousQuoteContext.current && previousQuoteContext.current !== quoteContext && fulfillmentSelection.optionId) {
+    const prev = previousQuoteContext.current;
+    if (prev && prev.method === fulfillmentSelection.method && prev.context !== quoteContext && fulfillmentSelection.optionId) {
       setFulfillmentSelection(current => ({ ...current, optionId: "" }));
     }
-    previousQuoteContext.current = quoteContext;
-  }, [quoteContext]);
+    previousQuoteContext.current = { method: fulfillmentSelection.method, context: quoteContext };
+  }, [quoteContext, fulfillmentSelection.method]);
 
   // Until the shopper picks a rate themselves, keep the best current quote
   // selected (typing the address replaces the quotes and clears the old pick).
@@ -948,6 +965,18 @@ export function Checkout() {
   const shippingCost = !physicalItems.length ? 0 : fulfillmentSelection.method === "shipping" ? Number(selectedShippingQuote?.price || 0) : Number(selectedLocalQuote?.price || 0);
   const finalShipping   = isFreeShipping ? 0 : shippingCost;
   const finalTotal      = cartTotal - discountAmount + finalShipping + taxCost;
+  // Tax is a real figure (even CA$0.00) once the tax rules are loaded and the address it
+  // depends on names a country and, where it has a list, a recognised province/state.
+  const taxAddressKnown = (address: any) => {
+    const country = String(address?.country || "").trim();
+    if (!country) return false;
+    const regions = regionsFor(country);
+    const state = String(address?.state || "").trim().toLowerCase();
+    return !regions || regions.some(([code, name]) => code.toLowerCase() === state || name.toLowerCase() === state);
+  };
+  const taxKnown = catalogState === "ready" && (fulfillmentSelection.method === "pickup"
+    ? physicalSubtotalAfterDiscount >= Math.max(0, cartTotal - discountAmount) || taxAddressKnown(pickupNeedsAddress && !customer.billingAddress.state ? customer.address : customer.billingAddress)
+    : taxAddressKnown(customer.address));
 
   const getActiveShippingDetails = () => {
     if (fulfillmentSelection.method === "pickup" && selectedLocalQuote) return { serviceName: selectedLocalQuote.name };
@@ -1094,9 +1123,13 @@ export function Checkout() {
             country: customer.address.country
           }
         })
-      }) : null;
-      if (valResponse) {
-        if (!valResponse.ok) throw new CopyError(checkoutDesign, "coErrAddressService");
+      }).catch(() => null) : null;
+      if (fulfillmentSelection.method === "shipping" && !digitalOnly && (!valResponse || !valResponse.ok)) {
+        // The address checker is down or busy: take the order and flag the address for the
+        // shop to confirm, rather than turning the shopper away.
+        addressVerified = false;
+        addressError = "verification_unavailable";
+      } else if (valResponse) {
         const valData = await valResponse.json();
         // If verification is temporarily unavailable, publisher review remains required.
         addressVerified = valData.isValid === true && valData.unverified !== true;
@@ -1186,6 +1219,7 @@ export function Checkout() {
           body: JSON.stringify({
             action: "createManualLocalOrder",
             manualMethodId: manualMethod?.id,
+            previousOrderId: previousAttempt(),
             currency: currency.toLowerCase(),
             orderDraft: {
               customer,
@@ -1206,6 +1240,9 @@ export function Checkout() {
       } else {
         orderId = reuse ? reuse.orderId : await adminApi.createOrder(orderData);
       }
+      // The order this attempt replaces (named once, below), then this one for the next retry.
+      const supersededOrderId = previousAttempt();
+      rememberAttempt(orderId);
 
       if (isManual) {
         purchaseNavigating.current = true;
@@ -1218,7 +1255,7 @@ export function Checkout() {
         const paypalResponse = await functionFetch("createPayPalOrder", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl }),
+          body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, previousOrderId: supersededOrderId }),
         });
         const paypalData = await paypalResponse.json();
         if (!paypalResponse.ok) throw discountRejection(paypalData) || serverRefusal(paypalResponse, paypalData) || new CopyError(checkoutDesign, "coPaypalError");
@@ -1247,7 +1284,7 @@ export function Checkout() {
           const intentResponse = await functionFetch("createStripeCheckoutSession", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, paymentElement: true }),
+            body: JSON.stringify({ orderId, currency: currency.toLowerCase(), returnUrl, paymentElement: true, previousOrderId: supersededOrderId }),
           });
           const intentData = await intentResponse.json();
           if (!intentResponse.ok || !intentData.clientSecret) {
@@ -1949,7 +1986,7 @@ export function Checkout() {
                   </div>
                 </div>
               )}
-              <div className="flex justify-between text-slate-600"><span>{c("summaryTax")}</span><span className="font-medium text-slate-900">{taxCost > 0 ? formatPrice(taxCost) : c("coTaxLater")}</span></div>
+              <div className="flex justify-between text-slate-600"><span>{c("summaryTax")}</span><span className="font-medium text-slate-900">{taxCost > 0 || taxKnown ? formatPrice(taxCost) : c("coTaxLater")}</span></div>
             </div>
 
             <div className="my-6 border-t border-slate-200" />

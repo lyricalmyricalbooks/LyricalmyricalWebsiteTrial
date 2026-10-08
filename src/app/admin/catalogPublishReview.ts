@@ -12,7 +12,8 @@ export function catalogPublishIssues(book: any): CatalogIssue[] {
   flag("interior", (book.photos || []).filter((photo: any) => /^https?:\/\//.test(String(photo.url || ""))).length === 1, "Add genuine interior photos for shoppers to preview.");
   flag("credits", blank(book.subtitle) && blank(book.authorName), "Add confirmed author or contributor credits.");
   flag("price", priceInvalid(book.retailPrice) || (book.isOnSale && priceInvalid(book.salePrice)) || (book.variants || []).some((variant: any) => priceInvalid(variant.price)), "Fix missing, negative or invalid book/edition prices.", true);
-  flag("free", !priceInvalid(book.retailPrice) && Number(book.retailPrice) === 0, "Confirm this book is intentionally free.");
+  flag("free", (!priceInvalid(book.retailPrice) && Number(book.retailPrice) === 0 && !(book.variants || []).length)
+    || (book.variants || []).some((variant: any) => !priceInvalid(variant.price) && Number(variant.price) === 0), "Confirm this book or edition is intentionally free.");
   flag("edition", blank(book.format) || blank(book.edition) || !(Number(book.pageCount) > 0), "Complete format, edition/printing and page count.");
   // E-books and audiobooks (by flag or format, the same test fulfilment uses) need no weight;
   // a book sold in editions needs it on each physical edition (or as the book's default).

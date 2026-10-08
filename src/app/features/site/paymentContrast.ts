@@ -1,4 +1,5 @@
 /** Stripe receives resolved CSS colours; protect payment text from unreadable Studio pairs. */
+// `dark`/`light` are the fallback inks (callers may pass theme colours); plain black/white otherwise.
 export function readablePaymentText(background: string, text: string, dark?: string, light?: string): string {
   const luminance = (color: string) => {
     const channels = color.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
@@ -12,6 +13,5 @@ export function readablePaymentText(background: string, text: string, dark?: str
   const bg = luminance(background), fg = luminance(text);
   if (bg == null || fg == null) return text;
   if ((Math.max(bg, fg) + 0.05) / (Math.min(bg, fg) + 0.05) >= 4.5) return text;
-  // Pure black/white maximise contrast; callers may pass their own dark/light ink instead.
-  return (bg + 0.05) / 0.05 >= 1.05 / (bg + 0.05) ? dark ?? "#000000" : light ?? "#ffffff";
+  return (bg + 0.05) / 0.05 >= 1.05 / (bg + 0.05) ? (dark || "#000000") : (light || "#ffffff");
 }

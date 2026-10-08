@@ -810,6 +810,8 @@ export const adminApi = {
       const cleaned = Object.fromEntries(["street", "unit", "city", "state", "zip", "country"].map(k => [k, String(address[k] || "").trim().slice(0, 200)]));
       const oldAddress = o.customer?.address || {};
       if (method === "local_delivery" && ["state", "zip", "country"].some(key => String(cleaned[key] || "").trim().toLowerCase() !== String(oldAddress[key] || "").trim().toLowerCase())) throw new Error("For a paid local delivery, province, postal code and country cannot change. Cancel and refund this order, then place a new order for the new area.");
+      // Shipping and sales tax were charged for the original country/province.
+      if (method !== "local_delivery" && ["state", "country"].some(key => String(cleaned[key] || "").trim().toLowerCase() !== String(oldAddress[key] || "").trim().toLowerCase())) throw new Error("Shipping and tax were charged for the original country and province, so those can't change on a paid order. Fix the street, city or postal code, or refund this order and have the customer order again.");
       const problems = addressIssues({ customer: { address: cleaned } });
       if (problems.length) throw new Error(problems.join(" "));
       const now = new Date().toISOString();
@@ -1005,6 +1007,35 @@ export const adminApi = {
   },
 
   // "Test connection": asks Stripe whether each saved secret key works and which account/mode it is.
+  // Cancels an unpaid order on the server: refused if it was paid meanwhile; stops the
+  // Stripe payment the shopper may still be completing.
+  cancelUnpaidOrder: async (orderId: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "cancelOrder", orderId }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Couldn't cancel the order.");
+    return result as { cancelled: boolean; stopped: string[] };
+  },
+
+  // The late or mismatched payment on this order has been refunded in Stripe/PayPal.
+  resolvePaymentMismatch: async (orderId: string) => {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) throw new Error("You must be signed in as admin.");
+    const response = await functionFetch("createStripeCheckoutSession", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${idToken}` },
+      body: JSON.stringify({ action: "resolvePaymentMismatch", orderId }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Couldn't update the order.");
+    return result;
+  },
+
   verifyStripeKeys: async () => {
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) throw new Error("You must be signed in as admin.");

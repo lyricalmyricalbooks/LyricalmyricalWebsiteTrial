@@ -1,3 +1,4 @@
+import { lineIsDigital } from "./digitalLine";
 import { orderAccessHeaders, rememberOrderAccess, savedOrderAccess } from "../../lib/orderAccessClient";
 import { useSEO } from "../../lib/seo";
 import { regionProps } from "./storefrontRegions";
@@ -43,7 +44,8 @@ export default function OrderTracking() {
         (order.items || []).map(async (item: any) => {
           try {
             const book = await adminApi.getBook(item.id);
-            if (book && book.digitalFileName) {
+            // Only the e-book edition's line gets a download button (the server checks the same).
+            if (lineIsDigital(item, book)) {
               digitalMap[item.id] = true;
             }
           } catch (err) {

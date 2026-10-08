@@ -170,6 +170,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
                   required
                   value={authorName}
                   onChange={e => setAuthorName(e.target.value)}
+                  maxLength={80}
                   placeholder={c("reviewsName")}
                   className="bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30"
                 />
@@ -177,6 +178,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
+                  maxLength={254}
                   placeholder={c("reviewsEmail")}
                   className="bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30"
                 />
@@ -184,6 +186,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
               <input
                 value={title}
                 onChange={e => setTitle(e.target.value)}
+                maxLength={200}
                 placeholder={c("reviewsHeadline")}
                 className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30"
               />
@@ -191,6 +194,7 @@ export default function ReviewsSection({ bookId, hideHeader = false }: { bookId:
                 required
                 value={body}
                 onChange={e => setBody(e.target.value)}
+                maxLength={4000}
                 placeholder={c("reviewsBody")}
                 rows={4}
                 className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-[var(--muted)] outline-none focus:border-white/30 resize-none"
