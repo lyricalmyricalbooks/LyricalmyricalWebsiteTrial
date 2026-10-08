@@ -454,7 +454,11 @@ storefront. Theme data persists as `design` (live) / `draftDesign` (draft) via
   `.github/workflows/deploy-firebase.yml` (needs `FIREBASE_SERVICE_ACCOUNT`
   secret), or manually: `npx firebase-tools deploy --only
   firestore:rules,firestore:indexes,storage,functions`.
-- If adding a custom domain, update `ALLOWED_ORIGINS` in `functions/index.js`
+- **Firebase Hosting** (root path, `SITE_BASE=/`) → `hosting-preview.yml` deploys a 7-day preview
+  channel per PR; `hosting-production.yml` deploys the live channel (`--only hosting`) on manual run,
+  or on push/published-content changes once repo variable `FIREBASE_HOSTING_LIVE=true`. Pages stays
+  the rollback path. See `docs/FIREBASE_HOSTING.md`.
+- If adding a custom domain, update `ALLOWED_ORIGINS` in `functions/allowedOrigins.js`
   and OAuth redirect URIs.
 
 ### Release banner (removed)

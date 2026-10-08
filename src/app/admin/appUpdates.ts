@@ -9,6 +9,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "firebase-hosting-previews", date: "2026-10-08", title: "Preview links before the shop moves to Firebase",
+    summary: "Each proposed change can now get its own temporary preview address on Firebase Hosting, and a separate switch can publish the shop there. The current address keeps working unchanged; the shop domain only moves once you connect it.",
+    links: [{ label: "Check launch readiness", tab: "overview" }],
+  },
+  {
     id: "grouped-footer-navigation", date: "2026-10-08", title: "A shorter, clearer footer",
     summary: "Footer links now sit in Explore and Participate & connect groups, with policies in a compact row. Studio lets you edit group headings, move or hide links, and switch back to classic columns.",
     links: [{ label: "Edit the footer in Studio", tab: "settings", settingsTab: "designer" }],

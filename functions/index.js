@@ -47,19 +47,12 @@ const IS_EMULATOR = process.env.FUNCTIONS_EMULATOR === "true";
 
 const ADMIN_EMAILS = ["lyricalmyricalbooks@gmail.com"];
 
-const ALLOWED_ORIGINS = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-  "http://localhost:4000",
-  "https://lyricalmyricalbooks.github.io",
-  "https://lyricalmyricalbooks.com",
-  "https://www.lyricalmyricalbooks.com",
-];
+const { ALLOWED_ORIGINS, isAllowedOrigin, isAllowedReturnUrl } = require("./allowedOrigins");
 
 // Returns true when the request was an OPTIONS preflight (already answered).
 function applyCors(req, res) {
   const origin = req.headers.origin || "";
-  if (ALLOWED_ORIGINS.includes(origin)) {
+  if (isAllowedOrigin(origin)) {
     res.set("Access-Control-Allow-Origin", origin);
     res.set("Vary", "Origin");
   }
@@ -1125,7 +1118,7 @@ exports.createPayPalOrder = onBrowserRequest(
         }
       }
       let checkoutBase = `${req.headers.origin || "http://localhost:5173"}/checkout`;
-      if (typeof returnUrl === "string" && ALLOWED_ORIGINS.some(origin => returnUrl === origin || returnUrl.startsWith(`${origin}/`))) checkoutBase = returnUrl;
+      if (isAllowedReturnUrl(returnUrl)) checkoutBase = returnUrl;
       const joiner = checkoutBase.includes("?") ? "&" : "?";
       const paypalOrder = await paypalRequest(config, "/v2/checkout/orders", {
         method: "POST",
@@ -1695,10 +1688,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       // sub-path, e.g. GitHub Pages). Only accept it if it belongs to an
       // allowed origin; otherwise fall back to origin + /checkout.
       let checkoutBase = `${req.headers.origin || "http://localhost:5173"}/checkout`;
-      if (
-        typeof returnUrl === "string" &&
-        ALLOWED_ORIGINS.some(o => returnUrl === o || returnUrl.startsWith(`${o}/`))
-      ) {
+      if (isAllowedReturnUrl(returnUrl)) {
         checkoutBase = returnUrl;
       }
       const joiner = checkoutBase.includes("?") ? "&" : "?";

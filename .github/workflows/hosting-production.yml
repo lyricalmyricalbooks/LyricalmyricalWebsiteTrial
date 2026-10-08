@@ -1,0 +1,80 @@
+name: Firebase Hosting production
+
+# Deploys the storefront to the live Firebase Hosting channel
+# (https://lyricalmyrical-web-v2.web.app, and the shop domain once connected).
+# Hosting only: rules and Cloud Functions stay with deploy-firebase.yml.
+#
+# GitHub Pages (deploy-pages.yml) keeps deploying too and is the rollback path.
+# Pushes to main and the published-content check deploy here only when the
+# repository variable FIREBASE_HOSTING_LIVE is "true"; "Run workflow" always deploys.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hosting-production
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || vars.FIREBASE_HOSTING_LIVE == 'true'
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: ${{ vars.HOSTING_SITE_URL || 'https://lyricalmyrical-web-v2.web.app' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Check published content
+        id: published
+        if: github.event_name == 'schedule'
+        run: node scripts/check-published-change.mjs
+
+      - run: pnpm install --frozen-lockfile
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+
+      - run: pnpm exec playwright install --with-deps chromium
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+
+      - name: Build for the domain root
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        env:
+          SITE_BASE: /
+          VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.RECAPTCHA_ENTERPRISE_SITE_KEY }}
+          VITE_APP_CHECK_MODE: ${{ vars.APP_CHECK_MODE || 'monitor' }}
+        run: |
+          case "$VITE_APP_CHECK_MODE" in off|monitor|enforce) ;; *) echo "::error::Invalid APP_CHECK_MODE"; exit 1 ;; esac
+          if [ "$VITE_APP_CHECK_MODE" = "enforce" ] && [ -z "$VITE_RECAPTCHA_ENTERPRISE_SITE_KEY" ]; then
+            echo "::error::Register reCAPTCHA Enterprise and set RECAPTCHA_ENTERPRISE_SITE_KEY before enforcing App Check."
+            exit 1
+          fi
+          pnpm run build
+
+      - name: Deploy Hosting only
+        if: github.event_name != 'schedule' || steps.published.outputs.changed == 'true'
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT secret is not set, so the site was NOT deployed."
+            exit 1
+          fi
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
+          npx firebase-tools@15 deploy --only hosting --project lyricalmyrical-web-v2 --non-interactive \
+            --message "${GITHUB_SHA::7} via ${{ github.event_name }}"
