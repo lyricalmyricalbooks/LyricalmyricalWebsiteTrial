@@ -40,7 +40,7 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
   const orders = (allOrders || []).filter((o) => o && o.isTest !== true);
   const out: AdminAlert[] = [];
 
-  const mismatch = orders.filter((o) => o.paymentMismatch && o.paymentStatus !== "paid" && o.paymentStatus !== "refunded");
+  const mismatch = orders.filter((o) => o.paymentMismatch && !o.paymentMismatch.resolvedAt && o.paymentStatus !== "paid" && o.paymentStatus !== "refunded");
   if (mismatch.length) out.push(alert("mismatch", "danger", `${plural(mismatch.length, "payment doesn't", "payments don't")} match the order total`,
     `Stripe or PayPal took a different amount than the order expected: ${list(mismatch)}. Review and refund in Stripe before shipping.`, mismatch));
 

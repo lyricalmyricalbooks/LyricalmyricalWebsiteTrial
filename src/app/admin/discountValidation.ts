@@ -16,7 +16,8 @@ export function validateDiscountDraft(form: any, now = new Date().toISOString().
   if (form.type === "bogo" && (!(Number(form.buyQuantity) >= 1) || !(Number(form.getQuantity) >= 1) || Number(form.getDiscountValue) < 0 || Number(form.getDiscountValue) > 100)) errors.bogo = "BOGO quantities must be at least 1 and the discount must be 0–100%.";
   if (form.type === "tiered") {
     const tiers = form.tiers || [];
-    if (!tiers.length || tiers.some((tier: any) => Number(tier.value) <= 0) || tiers.some((tier: any, index: number) => index > 0 && Number(tier.minSpend) <= Number(tiers[index - 1].minSpend))) errors.tiers = "Add positive discounts with minimum spends in ascending order.";
+    if (tiers.some((tier: any) => (tier.type || "percentage") === "percentage" && Number(tier.value) > 100)) errors.tiers = "A percentage tier can't be more than 100%.";
+    else if (!tiers.length || tiers.some((tier: any) => Number(tier.value) <= 0) || tiers.some((tier: any, index: number) => index > 0 && Number(tier.minSpend) <= Number(tiers[index - 1].minSpend))) errors.tiers = "Add positive discounts with minimum spends in ascending order.";
   }
   return errors;
 }

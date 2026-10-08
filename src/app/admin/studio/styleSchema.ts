@@ -31,7 +31,7 @@ export const STYLE_TARGET_FIELDS: Record<string, RegExp> = {
   "Product details tabs": /^(pdpDetailsPlacement|pdpSpecsStyle|pdpTab|pdpPanel|productDetailsLayout|showSpecs)/,
   "Breadcrumb": /^(pdpShowBreadcrumb|pdpShowBackLink|pdpMeta)/,
   "Bag heading": /^(cartDrawer(Title|Meta|ShowCount|Padding|Edge))/,
-  "Free-shipping bar": /^(showFreeShipBar|freeShipThreshold|cartDrawerProgress)/,
+  "Free-shipping bar": /^(showFreeShipBar|cartDrawerProgress)/,
   "Bag line items": /^(cartDrawer(ShowItemNumbers|Thumb|GrayscaleThumbs|ItemTitleSize|ShowUnitPrice|ShowLineTotal|QtyStyle|RemoveStyle|Border|Muted))/,
   "Bag suggestion": /^(cartDrawer(ShowUpsell|UpsellShadow|Surface|GrayscaleThumbs))/,
   "Bag total & checkout": /^(cartDrawer(ShowSummary|TotalSize|Checkout|ShowCheckoutArrow|ShowDeliveryNote)|showCartTrustBadges)/,
@@ -521,8 +521,7 @@ export const STYLE_GROUPS: StyleGroup[] = [
       { key: "cartDrawerMetaSize", label: "Small labels size", kind: "range", defaultValue: 11, min: 8, max: 14, step: 1, suffix: "px" },
       { key: "cartDrawerShowCount", label: "Show item count under the heading", kind: "toggle", defaultValue: true },
       // Free shipping
-      { key: "showFreeShipBar", label: "Free-shipping progress bar", kind: "toggle", defaultValue: true },
-      { key: "freeShipThreshold", label: "Free shipping over", kind: "number", defaultValue: 100, min: 0, max: 1000, step: 5 },
+      { key: "showFreeShipBar", label: "Free-shipping progress bar (amount comes from Settings › Shipping)", kind: "toggle", defaultValue: true },
       { key: "cartDrawerProgressColor", label: "Progress bar fill", kind: "color" },
       { key: "cartDrawerProgressTrack", label: "Progress bar track", kind: "color" },
       { key: "cartDrawerProgressHeight", label: "Progress bar height", kind: "range", defaultValue: 6, min: 2, max: 12, step: 1, suffix: "px" },
