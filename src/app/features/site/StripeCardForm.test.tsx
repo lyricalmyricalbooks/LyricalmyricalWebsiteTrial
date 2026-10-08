@@ -6,9 +6,9 @@ import { StripeCardForm } from "./StripeCardForm";
 const fake = vi.hoisted(() => {
   const handlers: Record<string, Record<string, Function>> = {};
   const create = vi.fn((type: string) => ({ on: (event: string, cb: Function) => { (handlers[type] ||= {})[event] = cb; }, mount: vi.fn(), destroy: vi.fn() }));
-  return { handlers, create, submit: vi.fn(async () => ({})), confirmPayment: vi.fn(async () => ({ paymentIntent: { id: "pi_test", status: "succeeded" } })) };
+  return { handlers, create, options: vi.fn(), submit: vi.fn(async () => ({})), confirmPayment: vi.fn(async () => ({ paymentIntent: { id: "pi_test", status: "succeeded" } })) };
 });
-vi.mock("@stripe/stripe-js", () => ({ loadStripe: async () => ({ elements: () => ({ create: fake.create, update() {}, submit: fake.submit }), confirmPayment: fake.confirmPayment }) }));
+vi.mock("@stripe/stripe-js", () => ({ loadStripe: async () => ({ elements: (options: unknown) => { fake.options(options); return { create: fake.create, update() {}, submit: fake.submit }; }, confirmPayment: fake.confirmPayment }) }));
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 let root: ReturnType<typeof createRoot>;
 let host: HTMLDivElement;
@@ -44,4 +44,13 @@ it("keeps a successful express checkout on the shared navigation path", async ()
   await act(async () => fake.handlers.expressCheckout.confirm({ paymentFailed: failed }));
   expect(submit).toHaveBeenCalledOnce(); expect(failed).not.toHaveBeenCalled();
   expect(fake.confirmPayment).not.toHaveBeenCalled();
+});
+
+it("pairs dropdown text with its background and uses contrasting selected text", async () => {
+  await render({ fieldBackground: "#111111", fieldText: "#ffffff" });
+  const appearance = fake.options.mock.calls[0][0].appearance;
+  expect(appearance.variables.colorBackground).toBe("rgb(17, 17, 17)");
+  expect(appearance.variables.colorText).toBe("rgb(255, 255, 255)");
+  expect(appearance.rules[".DropdownItem"]).toEqual({ backgroundColor: "var(--colorBackground)", color: "var(--colorText)" });
+  expect(appearance.rules[".DropdownItem--highlight"]).toEqual({ backgroundColor: "var(--colorPrimary)", color: "var(--accessibleColorOnColorPrimary)" });
 });
