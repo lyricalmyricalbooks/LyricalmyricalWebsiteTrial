@@ -3,7 +3,7 @@ import { regionProps } from "./storefrontRegions";
 import { getTrackingUrl } from "../../lib/tracking";
 import { accountsEnabled } from "./customerAccounts";
 import { statusCopyKey, statusTone, trackLink } from "./orderStatus";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import {
   GoogleAuthProvider,
@@ -32,7 +32,8 @@ import {
   ChevronDown, ChevronUp, Copy, Check, Mail, ExternalLink, Download 
 } from "lucide-react";
 import { useSEO } from "../../lib/seo";
-import { useWishlist } from "../../lib/wishlist";
+import { useWishlist, liveWishlistCount } from "../../lib/wishlist";
+import { isLiveBook } from "./liveBook";
 import { useSiteData } from "./useSiteData";
 import { getCopy } from "./storeCopy";
 import { useCurrency } from "../../CurrencyContext";
@@ -59,6 +60,8 @@ type CustomerProfile = {
 // Card/PayPal checkouts that were never paid are abandoned attempts, not orders.
 const isAbandonedCheckout = (o: any) => o.paymentStatus === "unpaid" && o.status === "pending_payment" && ["Stripe", "PayPal"].includes(o.paymentMethod);
 
+const EMPTY_ADDRESS = { street: "", city: "", state: "", zip: "", country: "Canada", phone: "", name: "" };
+
 export default function AccountPage() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -78,18 +81,13 @@ export default function AccountPage() {
   
   // Address edit states
   const [isEditingAddress, setIsEditingAddress] = useState(false);
-  const [addressForm, setAddressForm] = useState({
-    street: "",
-    city: "",
-    state: "",
-    zip: "",
-    country: "Canada",
-    phone: "",
-    name: "",
-  });
+  const [addressForm, setAddressForm] = useState(EMPTY_ADDRESS);
+  // The account whose data is on screen; a slow load for a previous account is dropped.
+  const activeUid = useRef<string | null>(null);
 
-  const { count: wishlistCount } = useWishlist();
+  const { ids: wishedIds } = useWishlist();
   const { settings, books } = useSiteData();
+  const wishlistCount = liveWishlistCount(wishedIds, books, isLiveBook);
   const { formatPrice } = useCurrency();
   // Order amounts are stored in CAD; show them in the shopper's chosen currency like the rest of the store.
   // An order paid in another currency is shown in that currency, like the tracking page.
@@ -149,6 +147,17 @@ export default function AccountPage() {
   // Auth state listener
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async u => {
+      // Signing out, or another customer signing in on a shared device, must never show the
+      // previous customer's orders, downloads or address (or save that address to the new account).
+      if (activeUid.current !== (u?.uid || null)) {
+        activeUid.current = u?.uid || null;
+        setOrders([]);
+        setProfile(null);
+        setDigitalItems({});
+        setExpandedOrderId(null);
+        setIsEditingAddress(false);
+        setAddressForm(EMPTY_ADDRESS);
+      }
       setUser(u);
       setAuthLoading(false);
       if (u) {
@@ -160,9 +169,11 @@ export default function AccountPage() {
 
   async function loadCustomerData(u: User) {
     setLoadingData(true);
+    const stale = () => activeUid.current !== u.uid;
     try {
       const profRef = doc(db, "customers", u.uid);
       const profSnap = await getDoc(profRef);
+      if (stale()) return;
       if (profSnap.exists()) {
         const data = profSnap.data() as CustomerProfile;
         setProfile(data);
@@ -183,11 +194,9 @@ export default function AccountPage() {
           name: u.displayName || "",
         };
         await setDoc(profRef, fresh);
+        if (stale()) return;
         setProfile(fresh);
-        setAddressForm(prev => ({
-          ...prev,
-          name: fresh.name,
-        }));
+        setAddressForm({ ...EMPTY_ADDRESS, name: fresh.name });
       }
       
       try {
@@ -201,8 +210,9 @@ export default function AccountPage() {
         const loadedOrders = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter((order: any) => order.isTest !== true && !isAbandonedCheckout(order));
+        if (stale()) return;
         setOrders(loadedOrders);
-        checkDigitalAssets(loadedOrders);
+        checkDigitalAssets(loadedOrders, u.uid);
       } catch {
         const fallbackQuery = query(
           collection(db, "orders"),
@@ -214,19 +224,20 @@ export default function AccountPage() {
           .filter((order: any) => order.isTest !== true && !isAbandonedCheckout(order))
           .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
           .slice(0, 50);
+        if (stale()) return;
         setOrders(loadedOrders);
-        checkDigitalAssets(loadedOrders);
+        checkDigitalAssets(loadedOrders, u.uid);
       }
     } catch (err) {
       console.error("Failed to load account data", err);
     } finally {
-      setLoadingData(false);
+      if (!stale()) setLoadingData(false);
     }
   }
 
   // Scan order items for secure digital eBook versions
   // ⚡ Bolt: Eliminate N+1 queries by gathering unique book IDs and fetching them concurrently.
-  async function checkDigitalAssets(loadedOrders: any[]) {
+  async function checkDigitalAssets(loadedOrders: any[], uid: string) {
     const assetMap: Record<string, Record<string, boolean>> = {};
 
     // 1. Gather unique item IDs
@@ -266,7 +277,7 @@ export default function AccountPage() {
         assetMap[order.id] = orderDigitalItems;
       }
     }
-    setDigitalItems(assetMap);
+    if (activeUid.current === uid) setDigitalItems(assetMap);
   }
 
   // Passwordless Email Link triggers
@@ -588,8 +599,10 @@ export default function AccountPage() {
             <form onSubmit={handleSaveAddress} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldName")}</label>
+                  <label htmlFor="account-field-name" className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldName")}</label>
                   <input
+                    id="account-field-name"
+                    autoComplete="name"
                     type="text"
                     required
                     value={addressForm.name}
@@ -598,8 +611,10 @@ export default function AccountPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldPhone")}</label>
+                  <label htmlFor="account-field-phone" className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldPhone")}</label>
                   <input
+                    id="account-field-phone"
+                    autoComplete="tel"
                     type="text"
                     value={addressForm.phone}
                     onChange={(e) => setAddressForm({ ...addressForm, phone: e.target.value })}
@@ -610,8 +625,10 @@ export default function AccountPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldStreet")}</label>
+                <label htmlFor="account-field-street" className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldStreet")}</label>
                 <input
+                    id="account-field-street"
+                    autoComplete="street-address"
                   type="text"
                   required
                   placeholder={getCopy(settings?.design, "accountStreetPlaceholder")}
@@ -623,8 +640,10 @@ export default function AccountPage() {
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div className="space-y-2 col-span-2 md:col-span-1">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldCity")}</label>
+                  <label htmlFor="account-field-city" className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldCity")}</label>
                   <input
+                    id="account-field-city"
+                    autoComplete="address-level2"
                     type="text"
                     required
                     value={addressForm.city}
@@ -633,8 +652,10 @@ export default function AccountPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldState")}</label>
+                  <label htmlFor="account-field-state" className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldState")}</label>
                   <input
+                    id="account-field-state"
+                    autoComplete="address-level1"
                     type="text"
                     required
                     value={addressForm.state}
@@ -643,8 +664,10 @@ export default function AccountPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldZip")}</label>
+                  <label htmlFor="account-field-zip" className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldZip")}</label>
                   <input
+                    id="account-field-zip"
+                    autoComplete="postal-code"
                     type="text"
                     required
                     value={addressForm.zip}
@@ -653,8 +676,10 @@ export default function AccountPage() {
                   />
                 </div>
                 <div className="space-y-2 col-span-2 md:col-span-1">
-                  <label className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldCountry")}</label>
+                  <label htmlFor="account-field-country" className="text-[9px] font-black fm-muted uppercase tracking-widest ml-1">{getCopy(settings?.design, "accountFieldCountry")}</label>
                   <input
+                    id="account-field-country"
+                    autoComplete="country-name"
                     type="text"
                     required
                     value={addressForm.country}
@@ -705,8 +730,16 @@ export default function AccountPage() {
                 return (
                   <li key={o.id} className="glass-card border border-white/5 rounded-[2rem] overflow-hidden transition-all duration-300 hover:border-white/10">
                     {/* Collapsed header row */}
-                    <div 
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
                       onClick={() => setExpandedOrderId(isExpanded ? null : o.id)}
+                      onKeyDown={event => {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        setExpandedOrderId(isExpanded ? null : o.id);
+                      }}
                       className="p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 cursor-pointer"
                     >
                       <div className="flex items-center gap-6">

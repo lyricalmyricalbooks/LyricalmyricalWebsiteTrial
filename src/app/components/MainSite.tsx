@@ -37,10 +37,12 @@ import { CurrencySelector, useCurrency } from "../CurrencyContext";
 import { doc, setDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { SectionList, GlobalSections, TemplateSections } from "./sectionRender";
-import { useWishlist } from "../lib/wishlist";
+import { useWishlist, liveWishlistCount } from "../lib/wishlist";
+import { isLiveBook } from "../features/site/liveBook";
+import { displayPrice as cardDisplayPrice } from "../features/site/displayPrice";
 import { useSEO } from "../lib/seo";
 import { breadcrumbData, collectionStructuredData, siteStructuredData } from "../lib/bookSeo";
-import { CatalogControls, applyCatalogControls, type SortKey } from "../features/site/CatalogControls";
+import { CatalogControls, applyCatalogControls, appliedFilters, filterView, EMPTY_FILTERS, type CatalogFilterState, type SortKey } from "../features/site/CatalogControls";
 import RecentlyViewedRow from "../features/site/RecentlyViewedRow";
 import { SearchOverlay } from "../features/site/SearchOverlay";
 import { designNumber } from "../features/site/designNumber";
@@ -284,6 +286,7 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
   const instagramUrl: string = (settings?.design?.social ?? DEFAULT_SOCIAL).instagram || "";
   const d = rawDesign;
   const grouped = d.footerNavigationLayout !== "columns";
+  const policyKeys = POLICY_KEYS.filter(k => (settings?.policies as any)?.[k]?.trim());
   const fourCol = d?.footerLayout === "4col";
   // "Multi-column footer" off → the columns stack into one.
   const multiColumn = d?.footerColumns !== false;
@@ -365,9 +368,10 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
         </>}
       </div>
 
-      {grouped && <div style={{ maxWidth: contentMaxWidth(d) }} className="mx-auto px-6 py-4 border-t border-white/20 flex flex-wrap items-center gap-x-6 gap-y-3 text-[11px] text-white/70" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer legal links">
+      {/* No policies written yet → no lone "Legal" heading or empty ruled strip. */}
+      {grouped && policyKeys.length > 0 && <div style={{ maxWidth: contentMaxWidth(d) }} className="mx-auto px-6 py-4 border-t border-white/20 flex flex-wrap items-center gap-x-6 gap-y-3 text-[11px] text-white/70" data-studio-target="copy:Footer|style:footer" data-studio-label="Footer legal links">
         {d.showFooterLegalHeading !== false && <span className="text-[9px] uppercase tracking-[0.3em] text-white/55" data-studio-copy="footerLegalHeading">{getCopy(d, "footerLegalHeading")}</span>}
-        {POLICY_KEYS.filter(k => (settings?.policies as any)?.[k]?.trim()).map(k => <Link key={k} to={"/page/" + policySlug(k)} className="hover:text-white transition-colors">{policyTitle(d, k)}</Link>)}
+        {policyKeys.map(k => <Link key={k} to={"/page/" + policySlug(k)} className="hover:text-white transition-colors">{policyTitle(d, k)}</Link>)}
       </div>}
 
       {/* Bottom bar */}
@@ -396,16 +400,18 @@ export function SiteFooter({ settings, pages }: { settings: any; pages: any[] })
             href={instagramUrl}
             target="_blank"
             rel="noopener noreferrer"
+            aria-label={getCopy(d, "footerInstagramAria")}
             className="text-white/55 hover:text-white transition-colors"
           >
-            <Instagram size={14} />
+            <Instagram size={14} aria-hidden="true" />
           </a>
           )}
           <a
             href={`mailto:${settings?.info?.email || "lyricalmyricalbooks@gmail.com"}`}
+            aria-label={getCopy(d, "footerEmailAria")}
             className="text-white/55 hover:text-white transition-colors"
           >
-            <Mail size={14} />
+            <Mail size={14} aria-hidden="true" />
           </a>
         </div>
       </div>
@@ -591,7 +597,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   const navigate = useNavigate();
   const location = useLocation();
   const { cartCount, cartTotal, setIsCartOpen } = useCart();
-  const { formatBookPrice, formatPrice } = useCurrency();
+  const { formatBookPrice, formatPrice, convertPrice } = useCurrency();
   const { books, settings, pages, loading } = useSiteData();
 
   // Auto-open catalog view when the editor previews the shop tab
@@ -731,13 +737,18 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   }, []);
   const [sort, setSort] = useState<SortKey>("newest");
   const [inStockOnly, setInStockOnly] = useState(false);
+  // Format and price filters (Shopify-style); price boxes are typed in the shopper's currency.
+  const [catalogFilters, setCatalogFilters] = useState<CatalogFilterState>(EMPTY_FILTERS);
+  const catalogView = useMemo(() => filterView(baseFilteredItems), [baseFilteredItems]);
+  const displayRate = convertPrice(1);
 
-  const filteredItems = useMemo(
-    () => applyCatalogControls(baseFilteredItems, searchQuery, sort, inStockOnly, [0, Infinity]),
-    [baseFilteredItems, searchQuery, sort, inStockOnly],
-  );
+  const filteredItems = useMemo(() => {
+    const applied = appliedFilters(catalogFilters, catalogView, displayRate);
+    return applyCatalogControls(baseFilteredItems, searchQuery, sort, inStockOnly, applied.priceRange, applied.formats);
+  }, [baseFilteredItems, searchQuery, sort, inStockOnly, catalogFilters, catalogView, displayRate]);
 
-  const { has: isWished, toggle: toggleWish, count: wishlistCount } = useWishlist();
+  const { has: isWished, toggle: toggleWish, ids: wishedIds } = useWishlist();
+  const wishlistCount = liveWishlistCount(wishedIds, books, isLiveBook);
 
   const getBookSlug = (book: Book) =>
     (book as any).slug || book.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -1336,6 +1347,10 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               setInStockOnly={setInStockOnly}
               resultCount={filteredItems.length}
               design={storefrontDesign}
+              filters={catalogFilters}
+              setFilters={setCatalogFilters}
+              availableFormats={catalogView.availableFormats}
+              showPrice={catalogView.showPrice}
             />
           )}
 
@@ -1352,7 +1367,8 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
               const isOutOfStock = stock === 0;
               const isLowStock = stock > 0 && stock !== 999 && stock <= designNumber(activeDesign, "lowStockCardThreshold", 5);
               const onSale = !!item.isOnSale && item.salePrice > 0 && item.salePrice < (item.retailPrice ?? 0);
-              const displayPrice = onSale ? item.salePrice : item.retailPrice;
+              // A book sold only in editions shows its cheapest edition (formatBookPrice does the same).
+              const displayPrice = onSale ? item.salePrice : cardDisplayPrice(item);
               const isNewArrival = (() => {
                 if (!item.createdAt) return false;
                 const created = new Date(item.createdAt).getTime();

@@ -2,13 +2,15 @@ import { useEffect, useId, useRef, useState } from "react";
 import { functionFetch } from "../lib/functionsBase";
 import { getCopy } from "../features/site/storeCopy";
 import { COUNTRIES } from "../features/site/shippingZones";
+import { guessCountryName } from "../features/site/countryPicker";
 import { readCartDestination, saveCartDestination } from "../features/site/cartDestination";
 import type { ShippingQuote } from "../features/site/shippingEngine";
 
 export function CartShippingPreview({ cart, design, formatPrice, onEstimate }: { cart: any[]; design: any; formatPrice: (price: number) => string; onEstimate: (price: number | null) => void }) {
   const id = useId();
   const [saved] = useState(readCartDestination);
-  const [country, setCountry] = useState(saved?.country || "Canada");
+  // Same first guess checkout makes (browser language), not a fixed country.
+  const [country, setCountry] = useState(() => saved?.country || [guessCountryName()].find(name => name && COUNTRIES.some(value => value.name === name)) || "Canada");
   const [postalCode, setPostalCode] = useState(saved?.postalCode || "");
   const [quotes, setQuotes] = useState<ShippingQuote[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error" | "digital">("idle");
@@ -16,7 +18,8 @@ export function CartShippingPreview({ cart, design, formatPrice, onEstimate }: {
   const request = useRef(0);
   const signature = JSON.stringify(cart.map(item => ({ id: item.id, variantId: item.variantId || null, quantity: item.quantity })));
   useEffect(() => { request.current++; setQuotes([]); setSelected(""); setStatus("idle"); onEstimate(null); return () => { request.current++; }; }, [signature, country, postalCode]);
-  useEffect(() => { saveCartDestination({ country, postalCode }); }, [country, postalCode]);
+  // The destination is handed to checkout only when the shopper asks for an estimate: a half-typed
+  // postcode, or one typed against the default country, must not override checkout's own address.
   const estimate = async () => {
     const id = ++request.current;
     setStatus("loading"); onEstimate(null);

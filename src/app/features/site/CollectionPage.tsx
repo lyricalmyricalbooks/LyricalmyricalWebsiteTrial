@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router";
 import { ArrowLeft, Heart } from "lucide-react";
 import { useSiteData } from "./useSiteData";
 import { placeholderImage } from "./constants";
-import { CatalogControls, applyCatalogControls, type SortKey } from "./CatalogControls";
+import { CatalogControls, applyCatalogControls, appliedFilters, filterView, EMPTY_FILTERS, type CatalogFilterState, type SortKey } from "./CatalogControls";
 import { useWishlist } from "../../lib/wishlist";
 import { useSEO } from "../../lib/seo";
 import { funnelApi } from "../../lib/commerce";
@@ -19,11 +19,12 @@ export default function CollectionPage() {
   const { slug } = useParams<{ slug: string }>();
   const { books, settings, loading } = useSiteData();
   const { has, toggle } = useWishlist();
-  const { formatBookPrice } = useCurrency();
+  const { formatBookPrice, convertPrice } = useCurrency();
 
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("newest");
   const [inStockOnly, setInStockOnly] = useState(false);
+  const [filters, setFilters] = useState<CatalogFilterState>(EMPTY_FILTERS);
 
   const categories = settings?.design?.categories || [];
   // A collection URL keeps working after a category is renamed: match the slug
@@ -36,10 +37,13 @@ export default function CollectionPage() {
   );
   const categoryName = catName(category);
 
+  const base = useMemo(() => books.filter(b => b.status === "published" && bookInCategory(b, category, categories)), [books, category, categories]);
+  const view = useMemo(() => filterView(base), [base]);
+  const rate = convertPrice(1);
   const items = useMemo(() => {
-    const base = books.filter(b => b.status === "published" && bookInCategory(b, category, categories));
-    return applyCatalogControls(base, query, sort, inStockOnly, [0, Infinity]);
-  }, [books, category, query, sort, inStockOnly]);
+    const applied = appliedFilters(filters, view, rate);
+    return applyCatalogControls(base, query, sort, inStockOnly, applied.priceRange, applied.formats);
+  }, [base, view, rate, filters, query, sort, inStockOnly]);
 
   useSEO({
     title: getCopy(settings?.design, "seoCollectionTitle", { category: categoryName }),
@@ -105,6 +109,10 @@ export default function CollectionPage() {
           setInStockOnly={setInStockOnly}
           resultCount={items.length}
           design={settings?.design}
+          filters={filters}
+          setFilters={setFilters}
+          availableFormats={view.availableFormats}
+          showPrice={view.showPrice}
         />
         )}
 

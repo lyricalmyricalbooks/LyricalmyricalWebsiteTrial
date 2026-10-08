@@ -1088,3 +1088,35 @@ Grouped footer navigation defaults to Explore and Participate & connect, with po
   limits. A page missing from the cached site shows Loading until the fresh read (`useSiteData().fresh`), not a 404.
 - **Deploy** Firestore indexes + Functions + frontend together. Owner decisions still open: should free-shipping codes
   cover express/live rates, a "change cookie choice" link, and the sales-tax model.
+## Bug sweep #6 + shop filters (8 October 2026)
+
+- **Shop filters:** `features/site/CatalogControls.tsx` adds Shopify-style **Format** chips (paperback, hardcover,
+  e-book, audiobook, other — from the book's and every edition's format, `bookFormats`), **Price** Min/Max boxes
+  (typed in the shopper's currency, `priceRangeFor`) and **Clear filters**. Chips show only when the current view has
+  2+ formats and the price boxes only with 2+ prices (`filterView`); a hidden filter never applies (`appliedFilters`).
+  "In stock" counts editions and backorders (`bookInStock`); search also matches ISBN. Each piece is a Studio region
+  (`catalogFormat`, `catalogPrice`, `catalogClear` — show/hide + layout in Theme settings › Fine-tune single elements › Catalog & shared content · layout);
+  words are Text & labels › Search & filters (`filterFormat*`, `filterPrice*`, `filterClear`). The bar itself still
+  follows Style › Catalog page header & filters › **Show search, sort & in-stock bar**.
+- **Display price:** `features/site/displayPrice.ts` — a book sold only in editions shows its cheapest edition
+  (CurrencyContext `getBookPrice`, shop cards, search, showcase grid, filters/sort) instead of CA$ 0.00.
+- **Server prices:** `functions/catalogPrice.js` `catalogUnitPrice` mirrors `CartContext.catalogUnitPrice` everywhere
+  (a `"0"`/negative sale price is ignored; an edition with no price is refused, never charged $0).
+- **Discounts:** `validateDiscountCode` returns `maxDiscountAmount` (checkout showed the uncapped amount);
+  `functions/discountPayload.test.js` fails if checkout reads a field the server doesn't send. Every discount is clamped
+  to 0…items value on both sides; percent tiers over 100 are refused in the editor. The card-retry key includes the code.
+- **Stock holds:** holds carry `owner` (sha256 of the email, `holdOwner`); a shopper's own earlier attempt never blocks
+  their retry, other shoppers are still held off.
+- **Digital vs physical:** one rule (`isPhysicalItem` / admin `isDigitalItem`) in the cart estimate, returns, label guard
+  and publish review — audiobooks/EPUBs/format-only e-books are never shipped, returned or weight-checked.
+- **Returns:** a return request the shop hasn't approved can be refunded directly (only approved/received block refunds);
+  the workbench offers **Close request without a return**; a closed request can't be reopened; a refund that never reached
+  the provider clears its `refundRequest` claim; a lost dispute doesn't show the customer "refund complete"; refunding an
+  undispatched order follows the admin's restock choice.
+- **Storefront:** `lib/ScrollToTop.tsx` opens each newly clicked page at the top; account data is cleared on sign-out /
+  user change (no address carry-over) and order rows/fields are keyboard + screen-reader accessible; product views count
+  once; product **Back** goes home when the shopper landed directly; the quantity stepper counts copies already in the bag
+  and `addToCart` returns false when nothing was added; Recently viewed updates between books; search overlay traps focus;
+  footer icon links have labels (Text & labels › Footer); the grouped legal row hides with no policies; wishlist badges
+  count only live books; the cart estimate guesses the country and hands its destination to checkout only after **Estimate**.
+- Deploy Functions with this frontend. No Firestore rule or index changes.

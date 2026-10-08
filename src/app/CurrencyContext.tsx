@@ -1,3 +1,4 @@
+import { displayPrice } from "./features/site/displayPrice";
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 
@@ -108,10 +109,8 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
 
   const getBookPrice = (book: any, ignoreSale: boolean = false) => {
     if (!book) return 0;
-    const basePrice = book.retailPrice || 0;
-    const salePrice = book.salePrice || 0;
-    const isOnSale = !ignoreSale && book.isOnSale && salePrice > 0;
-    const priceToUse = isOnSale ? salePrice : basePrice;
+    // Own (sale) price, or the cheapest edition for a book sold only in editions.
+    const priceToUse = displayPrice(book, ignoreSale);
 
     // Shoppers are charged the CAD catalog price converted at today's rate
     // (functions/index.js), so that is the only price shown. Stored USD/EUR

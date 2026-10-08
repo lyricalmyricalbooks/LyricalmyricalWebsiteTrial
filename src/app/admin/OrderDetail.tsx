@@ -635,7 +635,7 @@ export function OrderDetail({
               }}>Mark refunded</SecondaryButton>
             </SectionCard>
           )}
-          {order.customerRequest?.type === "return" && <ReturnWorkbench key={`${order.id}-${order.returnProgress?.state || "requested"}`} order={order} onUpdated={loadOrder} />}
+          {order.customerRequest?.type === "return" && (order.customerRequest.status === "open" || order.returnProgress) && <ReturnWorkbench key={`${order.id}-${order.returnProgress?.state || "requested"}`} order={order} onUpdated={loadOrder} />}
           {order.customerRequest?.status === "open" && order.customerRequest.type !== "return" && (
             <SectionCard title={order.customerRequest.type === "cancel" ? "Customer asks to cancel" : "Customer asks to return"}>
               <p className="fw-summary">

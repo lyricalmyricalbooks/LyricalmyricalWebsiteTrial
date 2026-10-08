@@ -786,3 +786,15 @@ These checks do not prove deployed providers or live refunds.
 - [x] Replace long navigation/legal columns with two editable navigation groups and a wrapping legal row.
 
 Grouped footer navigation defaults to Explore and Participate & connect, with policies in a wrapping row above copyright. Studio > Style > Footer & social links selects grouped/classic layout and group/location/heading visibility; Text & labels > Footer owns headings. Menus > Footer menu can customize automatic links, assign groups, edit destinations/labels, reorder and hide links, preserving sub-links. Contact pages suppress the duplicate automatic email link. Preview click-to-edit and inline copy hooks remain available.
+
+### Shop filters (8 October 2026)
+
+The catalog bar (`CatalogControls`) gains Format chips, Price Min/Max and Clear filters. Ownership:
+Style › Catalog page header & filters › **Show search, sort & in-stock bar** shows/hides the whole bar;
+Theme settings › Fine-tune single elements › **Catalog & shared content · layout** › elements **Format filter**, **Price filter** and **Clear filters
+button** (regions `catalogFormat`, `catalogPrice`, `catalogClear`) carry per-element visibility and responsive
+layout; Text & labels › Search & filters owns every word (`filterFormatLabel`, `filterFormat_<key>`,
+`filterPriceLabel`, `filterPriceMin`, `filterPriceMax`, `filterClear`). Chips appear only when the visible books
+have two or more formats; the price boxes only with two or more prices. Clicking any of them in the preview
+opens its controls (`regionProps`). Verified with `catalogFilters.interaction.test.tsx` and a preview-snapshot
+browser check (desktop + 390px); authenticated Studio publishing is not covered by local checks.

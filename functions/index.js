@@ -28,6 +28,7 @@ const { buildOrderDigest, TRANSIT_DAYS } = require("./orderDigest");
 const { checkoutRate } = require("./checkoutRate");
 const { canadaPostLabelRates, isCanadaPostRate } = require("./labelRates");
 const { discountedPhysicalSubtotal, resolveLocalSelection, isPhysicalItem, bogoPercent } = require("./localFulfillment");
+const { catalogUnitPrice } = require("./catalogPrice");
 const { readBooks, writeStock } = require("./inventory");
 const { resolveCountry } = require("./shippingGeo");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck } = require("./stripeRecovery");
@@ -38,7 +39,7 @@ const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
 const { hitLimit, LIMITS } = require("./rateLimit");
-const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError } = require("./stockHolds");
+const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner } = require("./stockHolds");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -946,9 +947,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
       const available = variant ? Number(variant.stock || 0) : Number(book.stockLevel || 0);
       if (available < quantity) throw new Error(`Insufficient stock for ${requested.title}. Only ${available} left.`);
     }
-    const price = variant
-      ? Number(variant.price)
-      : (book.isOnSale && book.salePrice ? Number(book.salePrice) : Number(book.retailPrice));
+    const price = catalogUnitPrice(book, variant);
     if (!Number.isFinite(price) || price < 0) throw new Error(`Book ${requested.id} is temporarily unavailable for purchase (pricing error).`);
     items.push({ ...requested, title: book.title || requested.title || "", variantName: variant ? (variant.name || null) : null, quantity, price, format: catalogFormat(book, variant), digital: catalogDigital(book, variant), isDigital: catalogDigital(book, variant), shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant) });
   }
@@ -1032,7 +1031,7 @@ async function reserveForConfirmedPayment(orderId, provider, paymentId) {
   const order = snap.data();
   if (order.paymentStatus === "paid" || order.status === "cancelled" || order.isTest === true || order.paypalMode === "test" || order.stripeMode === "test") return true;
   try {
-    await reserveStock(db, orderId, order.items || []);
+    await reserveStock(db, orderId, order.items || [], Date.now(), holdOwner(order));
     return true;
   } catch (err) {
     if (!(err instanceof StockHoldError)) throw err;
@@ -1152,7 +1151,7 @@ exports.createPayPalOrder = onBrowserRequest(
       if (!config.testMode) {
         await releaseSupersededAttempt(req, order.customer?.email, orderId);
         try {
-          await reserveStock(db, orderId, order.items || []);
+          await reserveStock(db, orderId, order.items || [], Date.now(), holdOwner(order));
         } catch (holdErr) {
           if (holdErr instanceof StockHoldError) return res.status(409).json({ error: holdErr.message, code: holdErr.code });
           throw holdErr;
@@ -1364,7 +1363,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
           await db.collection('abandoned-carts').doc(cartKey).update({ recovered: true, recoveredAt: now }).catch(() => {});
         }
         await releaseSupersededAttempt(req, order.customer.email, orderId);
-        await reserveStock(db, orderId, items);
+        await reserveStock(db, orderId, items, Date.now(), holdOwner(order));
         try {
           await db.collection('orders').doc(orderId).create({ ...order, ...trusted, orderId, trackingKey, paymentStatus: 'pending', status: 'pending_payment', paymentMethod: manual.name, paymentInstructions: manual.instructions || '', createdAt: now, updatedAt: now, activity: [{ type: 'event', message: 'Order created', createdAt: now }] });
         } catch (createErr) {
@@ -1488,9 +1487,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
           }
         }
 
-        const unitPrice = variant
-          ? Number(variant.price)
-          : (book.isOnSale && book.salePrice ? Number(book.salePrice) : Number(book.retailPrice));
+        const unitPrice = catalogUnitPrice(book, variant);
         if (!Number.isFinite(unitPrice) || unitPrice < 0) {
           res.status(400).json({ error: `"${item.title}" is temporarily unavailable for purchase (pricing error).` });
           return;
@@ -1681,7 +1678,7 @@ exports.createStripeCheckoutSession = onBrowserRequest(
       if (!testMode) {
         await releaseSupersededAttempt(req, order.customer?.email, orderId);
         try {
-          await reserveStock(db, orderId, items);
+          await reserveStock(db, orderId, items, Date.now(), holdOwner(order));
         } catch (holdErr) {
           if (holdErr instanceof StockHoldError) {
             res.status(409).json({ error: holdErr.message, code: holdErr.code });
@@ -2159,7 +2156,8 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
       if (!done) { alreadyRecorded = true; return; }
       transaction.update(orderRef, {
         paymentStatus: "refunded",
-        ...(order.returnProgress && order.returnProgress.state !== "rejected" ? { returnProgress: { ...order.returnProgress, state: "completed", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
+        ...(provider === "dispute" && order.customerRequest?.status === "open" ? { customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
+      ...(order.returnProgress && order.returnProgress.state !== "rejected" && provider !== "dispute" ? { returnProgress: { ...order.returnProgress, state: "completed", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
         ...(order.refund ? { refund: { ...order.refund, status: "succeeded" } } : {}),
         updatedAt: now,
         activity: [...(order.activity || []), { type: "event", message: `${label} refund completed${amountText}${note ? ` — ${note}` : ""}.`, createdAt: now }],
@@ -2184,7 +2182,8 @@ async function applyOrderRefund(orderId, { provider, refundId = null, amountMino
     }
     transaction.update(orderRef, {
       paymentStatus: done ? "refunded" : "refund_pending",
-      ...(order.returnProgress && order.returnProgress.state !== "rejected" ? { returnProgress: { ...order.returnProgress, state: done ? "completed" : "refund_pending", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
+      ...(provider === "dispute" && order.customerRequest?.status === "open" ? { customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
+      ...(order.returnProgress && order.returnProgress.state !== "rejected" && provider !== "dispute" ? { returnProgress: { ...order.returnProgress, state: done ? "completed" : "refund_pending", updatedAt: now }, customerRequest: { ...order.customerRequest, status: "handled" } } : {}),
       status: "cancelled",
       refund: {
         id: refundId,
@@ -2891,9 +2890,13 @@ exports.cartShippingPreview = onBrowserRequest({}, async (req, res) => {
       const book = snap.data();
       if (!snap.exists || purchaseProblem(book, item.variantId)) throw new Error("invalid_cart");
       const variant = item.variantId ? (book.variants || []).find(value => value.id === item.variantId) : null;
-      const price = variant ? Number(variant.price) : Number(book.isOnSale && book.salePrice ? book.salePrice : book.retailPrice);
+      // An edition that no longer exists is refused here exactly as checkout refuses it.
+      if (item.variantId && !variant) throw new Error("invalid_cart");
+      const price = catalogUnitPrice(book, variant);
       if (!Number.isFinite(price) || price < 0) throw new Error("invalid_cart");
-      return { price, quantity: item.quantity, shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant), digital: catalogDigital(book, variant) };
+      // E-books and audiobooks are recognised by format too, as checkout does (isPhysicalItem).
+      const digital = !isPhysicalItem({ format: catalogFormat(book, variant), digital: catalogDigital(book, variant) });
+      return { price, quantity: item.quantity, shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant), digital };
     }));
     const profilesSnap = await db.collection("shipping-profiles").get();
     const physical = lines.filter(item => !item.digital);
@@ -2952,6 +2955,17 @@ exports.refundOrder = onBrowserRequest(
     const orderRef = db.collection("orders").doc(orderId);
     const actor = adminUser.email || adminUser.uid;
     const reasonText = String(reason || "Admin refund").slice(0, 500);
+    const claimedAt = new Date().toISOString();
+    let claimed = false, providerAccepted = false, providerCalled = false;
+    // Only these mean the provider certainly took no refund; anything else may still complete.
+    const DEFINITE_REFUSALS = ["StripeInvalidRequestError", "StripeCardError", "StripePermissionError", "StripeAuthenticationError"];
+    // A refund attempt that never reached the provider must not leave its claim behind:
+    // a stale refundRequest would block every later return step on this order.
+    const releaseClaim = () => db.runTransaction(async transaction => {
+      const snap = await transaction.get(orderRef);
+      const current = snap.exists ? snap.data() : null;
+      if (current && current.paymentStatus === "paid" && current.refundRequest?.at === claimedAt) transaction.update(orderRef, { refundRequest: null });
+    }).catch(err => console.warn(`Could not release refund claim for ${orderId}:`, err.message));
     try {
       // Claim the refund first and save the admin's restock choice, so a Stripe/PayPal
       // refund webhook that lands before we finish follows the same choice.
@@ -2963,15 +2977,19 @@ exports.refundOrder = onBrowserRequest(
           const e = new Error(current.paymentStatus === "refunded" ? "This order has already been refunded." : "Only paid orders can be refunded.");
           e.status = 409; throw e;
         }
-        if (current.customerRequest?.type === "return" && current.customerRequest.status === "open" && current.returnProgress?.state !== "inspected") {
+        // Books on their way back (approved / received) are inspected before the money goes back.
+        // A request the shop hasn't approved (e-book orders, goodwill refunds) can be refunded directly.
+        if (current.customerRequest?.type === "return" && current.customerRequest.status === "open" && ["approved", "received"].includes(current.returnProgress?.state)) {
           const error = new Error("Receive and inspect the returned books before refunding this return."); error.status = 409; throw error;
         }
-        transaction.update(orderRef, { refundRequest: { restock: restock !== false, reason: reasonText, actor, at: new Date().toISOString() } });
+        transaction.update(orderRef, { refundRequest: { restock: restock !== false, reason: reasonText, actor, at: claimedAt } });
         return current;
       });
+      claimed = true;
 
       const provider = refundProviderOf(order);
       if (!provider) {
+        await releaseClaim();
         res.status(409).json({ error: "This order has no saved card or PayPal payment to refund. Refund it in Stripe or PayPal directly; the order updates itself." });
         return;
       }
@@ -2979,6 +2997,7 @@ exports.refundOrder = onBrowserRequest(
       if (provider === "stripe") {
         const stripeMode = order.stripeMode === "test" ? "test" : "live";
         const { stripe, requestOptions } = await getStripeClientForMode(stripeMode, order.stripeAccountId || null);
+        providerCalled = true;
         const refund = await stripe.refunds.create({
           payment_intent: order.stripePaymentIntentId,
           reason: "requested_by_customer",
@@ -2992,6 +3011,7 @@ exports.refundOrder = onBrowserRequest(
         const config = await getPayPalConfig();
         if (order.paypalMode === "test") config.testMode = true;
         else if (order.paypalMode === "live") config.testMode = false;
+        providerCalled = true;
         const refund = await paypalRequest(config, `/v2/payments/captures/${encodeURIComponent(order.paypalCaptureId)}/refund`, {
           method: "POST",
           headers: { "PayPal-Request-Id": `refund-${orderId}-full` },
@@ -3010,6 +3030,7 @@ exports.refundOrder = onBrowserRequest(
         outcome = { refundId: null, amountMinor: null, currency: null, status: "succeeded" };
       }
 
+      providerAccepted = true;
       const result = await applyOrderRefund(orderId, {
         provider, ...outcome, restock: restock !== false, reason: reasonText, actor,
       });
@@ -3023,6 +3044,9 @@ exports.refundOrder = onBrowserRequest(
       });
     } catch (err) {
       console.error("refundOrder failed:", err);
+      // Keep the claim only when the provider may have taken the refund (accepted, or a lost
+      // connection): its webhook then follows the admin's restock choice.
+      if (claimed && !providerAccepted && (!providerCalled || DEFINITE_REFUSALS.includes(err?.type) || (err?.status >= 400 && err?.status < 500))) await releaseClaim();
       const status = err.status || (err.type?.startsWith("Stripe") ? 400 : 500);
       res.status(status).json({ error: err.message || "Refund failed" });
     }
@@ -3399,7 +3423,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       if (isManual && after.inventoryDecrementedAt == null) {
         const itemList = after.items || [];
         try {
-          await reserveStock(db, orderId, itemList);
+          await reserveStock(db, orderId, itemList, Date.now(), holdOwner(after));
           await db.runTransaction(async transaction => {
             const books = await readBooks(transaction, db, itemList);
             const oversold = writeStock(transaction, db, itemList, books, -1, new Date().toISOString());
@@ -3782,7 +3806,7 @@ exports.abandonedCartSweep = onSchedule(
         if (!book) continue;
         const variant = item.variantId ? (book.variants || []).find(v => v.id === item.variantId) : null;
         if (item.variantId && !variant) continue;
-        const price = variant ? Number(variant.price) : (book.isOnSale && Number(book.salePrice) > 0 ? Number(book.salePrice) : Number(book.retailPrice));
+        const price = catalogUnitPrice(book, variant);
         if (!Number.isFinite(price) || price < 0) continue;
         const qty = Math.max(1, Math.min(99, Math.floor(Number(item.qty || item.quantity) || 1)));
         lines.push({ title: `${book.title || ""}${variant?.name ? ` (${variant.name})` : ""}`, qty, price });
@@ -4526,6 +4550,8 @@ exports.validateDiscountCode = onBrowserRequest(async (req, res) => {
         value: d.value,
         minOrderAmount: d.minOrderAmount ?? null,
         minQuantity: d.minQuantity ?? null,
+        // Checkout shows the same "up to $X off" ceiling the server applies.
+        maxDiscountAmount: d.maxDiscountAmount ?? null,
         onePerCustomer: d.onePerCustomer ?? false,
         appliesTo: d.appliesTo ?? "all",
         selectedCategories: d.selectedCategories ?? [],
@@ -5143,7 +5169,7 @@ async function completeOrderWithoutCard(orderId, message, { reserve = true } = {
   // A free order checks the 30-minute stock hold like any checkout. A manual payment the owner
   // confirms days later is money already received: it is recorded even if the books have
   // since sold (the stock write below flags oversold for the owner).
-  if (reserve && initial.exists && initial.data().paymentStatus !== "paid") await reserveStock(db, orderId, initial.data().items || []);
+  if (reserve && initial.exists && initial.data().paymentStatus !== "paid") await reserveStock(db, orderId, initial.data().items || [], Date.now(), holdOwner(initial.data()));
 
   await db.runTransaction(async transaction => {
     paidTotal = null; // a retried attempt must not keep the last attempt's value

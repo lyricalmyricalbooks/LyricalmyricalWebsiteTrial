@@ -162,6 +162,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const price = catalogUnitPrice(product, variant);
     // A book with no usable price can't be charged; never put a NaN line in the bag.
     if (!Number.isFinite(price) || price < 0) return false;
+    // Already at the most this line can hold: nothing is added, so callers must not say "Added".
+    const current = cart.find(i => i.id === product.id && i.variantId === variant?.id);
+    if (current && current.quantity >= lineQuantityCap(stockLimit)) return false;
 
     setCart(prev => {
       const existing = prev.find(i => i.id === product.id && i.variantId === variant?.id);

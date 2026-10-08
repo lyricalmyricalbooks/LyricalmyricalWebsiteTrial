@@ -10,6 +10,8 @@ describe("validateDiscountDraft", () => {
   it("validates BOGO and ordered tier structures", () => {
     expect(validateDiscountDraft({ ...valid, type: "bogo", buyQuantity: 0, getQuantity: 1, getDiscountValue: 101 })).toHaveProperty("bogo");
     expect(validateDiscountDraft({ ...valid, type: "tiered", tiers: [{ minSpend: 50, value: 10 }, { minSpend: 20, value: 5 }] })).toHaveProperty("tiers");
+    expect(validateDiscountDraft({ ...valid, type: "tiered", tiers: [{ minSpend: 20, value: 150, type: "percentage" }] })).toHaveProperty("tiers");
+    expect(validateDiscountDraft({ ...valid, type: "tiered", tiers: [{ minSpend: 20, value: 150, type: "fixed" }] })).not.toHaveProperty("tiers");
   });
   it("rejects an end date before the start date", () => expect(validateDiscountDraft({ ...valid, startDate: "2026-12-10", expiryDate: "2026-12-01" }, "2026-09-29")).toMatchObject({ expiryDate: expect.any(String) }));
 });
