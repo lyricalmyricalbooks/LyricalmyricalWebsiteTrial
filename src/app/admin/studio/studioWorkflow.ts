@@ -73,7 +73,8 @@ export function buildPreviewState(settings: any, design: any, pages: any[], book
     type: "STUDIO_PREVIEW_STATE" as const,
     settings: { ...settings, design, draftDesign: design },
     design,
-    pages: (pages || []).filter((page) => page.status === "published"),
+    // Draft pages ride along so Studio can preview them; storefront menus still list published pages only.
+    pages: (pages || []).filter((page) => page.status === "published" || page.slug),
     books: books || [],
   });
 }

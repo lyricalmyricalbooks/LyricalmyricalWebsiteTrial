@@ -264,6 +264,12 @@ size controls desktop/tablet/phone scope; Reset removes that size's overrides. N
 spacing fields also live in Layout & style. The shared renderer applies padding once
 at the content box and carries the same responsive overrides onto the storefront.
 
+**Studio repairs (0.2):** every Studio image upload uses `uploadStudioImage` (`studio/mediaUpload.ts`) — never write
+uploads outside a Storage folder `storage.rules` lets the admin write (`admin/storagePaths.test.ts`). Linked shared
+blocks resolve centrally in `SectionList`; each section renders inside `SectionBoundary`. Phone/tablet widths come
+only from `features/site/breakpoints.ts` (phone ≤767px, tablet ≤1023px). Scheduled designs follow
+`features/site/scheduledDesign.mjs`. Save draft overwrites `theme-versions/draft-latest`; Publish adds a version.
+
 Studio is a Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the
 section/block contract, and the Studio 2.0 roadmap.

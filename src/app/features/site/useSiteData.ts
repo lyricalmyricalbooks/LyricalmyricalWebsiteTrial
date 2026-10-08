@@ -2,6 +2,7 @@ import { useLocation } from "react-router";
 import { consentAllows, CONSENT_EVENT } from "../../lib/consent";
 import { isLiveBook } from "./liveBook";
 import { resolveSurfaceDesign } from "./surfaceDesign";
+import { dueScheduledDesign } from "./scheduledDesign.mjs";
 import { useEffect, useMemo, useState } from "react";
 import { adminApi } from "../../admin/api";
 import { funnelApi } from "../../lib/commerce";
@@ -83,10 +84,8 @@ export function useSiteData() {
 
         // Scheduled publishing: once the scheduled time passes, shoppers see
         // the scheduled design (preview keeps showing the editor's draft).
-        const sched = safeSettings.scheduledPublish;
-        if (!isPreview && sched?.at && sched?.design && new Date(sched.at).getTime() <= Date.now()) {
-          safeSettings.design = sched.design;
-        }
+        const scheduled = isPreview ? null : dueScheduledDesign(safeSettings);
+        if (scheduled) safeSettings.design = scheduled;
 
         const safePages = Array.isArray(pagesResponse) ? (pagesResponse as Page[]) : [];
 

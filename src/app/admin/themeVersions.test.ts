@@ -3,13 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const addDoc = vi.fn(async () => ({ id: "new1" }));
 const deleteDoc = vi.fn(async () => undefined);
 const getDocs = vi.fn();
+const setDoc = vi.fn(async () => undefined);
 vi.mock("firebase/firestore", () => ({
   collection: vi.fn((_d: unknown, n: string) => ({ n })),
   getDocs: (...a: unknown[]) => (getDocs as any)(...a),
   addDoc: (...a: unknown[]) => (addDoc as any)(...a),
   updateDoc: vi.fn(), deleteDoc: (...a: unknown[]) => (deleteDoc as any)(...a),
   doc: vi.fn((_db: unknown, ...path: string[]) => ({ path: path.join("/") })),
-  query: vi.fn((c: unknown) => c), where: vi.fn(), setDoc: vi.fn(), getDoc: vi.fn(), orderBy: vi.fn(), limit: vi.fn(),
+  query: vi.fn((c: unknown) => c), where: vi.fn(), setDoc: (...a: unknown[]) => (setDoc as any)(...a), getDoc: vi.fn(), orderBy: vi.fn(), limit: vi.fn(),
   getCountFromServer: vi.fn(), startAfter: vi.fn(), writeBatch: vi.fn(), deleteField: vi.fn(),
 }));
 vi.mock("firebase/auth", () => ({
@@ -23,7 +24,7 @@ vi.mock("../../lib/legacyFirebase", () => ({ legacyDb: {}, legacyAuth: {} }));
 import { adminApi } from "./api";
 
 describe("persisted theme version history", () => {
-  beforeEach(() => { addDoc.mockClear(); deleteDoc.mockClear(); getDocs.mockReset(); });
+  beforeEach(() => { addDoc.mockClear(); deleteDoc.mockClear(); setDoc.mockClear(); getDocs.mockReset(); });
 
   it("stores a snapshot in theme-versions without undefined values", async () => {
     getDocs.mockResolvedValue({ docs: [] });
@@ -37,8 +38,24 @@ describe("persisted theme version history", () => {
   it("prunes versions beyond the retention limit", async () => {
     const docs = Array.from({ length: 33 }, (_, i) => ({ id: `v${i}` }));
     getDocs.mockResolvedValue({ docs });
-    await adminApi.saveThemeVersion("draft", "Draft", {});
+    await adminApi.saveThemeVersion("published", "Published", {});
     expect(deleteDoc).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps the latest draft in one entry so saving often never floods history", async () => {
+    const first = await adminApi.saveThemeVersion("draft", "Draft 1", { a: 1 });
+    const second = await adminApi.saveThemeVersion("draft", "Draft 2", { a: 2 });
+    expect(addDoc).not.toHaveBeenCalled();
+    expect(first.id).toBe("draft-latest");
+    expect(second.id).toBe("draft-latest");
+    expect((setDoc.mock.calls[1] as any[])[0]).toEqual({ path: "theme-versions/draft-latest" });
+  });
+
+  it("never prunes the latest-draft entry as a stale version", async () => {
+    const docs = [{ id: "draft-latest" }, ...Array.from({ length: 30 }, (_, i) => ({ id: `v${i}` }))];
+    getDocs.mockResolvedValue({ docs });
+    await adminApi.saveThemeVersion("published", "Published", {});
+    expect(deleteDoc).not.toHaveBeenCalled();
   });
 
   it("lists versions with their ids", async () => {

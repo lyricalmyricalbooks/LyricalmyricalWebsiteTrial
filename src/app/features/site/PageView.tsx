@@ -47,6 +47,8 @@ export function sitePageStyle(design: any, eyebrow: string): Record<string, any>
   };
 }
 
+const isStudioPreview = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "true";
+
 export function PageView() {
   const { slug } = useParams<{ slug: string }>();
   const { settings, books, pages, loading: siteLoading } = useSiteData();
@@ -54,7 +56,8 @@ export function PageView() {
   // Resolve from it on every slug change instead of clearing the screen for a
   // second Firestore request. Studio snapshots and background refreshes still
   // update this same collection.
-  const page = pages.find(p => p.slug === slug && p.status === "published");
+  // The Studio preview may show an unpublished page; shoppers only ever receive published ones.
+  const page = pages.find(p => p.slug === slug && (p.status === "published" || isStudioPreview()));
   // Store policies (Settings › General) are served as synthetic pages at /page/policy-<key>.
   const policyPage = policyPageFor(slug, (settings as any)?.policies, (settings as any)?.design);
 

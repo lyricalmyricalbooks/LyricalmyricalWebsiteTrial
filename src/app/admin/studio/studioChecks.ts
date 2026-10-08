@@ -54,6 +54,6 @@ export function designChecks(
   const missingAlt = images.filter(image => !image.alt.trim()).length;
   results.push({ tone: missingAlt ? "warn" : "ok", text: missingAlt ? `${missingAlt} image${missingAlt === 1 ? " needs" : "s need"} a description.` : "All configured section and block images have descriptions." });
   results.push({ tone: "warn", text: "Image file sizes are not measured here. Check large hero images before publishing." });
-  results.push({ tone: "warn", text: "Contrast is not automatically measured here. Review the contrast indicators in Style before publishing." });
+  results.push({ tone: "warn", text: "Contrast is not automatically measured here. Check that text stays easy to read on its background in the preview, on desktop and phone, before publishing." });
   return results;
 }

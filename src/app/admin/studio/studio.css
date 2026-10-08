@@ -189,3 +189,4 @@
 .studio-tips ol { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 .studio-tips kbd { font: 600 10px/1 var(--rp-font-mono, monospace); padding: 2px 4px; border: 1px solid var(--rp-border); }
 .studio-tips .studio-reset { justify-self: start; }
+.studio-editor .studio-upload-error, .rp .studio-upload-error { color: var(--rp-danger); font-weight: 600; }

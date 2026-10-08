@@ -9,6 +9,8 @@ import {
   Upload,
 } from "lucide-react";
 import RichTextEditor from "../components/RichTextEditor";
+import { uploadErrorMessage } from "./studio/mediaUpload";
+import { ImageUploadButton } from "./studio/ImageUploadButton";
 import { DEFAULT_COLOR_SCHEMES, type ColorScheme } from "../features/site/colorSchemes";
 import { PHOTO_RATIO_OPTIONS } from "../features/site/photoShapes";
 import {
@@ -618,7 +620,7 @@ export function getSectionMeta(type: string): SectionTypeMeta | undefined {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Generic Blocks Editor — for sections with `items` / `slides` arrays
+// Block fields — the editable fields of blocks in sections with `items` / `slides` arrays
 // ─────────────────────────────────────────────────────────────────────────────
 
 type BlockField =
@@ -779,7 +781,6 @@ const BLOCKS_KEY: Record<string, string> = {
 export function getBlocksKey(sectionType: string): string {
   return BLOCKS_KEY[sectionType] || "items";
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Image style controls — focal point, object-fit, filter preset, color overlay,
@@ -1189,6 +1190,7 @@ export function BlockFieldEditor({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   const labelEl = (
     <label className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase block mb-1.5">
@@ -1321,11 +1323,12 @@ export function BlockFieldEditor({
           const f = e.target.files?.[0];
           if (!f || !uploadFile) return;
           setUploading(true);
+          setUploadError("");
           try {
             const url = await uploadFile(f);
             onChange(url);
-          } catch {
-            toast.error("Upload failed");
+          } catch (err) {
+            setUploadError(uploadErrorMessage(err));
           } finally {
             setUploading(false);
           }
@@ -1339,6 +1342,7 @@ export function BlockFieldEditor({
         <ImageIcon size={11} />
         {uploading ? "Uploading…" : "Upload image"}
       </button>
+      {uploadError && <p role="alert" className="studio-upload-error mt-1 text-[11px]">{uploadError}</p>}
       {onPatchBlock && (
         <div className="mt-2">
           <ImageStyleControls fieldKey={field.key} record={block} onPatch={onPatchBlock} imageUrl={value} />
@@ -1438,9 +1442,10 @@ export function SectionSettingsPanel({
           <input
             value={settings.bgImageUrl || ""}
             onChange={(e) => onUpdate({ bgImageUrl: e.target.value || undefined })}
-            placeholder="https://…"
-            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400"
+            placeholder="https://… or upload"
+            className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[11px] outline-none focus:border-blue-400 mb-1.5"
           />
+          <ImageUploadButton label="Upload background image" onUploaded={url => onUpdate({ bgImageUrl: url })} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -2555,6 +2560,7 @@ export function SectionFieldEditor({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   const labelEl = (
     <label className="text-[9px] font-black tracking-[0.25em] text-neutral-400 uppercase block mb-1.5">
@@ -2738,11 +2744,12 @@ export function SectionFieldEditor({
               const f = e.target.files?.[0];
               if (!f || !uploadFile) return;
               setUploading(true);
+              setUploadError("");
               try {
                 const url = await uploadFile(f);
                 onChange(url);
-              } catch {
-                toast.error("Upload failed");
+              } catch (err) {
+                setUploadError(uploadErrorMessage(err));
               } finally {
                 setUploading(false);
               }
@@ -2756,6 +2763,7 @@ export function SectionFieldEditor({
             <ImageIcon size={11} />
             {uploading ? "Uploading…" : "Upload image"}
           </button>
+          {uploadError && <p role="alert" className="studio-upload-error mt-1 text-[11px]">{uploadError}</p>}
           {onPatch && (
             <div className="mt-2">
               <ImageStyleControls fieldKey={field.key} record={settings} onPatch={onPatch} imageUrl={value} />
@@ -2810,12 +2818,13 @@ export const PAGE_TEMPLATES: PageTemplateMeta[] = [
  * when present and falls back to the shared `design.page.sections` otherwise —
  * fully backward compatible.
  */
-export function buildPageTemplates(pages: any[]): PageTemplateMeta[] {
+export function buildPageTemplates(pages: any[], options: { includeDrafts?: boolean } = {}): PageTemplateMeta[] {
+  // Studio also lists unpublished pages, so their sections can be designed before they go live.
   const pageTemplates = (pages || [])
-    .filter((p: any) => p?.slug && p?.status === "published")
+    .filter((p: any) => p?.slug && (p?.status === "published" || options.includeDrafts))
     .map((p: any) => ({
       id: `page:${p.slug}`,
-      label: p.title || p.slug,
+      label: p.status === "published" ? p.title || p.slug : `${p.title || p.slug} (draft)`,
       description: `Sections for the "${p.title || p.slug}" page (overrides Custom Pages when set).`,
       previewMode: "page" as PreviewModeId,
       pageSlug: p.slug,

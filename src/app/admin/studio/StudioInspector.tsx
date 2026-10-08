@@ -1,7 +1,7 @@
 import { StudioSpacingControls } from "./StudioSpacingControls";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Copy, Eye, EyeOff, Trash2, X } from "lucide-react";
-import { adminApi } from "../api";
+import { uploadStudioImage } from "./mediaUpload";
 import { BlockFieldEditor, BlockListFieldEditor, getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, SectionFieldEditor, SectionSettingsPanel } from "../ThemeEditorExtensions";
 import { IconButton, useFocusTrap } from "../riso/components";
 import { findBlock, freshBlockIds, mapBlock, removeBlock, resolveSharedBlocks, type Section, type SharedBlock } from "./studioModel";
@@ -35,7 +35,6 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
   const placement = blockId ? findBlock(blocks, blockId) : undefined;
   const block = placement ? resolveSharedBlocks([placement], sharedBlocks)[0] : undefined;
   const fields = (block ? getBlockFields(section.type) : getSectionFields(section.type)).filter(f => `${f.label} ${f.key}`.toLowerCase().includes(search.toLowerCase()));
-  const uploadFile = useCallback((file: File) => adminApi.uploadFile(file, `sections/${section.id}_${Date.now()}`), [section.id]);
   const patchBlock = (patch: any) => {
     if (placement?.sharedBlockId && !Object.keys(patch).some(k => k === "grid" || k === "responsive" || k === "hidden")) onPatchShared(placement.sharedBlockId, patch);
     else onPatch(updateBlocks(section, key, list => mapBlock(list, block.id, b => ({ ...b, ...patch }))));
@@ -88,8 +87,8 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
         {!fields.length && <p className="studio-hint">{search ? "No matching settings." : "Select a block in the outline or use Layout & style."}</p>}
         {fields.map(f => <div key={f.key} className="studio-field">
           {block ? f.kind === "list" ? <BlockListFieldEditor field={f as any} value={block[f.key]} onChange={v => patchBlock({ [f.key]: v })} /> :
-            <BlockFieldEditor field={f as any} value={block[f.key]} onChange={v => patchBlock({ [f.key]: v })} uploadFile={uploadFile} block={block} onPatchBlock={patchBlock} /> :
-            <SectionFieldEditor field={f as any} value={section.settings[f.key]} settings={section.settings} onChange={v => onPatch({ [f.key]: v })} onPatch={onPatch} uploadFile={uploadFile} />}
+            <BlockFieldEditor field={f as any} value={block[f.key]} onChange={v => patchBlock({ [f.key]: v })} uploadFile={uploadStudioImage} block={block} onPatchBlock={patchBlock} /> :
+            <SectionFieldEditor field={f as any} value={section.settings[f.key]} settings={section.settings} onChange={v => onPatch({ [f.key]: v })} onPatch={onPatch} uploadFile={uploadStudioImage} />}
         </div>)}
         {block && <div className="studio-control-card">
           <strong>Responsive layout · {device}</strong>

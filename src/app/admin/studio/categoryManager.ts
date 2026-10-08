@@ -1,4 +1,4 @@
-import { buildNavItems, categoryNames } from "../../features/site/navItems";
+import { buildNavItems, categoryNames, normalizeCategories } from "../../features/site/navItems";
 
 export type CategoryAction = "add" | "remove" | "move";
 const tags = (value: any): string[] => Array.isArray(value) ? value.filter(v => typeof v === "string") : [];
@@ -38,4 +38,15 @@ export function categoryNavOrder(before: any[], after: any[], pages: any[], orde
   const keys = buildNavItems(after, pages).filter(item => item.kind === "category").map(item => item.key);
   let index = 0;
   return buildNavItems(before, pages, order).map(item => item.kind === "category" ? keys[index++] : item.key);
+}
+
+/**
+ * Adds one category to a stored list (live or draft) without touching the others.
+ * A list that never had categories starts from the shop defaults; an existing name is left alone.
+ */
+export function appendCategory(stored: any[] | undefined, category: any, defaults: readonly any[]): any[] {
+  const list = normalizeCategories(Array.isArray(stored) ? stored : [...defaults]);
+  const name = String(category?.name || "").trim().toLocaleLowerCase();
+  if (!name || list.some(c => String(c?.name || "").trim().toLocaleLowerCase() === name)) return list;
+  return [...list, category];
 }

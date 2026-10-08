@@ -6,7 +6,8 @@ import { useCurrency } from "../CurrencyContext";
 import { useCart } from "../CartContext";
 import { resolveStaffNoteRows } from "../features/site/staffNotes";
 import { textGradientStyle, hoverEffectClassName, hoverEffectGlowStyle, imageFilterCss, imageObjectPositionFromFocal } from "./sectionStyleHelpers";
-import { resolveSharedBlocks } from "../admin/studio/studioModel";
+import { resolveSharedBlocks } from "../features/site/sharedBlocks";
+import { UP_TO } from "../features/site/breakpoints";
 import { fb } from "./sectionFallbacks";
 import { submitContactMessage } from "../features/site/contactMessages";
 import { useSectionCopy } from "./sectionCopy";
@@ -55,7 +56,7 @@ function compositionBreakpointCss(blocks: any[], sectionId: string) {
   const rules: string[] = [];
   const walk = (items: any[]) => (items || []).forEach(block => {
     const id = safe(block.id); if (!id) return;
-    for (const [device, query] of [["tablet", "(max-width:1023px)"], ["mobile", "(max-width:767px)"]] as const) {
+    for (const [device, query] of [["tablet", UP_TO.tablet], ["mobile", UP_TO.mobile]] as const) {
       const grid = block.grid?.[device] || {}, responsive = block.responsive?.[device] || {};
       // !important: the desktop placement is an inline style, which would otherwise beat these rules.
       const body = [
@@ -1152,6 +1153,7 @@ export function CollectionListSection({ settings, enableAnimations }: any) {
 // ──────────────────────────────
 
 export function FeaturedProductSection({ settings, books, onProductClick, enableAnimations }: any) {
+  const { formatBookPrice } = useCurrency();
   const target =
     (books || []).find((b: any) => b.id === settings.productId) ||
     (books || []).find((b: any) => b.slug === settings.productSlug) ||
@@ -1160,7 +1162,6 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
   if (!target) return null;
 
   const photo = target.photos?.[0]?.url;
-  const price = target.isOnSale && target.salePrice ? target.salePrice : target.retailPrice;
 
   return (
     <section style={bgStyle(settings)}>
@@ -1177,7 +1178,7 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
               <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/50" style={bStyle(settings)}>{settings.eyebrow ?? fb("FeaturedProductSection.eyebrow")}</p>
               <h2 className="text-3xl md:text-4xl font-bold text-white" style={hStyle(settings)}>{target.title}</h2>
               {target.subtitle && <p className="text-white/60" style={bStyle(settings)}>{target.subtitle}</p>}
-              <p className="text-2xl font-bold text-white" style={bStyle(settings)}>${typeof price === "number" ? price.toFixed(2) : price}</p>
+              <p className="text-2xl font-bold text-white" style={bStyle(settings)}>{formatBookPrice(target)}</p>
               <p className="text-white/60 text-sm leading-relaxed line-clamp-4" style={bStyle(settings)}>{target.description || ""}</p>
               <MagneticButton
                 magnetic={!!settings.btnMagnetic}

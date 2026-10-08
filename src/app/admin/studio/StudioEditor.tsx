@@ -9,15 +9,16 @@ import {
   Download, Pencil, Tablet, Trash2, Undo2, Upload, X,
 } from "lucide-react";
 import { adminApi } from "../api";
+import { uploadStudioImage } from "./mediaUpload";
 import {
   SECTION_REGISTRY, SectionFieldEditor, buildPageTemplates,
   getBlockFields, getBlocksKey, getSectionFields, getSectionMeta, DEFAULT_COLOR_SCHEMES,
 } from "../ThemeEditorExtensions";
 import { CATEGORIES } from "../../features/site/constants";
-import { splitNavigation, buildNavItems, childCategories, moveNavItem, parentOf, reslotPages } from "../../features/site/navItems";
+import { splitNavigation, buildNavItems, childCategories, moveNavItem, normalizeCategories, parentOf, reslotPages } from "../../features/site/navItems";
 import { COPY_SCHEMA, DEFAULT_COPY } from "../../features/site/storeCopy";
 import { automaticFooterItems, footerGroup } from "../../features/site/footerNavigation";
-import { MENU_LINK_TYPES, newMenuItem, type MenuItem } from "../../features/site/storeMenu";
+import { MENU_LINK_TYPES, newMenuItem, slugify, type MenuItem } from "../../features/site/storeMenu";
 import {
   commit, duplicateSection, findBlock, getSections, initHistory, insertSection, makeSection, mapBlock, moveBlockBefore, newId, normalizeDesign,
   patchSectionSettings, redo, removeSection, sameDesign, setSections, toggleSection, undo,
@@ -356,7 +357,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const designRef = useRef(design);
   designRef.current = design;
 
-  const templates = useMemo(() => buildPageTemplates(pages), [pages]);
+  const templates = useMemo(() => buildPageTemplates(pages, { includeDrafts: true }), [pages]);
   const template = templates.find((t) => t.id === templateId) || templates[0];
   const target: SectionTarget = showGlobal ? { kind: "global" } : { kind: "template", id: template.id };
   const sections = getSections(design, target);
@@ -503,7 +504,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       <div key={f.key} className="studio-field" data-style-key={f.key}>
         <SectionFieldEditor field={f as any} value={effective ?? f.defaultValue}
           onChange={v => setScopedStyle(g.id, f.key, v)}
-          uploadFile={file => adminApi.uploadFile(file, 'design/' + Date.now() + '_' + file.name)} />
+          uploadFile={uploadStudioImage} />
         {(region || local) && <div className="studio-field-status">
           <small>{own != null && own !== "" ? "Custom value" : region ? "Inherited from larger size / shared layout" : "Inherited from all pages"}</small>
           {own !== undefined && <button type="button" className="studio-reset" aria-label={'Reset ' + f.label}
@@ -528,6 +529,16 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     return styleScope === "page" && PAGE_STYLE_GROUPS.has(group)
       ? applyPageStyle(next, template.id, path, undefined) : applyGlobalStyle(next, path, undefined, surfaceIds);
   }, d));
+
+  // The shop's own categories (sub-categories as "Parent › Child"), for Preview collection.
+  const previewCollections = useMemo(() => {
+    const cats = normalizeCategories(Array.isArray(design.categories) ? design.categories : [...CATEGORIES]);
+    return cats.filter((c: any) => c?.name).map((c: any) => {
+      const parent = parentOf(c, cats);
+      const parentName = parent ? cats.find((p: any) => p.id === parent)?.name : "";
+      return { slug: slugify(c.name), label: parentName ? `${parentName} › ${c.name}` : c.name };
+    });
+  }, [design.categories]);
 
   // ── preview wiring ──
   const previewUrl = useMemo(() => {
@@ -915,7 +926,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           </optgroup>
         </select>
         {template.id === "productPage" && <select aria-label="Preview product" value={productSlug} onChange={e => setProductSlug(e.target.value)}><option value="">Choose a product</option>{books.map(b => <option key={b.id} value={b.slug}>{b.title}</option>)}</select>}
-        {template.id === "collectionPage" && <select aria-label="Preview collection" value={collectionSlug} onChange={e => setCollectionSlug(e.target.value)}>{CATEGORIES.map(c => <option key={c} value={c.toLowerCase().replace(/ /g, "-")}>{c}</option>)}</select>}
+        {template.id === "collectionPage" && <select aria-label="Preview collection" value={collectionSlug} onChange={e => setCollectionSlug(e.target.value)}>{previewCollections.map(c => <option key={c.slug} value={c.slug}>{c.label}</option>)}</select>}
         <div className="flex items-center gap-0.5" role="group" aria-label="Preview size">
           {([["desktop", Monitor], ["tablet", Tablet], ["mobile", Smartphone]] as const).map(([d, Icon]) => (
             <button key={d} className={`${iconBtn} ${device === d ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""}`}

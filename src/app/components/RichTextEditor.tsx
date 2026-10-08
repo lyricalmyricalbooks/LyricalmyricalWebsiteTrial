@@ -60,7 +60,8 @@ export default function RichTextEditor({
 
       try {
         const uploadFn = uploadFile || adminApi.uploadFile;
-        const path = `editor-uploads/${Date.now()}_${file.name}`;
+        // `assets/` is the admin-writable Storage folder (storage.rules).
+        const path = `assets/editor/${Date.now()}_${file.name.replace(/[^\w.-]+/g, "-")}`;
         const url = await uploadFn(file, path);
 
         const quill = quillRef.current?.getEditor();

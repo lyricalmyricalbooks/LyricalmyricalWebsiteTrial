@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { dueScheduledDesign } from '../src/app/features/site/scheduledDesign.mjs';
 
 export function decodeValue(value = {}) {
   if ('mapValue' in value) return Object.fromEntries(Object.entries(value.mapValue.fields || {}).map(([key, child]) => [key, decodeValue(child)]));
@@ -36,8 +37,9 @@ export async function readPublicStorefront() {
 }
 const stable = value => Array.isArray(value) ? value.map(stable) : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().filter(key => !['updatedAt', '_updateTime'].includes(key)).map(key => [key, stable(value[key])])) : value;
 export function effectivePublishedSettings(settings, now = new Date().toISOString()) {
-  const { draftDesign, scheduledPublish, ...published } = settings;
-  if (scheduledPublish?.at && scheduledPublish?.design && new Date(scheduledPublish.at).getTime() <= new Date(now).getTime()) published.design = scheduledPublish.design;
+  const { draftDesign, scheduledPublish, savedThemes, designPublishedAt, ...published } = settings;
+  const scheduled = dueScheduledDesign(settings, now);
+  if (scheduled) published.design = scheduled;
   return published;
 }
 export function publishedFingerprint({ books, pages, settings }, now = new Date().toISOString()) {

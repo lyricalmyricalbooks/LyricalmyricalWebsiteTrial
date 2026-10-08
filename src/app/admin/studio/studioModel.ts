@@ -2,17 +2,10 @@
 // to a `design` object goes through here so it can be unit-tested and so the
 // editor never mutates state in place.
 
+import { MAX_BLOCK_DEPTH, normalizeBlocks, resolveSharedBlocks, type SharedBlock, type StudioBlock } from "../../features/site/sharedBlocks";
+export { MAX_BLOCK_DEPTH, normalizeBlocks, resolveSharedBlocks, type SharedBlock, type StudioBlock };
+
 export type Section = { id: string; type: string; visible?: boolean; settings: Record<string, any> };
-export type StudioBlock = {
-  id: string;
-  type?: "group" | "text" | "image" | "button";
-  children?: StudioBlock[];
-  sharedBlockId?: string;
-  responsive?: Record<"desktop" | "tablet" | "mobile", Record<string, any>>;
-  grid?: Record<"desktop" | "tablet" | "mobile", Record<string, number>>;
-  [key: string]: any;
-};
-export type SharedBlock = { id: string; name: string; sectionType?: string; block: StudioBlock; updatedAt: string };
 
 /** Where a list of sections lives inside `design`. */
 export type SectionTarget = { kind: "template"; id: string } | { kind: "global" };
@@ -23,18 +16,6 @@ export const newId = () =>
     : `s_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v ?? null));
-
-export const MAX_BLOCK_DEPTH = 3;
-
-/** Normalizes legacy flat blocks and recursive composition blocks without mutating. */
-export function normalizeBlocks(blocks: any[], parent = "block", depth = 0): StudioBlock[] {
-  if (!Array.isArray(blocks) || depth >= MAX_BLOCK_DEPTH) return [];
-  return blocks.filter(b => b && typeof b === "object").map((block, index) => {
-    const id = block.id || `${parent}-${index}`;
-    const children = normalizeBlocks(block.children, id, depth + 1);
-    return { ...block, id, ...(children.length ? { children } : { children: undefined }) };
-  });
-}
 
 export function findBlock(blocks: StudioBlock[], id: string): StudioBlock | undefined {
   for (const block of blocks || []) {
@@ -72,17 +53,6 @@ export function moveBlockBefore(blocks: StudioBlock[], movingId: string, beforeI
 
 export function freshBlockIds(block: StudioBlock): StudioBlock {
   return { ...clone(block), id: newId(), children: (block.children || []).map(freshBlockIds) };
-}
-
-/** Linked shared blocks inherit source content while keeping placement/layout overrides. */
-export function resolveSharedBlocks(blocks: StudioBlock[], library: SharedBlock[] = [], depth = 0): StudioBlock[] {
-  if (depth >= MAX_BLOCK_DEPTH) return [];
-  return normalizeBlocks(blocks, "block", depth).map(block => {
-    const source = block.sharedBlockId ? library.find(item => item.id === block.sharedBlockId)?.block : undefined;
-    const merged = source ? { ...clone(source), ...block, id: block.id, sharedBlockId: block.sharedBlockId,
-      children: block.children ?? source.children } : block;
-    return { ...merged, children: resolveSharedBlocks(merged.children || [], library, depth + 1) };
-  });
 }
 
 /** Immutable deep set: setPath(obj, "a.b.c", 1). `undefined` deletes the key. */

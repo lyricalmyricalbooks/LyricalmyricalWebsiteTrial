@@ -353,8 +353,9 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
       setShippingProfiles(sh);
       setAuthors(au);
       
-      // Draft first so categories just added in Studio › Menus › Shop categories show up before publishing.
-      const siteCats = settings?.draftDesign?.categories || settings?.design?.categories || CATEGORIES;
+      // Published categories only: a book can't be filed under a category shoppers can't see yet
+      // (publish new Studio categories first).
+      const siteCats = settings?.design?.categories || CATEGORIES;
       const all = normalizeCategories(Array.isArray(siteCats) ? siteCats : [...CATEGORIES]);
       setCategoryDefinitions(all);
       // PUBLICATIONS already shows every book, so it isn't something to file a book under.
@@ -615,7 +616,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     const next = [...categoryDefinitions, category];
     setSavingCategory(true);
     try {
-      await adminApi.updateShopCategories(next);
+      await adminApi.addShopCategory(category);
       setCategoryDefinitions(next);
       setCategories((current) => [...current, name]);
       setCategoryParents((current) => ({

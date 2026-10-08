@@ -172,9 +172,18 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
 - [x] 0.1 Infra: CI (`.github/workflows/ci.yml`: tests, type-check ratchet, bundle build), `tsconfig.json` +
       `scripts/typecheck-ratchet.mjs`, Studio lazy-loaded in its own chunk, dead code removed
       (`BlocksEditor`, `COPY_SELECT`/`PAGE_PREVIEW_UPDATE` handlers, unrouted `CollectionPage.tsx`), docs drift fixed.
-- [ ] 0.2 Repairs: Studio uploads (allowed storage paths, compression, visible errors), shared blocks on every
-      section, per-section error boundary, scheduled-publish guard, version flood, book-editor categories,
-      collection/draft-page preview, one phone breakpoint, FeaturedProduct currency.
+- [x] 0.2 Repairs. Studio uploads go through `studio/mediaUpload.ts` (compressed, saved under the
+      admin-writable `assets/studio/YYYY/MM/`, plain-English errors under the button; `admin/storagePaths.test.ts`
+      fails on any upload path storage.rules refuses) and section background / category images gained Upload
+      buttons (`studio/ImageUploadButton.tsx`). Linked shared blocks resolve in `SectionList` for every section
+      type (`features/site/sharedBlocks.ts`). `SectionBoundary` drops a crashing section for shoppers and shows a
+      placeholder + `PREVIEW_ERROR {sectionId}` in the preview. `features/site/scheduledDesign.mjs` ignores a
+      scheduled design once anything was published after it was due (`designPublishedAt`). Save draft refreshes one
+      `theme-versions/draft-latest` entry; only Publish adds versions. Book editor › create category uses
+      `adminApi.addShopCategory` (live and draft lists appended separately) and assigns from published categories.
+      Studio lists unpublished pages as "(draft)" templates and previews them; Preview collection lists the
+      shop's own categories. One breakpoint module (`features/site/breakpoints.ts`, phone ≤767px) for sections,
+      blocks and built-in elements. Featured product shows the shopper's currency.
 - [ ] 0.3 Studio test harness (jsdom Studio tests, fixture route, Playwright flows).
 - [ ] 0.4 Theme store: drafts/saved themes/schedules in admin-only docs, light public read path, revision-checked saves.
 - [ ] 0.5 Design value model: one resolver, All-pages writes without duplication, compaction, page-override review.
