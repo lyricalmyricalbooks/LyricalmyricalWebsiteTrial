@@ -657,3 +657,10 @@ Grouped footer navigation defaults to Explore and Participate & connect, with po
   footer icon links have labels (Text & labels › Footer); the grouped legal row hides with no policies; wishlist badges
   count only live books; the cart estimate guesses the country and hands its destination to checkout only after **Estimate**.
 - Deploy Functions with this frontend. No Firestore rule or index changes.
+
+## Pre-orders
+
+A published book with `preorder: true` sells before its `publishDate` (see CLAUDE.md › Pre-orders). Keep
+`functions/preorder.js` and `features/site/preorder.ts` identical (`preorder.parity.test.ts`). Pre-orders never change
+stock, price or payment authority; the server stamps `preorder`/`releaseDate` on order lines from the catalog, and the
+**Awaiting release** queue plus `labelProblem` keep parcels back until release or **Ready to ship now**.

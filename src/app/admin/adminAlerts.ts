@@ -1,3 +1,4 @@
+import { waitingPreorderLines } from "../features/site/preorder";
 // Admin-wide alerts shown above every admin page (AdminAlerts.tsx). Pure, tested.
 // Payment problems come first: money that arrived but isn't recorded, or vice versa.
 
@@ -21,6 +22,9 @@ const MANUAL_LATE_MS = 2 * DAY;
 
 const age = (o: any, now: number) => now - Date.parse(o?.createdAt || "");
 const paidAge = (o: any, now: number) => now - Date.parse(o?.paidAt || o?.createdAt || "");
+// A pre-order can't ship before its release, so its shipping clock starts on the latest release date.
+const releasedAt = (o: any) => Math.max(0, ...((o?.items || []).filter((i: any) => i?.preorder && i.releaseDate).map((i: any) => Date.parse(`${i.releaseDate}T12:00:00Z`) || 0)));
+const shipAge = (o: any, now: number) => Math.min(paidAge(o, now), now - releasedAt(o));
 const label = (o: any) => o?.orderId || o?.id;
 const list = (orders: any[]) => {
   const names = orders.slice(0, 3).map(label).join(", ");
@@ -84,9 +88,9 @@ export function buildAdminAlerts(allOrders: any[], webhook: WebhookStatus = null
   if (oversold.length) out.push(alert("oversold", "warning", `${plural(oversold.length, "paid order was", "paid orders were")} oversold`,
     `More copies were sold than were in stock: ${list(oversold)}. Restock or contact the customer.`, oversold));
 
-  const late = orders.filter((o) => o.paymentStatus === "paid" && !isFinished(o) && paidAge(o, now) >= SHIP_LATE_MS);
+  const late = orders.filter((o) => o.paymentStatus === "paid" && !isFinished(o) && !waitingPreorderLines(o, o.operations || {}, new Date(now)).length && shipAge(o, now) >= SHIP_LATE_MS);
   if (late.length) out.push(alert("ship-late", "warning", `${plural(late.length, "paid order has", "paid orders have")} waited over 3 days to ship`,
-    `Oldest first: ${list(late.sort((a, b) => paidAge(b, now) - paidAge(a, now)))}.`, late));
+    `Oldest first: ${list(late.sort((a, b) => shipAge(b, now) - shipAge(a, now)))}.`, late));
 
   const manual = orders.filter((o) => o.paymentStatus === "pending" && age(o, now) >= MANUAL_LATE_MS && o.status !== "cancelled");
   if (manual.length) out.push(alert("manual-pending", "info", `${plural(manual.length, "order is", "orders are")} still waiting for a manual payment`,

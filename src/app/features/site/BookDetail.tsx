@@ -17,6 +17,7 @@ import { contentMaxWidth } from "./headerNav";
 import { SiteFooter } from "../../components/MainSite";
 import { TemplateSections, GlobalSections } from "../../components/sectionRender";
 import { getCopy } from "./storeCopy";
+import { preorderActive, releaseDateOf, formatReleaseDate } from "./preorder";
 import { designNumber } from "./designNumber";
 import { placeholderImage } from "./constants";
 import type { Book } from "./types";
@@ -363,8 +364,12 @@ export default function BookDetail() {
   const showThumbRail = photos.length > 1 && pdpThumbPosition !== "hidden";
   const isLowStock    = stockLevel > 0 && stockLevel !== 999 && stockLevel <= designNumber(settings?.design, "lowStockProductThreshold", 10);
   const isBackorder   = !!(selectedVariant ? (selectedVariant as any).onBackorder : (book as any)?.onBackorder);
+  // Pre-order (Books › Inventory › Pre-order): sold before its publication date.
+  const isPreorder    = preorderActive(book);
+  const preorderDate  = isPreorder ? formatReleaseDate(releaseDateOf(book)) : "";
   const stockText     = isOutOfStock
     ? getCopy(settings?.design, "soldOutLabel")
+    : isPreorder ? (preorderDate ? getCopy(settings?.design, "pdpPreorder", { date: preorderDate }) : getCopy(settings?.design, "pdpPreorderTba"))
     : isBackorder ? getCopy(settings?.design, "pdpBackorder")
     : isLowStock ? getCopy(settings?.design, "pdpInStockCount", { count: stockLevel }) : getCopy(settings?.design, "pdpInStock");
   const specRows = [
@@ -814,7 +819,7 @@ export default function BookDetail() {
                       )}
                     </div>
                     {pdpShowStock && (
-                      <span className="fm-pdp-meta fm-pdp-stock" data-state={isOutOfStock ? "out" : isLowStock ? "low" : "in"}>
+                      <span className="fm-pdp-meta fm-pdp-stock" data-state={isOutOfStock ? "out" : isPreorder ? "preorder" : isLowStock ? "low" : "in"}>
                         {stockText}
                       </span>
                     )}
@@ -919,7 +924,7 @@ export default function BookDetail() {
                       ) : added ? (
                         <><Check size={14} strokeWidth={3} /> {getCopy(settings?.design, "bookAdded")}</>
                       ) : (
-                        <><ShoppingBag size={14} /> {storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel")}</>
+                        <><ShoppingBag size={14} /> {isPreorder ? getCopy(settings?.design, "preorderButton") : (storefrontDesign.addToBagLabel || settings?.design?.addToBagLabel || getCopy(settings?.design, "addToBagLabel"))}</>
                       )}
                     </motion.button>
 

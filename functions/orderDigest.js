@@ -4,6 +4,7 @@ const UNSHIPPED_DAYS = 3;
 const TRANSIT_DAYS = 14; // Same as OVERDUE_TRANSIT_DAYS in src/app/admin/fulfillment.ts.
 
 const { isPhysicalItem } = require("./localFulfillment");
+const { waitingPreorderLines } = require("./preorder");
 const methodOf = order => order.fulfillmentSelection?.method || order.fulfillment?.method || "shipping";
 const ageDays = (iso, now) => {
   const t = Date.parse(iso || "");
@@ -29,7 +30,11 @@ function buildOrderDigest(orders, operationsById = new Map(), now = Date.now()) 
       continue;
     }
     if (fs === "delivered") continue;
-    const days = ageDays(order.paidAt || order.createdAt, now);
+    // Pre-orders wait for their release date; after it, the clock starts on release day.
+    if (waitingPreorderLines(order, ops, new Date(now)).length) continue;
+    const release = (order.items || []).filter(i => i && i.preorder && i.releaseDate).map(i => `${i.releaseDate}T12:00:00Z`).sort().pop();
+    const paidDays = ageDays(order.paidAt || order.createdAt, now);
+    const days = release && paidDays !== null ? Math.min(paidDays, ageDays(release, now)) : paidDays;
     if (days !== null && days >= UNSHIPPED_DAYS) unshipped.push({ id: order.id, label, days, customer: order.customer?.name || "" });
   }
   const byAge = (a, b) => b.days - a.days;

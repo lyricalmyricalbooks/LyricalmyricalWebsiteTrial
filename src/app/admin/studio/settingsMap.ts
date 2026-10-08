@@ -131,7 +131,7 @@ export const STYLE_SUBSECTIONS: Record<string, { title: string; keys: string[] }
     { title: "Colours & outline", keys: ["cartDrawerBg", "cartDrawerText", "cartDrawerMuted", "cartDrawerSurface", "cartDrawerBorder", "cartDrawerEdgeColor", "cartDrawerEdgeWidth", "cartDrawerShadowColor", "cartDrawerShadowOffset", "cartDrawerBackdropColor", "cartDrawerBackdropBlur"] },
     { title: "Heading & fonts", keys: ["cartDrawerTitleFont", "cartDrawerTitleSize", "cartDrawerTitleCase", "cartDrawerMetaFont", "cartDrawerMetaSize", "cartDrawerShowCount"] },
     { title: "Free-shipping bar", keys: ["showFreeShipBar", "cartDrawerProgressColor", "cartDrawerProgressTrack", "cartDrawerProgressHeight"] },
-    { title: "Book rows", keys: ["cartDrawerShowItemNumbers", "cartDrawerThumbWidth", "cartDrawerThumbOutline", "cartDrawerGrayscaleThumbs", "cartDrawerItemTitleSize", "cartDrawerShowUnitPrice", "cartDrawerShowLineTotal", "cartDrawerQtyStyle", "cartDrawerRemoveStyle"] },
+    { title: "Book rows", keys: ["cartDrawerShowItemNumbers", "cartDrawerThumbWidth", "cartDrawerThumbOutline", "cartDrawerGrayscaleThumbs", "cartDrawerItemTitleSize", "cartDrawerShowUnitPrice", "cartDrawerShowLineTotal", "cartDrawerShowPreorder", "cartDrawerQtyStyle", "cartDrawerRemoveStyle"] },
     { title: "Suggestion card", keys: ["cartDrawerShowUpsell", "cartDrawerUpsellShadow"] },
     { title: "Total & checkout button", keys: ["cartDrawerShowSummary", "cartDrawerShowShippingPreview", "cartDrawerTotalSize", "showCartTrustBadges", "cartDrawerCheckoutBg", "cartDrawerCheckoutText", "cartDrawerCheckoutHeight", "cartDrawerCheckoutShadow", "cartDrawerShowCheckoutArrow", "cartDrawerShowDeliveryNote"] },
   ],

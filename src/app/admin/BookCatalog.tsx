@@ -9,6 +9,7 @@ import {
   ActionMenu, Checkbox, ConfirmDialog, DataTable, Dialog, DestructiveButton, TextField, EmptyState, ErrorState, FilterBar, LoadingState, Pagination,
   PrimaryButton, SearchField, SecondaryButton, SectionCard, SelectField, StatusBadge, type BadgeTone, type Column,
 } from "./riso/components";
+import { preorderActive, releaseDateOf } from "../features/site/preorder";
 
 interface BookCatalogProps {
   onEdit: (book: any) => void;
@@ -180,7 +181,7 @@ export function BookCatalog({ onEdit, onAdd, refreshTrigger }: BookCatalogProps)
         </div>
       </div>
     ) },
-    { key: "status", header: "Status", render: b => { const s = publicationBadge(b); return <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}><StatusBadge tone={s.tone}>{s.text}</StatusBadge>{b.featured && <StatusBadge tone="primary">Featured</StatusBadge>}</span>; } },
+    { key: "status", header: "Status", render: b => { const s = publicationBadge(b); return <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}><StatusBadge tone={s.tone}>{s.text}</StatusBadge>{b.featured && <StatusBadge tone="primary">Featured</StatusBadge>}{preorderActive(b) && <StatusBadge tone="info">{releaseDateOf(b) ? `Pre-order · ${releaseDateOf(b)}` : "Pre-order"}</StatusBadge>}</span>; } },
     { key: "format", header: "Format", render: b => b.format || "—" },
     { key: "isbn", header: "ISBN / SKU", render: b => <span className="rp-mono">{b.isbn || b.sku || "—"}</span> },
     { key: "stock", header: "Inventory", render: b => { const s = stockBadge(b); return <StatusBadge tone={s.tone}>{s.text}</StatusBadge>; } },

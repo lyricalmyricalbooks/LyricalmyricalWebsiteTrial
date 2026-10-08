@@ -43,6 +43,7 @@ import { ConfirmDialog, SectionCard, TextField, TextArea, SelectField, Toggle, S
 import { prepareProductImage } from "./prepareImage";
 
 import { BookSeoPane } from "./BookSeoPane";
+import { preorderActive, releaseDateOf, formatReleaseDate } from "../features/site/preorder";
 
 const MAX_BOOK_PHOTOS = 20;
 
@@ -117,6 +118,7 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     chargeTax: true,
     trackInventory: true,
     allowBackorder: false,
+    preorder: false,
     metaTitle: "",
     metaDescription: "",
   });
@@ -207,6 +209,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
         chargeTax: true,
         trackInventory: true,
         allowBackorder: false,
+        preorder: false,
+    preorder: false,
         metaTitle: "",
         metaDescription: "",
       };
@@ -870,6 +874,29 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
                   <TextField label="Shelf location" name="shelfLocation" value={formData.shelfLocation || ""} onChange={handleChange} placeholder="e.g. B2 or Box 4" hint="Shown next to this book on the packing checklist." />
                 </div>
                 {lowStock && <p className="be-warn" role="status">⚠ Low stock. Consider reprinting or turning on backorders.</p>}
+              </SectionCard>
+              <SectionCard title="Pre-order" description="Sell this book before it comes out. On its publication date it becomes a normal book by itself.">
+                <div className="be-toggles">
+                  <Toggle label="Take pre-orders until the publication date" checked={!!formData.preorder} onChange={(v) => set("preorder", v)} />
+                </div>
+                {formData.preorder && (
+                  <>
+                    <div className="be-grid">
+                      <TextField label="Publication date (release day)" type="date" name="publishDate" value={formData.publishDate || ""} onChange={handleChange} hint="Leave empty for “release date to be announced”. Same field as Details › Publication date." />
+                      <div className="be-stock-status">
+                        {preorderActive(formData)
+                          ? <StatusBadge tone="info">{releaseDateOf(formData) ? `On pre-order · releases ${formatReleaseDate(releaseDateOf(formData), "en-CA")}` : "On pre-order · date to be announced"}</StatusBadge>
+                          : <StatusBadge tone="neutral">Released — selling normally</StatusBadge>}
+                      </div>
+                    </div>
+                    <p className="rp-hint">
+                      Shoppers see “Pre-order” on the button and the release date on the book page, bag and checkout. Paid pre-orders wait in Orders › Pre-orders until release day (or press “Ready to ship now”); e-books unlock on release day.
+                      {" "}Pre-orders use the stock above: {formData.trackInventory ? (formData.allowBackorder ? "backorders are on, so pre-orders never run out." : "they stop when stock reaches 0 — enter how many copies you'll accept (e.g. your print run), or turn on backorders.") : "inventory isn't tracked, so pre-orders are unlimited."}
+                    </p>
+                    {formData.status !== "published" && <p className="be-warn" role="status">⚠ Pre-orders only show in the shop once the book's Status is Published.</p>}
+                    {formData.scheduleDate && String(formData.scheduleDate) > new Date().toISOString() && <p className="be-warn" role="status">⚠ This book is scheduled to appear later, so shoppers can't pre-order it until then. Clear the schedule to open pre-orders now.</p>}
+                  </>
+                )}
               </SectionCard>
               <SectionCard title="Shipping & visibility">
                 <div className="be-grid">

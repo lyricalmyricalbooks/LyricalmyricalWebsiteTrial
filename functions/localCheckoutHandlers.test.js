@@ -174,3 +174,22 @@ test('explicit no-zone rate charges the current displayed quote including zero-b
   expect(app.order.shipping).toBe(0);
   expect(app.order.shippingMethod).toBe('Free local mail');
 });
+test('pre-order lines are stamped from the catalog, and a forged flag never sticks', async () => {
+  const app = harness();
+  app.docs.books.book = { ...app.docs.books.book, preorder: true, publishDate: '2999-01-15' };
+  const response = await app.call('createStripeCheckoutSession');
+  expect(response.code).toBe(200);
+  expect(app.order.items[0]).toMatchObject({ preorder: true, releaseDate: '2999-01-15' });
+
+  const plain = harness();
+  plain.order.items[0].preorder = true;
+  plain.order.items[0].releaseDate = '2999-01-15';
+  expect((await plain.call('createStripeCheckoutSession')).code).toBe(200);
+  expect(plain.order.items[0]).toMatchObject({ preorder: false, releaseDate: null });
+});
+test('a released pre-order (publication date passed) checks out as an ordinary book', async () => {
+  const app = harness();
+  app.docs.books.book = { ...app.docs.books.book, preorder: true, publishDate: '2001-01-01' };
+  expect((await app.call('createStripeCheckoutSession')).code).toBe(200);
+  expect(app.order.items[0]).toMatchObject({ preorder: false, releaseDate: null });
+});

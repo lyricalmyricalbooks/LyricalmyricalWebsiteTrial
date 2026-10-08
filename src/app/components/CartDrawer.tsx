@@ -6,6 +6,7 @@ import { useCart, catalogUnitPrice, MAX_LINE_QUANTITY } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
 import { useSiteData } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
+import { linePreorderNote } from "../features/site/preorder";
 import { useCurrency } from "../CurrencyContext";
 import { StorefrontThemeStyle } from "../features/site/StorefrontThemeStyle";
 import { cartDrawerCss, cartDrawerFontNames, cartDrawerWidth } from "../features/site/cartDrawerStyle";
@@ -56,6 +57,7 @@ export function CartDrawer() {
   const showCount = design.cartDrawerShowCount ?? true;
   const showNumbers = design.cartDrawerShowItemNumbers ?? true;
   const showUnitPrice = design.cartDrawerShowUnitPrice ?? true;
+  const showPreorder = design.cartDrawerShowPreorder ?? true;
   const showLineTotal = design.cartDrawerShowLineTotal ?? true;
   const showUpsell = design.cartDrawerShowUpsell ?? true;
   const showSummary = design.cartDrawerShowSummary ?? true;
@@ -160,6 +162,7 @@ export function CartDrawer() {
                             {showLineTotal && <span className="fm-bag-line">{formatPrice(item.price * item.quantity)}</span>}
                           </div>
                           {item.variantName && <p className="fm-bag-meta">{item.variantName}</p>}
+                          {showPreorder && linePreorderNote(item, (k, v) => getCopy(design, k, v)) && <p className="fm-bag-meta fm-bag-preorder">{linePreorderNote(item, (k, v) => getCopy(design, k, v))}</p>}
                           {showUnitPrice && <p className="fm-bag-meta">{getCopy(design, "cartEachLabel", { price: formatPrice(item.price) })}</p>}
                           <div className="flex items-center justify-between gap-3 mt-auto pt-2">
                             <div className="fm-bag-qty" data-style={qtyStyle} role="group" aria-label={getCopy(design, "cartQtyAria", { title: item.title })}>

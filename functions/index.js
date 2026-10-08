@@ -40,6 +40,7 @@ const { returnTransition, publicReturn, returnRestockItems } = require("./return
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
 const { hitLimit, LIMITS } = require("./rateLimit");
 const { reserveStock, releaseStock, releaseStockForOrder, StockHoldError, holdOwner } = require("./stockHolds");
+const { preorderActive, preorderLine, preorderEmailLines } = require("./preorder");
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -949,7 +950,7 @@ async function recalculateOrder(orderRef, order, checkoutCurrency) {
     }
     const price = catalogUnitPrice(book, variant);
     if (!Number.isFinite(price) || price < 0) throw new Error(`Book ${requested.id} is temporarily unavailable for purchase (pricing error).`);
-    items.push({ ...requested, title: book.title || requested.title || "", variantName: variant ? (variant.name || null) : null, quantity, price, format: catalogFormat(book, variant), digital: catalogDigital(book, variant), isDigital: catalogDigital(book, variant), shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant) });
+    items.push({ ...requested, title: book.title || requested.title || "", variantName: variant ? (variant.name || null) : null, quantity, price, format: catalogFormat(book, variant), digital: catalogDigital(book, variant), isDigital: catalogDigital(book, variant), shippingProfileId: book.shippingProfileId || null, weightGrams: itemWeightGrams(book, variant), ...preorderLine(book) });
   }
   if (!items.length) throw new Error("Order has no items.");
 
@@ -1504,6 +1505,8 @@ exports.createStripeCheckoutSession = onBrowserRequest(
           quantity: Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1))),
           shippingProfileId: book.shippingProfileId || null,
           weightGrams: itemWeightGrams(book, variant),
+          // Pre-order state comes from the catalog at checkout (never from the browser).
+          ...preorderLine(book),
         });
       }
 
@@ -3115,6 +3118,12 @@ exports.downloadDigitalAsset = onRequest(
         res.status(403).send("This order does not include the digital edition.");
         return;
       }
+      // A pre-ordered e-book unlocks on its publication date (the live catalog decides, so a
+      // release the publisher brings forward unlocks early too).
+      if (preorderActive(book)) {
+        res.status(403).send(book.publishDate ? `This pre-order can be downloaded from ${String(book.publishDate).slice(0, 10)}.` : "This pre-order can be downloaded once the book is released.");
+        return;
+      }
       if (!book.digitalFileName) {
         res.status(400).send("This publication does not have a digital download configured.");
         return;
@@ -3486,7 +3495,14 @@ exports.onOrderUpdated = onDocumentUpdated(
             <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">${escapeHtml(delivery.heading)}</h3>
             ${delivery.lines.map(line => `<p style="font-size:13px;margin:4px 0;line-height:1.6;">${escapeHtml(line)}</p>`).join("")}
           </div>` : "";
-      const combinedSection = [deliverySection, paymentConfirmedSection, downloadSection].filter(Boolean).join("\n");
+      // Pre-ordered books: when each is released and when the parcel ships.
+      const preorderLines = preorderEmailLines(order);
+      const preorderSection = preorderLines.length ? `
+          <div style="margin-top:28px;padding:20px 24px;border:2px solid #111;">
+            <h3 style="margin-top:0;font-size:13px;letter-spacing:.15em;text-transform:uppercase;">Pre-order</h3>
+            ${preorderLines.map(line => `<p style="font-size:13px;margin:4px 0;line-height:1.6;">${escapeHtml(line)}</p>`).join("")}
+          </div>` : "";
+      const combinedSection = [preorderSection, deliverySection, paymentConfirmedSection, downloadSection].filter(Boolean).join("\n");
 
       const compiled = compileEmailTemplate("order_confirmation", notificationSettings, {
         customer_name: order.customer.name || "there",
@@ -3511,6 +3527,7 @@ exports.onOrderUpdated = onDocumentUpdated(
           <p><strong>Customer:</strong> ${escapeHtml(order.customer.name)} &lt;${escapeHtml(order.customer.email)}&gt;${order.customer.phone ? ` · ${escapeHtml(order.customer.phone)}` : ""}</p>
           <p><strong>Ship to:</strong> ${adminAddr}</p>
           <p><strong>Payment:</strong> ${escapeHtml(order.paymentMethod || "Stripe")}</p>
+          ${preorderLines.length ? `<p><strong>Pre-order:</strong> ${preorderLines.map(escapeHtml).join(" ")} It waits in Orders › Awaiting release until then.</p>` : ""}
           ${itemsTable}
           <p style="margin-top:24px;"><a href="${adminOrderUrl}">Open the order in the admin</a> to pack it, buy a label and mark it shipped.</p>
         </div>
@@ -3531,7 +3548,7 @@ exports.onOrderUpdated = onDocumentUpdated(
       if (notificationSettings.new_order_admin?.enabled !== false) try {
         await sendEmail({
           to: ADMIN_TO,
-          subject: `${order.sandboxPayment ? "[TEST] " : ""}[NEW ORDER] ${order.orderId || orderId} · paid · ${moneyFmt(order.total)} · ${order.customer.name}`,
+          subject: `${order.sandboxPayment ? "[TEST] " : ""}[NEW ${preorderLines.length ? "PRE-ORDER" : "ORDER"}] ${order.orderId || orderId} · paid · ${moneyFmt(order.total)} · ${order.customer.name}`,
           html: adminPaidHtml,
           secret: RESEND_API_KEY.value(),
         });

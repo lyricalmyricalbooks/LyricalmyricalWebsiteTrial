@@ -24,7 +24,7 @@ function publicOrderView(id, order) {
   if (order.returnProgress) out.returnProgress = pick(order.returnProgress, ["state", "instructions", "approvedAt", "receivedAt", "inspectedAt", "rejectedAt", "updatedAt"]);
   out.customer = pick(order.customer, ["name", "email", "phone"]);
   out.customer.address = pick(order.customer?.address, ["street", "unit", "city", "state", "zip", "country"]);
-  out.items = (order.items || []).map(item => pick(item, ["id", "variantId", "variantName", "title", "price", "quantity", "photoUrl"]));
+  out.items = (order.items || []).map(item => pick(item, ["id", "variantId", "variantName", "title", "price", "quantity", "photoUrl", "preorder", "releaseDate"]));
   return out;
 }
 module.exports = { canViewOrder, publicOrderView, normEmail };
