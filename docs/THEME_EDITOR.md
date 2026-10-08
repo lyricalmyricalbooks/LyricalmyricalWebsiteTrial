@@ -115,6 +115,10 @@ rendered by the section's renderer (e.g. `RowSection`/`RowBlock`).
 
 ## Persistence model
 
+- **Studio 2.0 (0.4):** the live design stays in public `settings/website.design`; the work-in-progress
+  draft moved to admin-only `themes/workspace.draft` (with a save revision) and My themes to
+  `savedThemes/{id}` — see `admin/themeStore.ts`. The notes below describe the legacy layout, which Studio
+  still uses until the Firestore rules for those collections are deployed.
 - The theme lives in site settings as **`design`** (live) and **`draftDesign`**
   (work-in-progress). Sections are in `design.sections` (homepage),
   `design.globalSections`, and `design.homepageSections` (legacy alias still
@@ -190,7 +194,17 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       (served by `vite` in development only) opens the real Studio with that data, and `pnpm run test:studio`
       (`scripts/studio-e2e.mjs`, Chromium) drives it: preview connects with the unsaved design, add/undo/redo/save,
       device widths, Find anything, click a section in the preview, phone-sized editor. CI runs both.
-- [ ] 0.4 Theme store: drafts/saved themes/schedules in admin-only docs, light public read path, revision-checked saves.
+- [x] 0.4 Theme store (`admin/themeStore.ts`). The unpublished draft lives in admin-only `themes/workspace`
+      `{draft, rev, updatedAt, tabId}` and each My themes entry in `savedThemes/{id}`; the first Studio open
+      copies `settings/website.draftDesign`/`savedThemes` there, checks the copy, then deletes the public
+      fields. Until the rules deploy (permission-denied) Studio stays in "legacy" mode on the old fields.
+      Save draft / Publish / Discard are compare-and-set transactions on `rev`; a stale tab gets
+      `ThemeConflictError`, changes to different settings merge automatically (`mergeDesigns`), and the
+      **Saved in another tab or device** dialog offers Keep mine / Use the other version. Publish writes the
+      live design and the draft in one transaction. Shop categories and the under-construction wall update
+      the private draft without bumping `rev` (`draftFieldUpdate`). Shoppers read `adminApi.getPublicSettings()`
+      (no admin lookups, draft/My themes stripped). Unsaved-work recovery is one record per tab
+      (`studio-recovery-v2:…:<tabId>`, newest offered, 14-day expiry).
 - [ ] 0.5 Design value model: one resolver, All-pages writes without duplication, compaction, page-override review.
 
 **Phase 1 — Navigation overhaul ("one tree, one inspector")**

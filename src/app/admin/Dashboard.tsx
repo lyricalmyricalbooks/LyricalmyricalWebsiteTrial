@@ -31,7 +31,7 @@ import { WhatsNew } from "./WhatsNew";
 import { NAV, PAGE_COPY } from "./riso/nav";
 
 // Studio is large and only opened from Settings › Design, so it loads in its own chunk.
-const StudioEditor = lazy(() => import("./studio/StudioEditor").then(m => ({ default: m.StudioEditor })));
+const StudioEditor = lazy(() => import("./studio/StudioWorkspace").then(m => ({ default: m.StudioWorkspace })));
 
 const openSite = () => {
   const adminIdx = window.location.pathname.toLowerCase().indexOf("/admin");

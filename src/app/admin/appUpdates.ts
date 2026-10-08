@@ -9,6 +9,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-private-drafts", date: "2026-10-08", title: "Private drafts and safe saving in two tabs",
+    summary: "Your unpublished Design studio draft and My themes are now stored privately instead of in the settings every shopper's browser downloads, so the shop loads less data and unannounced designs stay hidden. My themes no longer has a size limit. If the studio is open in two tabs or devices, saving no longer silently overwrites the other one: changes to different settings are combined, and you choose when both changed the same setting. This needs the updated Firestore rules deployed; until then the studio keeps working as before.",
+    links: [{ label: "Open the Design studio", tab: "settings", settingsTab: "designer" }],
+  },
+  {
     id: "studio-2-test-harness", date: "2026-10-08", title: "Design studio is now tested in a real browser",
     summary: "Every change to the app now opens the Design studio in a test browser and checks the basics: the preview shows your unsaved work, adding a section, undo and redo, Save draft that never publishes, device sizes, Find anything and clicking a section to edit it. Nothing changes in how you use the studio.",
     links: [{ label: "Open the Design studio", tab: "settings", settingsTab: "designer" }],

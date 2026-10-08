@@ -270,6 +270,13 @@ blocks resolve centrally in `SectionList`; each section renders inside `SectionB
 only from `features/site/breakpoints.ts` (phone ≤767px, tablet ≤1023px). Scheduled designs follow
 `features/site/scheduledDesign.mjs`. Save draft overwrites `theme-versions/draft-latest`; Publish adds a version.
 
+**Private drafts (0.4):** Studio's unpublished draft is in admin-only `themes/workspace` (`draft`, `rev`) and
+My themes in `savedThemes/{id}`; never add draft or theme data back to public `settings/website`. All Studio
+saves go through `admin/themeStore.ts` (revision-checked; `ThemeConflictError` → merge or the conflict dialog).
+Admin tools that change one design field outside Studio call `draftFieldUpdate`. Shopper code reads settings
+with `adminApi.getPublicSettings()`, never `getSettings()` (which also reads admin-only key flags).
+Deploy Firestore rules before (or with) the frontend; until then Studio safely stays on the legacy fields.
+
 Studio is a Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the
 section/block contract, and the Studio 2.0 roadmap.

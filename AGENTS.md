@@ -63,6 +63,8 @@ collections, and deployment. Don't duplicate that here. Quick orientation:
 - **Respect Firestore security rules.** When you change the shape of any
   read/write, update `firestore.rules` and `firestore.indexes.json` to match —
   rules are enforced server-side and a mismatch breaks the app in production.
+- **Unpublished design work stays private.** The Studio draft and My themes live in admin-only
+  `themes/workspace` and `savedThemes/*` (`admin/themeStore.ts`); shoppers read `getPublicSettings()`.
 - **Secrets stay out of client-readable data too.** `settings/*` is publicly readable; never add UI that stores API secrets there (see CLAUDE.md › Security notes).
 - **Secrets stay out of the repo.** `STRIPE_SECRET_KEY`,
   `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, and `SHIPPO_API_TOKEN` are Firebase

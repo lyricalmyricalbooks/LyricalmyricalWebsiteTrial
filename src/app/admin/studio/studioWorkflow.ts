@@ -130,7 +130,28 @@ export function createSnapshotWriter() {
   };
 }
 
-export type Recovery = { version: 1; design: Record<string, any>; base: string; savedAt: number };
+export type Recovery = { version: 1; design: Record<string, any>; base: string; savedAt: number; key?: string };
+/** localStorage key prefix for per-tab Studio recovery records: `<prefix><base>:<uid>:<tabId>`. */
+export const RECOVERY_PREFIX = "studio-recovery-v2:";
+const RECOVERY_MAX_AGE = 14 * 24 * 60 * 60 * 1000;
+
+/**
+ * The newest unsaved-work record left by any Studio tab of this admin (a crashed or closed tab
+ * included). Records older than two weeks are dropped.
+ */
+export function newestRecovery(storage: Storage, prefix: string, baseline: any, now = Date.now()) {
+  let best: (Recovery & { conflict: boolean }) | null = null;
+  for (let i = storage.length - 1; i >= 0; i--) {
+    const key = storage.key(i);
+    if (!key?.startsWith(prefix)) continue;
+    const raw = storage.getItem(key);
+    const parsed = parseRecovery(raw, baseline);
+    let savedAt = 0; try { savedAt = Number(JSON.parse(raw || "{}").savedAt) || 0; } catch { /* unreadable */ }
+    if (now - savedAt > RECOVERY_MAX_AGE) { storage.removeItem(key); continue; }
+    if (parsed && (!best || parsed.savedAt > best.savedAt)) best = { ...parsed, key };
+  }
+  return best;
+}
 export function parseRecovery(raw: string | null, baseline: any): (Recovery & { conflict: boolean }) | null {
   try {
     const data = JSON.parse(raw || "null");
@@ -159,3 +180,30 @@ export function previewRoute(href: string, base: string) {
 // These groups are consumed through per-page theme tokens. Other controls stay
 // explicitly global until their storefront consumers support local overrides.
 export const PAGE_STYLE_GROUPS = new Set(["colors", "buttons", "type", "layout", ...REGION_GROUPS.map(g => g.id)]);
+
+const plainObject = (v: any) => !!v && typeof v === "object" && !Array.isArray(v);
+const sameValue = (a: any, b: any) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/**
+ * Three-way merge of two Studio drafts that both started from `base` (e.g. two browser tabs).
+ * Changes made on only one side are combined; a setting changed differently on both sides keeps
+ * this tab's value and is reported in `conflicts` (paths like "heroPage.sections").
+ */
+export function mergeDesigns(base: any, local: any, server: any, depth = 0, path = ""): { merged: any; conflicts: string[] } {
+  const conflicts: string[] = [];
+  const merged: Record<string, any> = {};
+  const keys = new Set([...Object.keys(base || {}), ...Object.keys(local || {}), ...Object.keys(server || {})]);
+  for (const key of keys) {
+    const b = base?.[key], l = local?.[key], s = server?.[key];
+    const at = path ? `${path}.${key}` : key;
+    let value: any;
+    if (sameValue(l, s) || sameValue(s, b)) value = l;
+    else if (sameValue(l, b)) value = s;
+    else if (depth < 1 && plainObject(l) && plainObject(s) && (b === undefined || plainObject(b))) {
+      const inner = mergeDesigns(b || {}, l, s, depth + 1, at);
+      value = inner.merged; conflicts.push(...inner.conflicts);
+    } else { value = l; conflicts.push(at); }
+    if (value !== undefined) merged[key] = value;
+  }
+  return { merged, conflicts };
+}

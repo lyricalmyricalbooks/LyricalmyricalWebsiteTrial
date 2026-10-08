@@ -37,7 +37,7 @@ function loadSiteData() {
     siteDataLoadedAt = Infinity;
     siteDataRequest = Promise.all([
       loadCatalog((size, cursor) => adminApi.getStorefrontBooks(size, cursor)).then(newestFirst),
-      adminApi.getSettings(),
+      adminApi.getPublicSettings(),
       adminApi.getPublishedPages(),
     ]).then(result => {
       siteDataLoadedAt = Date.now();
@@ -81,7 +81,7 @@ export function useSiteData() {
         
         // Never let the late Firestore load overwrite what the Studio has already sent.
         if (isPreview) {
-          safeSettings.design = (window as any).__studioPreviewDesign || safeSettings.draftDesign || safeSettings.design;
+          safeSettings.design = (window as any).__studioPreviewDesign || safeSettings.design;
         }
 
         // Scheduled publishing: once the scheduled time passes, shoppers see

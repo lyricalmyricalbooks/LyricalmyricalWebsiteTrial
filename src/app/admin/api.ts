@@ -1,6 +1,7 @@
 import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
 import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
 import { themeWrite } from "./themeWrite";
+import { draftFieldUpdate, readDraftField } from "./themeStore";
 import { splitWebsiteSecrets, splitNotificationSecrets, type SecretPatch } from "./privateKeys";
 import { toCountryCodes } from "./shippingCountries";
 
@@ -473,6 +474,17 @@ export const adminApi = {
   },
 
   // Settings
+  // Shopper read of settings/website: no admin-only lookups, never writes, and never keeps the
+  // unpublished draft or My themes (older documents may still carry them) in shopper state or cache.
+  getPublicSettings: async () => {
+    const snap = await getDoc(doc(db, "settings", "website"));
+    const merged: any = { ...adminApi.getDefaultSettings(), ...(snap.exists() ? snap.data() : {}) };
+    delete merged.draftDesign;
+    delete merged.savedThemes;
+    if (merged.design) merged.design = withRisoNoirDefault(merged.design);
+    return merged;
+  },
+
   getSettings: async () => {
     const docRef = doc(db, "settings", "website");
     const snap = await getDoc(docRef);
@@ -536,8 +548,8 @@ export const adminApi = {
   updateShopCategories: async (categories: any[]) => {
     const docRef = doc(db, "settings", "website");
     const snapshot = JSON.parse(JSON.stringify(categories));
-    await setDoc(docRef, { design: { categories: snapshot }, draftDesign: { categories: snapshot } },
-      { mergeFields: ["design.categories", "draftDesign.categories"] });
+    await setDoc(docRef, { design: { categories: snapshot } }, { mergeFields: ["design.categories"] });
+    await draftFieldUpdate({ categories: snapshot });
     await adminApi.recordAuditLog("settings", `Updated shop categories (${snapshot.length})`).catch(error => console.warn("Categories saved; audit log unavailable", error));
   },
 
@@ -547,13 +559,15 @@ export const adminApi = {
   addShopCategory: async (category: any) => {
     const docRef = doc(db, "settings", "website");
     const added = JSON.parse(JSON.stringify(category));
+    let draftBase: any;
     await runTransaction(db, async tx => {
       const data: any = (await tx.get(docRef)).data() || {};
       const live = appendCategory(data.design?.categories, added, CATEGORIES);
-      const draft = appendCategory(data.draftDesign?.categories ?? data.design?.categories, added, CATEGORIES);
-      tx.set(docRef, { design: { categories: live }, draftDesign: { categories: draft } },
-        { mergeFields: ["design.categories", "draftDesign.categories"] });
+      tx.set(docRef, { design: { categories: live } }, { mergeFields: ["design.categories"] });
+      draftBase = data;
     });
+    const draft = appendCategory((await readDraftField("categories", draftBase)) ?? draftBase?.design?.categories, added, CATEGORIES);
+    await draftFieldUpdate({ categories: draft });
     await adminApi.recordAuditLog("settings", `Added shop category ${added.name}`).catch(error => console.warn("Category saved; audit log unavailable", error));
   },
 
@@ -561,8 +575,8 @@ export const adminApi = {
   // draft in step so the next Publish doesn't silently undo it.
   setUnderConstruction: async (on: boolean) => {
     const docRef = doc(db, "settings", "website");
-    await setDoc(docRef, { design: { showUnderConstruction: on }, draftDesign: { showUnderConstruction: on } },
-      { mergeFields: ["design.showUnderConstruction", "draftDesign.showUnderConstruction"] });
+    await setDoc(docRef, { design: { showUnderConstruction: on } }, { mergeFields: ["design.showUnderConstruction"] });
+    await draftFieldUpdate({ showUnderConstruction: on });
     await adminApi.recordAuditLog("settings", `Under construction wall ${on ? "on" : "off"}`).catch(error => console.warn("Saved; audit log unavailable", error));
   },
 

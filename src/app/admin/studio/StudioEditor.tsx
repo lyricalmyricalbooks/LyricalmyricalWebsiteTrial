@@ -50,6 +50,7 @@ import { designChecks as buildDesignChecks } from "./studioChecks";
 import { EXTRA_STYLE_CATEGORIES, TEXT_BLURBS, TEXT_HEADINGS, THEME_HEADINGS, blurbFor, changedCopyCount, changedCounts, changedFields, defaultFor, isChanged, subsectionsFor } from "./settingsMap";
 import { CategoryHeader, SettingsHome, SettingsSubsection, StudioTips, type HomeHeading } from "./StudioSettingsHome";
 
+import { saveSavedThemes, type Workspace } from "../themeStore";
 import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "shared";
@@ -76,6 +77,15 @@ function designChecks(design: any) {
 }
 
 const DEVICE_W = { desktop: "1200px", tablet: "820px", mobile: "390px" } as const;
+
+/** "heroPage.sections" → "Home › sections" for the save-conflict dialog. */
+function conflictLabel(path: string, templates: { id: string; label: string }[]) {
+  const [top, ...rest] = path.split(".");
+  if (top === "copy" && rest[0]) return `Text & labels › ${COPY_SCHEMA.flatMap(g => g.fields).find(f => f.key === rest[0])?.label || rest[0]}`;
+  const page = templates.find(t => t.id === top)?.label;
+  const name = (key: string) => key === "copy" ? "Text & labels" : key === "sections" ? "sections" : key.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+  return page ? [page, ...rest.map(name)].join(" › ") : [name(top), ...rest].join(" › ");
+}
 /** Pseudo-category id for the "What I've changed" list (Theme settings and Text & labels). */
 const CHANGED_CATEGORY = "__changed";
 
@@ -294,14 +304,17 @@ function MenusPanel({ design, settings, pages, onChange }: { design: any; settin
 }
 
 // ── Main editor ────────────────────────────────────────────────────────────
-export function StudioEditor({ settings, onExit, onPersisted, appearance = "light" }: {
+export function StudioEditor({ settings, onExit, onPersisted, appearance = "light", workspace: openedWorkspace }: {
   appearance?: "light" | "dark";
   settings: any;
+  /** Private working copy opened by StudioWorkspace; without it Studio uses the legacy settings fields. */
+  workspace?: Workspace;
   onExit: () => void;
   /** Called after a successful save so the dashboard's copy of settings stays fresh. */
   onPersisted?: (design: any, published: boolean) => void;
 }) {
   const defaults = useMemo(() => adminApi.getDefaultSettings().design, []);
+  const [workspace] = useState<Workspace>(() => openedWorkspace ?? { mode: "legacy", draft: settings?.draftDesign ?? settings?.design, rev: 0, savedThemes: settings?.savedThemes || [] });
   const [hist, setHist] = useState(() => initHistory(normalizeDesign(settings?.draftDesign ?? settings?.design, defaults)));
   const design = hist.present;
   const [savedDraft, setSavedDraft] = useState<any>(design);
@@ -448,13 +461,14 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     say("ok", `“${theme.name}” applied to the draft — Publish to make it live.`);
   };
   const persistThemes = async (next: SavedTheme[], okText: string) => {
-    // Every saved theme is a full design and settings/website is one 1 MiB Firestore doc: refuse to grow
-    // past the budget (shrinking, e.g. delete, is always allowed).
-    if (savedThemesBytes(next) > savedThemesBytes(savedThemes) && !savedThemesFit(next)) {
+    // In the legacy layout every saved theme sits inside settings/website (one 1 MiB Firestore doc):
+    // refuse to grow past the budget there (shrinking, e.g. delete, is always allowed). In the private
+    // store each theme is its own document, so there is no shared budget.
+    if (workspace.mode === "legacy" && savedThemesBytes(next) > savedThemesBytes(savedThemes) && !savedThemesFit(next)) {
       say("err", "Not enough room for another saved theme. Delete one under My themes, then try again.");
       return;
     }
-    try { await adminApi.updateSettings({ savedThemes: next }); setSavedThemes(next); say("ok", okText); }
+    try { await saveSavedThemes(workspace, savedThemes, next); setSavedThemes(next); say("ok", okText); }
     catch (err: any) { say("err", `Could not save themes: ${err?.message || err}`); }
   };
   const saveCurrentAsTheme = () => {
@@ -734,8 +748,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
     return () => window.removeEventListener("message", h);
   }, [templates, selectedId, sendPreviewState, sendCopyMap, highlight, change, mode]);
 
-  const { busy, saveDraft, publish, discard, recovery, recover, dismissRecovery } = useStudioPersistence({
-    design, savedDraft, published, setSavedDraft, setPublished, onPersisted,
+  const { busy, saveDraft, publish, discard, recovery, recover, dismissRecovery, conflict, resolveConflict } = useStudioPersistence({
+    design, savedDraft, published, setSavedDraft, setPublished, onPersisted, workspace,
     reset: (next) => { setHist(initHistory(next)); setSelectedId(null); setBlockId(null); },
     restore: next => change(() => normalizeDesign(next, defaults)), say,
   });
@@ -1284,6 +1298,20 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
           <ul className="list-disc pl-5 text-sm space-y-1">{describeChanges(confirmAction === "publish" ? published : design, confirmAction === "publish" ? design : published).map(x => <li key={x}>{x}</li>)}</ul>
           <div className="flex justify-end gap-2"><button className={btn} onClick={() => setConfirmAction(null)}>Cancel</button><button className={confirmAction === "publish" ? btnPrimary : `${btn} border-red-300 text-red-700`} onClick={() => { const action = confirmAction; setConfirmAction(null); action === "publish" ? publish() : discard(); }}>{confirmAction === "publish" ? "Publish now" : "Discard draft"}</button></div>
         </div>
+      </Dialog>
+      <Dialog open={!!conflict} onClose={() => resolveConflict("cancel")} title="Saved in another tab or device"
+        description="Since you opened Studio, this design was also saved somewhere else, and both versions changed the same settings.">
+        {conflict && <div className="space-y-4">
+          <p className="text-sm">Changed in both places:</p>
+          <ul className="list-disc pl-5 text-sm space-y-1">{conflict.paths.slice(0, 8).map(path => <li key={path}>{conflictLabel(path, templates)}</li>)}
+            {conflict.paths.length > 8 && <li>…and {conflict.paths.length - 8} more</li>}</ul>
+          <p className="text-sm">Everything else from both versions is kept either way.</p>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button className={btn} onClick={() => resolveConflict("cancel")}>Cancel</button>
+            <button className={btn} onClick={() => resolveConflict("theirs")}>Use the other version</button>
+            <button className={btnPrimary} onClick={() => resolveConflict("mine")}>{conflict.kind === "publish" ? "Keep mine and publish" : "Keep mine and save"}</button>
+          </div>
+        </div>}
       </Dialog>
       <Dialog open={checksOpen} onClose={() => setChecksOpen(false)} title="Pre-publish check" description="A quick accessibility, content and performance review of this draft.">
         <div className="space-y-2">{designChecks(design).map((r, i) => <p key={i} className={`p-3 rounded-lg text-sm ${r.tone === "warn" ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-900"}`}>{r.tone === "warn" ? "⚠" : "✓"} {r.text}</p>)}</div>
