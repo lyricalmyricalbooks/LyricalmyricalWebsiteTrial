@@ -418,7 +418,7 @@ classes); its words are in Text & labels › Product page (`pdp*` copy keys). Th
 **Shopping bag (cart drawer):** `components/CartDrawer.tsx` is a Riso "order slip" — ruled header, free-shipping
 meter, numbered line items (photo, title, per-copy price, line total, qty stepper, Remove), "Complete your collection"
 card, then Subtotal / Shipping / Total ledger, trust badges and checkout button. Every piece is a Studio › Style ›
-**Cart drawer (shopping bag)** control (`cartDrawer*` keys + `showFreeShipBar`/`freeShipThreshold`/`showCartTrustBadges`,
+**Cart drawer (shopping bag)** control (`cartDrawer*` keys + `showFreeShipBar`/`showCartTrustBadges`; the bar's amount comes from Settings › Shipping,
 CSS from `features/site/cartDrawerStyle.ts`, `fm-bag-*` classes); words are Text & labels › Cart. Each region carries
 its own click-to-edit target (Bag heading, Free-shipping bar, Bag line items, Bag suggestion, Bag total & checkout).
 
@@ -1064,22 +1064,25 @@ Grouped footer navigation defaults to Explore and Participate & connect, with po
 
 - **Cancelling:** Orders › **Cancel unpaid order** is server-side (`createStripeCheckoutSession` action `cancelOrder`,
   `cancelRefusal` in `functions/paymentGuards.js`): refused once paid, and it stops the Stripe PaymentIntent / Checkout
-  session and releases stock holds. PayPal capture and `completeFreeOrder` refuse cancelled orders; the PayPal capture
+  session and releases stock holds. It asks Stripe first and refuses (recording `reconciliationPending`) when Stripe
+  already has the money (`stripePaymentTaken`); the sweep keeps checking cancelled orders with a Stripe payment. PayPal capture and `completeFreeOrder` refuse cancelled orders; the PayPal capture
   request id includes the PayPal order id and a matching `paypalOrderId` is the proof (shoppers may return in a new tab).
 - **Paid after cancelling / mismatched payments** clear once refunded: a full Stripe refund sets
   `paymentMismatch.resolvedAt`, or the admin presses **Mark refunded** on the order (action `resolvePaymentMismatch`).
   Queues, alerts and the Orders desk ignore resolved mismatches.
-- **Disputes:** an open `disputeStatus` puts a paid order in Needs attention; dispatch and label purchase refuse it.
+- **Disputes:** an open `disputeStatus` puts a paid, not-yet-sent order in Needs attention; dispatch, label purchase and
+  local handover refuse it. Sent parcels stay In transit so delivery can still be recorded.
 - Manual **Mark paid** after the 30-min hold no longer fails (`completeOrderWithoutCard(…, { reserve: false })`).
   Sweeps read bounded, ordered windows (new `orders` indexes); the "webhook missed" alert skips cancelled/mismatched orders.
 - **Discounts** can't exceed the qualifying subtotal; tier percentages are 0–100 (admin refuses > 100%).
   An edition with an empty price can't be saved. Address correction can't change country/province on carrier orders.
-- **Checkout:** a retry releases the shopper's own previous unpaid attempt's hold (`previousOrderId`,
-  `releaseSupersededAttempt`: unpaid, same email). Pickup choices stay picked. An address-checker outage continues as
+- **Checkout:** a retry (card, PayPal, manual or free) releases the shopper's own previous unpaid attempt's hold
+  (`previousOrderId`, `releaseSupersededAttempt`: unpaid, same email, and Stripe shows no payment in progress). Pickup choices stay picked. An address-checker outage continues as
   unverified (`addressError: "verification_unavailable"`, shown in the address step of the order). Tax shows its real
   amount (CA$0.00 too) once country and a recognised province are known; unrecognised saved provinces are cleared.
-- **Bag free-shipping bar** follows Settings › Shipping (lowest profile `freeShippingOver` / `freeThreshold` / rate
-  `freeOver`, `features/site/freeShipThreshold.ts`); hidden with no rule or an e-book-only bag. The Studio
+- **Bag free-shipping bar** follows Settings › Shipping (`features/site/freeShipThreshold.ts`): only a rule that makes
+  every option free everywhere counts (profile `freeShippingOver` / `freeThreshold`, or `freeOver` on every rate); highest
+  across profiles; hidden otherwise or for an e-book-only bag. The Studio
   "Free shipping over" number was removed — Studio keeps the on/off and look.
 - Download buttons appear only for digital lines (`features/site/digitalLine.ts`). Review inputs carry the rules' length
   limits. A page missing from the cached site shows Loading until the fresh read (`useSiteData().fresh`), not a 404.
