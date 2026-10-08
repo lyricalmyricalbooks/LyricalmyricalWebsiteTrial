@@ -37,7 +37,7 @@ async function mount() {
 }
 
 const buttons = (label: string | RegExp) => [...document.body.querySelectorAll("button")]
-  .filter(b => typeof label === "string" ? b.textContent?.trim() === label : label.test(b.textContent || ""));
+  .filter(b => { const name = b.getAttribute("aria-label") || b.textContent?.trim() || ""; return typeof label === "string" ? name === label || b.textContent?.trim() === label : label.test(b.textContent || ""); });
 const click = async (el: Element | undefined) => {
   if (!el) throw new Error("element not found");
   await act(async () => { (el as HTMLElement).click(); await new Promise(r => setTimeout(r, 0)); });
@@ -51,9 +51,22 @@ describe("Studio editor (mounted with an in-memory API)", () => {
   it("opens on the page outline with every workspace and lists draft pages as templates", async () => {
     await mount();
     for (const tab of ["Page layout", "Shared layout", "Theme settings", "Text & labels", "Navigation", "Pages"]) expect(buttons(tab).length).toBeGreaterThan(0);
-    const pagePicker = [...host.querySelectorAll("option")].map(o => o.textContent);
-    expect(pagePicker).toContain("About");
-    expect(pagePicker).toContain("Open call (draft)");
+    await click(buttons("Page to edit")[0]);
+    const pagePicker = [...document.querySelectorAll("[role=option]")].map(o => o.querySelector("span")?.textContent);
+    expect(pagePicker).toEqual(expect.arrayContaining(["Home", "About", "Open call (draft)", "Night Pages", "Header & footer sections (every page)"]));
+  });
+
+  it("switching page keeps the open workspace and is remembered next time", async () => {
+    await mount();
+    await click(buttons("Theme settings")[0]);
+    await click(buttons("Page to edit")[0]);
+    await click([...document.querySelectorAll("[role=option]")].find(o => o.textContent?.includes("Night Pages")));
+    expect(buttons("Theme settings")[0].getAttribute("aria-pressed")).toBe("true");
+    expect(buttons("Page to edit")[0].textContent).toContain("Night Pages");
+    act(() => root.unmount());
+    await mount();
+    expect(buttons("Page to edit")[0].textContent).toContain("Night Pages");
+    expect(buttons("Theme settings")[0].getAttribute("aria-pressed")).toBe("true");
   });
 
   it("adds a section, undoes it, and saves the draft without publishing", async () => {

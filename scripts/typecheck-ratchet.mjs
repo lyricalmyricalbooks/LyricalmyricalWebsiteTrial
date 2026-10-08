@@ -23,10 +23,18 @@ for (const line of output.split("\n")) {
 const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
 const sorted = Object.fromEntries(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)));
 
-if (process.argv.includes("--update")) {
+if (process.argv.includes("--update") && !/error TS1\d{3}:/.test(output)) {
   writeFileSync(BASELINE, JSON.stringify(sorted, null, 2) + "\n");
   console.log(`Baseline written: ${total} known errors.`);
   process.exit(0);
+}
+
+// Syntax errors (TS1xxx) stop the checker early and hide every other error, so they always fail.
+const syntax = output.split("\n").filter(line => /error TS1\d{3}:/.test(line));
+if (syntax.length) {
+  console.error(syntax.join("\n"));
+  console.error("\nSyntax errors stop the type-check; fix these first.");
+  process.exit(1);
 }
 
 const baseline = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : {};

@@ -20,6 +20,16 @@ const shots = process.env.STUDIO_SHOTS;
 if (shots) mkdirSync(shots, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 
+// Warm-up visit: lets the dev server finish bundling dependencies (it reloads the page once when
+// it discovers a new one), so no check runs against a half-reloaded page.
+{
+  const warm = await browser.newPage();
+  await warm.goto(`${base}/studio-fixture.html`).catch(() => {});
+  await warm.waitForSelector("[data-studio-editor]", { timeout: 60000 }).catch(() => {});
+  await warm.waitForTimeout(2000);
+  await warm.close();
+}
+
 const results = [];
 async function check(name, viewport, run, query = "") {
   const page = await browser.newPage({ viewport });
@@ -66,14 +76,32 @@ await check("add section, undo, redo, save draft", desktop, async page => {
 
 await check("device switch keeps the real viewport width", desktop, async page => {
   await page.getByRole("button", { name: "tablet preview" }).click();
-  // The frame keeps the device's real CSS width (it scrolls rather than squeezing), so the
-  // storefront inside switches to the matching breakpoint.
-  const frameWidth = () => page.evaluate(() => document.querySelector("iframe")?.parentElement?.getBoundingClientRect().width);
-  await page.waitForFunction(() => document.querySelector("iframe")?.parentElement?.getBoundingClientRect().width === 820, null, { timeout: 5000 })
-    .catch(async () => { throw new Error(`tablet frame is ${await frameWidth()}px`); });
+  // The frame keeps the device's real CSS width (the preview is scaled to fit, never squeezed),
+  // so the storefront inside switches to the matching breakpoint.
+  const frameWidth = () => page.evaluate(() => document.querySelector(".studio-preview-frame")?.style.width);
+  await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "820px", null, { timeout: 5000 })
+    .catch(async () => { throw new Error(`tablet frame is ${await frameWidth()}`); });
   await page.getByRole("button", { name: "mobile preview" }).click();
-  await page.waitForFunction(() => document.querySelector("iframe")?.parentElement?.getBoundingClientRect().width === 390, null, { timeout: 5000 })
-    .catch(async () => { throw new Error(`phone frame is ${await frameWidth()}px`); });
+  await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.style.width === "390px", null, { timeout: 5000 })
+    .catch(async () => { throw new Error(`phone frame is ${await frameWidth()}`); });
+});
+
+await check("desktop preview fits the canvas and zoom can show it at full size", desktop, async page => {
+  const scale = () => page.evaluate(() => Number(document.querySelector(".studio-preview-frame")?.getAttribute("data-scale")));
+  if (!(await scale() < 1)) throw new Error("the 1200px desktop preview was not scaled to fit the canvas");
+  await page.getByLabel("Preview zoom").selectOption("100");
+  await page.waitForFunction(() => document.querySelector(".studio-preview-frame")?.getAttribute("data-scale") === "1.000");
+});
+
+await check("page picker searches pages, collections and books, and keeps the workspace", desktop, async page => {
+  await page.getByRole("button", { name: "Theme settings" }).click();
+  await page.getByRole("button", { name: "Page to edit" }).click();
+  await page.getByRole("combobox", { name: "Find a page, collection or book" }).fill("paper");
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => document.querySelector("[aria-label='Page to edit']")?.textContent?.includes("Paper Weather"));
+  const pressed = await page.getByRole("button", { name: "Theme settings" }).getAttribute("aria-pressed");
+  if (pressed !== "true") throw new Error("switching page left Theme settings");
+  await page.waitForFunction(() => document.querySelector("iframe")?.getAttribute("src")?.includes("/books/paper-weather"));
 });
 
 await check("find anything opens a setting", desktop, async page => {
@@ -100,8 +128,10 @@ await check("clicking a section in the preview opens its settings", desktop, asy
 });
 
 await check("page-only overrides are listed and can follow all pages", desktop, async page => {
-  await page.getByLabel("Page to edit").selectOption({ label: "Catalog / Shop" });
   await page.getByRole("button", { name: "Theme settings" }).click();
+  await page.getByRole("button", { name: "Page to edit" }).click();
+  await page.getByRole("combobox", { name: "Find a page, collection or book" }).fill("catalog");
+  await page.keyboard.press("Enter");
   const card = page.locator("[data-studio-page-overrides]");
   await card.locator("summary").click();
   const count = async () => Number(await card.locator(".studio-overrides-count").textContent());

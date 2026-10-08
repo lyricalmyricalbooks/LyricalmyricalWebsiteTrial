@@ -20,10 +20,12 @@ export function StudioInspector({ section, blockId, colorSchemes, device, shared
 }) {
   const [tab, setTab] = useState("content");
   const [search, setSearch] = useState("");
-  const [overlay, setOverlay] = useState(() => window.matchMedia("(max-width: 1099px)").matches);
+  // Docked in its own resizable panel on tablets and desktops; a full-screen sheet on phones.
+  const [overlay, setOverlay] = useState(() => !!window.matchMedia?.("(max-width: 767px)").matches);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 1099px)");
+    const media = window.matchMedia?.("(max-width: 767px)");
+    if (!media) return;
     const update = () => setOverlay(media.matches); media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
   }, []);

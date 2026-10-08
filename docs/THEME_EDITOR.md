@@ -219,7 +219,16 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       publishing reports the design size; saves over ~900 KB are refused with a plain message.
 
 **Phase 1 — Navigation overhaul ("one tree, one inspector")**
-- [ ] 1.1 Editor frame: icon rail, resizable/collapsible panels, docked inspector, zoom-to-fit, one page picker, remembered state.
+- [x] 1.1 Editor frame. A vertical icon rail (`StudioRail.tsx`: Layout, Shared, Theme, Text, Menus, Pages) replaces
+      the button grid; on tablets/desktops the settings panel, canvas and inspector are resizable panels
+      (`react-resizable-panels`, sizes remembered as `studio-panels-v1`) and the inspector stays docked with a
+      "Nothing selected" state, so the preview never jumps. `StudioPreviewFrame.tsx` keeps the iframe at the
+      device's real width and scales it (**Zoom**: Fit to screen / 100% / 75% / 50%), so the full 1200px desktop
+      fits on a laptop. One searchable **Page to edit** picker (`TemplatePicker.tsx`, `templatePicker.ts`) lists
+      store pages, every shop category, every book, custom pages (drafts included) and the every-page sections,
+      replacing the three dropdowns; switching page keeps the open workspace. Page, workspace, device, zoom and
+      preview book/collection are remembered per browser (`studioUiState.ts`). Phones keep the
+      outline / preview / settings switcher with the rail across the top.
 - [ ] 1.2 Commands, Riso dialogs, undo toasts, shortcuts, deep links, Edit in Studio from the live site.
 - [ ] 1.3 Element manifest + typed preview bridge.
 - [ ] 1.4 Page structure tree (header → page content → footer → overlays).

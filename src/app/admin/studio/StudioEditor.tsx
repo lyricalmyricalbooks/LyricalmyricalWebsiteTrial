@@ -53,6 +53,13 @@ import { CategoryHeader, SettingsHome, SettingsSubsection, StudioTips, type Home
 import { saveSavedThemes, type Workspace } from "../themeStore";
 import { writeDesignValue } from "../../features/site/designModel";
 import { StudioPageOverrides } from "./StudioPageOverrides";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { StudioRail } from "./StudioRail";
+import { StudioPreviewFrame } from "./StudioPreviewFrame";
+import { TemplatePicker } from "./TemplatePicker";
+import { currentOption, pickerOptions, type PickerOption } from "./templatePicker";
+import { loadUiState, saveUiState, uiStateKey, type Zoom } from "./studioUiState";
+import { auth } from "../../../lib/firebase";
 import "./studio.css";
 
 type LeftTab = "sections" | "style" | "text" | "menus" | "pages" | "shared";
@@ -327,10 +334,22 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [books, setBooks] = useState<any[]>([]);
   // The page open in Studio › Pages with unsaved edits — shown in the preview only, never saved from here.
   const [draftPage, setDraftPage] = useState<any | null>(null);
-  const [leftTab, setLeftTab] = useState<LeftTab>("sections");
-  const [templateId, setTemplateId] = useState("heroPage");
-  const [showGlobal, setShowGlobal] = useState(false);
-  const [device, setDevice] = useState<keyof typeof DEVICE_W>("desktop");
+  // Where you were last time (this browser): page, workspace, device, zoom.
+  const uiKey = uiStateKey(import.meta.env.BASE_URL, auth.currentUser?.uid || "local-preview");
+  const [remembered] = useState(() => loadUiState(uiKey));
+  const [leftTab, setLeftTab] = useState<LeftTab>((remembered.leftTab as LeftTab) || "sections");
+  const [templateId, setTemplateId] = useState(remembered.templateId || "heroPage");
+  const [showGlobal, setShowGlobal] = useState(remembered.showGlobal === true);
+  const [device, setDevice] = useState<keyof typeof DEVICE_W>(remembered.device || "desktop");
+  const [zoom, setZoom] = useState<Zoom>(remembered.zoom ?? "fit");
+  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 767px)").matches);
+  useEffect(() => {
+    const media = window.matchMedia?.("(max-width: 767px)");
+    if (!media) return;
+    const update = () => setNarrow(media.matches);
+    media.addEventListener?.("change", update);
+    return () => media.removeEventListener?.("change", update);
+  }, []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [adding, setAdding] = useState<number | null>(null);
   const [blockId, setBlockId] = useState<string | null>(null);
@@ -349,8 +368,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [styleFocus, setStyleFocus] = useState<{ id: string; label: string } | null>(null);
   const [focus, setFocus] = useState<StudioFocus>({ id: null, nonce: 0 });
   const [styleScope, setStyleScope] = useState<"all" | "page">("all");
-  const [productSlug, setProductSlug] = useState("");
-  const [collectionSlug, setCollectionSlug] = useState("publications");
+  const [productSlug, setProductSlug] = useState(remembered.productSlug || "");
+  const [collectionSlug, setCollectionSlug] = useState(remembered.collectionSlug || "publications");
   const [previewStatus, setPreviewStatus] = useState<"loading" | "ready" | "error">("loading");
   const [previewRevision, setPreviewRevision] = useState(0);
   const [versions, setVersions] = useState<ThemeVersion[]>([]);
@@ -403,7 +422,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   }, []);
   useEffect(() => {
     loadPages();
-    adminApi.getCategoryBooks().then((b: any[]) => { const published = (b || []).filter(x => x.status === "published" || !x.status); setBooks(published); setProductSlug(published[0]?.slug || ""); }).catch(() => say("err", "Could not load preview products. Reopen Studio to retry."));
+    adminApi.getCategoryBooks().then((b: any[]) => { const published = (b || []).filter(x => x.status === "published" || !x.status); setBooks(published); setProductSlug(current => published.some(x => x.slug === current) ? current : published[0]?.slug || ""); }).catch(() => say("err", "Could not load preview products. Reopen Studio to retry."));
   }, [loadPages]);
   const loadVersions = useCallback(async () => {
     try { setVersions(await adminApi.listThemeVersions() as ThemeVersion[]); }
@@ -555,6 +574,20 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
       return { slug: slugify(c.name), label: parentName ? `${parentName} › ${c.name}` : c.name };
     });
   }, [design.categories]);
+
+  const pickerList = useMemo(() => pickerOptions({ templates, books, collections: previewCollections }), [templates, books, previewCollections]);
+  const pickerCurrent = currentOption(pickerList, { templateId: template.id, showGlobal, productSlug, collectionSlug });
+  // Choosing a page keeps the current workspace (Theme settings stays open on the new page).
+  const pickPage = (o: PickerOption) => {
+    setSelectedId(null); setBlockId(null);
+    if (o.global) { setShowGlobal(true); return; }
+    setShowGlobal(false); setTemplateId(o.templateId);
+    if (o.productSlug) setProductSlug(o.productSlug);
+    if (o.collectionSlug) setCollectionSlug(o.collectionSlug);
+  };
+  useEffect(() => {
+    saveUiState(uiKey, { leftTab, templateId, showGlobal, device, zoom, productSlug, collectionSlug });
+  }, [uiKey, leftTab, templateId, showGlobal, device, zoom, productSlug, collectionSlug]);
 
   // ── preview wiring ──
   const previewUrl = useMemo(() => {
@@ -924,73 +957,8 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const textChangedTotal = COPY_SCHEMA.reduce((n, g) => n + changedCopyCount(g.fields, design), 0);
   const panelTitle = sidebarTabs.find(([id]) => id === leftTab)?.[1];
 
-  return (
-    <div className="rp studio-editor" data-rp-appearance={appearance} data-studio-editor data-mobile-panel={mobilePanel}>
-      {/* top bar */}
-      <header className="studio-topbar">
-        <button className={btn} disabled={Boolean(inlineEditing)} onClick={exit}><ArrowLeft size={14} /> Exit</button>
-        <strong className="studio-title">Design studio</strong>
-        <button className={btn} onClick={() => setFindOpen(true)} aria-label="Find anything (Ctrl+K)" title="Find any setting, word, page, section or action"><Search size={14} /> Find <kbd aria-hidden="true">Ctrl K</kbd></button>
-        <select value={showGlobal ? "__global" : template.id}
-          onChange={(e) => { const v = e.target.value; setSelectedId(null); setBlockId(null); if (v === "__global") setShowGlobal(true); else { setShowGlobal(false); setTemplateId(v); } setLeftTab("sections"); }}
-          aria-label="Page to edit" className="h-9 border border-neutral-300 rounded-lg px-2 text-xs font-bold max-w-[220px]">
-          <optgroup label="Pages">
-            {templates.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </optgroup>
-          <optgroup label="Every page">
-            <option value="__global">Header / footer sections (global)</option>
-          </optgroup>
-        </select>
-        {template.id === "productPage" && <select aria-label="Preview product" value={productSlug} onChange={e => setProductSlug(e.target.value)}><option value="">Choose a product</option>{books.map(b => <option key={b.id} value={b.slug}>{b.title}</option>)}</select>}
-        {template.id === "collectionPage" && <select aria-label="Preview collection" value={collectionSlug} onChange={e => setCollectionSlug(e.target.value)}>{previewCollections.map(c => <option key={c.slug} value={c.slug}>{c.label}</option>)}</select>}
-        <div className="flex items-center gap-0.5" role="group" aria-label="Preview size">
-          {([["desktop", Monitor], ["tablet", Tablet], ["mobile", Smartphone]] as const).map(([d, Icon]) => (
-            <button key={d} className={`${iconBtn} ${device === d ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""}`}
-              onClick={() => setDevice(d)} aria-label={`${d} preview`} aria-pressed={device === d}><Icon size={15} /></button>
-          ))}
-        </div>
-        <button className={btn} aria-pressed={mode === "browse"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}>{mode === "edit" ? "Edit mode" : "Browse mode"}</button>
-
-        <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.past.length} onClick={() => setHist(undo)} aria-label="Undo (Ctrl+Z)"><Undo2 size={15} /></button>
-        <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.future.length} onClick={() => setHist(redo)} aria-label="Redo (Ctrl+Shift+Z)"><Redo2 size={15} /></button>
-        <div className="flex-1" />
-        <span className="text-xs font-bold px-2 py-1 rounded-full bg-neutral-100" role="status">
-          {dirtyDraft ? "Unsaved changes" : unpublished ? "Draft saved · not live" : "Live"}
-        </span>
-        <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
-          { label: "Preview in new tab", icon: <ExternalLink size={14} />, onSelect: openPreviewTab },
-          { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
-          { label: "Check before publishing", icon: <ShieldCheck size={14} />, onSelect: () => setChecksOpen(true) },
-          { label: "Show Studio tips", onSelect: () => setTipsNonce(n => n + 1) },
-          ...(unpublished && busy === null && !inlineEditing ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
-        ]} /></div>
-        <button className={btn} disabled={Boolean(inlineEditing) || !dirtyDraft || busy !== null} onClick={saveDraft}>{busy === "draft" ? "Saving…" : "Save draft"}</button>
-        <button className={btnPrimary} disabled={Boolean(inlineEditing) || (!unpublished && !dirtyDraft) || busy !== null} onClick={() => setConfirmAction("publish")}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
-      </header>
-
-      <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
-      {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
-      {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={dismissRecovery}>Discard local recovery</SecondaryButton></div>}
-      {draftPage && leftTab !== "pages" && <div className="studio-recovery" role="status"><span>{pageBusy ? "Saving" : "Unsaved edits to"} page “{draftPage.title || draftPage.slug || "Untitled"}”. {pageBusy ? "Wait for the save to finish." : "Return to Pages to review and save it."}</span>{!pageBusy && <SecondaryButton onClick={() => setLeftTab("pages")}>Return to Pages</SecondaryButton>}</div>}
-      {toast && (
-        <div role={toast.kind === "err" ? "alert" : "status"}
-          className={`absolute top-16 left-1/2 -translate-x-1/2 z-[350] px-4 py-2 rounded-lg text-sm font-bold shadow-lg ${toast.kind === "err" ? "bg-red-600 text-white" : "bg-neutral-900 text-white"}`}>
-          {toast.text}
-          {toast.kind === "err" && <button className="ml-3 underline" onClick={() => setToast(null)}>Dismiss</button>}
-        </div>
-      )}
-
-      <FocusContext.Provider value={focus}>
-      <div className="studio-workspace" {...(busy === "discard" ? { inert: "" } : {})}>
-        {/* left column */}
-        <nav className="studio-sidebar" aria-label="Editor panels">
-          <div className="studio-panel-navigation" aria-label="Design tools">
-            {sidebarTabs.map(([id, label]) => (
-              <button key={id} aria-pressed={leftTab === id} onClick={() => { setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); }}>
-                {label}
-              </button>
-            ))}
-          </div>
+  const sidebarPanel = (
+        <div className="studio-sidebar" aria-label="Editor panel" role="region">
           <div className="studio-panel-context">
             <strong>{panelTitle}</strong>
             <span>{leftTab === "sections" ? (showGlobal ? "Shared sections · every page" : template.label) + ` · ${sections.length} sections` : `Previewing: ${showGlobal ? "shared sections" : template.label}`}</span>
@@ -1266,22 +1234,91 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
               </>
             )}
           </div>
-        </nav>
-
-        {/* preview */}
+        </div>
+  );
+  const canvasPanel = (
         <main className="studio-canvas">
-          <div className="studio-canvas-status"><span>{template.label} · {device} ({DEVICE_W[device]}) · {mode === "edit" ? "Double-click text to type · click other elements for settings" : "Browse your storefront"}</span><span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}</div>
-          {template.id === "productPage" && !books.some(b => b.slug === productSlug) ? <p className="studio-empty">Choose an available product above to preview this template.</p> :
-          <div className="studio-preview-viewport"><div className="studio-preview-frame" style={{ width: DEVICE_W[device], minWidth: DEVICE_W[device] }}>
+          <div className="studio-canvas-status"><span>{template.label} · {device} ({DEVICE_W[device]}) · {mode === "edit" ? "Double-click text to type · click other elements for settings" : "Browse your storefront"}</span><span role="status">{previewStatus === "loading" ? "Loading preview…" : previewStatus === "error" ? "Preview unavailable" : "Preview connected"}</span>{previewStatus === "error" && <button className={btn} onClick={() => setPreviewRevision(r => r + 1)}>Retry preview</button>}
+            <label className="studio-zoom">Zoom<select aria-label="Preview zoom" value={String(zoom)} onChange={e => setZoom(e.target.value === "fit" ? "fit" : Number(e.target.value) as Zoom)}>
+              <option value="fit">Fit to screen</option><option value="100">100%</option><option value="75">75%</option><option value="50">50%</option></select></label></div>
+          {template.id === "productPage" && !books.some(b => b.slug === productSlug) ? <p className="studio-empty">Choose a book in “Page to edit” to preview this template.</p> :
+          <StudioPreviewFrame deviceWidth={parseInt(DEVICE_W[device], 10)} zoom={zoom}>
             <iframe ref={iframeRef} key={previewUrl + previewRevision} src={previewUrl} title="Live preview" onLoad={onIframeLoad} className="w-full h-full border-0" />
-          </div></div>}
+          </StudioPreviewFrame>}
         </main>
-
-        {selected && (
+  );
+  const inspectorPanel = (
           <StudioInspector section={selected} blockId={blockId} onSelectBlock={setBlockId} colorSchemes={colorSchemes}
             device={device} sharedBlocks={design.sharedBlocks || []} onSaveShared={saveSharedBlock} onPatchShared={patchSharedBlock} onInsertShared={insertSharedBlock}
             onPatch={patchSelected} onDuplicate={() => dupSection(selected.id)} onDelete={() => delSection(selected.id)}
             onToggle={() => setList((l) => toggleSection(l, selected.id))} onNotice={(text) => say("ok", text)} onClose={() => { setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
+  );
+
+  return (
+    <div className="rp studio-editor" data-rp-appearance={appearance} data-studio-editor data-mobile-panel={mobilePanel}>
+      {/* top bar */}
+      <header className="studio-topbar">
+        <button className={btn} disabled={Boolean(inlineEditing)} onClick={exit}><ArrowLeft size={14} /> Exit</button>
+        <strong className="studio-title">Design studio</strong>
+        <button className={btn} onClick={() => setFindOpen(true)} aria-label="Find anything (Ctrl+K)" title="Find any setting, word, page, section or action"><Search size={14} /> Find <kbd aria-hidden="true">Ctrl K</kbd></button>
+        <TemplatePicker options={pickerList} current={pickerCurrent} onPick={pickPage} />
+        <div className="flex items-center gap-0.5" role="group" aria-label="Preview size">
+          {([["desktop", Monitor], ["tablet", Tablet], ["mobile", Smartphone]] as const).map(([d, Icon]) => (
+            <button key={d} className={`${iconBtn} ${device === d ? "bg-neutral-900 text-white hover:bg-neutral-900" : ""}`}
+              onClick={() => setDevice(d)} aria-label={`${d} preview`} aria-pressed={device === d}><Icon size={15} /></button>
+          ))}
+        </div>
+        <button className={btn} aria-pressed={mode === "browse"} onClick={() => setMode(m => m === "edit" ? "browse" : "edit")}>{mode === "edit" ? "Edit mode" : "Browse mode"}</button>
+
+        <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.past.length} onClick={() => setHist(undo)} aria-label="Undo (Ctrl+Z)"><Undo2 size={15} /></button>
+        <button className={iconBtn} disabled={Boolean(inlineEditing) || !hist.future.length} onClick={() => setHist(redo)} aria-label="Redo (Ctrl+Shift+Z)"><Redo2 size={15} /></button>
+        <div className="flex-1" />
+        <span className="text-xs font-bold px-2 py-1 rounded-full bg-neutral-100" role="status">
+          {dirtyDraft ? "Unsaved changes" : unpublished ? "Draft saved · not live" : "Live"}
+        </span>
+        <div className="studio-tools-menu"><span>Theme actions</span><ActionMenu label="Theme actions" actions={[
+          { label: "Preview in new tab", icon: <ExternalLink size={14} />, onSelect: openPreviewTab },
+          { label: "Version history", icon: <History size={14} />, onSelect: () => { setHistoryOpen(true); loadVersions(); } },
+          { label: "Check before publishing", icon: <ShieldCheck size={14} />, onSelect: () => setChecksOpen(true) },
+          { label: "Show Studio tips", onSelect: () => setTipsNonce(n => n + 1) },
+          ...(unpublished && busy === null && !inlineEditing ? [{ label: "Discard saved draft…", tone: "danger" as const, onSelect: () => setConfirmAction("discard") }] : []),
+        ]} /></div>
+        <button className={btn} disabled={Boolean(inlineEditing) || !dirtyDraft || busy !== null} onClick={saveDraft}>{busy === "draft" ? "Saving…" : "Save draft"}</button>
+        <button className={btnPrimary} disabled={Boolean(inlineEditing) || (!unpublished && !dirtyDraft) || busy !== null} onClick={() => setConfirmAction("publish")}>{busy === "publish" ? "Publishing…" : "Publish"}</button>
+      </header>
+
+      <div className="studio-mobile-tabs" role="tablist" aria-label="Studio workspace">{["outline", "preview", "settings"].map(panel => <button key={panel} role="tab" aria-selected={mobilePanel === panel} onClick={() => setMobilePanel(panel)}>{panel}</button>)}</div>
+      {inlineEditing && <div className="studio-inline-status" role="status">Editing {inlineEditing} in the preview. Finish the text edit or release the spacing handle to keep it; Escape cancels.</div>}
+      {recovery && <div className="studio-recovery" role="status"><span>Local edits from {new Date(recovery.savedAt).toLocaleString()}.{recovery.conflict ? " The server draft has changed; recovering will load your local version as unsaved edits." : " Recover your unsaved work?"}</span><SecondaryButton onClick={recover}>Recover local changes</SecondaryButton><SecondaryButton onClick={dismissRecovery}>Discard local recovery</SecondaryButton></div>}
+      {draftPage && leftTab !== "pages" && <div className="studio-recovery" role="status"><span>{pageBusy ? "Saving" : "Unsaved edits to"} page “{draftPage.title || draftPage.slug || "Untitled"}”. {pageBusy ? "Wait for the save to finish." : "Return to Pages to review and save it."}</span>{!pageBusy && <SecondaryButton onClick={() => setLeftTab("pages")}>Return to Pages</SecondaryButton>}</div>}
+      {toast && (
+        <div role={toast.kind === "err" ? "alert" : "status"}
+          className={`absolute top-16 left-1/2 -translate-x-1/2 z-[350] px-4 py-2 rounded-lg text-sm font-bold shadow-lg ${toast.kind === "err" ? "bg-red-600 text-white" : "bg-neutral-900 text-white"}`}>
+          {toast.text}
+          {toast.kind === "err" && <button className="ml-3 underline" onClick={() => setToast(null)}>Dismiss</button>}
+        </div>
+      )}
+
+      <FocusContext.Provider value={focus}>
+      <div className="studio-workspace" {...(busy === "discard" ? { inert: "" } : {})}>
+        <StudioRail active={leftTab} onSelect={id => { setLeftTab(id); setStyleFocus(null); setSelectedId(null); setBlockId(null); setMobilePanel("outline"); }} />
+        {narrow ? <>
+          {sidebarPanel}
+          {canvasPanel}
+          {selected && inspectorPanel}
+        </> : (
+          <PanelGroup direction="horizontal" autoSaveId="studio-panels-v1" className="studio-panels">
+            <Panel id="studio-left" order={1} defaultSize={24} minSize={18} maxSize={45}>{sidebarPanel}</Panel>
+            <PanelResizeHandle className="studio-resize-handle" aria-label="Resize the settings panel" />
+            <Panel id="studio-canvas" order={2} minSize={30}>{canvasPanel}</Panel>
+            <PanelResizeHandle className="studio-resize-handle" aria-label="Resize the inspector" />
+            <Panel id="studio-inspector" order={3} defaultSize={22} minSize={16} maxSize={45}>
+              {selected ? inspectorPanel : <div className="studio-inspector-empty" role="note">
+                <strong>Nothing selected</strong>
+                <span>Click a section in the preview, or pick one under Page layout, to edit it here.</span>
+              </div>}
+            </Panel>
+          </PanelGroup>
         )}
       </div>
       </FocusContext.Provider>

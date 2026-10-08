@@ -9,6 +9,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-editor-frame", date: "2026-10-08", title: "A roomier, easier Design studio",
+    summary: "The studio's tools now sit in a slim icon rail on the left. Drag the edges between the settings panel, the preview and the inspector to size them; the studio remembers your layout. The preview shrinks to fit your screen, so you see the whole desktop page at once (use Zoom for 100%). One \"Page to edit\" box now finds any page, collection or book by typing its name, and switching pages keeps you in the same tool. The studio reopens where you left off.",
+    links: [{ label: "Open the Design studio", tab: "settings", settingsTab: "designer" }],
+  },
+  {
     id: "studio-2-what-you-see", date: "2026-10-08", title: "What you see in the studio is what goes live",
     summary: "The shop now uses exactly the values the Design studio shows. Fixed along the way: your footer wordmark text now appears on every page (it was missing on Contact, About, Account and Tracking), product and custom-page headers list all your shop categories, the menu order is the same on every page, and an old \"Why choose us\" sample block that only showed above the catalog footer (and couldn't be edited) is gone. When a page keeps its own value for a setting, Theme settings now lists it under \"This page differs from all pages\", with buttons to use the all-pages value or make it the all-pages value.",
     links: [{ label: "Review page differences in Theme settings", tab: "settings", settingsTab: "designer" }],
