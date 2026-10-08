@@ -54,3 +54,8 @@ it("pairs dropdown text with its background and uses contrasting selected text",
   expect(appearance.rules[".DropdownItem"]).toEqual({ backgroundColor: "var(--colorBackground)", color: "var(--colorText)" });
   expect(appearance.rules[".DropdownItem--highlight"]).toEqual({ backgroundColor: "var(--colorPrimary)", color: "var(--accessibleColorOnColorPrimary)" });
 });
+
+it("keeps a white Studio field readable even when its requested text is white", async () => {
+  await render({ fieldBackground: "#ffffff", fieldText: "#ffffff" });
+  expect(fake.options.mock.calls[0][0].appearance.variables.colorText).toBe("#000000");
+});
