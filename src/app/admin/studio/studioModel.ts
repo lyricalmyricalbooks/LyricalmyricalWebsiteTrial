@@ -6,7 +6,8 @@ import { compactDesign } from "../../features/site/designModel";
 import { MAX_BLOCK_DEPTH, normalizeBlocks, resolveSharedBlocks, type SharedBlock, type StudioBlock } from "../../features/site/sharedBlocks";
 export { MAX_BLOCK_DEPTH, normalizeBlocks, resolveSharedBlocks, type SharedBlock, type StudioBlock };
 
-export type Section = { id: string; type: string; visible?: boolean; settings: Record<string, any> };
+/** `label` is the owner's own name for a section in Studio; shoppers never see it. */
+export type Section = { id: string; type: string; label?: string; visible?: boolean; settings: Record<string, any> };
 
 /** Where a list of sections lives inside `design`. */
 export type SectionTarget = { kind: "template"; id: string } | { kind: "global" };

@@ -1,3 +1,4 @@
+import { useStudioOverlay } from "./studioOverlay";
 import { layerDesign } from "./designModel";
 import { SecondaryStorefrontNav } from "./SecondaryStorefrontNav";
 import { MobileStorefrontNav } from "./MobileStorefrontNav";
@@ -23,6 +24,7 @@ export function StorefrontPageHeader({ design, pages, books }: { design: any; pa
   const location = useLocation();
   const { cartCount, setIsCartOpen } = useCart();
   const [searchOpen, setSearchOpen] = useState(false);
+  useStudioOverlay("search", setSearchOpen);
   const storefront = layerDesign(design, design?.storefront);
   const categories = storefront.categories || design?.categories || [];
   const navItems = useMemo(

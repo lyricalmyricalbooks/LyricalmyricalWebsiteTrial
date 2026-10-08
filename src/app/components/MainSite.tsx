@@ -2,6 +2,7 @@ import { SecondaryStorefrontNav } from "../features/site/SecondaryStorefrontNav"
 import { MobileStorefrontNav } from "../features/site/MobileStorefrontNav";
 import { accountsEnabled } from "../features/site/customerAccounts";
 import { motion, AnimatePresence } from "motion/react";
+import { useStudioOverlay } from "../features/site/studioOverlay";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X, Instagram, Mail, Send, Heart, User as UserIcon, Zap, Search as SearchIcon, ShoppingCart } from "lucide-react";
 import { Link, useNavigate, useLocation, useParams } from "react-router";
@@ -724,6 +725,7 @@ export default function MainSite({ setShowCatalog, showCatalog, setCurrentPage, 
   // Catalog controls: search + sort + in-stock filter
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  useStudioOverlay("search", setSearchOpen);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

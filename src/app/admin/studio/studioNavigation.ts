@@ -9,7 +9,7 @@ export function outlineMatches(section: any, query: string, label = ""): boolean
     if (value && typeof value === "object") return Object.values(value).map(strings).join(" ");
     return "";
   };
-  return `${label} ${section.type} ${strings(section.settings)}`.toLowerCase().includes(q);
+  return `${section.label || ""} ${label} ${section.type} ${strings(section.settings)}`.toLowerCase().includes(q);
 }
 
 /** A query searches every category; category browsing narrows only an empty query. */

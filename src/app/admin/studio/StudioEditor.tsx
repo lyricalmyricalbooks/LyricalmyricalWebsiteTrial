@@ -36,6 +36,9 @@ import { HOME_LAYOUT_TEMPLATES } from "./homeLayouts";
 import { applyThemeKeysToSurfaces } from "../themeScope";
 import { THEME_LIBRARY, PALETTES, THEME_APPLIED_KEYS } from "./themeLibrary";
 import { StudioOutline } from "./StudioOutline";
+import { StudioStructure } from "./StudioStructure";
+import { TARGET_LABELS } from "./targetLabels";
+import { buildPageStructure, primaryTarget, readStructure, type PageStructure, type StructureItem } from "./pageStructure";
 import { StudioInspector } from "./StudioInspector";
 import { StudioSearch } from "./StudioSearch.tsx";
 import { buildStudioIndex, type SearchEntry } from "./studioSearch";
@@ -395,6 +398,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const canvasSelectionRef = useRef<{sectionId: string; blockId: string | null} | null>(null);
   const inlineEditingRef = useRef(false);
   const [inlineEditing, setInlineEditing] = useState<string | null>(null);
+  // What the preview actually rendered (Header · Page · Footer · Pop-overs) and the part under the pointer.
+  const [structure, setStructure] = useState<PageStructure | null>(null);
+  const [hoverKey, setHoverKey] = useState<string | null>(null);
 
   const [toast, setToast] = useState<Toast>(null);
   const [askConfirm, confirmNode] = useConfirm();
@@ -402,6 +408,7 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   const [copyFilter, setCopyFilter] = useState("");
   const [savedThemes, setSavedThemes] = useState<SavedTheme[]>(() => (Array.isArray(settings?.savedThemes) ? settings.savedThemes : []));
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const postPreview = (message: any) => { try { iframeRef.current?.contentWindow?.postMessage(message, window.location.origin); } catch { /* preview not ready */ } };
   const designRef = useRef(design);
   designRef.current = design;
 
@@ -692,15 +699,68 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
   useEffect(() => { canvasSelectionRef.current = null; highlight(selectedId); }, [selectedId, highlight]);
   useEffect(() => { const t = setTimeout(() => { const canvas = canvasSelectionRef.current; highlight(canvas?.sectionId || selectedId, false, canvas ? canvas.blockId : blockId); }, 250); return () => clearTimeout(t); }, [design]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); }, [mode]);
+  useEffect(() => { setStructure(null); setHoverKey(null); }, [previewUrl, previewRevision]);
   useEffect(() => { setPreviewStatus("loading"); const timer = setTimeout(() => setPreviewStatus(s => s === "loading" ? "error" : s), 15000); return () => clearTimeout(timer); }, [previewUrl, previewRevision]);
 
+  // Open the settings behind a click-to-edit target (from the preview or the page structure).
+  const openTarget = (target: string, label = "") => {
+    const [kind, rest = ""] = target.split(":");
+    const tab: LeftTab | null = kind === "style" ? "style" : kind === "copy" ? "text" : kind === "menus" ? "menus" : kind === "pages" ? "pages" : null;
+    if (!tab) return;
+    setMobilePanel("outline");
+    setSelectedId(null); setBlockId(null);
+    if (tab === "style") { setStyleSearch(""); setStyleCategory(EXTRA_STYLE_CATEGORIES[rest] ? rest : null); }
+    setStyleFocus(tab === "style" && STYLE_GROUPS.some(g => g.id === rest) ? { id: rest, label: label || (STYLE_GROUPS.find(g => g.id === rest)?.title || rest) } : null);
+    if (tab === "text") { setCopyFilter(""); setTextCategory(rest); }
+    setLeftTab(tab);
+    const panel = kind === "menus" && (rest === "header" || rest === "footer") ? "menus:links" : tab === "style" && STYLE_GROUPS.some(g => g.id === rest) ? "style-focus" : target;
+    setFocus(f => ({ id: target, nonce: f.nonce + 1 }));
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[data-studio-panel="${CSS.escape(panel)}"]`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("studio-flash");
+      setTimeout(() => el.classList.remove("studio-flash"), 1600);
+    }, 120);
+  };
+  // Page structure rows: a built-in region opens its own controls, anything else its click-to-edit settings.
+  const openStructureItem = (item: StructureItem) => {
+    postPreview({ type: "HIGHLIGHT_NODE", key: item.key });
+    const region = item.region && REGION_GROUPS.flatMap(g => g.regions).find(r => r.id === item.region);
+    if (region) { openRegion(region.id, region.label); return; }
+    const target = primaryTarget(item.target);
+    if (target) openTarget(target, item.label);
+  };
+  const regionToggleState = (id: string) => {
+    const region = REGION_GROUPS.flatMap(g => g.regions).find(r => r.id === id);
+    if (!region) return null;
+    const values = { ...design.regions, ...(design[template.id]?.regions || {}) };
+    return { visible: regionValue(values, id, "Visible", device) !== false, required: Boolean(region.required) };
+  };
+  // Hides or shows a built-in part at the size being previewed, on every page (Undo restores it).
+  const toggleRegion = (id: string, visible: boolean) => {
+    const label = REGION_GROUPS.flatMap(g => g.regions).find(r => r.id === id)?.label || id;
+    change(d => applyGlobalStyle(d, `regions.${regionKey(id, "Visible", device)}`, visible ? undefined : false, surfaceIds),
+      { label: `${visible ? "Show" : "Hide"} ${label} on ${REGION_DEVICE_LABELS[device].toLowerCase()}` });
+  };
+  const renameSection = async (id: string) => {
+    const section = sections.find(x => x.id === id); if (!section) return;
+    const name = await askText({ title: "Rename section", label: "Name shown in Studio (shoppers never see it). Leave empty to use the section type.", defaultValue: section.label || "", confirmLabel: "Rename" });
+    if (name === null) return;
+    const label = name.trim().slice(0, 80);
+    setList(list => list.map(x => {
+      if (x.id !== id) return x;
+      const { label: _old, ...rest } = x;
+      return label ? { ...rest, label } : rest;
+    }), { label: label ? `Rename section to ${label}` : "Clear section name" });
+  };
   // preview → editor messages
   useEffect(() => {
     const h = (e: MessageEvent) => {
       if (e.origin !== window.location.origin || e.source !== iframeRef.current?.contentWindow || !e.data) return;
       const d = e.data;
       if (d.type === "PREVIEW_ERROR") say("err", `The preview hit an error: ${String(d.message).slice(0, 200)}`);
-      if (d.type === "PREVIEW_READY") { setPreviewStatus("ready"); sendPreviewState(); sendCopyMap(); highlight(selectedId); iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); }
+      if (d.type === "PREVIEW_READY") { setPreviewStatus("ready"); sendPreviewState(); sendCopyMap(); highlight(selectedId); iframeRef.current?.contentWindow?.postMessage({ type: "STUDIO_MODE", mode }, window.location.origin); postPreview({ type: "SET_TARGET_LABELS", labels: TARGET_LABELS }); }
       if (d.type === "STUDIO_ROUTE" && typeof d.href === "string") {
         const route = previewRoute(d.href, import.meta.env.BASE_URL);
         if (route && templates.some(t => t.id === route.templateId)) { setTemplateId(route.templateId); setShowGlobal(false); setSelectedId(null); setBlockId(null); }
@@ -713,27 +773,9 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
         if (action) shortcutRef.current(action);
         return;
       }
-      if (d.type === "STUDIO_TARGET" && typeof d.target === "string") {
-        const target = d.target as string;
-        const [kind, rest = ""] = target.split(":");
-        const tab: LeftTab | null = kind === "style" ? "style" : kind === "copy" ? "text" : kind === "menus" ? "menus" : kind === "pages" ? "pages" : null;
-        if (!tab) return;
-        setMobilePanel("outline");
-        setSelectedId(null); setBlockId(null);
-        if (tab === "style") { setStyleSearch(""); setStyleCategory(EXTRA_STYLE_CATEGORIES[rest] ? rest : null); }
-        setStyleFocus(tab === "style" && STYLE_GROUPS.some(g => g.id === rest) ? { id: rest, label: typeof d.label === "string" && d.label ? d.label : (STYLE_GROUPS.find(g => g.id === rest)?.title || rest) } : null);
-        if (tab === "text") { setCopyFilter(""); setTextCategory(rest); }
-        setLeftTab(tab);
-        const panel = kind === "menus" && (rest === "header" || rest === "footer") ? "menus:links" : tab === "style" && STYLE_GROUPS.some(g => g.id === rest) ? "style-focus" : target;
-        setFocus(f => ({ id: target, nonce: f.nonce + 1 }));
-        setTimeout(() => {
-          const el = document.querySelector<HTMLElement>(`[data-studio-panel="${CSS.escape(panel)}"]`);
-          if (!el) return;
-          el.scrollIntoView({ behavior: "smooth", block: "start" });
-          el.classList.add("studio-flash");
-          setTimeout(() => el.classList.remove("studio-flash"), 1600);
-        }, 120);
-      }
+      if (d.type === "STUDIO_TARGET" && typeof d.target === "string") openTarget(d.target, typeof d.label === "string" ? d.label : "");
+      if (d.type === "STRUCTURE") { const nodes = readStructure(d.nodes); if (nodes) setStructure(buildPageStructure(nodes)); return; }
+      if (d.type === "NODE_HOVER") { setHoverKey(typeof d.key === "string" ? d.key : null); return; }
       if (d.type === "CANVAS_SELECT" && d.sectionId) canvasSelectionRef.current = {sectionId:d.sectionId,blockId:d.blockId || null};
       if (d.type === "SECTION_SELECT" && d.instanceId) {
         const cur = designRef.current;
@@ -1058,12 +1100,25 @@ export function StudioEditor({ settings, onExit, onPersisted, appearance = "ligh
                   onSelect: () => { if (!selected) { say("ok", "Select a section first, then save it. Saved sections appear in Add section."); return; } saveSection(selected); } },
               ]} /></div>
             </div>}
-            {leftTab === "sections" && <StudioOutline key={showGlobal ? "__global" : template.id}
+            {leftTab === "sections" && <StudioStructure structure={structure} hoverKey={hoverKey} deviceLabel={REGION_DEVICE_LABELS[device]}
+              pageLabel={template.label} showGlobal={showGlobal} globalCount={(design.globalSections || []).length}
+              onHover={key => postPreview({ type: "HOVER_NODE", key })}
+              onOpen={openStructureItem}
+              onOpenTarget={(target, label) => openTarget(target, label)}
+              onOverlay={overlay => { if (overlay !== "close") setMode("edit"); postPreview({ type: "OPEN_OVERLAY", overlay }); }}
+              regionState={regionToggleState} onToggleRegion={toggleRegion}
+              onGlobal={() => { setShowGlobal(true); setSelectedId(null); setBlockId(null); }}
+              onPage={() => { setShowGlobal(false); setSelectedId(null); setBlockId(null); }}>
+              <StudioOutline key={showGlobal ? "__global" : template.id}
               sections={sections} selectedId={selectedId} blockId={blockId}
+              hoveredId={hoverKey?.startsWith("s:") ? hoverKey.slice(2) : null}
+              onHover={id => postPreview({ type: "HOVER_NODE", key: id ? `s:${id}` : null })}
+              onRename={renameSection}
               onSelect={(id, block) => { setSelectedId(id); setBlockId(block || null); setMobilePanel("settings"); highlight(id, true, block || null); }}
               onReorder={list => setList(() => list)} onPatch={(id, patch) => setList(list => patchSectionSettings(list, id, patch))}
               onAdd={setAdding} onDuplicate={dupSection} onDelete={delSection}
-              onToggle={id => setList(list => toggleSection(list, id))} />}
+              onToggle={id => setList(list => toggleSection(list, id))} />
+            </StudioStructure>}
             {leftTab === "style" && <div className="studio-settings-search">
               <input className="studio-search" aria-label="Search style settings" placeholder="Search colors, fonts, spacing…" value={styleSearch} onChange={e => { setStyleSearch(e.target.value); if (e.target.value) setStyleFocus(null); }} />
               <label>Editing scope<select aria-label="Style scope" value={styleScope} onChange={e => setStyleScope(e.target.value as any)}><option value="all">All pages</option><option value="page">This page only: {template.label}</option></select></label>

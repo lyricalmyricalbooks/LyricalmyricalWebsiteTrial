@@ -240,8 +240,24 @@ assistant, personalization/A-B tests, author/series/event pages, multi-language 
       `/admin#designer?t=…&b=…&c=…&tab=…&d=…`) open Studio at a page and tool — used by What's new (`links[].studio`),
       Books › edit › **Design this page**, and an owner-only **Edit in Studio** button on the live site
       (`admin/EditInStudioButton.tsx`, hidden for shoppers, in the preview and in prerendered HTML).
-- [ ] 1.3 Element manifest + typed preview bridge.
-- [ ] 1.4 Page structure tree (header → page content → footer → overlays).
+- [x] 1.3 Live page structure. Instead of a hand-written element manifest that could drift, the preview bridge
+      scans what actually rendered — every `data-fm-section`, `data-store-region` and `data-studio-target`, in
+      document order, with its zone (`header` / `footer` / `role=dialog` pop-over / page body), parent, repeat count
+      and whether it shows at the previewed size — and sends `STRUCTURE` (re-scanned after DOM changes, route changes
+      and resizes). New bridge messages: `SCAN_STRUCTURE`, `HOVER_NODE` / `HIGHLIGHT_NODE` (outline + scroll a part),
+      `NODE_HOVER` (pointer → Studio), `OPEN_OVERLAY` (`cart` / `search` / `close`, handled in the preview by
+      `features/site/studioOverlay.ts` `useStudioOverlay`, used by `CartContext`, `MainSite` and
+      `StorefrontPageHeader`) and `SET_TARGET_LABELS`: the "what do you want to edit?" pop-up now shows distinct names
+      ("Style: Header & announcement bar", "Words: Header") from `studio/targetLabels.ts`, whose test fails on any
+      storefront target without a name. Tests: `previewBridge.dom.test.ts` runs the real bridge string in jsdom.
+- [x] 1.4 Page structure tree. `studio/pageStructure.ts` (pure, tested) turns the scan into Header · Page · Footer ·
+      Pop-overs: whole-page wrappers become page settings, parts drawn inside a section stay with the section,
+      repeated parts are one row with a count. `StudioStructure.tsx` shows it around the section outline in **Page
+      layout**: rows and the preview highlight each other on hover, a row opens that part's controls (regions open their
+      own element controls), built-in regions get a per-device eye toggle (required ones show a lock), Pop-overs open the
+      shopping bag or search inside the preview, and Footer links to the every-page sections. Sections can be renamed
+      (`section.label`, Studio-only, searchable). Still to do with 1.5: multi-select, a right-click menu, dragging blocks
+      between sections and "move to another page".
 - [ ] 1.5 Unified inspector (Content / Style / Layout / Visibility) for any element, section or block.
 - [ ] 1.6 Theme settings as the global design system; slimmer search.
 - [ ] 1.7 Command palette 2.0; legacy draft path cleanup.

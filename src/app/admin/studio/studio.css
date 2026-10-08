@@ -247,3 +247,19 @@
 .studio-shortcuts dl > div { display: grid; grid-template-columns: minmax(150px, auto) 1fr; gap: 12px; align-items: center; font-size: 13px; }
 .studio-shortcuts dd { margin: 0; }
 .studio-shortcuts kbd { font: 600 11px/1.4 var(--rp-font-mono, monospace); padding: 2px 6px; border: 1px solid var(--rp-border); background: var(--rp-surface-sunken); white-space: nowrap; }
+
+/* Page structure: Header · Page · Footer · Pop-overs */
+.studio-tree-row[data-hovered=true] { box-shadow: inset 0 0 0 1px var(--rp-primary); }
+.studio-structure { padding: 4px 0 12px; }
+.studio-structure-group { border-bottom: 1px solid var(--rp-divider); }
+.studio-structure-group > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; cursor: pointer; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.studio-structure-group > summary small { margin-left: auto; font-weight: 400; color: var(--rp-text-subtle); }
+.studio-structure-group > :not(summary) { margin-left: 12px; margin-right: 12px; }
+.studio-structure-group[open] > summary { border-bottom: 1px dashed var(--rp-divider); margin-bottom: 6px; }
+.studio-structure-group > .studio-outline { margin: 0; padding-top: 0; }
+.studio-structure-sub { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--rp-text-subtle); margin: 10px 0 4px; }
+.studio-structure-builtin { border-left: 2px solid var(--rp-divider); padding-left: 6px; }
+.studio-structure-switch { display: block; width: calc(100% - 24px); text-align: left; font-size: 12px; padding: 10px; margin-bottom: 8px; border: 1px dashed var(--rp-border); color: var(--rp-primary-text); }
+.studio-structure-switch:hover, .studio-structure-switch:focus-visible { background: var(--rp-primary-tint); }
+.studio-structure-open { font-size: 11px; padding: 6px 8px; min-height: 32px; border: 1px solid var(--rp-border); white-space: nowrap; }
+.studio-structure-lock { display: inline-flex; width: 28px; justify-content: center; color: var(--rp-text-subtle); }

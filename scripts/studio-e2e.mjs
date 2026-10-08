@@ -126,6 +126,23 @@ await check("clicking a section in the preview opens its settings", desktop, asy
   await page.getByRole("button", { name: "Close settings" }).waitFor({ timeout: 8000 });
 });
 
+await check("page structure lists the header, follows the pointer and opens the bag", desktop, async page => {
+  await expectText(page, "Preview connected", 30000);
+  const panel = page.locator(".studio-structure");
+  await panel.locator("summary", { hasText: "Header" }).click();
+  const masthead = panel.getByRole("button", { name: /^Masthead/ }).first();
+  await masthead.waitFor({ timeout: 15000 });
+  await masthead.hover();
+  const frame = page.frameLocator("iframe").first();
+  await frame.locator("[data-studio-overlay]", { hasText: "Masthead" }).first().waitFor({ state: "visible", timeout: 5000 });
+  await panel.locator("summary", { hasText: "Pop-overs" }).click();
+  await panel.getByRole("button", { name: "Open in preview" }).first().click();
+  await frame.locator("[role=dialog][data-studio-label='Cart drawer']").waitFor({ state: "visible", timeout: 8000 });
+  await panel.getByRole("button", { name: /^Shopping bag/ }).click();
+  const pressed = await page.getByRole("button", { name: "Theme settings", exact: true }).first().getAttribute("aria-pressed");
+  if (pressed !== "true") throw new Error("Shopping bag did not open its settings");
+});
+
 await check("page-only overrides are listed and can follow all pages", desktop, async page => {
   await page.getByRole("button", { name: "Theme settings" }).click();
   await page.getByRole("button", { name: "Page to edit" }).click();

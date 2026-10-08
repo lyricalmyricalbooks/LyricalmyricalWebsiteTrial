@@ -10,6 +10,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "studio-2-page-structure", date: "2026-10-08", title: "See every part of a page in one list",
+    summary: "Page layout in the Design studio now lists the whole page you're previewing, top to bottom: the header and its parts, the parts built into the page (like the catalog heading and product grid) and your sections, the footer, and pop-overs. Point at a row and the preview outlines that part; point at the preview and the row lights up. Click a row to open its settings. Built-in parts have an eye button to hide them on the size you're previewing (parts shoppers need, like the newsletter button, show a lock instead). Pop-overs has \"Open in preview\" for the shopping bag and search, so you can style them without adding a book first. You can also rename a section (Section actions › Rename) — the name is only shown in the studio. When you click a part with several kinds of settings, the choices are now clearly named (for example \"Style: Header & announcement bar\" or \"Words: Header\").",
+    links: [{ label: "Open Page layout", tab: "settings", settingsTab: "designer", studio: "#designer?tab=sections" }],
+  },
+  {
     id: "studio-2-undo-shortcuts-links", date: "2026-10-08", title: "Undo everywhere, shortcuts and Edit in Studio",
     summary: "Deleting a section or applying a theme in the Design studio now happens straight away with an Undo button, instead of a browser pop-up asking first. Undo and Redo say what they will change. Press ? in the studio for keyboard shortcuts (for example Delete, Alt+arrows to move a section, 1/2/3 for desktop, tablet and phone). While you're signed in, an \"Edit in Studio\" button on your live shop opens the studio on the page you're looking at, and a book's editor has \"Design this page\".",
     links: [{ label: "Open the Design studio", tab: "settings", settingsTab: "designer" }, { label: "Open a book to design its page", tab: "catalog" }],

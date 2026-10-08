@@ -289,6 +289,13 @@ with `say("ok", text, { label: "Undo", run })`, permanent ones use Riso `useConf
 edit: `change(fn, { label, coalesce })`. Add shortcuts to `studio/shortcuts.ts` (the cheat sheet reads the same table).
 Link into Studio with `studioHash()` from `lib/studioLocation.ts` (`/admin#designer?…`); What's new links can carry `studio`.
 
+**Page structure (1.3/1.4):** Studio › Page layout lists the page the preview actually rendered — Header · Page · Footer ·
+Pop-overs — from the bridge's `STRUCTURE` scan (`studio/pageStructure.ts`, `StudioStructure.tsx`). Any new storefront part
+appears there automatically once it carries `data-studio-target` / `regionProps` and a `data-studio-label`; put header parts
+inside `<header>`, footer parts inside `<footer>` and pop-overs in a `role="dialog"`. A new click-to-edit target needs a
+name in `studio/targetLabels.ts` (its test fails otherwise). A new pop-over Studio should open goes in `STUDIO_OVERLAYS`
+and listens with `useStudioOverlay`.
+
 Studio is a Shopify-style theme editor under `/admin`. **Read
 `docs/THEME_EDITOR.md` before changing it** — it has the architecture map, the
 section/block contract, and the Studio 2.0 roadmap.
