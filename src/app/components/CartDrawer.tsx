@@ -2,7 +2,7 @@ import { CartShippingPreview } from "./CartShippingPreview";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useNavigate } from "react-router";
-import { useCart, catalogUnitPrice, MAX_LINE_QUANTITY } from "../CartContext";
+import { useCart, catalogUnitPrice, MAX_LINE_QUANTITY, repriceCart } from "../CartContext";
 import { quickAddChoice } from "../features/site/buyable";
 import { useSiteData } from "../features/site/useSiteData";
 import { getCopy } from "../features/site/storeCopy";
@@ -23,10 +23,19 @@ import { X, ShoppingBag, Minus, Plus as PlusIcon, Trash2, ArrowRight, ShieldChec
 // The shopping bag. Its look is the Studio › Style › "Cart drawer (shopping bag)" group (CSS from
 // features/site/cartDrawerStyle.ts); its words are Studio › Text & labels › Cart.
 export function CartDrawer() {
-  const { cart, addToCart, removeFromCart, updateQuantity, cartTotal, isCartOpen, setIsCartOpen } = useCart();
+  const { cart, setCart, addToCart, removeFromCart, updateQuantity, cartTotal, isCartOpen, setIsCartOpen } = useCart();
   const [shippingEstimate, setShippingEstimate] = useState<number | null>(null);
   const navigate = useNavigate();
-  const { books, settings } = useSiteData();
+  const { books, settings, fresh } = useSiteData();
+  // A bag saved earlier shows today's prices and stock caps once the live catalog has loaded,
+  // so its subtotal matches checkout. Lines that can no longer be bought are left for checkout,
+  // which removes them and tells the shopper why. Never in a Studio preview (draft catalog).
+  useEffect(() => {
+    if (!fresh || !books?.length || !cart.length) return;
+    if (new URLSearchParams(window.location.search).get("preview") === "true") return;
+    const next = repriceCart(cart, books);
+    if (next.changed && next.removed.length === 0) setCart(next.cart);
+  }, [fresh, books, cart]);
   const { formatPrice } = useCurrency();
   const drawerRef = useRef<HTMLDivElement>(null);
   // Dialog behaviour: focus moves in, Tab is contained, Escape closes, focus returns to the opener.

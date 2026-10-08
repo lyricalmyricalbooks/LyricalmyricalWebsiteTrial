@@ -441,7 +441,8 @@ export function BookEditor({ book, onClose, onSave }: BookEditorProps) {
     setLoading(true);
     try {
       if (book) {
-        await adminApi.updateBook(book.id, formData);
+        // Pass what the editor loaded so untouched stock keeps its live value.
+        await adminApi.updateBook(book.id, formData, initialData);
         toast.success("Book updated successfully");
       } else {
         await adminApi.createBook(formData);

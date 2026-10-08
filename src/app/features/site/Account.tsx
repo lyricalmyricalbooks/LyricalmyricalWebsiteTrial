@@ -105,7 +105,7 @@ export default function AccountPage() {
   async function completeEmailLinkSignIn(email: string) {
     try {
       await signInWithEmailLink(auth, email.trim(), window.location.href);
-      window.localStorage.removeItem("emailForSignIn");
+      try { window.localStorage.removeItem("emailForSignIn"); } catch { /* storage blocked */ }
       setConfirmingLink(false);
       // Drop the one-time sign-in code from the address bar.
       window.history.replaceState(null, "", window.location.pathname);
@@ -128,7 +128,9 @@ export default function AccountPage() {
     const handleEmailAuthRedirect = async () => {
       if (isSignInWithEmailLink(auth, window.location.href)) {
         setAuthLoading(true);
-        const email = window.localStorage.getItem("emailForSignIn");
+        // In-app mail browsers often block storage: ask for the email instead of failing.
+        let email: string | null = null;
+        try { email = window.localStorage.getItem("emailForSignIn"); } catch { email = null; }
         if (email) await completeEmailLinkSignIn(email);
         else setConfirmingLink(true);
         setAuthLoading(false);
@@ -292,7 +294,8 @@ export default function AccountPage() {
         handleCodeInApp: true,
       };
       await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      window.localStorage.setItem("emailForSignIn", email);
+      // The link was sent; a blocked store only means the shopper confirms their email on return.
+      try { window.localStorage.setItem("emailForSignIn", email); } catch { /* storage blocked */ }
       if (resendTo) toast.success(getCopy(settings?.design, "accountLinkSent"));
       setLinkSentTo(email);
     } catch (err: any) {
@@ -756,7 +759,7 @@ export default function AccountPage() {
                         <div>
                           <p className="text-xs font-black tracking-widest text-white">{o.orderId || o.id}</p>
                           <p className="text-[9px] tracking-widest fm-muted uppercase mt-1">
-                            {new Date(o.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })} · {getCopy(settings?.design, (o.items || []).length === 1 ? "accountBookCountOne" : "accountBookCountMany", { count: (o.items || []).length })}
+                            {new Date(o.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })} · {(() => { const copies = (o.items || []).reduce((n: number, i: any) => n + (Number(i.quantity) || 1), 0); return getCopy(settings?.design, copies === 1 ? "accountBookCountOne" : "accountBookCountMany", { count: copies }); })()}
                           </p>
                         </div>
                       </div>

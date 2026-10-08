@@ -1,4 +1,5 @@
 import { isLiveBook } from "./liveBook";
+import { displayPrice } from "./displayPrice";
 import { regionProps } from "./storefrontRegions";
 import { quickAddChoice } from "./buyable";
 import { useEffect } from "react";
@@ -91,7 +92,7 @@ export default function WishlistPage() {
                   </div>
                   <div data-studio-target="style:products" data-studio-label="Card title & price">
                     <h3 className="fm-card-title text-[11px] tracking-widest uppercase text-white/80">{book.title}</h3>
-                    {book.retailPrice ? (
+                    {displayPrice(book) > 0 ? (
                       <p className="fm-card-price-wrap fm-card-price text-[10px] text-white/40 mt-1">{formatBookPrice(book)}</p>
                     ) : null}
                   </div>

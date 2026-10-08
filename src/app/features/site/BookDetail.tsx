@@ -9,7 +9,7 @@ import {
   Package, Share2, Check, BookOpen, Globe, Ruler,
   Weight, Tag, Zap, Heart, ChevronDown, Minus, Plus
 } from "lucide-react";
-import { useCart, catalogUnitPrice, lineQuantityCap } from "../../CartContext";
+import { useCart, catalogUnitPrice, lineQuantityCap, backorderable } from "../../CartContext";
 import { useCurrency } from "../../CurrencyContext";
 import { useSiteData } from "./useSiteData";
 import { StorefrontPageHeader } from "./StorefrontPageHeader";
@@ -307,7 +307,12 @@ export default function BookDetail() {
     const stock = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any).stockLevel ?? 999);
     if (Number(stock) <= 0) return;
     // Only confirm "Added" when a line really went into the bag.
-    if (!addToCart(book, selectedVariant || undefined, showQtyStepper ? qty : 1)) return;
+    if (!addToCart(book, selectedVariant || undefined, showQtyStepper ? qty : 1)) {
+      // Already at the most this line can hold: open the bag, where the line shows its limit,
+      // instead of a click that seems to do nothing.
+      if (inBag > 0) setIsCartOpen(true);
+      return;
+    }
     funnelApi.track("add_to_cart");
     setAdded(true);
     setTimeout(() => setAdded(false), 2500);
@@ -319,9 +324,11 @@ export default function BookDetail() {
   const handleAddBothToBag = () => {
     if (!book || !bundleBook || isOutOfStock) return;
     // The edition the shopper has selected, and an in-stock edition of the companion book.
-    addToCart(book, selectedVariant || undefined);
+    const addedThis = addToCart(book, selectedVariant || undefined);
     const companion = quickAddChoice(bundleBook);
-    if (companion.inStock) addToCart(bundleBook, companion.variant);
+    const addedCompanion = companion.inStock ? addToCart(bundleBook, companion.variant) : false;
+    // Nothing went in (both lines already at their limit): just show the bag.
+    if (!addedThis && !addedCompanion) { setIsCartOpen(true); return; }
     setAddingBoth(true);
     funnelApi.track("add_to_cart");
     setTimeout(() => {
@@ -349,7 +356,7 @@ export default function BookDetail() {
   const stockLevel    = selectedVariant ? (selectedVariant.stockLevel ?? selectedVariant.stock ?? 0) : ((book as any)?.stockLevel ?? 999);
   // Copies of this edition already in the bag count toward its stock and the 99-per-line limit.
   const inBag = cart.find(item => item.id === book?.id && item.variantId === (selectedVariant?.id || undefined))?.quantity || 0;
-  const qtyMax = Math.max(1, lineQuantityCap(stockLevel === 999 ? undefined : Number(stockLevel)) - inBag);
+  const qtyMax = Math.max(1, lineQuantityCap(stockLevel === 999 || backorderable(book, selectedVariant) ? undefined : Number(stockLevel)) - inBag);
   useEffect(() => { setQty(q => Math.min(q, qtyMax)); }, [qtyMax]);
   // Oversold stock goes below zero: that is sold out too, not "in stock".
   // An edition with no usable price can't be bought either; treat it like sold out rather than fake an add.
