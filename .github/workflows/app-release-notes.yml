@@ -1,0 +1,20 @@
+name: App release notes
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  release-note:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require an app update in every PR
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if ! git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -qx 'src/app/admin/appUpdates.ts'; then
+            echo '::error::Add a new entry to src/app/admin/appUpdates.ts describing this PR and linking to its affected admin screens.'
+            exit 1
+          fi

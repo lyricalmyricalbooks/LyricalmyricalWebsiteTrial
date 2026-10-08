@@ -615,3 +615,6 @@ completion agree (including Stripe/PayPal webhooks and reconciliation). Existing
 order-operations access patterns require no new rules or composite indexes; inspection remains
 private. Local handler tests and provider-isolated browser fixtures prove workflow behavior,
 not deployed functions, real payment/refund acceptance, carrier rates or email delivery.
+
+## App release notes
+Every PR must prepend one entry to `src/app/admin/appUpdates.ts`: stable unique ID, date (YYYY-MM-DD), plain-language title and summary, and shortcuts to the affected admin screens (`tab`, optional `settingsTab`, using IDs from `riso/nav.ts`). Explain user-visible benefits honestly; do not claim a backend deployment or live provider verification from local checks. For maintenance-only PRs, say what reliability changed and link to its relevant workspace. Keep older entries for View all updates. The admin sidebar's What's new box shows the newest entry bundled with the deployed frontend; it is not a live GitHub feed.

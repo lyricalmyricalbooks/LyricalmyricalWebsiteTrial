@@ -28,6 +28,7 @@ import {
   IconButton, Dialog, ToastProvider, Toggle, SyncChip, useOnline, type NavEntry,
 } from "./riso/components";
 import { GlobalSearch, ActivityLogDialog } from "./riso/shellParts";
+import { WhatsNew } from "./WhatsNew";
 import { NAV, PAGE_COPY } from "./riso/nav";
 
 const openSite = () => {
@@ -344,6 +345,8 @@ export function Dashboard() {
               </div>
             </>}
             footer={
+              <>
+              <WhatsNew appearance={appearance} onHistoryOpen={() => setSidebarOpen(false)} onNavigate={(link) => { goTo(link.tab); if (link.settingsTab) setSettingsTab(link.settingsTab); }} />
               <div className="rp-account-card">
                 <div className="rp-account-row">
                   {avatar}
@@ -357,6 +360,7 @@ export function Dashboard() {
                   <SecondaryButton size="sm" icon={<LogOut size={14} aria-hidden />} onClick={handleLogout}>Log Out</SecondaryButton>
                 </div>
               </div>
+              </>
             }
           />
         }
