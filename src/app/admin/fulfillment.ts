@@ -41,12 +41,13 @@ export function queueOf(o: any): string {
  // A payment that didn't match the order total (amount or currency) was not accepted: review it.
  if (o.paymentMismatch && !o.paymentMismatch.resolvedAt && o.paymentStatus !== "paid") return "Needs attention";
  if (o.paymentStatus !== "paid") return "Unpaid";
- // An open chargeback: hold the books until it is settled.
- if (disputeOpen(o)) return "Needs attention";
  if (o.items?.length && !physicalItems(o).length) return "Completed";
  const method = fulfillmentMethod(o);
  if (["delivered", "collected"].includes(o.fulfillmentStatus)) return "Completed";
  if (o.fulfillmentStatus === "out_for_delivery" || (method === "shipping" && o.fulfillmentStatus === "shipped") || o.status === "completed") return "In transit";
+ // An open chargeback on an order not yet sent or handed over: hold the books until it is
+ // settled. Sent parcels stay In transit so delivery proof and tracking can still be recorded.
+ if (disputeOpen(o)) return "Needs attention";
  if (o.fulfillmentStatus === "ready_for_pickup") return "Ready for pickup";
  if (o.fulfillmentStatus === "ready_for_delivery") return "Ready for local delivery";
  const needsAddressReview = method !== "pickup" && (addressIssues(o).length || o.operations?.addressReviewed !== addressKey(o));

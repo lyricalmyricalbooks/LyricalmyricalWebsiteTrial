@@ -15,6 +15,10 @@ describe("disputes in the fulfilment desk", () => {
     expect(queueOf(order)).toBe("Needs attention");
     expect(dispatchProblem(order)).toMatch(/disputed/);
   });
+  it("keeps a parcel already sent In transit so delivery proof can be recorded", () => {
+    expect(queueOf({ ...paid, fulfillmentStatus: "shipped", status: "completed", disputeStatus: "needs_response" })).toBe("In transit");
+    expect(queueOf({ ...paid, fulfillmentStatus: "delivered", disputeStatus: "needs_response" })).toBe("Completed");
+  });
 });
 
 describe("paid-after-cancel orders", () => {

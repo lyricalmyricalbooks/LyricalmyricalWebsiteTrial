@@ -1,5 +1,5 @@
 import { newOrderAccessKey, rememberOrderAccess, savedOrderAccess, orderAccessHeaders } from "../lib/orderAccessClient";
-import { addressKey, addressIssues, packingKey, dispatchProblem, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
+import { addressKey, addressIssues, packingKey, dispatchProblem, disputeOpen, queueOf, fulfillmentMethod, trackingFields } from "./fulfillment";
 import { themeWrite } from "./themeWrite";
 import { splitWebsiteSecrets, splitNotificationSecrets, type SecretPatch } from "./privateKeys";
 import { toCountryCodes } from "./shippingCountries";
@@ -879,6 +879,8 @@ export const adminApi = {
         const current = String(o.fulfillmentStatus || "");
         if (current !== String(payload.expectedStatus || "")) throw new Error("This order changed. Reload before continuing.");
         if (operations.hold) throw new Error("Release the fulfillment hold before continuing.");
+        // Books already on their way may still be marked delivered (proof for the dispute).
+        if (disputeOpen(o) && current !== "out_for_delivery") throw new Error("This payment is disputed. Don't hand over the books until the dispute is settled in Stripe.");
         if (operations.packed !== packingKey(o)) throw new Error("Complete the packing checklist first.");
         if (method === "local_delivery" && (addressIssues(o).length || operations.addressReviewed !== addressKey(o))) throw new Error("Review and confirm the delivery address first.");
         const next = method === "pickup"

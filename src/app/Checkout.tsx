@@ -973,8 +973,11 @@ export function Checkout() {
     const state = String(address?.state || "").trim().toLowerCase();
     return !regions || regions.some(([code, name]) => code.toLowerCase() === state || name.toLowerCase() === state);
   };
+  // Pickup: books are taxed at the chosen location, so nothing is known until one is picked;
+  // any e-books in the bag also need the billing address.
+  const pickupQuote = fulfillmentSelection.method === "pickup" ? localQuotes.find(quote => quote.id === fulfillmentSelection.optionId && quote.method === "pickup") : undefined;
   const taxKnown = catalogState === "ready" && (fulfillmentSelection.method === "pickup"
-    ? physicalSubtotalAfterDiscount >= Math.max(0, cartTotal - discountAmount) || taxAddressKnown(pickupNeedsAddress && !customer.billingAddress.state ? customer.address : customer.billingAddress)
+    ? !!pickupQuote && taxAddressKnown(pickupQuote.address) && (physicalSubtotalAfterDiscount >= Math.max(0, cartTotal - discountAmount) || taxAddressKnown(pickupNeedsAddress && !customer.billingAddress.state ? customer.address : customer.billingAddress))
     : taxAddressKnown(customer.address));
 
   const getActiveShippingDetails = () => {
@@ -1199,7 +1202,7 @@ export function Checkout() {
         const response = await functionFetch("createStripeCheckoutSession", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "completeFreeOrder", orderId: freeOrderId, currency: currency.toLowerCase() }),
+          body: JSON.stringify({ action: "completeFreeOrder", orderId: freeOrderId, previousOrderId: previousAttempt(), currency: currency.toLowerCase() }),
         });
         const result = await response.json().catch(() => ({}));
         if (!response.ok) throw discountRejection(result) || serverRefusal(response, result) || new CopyError(checkoutDesign, "coFreeOrderError");
