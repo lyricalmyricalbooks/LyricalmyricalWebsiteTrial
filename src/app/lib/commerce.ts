@@ -122,8 +122,9 @@ export const orderApi = {
         charged,
         o.checkoutCurrency || "CAD",
         o.refundedAt || "",
-        o.refund?.amount != null ? money(o.refund.amount) : "",
-        o.refund?.currency || "",
+        // A partial refund (Stripe/PayPal Dashboard) keeps the order paid and only records refundedAmountMinor.
+        o.refund?.amount != null ? money(o.refund.amount) : Number(o.refundedAmountMinor) > 0 ? money(Number(o.refundedAmountMinor) / 100) : "",
+        o.refund?.currency || (Number(o.refundedAmountMinor) > 0 ? String(o.expectedCurrency || o.checkoutCurrency || "CAD").toUpperCase() : ""),
         o.trackingCarrier || "",
         o.trackingNumber || "",
         (o.items || []).reduce((acc: number, i: any) => acc + (i.quantity || 0), 0),

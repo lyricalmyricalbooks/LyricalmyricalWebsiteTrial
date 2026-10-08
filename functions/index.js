@@ -34,7 +34,7 @@ const { resolveCountry } = require("./shippingGeo");
 const { REQUIRED_WEBHOOK_EVENTS, modesToTry, intentAsSession, paidIntentOrderId, webhookEndpointReport, signingSecrets, reversalState, ordersDueReversalCheck } = require("./stripeRecovery");
 const { orderMoneyFmt, refundAmountText, withoutTrackingLines } = require("./emailMoney");
 const { optOutId, unsubscribeToken, tokenMatches, footerAddress, normEmail: normMarketingEmail } = require("./marketingOptOut");
-const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken } = require("./paymentGuards");
+const { checkoutCurrencyOf, paidAmountCheck, toMinor, discountDateState, purchaseProblem, paypalCreateRequestId, lateFailureMayMarkFailed, refundProviderOf, paypalReversalCaptureId, discountUsedUp, checkoutRefusal, manualPaidRefusal, stripeIntentKey, cancelRefusal, mismatchResolved, stripePaymentTaken, paypalRefundedTotalMinor } = require("./paymentGuards");
 const { canViewOrder, publicOrderView } = require("./orderAccess");
 const { returnTransition, publicReturn, returnRestockItems } = require("./returns");
 const { orderRequestProblem, orderRequestRecord, privacyRequestRecord } = require("./customerRequests");
@@ -512,23 +512,35 @@ function matchTaxRate(rates, country, state) {
 // Loads a discount by code and enforces active / expiry / usage limits.
 // Throws with a customer-readable message when the code cannot be used.
 async function fetchValidDiscount(code) {
+  // Pasted/autocorrected codes often carry spaces ("SUMMER25 ").
+  const clean = String(code || "").trim().toUpperCase();
+  if (!clean) throw new Error("Invalid or expired discount code");
   const snap = await db
     .collection("discounts")
-    .where("code", "==", String(code || "").toUpperCase())
-    .limit(1)
+    .where("code", "==", clean)
+    .limit(10)
     .get();
   if (snap.empty) throw new Error("Invalid or expired discount code");
-  const docSnap = snap.docs[0];
-  const data = docSnap.data();
-  const isActive = data.isActive ?? data.active ?? true;
-  if (!isActive) throw new Error("This code is not currently active");
-  const dateState = discountDateState(data);
-  if (dateState === "not_started") throw new Error("This code is not active yet");
-  if (dateState === "expired") throw new Error("This code has expired");
-  if (data.usageLimit && (data.usageCount || 0) >= data.usageLimit) {
-    throw new Error("This code has reached its usage limit");
+  // A code re-created for a new campaign can sit beside its expired/used-up predecessor:
+  // use whichever copy is usable, and only report a problem when none is.
+  let firstProblem = null;
+  for (const docSnap of snap.docs) {
+    const data = docSnap.data();
+    const problem = discountProblem(data);
+    if (!problem) return { id: docSnap.id, ...data };
+    firstProblem = firstProblem || problem;
   }
-  return { id: docSnap.id, ...data };
+  throw new Error(firstProblem);
+}
+
+function discountProblem(data) {
+  const isActive = data.isActive ?? data.active ?? true;
+  if (!isActive) return "This code is not currently active";
+  const dateState = discountDateState(data);
+  if (dateState === "not_started") return "This code is not active yet";
+  if (dateState === "expired") return "This code has expired";
+  if (data.usageLimit && (data.usageCount || 0) >= data.usageLimit) return "This code has reached its usage limit";
+  return null;
 }
 
 // Computes the discount amount from server-trusted item prices.
@@ -1215,6 +1227,10 @@ exports.capturePayPalOrder = onBrowserRequest(
       if (checkoutRefusal(orderDoc.data()) === "closed") return res.status(409).json({ error: "This order was cancelled. Your payment was not taken.", code: "order_closed" });
       if (!await reserveForConfirmedPayment(orderId, "PayPal", paypalOrderId)) return res.status(409).json({ error: "Stock is no longer available. Your payment was not taken.", code: "stock_unavailable" });
       const config = await getPayPalConfig();
+      // Capture in the PayPal account the order was created in, even if the shop switched
+      // sandbox/live while the shopper was approving (same rule as refunds).
+      if (orderDoc.data().paypalMode === "test") config.testMode = true;
+      else if (orderDoc.data().paypalMode === "live") config.testMode = false;
       const captured = await paypalRequest(config, `/v2/checkout/orders/${encodeURIComponent(paypalOrderId)}/capture`, {
         // One id per PayPal order: a new PayPal order (new total, new attempt) gets its own capture.
         method: "POST", headers: { "PayPal-Request-Id": `capture-${orderId}-${paypalOrderId}` }, body: "{}",
@@ -1268,7 +1284,8 @@ exports.paypalWebhook = onRequest(
           const refund = req.body.resource || {};
           const fullAmount = req.body.event_type !== "PAYMENT.CAPTURE.REFUNDED";
           const order = match.docs[0].data();
-          const refundedMinor = refund.amount?.value != null ? toMinor(refund.amount.value) : null;
+          // Running total across every PayPal refund of this capture, not just this one.
+          const refundedMinor = fullAmount ? (refund.amount?.value != null ? toMinor(refund.amount.value) : null) : paypalRefundedTotalMinor(order, refund);
           const orderMinor = Number(order.expectedAmountMinor) || null;
           if (fullAmount || refundedMinor == null || orderMinor == null || refundedMinor >= orderMinor) {
             await applyOrderRefund(match.docs[0].id, {
@@ -1279,7 +1296,8 @@ exports.paypalWebhook = onRequest(
             const now = new Date().toISOString();
             await match.docs[0].ref.update({
               refundedAmountMinor: refundedMinor, partiallyRefunded: true, updatedAt: now,
-              activity: admin.firestore.FieldValue.arrayUnion({ type: "event", message: `Partial refund in PayPal: ${(refundedMinor / 100).toFixed(2)} ${refund.amount?.currency_code || ""}. Order stays paid — adjust what you ship.`, createdAt: now }),
+              ...(refund.id ? { paypalRefundIds: admin.firestore.FieldValue.arrayUnion(refund.id) } : {}),
+              activity: admin.firestore.FieldValue.arrayUnion({ type: "event", message: `Partial refund in PayPal: ${(refundedMinor / 100).toFixed(2)} ${refund.amount?.currency_code || ""} refunded so far. Order stays paid — adjust what you ship.`, createdAt: now }),
             });
           }
         }
@@ -3443,10 +3461,8 @@ exports.onOrderUpdated = onDocumentUpdated(
       const order = after;
 
       // Compile digital items download section if any digital formats exist
-      const digitalItems = (order.items || []).filter(item => {
-        const format = (item.format || "").toLowerCase();
-        return format.includes("e-book") || format.includes("epub") || format.includes("pdf") || format.includes("audiobook");
-      });
+      // Same digital rule as downloads, returns and labels ("Ebook", "Digital edition", digital: true).
+      const digitalItems = (order.items || []).filter(item => item && !isPhysicalItem(item));
 
       let downloadSection = "";
       if (digitalItems.length > 0) {
@@ -3509,7 +3525,7 @@ exports.onOrderUpdated = onDocumentUpdated(
           <p><strong>Order:</strong> ${escapeHtml(order.orderId || orderId)} &nbsp;·&nbsp; <strong>${moneyFmt(order.total)}</strong></p>
           <p style="margin:16px 0 20px;"><a href="${adminOrderUrl}" style="display:inline-block;background:#111;color:#fff;padding:12px 24px;text-decoration:none;font-size:14px;font-weight:bold;">Fulfil this order &rarr;</a></p>
           <p><strong>Customer:</strong> ${escapeHtml(order.customer.name)} &lt;${escapeHtml(order.customer.email)}&gt;${order.customer.phone ? ` · ${escapeHtml(order.customer.phone)}` : ""}</p>
-          <p><strong>Ship to:</strong> ${adminAddr}</p>
+          <p><strong>Ship to:</strong> ${escapeHtml(adminAddr)}</p>
           <p><strong>Payment:</strong> ${escapeHtml(order.paymentMethod || "Stripe")}</p>
           ${itemsTable}
           <p style="margin-top:24px;"><a href="${adminOrderUrl}">Open the order in the admin</a> to pack it, buy a label and mark it shipped.</p>

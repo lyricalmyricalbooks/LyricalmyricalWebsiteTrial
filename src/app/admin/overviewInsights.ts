@@ -120,12 +120,14 @@ export function formatMix(orders: Order[], books: Book[]) {
   let print = 0, digital = 0;
   orders.forEach(o => (o.items || []).forEach((i: any) => {
     const book = byId.get(i.id);
-    const format = book?.format || "Unspecified";
+    // The edition actually sold (recalculateOrder stores its format/digital on the line).
+    const format = i.format || book?.format || "Unspecified";
     const rev = (Number(i.quantity) || 0) * (Number(i.price) || 0);
     const row = byFormat.get(format) || { format, units: 0, revenue: 0 };
     row.units += Number(i.quantity) || 0; row.revenue += rev;
     byFormat.set(format, row);
-    if (isDigitalBook(book)) digital += rev; else print += rev;
+    const lineDigital = i.digital ?? i.isDigital;
+    if (lineDigital === true || (lineDigital == null && isDigitalBook(book))) digital += rev; else print += rev;
   }));
   const total = print + digital;
   return {
@@ -152,7 +154,9 @@ export function titleStock(paid: Order[], books: Book[], now = Date.now()): Titl
       if (t > (lastSale.get(i.id) || 0)) lastSale.set(i.id, t);
     });
   });
-  return books.filter(b => b.status !== "draft" && !isDigitalBook(b)).map(b => {
+  // Stock with "Track inventory" switched off (print-on-demand) is never sold out on the
+  // storefront, so it has no shelf count to watch here either.
+  return books.filter(b => b.status !== "draft" && !isDigitalBook(b) && (b as any).trackInventory !== false).map(b => {
     const stock = Number(b.stockLevel) || 0;
     const s30 = sold30.get(b.id) || 0;
     const last = lastSale.get(b.id);
@@ -174,7 +178,7 @@ export const dormantStock = (rows: TitleStock[]) =>
 
 /** Retail value of print stock on hand, from each title's retail price. */
 export function stockValue(books: Book[]) {
-  const print = books.filter(b => b.status !== "draft" && !isDigitalBook(b));
+  const print = books.filter(b => b.status !== "draft" && !isDigitalBook(b) && (b as any).trackInventory !== false);
   const units = print.reduce((s, b) => s + (Number(b.stockLevel) || 0), 0);
   const value = print.reduce((s, b) => s + (Number(b.stockLevel) || 0) * (Number(b.retailPrice ?? b.price) || 0), 0);
   return { units, value, soldOut: print.filter(b => (Number(b.stockLevel) || 0) <= 0).length, titles: print.length };

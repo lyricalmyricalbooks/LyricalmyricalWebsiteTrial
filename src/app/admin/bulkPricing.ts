@@ -26,7 +26,7 @@ export function catalogToCsv(books: any[]): string {
   const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""').replace(/^([=+\-@])/, "'$1")}"`;
   const head = ["Title", "Author", "Format", "ISBN", "SKU", "Status", "Featured", "Price", "Stock"];
   return [head.map(cell).join(","), ...books.map((b) => [
-    b.title, b.authorName, b.format, b.isbn, b.sku, b.status || "published", b.featured ? "yes" : "no",
+    b.title, b.authorName, b.format, b.isbn, b.sku, b.status || "published", (b.isFeatured ?? b.featured) ? "yes" : "no",
     Number(b.retailPrice || 0).toFixed(2), b.stockLevel ?? "",
   ].map(cell).join(","))].join("\n");
 }

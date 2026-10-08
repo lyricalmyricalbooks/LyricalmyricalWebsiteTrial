@@ -1,5 +1,6 @@
 import { motion, useMotionValue, useSpring } from "motion/react";
 import { quickAddChoice } from "../features/site/buyable";
+import { displayPrice, showsSale } from "../features/site/displayPrice";
 import { createContext, useContext, useEffect, useId, useRef, useState } from "react";
 import { Send, ChevronLeft, ChevronRight, MapPin, Clock } from "lucide-react";
 import { useCurrency } from "../CurrencyContext";
@@ -1160,7 +1161,7 @@ export function FeaturedProductSection({ settings, books, onProductClick, enable
   if (!target) return null;
 
   const photo = target.photos?.[0]?.url;
-  const price = target.isOnSale && target.salePrice ? target.salePrice : target.retailPrice;
+  const price = displayPrice(target);
 
   return (
     <section style={bgStyle(settings)}>
@@ -1287,8 +1288,8 @@ export function ProductGridHeaderSection({ settings, books, onProductClick, enab
           data-studio-gap="gridGap" data-studio-row-gap="rowGap" style={{ columnGap: settings.gridGap ?? 18, rowGap: settings.rowGap ?? 54 }}
         >
           {items.map((book: any, idx: number) => {
-            const onSale = !!book.isOnSale && book.salePrice > 0 && book.salePrice < (book.retailPrice ?? 0);
-            const price = onSale ? book.salePrice : book.retailPrice;
+            const onSale = showsSale(book);
+            const price = displayPrice(book);
             return (
               <AnimationContainer key={book.id || idx} enabled={enableAnimations} delay={idx * 0.04}>
                 <button
@@ -1494,7 +1495,7 @@ export function ProductShowcaseGridSection({ settings, books, onProductClick, en
         </AnimationContainer>
         <div className={`${gridId} grid gap-6`}>
           {items.map((book: any, idx: number) => {
-            const onSale = !!book.isOnSale && book.salePrice > 0 && book.salePrice < (book.retailPrice ?? 0);
+            const onSale = showsSale(book);
             // Books sold in editions are added as an in-stock edition (see buyable.ts).
             const quick = quickAddChoice(book);
             const soldOut = !quick.inStock;

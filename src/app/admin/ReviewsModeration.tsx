@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, limit, where } from "firebase/firestore";
 import { Check, MessageSquare, Star, Trash2, X } from "lucide-react";
 import { adminApi } from "./api";
 import { filterReviews, reviewStats } from "./reviewInsights";
@@ -41,8 +41,14 @@ function Queue() {
   async function load() {
     setLoading(true); setError(false);
     try {
-      const snap = await getDocs(query(collection(db, "reviews"), orderBy("createdAt", "desc"), limit(200)));
-      const list: Review[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      // Newest 200 for browsing, plus every pending review so older ones never drop out of the queue.
+      const [snap, pendingSnap] = await Promise.all([
+        getDocs(query(collection(db, "reviews"), orderBy("createdAt", "desc"), limit(200))),
+        getDocs(query(collection(db, "reviews"), where("status", "==", "pending"))),
+      ]);
+      const byId = new Map<string, Review>();
+      for (const d of [...snap.docs, ...pendingSnap.docs]) byId.set(d.id, { id: d.id, ...(d.data() as any) });
+      const list: Review[] = [...byId.values()].sort((a: any, b: any) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
       // Reviewer emails are kept in the admin-only reviewContacts collection.
       const contacts = await reviewsApi.contactsFor(list).catch(() => ({} as Record<string, string>));
       setReviews(list.map((r) => ({ ...r, email: contacts[r.id] || undefined })));
@@ -97,7 +103,9 @@ function Queue() {
     load();
   };
 
-  const bulk = [...selected];
+  // Only reviews visible in the current search/rating view: a narrowed search must never
+  // approve or reject reviews the owner can no longer see.
+  const bulk = list.map((r) => r.id).filter((id) => selected.has(id));
 
   return (
     <div className="rp-stack">

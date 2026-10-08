@@ -24,3 +24,10 @@ describe("maximum discount cap", () => {
     expect(validateDiscountDraft({ ...valid, maxDiscountAmount: "-3" }, "2026-01-01").maxDiscountAmount).toBeTruthy();
   });
 });
+
+describe("duplicate codes", () => {
+  it("refuses a code another discount already uses, whatever its case", () => {
+    expect(validateDiscountDraft(valid, "2026-10-08", ["save10 "]).code).toMatch(/already uses/);
+    expect(validateDiscountDraft(valid, "2026-10-08", ["OTHER"]).code).toBeUndefined();
+  });
+});

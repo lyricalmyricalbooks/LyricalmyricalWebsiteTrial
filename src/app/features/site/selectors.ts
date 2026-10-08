@@ -1,3 +1,4 @@
+import { releaseArrived } from "./liveBook";
 import { placeholderImage } from "./constants";
 import type { Book } from "./types";
 import { bookInCategory } from "./navItems";
@@ -28,7 +29,7 @@ export function resolveLogoPosition(surfaceDesign: any, fallbackDesigns: any[] =
 }
 
 export function getFeaturedBooks(books: Book[]) {
-  const featuredBooks = books.filter((book) => book.status === "published" && book.isFeatured).slice(0, 4);
+  const featuredBooks = books.filter((book) => book.status === "published" && (book.isFeatured ?? book.featured) === true).slice(0, 4);
   // Nothing starred as featured → show the first eligible published books rather than invented ones.
   return featuredBooks.length > 0 ? featuredBooks : books.filter((book) => book.status === "published").slice(0, 4);
 }
@@ -44,7 +45,7 @@ export function getFilteredItems(books: Book[], activeCategory: any, nowISO: str
   return books.filter(
     (book) =>
       book.status === "published" &&
-      (!book.scheduleDate || book.scheduleDate <= nowISO) &&
+      releaseArrived(book.scheduleDate, nowISO) &&
       bookInCategory(book, activeCategory, allCategories),
   );
 }

@@ -41,3 +41,20 @@ test('only live, published books (as an edition when they have editions) can be 
   expect(purchaseProblem({ status: 'published', variants: [{ id: 'pb' }] }, null, now)).toBe('choose_edition');
   expect(purchaseProblem({ status: 'published', variants: [{ id: 'pb' }] }, 'pb', now)).toBeNull();
 });
+
+test('PayPal partial refunds add up to a full refund', () => {
+  const { paypalRefundedTotalMinor } = createRequire(import.meta.url)('./paymentGuards');
+  expect(paypalRefundedTotalMinor({}, { id: 'r1', amount: { value: '10.00' } })).toBe(1000);
+  expect(paypalRefundedTotalMinor({ refundedAmountMinor: 1000, paypalRefundIds: ['r1'] }, { id: 'r2', amount: { value: '10.00' } })).toBe(2000);
+  // A repeated delivery of the same refund doesn't count twice.
+  expect(paypalRefundedTotalMinor({ refundedAmountMinor: 1000, paypalRefundIds: ['r1'] }, { id: 'r1', amount: { value: '10.00' } })).toBe(1000);
+  // PayPal's own running total wins when sent.
+  expect(paypalRefundedTotalMinor({ refundedAmountMinor: 500 }, { id: 'r3', amount: { value: '5.00' }, seller_payable_breakdown: { total_refunded_amount: { value: '20.00' } } })).toBe(2000);
+});
+
+test('a plain release date opens in Toronto, matching the storefront', () => {
+  const { purchaseProblem } = createRequire(import.meta.url)('./paymentGuards');
+  const book = { status: 'published', scheduleDate: '2026-10-08' };
+  expect(purchaseProblem(book, null, '2026-10-08T00:30:00.000Z')).toBe('unavailable');
+  expect(purchaseProblem(book, null, '2026-10-08T04:30:00.000Z')).toBeNull();
+});
