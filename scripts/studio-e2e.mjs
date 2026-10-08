@@ -42,7 +42,10 @@ async function check(name, viewport, run, query = "") {
     if (errors.length) throw new Error(`page errors: ${errors.join(" | ")}`);
     results.push({ name, ok: true });
   } catch (error) {
-    results.push({ name, ok: false, error: String(error?.message || error).split("\n")[0] });
+    // Keep Playwright's "waiting for <locator>" line so a CI failure names the element it waited for.
+    const lines = String(error?.message || error).split("\n");
+    const waited = lines.find(l => /waiting for/.test(l));
+    results.push({ name, ok: false, error: [lines[0], waited?.trim()].filter(Boolean).join(" · ") });
   } finally {
     if (shots) await page.screenshot({ path: join(shots, name.replace(/\W+/g, "-") + ".png") }).catch(() => {});
     await page.close();
