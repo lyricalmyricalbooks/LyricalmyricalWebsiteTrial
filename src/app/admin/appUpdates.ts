@@ -9,6 +9,11 @@ export type AppUpdate = {
 // Newest first. Every PR adds an entry; links open the affected admin workspace.
 export const APP_UPDATES: AppUpdate[] = [
   {
+    id: "seamless-page-navigation", date: "2026-10-08", title: "Smoother storefront page switching",
+    summary: "About, Contact and other custom pages open from the loaded published content without briefly clearing the screen. Navigation stays visible during initial page loading.",
+    links: [{ label: "Review pages in Studio", tab: "settings", settingsTab: "design" }],
+  },
+  {
     id: "stripe-field-contrast", date: "2026-10-08", title: "Readable card payment fields",
     summary: "Card fields and country menus automatically use readable text when checkout field colours have too little contrast. Labels still follow your checkout design.",
     links: [{ label: "Review checkout design", tab: "settings", settingsTab: "design" }],
