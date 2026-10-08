@@ -794,6 +794,8 @@ on the order). Both checks run in `fetchValidDiscount` / both checkout paths; to
 
 ## Crawlable public HTML
 
+**Richer book listings (8 October 2026):** Book JSON-LD adds `bookFormat`, `numberOfPages`, `datePublished`, `bookEdition` (selected edition wins) and `gtin13` (only a check-digit-valid ISBN-13, `isbn13`) — blank fields are omitted. Fallback meta descriptions end on a word (`snippet`); custom ones stay exact. `useSEO` sets `max-image-preview:large` on indexable pages, drops empty `og:image`/`twitter:image` (card falls back to `summary`), adds `og:image:alt`, optional `product:price:*`/`product:availability` (PDP passes `product`), and removes index.html's no-JS fallback `#seo-jsonld-static`. PDP photos use each photo's Media alt text, falling back to Text & labels `bookPhotoAlt`.
+
 **Rich results (October 2026):** pages emit one JSON-LD `@graph` — home BookStore+WebSite, book Product/Book + breadcrumb + star rating from approved reviews only (`reviewsApi.listApproved`, shared with the reviews section), collection CollectionPage/ItemList, page breadcrumbs (`lib/bookSeo.ts`, `docs/SEO_CRAWLABILITY.md`). The sitemap lists book photos as `image:image`.
 
 Production builds render the public sitemap into real HTML route documents via

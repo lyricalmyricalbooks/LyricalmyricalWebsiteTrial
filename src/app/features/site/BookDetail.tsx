@@ -255,17 +255,22 @@ export default function BookDetail() {
     stockLevel: selectedVariant.stockLevel ?? selectedVariant.stock ?? 0,
     onBackorder: selectedVariant.onBackorder,
     sku: selectedVariant.sku || book.sku,
+    edition: selectedVariant.name || book.edition,
+    format: (selectedVariant as any).format || book.format,
   } : book;
+  const seoPrice = book ? (selectedVariant ? convertPrice(selectedVariant.price) : getBookPrice(book)) : 0;
+  const seoOffer = seoBook ? bookStructuredData(seoBook, { currency, price: seoPrice, url: bookUrl }).offers.availability : "";
   useSEO(book ? {
     ...bookMetadata(book),
     description: bookMetadata(book).description || getCopy(settings?.design, "seoBookDescription", { title: book.title }),
     url: bookUrl,
     type: "product",
+    product: { price: seoPrice, currency, availability: seoOffer.endsWith("InStock") ? "in stock" : seoOffer.endsWith("BackOrder") ? "backorder" : "out of stock" },
     noindex: book.seoNoindex === true || (!!book.status && book.status !== "published"),
     jsonLd: [
       bookStructuredData(seoBook!, {
         currency,
-        price: selectedVariant ? convertPrice(selectedVariant.price) : getBookPrice(book),
+        price: seoPrice,
         url: bookUrl,
         reviews: reviewsReady ? seoReviews!.list : [],
         seller: getCopy(settings?.design, "siteName"),
@@ -634,7 +639,7 @@ export default function BookDetail() {
                         <motion.img
                           key={activePhoto}
                           src={activeUrl}
-                          alt={getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: activePhoto + 1 })}
+                          alt={(activeUrl === photos[activePhoto]?.url && photos[activePhoto]?.altText?.trim()) || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: activePhoto + 1 })}
                           className={`w-full h-full ${productImageFitClass}`}
                           decoding="async"
                           {...(activePhoto === 0 ? { fetchpriority: "high" } : {})}
@@ -744,7 +749,7 @@ export default function BookDetail() {
                 <div className={productImageLayout === "grid" ? "grid grid-cols-2 gap-4" : "space-y-4"}>
                   {photos.map((photo: any, i: number) => (
                     <div key={i} className={`${productImageLayout === "grid" && i === 0 ? "col-span-2" : ""} relative fm-surface fm-pdp-frame fm-photo-frame-pdp overflow-hidden`} style={{ aspectRatio: productImageAspect, borderRadius: `${productBorderRadius}px` }}>
-                      <img src={photo.url} alt={getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
+                      <img src={photo.url} alt={photo.altText?.trim() || getCopy(settings?.design, "bookPhotoAlt", { title: book.title, n: i + 1 })} loading={i === 0 ? "eager" : "lazy"} {...(i === 0 ? { fetchpriority: "high" } : {})} decoding="async" className={`w-full h-full ${productImageFitClass}`} />
                       {i === 0 && isOutOfStock && (
                         <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
                           <span
